@@ -15,8 +15,8 @@
 // The Codex CLI honours both keys; the difference is that those credentials are
 // its own, and the deck is a bystander that reads them. So the deck checks
 // before it attaches anything, and says so rather than going quietly dark.
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -41,7 +41,7 @@ writeFileSync(join(process.env.CODEX_HOME, "auth.json"), JSON.stringify({
 const config = (body: string) => writeFileSync(join(process.env.CODEX_HOME!, "config.toml"), body);
 
 // @ts-expect-error — plain JS module, no types
-const { isCredentialHost } = await import("../../server/codex-auth.mjs");
+const { isCredentialHost, forceCodexRefresh } = await import("../../server/codex-auth.mjs");
 // @ts-expect-error — plain JS module, no types
 const { fetchCodexQuota } = await import("../../server/codex-quota.mjs");
 
@@ -80,6 +80,115 @@ describe("isCredentialHost", () => {
       undefined,
     ]) {
       expect(isCredentialHost(url), String(url)).toBe(false);
+    }
+  });
+});
+
+// The other destination, and the dearer credential. isCredentialHost above can
+// be perfectly right while nothing asks it: `refreshUrl` reverted to
+// `return override || DEFAULT` keeps every case above green and posts the
+// user's single-use refresh token wherever the environment says, over plain
+// http if it likes — and the user is logged out of Codex the next time the real
+// CLI tries to refresh. So these cases spend the token for real, against a
+// transport that records where it went.
+//
+// `forceCodexRefresh` rather than a quota read: the credential file above has
+// no readable `exp` on purpose, so nothing here refreshes on its own, and the
+// forced path is the one that reaches doRefresh with the token on disk. The
+// transport refuses every request, which is also what keeps auth.json exactly
+// as it was written — a refresh that never came back writes nothing.
+describe("CODEX_REFRESH_TOKEN_URL_OVERRIDE, where the refresh token is POSTed", () => {
+  const DEFAULT_URL = "https://auth.openai.com/oauth/token";
+  const realFetch = globalThis.fetch;
+  const prevOverride = process.env.CODEX_REFRESH_TOKEN_URL_OVERRIDE;
+  const authFile = join(process.env.CODEX_HOME!, "auth.json");
+  const authBefore = readFileSync(authFile, "utf8");
+  let posts: { url: string; method?: string; refreshToken?: string }[] = [];
+  let logged: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    posts = [];
+    globalThis.fetch = ((input: unknown, init?: { method?: string; body?: string }) => {
+      posts.push({
+        url: String((input as { url?: string })?.url ?? input),
+        method: init?.method,
+        refreshToken: JSON.parse(String(init?.body ?? "{}")).refresh_token,
+      });
+      return Promise.reject(new Error("test: no network"));
+    }) as typeof fetch;
+    logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    logged.mockRestore();
+    if (prevOverride === undefined) delete process.env.CODEX_REFRESH_TOKEN_URL_OVERRIDE;
+    else process.env.CODEX_REFRESH_TOKEN_URL_OVERRIDE = prevOverride;
+    writeFileSync(authFile, authBefore);
+  });
+
+  /** Set the override, spend the refresh token once, and say where it went. */
+  async function refreshWith(override: string) {
+    process.env.CODEX_REFRESH_TOKEN_URL_OVERRIDE = override;
+    const r = await forceCodexRefresh("test-access-token-not-a-jwt");
+    // The refusing transport ends every attempt the same way, which is the
+    // proof it got as far as asking — and that nothing was written.
+    expect(r).toMatchObject({ ok: false, reason: "refresh_failed" });
+    expect(readFileSync(authFile, "utf8")).toBe(authBefore);
+    expect(posts, "exactly one refresh attempt").toHaveLength(1);
+    expect(posts[0]).toMatchObject({ method: "POST", refreshToken: "test-refresh-token" });
+    return posts[0].url;
+  }
+
+  const saidOverride = () => logged.mock.calls.map(c => c.join(" "))
+    .filter(s => s.includes("CODEX_REFRESH_TOKEN_URL_OVERRIDE"));
+
+  it("ignores an override naming a host that is not OpenAI's, and says so", async () => {
+    expect(await refreshWith("https://evil.example/oauth/token")).toBe(DEFAULT_URL);
+    // Falling back rather than failing keeps a stale override working; the log
+    // line is what stops the fallback being the silent kind.
+    expect(saidOverride()).toHaveLength(1);
+    expect(saidOverride()[0]).toContain("evil.example");
+  });
+
+  it("ignores a plaintext override even on OpenAI's own host", async () => {
+    expect(await refreshWith("http://auth.openai.com/oauth/token")).toBe(DEFAULT_URL);
+  });
+
+  it("ignores a host that only begins with an OpenAI one", async () => {
+    expect(await refreshWith("https://auth.openai.com.evil.example/t")).toBe(DEFAULT_URL);
+  });
+
+  it("reads a blank override as no override at all", async () => {
+    // What `export CODEX_REFRESH_TOKEN_URL_OVERRIDE=$UNSET_THING` leaves
+    // behind. Not a misconfiguration worth a log line, just an unset knob.
+    expect(await refreshWith("   ")).toBe(DEFAULT_URL);
+    expect(saidOverride()).toEqual([]);
+  });
+
+  it("still honours an override that names an OpenAI host over https", async () => {
+    // The Codex CLI supports this knob for staging and FedRAMP tenants, and a
+    // guard that refused those too would break a working login.
+    expect(await refreshWith("https://staging.auth.openai.com/oauth/token"))
+      .toBe("https://staging.auth.openai.com/oauth/token");
+    expect(saidOverride()).toEqual([]);
+  });
+
+  it("never lets the token leave for a host outside openai.com and chatgpt.com", async () => {
+    for (const hostile of [
+      "https://evil.example/oauth/token",
+      "http://auth.openai.com/oauth/token",
+      "https://auth.openai.com.evil.example/t",
+      "https://chatgpt.com@evil.example/oauth/token",
+      "http://127.0.0.1:9/oauth/token",
+    ]) {
+      posts = [];
+      writeFileSync(authFile, authBefore);
+      // Spelled out here rather than asked of isCredentialHost, so a guard that
+      // loosened its own rule cannot vouch for where it sent the token.
+      const { protocol, hostname } = new URL(await refreshWith(hostile));
+      expect(protocol, `${hostile} sent the token in cleartext`).toBe("https:");
+      expect(/(^|\.)(openai|chatgpt)\.com$/.test(hostname), `${hostile} sent the token to ${hostname}`).toBe(true);
     }
   });
 });

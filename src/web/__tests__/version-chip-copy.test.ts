@@ -85,6 +85,40 @@ describe("versionChipTitle", () => {
   });
 });
 
+// #1046, and which state wins. A machine behind a proxy keeps a cached `npm has
+// vX` and an old `checked 3h ago` — the age does not move on a failure — so if
+// the success's age outranks the failure, the chip reads exactly like a deck
+// that is up to date. wire-contract-1046.test.ts only finds the two strings in
+// the file; these take the branch and hold its place in the order.
+describe("npm could not be reached (#1046)", () => {
+  const FAILED = { running: "1.0.0", latest: "1.1.0", checkedAgo: "3h ago", checkFailedAgo: "2m ago" };
+
+  it("says so in the tooltip, in place of the last success's age", () => {
+    const t = versionChipTitle(FAILED);
+    expect(t).toContain(" · could not reach npm 2m ago");
+    expect(t).not.toContain("checked 3h ago");
+    expect(t).toContain("npm has v1.1.0");
+  });
+
+  it("says so in the accessible name, and offers to check again", () => {
+    expect(versionChipLabel(FAILED))
+      .toBe("Version v1.0.0, show what's new — npm could not be reached 2m ago, check again");
+  });
+
+  it("gives way to checks being off, which no retry can change", () => {
+    const off = { ...FAILED, checkDisabled: true };
+    expect(versionChipTitle(off)).toBe("Update checks are off (AGENTS_DECK_NO_UPDATE_CHECK=1) · click for what's new");
+    expect(versionChipLabel(off)).toBe("Version v1.0.0, show what's new — update checks are off");
+  });
+
+  it("gives way to a check in flight, which is already the retry", () => {
+    const busy = { ...FAILED, checking: true };
+    expect(versionChipTitle(busy)).toMatch(/^Asking npm/);
+    expect(versionChipTitle(busy)).not.toContain("could not reach");
+    expect(versionChipLabel(busy)).toMatch(/checking npm for a newer release$/);
+  });
+});
+
 describe("versionChipLabel", () => {
   it("names the version and both actions, since the button shows only the first", () => {
     const l = versionChipLabel(BASE);

@@ -369,7 +369,7 @@ export const WELCOME_STEPS: GuideStep[] = [
     tip: "A tone and a system notification when one stops to ask. The speaker in the topbar.",
   },
   { art: <TreeArt />, line: "Every agent and subagent is a node. Tool calls light up as they run." },
-  { art: <InspectArt />, line: "Click any node: its prompt, every tool call, tokens and timing." },
+  { art: <InspectArt />, line: "Double-click any node: its prompt, every tool call, tokens and timing." },
   { art: <CostArt />, line: "What each session costs, and how much quota is left." },
   { art: <MachineArt />, line: "Cores, memory and heat while the agents run, and what is hogging them." },
   { art: <AccountsArt />, line: "Several Claude accounts: switch, add one, share one to another machine." },

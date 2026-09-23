@@ -13,7 +13,11 @@
 // that only ever arrived inside the raw output, and a deck started as a
 // background service on macOS hits it on every credential move.
 import { describe, it, expect } from "vitest";
-import { COMMAND_REASONS, commandOutput, explainCommandFailure } from "../admin-failure";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { COMMAND_REASONS, GATE_REASONS, commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
+
+const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 // Real shapes, taken from what each platform actually puts on stderr.
 const TRACEBACK = [
@@ -76,6 +80,54 @@ describe("what the accounts panel says when a switch fails", () => {
     expect(explainCommandFailure(null, "the switch failed")).toBe("the switch failed");
     expect(explainCommandFailure({}, "the switch failed")).toBe("the switch failed");
     expect(explainCommandFailure({ output: TRACEBACK }, "the switch failed")).toBe("the switch failed");
+  });
+});
+
+// The deck turns a mutation away before any command runs when the page asking
+// is not the page it served — a reverse proxy, a tunnel, or a dev server
+// forwarding /api at another port all produce exactly that. The refusal carries
+// `{error}` and no `reason`, so it ranked as the fallback and reached the panel
+// as `command failed`: the one thing that had not happened.
+describe("a refusal from the deck's own gate, which is not a command failing", () => {
+  const blocked = { error: "cross-site request blocked" };
+
+  it("names what actually happened, on both routes", () => {
+    expect(explainCommandFailure(blocked, "command failed", 403)).toBe(GATE_REASONS[403]);
+    expect(explainFailure(blocked, "command failed", 403)).toBe(GATE_REASONS[403]);
+    expect(explainCommandFailure({ error: "unauthenticated" }, "command failed", 401)).toBe(GATE_REASONS[401]);
+  });
+
+  it("says nothing was changed, because nothing was", () => {
+    // A reader who has just been told `command failed` has no way to know
+    // whether the setting took. Both sentences settle it.
+    for (const said of Object.values(GATE_REASONS)) {
+      expect(said).toMatch(/nothing was changed|refused/);
+      expect(said).not.toMatch(/claude-swap|command/);
+    }
+  });
+
+  it("outranks everything the body could carry, because it happened first", () => {
+    const withReason = { reason: "set_failed", detail: "Error: …" };
+    expect(explainCommandFailure(withReason, "command failed", 403)).toBe(GATE_REASONS[403]);
+    // And a status the gate has no sentence for changes nothing: 400 is the
+    // route answering, not the gate refusing.
+    expect(explainCommandFailure(withReason, "command failed", 400)).toBe(COMMAND_REASONS.set_failed);
+    expect(explainCommandFailure(withReason, "command failed")).toBe(COMMAND_REASONS.set_failed);
+  });
+
+  it("is read off the response, not guessed from the body", () => {
+    const panel = read("../components/AccountsPanel.tsx");
+    expect(panel).toMatch(/explainCommandFailure\(out, "command failed", res\.status\)/);
+    expect(panel).toMatch(/explainFailure\(out, "command failed", res\.status\)/);
+  });
+
+  it("is a gate the dev server no longer trips, so writes work while developing", () => {
+    // Reads worked through the proxy and writes did not, which is the worst
+    // shape a dev server can have: the panel fills with real accounts and every
+    // press comes back refused.
+    const cfg = read("../../../vite.config.ts");
+    expect(cfg).toMatch(/changeOrigin: true/);
+    expect(cfg).toMatch(/req\.setHeader\("origin", "http:\/\/127\.0\.0\.1:4317"\)/);
   });
 });
 

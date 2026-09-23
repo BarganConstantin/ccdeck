@@ -45,7 +45,8 @@ import {
   type Chime, type TonePrefs,
 } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
+import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
+import { inDesktopApp } from "../in-app";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -110,9 +111,14 @@ export default function SoundMenu({
      notifiers, so there is no channel to report on; the switch's own note says
      what happened instead. */
   const channel = browserChannel(notifyPermission);
-  const showChannel = notifyOn && !notifyVetoed;
+  // Not inside the desktop app: its notifications are its own, and the
+  // browser's permission that this section reports is never asked there.
+  const inApp = inDesktopApp();
+  const showChannel = notifyOn && !notifyVetoed && !inApp;
 
-  const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  // A popover, so the canvas letters stay live under it — V and M included,
+  // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
+  const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
 
   // The one dismissal rule a popover owns that the hook does not. On window and
   // in the capture phase, so a press on a control that stops propagation still
@@ -192,7 +198,7 @@ export default function SoundMenu({
             has stopped and needs a person — is nowhere on screen. */}
         <div className="sm-setting">
           <label className="sm-switch">
-            <span className="sm-switch-label" id="sm-notify-label">Notifications</span>
+            <span className="sm-switch-label" id="sm-notify-label">Notifications while closed</span>
             <button
               type="button"
               role="switch"
@@ -200,12 +206,12 @@ export default function SoundMenu({
               aria-labelledby="sm-notify-label"
               className="switch"
               onClick={onToggleNotify}
-              title="A system notification when a session blocks on you"
+              title="With no deck tab open, a notification wherever a sound would play"
             >
               <span className="switch-knob" />
             </button>
           </label>
-          <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}</p>
+          <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}</p>
         </div>
       </div>
 

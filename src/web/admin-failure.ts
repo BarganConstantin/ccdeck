@@ -138,6 +138,31 @@ const KEYCHAIN =
   `claude-swap could not read the login keychain — start ${PRODUCT} from a Terminal window rather than a background service`;
 
 /**
+ * THE TWO REFUSALS THAT HAPPEN BEFORE ANY COMMAND RUNS.
+ *
+ * index.mjs guards every mutating route twice — the request must come from a
+ * page whose address is this deck's own, and it must be one this deck will take
+ * a change from — and both refusals answer with `{error: "..."}` and no
+ * `reason`. `explainCommandFailure` ranks by `reason`, so both arrived in the
+ * panel as its fallback: `command failed`. Which is the one thing that did NOT
+ * happen. Nothing was run, claude-swap was never reached, and the reader was
+ * told their tool had refused them.
+ *
+ * WHO ACTUALLY HITS THIS: anybody whose browser reaches the deck through
+ * something that rewrites the address on the way — a reverse proxy, a tunnel,
+ * or a dev server proxying /api at another port. Reads keep working, because
+ * only mutations are gated, so the panel looks alive and every press is refused
+ * with a sentence about a command.
+ *
+ * Keyed by status, because the status is the whole of what the deck said: the
+ * bodies are two words each and neither is meant for a reader.
+ */
+export const GATE_REASONS: Record<number, string> = {
+  401: "this deck did not accept the page as its own, so nothing was changed",
+  403: "this deck refused a change from this address — open it on the address the deck prints, not through a proxy",
+};
+
+/**
  * The one sentence to show for a command refusal — never the raw output.
  *
  * The ranking is the inverse of explainFailure's on purpose. That one leads
@@ -147,7 +172,12 @@ const KEYCHAIN =
  * caller keeps it for the element's title, where a traceback is one hover away
  * instead of on screen.
  */
-export function explainCommandFailure(out: CommandFailure, fallback: string): string {
+export function explainCommandFailure(out: CommandFailure, fallback: string, status?: number): string {
+  // BEFORE ANYTHING ELSE, because it happened before anything else: a request
+  // the deck's own gate turned away never reached a command to fail. See
+  // GATE_REASONS.
+  const gate = status == null ? null : GATE_REASONS[status];
+  if (gate) return gate;
   // A tool that never started printed nothing of its own — anything in the
   // output there came from the shell that could not find it.
   if (out?.reason !== "no_cswap" && /keychain/i.test(commandOutput(out))) return KEYCHAIN;
@@ -444,7 +474,12 @@ function rankCcusageFailure(out: CcusageFailure, fallback: string): string {
 }
 
 /** The one sentence to show for a refusal, most specific first. */
-export function explainFailure(out: AdminFailure, fallback: string): string {
+export function explainFailure(out: AdminFailure, fallback: string, status?: number): string {
+  // The gate first, for the reason explainCommandFailure takes it first: this
+  // route is guarded by the same two checks, and `cross-site request blocked`
+  // reaching a reader verbatim is a sentence written for a log, not for them.
+  const gate = status == null ? null : GATE_REASONS[status];
+  if (gate) return gate;
   // Written for this response and nothing else, so it needs no vetting.
   if (out?.detail) return out.detail;
   // The ending's own words, and the server knows the machine — which keychain,

@@ -5,10 +5,13 @@
 // in flight on the canvas. So the gate that decides "now is a safe moment" is
 // the part worth pinning down.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   activeCount, autoRestartLabel, autoRestartRemainingMs, autoRestartStep, countdownLabel,
   restartSafety, shouldReloadBundle, IDLE_BEFORE_RESTART_MS,
 } from "../restart";
+import { noticeIsOpen, noticeKeyFor } from "../version-chip";
 
 const NOW = 1_800_000_000_000;
 const ok = {
@@ -243,5 +246,73 @@ describe("shouldReloadBundle", () => {
   it("does nothing before the server has answered", () => {
     expect(shouldReloadBundle({ bundle: "1.31.0", running: null, lastTried: null })).toBe(false);
     expect(shouldReloadBundle({ bundle: null, running: "1.32.0", lastTried: null })).toBe(false);
+  });
+});
+
+// #1175. `noticeOpen` above is handed in as a boolean here and pinned as a word
+// in App.tsx's call — how it is DERIVED was tested nowhere, and it is derived
+// from a string in localStorage that one × writes. Lose the version out of that
+// string and one dismissal hides every future release banner; through the gate
+// above it also turns off restart-to-update for good, on a deck that looks
+// healthy and sits on old code with nothing on screen explaining why.
+describe("which update a dismissal was about", () => {
+  const v150 = { kind: "restart" as const, to: "1.50.0" };
+  const v151 = { kind: "restart" as const, to: "1.51.0" };
+
+  it("keys the dismissal to the kind and the version", () => {
+    expect(noticeKeyFor(v150)).toBe("restart:1.50.0");
+    expect(noticeKeyFor({ kind: "upgrade", to: "1.50.0" })).toBe("upgrade:1.50.0");
+  });
+
+  it("has no key when there is no news, and that key is the empty store", () => {
+    // The one value a dismissal can hold that no notice can produce, which is
+    // what makes "nothing dismissed" expressible at all.
+    expect(noticeKeyFor(null)).toBe("");
+    expect(noticeIsOpen(null, "")).toBe(false);
+  });
+
+  it("shows a notice nobody has put away", () => {
+    expect(noticeIsOpen(v150, "")).toBe(true);
+  });
+
+  it("keeps the one that was put away away", () => {
+    expect(noticeIsOpen(v150, noticeKeyFor(v150))).toBe(false);
+  });
+
+  it("shows the NEXT release after today's was dismissed", () => {
+    // The whole reason the version is in the key. Without it, one × in January
+    // is the last update banner that deck ever draws.
+    expect(noticeIsOpen(v151, noticeKeyFor(v150))).toBe(true);
+  });
+
+  it("tells the two kinds of news about one version apart", () => {
+    // "installed on disk, restart to pick it up" and "there is a newer one on
+    // npm" are different things to say about v1.50.0, and putting one away is
+    // not an answer to the other.
+    expect(noticeIsOpen({ kind: "upgrade", to: "1.50.0" }, "restart:1.50.0")).toBe(true);
+  });
+
+  it("shows it again after the chip asked for it back", () => {
+    // `showNotice` writes "" rather than flipping a toggle (#715).
+    expect(noticeIsOpen(v150, "")).toBe(true);
+  });
+
+  it("lets the deck restart itself for a release the reader has not dismissed", () => {
+    // The composition the two halves exist for: the same stored key that draws
+    // the banner is what allows the countdown underneath it.
+    const gate = { ...ok, idleSince: NOW - IDLE_BEFORE_RESTART_MS };
+    expect(autoRestartStep({ ...gate, noticeOpen: noticeIsOpen(v151, noticeKeyFor(v150)) }).restart).toBe(true);
+    // And the dismissed one stops it, which is #804's rule: nothing on screen
+    // offers to stop a restart whose banner is gone.
+    expect(autoRestartStep({ ...gate, noticeOpen: noticeIsOpen(v150, noticeKeyFor(v150)) }).restart).toBe(false);
+  });
+
+  it("has App derive noticeOpen through the helper rather than inline", () => {
+    // The half a DOM-less suite cannot drive. Both lines matter: the × stores
+    // `noticeKey`, and the banner and the restart gate read `noticeOpen`.
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(app).toMatch(/const noticeKey = noticeKeyFor\(notice\);/);
+    expect(app).toMatch(/const noticeOpen = noticeIsOpen\(notice, versionDismissed\);/);
+    expect(app).toMatch(/setVersionDismissed\(noticeKey\);[\s\S]{0,200}?setItem\(VERSION_DISMISSED_KEY, noticeKey\)/);
   });
 });

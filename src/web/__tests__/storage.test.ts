@@ -3,6 +3,8 @@
 // pin which half survives: preferences always, shape-bearing state only while
 // the shape is unchanged.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { pruneStaleState, SCHEMA_KEY, SHAPE_KEYS, STATE_SCHEMA } from "../storage";
 
 function store(initial: Record<string, string> = {}) {
@@ -53,5 +55,51 @@ describe("pruneStaleState", () => {
       removeItem() { throw new Error("denied"); },
     };
     expect(pruneStaleState(dead)).toEqual([]);
+  });
+
+  it("skips a key it cannot remove and still drops the rest and stamps the store", () => {
+    // The dead store above fails on the first read and returns before either
+    // of these. A store that reads and then refuses one removal gets further:
+    // the other shape key still has to go, and the stamp still has to land, or
+    // the next boot compares against "0" again and finds nothing new.
+    const s = store({ [SCHEMA_KEY]: "0", "agent-dag.layout": "{}", "agent-dag.viewport": "{}" });
+    const locked = {
+      ...s,
+      removeItem: (k: string) => {
+        if (k === "agent-dag.layout") throw new Error("denied");
+        s.removeItem(k);
+      },
+    };
+    let removed: string[] = [];
+    expect(() => { removed = pruneStaleState(locked, "1"); }).not.toThrow();
+    expect(removed).toEqual(["agent-dag.viewport"]);
+    expect(s.getItem("agent-dag.viewport")).toBeNull();
+    expect(s.getItem(SCHEMA_KEY)).toBe("1");
+  });
+
+  it("drops the stale keys even when the stamp cannot be written", () => {
+    // Private mode takes the write and not the removals. The shape keys are
+    // the whole point; the stamp is only what saves the next boot a check.
+    const s = store({ [SCHEMA_KEY]: "0", "agent-dag.layout": "{}", "agent-dag.viewport": "{}" });
+    const readOnly = { ...s, setItem: () => { throw new Error("QuotaExceededError"); } };
+    let removed: string[] = [];
+    expect(() => { removed = pruneStaleState(readOnly, "1"); }).not.toThrow();
+    expect(removed.sort()).toEqual([...SHAPE_KEYS].sort());
+    expect(s.getItem("agent-dag.layout")).toBeNull();
+    expect(s.getItem("agent-dag.viewport")).toBeNull();
+  });
+});
+
+describe("boot", () => {
+  const main = readFileSync(fileURLToPath(new URL("../main.tsx", import.meta.url)), "utf8");
+
+  it("prunes before App mounts, since App reads the layout and viewport while it does", () => {
+    // Moved after render — or dropped — the new canvas reads the old shape in
+    // its useState initialisers: the broken canvas with no visible cause that
+    // this module exists to prevent, latent until the next STATE_SCHEMA bump.
+    const prune = main.search(/try \{ pruneStaleState\(window\.localStorage\); \} catch/);
+    expect(prune, "main.tsx no longer prunes inside a try").toBeGreaterThan(-1);
+    expect(main.indexOf("createRoot(")).toBeGreaterThan(prune);
+    expect(main.indexOf(".render(")).toBeGreaterThan(prune);
   });
 });

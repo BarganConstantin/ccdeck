@@ -252,7 +252,7 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
   });
 });
 
-/** Every component source, comments removed. Full-line `//` only, which is how
+/** Every bundled module's source, comments removed. Full-line `//` only, which is how
  *  every comment in these two files is written — the point is that the comments
  *  quote the literal transition strings they replaced, so a search for "no
  *  literal transition survives" would find its own explanation and pass. */
@@ -264,7 +264,10 @@ function componentSources(): { path: string; code: string }[] {
       const full = join(dir, entry.name);
       const shown = `${prefix}${entry.name}`;
       if (entry.isDirectory()) walk(full, `${shown}/`);
-      else if (entry.name.endsWith(".tsx")) {
+      // `.ts` as well as `.tsx` since #1175: the canvas's edges are built in
+      // canvas-flow.ts, and that is where the one inline `transition` on the
+      // board is written.
+      else if (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts")) {
         const code = readFileSync(full, "utf8")
           .replace(/\/\*[\s\S]*?\*\//g, "")
           .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");

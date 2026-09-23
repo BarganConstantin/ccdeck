@@ -6,6 +6,11 @@
   --line: #1f2229;
   --line-soft: #1a1c22;
   --text: #d8dae0;
+  /* Pixel-art metal keeps its material identity across UI themes. */
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
   /* SECONDARY READABLE TEXT — prose somebody reads to understand something,
      as distinct from metadata they glance at.
      It exists because dark had no room below the muted tier, which sits at
@@ -900,7 +905,7 @@ button:focus-visible { outline-offset: 1px; }
    something off a button. The slot is what gives the menu something to be
    absolute against; it adds no box and no gap of its own, so the run's 8px
    rhythm is unchanged and the button sits exactly where it always did. */
-.sound-slot { position: relative; display: flex; }
+.sound-slot, .appearance-slot { position: relative; display: flex; }
 
 /* Right-aligned to the button rather than centred on it, because this button is
    near the right edge of a bar it can never overhang. 268px is the width the
@@ -935,13 +940,284 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+/* 268px, the sound menu's width: two popovers hung off one bar are one family,
+   and two theme previews side by side need the room 224px did not have. The
+   clamp keeps a phone-width window's 16px gutter; the grid inside gives. */
+.appearance-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
+  text-align: left;
+}
+.modal.appearance-modal {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  width: min(560px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
 /* The same two layers on white, in the light theme's slate and at its own
    shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
    third stayed black at a third on the white page (#876). */
 :root[data-theme="light"] .sound-menu {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
 }
+:root[data-theme="light"] .appearance-menu {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+/* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
+   open, and sections under the uppercase caption their sections use
+   (.up-section-title: 11px, 600, 0.06em, --muted — 4.70:1 dark, 7.87:1 light).
+   One 4px scale: 8 between a caption and what it names, 12 under the header,
+   16 between sections. Spacing is the only separator below the header. */
+.appearance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -12px 12px;
+  padding: 2px 16px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.appearance-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 22px;
+}
+.appearance-heading { min-width: 0; }
+.appearance-subtitle {
+  margin: 3px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appearance-close {
+  width: 26px;
+  height: 26px;
+  margin: -4px -4px -4px 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+.appearance-close:hover { color: var(--text); }
+.appearance-section + .appearance-section { margin-top: 20px; }
+.appearance-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.appearance-caption h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.appearance-section-note {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+/* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
+   where the panels put a caption's one piece of metadata. */
+.appearance-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
 
+/* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
+   so it is recognised before it is read. The -4px bleed gives each choice a
+   4px plate to hover in while the previews stay on the text edge above them.
+   THE CHOSEN ONE: its frame goes to --text and doubles to 2px with a ring
+   rather than a wider border, so nothing shifts; a check stands at the end of
+   its name; the name comes up from --muted to --text. The frame is 3.16:1
+   dark / 5.32:1 light against the --ctl-edge the other one rests on, so the
+   state holds without the check or the colour. The accent stays the focus
+   ring's, which is drawn round the whole plate.
+   HOVER lifts the plate and the name, never the frame, so a pointer resting on
+   the other theme cannot pass for choosing it. No press-scale: at 118px a
+   3% shrink is a lurch, not a click. */
+.appearance-themes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.appearance-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.appearance-theme[aria-checked="true"] { color: var(--text); }
+.appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.appearance-preview {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--ctl-edge);
+  border-radius: calc(var(--r-ctl) + 2px);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.appearance-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
+.appearance-theme-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  line-height: 16px;
+}
+.appearance-check {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
+
+/* Each swatch's palette is its theme's tokens, copied: --bg for the canvas,
+   --panel for the bar, the column and the card (the bar's gradient drawn flat),
+   --line for every rule, --muted-dim for the session's tag, --accent for
+   the one bar. appearance-swatch.test.ts fails the day a token moves and its
+   copy here does not. */
+.appearance-preview[data-swatch="dark"] {
+  --tp-canvas: #0b0c10;
+  --tp-surface: #14161b;
+  --tp-rule: #1f2229;
+  --tp-mark: #50535b;
+  --tp-accent: #7dd3fc;
+}
+.appearance-preview[data-swatch="light"] {
+  --tp-canvas: #eef1f6;
+  --tp-surface: #ffffff;
+  --tp-rule: #c8cdd6;
+  --tp-mark: #7c8493;
+  --tp-accent: #0369a1;
+}
+.tp-canvas { fill: var(--tp-canvas); }
+.tp-surface { fill: var(--tp-surface); }
+.tp-rule { fill: var(--tp-rule); }
+.tp-accent { fill: var(--tp-accent); }
+/* A session is a card with its name tag sitting on its top edge, as the
+   canvas draws one; the tag is the outline in --muted-dim. */
+.tp-card, .tp-tag { stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
+.tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
+
+/* One control, the width of the card. The <label> is the target (see
+   AppearanceMenu.tsx); the -8px bleed lets its hover fill reach the card's
+   padding while the words stay on the text edge. The switch sits in the
+   label's grid row, so it centres on the label's line and not on the pair of
+   lines, and the note spans under both. */
+.appearance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 0;
+  padding: 10px 0 2px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+.appearance-row:hover { background: var(--ctl-fill); }
+.appearance-row-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-row-note {
+  grid-column: 1 / -1;
+  /* Also used on a bare <p> under the volume row, outside the grid — so the
+     margin is reset here rather than left to the UA's paragraph default. */
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appearance-source-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--bg) 34%, var(--panel));
+}
+.appearance-source-row > label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-source-row .sm-select {
+  min-height: 30px;
+  padding-right: 8px;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-source-row .sm-select:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
+}
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
    so now that the boxes are gone. */
@@ -1265,9 +1541,12 @@ button.btn.sm-hear {
    `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
-   about what ships. The span is rendered in exactly one place, SoundMenu.tsx's
-   `.sound-menu` subtree, so the descendant selector loses nothing. */
-.sound-menu .sm-read {
+   about what ships. Descendant-scoped on purpose, and now to TWO menus: the
+   span is rendered in SoundMenu.tsx's subtree and, since the Claude FM volume
+   row, in AppearanceMenu.tsx's — the same reading in the same shape, so the
+   same rule. */
+.sound-menu .sm-read,
+.appearance-menu .sm-read {
   min-width: 34px;
   text-align: right;
   color: var(--muted);
@@ -1629,7 +1908,36 @@ button.btn.sm-hear {
 .sysdetail.leaving,
 .usage-panel.leaving { animation: rail-out var(--rail-exit) linear both; }
 
-.sd-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+/* THE HEAD DOES NOT SCROLL AWAY. The panel is 280px wide and as tall as the
+   window allows; on a short viewport it scrolls, and the first thing to leave
+   was the title, the uptime and the ×. Sticky against the panel's own
+   scrollport, on the panel's own ground, with the top padding pulled into it so
+   it stops flush against the border rather than 12px down. z-index 2 puts it
+   over the full-bleed section buttons, which would otherwise slide across it.
+
+   The negative side margins are the panel's padding given back, the same
+   derivation `.sd-open` uses, so the ground under the title reaches both edges
+   and nothing shows through beside it. */
+.sd-top {
+  position: sticky;
+  /* -12, not 0, and it is the panel's own padding-top. A sticky box is held
+     against the scrollport's CONTENT edge, so `top: 0` pinned this 12px BELOW
+     where it sits at rest and its opaque ground covered the first section's
+     heading — measured, with the CPU label at 103.4 under a head ending at
+     115.4. Offsetting it by the padding lets it rest exactly where it is drawn
+     and stick where the border is. */
+  top: -12px;
+  z-index: 2;
+  margin: -12px calc(var(--pad-x) * -1) 0;
+  padding: 12px var(--pad-x) 12px;
+  background: var(--panel);
+}
+.sd-head { display: flex; align-items: baseline; gap: 8px; }
+/* The one condition worth saying at the top of the panel, and nothing when
+   there is none. A sentence in the warning colour — no dot, no pill, no badge:
+   the words are the state, so a reader who cannot see the colour loses
+   nothing, and a reader who can has already found it. */
+.sd-flag { margin: 6px 0 0; color: var(--warn); font-size: 11px; line-height: 1.4; }
 /* An <h2> since #879; the margin reset keeps the tag from moving the title. */
 .sd-title { margin: 0; font-size: 12px; font-weight: 600; }
 .sd-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1639,14 +1947,38 @@ button.btn.sm-hear {
    row. It was measured at 13.34 x 16 before, which is why `.glyph-btn` carries
    a hit area at all; the exemplar was the smallest target of the lot. */
 .sd-close { margin-left: auto; }
-.sd-section + .sd-section { margin-top: 13px; }
+/* 16, not 13: the CPU section holds two readings 12px apart, and a section
+   boundary has to be wider than the gap inside one or the block does not read
+   as one block. It is also 8px of daylight between two full-bleed hover bands
+   where there were 5. */
+.sd-section + .sd-section { margin-top: 16px; }
+/* The strip and the load average are one reading of one thing, so they sit
+   closer to each other than to the section after them — and far enough apart
+   that their hover bands keep 4px of daylight. */
+.sd-cpu > .sd-open + .sd-open { margin-top: 12px; }
 .sd-h {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   margin: 0 0 6px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+}
+/* The section's own figure, at the far end of its heading. One section has one:
+   CPU, whose reading is a strip of bars with no number in it. It opts out of
+   the heading's case and tracking because it is a reading and not a label — the
+   same 11px tabular the rows to its right are set in. */
+.sd-h-val {
+  margin-left: auto;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* One column per core, so the shape of the load is visible — a saturated
@@ -1665,21 +1997,23 @@ button.btn.sm-hear {
    machines big enough for it to matter. A 64-core workstation is squarely
    inside this deck's audience.
 
-   Flex rather than grid: `flex-wrap` is the only one of the two that can let a
-   row it cannot fit become two rows. Below the wrap point the layout is
-   identical to the grid it replaces — `flex: 1 1 3px` over a 2px gap
-   distributes the leftover exactly as `1fr` did, and 12 threads still measure
-   19px each. Above it the strip grows downward, in a panel that already
-   scrolls, rather than showing nothing. No core is hidden and none is narrower
-   than 3px, which is the width the 2px corner radius needs to still read as a
-   bar. */
+   `auto-fit`, not a wrapped flex row, and that is the second half of the same
+   fix. Flex wraps, but each LINE distributes its own leftover: 64 threads drew
+   a first row of fifty 3px columns and a second row of fourteen 14px ones —
+   one reading in two widths, where a wide bar means "this core is late in the
+   list" and nothing else. A grid's tracks are the same on every row, so a
+   column is one width whatever the count, and `minmax(3px, 1fr)` keeps the
+   floor that made the strip wrap in the first place. `auto-fit` rather than
+   `auto-fill` because the empty tracks of a 16-thread machine have to collapse
+   and give their width back — otherwise sixteen cores draw sixteen 3px slivers
+   against an empty right half. */
 .sd-cores {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3px, 1fr));
+  align-content: start;
   gap: 2px;
 }
-.sd-cores .sd-core { flex: 1 1 3px; min-width: 3px; height: 26px; }
+.sd-cores .sd-core { min-width: 3px; height: 26px; }
 .sd-core {
   display: flex;
   align-items: flex-end;
@@ -1729,7 +2063,7 @@ button.btn.sm-hear {
   transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sd-row + .sd-row { margin-top: 9px; }
+.sd-row + .sd-row { margin-top: 10px; }
 /* The THERMAL section is one control (#738): pressing anywhere in it opens the
    chart of what the machine did with its heat. One button rather than one per
    row, because both rows opened the same dialog showing both series — a second
@@ -1830,6 +2164,7 @@ button.btn.sm-hear {
   color: var(--text-dim);
   transition: color 140ms ease;
 }
+.sysdetail .sd-open:hover .sd-h,
 .sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
 
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
@@ -1838,7 +2173,10 @@ button.btn.sm-hear {
 .sd-row-label { color: var(--muted); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
 .sd-row-val b { color: var(--text); font-weight: 600; }
+/* `position: relative` for the one thing drawn INSIDE a track rather than
+   filling it: the mark at the temperature a thermal row turns amber. */
 .sd-track {
+  position: relative;
   display: block;
   height: 4px;
   border-radius: 999px;
@@ -1858,16 +2196,108 @@ button.btn.sm-hear {
 /* The third band, which only the thermal rows reach: past the temperature the
    chip itself calls critical, or a third of the clock already taken away. */
 .sd-fill.hot { background: var(--err); }
+/* WHERE THE COLOUR CHANGES, cut into the track as a 1px gap in the panel's own
+   ground. The thermal rows are drawn against their own sensor's critical point
+   rather than a flat 100°C, so the bar is a scale — and a scale with no point
+   on it cannot be read, only compared with itself. It is the panel's ground and
+   not a colour of its own: a coloured pip would be a third meaning on a bar
+   whose two meanings are already the fill and its tone. */
+.sd-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--panel);
+}
 
-.sd-load { display: flex; gap: 14px; }
-.sd-load-item { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
-.sd-load-item b { font-size: 13px; font-weight: 600; }
-.sd-load-item span { color: var(--muted); font-size: 10px; }
-.sd-load-item.over b { color: var(--warn); }
+/* A ROW OF FIGURES: the number in the reading weight, what it is in the caption
+   under it. Load average and the network both draw one, which is why it is
+   named for the shape rather than for either of them.
+
+   THREE EQUAL COLUMNS, not a flex row, and the difference is what happens when
+   a reading changes width. A rate that crosses a unit — "245 KB/s down" to
+   "1.2 MB/s down" — is a different string of a different length, and in a flex
+   row every figure after it slides. Fixed thirds also put the network's three
+   columns on the load average's three, so the two rows read down the panel as
+   one grid rather than as two ragged rows. 77px a column in a 250px content
+   box, which is two characters more than the widest caption needs. */
+.sd-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sd-fig { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+.sd-fig b { font-size: 13px; font-weight: 600; }
+.sd-fig-cap { color: var(--muted); font-size: 10px; white-space: nowrap; }
+/* THE OTHER ORDER, where the three columns are three different measurements
+   rather than three samples of one: the name on top, and under it the number
+   with its unit beside it rather than below it. "112" over "KB/s down" made
+   the caption carry the unit AND the name, which is how "down" — the only word
+   in it that says what was measured — ended up last. 2px under the label
+   because a name and its reading are one object; 1px was the spacing of a
+   number over its own footnote. */
+.sd-figs-named .sd-fig { gap: 2px; }
+.sd-fig-read { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+/* Beside the number, not under it, and a tier down: a unit is part of the
+   reading, and at the number's own weight "112 KB/s" reads as five characters
+   of equal importance. */
+.sd-fig-unit { color: var(--muted); font-size: 10px; }
 
 /* 11px, the panel's reading size (#859): these are sentences — "reading this
    machine…", why a reading is missing — not labels. */
 .sd-note { margin-top: 5px; color: var(--muted); font-size: 11px; }
+/* A reading that could not be taken says so in the warning colour, the one the
+   load figures turn when the queue outgrows the cores. */
+.sd-note.sd-note-warn { color: var(--warn); }
+
+/* THE WAY INTO THE PATH, where two lines of sentence used to sit. It is the
+   section's second control — the first opens the chart — so it takes the same
+   full bleed, the same 6% hover and the same press as every other control in
+   this panel, at a row's height rather than a section's. 11px of clearance
+   above it leaves 7px of daylight under the hover band of the button over it.
+
+   The state that costs something stays outside: `.sd-route-relay` is the one
+   word the panel keeps on the surface, in the colour the load figures no
+   longer use, because a relayed path is slower than the same exit node reached
+   directly and that is worth knowing without opening anything. */
+.sysdetail .sd-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  width: calc(100% + var(--pad-x) * 2);
+  margin: 11px calc(var(--pad-x) * -1) -3px;
+  padding: 3px var(--pad-x);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+.sd-detail .sd-row-more { margin-left: auto; }
+.sysdetail .sd-detail:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.sysdetail .sd-detail:hover .sd-row-more { color: var(--text); }
+.sysdetail .sd-detail:active { transform: scale(0.97); }
+.sd-route-relay { color: var(--warn); }
+
+/* THE PATH ITSELF, hung off that control. 228px — wider than the panel's own
+   column would allow for a sentence, narrower than a dialog, and the surface,
+   the placement and the dismissals are `.anchored-popover`'s, the same ones the
+   accounts panel's ⋯ opens onto.
+
+   A definition list, because that is what it is: four labels and what each one
+   measures. The term is the section heading's own type so the popover reads as
+   part of the panel rather than as a tooltip that arrived from somewhere else. */
+.sd-pop { width: 240px; padding: 10px 12px 12px; }
+.sd-pop-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--text); }
+.sd-pop-rows { display: grid; gap: 8px; margin: 0; }
+.sd-pop-row dt {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sd-pop-row dd { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text); }
 
 :is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
@@ -1946,6 +2376,7 @@ button.btn.sm-hear {
   .sysdetail .sd-fill { transition: none; }
   :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
   .sysdetail .sd-open:active { transform: none; }
+  .sysdetail .sd-detail:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
@@ -3228,53 +3659,6 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .agent-node.state-done { border-color: rgba(134,239,172,0.5); }
 .agent-node.state-err { border-color: rgba(252,165,165,0.6); }
 
-/* WHAT A CARD IS WORTH DRAWING AT A DISTANCE.
-   `data-detail` is written on the canvas by App.tsx — see zoomDetail — and
-   never by a node, so this costs no React render at all.
-
-   Everything hidden here keeps its space. `visibility` rather than `display`
-   is the whole of that: a node's measured height is an input to the layout, so
-   collapsing a card at overview zoom would reflow the graph while somebody was
-   looking at it. The card keeps its box and stops shouting through it.
-
-   What survives to the last tier is what a graph is for when you are far away
-   from it — which session, what state, and the shape of the tree. */
-.canvas-wrap[data-detail="mid"] .tool-spark-row,
-.canvas-wrap[data-detail="far"] .tool-spark-row {
-  visibility: hidden;
-}
-.canvas-wrap[data-detail="far"] .agent-node .meta,
-.canvas-wrap[data-detail="far"] .agent-node .sub,
-.canvas-wrap[data-detail="far"] .agent-node .session-name,
-.canvas-wrap[data-detail="far"] .ctx-donut,
-.canvas-wrap[data-detail="far"] .agent-node .time {
-  visibility: hidden;
-}
-/* The bubbles are a second view of the tool list and are the densest thing on
-   the canvas; at overview they are a field of 2px pills with nothing readable
-   in them. Their leader lines go with them — a line to a bubble that is not
-   drawn is worse than no line, and the tool trail is the layer this codebase
-   already calls decoration. The graph's real structure is the agent edges,
-   which are React Flow's own and are untouched here. */
-.canvas-wrap[data-detail="far"] .tool-burst,
-.canvas-wrap[data-detail="far"] .tool-conn {
-  visibility: hidden;
-}
-/* AND WHAT SURVIVES IS DRAWN BIG ENOUGH TO READ (#846). The far tier kept the
-   state pill and the name, but at the canvas's scale: at the 0.32 a real board
-   settles into, a 12px name drew at about 4px, so the tier kept exactly the line
-   a reader cannot use. The title row is scaled back up by 0.9 / zoom — about
-   11px on screen — and widened by the inverse first, so after the scale it spans
-   the card's width exactly and the name still ellipsises inside it. A transform
-   and not a font size, because a card's measured height is an input to the
-   layout (see above): the row keeps its box and only draws larger, over the
-   card's own rows, which this tier has already hidden. `--zoom` is written on
-   the canvas by App.tsx beside `data-detail`, with no render of its own. */
-.canvas-wrap[data-detail="far"] .agent-node .title {
-  width: calc(100% * var(--zoom, 1) / 0.9);
-  transform: scale(calc(0.9 / var(--zoom, 1)));
-  transform-origin: left top;
-}
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
    rules with the same specificity — so on every live node the state won both
@@ -3312,6 +3696,220 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    `display: none` takes them out of the tree along with the view. */
 [id^="react-flow__node-desc"],
 [id^="react-flow__edge-desc"] { display: none; }
+
+/* WHICH CARD THE CANVAS DRAWS AT THIS DISTANCE.
+   `data-lod` is written on the canvas by App.tsx — semantic-zoom.ts says how it
+   is chosen — and never by a node, so changing it costs no React render at all.
+
+   NOTHING HERE CHANGES A CARD'S BOX. A node's measured size is an input to the
+   layout, so a card that shrank at a distance would reflow the graph while
+   somebody was looking at it, and every auto-fit would chase the reflow. The
+   box is kept in every mode; what is drawn in it is not. At `detail` that is
+   the card as it has always been. Below it, the card's own rows keep their
+   space and stop painting — `visibility`, not `display`, for exactly that
+   reason — and `.lod-face`, laid out in screen pixels, is drawn in their place.
+
+   This replaces `data-detail` (#846), whose far tier hid the same rows and kept
+   the title row at the canvas's scale, scaled back up by 0.9 / zoom: a state
+   pill and, beside it, whatever of the name fitted in the 22% of the width the
+   pill left — usually one character. */
+.lod-face { display: none; }
+.canvas-wrap[data-lod="compact"] .agent-node > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .agent-node > :not(.lod-face) {
+  visibility: hidden;
+}
+/* The card's own chrome is drawn in layout units, so at 0.3 its 1px border is
+   a third of a pixel and its 10px radius is three. The face draws the chrome
+   instead, in screen pixels, and the card underneath lets go of its own. Its
+   ring is MOVED rather than removed: the selection's and the keyboard's ring
+   are drawn on the face below at 2px on screen, so the card's layout-unit
+   outline — a hairline out here — only goes transparent, and overflow opens so
+   the face's ring is not clipped. (0,5,0) because the light theme's state
+   borders are (0,4,0) and must not paint through. */
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .agent-node,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .agent-node {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  outline-color: transparent;
+  overflow: visible;
+}
+
+/* THE FACE: the card's box, in screen pixels. Sized to the box times the zoom
+   and scaled back by the inverse from the same corner, so it covers the card
+   exactly and everything inside it is laid out at 1:1 on the display — 11px is
+   11px at 0.25 and at 0.6. `--zoom` is written on the canvas by App.tsx with no
+   render of its own. The -1px corner and the +2px take in the card's border,
+   which the face now draws.
+
+   A size container, so which lines it keeps is decided per card against its
+   own on-screen box: a root card is taller than a subagent's, and a tall card
+   at a distance still has room for its title when a short one does not. */
+.canvas-wrap[data-lod="compact"] .lod-face,
+.canvas-wrap[data-lod="overview"] .lod-face {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  box-sizing: border-box;
+  width: calc((100% + 2px) * var(--zoom, 1));
+  height: calc((100% + 2px) * var(--zoom, 1));
+  transform: scale(calc(1 / var(--zoom, 1)));
+  transform-origin: left top;
+  container: lod / size;
+  overflow: hidden;
+  padding: 5px 8px 5px 10px;
+  background: var(--node-grad);
+  border: 1px solid var(--lod-alarm, var(--lod-edge, var(--line)));
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 14px;
+}
+/* The session's stripe, at the width the card's reads at 1× less a pixel —
+   the same mark in the same hue, so the face is recognisably the card. */
+.lod-face::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+/* The state's edge, on a variable rather than on `border-color`, and the one
+   state that must win — blocked on a human — on a variable of its own that the
+   border reads first. Neither competes with the face's `border` shorthand or
+   with the other theme's twin on specificity; the order is in the var() chain.
+   The state values are the card's own, theme for theme. */
+.agent-node.state-active > .lod-face { --lod-edge: var(--inflight); }
+.agent-node.state-done > .lod-face { --lod-edge: rgba(134,239,172,0.5); }
+.agent-node.state-err > .lod-face { --lod-edge: rgba(252,165,165,0.6); }
+:root[data-theme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
+:root[data-theme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
+:root[data-theme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
+.lod-face[data-alarm] { --lod-alarm: var(--warn); }
+.agent-node.synthetic > .lod-face { border-style: dashed; }
+.react-flow__node:hover .lod-face {
+  background: color-mix(in srgb, var(--text) 6%, var(--panel));
+}
+/* Selection and the keyboard's ring move to the face with the chrome — the
+   card's own outline is 2px of layout, which at a distance is a hairline. No
+   mode in the selectors: the face is only ever drawn at the two distances this
+   is for, and a ring gated on a canvas attribute is the shape #434 refused. */
+.agent-node.selected > .lod-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.react-flow__node:focus-visible .lod-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The lines. The name leads at the card's own 12px weight; the title and the
+   signal are the 11px tier under it, the title in the secondary ink and the
+   signal in whatever its tone says. Each ellipsises on its own line. */
+.lod-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+.lod-name,
+.lod-inline,
+.lod-title,
+.lod-signal {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lod-name { flex: 1 1 auto; }
+.lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
+/* The title in the voice the card's own session-name row uses for it. */
+.lod-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+}
+.lod-signal { color: var(--muted); }
+.lod-short { display: none; }
+.lod-face [data-tone="warn"] { color: var(--warn); }
+.lod-face [data-tone="err"] { color: var(--err); }
+.lod-face [data-tone="idle"] { color: var(--accent); }
+.state-mark { flex: none; }
+.state-mark[data-kind="live"] { color: var(--inflight); }
+.state-mark[data-kind="done"] { color: var(--ok); }
+.state-mark[data-kind="err"] { color: var(--err); }
+.alert-mark { flex: none; margin-left: auto; color: var(--warn); }
+
+/* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
+   where the card is tall enough, no title, and the short form of the signal. */
+.canvas-wrap[data-lod="overview"] .lod-face { padding: 3px 6px 3px 8px; gap: 1px; }
+.canvas-wrap[data-lod="overview"] .lod-id { font-size: 11px; line-height: 14px; }
+.canvas-wrap[data-lod="overview"] .lod-title,
+.canvas-wrap[data-lod="overview"] .lod-long { display: none; }
+.canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
+
+/* Read off the face's content box: three lines need 47px of it, and below 57
+   the title is the first to go, so a third line never sits against the edge —
+   but only from a face that has a signal to keep. A card with nothing to say
+   under its name keeps its title on the second line. */
+@container lod (max-height: 56px) {
+  .lod-face[data-signal] .lod-title { display: none; }
+}
+/* One line only. A root card gives its line to the signal rather than its
+   name, because the name is already on the cluster's label at 1×, directly
+   above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
+   for. A subagent keeps its name: it has no label above it. */
+@container lod (max-height: 36px) {
+  .lod-signal,
+  .lod-title { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-inline { display: block; }
+}
+/* Narrower than a mark and a short word: the mark alone, centred. Nothing is
+   truncated to three letters — the peek beside the pointer has the name, and
+   the shape of the branch is what reads at this size. */
+@container lod (max-width: 72px) {
+  .lod-name,
+  .lod-inline,
+  .lod-signal { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
+  .lod-id { justify-content: center; }
+  .alert-mark { margin-left: 0; }
+}
+
+/* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
+   width — live, settled, selected — is multiplied by `--edge-k` inline (see
+   snapshotToFlow), 1 at `detail`, so that choice stays the edge's and only the
+   scale is the mode's: about 1.3px and up on screen instead of half of one. */
+.canvas-wrap[data-lod="compact"] { --edge-k: max(1, calc(0.9 / var(--zoom, 1))); }
+.canvas-wrap[data-lod="overview"] { --edge-k: calc(0.85 / var(--zoom, 1)); }
+/* And without the width's 200ms ease: the width now follows the zoom, so it
+   changes on every frame of a gesture, and an ease restarted on every edge on
+   every frame is a lag and a cost with nothing to show for either. The fade on
+   opacity, which is what a selection or an exit actually animates, stays. */
+.canvas-wrap[data-lod="compact"],
+.canvas-wrap[data-lod="overview"] { --edge-transition: opacity 500ms ease; }
+
+/* The bubbles are a second view of the tool list and the densest thing on the
+   canvas; below the full card they are 5px pills with nothing readable in them.
+   Their leader lines go with them — a line to a bubble that is not drawn is
+   worse than no line. The call a bubble would have named is on the face now,
+   as its signal, while it is still open. */
+.canvas-wrap[data-lod="compact"] .tool-burst,
+.canvas-wrap[data-lod="compact"] .tool-conn,
+.canvas-wrap[data-lod="overview"] .tool-burst,
+.canvas-wrap[data-lod="overview"] .tool-conn {
+  visibility: hidden;
+}
 
 .agent-node .accent-stripe {
   position: absolute;
@@ -3660,13 +4258,55 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .recap-tie-end {
   fill: var(--tie);
 }
-/* At the far tier a card keeps its title and nothing else. The note keeps its
-   box, so nothing under it moves, and draws only its mark. */
-.canvas-wrap[data-detail="far"] .recap-note-age,
-.canvas-wrap[data-detail="far"] .recap-note-close,
-.canvas-wrap[data-detail="far"] .recap-note-text {
+/* Below the full card the note does what a card does: it keeps its box, so
+   nothing under it moves, stops painting its own rows and chrome — which draw
+   at the canvas's scale, a 3px "recap" in an empty frame — and draws its face
+   instead (RecapNoteNode), in screen pixels. */
+.canvas-wrap[data-lod="compact"] .recap-note > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face) {
   visibility: hidden;
 }
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.canvas-wrap[data-lod="compact"] .lod-face.recap-face,
+.canvas-wrap[data-lod="overview"] .lod-face.recap-face {
+  display: flex;
+  justify-content: flex-start;
+  padding: 5px 8px;
+  background: var(--panel);
+  --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+/* A note has no stripe: its hue is its edge, as it is at the full size. */
+.lod-face.recap-face::before { display: none; }
+.recap-face .recap-note-mark { flex: none; font-size: 11px; }
+.recap-face-age {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* As many lines of the recap as the face has room for, read off its content
+   box: the mark row is 15px and a line of the text 14px after a 2px gap. */
+.recap-face-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+@container lod (max-height: 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
+@container lod (max-height: 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
+@container lod (max-height: 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
+@container lod (max-height: 30px) { .recap-face-text { display: none; } }
 .recap-note-head {
   display: flex;
   align-items: center;
@@ -4173,13 +4813,44 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-/* The name is the pill's only when the card cannot say it. At the `full` tier
-   the root card prints the same name on a row of its own, and the pill — held
-   at its own size since #846 while the cards shrink — drew the second copy
-   larger than the first. At `mid` and `far` the card's row draws at 4-6px or
-   not at all, and the pill is where the name is read. See SessionClusters.tsx. */
-.canvas-wrap[data-detail="full"] .cluster-label-name {
+/* The name is the pill's only when the card cannot say it. At `detail` the
+   root card prints the same name on a row of its own, and the pill — held at
+   its own size since #846 while the cards shrink — drew the second copy larger
+   than the first. At `compact` and `overview` the card is a face that gives the
+   title up first, and the pill is where the name is read. See
+   SessionClusters.tsx. */
+.canvas-wrap[data-lod="detail"] .cluster-label-name {
   display: none;
+}
+/* A session stopped until a human answers says so on the one thing a cluster
+   draws at 1× at every zoom. The edge takes --warn, the app's "this one is on
+   you", and the triangle the faces use leads; the words are for a screen
+   reader, which cannot see either. */
+.cluster-label[data-alarm] {
+  border-color: var(--warn);
+}
+.cluster-label .alert-mark {
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.cluster-label-branch {
+  display: none;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
+.cluster-label-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .cluster-label:hover {
   filter: brightness(1.25);
@@ -5375,6 +6046,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
+.appearance-backdrop { z-index: 101; }
 :root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
 
 .modal {
@@ -7879,6 +8551,16 @@ button.qb-pace::after {
    rule, which is why the block can hold a list of any length without becoming
    a card. */
 .ap-policy-block { padding: 2px var(--panel-inset) 14px; }
+/* WHAT THE FOLD OPENS: the accounts, and the policy over them. It is the flex
+   line that gives, so the list inside it can take the room that is left and
+   scroll; the policy under the list never does. */
+.ap-rest-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.ap-rest-panel > .ap-policy-block { flex: none; }
 /* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN. A region that scrolls inside
    itself ends on a row cut in half, and at this width that reads as a glitch
    rather than as a boundary — there is no container edge, no change of ground,
@@ -7966,6 +8648,119 @@ button.qb-pace::after {
    for. The name takes the room; the state is measured off `not read yet`, the
    longest thing it can say. */
 .ap-fold-peek { width: 244px; }
+/* THE CARD'S PEEK: the same hover card, carrying one agent card's facts at 1:1
+   beside a tile the canvas has drawn too small to say them (SessionPeek). Wider
+   than the fold's, because a session title is the widest thing it holds and
+   gets two lines to say it before it ellipsises. Nothing in it is a control, so
+   unlike the fold's it refuses the pointer — the tile under the pointer keeps
+   its hover, and a double-click on the tile still lands on the tile. */
+.node-peek {
+  width: 288px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.node-peek p { margin: 0; }
+.node-peek-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.node-peek-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.node-peek-time {
+  flex: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.node-peek-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.node-peek-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.node-peek-state[data-kind="live"] { color: var(--inflight); }
+.node-peek-state[data-kind="done"] { color: var(--ok); }
+.node-peek-state[data-kind="err"] { color: var(--err); }
+.node-peek-title {
+  font-size: 12px;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.node-peek-wait {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.node-peek-wait.warn { color: var(--warn); }
+.node-peek-wait > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.node-peek-wait b { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Counts and labels, which are what --muted is for; the title above is the
+   card's one piece of prose. */
+.node-peek-facts,
+.node-peek-branch {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.node-peek-failed { color: var(--err); }
+/* A recap note's peek: the note's own mark in its session's hue, and the
+   recap whole — prose, at the note's size and ink, with room for it. */
+.recap-peek {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  width: 320px;
+}
+.recap-peek-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.recap-peek-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.node-peek-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .ap-fold-who { gap: 8px; justify-content: space-between; }
 .ap-fold-name {
   min-width: 0;
@@ -8256,6 +9051,9 @@ button.qb-pace::after {
   overflow-wrap: anywhere;
 }
 .ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
+/* The route, beside the name of a row reached over the tailnet: a fact about
+   the path rather than about the machine, so it is set in the quiet ink. */
+.ap-lan-via { color: var(--muted); }
 .ap-lan-who[data-tone="ok"] .ap-lan-who-when { color: var(--text-dim); }
 .ap-lan-who[data-tone="wait"] .ap-lan-who-when { color: var(--accent); }
 /* A TRAFFIC LIGHT, BECAUSE THAT IS THE QUESTION. The mark said one thing —
@@ -9490,7 +10288,11 @@ button.qb-pace::after {
      shape, only through a selector actually written down. It carries the same
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
-  .sound-menu { animation: fadeIn 140ms ease-out; }
+  .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
+  .appearance-theme,
+  .appearance-preview,
+  .appearance-check,
+  .appearance-row { transition: none; }
 }
 
 
@@ -10504,6 +11306,10 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .hist-rule-tag.warn { fill: var(--warn); }
 .hist-rule-tag.hot { fill: var(--err); }
 .hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+/* Where the network's route changed. Solid and quieter than the crosshair, so
+   the two never read as one thing: a mark is a fact about the past, the
+   crosshair is the pointer. */
+.hist-mark { stroke: var(--text-dim); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
 
 .hist-axis {
   display: flex;
@@ -10521,6 +11327,8 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    text-tiers.test.ts is the rule that says so. */
 .hist-at b { color: var(--text); font-weight: 600; }
 .hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+/* A run of route notes sits tight under the chart, one line per change. */
+.hist-note.hist-route + .hist-note.hist-route { margin-top: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   /* `popIn` scales and lifts the card, which is movement rather than a fade,
@@ -10921,6 +11729,15 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   font-size: 11px;
   line-height: 1.45;
   color: var(--text-dim);
+}
+/* The one fact a switch's label cannot say, under it in the quiet ink: whose
+   devices "my devices" means, and how many of them are there. */
+.lan-switch-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 /* The one switch that is about the list above it, set a step below its rows. */
 .ap-lan-picks + .lan-switch { margin-top: 10px; }
@@ -12225,6 +13042,10 @@ input, textarea { caret-color: var(--accent); }
   .uh-model-bar,
   .uh-agent-bar,
   .cost-bar { outline: 1px solid CanvasText; outline-offset: -1px; }
+  /* The notch in a thermal track is the panel's ground showing through, and a
+     Contrast theme repaints that ground: it takes Canvas so the gap stays a
+     gap, against a fill that is now Highlight and a track that is outlined. */
+  .sd-mark { forced-color-adjust: none; background: Canvas; }
 
   /* The track keeps its forced border either way; the knob is what moves, so
      it is what has to survive, and the track fills when the switch is on. */
@@ -12236,4 +13057,1105 @@ input, textarea { caret-color: var(--accent); }
   .ver-banner .switch[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
   .switch[aria-checked="true"] .switch-knob,
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
+
+  /* A preview is a picture of a palette, and a palette repainted in system
+     colours is two identical grey boxes: it keeps its own. The chosen frame
+     takes Highlight, the way an on switch fills with it. */
+  .appearance-preview svg { forced-color-adjust: none; }
+  .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
 }
+
+/* ---------------- Claude FM ------------------------------------------------
+   A character standing on the minimap's top edge, and the hidden player behind
+   it. Nothing in this block renders unless the server said the channel is on
+   air — see components/ClaudeFm.tsx.
+
+   IT STANDS ON THE EDGE rather than floating over it, which is the difference
+   between a character and a sticker. Its feet land exactly on the minimap's top
+   border, and the two numbers that put them there are named so the next person
+   can see what it is standing on: React Flow gives every canvas panel a 15px
+   margin, and the minimap's 150px drawing inside `.react-flow__minimap`'s 1px
+   edge is a 152px box — measured at 152 on a real deck, which is how the first
+   pass's 150 was caught sitting it two pixels low. Change the minimap's size
+   and --minimap-h is the one number to move.
+
+   --fm-x is where along that ledge it is standing, written by the component. */
+.fm {
+  --flow-gutter: 15px;   /* .react-flow__panel's own margin */
+  --minimap-h: 152px;    /* MiniMap's 150 drawing plus the 1px edge each side */
+  --minimap-w: 202px;    /* its 200 drawing, the same 1px edge each side */
+  position: absolute;
+  right: var(--flow-gutter);
+  /* THE SCENE SITS ON THE CANVAS FLOOR, NOT ON THE LEDGE, and the ledge is a
+     height within it. It used to be pinned to the minimap's top border, which
+     made that border the only place in the world — there was no way to express
+     "further down" at all, and the character could not leave.
+
+     Nothing moves on screen for this: the walker carries --fm-y, which defaults
+     to exactly the ledge's height above the floor, so every position that was
+     right before is right now. What it buys is somewhere else to go. */
+  bottom: var(--flow-gutter);
+  --fm-y: calc(-1 * var(--minimap-h));
+  width: var(--minimap-w);
+  height: 0;
+  /* Above the canvas, alongside the chrome it stands next to: the same z-index
+     the control stack and the minimap are given. */
+  z-index: 5;
+  /* The canvas is under this. A press that misses the character should pan the
+     deck as if nothing were there, so only the button takes the pointer. */
+  pointer-events: none;
+}
+
+/* THE LEDGE IS A STAGE, AND THE STAGE DOES NOT MOVE. `.fm` above is the whole
+   length of the minimap's edge with nothing on it; the two things standing on
+   it position themselves within it. That split is what lets a piece of litter
+   lie still while the character walks toward it — when the walk lived on the
+   scene itself, everything on the ledge travelled with it, which is one way to
+   discover that a floor is not a vehicle. */
+.fm-walker, .fm-prop { position: absolute; right: 0; bottom: 0; }
+
+.fm-walker {
+  /* The walk itself, and the curve is a compromise worth naming. Pure linear —
+     what this had first — is honest about a constant stride but starts and
+     stops dead, which reads as a sprite being teleported along a line rather
+     than as something setting off and arriving. A full ease makes the middle
+     race and the steps stop matching the ground. This is the gentlest
+     symmetric curve that still spends most of the trip near constant speed: it
+     leans into the first stride and settles out of the last, and the cadence
+     in between is close enough to even that the feet keep up. */
+  transform: translate(var(--fm-x, 0px), var(--fm-y));
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1);
+}
+
+/* OFF THE LEDGE AND ONTO THE CANVAS FLOOR.
+   The scene widens leftward when the character is down there — its right edge
+   never moves, so every ledge coordinate and the 21px prop offset below stay
+   exactly as valid as they were, and only the amount of floor changes. */
+.fm[data-place="floor"] {
+  left: var(--flow-gutter);
+  width: auto;
+}
+/* The floor is the bottom of the scene, which is what the scene was moved down
+   to be. Standing on it is the absence of the ledge's height, not a second
+   position system. */
+/* The floor is the bottom of the scene, plus whatever it happens to be standing
+   ON. The deck's controls sit on that floor and the character walks along it,
+   so --fm-riser is how high the thing under its feet is — zero for the floor
+   itself, and the height of the Auto-fit chip while it is up on that. */
+.fm-walker[data-place="floor"] { --fm-y: calc(-1 * var(--fm-riser, 0px)); }
+
+/* GETTING UP ONTO SOMETHING IS A STEP, NOT A CLIMB. It is ankle-high next to
+   the ledge this character throws a rope at, so it goes up quickly and arrives
+   — ease-out, like everything else on this canvas that settles into place. */
+.fm-walker[data-act="mount"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* Stepping off it is a drop, and a drop accelerates. The same curve as the fall
+   from the ledge, because it is the same thing over a much shorter distance —
+   using anything else here would make one of the two a lie. */
+.fm-walker[data-act="dismount"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
+}
+/* Up on the toes to make the step, and absorbing it on the way down. */
+.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-3px); }
+.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(3px); }
+
+/* THE DROP, AND IT IS THE ONLY MOTION HERE THAT ACCELERATES. Everything else on
+   this canvas eases out, because everything else is a thing settling into
+   place; a falling body does the opposite, and a fall that eases out reads as
+   being lowered on a wire. `easeInQuad` is position proportional to time
+   squared, which is what constant acceleration means — the duration is already
+   the one the model derived from the height and the gravity, so this only says
+   what shape the motion has. */
+.fm-walker[data-act="fall"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
+}
+/* Going up is work at a steady rate, not the fall run backwards. Linear. */
+.fm-walker[data-act="climb"] {
+  /* Stop with hands at the ledge; the final step pulls the hips over it. */
+  --fm-y: calc(-1 * var(--minimap-h) + 24px);
+  transition: transform var(--fm-walk-ms, 0ms) linear;
+}
+.fm-walker[data-act="pull-up"] { transition: transform var(--fm-walk-ms, 0ms) steps(4, end); }
+.fm-walker[data-act="pull-up"] .fm-sprite { animation: fm-pull-up 480ms steps(2, end) forwards; }
+.fm-rope[data-act="pull-up"] .fm-rope-line { animation: fm-rope-recover 480ms steps(4, end) forwards; }
+@keyframes fm-pull-up {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+@keyframes fm-rope-recover { to { clip-path: inset(0 0 100% 0); } }
+
+/* Looking over before stepping off: it leans out over the edge. Nothing
+   sensible jumps from a height it has not looked at. */
+.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-3px); }
+
+/* The landing absorbs. A body that arrives at speed and stops dead did not
+   land, it was placed — the squash is where the energy goes, and it is the
+   deepest one in this block because it is the only impact. */
+.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px); }
+
+/* Winding up the throw. */
+.fm-walker[data-act="lasso"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="rope-throw"] .fm-sprite { transform: translateY(-3px); }
+.fm-walker[data-act="rope-catch"] .fm-sprite { transform: translateY(2px); }
+
+/* THE ROPE. Anchored to the ledge and standing still while the character climbs
+   past it — it is drawn outside the walker for exactly that reason, since a
+   rope that travelled with whoever was climbing it would be a rope climbing
+   itself.
+
+   25.5px puts it on the sprite's middle: the sprite is 54px and right-aligned
+   at --fm-rope-x, so its centre is 27px in, and the rope is 3px wide. */
+.fm-rope {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px));
+  width: 3px;
+  height: var(--minimap-h);
+}
+.fm-rope-line {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(to bottom, var(--muted) 0 6px, var(--accent) 6px 9px);
+}
+.fm-rope-hook {
+  position: absolute; left: -12px; top: -18px;
+  width: 27px; height: 27px; overflow: visible; fill: var(--text);
+}
+.fm-rope-knot { fill: var(--accent); }
+.fm-rope[data-act="lasso"] .fm-rope-line { clip-path: inset(100% 0 0 0); }
+.fm-rope[data-act="lasso"] .fm-rope-hook { animation: fm-hook-ready 380ms steps(2, end) infinite; }
+.fm-rope[data-act="rope-throw"] .fm-rope-hook { animation: fm-hook-throw var(--fm-rope-ms) steps(10, end) both; }
+.fm-rope[data-act="rope-throw"] .fm-rope-line { animation: fm-rope-unroll var(--fm-rope-ms) steps(10, end) both; }
+.fm-rope[data-act="rope-catch"] .fm-rope-hook { animation: fm-hook-catch var(--fm-rope-ms) steps(2, end) both; }
+@keyframes fm-hook-ready {
+  0%, 100% { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  50% { transform: translate(6px, calc(var(--minimap-h) - 45px)); }
+}
+@keyframes fm-hook-throw {
+  from { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  80% { transform: translate(0, -6px); }
+  to { transform: translate(0, 0); }
+}
+@keyframes fm-rope-unroll {
+  /* Reveal at the hook's speed without stretching the rope's pixel pattern. */
+  from { clip-path: inset(calc(var(--minimap-h) - 42px) 0 0 0); }
+  80%, to { clip-path: inset(0); }
+}
+@keyframes fm-hook-catch {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+/* Thrown and caught: a line from the ledge down to the floor, which is the
+   height the character is about to cover. */
+.fm-rope[data-act="climb"] {
+  width: 3px;
+  height: var(--minimap-h);
+}
+
+/* The 21px is what centres a 12px object under a 54px one when both are
+   right-aligned to the same edge: (54 - 12) / 2. Without it the litter sits off
+   the character's shoulder and the stoop reaches for nothing. */
+.fm-prop {
+  transform: translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y));
+  width: 12px;
+}
+.fm-prop svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
+
+/* It settles onto the ledge instead of being there suddenly. Nothing in this
+   scene should pop: a thing that exists between one frame and the next is the
+   same cheapness as headphones blinking off a head. */
+.fm-prop { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* KICKED, IT GOES THE WAY THE FOOT WAS POINTING. This rolled a fixed -132px,
+   which is fine exactly half the time: approach the ball from the left and the
+   kick sends it backwards, straight through the character that just kicked it.
+   The component supplies a signed distance bounded by the ledge's edge. */
+.fm-prop[data-prop="ball"][data-leaving] {
+  animation: fm-roll var(--fm-ball-flight-ms) linear forwards;
+}
+.fm-prop[data-prop="ball"] svg { fill: var(--accent); }
+.fm-prop[data-prop="ball"][data-leaving] svg { animation: fm-ball-turn var(--fm-ball-flight-ms) steps(12, end) forwards; }
+@keyframes fm-ball-turn { to { transform: rotate(var(--fm-ball-turn, -360deg)); } }
+@keyframes fm-roll {
+  0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y)); }
+  20%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.2), calc(var(--fm-y) + var(--fm-ball-drop) * 0.04 - 58px)); }
+  40%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.4), calc(var(--fm-y) + var(--fm-ball-drop) * 0.16 - 86px)); }
+  60%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.6), calc(var(--fm-y) + var(--fm-ball-drop) * 0.36 - 86px)); }
+  80%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.8), calc(var(--fm-y) + var(--fm-ball-drop) * 0.64 - 58px)); }
+  100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to)), calc(var(--fm-y) + var(--fm-ball-drop))); }
+}
+@keyframes fm-settle {
+  0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), calc(var(--fm-y) - 5px)); opacity: 0; }
+  100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y));             opacity: 1; }
+}
+
+/* In hand: at the character's side, at the height of its feet, so the throw
+   starts from where something would actually be held. */
+.fm-held {
+  position: absolute;
+  right: 42px;
+  bottom: 3px;
+  width: 12px;
+}
+/* BROUGHT INTO HAND, NOT SWITCHED ON. A held thing used to appear at full size
+   the instant the step began — the scope worst of all, because nothing precedes
+   it: one frame the character is standing there, the next it is holding a
+   telescope. It grows out of the body and up into place instead, which is the
+   same objection as the headphones blinking off a head and the same answer.
+   The throw below is a higher-specificity rule, so a prop on its way out
+   overrides this rather than fighting it. */
+.fm-held { animation: fm-draw 300ms steps(3, end); }
+@keyframes fm-draw {
+  0%   { transform: translate(12px, 6px); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+.fm-walker[data-act="scope-pack"] .fm-held { animation: fm-scope-fold 480ms steps(4, end) forwards; }
+@keyframes fm-scope-fold {
+  0% { clip-path: inset(0); transform: translateY(0); opacity: 1; }
+  60% { clip-path: inset(0 0 50% 0); transform: translateY(0); opacity: 1; }
+  100% { clip-path: inset(0 0 50% 0); transform: translateY(6px); opacity: 0; }
+}
+
+/* The scope is held UP, at the height of the eyes, pointing away from the
+   minimap and out over the sessions — which is the only thing that makes the
+   pose read as looking at something rather than as carrying a stick.
+
+   IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head and
+   read as floating beside the character rather than being held up to it: the
+   arms are two rows from the bottom and there is nothing at eye height for a
+   hand to be. 34px puts its near end over the head's left edge, just short of
+   the eye, and the overlap does the work an arm would — which is how every
+   pixel character that has ever held something to its face does it. */
+.fm-held[data-prop="scope"] {
+  /* Material colours must not invert with the UI's text/background tokens:
+     the silver barrel used to become near-black in the light theme. */
+  --fm-prop-light: var(--pixel-metal-light);
+  --fm-prop-shadow: var(--pixel-metal-shadow);
+  right: 34px;
+  /* 20 × 24 cells at 2px. The tripod stands on the ledge; its eyepiece
+     occupies 26–32px above it, level with the character's eye row. */
+  bottom: 0;
+  width: 40px;
+  transform-origin: bottom right;
+}
+.fm-held[data-prop="scope"] svg { fill: var(--pixel-metal-edge); }
+/* CARRIED ON THE SIDE IT IS FACING. Held on the left while walking right, an
+   object trails along behind the character, which is the other half of what
+   made it look like it was going backwards. 54px sprite less the 12px object
+   puts the far side at 0; the scope is 15px wide, so its mirror is 5. */
+.fm-walker[data-facing="right"] .fm-held { right: 0; }
+.fm-walker[data-facing="right"] .fm-held[data-prop="scope"] { right: 5px; }
+.fm-walker[data-facing="right"] .fm-held[data-prop="scope"] svg { transform: scaleX(-1); }
+
+/* No surface, no border, no shadow. Every other instrument on this canvas
+   wears --chrome-bg and an edge because it is a panel of controls; this is one
+   character standing on the canvas, and a box around it would make it look
+   like a fourth panel. It is the only thing here allowed to be charming, and a
+   frame is what would stop it being that.
+
+   54px is 18 columns at exactly 3px each. A width that does not divide by the
+   grid puts every cell boundary on a fraction of a pixel, and a pixel
+   character with soft edges is the one thing it cannot be. */
+.fm-sprite {
+  pointer-events: auto;
+  display: block;
+  width: 54px;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  /* The character stays equally visible whether or not music is playing. */
+  opacity: 1;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fm-sprite:hover { opacity: 1; }
+.fm-arms { transition: transform 160ms steps(2, end); }
+.fm-sprite:is(:hover, :focus-visible) .fm-arms { transform: translateY(-2px); }
+.fm-sprite[data-playing] { opacity: 1; }
+/* The deck's one press convention, at the tier a control with no label wears.
+   0.94 rather than the 0.97 a labelled button takes: the ink here IS the
+   control, so the press has to move the character enough to be seen against a
+   sprite that may also be dancing. */
+.fm-sprite:active { transform: scale(0.94); }
+/* THE VIEWBOX IS THE CHARACTER'S OWN BOUNDS, WITH NOTHING SPARE, and an SVG
+   clips to its viewport by default — so the moment a dance lifted the sprite,
+   the top row went outside the box and was simply cut. What that looked like
+   was the headband vanishing at the top of every bounce.
+
+   The dances lift 0.85 units and the rotation swings the top of a thirteen-row
+   sprite 1.25 units sideways, so there is no padding that is obviously enough
+   and every one costs a recalculation of the width, the ledge offset and the
+   21px that centres a prop underneath. `overflow: visible` costs none of that:
+   the geometry stays exactly what every other number in this block was computed
+   against, and the parts that travel outside it are drawn instead of dropped.
+   Nothing sits next to this to be overlapped — it is one character alone on a
+   canvas. */
+.fm-sprite svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* THE DARKEST INK THE PALETTE HAS, and it is not the same token in both themes
+   because both flip: --bg is near-black in dark and near-WHITE in light, and
+   --text is the other way round. Declared once on the sprite so the eyes and
+   the hat band cannot drift apart — they are the two marks on this character
+   that have to be darker than everything around them. */
+.fm-sprite { --fm-ink: var(--bg); }
+:root[data-theme="light"] .fm-sprite {
+  --fm-ink: var(--text);
+  /* UI link blue is too dark for the character's large filled silhouette. */
+  --accent: var(--pixel-character-body);
+}
+
+/* The headphones, in the same --muted every glyph on this canvas is drawn in,
+   and the body in the deck's accent so the character belongs to this palette
+   rather than arriving with its own. Both recolour with the theme, which is the
+   whole reason this is a grid of rects and not a picture. */
+.fm-gear { fill: var(--muted); }
+/* THE LEGS ARE THE SAME INK AS THE BODY, and they need saying so out loud.
+   They used to BE the body — one group, one fill — and splitting them out so
+   they could take a step took them out from under it. SVG's default fill is
+   black, so the character walked around with two black legs and a black shin,
+   which is what an unstated inherited property costs the moment the thing it
+   was inherited from goes away. */
+.fm-body, .fm-leg { fill: var(--accent); }
+
+/* WHAT IT WEARS WHEN THERE IS NOTHING TO LISTEN TO.
+   The headphones leaving used to leave a bare head, and a bare head is not a
+   state — it is the absence of one. Swapping one thing for another makes the
+   change legible from across a room, and it reads as the character putting
+   something on rather than something being taken off it.
+   The same grey the headphones wear, because they are never both on: they are
+   told apart by shape, which is what a silhouette is for. The band is the
+   character's own colour, which ties the hat to whoever is under it. */
+.fm-hat { fill: var(--muted); }
+/* NOT THE BODY'S COLOUR, which is what it was. A band in the same blue as the
+   head reads as the head showing through the hat rather than as a band on it —
+   the one thing a hat must never look like. Dark, the way a band on a hat is,
+   and mixed rather than flat black so it sits on the felt instead of cutting a
+   hole in it. */
+.fm-hatband { fill: color-mix(in srgb, var(--muted) 40%, var(--fm-ink)); }
+
+/* THE TWO SWAP, AND THE ORDER IS THE WHOLE THING. The hat goes straight up and
+   off while the headphones come down, which is the way each is really put on
+   and taken off — but the first build had both fades on the WRONG side of the
+   exchange. The incoming one arrived at once and the outgoing one waited 240ms,
+   so for a quarter of a second the character wore a hat and a pair of
+   headphones at the same time, and what that looks like is the headphones
+   appearing on top of the hat in a single frame.
+
+   Whichever one is leaving goes immediately; whichever is arriving waits for
+   the other to clear. A transition applies when moving TO a state, so the rule
+   that carries the delay is the one being moved to — `[data-playing]` for the
+   headphones arriving, the bare rule for the hat coming back.
+
+   The travel is unchanged and still overlaps: one rises as the other falls.
+   It is only the two fades that had to be put in order. */
+.fm-hat {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 160ms linear 200ms;
+}
+.fm-sprite[data-playing] .fm-hat {
+  transform: translateY(-4px);
+  opacity: 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 180ms linear;
+}
+/* THE EYES NARROW WHEN IT IS LOOKING AT SOMETHING, and that is all they do.
+
+   An earlier build also shifted them a column to say which way it was
+   travelling. It was on at every moment — the eyes were never simply open — and
+   a face that is always doing something has no expression left to spend. It
+   walks with its eyes open now, and the narrowing is saved for the litter it is
+   bending for, the ball it is about to kick, and whatever it is aiming the
+   scope at.
+
+   AND NOTHING ELSE HAPPENS TO THEM. Two earlier passes also shifted them a
+   column to say which way it was travelling, and both times it was wrong for
+   the same reason: the eyes were doing something at every moment, so they were
+   never simply open. Direction is carried by which side it holds things on,
+   which is a thing it is actually doing rather than a face pulled permanently
+   to one side.
+
+   `fill-box` here is the case the pivot rule above warns is fine: one shape
+   narrowing about its own middle, with nothing that has to agree with it. */
+.fm-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(var(--fm-eye-h, 1));
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+:is(.fm-walker[data-act="stoop"], .fm-walker[data-act="windup"],
+    .fm-walker[data-act="kick"], .fm-walker[data-act="watch"]) .fm-eye {
+  --fm-eye-h: 0.4;
+}
+
+
+
+/* AN EYE IS A DARK MARK, in both themes, and this had it as a HOLE.
+   `--bg` is the canvas showing through, which is near-black in dark and
+   near-white in light — so in light the character got two blank white sockets
+   on a blue face, and what that reads as is something that has stopped being
+   alive. The darkest ink in the palette is not the same token in both themes:
+   it is --bg in dark and --text in light, because both flip. The eye takes
+   whichever one is dark. */
+.fm-eye { fill: var(--fm-ink); }
+
+/* THE SHADED SIDE, and the mix is chosen so it stays a shadow in both themes.
+   The obvious spelling — mix the accent toward --bg — lands the wrong way
+   round in light, where --bg is nearly white and "shadow" would come out
+   BRIGHTER than the body. Mixing toward --muted is dull in both directions
+   instead: a bright blue loses its light against dark, a dark blue loses its
+   colour against light, and either way the right-hand column reads as the side
+   away from the lamp. */
+.fm-shade { fill: color-mix(in srgb, var(--accent) 55%, var(--muted)); }
+
+/* Inside each cup. --muted-dim is darker than --muted in dark and lighter in
+   light, which is the same fact both times: a pad that separates from the shell
+   it sits in, without a third colour to keep in step with the palette. */
+.fm-pad { fill: var(--muted-dim); }
+
+/* A short, stepped blink keeps a dark eyelid visible. Never paint the eyes
+   blue: that erases the face altogether during the closed frame. */
+.fm-eye { animation: fm-blink 5.4s steps(1, end) infinite; }
+@keyframes fm-blink {
+  0%, 93.5%  { transform: scaleY(var(--fm-eye-h, 1)); }
+  94%, 96.5% { transform: scaleY(0.35); }
+  97%, 100%  { transform: scaleY(var(--fm-eye-h, 1)); }
+}
+
+/* ONE PIVOT FOR EVERY GROUP, and getting this wrong is invisible in the
+   stylesheet and glaring on screen.
+
+   THE LEGS WERE LEFT OUT OF THIS AND IT COST THE SAME BUG TWICE. They were
+   added to the rule when they still rotated, and taken back out with the
+   rotation — but they still SCALE, because they dance with the torso now. On
+   the default origin a leg scales about the middle of the sprite while the
+   torso scales about its feet, so the same keyframe pulls them apart and the
+   hip opens. In the light theme the canvas showing through that gap reads as a
+   pair of white legs.
+
+   These were on `transform-box: fill-box`, which makes the origin each group's
+   OWN bounding box. The gear's box is rows 0-8 and the body's is rows 2-13, so
+   "50% 100%" resolved to two points five rows apart — and the same rotate and
+   the same scale about two different centres cannot keep two shapes aligned. It
+   showed as a seam that opened and closed along the headband as the character
+   moved: not a timing problem, which is where two passes went looking, but a
+   geometry one.
+
+   `view-box` resolves the percentages against the sprite's own viewBox instead,
+   so both groups pivot about (9, 13) — the middle of its feet — which is what
+   "bottom centre" was always meant to mean. Identical transforms about an
+   identical origin cannot drift. */
+:is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg, .fm-hat) {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+}
+
+/* WHERE THE HEADPHONES ARE, which is the one thing about this character that
+   says whether anything is playing, without a word or a colour. On its head
+   while the music is on, and gone when it is not.
+
+   GONE, NOT PARKED. They used to slide down and stay slung round its neck,
+   which was the idea — and the cups sit at columns 3-5 and 12-14, outside the
+   body's own 6-11, so no amount of dropping ever hides them. They stuck out at
+   both sides and made the whole lower half read as clutter. A drop alone
+   cannot do this; the fade is what finishes it.
+
+   BUT IT STILL TAKES THEM OFF. The fade is delayed past the start of the slide,
+   so what you see is the band coming down off the ears and going behind the
+   head, and only then the last of it leaving — a removal, not a disappearance.
+   Putting them back reverses the order: they appear at once and rise into
+   place, because reaching for something is not a fade-in.
+
+   The curve is the sheet's ease-out, not the back-out this wanted: #860 settled
+   that for the whole sheet after every tool bubble sprang past its own size,
+   and the music stopping is one of the things you see hundreds of times a day. */
+.fm-gear {
+  transform: translateY(9px) rotate(-10deg);
+  opacity: 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 180ms linear;
+}
+.fm-sprite[data-playing] .fm-gear {
+  transform: translateY(0) rotate(0deg);
+  opacity: 1;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 160ms linear 200ms;
+}
+
+/* THE DANCE, which is three things a bob alone was not.
+   Squash and stretch, and it goes both ways at once: the body widens as it
+   compresses and narrows as it extends, because a shape that only loses height
+   reads as being crushed rather than as landing. Keeping the area roughly
+   constant is the whole of why the principle works. A sway: two bounces per cycle against one left-right lean, so it
+   traces a figure rather than a pogo. And secondary motion: the headphones run
+   the same cycle at a third of the amplitude and 90ms behind, so they follow
+   the head instead of being bolted to it — the difference between a character
+   wearing headphones and a sprite with headphones painted on.
+   800ms is 75bpm, which is the tempo the thing it is dancing to is usually at.
+   The distances are in the sprite's own units, where 1 unit is 3 screen px.
+
+   THERE ARE THREE OF THESE AND THE TEMPO DRIFTS. One cycle repeated forever
+   reads as a GIF: the eye learns an 800ms loop in about four seconds and then
+   stops looking. Which dance is playing and how fast arrive as custom
+   property and WHICH one as a `data-dance` attribute — three rules rather than
+   one. Driving `animation-name` through a variable too was briefly one rule and
+   hid all three sets from bubble-motion.test.ts, which exists to catch a
+   @keyframes set nothing runs and an animation naming a set that is not there.
+   A sheet its own guards cannot read is not a saving, so the names are here in
+   full and the reduced-motion block below names them again.
+
+   None of this listens to the music, and none of it can: the player is a
+   cross-origin iframe, the page cannot reach its audio element, and a tainted
+   source hands an analyser silence. It is not dancing TO the track. It is only
+   not dancing the same way twice in a row. */
+/* THE HEADPHONES RUN THE SAME DANCE AS THE BODY, and the first build's mistake
+   is worth stating because it looked like a rendering fault rather than a
+   choice. The body had three dances swinging up to 5.5 degrees and most of a
+   pixel vertically; the headphones had one small generic nod, 1.2 degrees and
+   no lift. Worn ON a head, that mismatch does not read as two things moving at
+   different speeds — it reads as the head sliding out of the headphones, which
+   is exactly what it did.
+
+   So they take the body's own keyframes, exactly — same set, same tempo, no
+   offset at all.
+
+   THE LAG WENT TOO, AND IT HAD TO. Fifty milliseconds of delay was the last of
+   the secondary motion, and at this size it is not a nicety, it is an error:
+   groove lifts 0.85 units, which at the steepest part of the bounce is 0.02px
+   per millisecond, so a fifty-millisecond delay puts the body a whole pixel
+   above the headphones. The band is one row — three pixels — so a pixel of
+   separation is a third of it, and what that looks like is the head sinking
+   into the headphones. Secondary motion needs room to be subtle in, and a
+   thirteen-row sprite does not have any. Rigid is correct: they are ON the
+   head, and things on a head do not lag behind it.
+
+   THE LEGS DANCE WITH THE TORSO, exactly in phase, which is the opposite of
+   what they do when it walks. Walking, they step INDEPENDENTLY — that is what a
+   stride is. Dancing happens on the spot, so there is no step to take and any
+   difference between the two is just the hip coming apart. Measured while the
+   torso grooved on its own: the gap opened and closed across two and a half
+   pixels, and in the light theme the canvas showing through it read as a pair
+   of white legs.
+
+   ONLY WHILE IT IS STANDING STILL. `:not([data-act])` is what stops the dance
+   fighting a walk: with the music on it still goes about its business, and
+   while it is walking or sitting or looking at the board, the walk owns the
+   body and the dance waits. */
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg) {
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion {
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] :is(.fm-body, .fm-leg) {
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion {
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] :is(.fm-body, .fm-leg) {
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion {
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
+}
+
+@keyframes fm-bob {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(0, -1px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(0, -1px); }
+}
+
+/* A slow lean with almost no lift — what somebody does to something calm. */
+@keyframes fm-sway {
+  0%, 100% { transform: translate(-1px, 0); }
+  25%, 75% { transform: translate(0, 0); }
+  50% { transform: translate(1px, 0); }
+}
+
+/* Straight up and down, twice a bar, leaning the other way each time. The
+   busiest of the three and the one that reads from furthest away. */
+@keyframes fm-groove {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, -1px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(1px, -1px); }
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing] :is(.fm-body, .fm-leg, .fm-gear-motion) {
+  animation-timing-function: steps(1, end);
+}
+
+.fm-seated-legs, .fm-crouch-legs { fill: var(--accent); }
+.fm-walker:is([data-act="land"], [data-act="dismount"]) .fm-leg { display: none; }
+.fm-walker[data-facing="right"] .fm-seated-legs { transform: translateX(18px) scaleX(-1); }
+.fm-seated-far { fill: color-mix(in srgb, var(--accent) 65%, var(--muted)); }
+.fm-walker:is([data-act="sit"], [data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-leg { display: none; }
+.fm-walker:is([data-act="walk"], [data-act="carry"]) .fm-sprite { transition: none; }
+
+/* THE LEGS STEP, THEY DO NOT SWING, and the difference is the grid.
+
+   The first build rotated each leg about its hip, fifteen degrees either way —
+   which is how a leg works, and is wrong at this size. A cell here is three
+   pixels; fifteen degrees moves the foot of a three-row leg 2.33px, so it lands
+   BETWEEN pixels and the edge is drawn half-lit. With the two legs at opposite
+   extremes the character stood in a thirty-degree splay made of torn edges, and
+   what that reads as is a broken leg rather than a stride.
+
+   A whole cell, straight up, is the only move that stays on the grid. It is
+   also what every pixel character has ever done: two frames, one foot up, and
+   the walk is in the alternation rather than in the angle. */
+
+/* A STRIDE, WHICH THIS DID NOT HAVE. The body used to rise and fall between two
+   poses with its legs welded on, and a body that bobs without its legs
+   alternating is a hop — which is why the walk never looked like walking. The
+   two legs run the same cycle half a beat apart, so one is always forward while
+   the other is back. */
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"] {
+  animation: fm-stride-a 440ms linear infinite;
+}
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"] {
+  animation: fm-stride-b 440ms linear infinite;
+}
+@keyframes fm-stride-a {
+  0%, 49.99% { transform: translateY(0); }
+  50%, 100%  { transform: translateY(-1px); }
+}
+@keyframes fm-stride-b {
+  0%, 49.99% { transform: translateY(-1px); }
+  50%, 100%  { transform: translateY(0); }
+}
+
+/* CLIMBING IS NOT A GLIDE. The rise itself is linear, because a rope is climbed
+   at a steady rate — but nothing about the body doing it is smooth. It gathers,
+   pulls, and reaches again, and the legs push in the same rhythm half a beat
+   apart. Slower than the walk: hauling your own weight up a rope is not a
+   stroll, and the difference in cadence is most of what says so. */
+.fm-walker[data-act="climb"] .fm-leg[data-side="left"] {
+  animation: fm-stride-a 620ms ease-in-out infinite;
+}
+.fm-walker[data-act="climb"] .fm-leg[data-side="right"] {
+  animation: fm-stride-b 620ms ease-in-out infinite;
+}
+.fm-walker[data-act="climb"] .fm-sprite { animation: fm-haul 620ms steps(2, end) infinite; }
+.fm-grip { fill: var(--accent); }
+.fm-walker[data-act="climb"] .fm-grip-left { animation: fm-grip-left 620ms steps(1, end) infinite; }
+.fm-walker[data-act="climb"] .fm-grip-right { animation: fm-grip-right 620ms steps(1, end) infinite; }
+@keyframes fm-grip-left { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+@keyframes fm-grip-right { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes fm-haul {
+  0%, 100% { transform: translateY(0); }
+  35%      { transform: translateY(3px); }
+  70%      { transform: translateY(-3px); }
+}
+
+/* THE BODY RISES ONCE PER FOOTFALL, WHICH IS TWICE PER STRIDE — and getting
+   that wrong is what made it limp.
+
+   The body and the legs both ran at 440ms, in phase. A leg that moves exactly
+   as its body moves does not move AT ALL relative to it, so one leg sat frozen
+   under the character while the other appeared to do the entire walk. That
+   reads as favouring a leg, which is precisely what a limp is.
+
+   Half the period fixes it and is also what a body does: you are highest at
+   mid-stance, with one foot planted and the other swinging, and lowest at the
+   moment both feet are down. Two rises per stride, one under each leg.
+
+   The rotation went with it. A 1.4-degree tilt on a 42px sprite moves its top
+   edge a single pixel, which at three pixels a cell is the same sub-pixel mush
+   that made the legs look torn. What is left is whole-cell vertical, on the
+   grid, like everything else here.
+
+   THE WALK, and it is two frames rather than a curve on purpose. A pixel
+   character that eases between poses looks like a picture being tweened; one
+   that snaps between two poses looks like it is taking steps. So the keyframes
+   hold each pose for most of the half-cycle rather than all of it: a 12% linear
+   handover, about 50ms, which is too fast to read as a tween and just long
+   enough that the change is a movement rather than a jump. A hard cut at 49.99%
+   was the first build and it juddered. 440ms is a stride at the pace
+   --fm-walk-ms carries it along the ledge at. */
+/* THE TORSO HOLDS STILL WHILE IT WALKS, and that is not laziness — it is the
+   only arrangement in which this character stays in one piece.
+
+   The legs are their own groups, siblings of the torso rather than children of
+   it, because they have to step independently. So nothing the torso does
+   vertically is followed by the legs. Measured on the page while it bobbed: the
+   gap at the hip opened to a full cell — three pixels — and then closed past
+   zero into a pixel and a half of overlap. The torso was coming off its legs
+   and sinking back into them twice a second, which from any distance reads as a
+   limp.
+
+   Nesting the legs inside the torso would close that gap and buy a worse fault:
+   the bob would lift the planted foot too, so both feet leave the ground and
+   the walk becomes a float. The planted foot has to stay planted.
+
+   So the walk lives entirely in the legs, which is what a small pixel character
+   has always done — one foot up, one foot down, alternating. Nothing else
+   moves, nothing can come apart, and every edge stays on the grid. */
+
+/* NO LAG WHILE WALKING, and the asymmetry is the point. The headphones run the
+   dance 90ms behind the body when they are ON the head, because that is what
+   secondary motion is: a thing worn loosely follows what it is worn on. Round
+   the neck they are not worn loosely, they are resting against the chest — so
+   the same 90ms there made them visibly trail the body on every step, which is
+   exactly what it looked like. Walking, they move with it, frame for frame.
+
+   THE ERRAND. It bends, it stands up holding something, it leans back and it
+   throws. Four poses, and the only one that needed a keyframe rather than a
+   transition is the stoop, because it has to come back up on its own — the
+   others each end when the next one starts. The whole sequence is timed in
+   claude-fm.ts; these are what it looks like. */
+.fm-walker[data-facing="right"] { --fm-bend-x: 1px; }
+/* Feet stay planted; the upper body lowers over the knees and reaches toward
+   the object. Moving the whole sprite or splaying its legs reads as a split. */
+.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion) {
+  animation: fm-stoop 720ms steps(2, end);
+}
+.fm-walker[data-act="stoop"] .fm-arms { animation: fm-reach 720ms steps(2, end); }
+@keyframes fm-stoop {
+  0%, 100% { transform: translate(0, 0); }
+  30%, 70% { transform: translate(var(--fm-bend-x, -1px), 1px); }
+}
+@keyframes fm-reach {
+  0%, 100% { transform: translateY(0); }
+  30%, 70% { transform: translateY(3px); }
+}
+
+/* Leaning away from the throw, then into it. A character that arrives and
+   tosses in one motion reads as dropping something. */
+.fm-walker[data-act="windup"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="toss"] .fm-sprite { transform: translateX(3px); }
+
+/* The kick: back, then through. The wind-up above is shared with the throw;
+   the follow-through is its own, further and quicker, because a kick is the
+   faster of the two motions and a slow one reads as a nudge. */
+.fm-walker[data-act="kick"] .fm-sprite { transform: translateX(3px); }
+.fm-walker[data-facing="left"][data-act="windup"] .fm-sprite { transform: translateX(3px); }
+.fm-walker[data-facing="left"][data-act="kick"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="kick"][data-facing="left"] .fm-leg[data-side="left"] { transform: translate(-2px, -1px); }
+.fm-walker[data-act="kick"][data-facing="right"] .fm-leg[data-side="right"] { transform: translate(2px, -1px); }
+
+/* Sitting on the edge, legs over the side. The sprite drops below the line it
+   stands on, which is what puts the feet over the minimap — the same pixels
+   that would be a bug anywhere else in this block are the whole pose here.
+
+   THIRTEEN, AND IT MOVES WITH THE LEGS. It was ten when they were two rows;
+   they are three now, so ten would leave them straddling the line again. This
+   number is not a taste, it is "longer than the legs" — and the test says so
+   in those terms rather than pinning the digit.
+
+   TEN, NOT SEVEN. At seven the legs still straddled the ledge line and the
+   whole thing read as the character standing slightly lower rather than as
+   sitting; the legs are two rows, six pixels, so anything less than their own
+   height leaves the pose ambiguous at 54px. Ten puts them clear of the line and
+   the silhouette changes, which is the only thing a pose has to do. The squash
+   goes with it, because sitting down is a body folding rather than a body being
+   lowered. */
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(9px); }
+
+/* A rod built from grid-aligned steps; the line lowers over the minimap.
+   Keeping the seated pose through stowing prevents a jump up with gear out. */
+.fm-walker:is([data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-sprite {
+  transform: translateY(9px);
+}
+.fm-fishing {
+  position: absolute; right: 36px; bottom: -57px;
+  width: 72px; height: 96px; overflow: visible;
+  fill: none; stroke: var(--muted); stroke-width: 1;
+}
+.fm-fishing-grip { fill: var(--accent); stroke: none; }
+.fm-fishing-line { transform-origin: 8px 2px; }
+.fm-float { fill: var(--accent); stroke: none; }
+.fm-ripple { stroke: var(--accent); opacity: 0.55; }
+.fm-walker[data-act="cast"] .fm-fishing { animation: fm-unpack 900ms steps(6, end) both; }
+.fm-walker[data-act="fish"] .fm-float { animation: fm-nibble 1800ms steps(2, end) infinite; }
+.fm-walker[data-act="reel"] .fm-fishing-line { animation: fm-reel 1200ms steps(8, end) forwards; }
+.fm-walker[data-act="reel"] .fm-ripple { opacity: 0; }
+.fm-walker[data-act="stow"] .fm-fishing-line { transform: scaleY(0.08); }
+.fm-walker[data-act="stow"] .fm-ripple { opacity: 0; }
+.fm-walker[data-act="stow"] .fm-fishing { animation: fm-pack 500ms steps(5, end) forwards; }
+@keyframes fm-unpack {
+  from { opacity: 0; transform: translate(18px, -12px); }
+  to { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes fm-pack {
+  from { opacity: 1; transform: translate(0, 0); }
+  to { opacity: 0; transform: translate(18px, -12px); }
+}
+@keyframes fm-nibble { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1px); } }
+@keyframes fm-reel { from { transform: scaleY(1); } to { transform: scaleY(0.08); } }
+
+/* Two halves of one turn: behind the head, then under the airborne feet.
+   Stepped motion keeps the rope on the same pixel grid as the character. */
+.fm-skipping-rope {
+  position: absolute; right: -12px; bottom: -6px; width: 78px; height: 78px;
+  /* The forward quarter of the turn crosses in front of the torso. */
+  z-index: 1;
+  fill: none; stroke: var(--accent); stroke-width: 1;
+}
+.fm-skip-back, .fm-skip-forward, .fm-skip-return { opacity: 0; }
+.fm-skip-handles { stroke: var(--muted); stroke-width: 2; }
+.fm-walker[data-act="skip-ready"] .fm-skipping-rope { animation: fm-unpack 500ms steps(5, end) both; }
+.fm-walker[data-act="skip-rest"] .fm-skipping-rope { animation: fm-pack 600ms steps(6, end) forwards; }
+.fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope) { animation: fm-skip-hop var(--fm-skip-beat) steps(4, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-back { animation: fm-skip-back var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-forward { animation: fm-skip-forward var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-front { animation: fm-skip-front var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-return { animation: fm-skip-return var(--fm-skip-beat) steps(1, end) infinite; }
+@keyframes fm-skip-hop {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-3px); }
+  50% { transform: translateY(-12px); }
+  75% { transform: translateY(-6px); }
+}
+@keyframes fm-skip-back { 0% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes fm-skip-forward { 0%, 50%, 100% { opacity: 0; } 25% { opacity: 1; } }
+@keyframes fm-skip-front { 0%, 75%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes fm-skip-return { 0%, 100% { opacity: 0; } 75% { opacity: 1; } }
+
+/* Looking at the board. A small lean back, the way anybody holding something up
+   to their eye stands. */
+.fm-walker[data-act="watch"] .fm-sprite { transform: translateX(-1px); }
+
+/* And the thing itself, out of the hand on an arc. It leaves upward and to the
+   right, slows at the top the way a thrown object does, and is gone before it
+   would have landed — there is no bin drawn on this ledge, and a bin standing
+   there permanently would be a piece of furniture the canvas has to carry for
+   the one second a minute it is used. */
+.fm-held[data-toss] { animation: fm-toss 620ms cubic-bezier(0.3, 0, 0.7, 1) forwards; }
+@keyframes fm-toss {
+  0%   { transform: translate(0, 0); opacity: 1; }
+  55%  { transform: translate(27px, -24px); opacity: 1; }
+  100% { transform: translate(45px, 3px); opacity: 0; }
+}
+
+/* A character dancing and wandering in the corner of a monitoring tool is
+   exactly the motion somebody turns this setting on to stop. All of it goes —
+   the dance, the walk and the press — and nothing replaces it: the brightened
+   sprite already says the music is on, so the state survives the animation
+   being removed. The component refuses to schedule a walk at all under this
+   setting rather than leaving timers running for a journey nobody sees; these
+   rules are the second answer, for the case where it is turned on mid-session. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-prop[data-prop="ball"][data-leaving] svg,
+  .fm-walker[data-act="scope-pack"] .fm-held,
+  .fm-walker[data-act="pull-up"] .fm-sprite,
+  .fm-rope[data-act="pull-up"] .fm-rope-line { animation: none; }
+  .fm-walker[data-act="pull-up"] { transition: none; }
+  .fm-walker[data-act="cast"] .fm-fishing,
+  .fm-walker[data-act="stow"] .fm-fishing,
+  .fm-walker[data-act="fish"] .fm-float,
+  .fm-walker[data-act="reel"] .fm-fishing-line,
+  .fm-walker[data-act="skip-ready"] .fm-skipping-rope,
+  .fm-walker[data-act="skip-rest"] .fm-skipping-rope,
+  .fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope),
+  .fm-walker[data-act="skip"] :is(.fm-skip-back, .fm-skip-front, .fm-skip-forward, .fm-skip-return) { animation: none; }
+  .fm-walker, .fm-gear, .fm-eye, .fm-hat, .fm-arms { transition: none; }
+  .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
+  .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
+  .fm-rope[data-act="lasso"] .fm-rope-hook,
+  .fm-rope[data-act="rope-throw"] .fm-rope-hook,
+  .fm-rope[data-act="rope-throw"] .fm-rope-line,
+  .fm-rope[data-act="rope-catch"] .fm-rope-hook,
+  .fm-walker[data-act="climb"] .fm-grip-left,
+  .fm-walker[data-act="climb"] .fm-grip-right { animation: none; }
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"],
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"],
+  .fm-walker[data-act="climb"] .fm-leg[data-side="left"],
+  .fm-walker[data-act="climb"] .fm-leg[data-side="right"],
+  .fm-walker[data-act="climb"] .fm-sprite { animation: none; }
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg),
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] :is(.fm-body, .fm-leg),
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] :is(.fm-body, .fm-leg),
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion,
+  .fm-prop,
+  .fm-prop[data-prop="ball"][data-leaving],
+  .fm-held,
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
+  .fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion),
+  .fm-walker[data-act="stoop"] .fm-arms,
+  .fm-held[data-toss],
+  .fm-eye { animation: none; }
+  .fm-sprite:active { transform: none; }
+}
+
+/* This comes after every animation shorthand. Shorthands reset
+   animation-play-state, so the paused-tab override must be last. */
+.fm.fm[data-suspended] :is(.fm-walker, .fm-prop, .fm-sprite, .fm-gear,
+  .fm-gear-motion, .fm-body, .fm-leg, .fm-hat, .fm-eye, .fm-arms, .fm-held,
+  .fm-fishing, .fm-float, .fm-fishing-line, .fm-skipping-rope, .fm-skip-back,
+  .fm-skip-front, .fm-skip-forward, .fm-skip-return, .fm-rope, .fm-rope-hook,
+  .fm-rope-line, .fm-grip, .fm-grip-left, .fm-grip-right) {
+  animation-play-state: paused;
+}
+
+/* THE PLAYER. Off-screen at a real size rather than shrunk to a pixel or hidden
+   with `display: none`. Both of those are how a hidden YouTube player is
+   usually written and both are how it stops working: a display:none iframe may
+   be torn down or throttled, and a 1px one is a player the page is telling the
+   browser nobody can see, which is grounds to refuse the autoplay it was just
+   given a gesture for. A 320x180 player parked off the left edge keeps playing
+   in a background tab, which is most of the time this is wanted. */
+.fm-frame {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  border: 0;
+  pointer-events: none;
+}
+
+/* ─── Account "Projects" report modal ──────────────────────────────────────
+   Where one account spent its work, per project (AccountProjectsModal.tsx).
+   Reuses .modal / .modal-backdrop for the shell; everything below is scoped to
+   the report so it cannot bleed into the usage modals it sits beside. */
+.ap-proj-modal { width: min(680px, 94vw); }
+
+.ap-proj-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.ap-proj-titlewrap { min-width: 0; margin-right: auto; }
+.ap-proj-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.ap-proj-sub {
+  font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42ch;
+}
+
+.ap-proj-close { margin-left: 2px; }
+
+.ap-proj-body { padding: 16px; overflow-y: auto; }
+
+.ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
+.ap-proj-error { color: var(--text); }
+.ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+
+/* The one-glance stacked bar: 100% of this account's spend on the window. */
+.ap-proj-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-inset);
+  border: 1px solid var(--line);
+}
+.ap-proj-seg { height: 100%; min-width: 2px; }
+.ap-proj-seg + .ap-proj-seg { box-shadow: inset 1px 0 0 rgba(0,0,0,0.18); }
+
+.ap-proj-totals {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 12px 0 4px;
+}
+.ap-proj-total-cost { font-size: 18px; font-weight: 650; color: var(--text); }
+.ap-proj-total-tok { font-size: 12px; color: var(--muted); }
+.ap-proj-total-win { font-size: 12px; color: var(--text-dim); }
+
+.ap-proj-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.ap-proj-row {
+  display: grid;
+  grid-template-columns: 10px minmax(80px, 1fr) minmax(64px, 2fr) max-content max-content;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+  border-top: 1px solid var(--line-soft);
+}
+.ap-proj-row:first-child { border-top: none; }
+.ap-proj-row.muted .ap-proj-name { color: var(--muted); font-style: italic; }
+.ap-proj-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ap-proj-name {
+  font-size: 13px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ap-proj-track {
+  height: 6px; border-radius: 3px;
+  background: var(--panel-inset);
+  overflow: hidden;
+}
+.ap-proj-fill { display: block; height: 100%; border-radius: 3px; }
+.ap-proj-cost { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+.ap-proj-tok  { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; min-width: 5ch; }
+
+.ap-proj-unattributed {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content max-content;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+}
+.ap-proj-un-labels { display: flex; flex-direction: column; min-width: 0; }
+.ap-proj-un-title { font-size: 13px; color: var(--text); }
+.ap-proj-un-tag { font-size: 11px; color: var(--muted); }
+.ap-proj-un-cost { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.ap-proj-un-tok { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 5ch; }
+.ap-proj-unattributed .ap-proj-note { grid-column: 1 / -1; margin-top: 2px; }
+
+.ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
+
+/* Phone: the track column is the first thing to go; keep name + numbers. */
+@media (max-width: 520px) {
+  .ap-proj-head { flex-wrap: wrap; }
+  .ap-proj-sub { max-width: 100%; }
+  .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content; }
+  .ap-proj-track { display: none; }
+}
+
+/* Per-day chart in the Projects report: a stacked column per day, coloured by
+   project like the list, its height the day's reconciled total. */
+.ap-proj-days { margin: 14px 0 4px; }
+.ap-proj-days-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.ap-proj-days-plot { display: flex; align-items: flex-end; justify-content: flex-start; gap: 2px; height: 64px; }
+.ap-proj-day {
+  flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%;
+  display: flex; align-items: flex-end;
+  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
+.ap-proj-colseg { width: 100%; display: block; }
+.ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
+.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: 10px; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
+
+/* Click a day column for its own breakdown; keyboard-focusable as a button.
+   Hover brightens (not a ring); selection and focus draw the accent ring. */
+.ap-proj-day:hover .ap-proj-col { filter: brightness(1.12); }
+.ap-proj-day.selected .ap-proj-col { box-shadow: 0 0 0 2px var(--accent); }
+.ap-proj-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.ap-proj-day-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+}
+.ap-proj-day-detail-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--text); margin-bottom: 6px;
+}
+.ap-proj-day-detail-total { font-variant-numeric: tabular-nums; }
+.ap-proj-day-detail-row {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content;
+  align-items: center; gap: 8px; padding: 2px 0;
+}
+.ap-proj-day-detail-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-proj-day-detail-cost { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }

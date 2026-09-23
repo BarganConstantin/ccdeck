@@ -2,21 +2,20 @@
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
+import { fmtCost, fmtCostRate, UNPRICED_LABEL } from "../pricing";
 import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
-import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
+import {
+  boardModelTable, boardSessionTable, boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
+  UNKNOWN_MODEL, type BoardSessionRow,
+} from "../board-usage";
 import {
   PERIODS, periodFocusMove, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
-  rangeTotals, nounFor, panelFigures, rangeView, type Landed,
+  rangeTotals, sessionListScale, sessionListNote, nounFor, panelFigures, rangeView, type Landed,
   type PeriodKey, type UsageRange,
 } from "../usage-from-ccusage";
 import { readStored } from "../storage";
-// Tokens are priced at the model that produced them, not at the last model the
-// session was seen on — see usage-models.ts for the two measurements that make
-// the difference 60% under in one direction and 150% over in the other (#686).
-import { agentCost, agentUnpricedTokens, usageByModelEntries } from "../usage-models";
 import { PRODUCT } from "../brand";
 import type { GraphState } from "../reducer";
 import type { AgentState } from "../types";
@@ -143,36 +142,8 @@ function quotaSourceHint(source?: string): string {
   return "Last update";
 }
 
-interface ModelRow {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreateTokens: number;
-  cost: CostBreakdown;
-  agentCount: number;
-  /** False when this build holds no rate for the model — the row's tokens are
-   *  real and its dollars are unknowable, which is not the same as zero. */
-  priced: boolean;
-}
-
-interface SessionRow {
-  sessionId: string;
-  label: string;
-  state: AgentState;
-  cost: number;
-  inputTokens: number;
-  outputTokens: number;
-  /** Tokens on this session that no rate could be applied to. Non-zero and a
-   *  `cost` of zero is a session nothing here can price; non-zero beside a
-   *  non-zero cost is a mixed session whose figure is a floor, not a total. */
-  unpricedTokens: number;
-}
-
-/** The model key for an agent that has not reported one yet. Kept out of the
- *  display: the map needs a key and the reader needs a word, and `__unknown__`
- *  is only the first of those. */
-const UNKNOWN_MODEL = "__unknown__";
+// The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
+// with the folds that build them (#1175).
 
 // The stacked cost bar this panel drew is components/CostBar.tsx now — it was
 // written out here, in App.tsx and in SessionSummary.tsx, and #381's role fix
@@ -731,7 +702,6 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // headline strip stayed honest through a prune by luck rather than by rule.
   // `bySessions` below has no clock in it, and it is the one that went stale.
   const { byModel, totalCost, totalTokens, burnRate } = useMemo(() => {
-    const modelMap = new Map<string, ModelRow>();
     // The headline's own arithmetic is `boardTotals`, called once below rather
     // than accumulated here (#687). It was a second copy of the topbar's, and
     // the file it moved to is the file that declares what the figure may be
@@ -741,53 +711,10 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
     // how "total spend" came to stand over a figure that falls by a third on a
     // quiet tick.
     //
-    // One pass per MODEL SHARE below, not one per agent (#686). An agent whose
-    // session switched model contributes a share to each row it actually spent
-    // on, with the tokens that model produced and the dollars those tokens cost
-    // — so this table is finally a breakdown of the deck rather than a
-    // restatement of every session's last turn, and a mostly-Opus session that
-    // ended on Sonnet shows up as an Opus row AND a Sonnet row instead of one
-    // Sonnet row holding the whole 1.1M. The rows still sum to the headline,
-    // because `boardTotals` prices the same shares through the same helper.
-    for (const a of state.agents.values()) {
-      for (const e of usageByModelEntries(a)) {
-        const key = e.model ?? UNKNOWN_MODEL;
-        const c = costForUsage(e.usage, e.model);
-        const row = modelMap.get(key);
-        if (row) {
-          row.inputTokens        += e.usage.inputTokens;
-          row.outputTokens       += e.usage.outputTokens;
-          row.cacheReadTokens    += e.usage.cacheReadTokens;
-          row.cacheCreateTokens  += e.usage.cacheCreateTokens;
-          row.cost.total         += c.total;
-          row.cost.input         += c.input;
-          row.cost.output        += c.output;
-          row.cost.cacheRead     += c.cacheRead;
-          row.cost.cacheWrite    += c.cacheWrite;
-          row.agentCount++;
-        } else {
-          modelMap.set(key, {
-            model: key,
-            inputTokens:       e.usage.inputTokens,
-            outputTokens:      e.usage.outputTokens,
-            cacheReadTokens:   e.usage.cacheReadTokens,
-            cacheCreateTokens: e.usage.cacheCreateTokens,
-            cost: { ...c },
-            agentCount: 1,
-            priced: ratesForModel(e.model) != null,
-          });
-        }
-      }
-    }
-
-    // Cost first, then tokens. Every unpriced row costs exactly zero, so
-    // without the tiebreak they arrive at the bottom of the table in Map
-    // insertion order — which is the order their agents happened to be observed
-    // in, and reads as no order at all. Tokens are the only magnitude those
-    // rows have.
-    const byModel = Array.from(modelMap.values()).sort((a, b) =>
-      (b.cost.total - a.cost.total)
-      || ((b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens)));
+    // The table is one pass per MODEL SHARE (#686), in board-usage.ts beside
+    // `boardTotals` so the rows and the headline price the same shares through
+    // the same helper — see boardModelTable.
+    const byModel = boardModelTable(state.agents.values());
 
     const board = boardTotals(state.agents.values());
     // How fast the board is spending: its total's rise over the last ten minutes
@@ -828,46 +755,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // same way: `sweepStaleSessions` settles a killed terminal's root to `done` at
   // ninety minutes, and the row's dot stayed green and its hidden word stayed
   // "active" for as long as the tab was open.
-  const bySessions = useMemo((): SessionRow[] => {
-    const roots: SessionRow[] = [];
-    // A session's tokens that no rate could be applied to, counted per agent
-    // because a session can mix providers — a Claude root that spawned a Codex
-    // subagent prices one and not the other — and, since #686, per MODEL inside
-    // each agent as well: a root that ran on a priced model and then on one this
-    // build has never heard of has to print its priced dollars with the floor
-    // marker beside them, not swing between fully priced and fully unpriced
-    // depending on which model wrote its last line.
-    for (const a of state.agents.values()) {
-      if (a.kind !== "root") continue;
-      let cost = agentCost(a).total;
-      let inT = a.usage.inputTokens, outT = a.usage.outputTokens;
-      let unpricedT = agentUnpricedTokens(a);
-      for (const sub of state.agents.values()) {
-        if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
-        cost += agentCost(sub).total;
-        inT  += sub.usage.inputTokens;
-        outT += sub.usage.outputTokens;
-        unpricedT += agentUnpricedTokens(sub);
-      }
-      roots.push({
-        sessionId: a.sessionId,
-        label: a.label || a.cwdBasename || "session",
-        state: a.state,
-        cost,
-        inputTokens: inT,
-        outputTokens: outT,
-        unpricedTokens: unpricedT,
-      });
-    }
-    // Same tiebreak as byModel, and it matters more here: this list is cut at
-    // twelve, so before the fallback an unpriced session — however large — sat
-    // at cost zero among every other zero and could be cut for a row with
-    // fewer tokens than it.
-    return roots
-      .sort((a, b) => (b.cost - a.cost)
-        || ((b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens)))
-      .slice(0, 12);
-  }, [state, state.revision]);
+  const bySessions = useMemo(
+    // One row per root with its same-session subagents folded in, cost first
+    // and tokens as the tiebreak, cut at twelve — see boardSessionTable.
+    (): BoardSessionRow[] => boardSessionTable(state.agents.values()),
+    [state, state.revision],
+  );
 
   // ── which source the figures come from ──────────────────────────────────
   //
@@ -972,6 +865,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
       : r));
   }, [range, fromRange, boardNames]);
   const rangeSum = useMemo(() => rangeTotals(range), [range]);
+  // Off the WHOLE list, which is why it is not folded into `rangeSessionRows`
+  // above: those are cut at twelve and would under-count by everything the cut
+  // took away. See sessionListScale for what the two generations of ccusage
+  // each do to a session's totals, and why the panel measures instead of
+  // naming one of them.
+  const sessionScale = useMemo(() => sessionListScale(range, rangeSum.cost), [range, rangeSum.cost]);
 
   // The word over the figures names the range the figures came from, not the
   // chip the reader just pressed. While a slower range loads, the panel reads
@@ -1560,14 +1459,18 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             <section className={`up-section${staleCls}`}>
               {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
                   in a tooltip, because the reader can see the arithmetic fail
-                  without it. `--since` picks WHICH sessions appear; it does not
-                  cut their figures to the window. Measured on this machine:
-                  session 07ac7b2b spans Sep 2-4 and reports the same $376.88
-                  whether asked for today or for all time, and today's rows then
-                  sum to $4,391 under a day that cost $839.
-                  Both numbers are right and they answer different questions —
-                  "what did today cost" and "what has each session running today
-                  cost in total" — so the heading names the second one. */}
+                  without it: rows that add up past the figure above read as a
+                  bug in the panel until something on screen says otherwise.
+                  What the panel may NOT do is name the reason, because the
+                  reason changed under it. Through ccusage 20.0.20 a row carried
+                  the session's lifetime — `--since` picked WHICH sessions
+                  appeared and left their figures whole — and 20.0.21 scopes
+                  them to the window. The deck runs `ccusage@latest` and
+                  refreshes it daily, so both are live on real machines and
+                  either sentence is false on half of them.
+                  So the qualifier is measured: sessionListScale sums every row
+                  in the range against the period's own cost, and the heading
+                  speaks only when that sum really is the larger one. */}
               {/* THE ONE SECTION THAT SHUTS, and the chevron is what says so.
                   Every other block in this panel is a fixed two or three rows;
                   this one is as long as the reader's week and is the reason the
@@ -1599,7 +1502,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
                   {fromRange && (
                     <span
                       className="up-section-age"
-                      title={`Sessions with activity ${periodNoun}, each showing what that session has cost since it started.\nA session that began earlier brings its whole total with it, so these rows can add up to more than the figure above.`}
+                      title={sessionListNote(periodNoun, sessionScale, fmtCost)}
                     >active {periodNoun}</span>
                   )}
                   {/* Drawn, not typed. `.bw-chev` swaps two Unicode glyphs and

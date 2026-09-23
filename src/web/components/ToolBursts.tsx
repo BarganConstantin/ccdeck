@@ -531,6 +531,14 @@ function skinFor(toolName: string, input: unknown): CommandSkin | null {
       ?? skinForMcpCall(toolName, input);
 }
 
+/** What a call is ABOUT, in the sub-bubble's own word — `styles.css`, `npx`,
+ *  `create_pr` — or null when the call has no such word. For the card's compact
+ *  face, which names the open call once the bubbles are no longer drawn: the
+ *  same word, so the face and the bubble cannot describe one call two ways. */
+export function toolSubject(toolName: string, input: unknown): string | null {
+  return skinFor(toolName, input)?.label ?? null;
+}
+
 /** Used by the primary bubble — for MCP calls we replace the generic
  *  "mcp__foo__bar" with the server name so the primary reads e.g.
  *  "🐙 GitHub" and the sub bubble reads "create_pr". Non-MCP tools fall

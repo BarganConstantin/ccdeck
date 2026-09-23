@@ -5,6 +5,8 @@
  * upgrade command and the Browser Watch killswitch — and both are showing the
  * user a command they are about to run in a terminal. A second hand-rolled copy
  * of the fallback ladder is exactly the class of duplication #798 was about.
+ * The accounts panel kept one anyway, behind the share dialog's "copied", until
+ * #1174 pointed it here; copy-text.test.ts holds every rung below.
  *
  * THE LADDER, AND WHY EACH RUNG IS THERE.
  *

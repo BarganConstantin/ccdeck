@@ -46,6 +46,7 @@
 // from any source wrote `cfg.trusted` back to disk without B — permanently.
 import { describe, it, expect, afterAll, afterEach } from "vitest";
 import { mkdtempSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -61,7 +62,7 @@ if (!resolve(process.env.HOME!).startsWith(resolve(DIR))) throw new Error("sandb
 
 interface Prefs { lan: { manual: string[]; aliases: Record<string, string>; trusted: Array<{ fp: string }> } }
 // @ts-expect-error — plain .mjs server module, no types
-const { readPrefs, updatePrefs, writePrefs } = await import("../../server/deck-prefs.mjs");
+const { readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } = await import("../../server/deck-prefs.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { lanApplyFields } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -81,18 +82,57 @@ afterAll(() => {
 
 // ── 1. the patch is a function of the file ──────────────────────────────────
 
+// The patches are the routes' own, imported rather than written out here. They
+// used to be copies of index.mjs's closures, and a copy is tested against
+// deck-prefs.mjs while the route it was copied from is free to change (#1168).
+// lan-routes.test.ts drives the alias route itself, through the socket.
+
 /** `onDial` and the accept route, in one shape, because they are one shape. */
-const addManual = (entry: string) => updatePrefs((prev: Prefs) => {
-  const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
-  return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
-}, DIR);
+const addManual = (entry: string) => updatePrefs(withManualEntry(entry), DIR);
 
 /** The alias route. */
-const setAlias = (fp: string, name: string) => updatePrefs((prev: Prefs) => {
-  const next = { ...(prev?.lan?.aliases ?? {}) };
-  if (name) next[fp] = name; else delete next[fp];
-  return { lan: { aliases: next } };
-}, DIR);
+const setAlias = (fp: string, name: string) => updatePrefs(withAlias(fp, name), DIR);
+
+/** The tick an arriving account gets (#1188). */
+const shareArrived = (key: string) => updatePrefs(withShared(key), DIR);
+
+describe("the tick an account gets when it arrives", () => {
+  it("adds the key once, and says nothing to write when it is already there", async () => {
+    await writePrefs({ lan: { shared: [] } }, DIR);
+    await shareArrived("new@sapec.md@@org-9");
+    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared).toEqual(["new@sapec.md@@org-9"]);
+
+    // The second arrival of the same account — or a retry — writes nothing, so
+    // the list cannot grow a duplicate that the manifest would then offer twice.
+    const before = readFileSync(join(DIR, "prefs.json"), "utf8");
+    await shareArrived("new@sapec.md@@org-9");
+    expect(readFileSync(join(DIR, "prefs.json"), "utf8")).toBe(before);
+  });
+
+  it("keeps what is already ticked, rather than replacing the list with one key", async () => {
+    await writePrefs({ lan: { shared: ["claude1@sapec.md@@org-1"] } }, DIR);
+    await shareArrived("new@sapec.md@@org-9");
+    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared)
+      .toEqual(["claude1@sapec.md@@org-1", "new@sapec.md@@org-9"]);
+  });
+
+  it("is the write the deck's own onShared makes, and the engine is told", () => {
+    // The helper above is only half of it: the deck has to CALL it when the
+    // engine says an account arrived, and then hand the engine the new list —
+    // a tick that reached the file and not the running engine would go
+    // unoffered until the next restart.
+    const source = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+    const onShared = source.match(/onShared: async key => \{[\s\S]*?\n {2}\},/)?.[0] ?? "";
+    expect(onShared).toMatch(/updatePrefs\(withShared\(key\)\)/);
+    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: _prefs\.lan\.shared \}\)/);
+  });
+
+  it("writes nothing for an account with no key", async () => {
+    await writePrefs({ lan: { shared: ["claude1@sapec.md@@org-1"] } }, DIR);
+    await shareArrived("");
+    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared).toEqual(["claude1@sapec.md@@org-1"]);
+  });
+});
 
 describe("two writes of one field inside one turn", () => {
   it("loses one when the patch is computed outside the job, which is what happened", async () => {
@@ -207,6 +247,9 @@ describe("the three fields the engine authors", () => {
       autoAsk: true,
       autoAccept: false,
       shareActive: true,
+      tailscale: false,
+      tailscaleAsk: true,
+      tailscaleAccept: true,
       aliases: { "aaa-bbb-111": "Laptop" },
     });
   });

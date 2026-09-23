@@ -75,6 +75,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "K", action: "previous agent", binds: ["k", "K"] },
       { cap: "W", action: "the session waiting on you — oldest first, again for the next", binds: ["w", "W"] },
       { cap: "F", action: "fit every agent on screen", binds: ["f", "F"] },
+      { cap: "Z", action: "zoom to the selected agent and its session", binds: ["z", "Z"] },
       { cap: "R", action: "re-arrange the canvas and drop the pins", binds: ["r", "R"] },
       { cap: "C", action: "clear the canvas and the event log — asks first", binds: ["c", "C"] },
     ],
@@ -126,6 +127,9 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     rows: [
       { cap: "drag", action: "move a node, and pin it where you dropped it", binds: [] },
       { cap: "shift-click", action: "add an agent to the selection", binds: [] },
+      { cap: "click", action: "a card: go to it and its session", binds: [] },
+      { cap: "double-click", action: "a card: its prompt, every tool call, tokens and timing", binds: [] },
+      { cap: "hover", action: "zoomed out, a card's name, state and numbers", binds: [] },
       // #711. The speaker in the topbar used to toggle and now opens a menu, so
       // the click and M no longer mean the same thing. That divergence is the
       // shape #709 removed Shift+M for, and the difference is that this one is

@@ -153,20 +153,22 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the forty-one platform-gated cases to skip on Windows, file by file", () => {
-    // Thirty-two behind `process.platform === "win32"`, eight behind the posix
-    // runIf family, and sound-hook-park's read-only-directory case, whose probe
-    // reports false on Windows because chmod there toggles a read-only bit that
-    // does not stop a write into the directory. Written out per file rather
+  it("expects the forty-six platform-gated cases to skip on Windows, file by file", () => {
+    // Thirty-six behind `process.platform === "win32"`, eight behind the posix
+    // runIf family, and the two read-only-directory cases — sound-hook-park's
+    // and the swap script's in desktop-updater — whose probe reports false on
+    // Windows because chmod there toggles a read-only bit that does not stop a
+    // write into the directory. Written out per file rather
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 41,
+      total: 46,
       byFile: {
         "backup-root-shared.test.ts": 1,
         "codex-auth-rename-retry.test.ts": 1,
         "codex-auth-temp-collision.test.ts": 3,
         "discovery-live.test.ts": 3,
+        "desktop-updater.test.ts": 5,
         "exec-shim-callers.test.ts": 5,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
@@ -197,19 +199,24 @@ describe("the register of conditionally-skipped cases", () => {
     // notices must attribute. The number is stated rather than derived on
     // purpose: it is the one place a new probe gate has to be acknowledged by a
     // human, and this file going red on the day one lands is the acknowledgement.
+    // Eight since #1168 added a fourth — guarded-reads.test.ts's static-serving
+    // block, which asks serveStatic for the built files through the socket.
     const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(7);
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(8);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
-    // The remaining probe site is the read-only-directory one, the only probe with
-    // a legitimate per-platform answer — and the reason it is stated here as a
-    // function of platform is that it is not checkable any other way from macOS.
+    // The remaining probe sites are the read-only-directory ones, the only probe
+    // with a legitimate per-platform answer — and the reason it is stated here as
+    // a function of platform is that it is not checkable any other way from macOS.
+    // Two since #1176: sound-hook-park's, and the swap script's failed move.
     const readOnly = gates().filter((g) => g.condition === "!readOnlyDirBlocksWrites");
-    expect(readOnly).toHaveLength(1);
-    expect(readOnly[0].sites).toBe(1);
-    expect(skipsOn(readOnly[0], "win32")).toBe(true);
-    expect(skipsOn(readOnly[0], "linux")).toBe(false);
-    expect(skipsOn(readOnly[0], "darwin")).toBe(false);
+    expect(readOnly.map((g) => g.file).sort()).toEqual(["desktop-updater.test.ts", "sound-hook-park.test.ts"]);
+    for (const g of readOnly) {
+      expect(g.sites).toBe(1);
+      expect(skipsOn(g, "win32")).toBe(true);
+      expect(skipsOn(g, "linux")).toBe(false);
+      expect(skipsOn(g, "darwin")).toBe(false);
+    }
   });
 
   it("has no gate left that hides a case from every leg but one", () => {
@@ -362,7 +369,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(22);
+    expect(win32Sites).toBe(23);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

@@ -76,8 +76,12 @@ describe("the client's readings and the server's ring agree", () => {
     // The other direction, and the one that catches a reading the server learns
     // and the strip silently never shows a live number for: its cell would draw
     // its line and print the last bucket, up to a minute stale, for ever.
+    //
+    // Scoped to the groups the strip draws. The network's `net:*` readings
+    // belong to a panel section the strip has no cell for — it opens its own
+    // chart from the panel — so there is no stale cell for them to leave.
     const asked = new Set(Object.keys(liveReadings(full())));
-    const fixed = [...recorded].filter(k => !k.includes("${"));
+    const fixed = [...recorded].filter(k => !k.includes("${") && !k.startsWith("net:"));
     expect(fixed.filter(k => !asked.has(k))).toEqual([]);
   });
 
@@ -193,7 +197,7 @@ describe("the window, and what it is allowed to claim", () => {
     // Every one of them is a group the endpoint accepts — a typo here is an
     // empty band with no error anywhere.
     const allow = readFileSync(at("../../server/index.mjs"), "utf8")
-      .match(/\[("(?:thermal|cores|memory|load)",?\s*)+\]\.includes\(group\)/)?.[0] ?? "";
+      .match(/\[("(?:thermal|cores|memory|load|network)",?\s*)+\]\.includes\(group\)/)?.[0] ?? "";
     for (const g of GROUPS) expect(allow).toContain(`"${g}"`);
   });
 });

@@ -128,8 +128,8 @@ describe("one way in, at the foot of the accounts (#844)", () => {
     // — it is about these accounts, so it stands under them. This row did not:
     // it is about other machines, so it is still the last thing in the panel
     // and still the only place the network's state is said.
-    expect(panel.indexOf('className="ap-policy-block"')).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
-    expect(panel.indexOf("<LanSyncSection")).toBeGreaterThan(panel.indexOf('className="ap-policy-block"'));
+    expect(panel.indexOf("{policyBlock}")).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
+    expect(panel.indexOf("<LanSyncSection")).toBeGreaterThan(panel.indexOf("{policyBlock}"));
     expect(panel).not.toMatch(/<div className="ap-foot">/);
   });
 

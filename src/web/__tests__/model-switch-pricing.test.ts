@@ -42,6 +42,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { costForUsage } from "../pricing";
+import { boardModelTable } from "../board-usage";
 import { applyEvent, initialState } from "../reducer";
 import {
   agentCost, agentModelIds, agentUnpricedTokens, otherModelIds,
@@ -320,34 +321,32 @@ describe("a mostly-Sonnet session that ends on Opus costs $3.0075, not $7.5075",
 
 describe("the by-model breakdown shows both models, not just the last one", () => {
   it("gives the session a row per model, each with the tokens that model produced", async () => {
-    // The exact fold the usage panel's `byModel` memo runs — it iterates
-    // `usageByModelEntries(a)` rather than agents, and this is that loop with
-    // the React removed so a plain-Node suite can reach it.
+    // The panel's own fold, called. This used to re-type the `byModel` memo's
+    // loop here "with the React removed", which passed just as happily after
+    // the real memo changed — so the fold moved to board-usage.ts and this is
+    // the shipped function over a board built from a real transcript (#1175).
     const path = writeSwitchingTranscript("by-model.jsonl", OPUS, SONNET);
     const { root } = await deckState(path, SONNET);
 
-    const rows = new Map<string, { tokens: number; cost: number }>();
-    for (const e of usageByModelEntries(root)) {
-      const key = e.model ?? "__unknown__";
-      const row = rows.get(key) ?? { tokens: 0, cost: 0 };
-      row.tokens += e.usage.inputTokens + e.usage.outputTokens;
-      row.cost += costForUsage(e.usage, e.model, NOW).total;
-      rows.set(key, row);
-    }
+    const rows = new Map(boardModelTable([root], NOW).map(r => [r.model, r]));
 
     // Two rows. Before this landed there was one, reading `Sonnet 5 · 1.1M ·
     // $3.00`, with no Opus row anywhere on the panel to say the tokens had ever
     // belonged to another model.
     expect([...rows.keys()].sort()).toEqual([OPUS, SONNET]);
-    expect(rows.get(OPUS)!.tokens).toBe(1_100_000);
-    expect(rows.get(SONNET)!.tokens).toBe(1_100);
-    expect(rows.get(OPUS)!.cost).toBeCloseTo(7.5, 9);
-    expect(rows.get(SONNET)!.cost).toBeCloseTo(0.003, 9);
+    const tokens = (model: string) => rows.get(model)!.inputTokens + rows.get(model)!.outputTokens;
+    expect(tokens(OPUS)).toBe(1_100_000);
+    expect(tokens(SONNET)).toBe(1_100);
+    expect(rows.get(OPUS)!.cost.total).toBeCloseTo(7.5, 9);
+    expect(rows.get(SONNET)!.cost.total).toBeCloseTo(0.003, 9);
+    // One session, so each row counts its one share of it.
+    expect(rows.get(OPUS)!.agentCount).toBe(1);
+    expect(rows.get(SONNET)!.agentCount).toBe(1);
 
     // The rows sum to the figure the strip above them prints.
-    const sum = [...rows.values()].reduce((n, r) => n + r.cost, 0);
+    const sum = [...rows.values()].reduce((n, r) => n + r.cost.total, 0);
     expect(sum).toBeCloseTo(agentCost(root, NOW).total, 9);
-    expect([...rows.values()].reduce((n, r) => n + r.tokens, 0))
+    expect([...rows.values()].reduce((n, r) => n + r.inputTokens + r.outputTokens, 0))
       .toBe(root.usage.inputTokens + root.usage.outputTokens);
   });
 
@@ -361,6 +360,60 @@ describe("the by-model breakdown shows both models, not just the last one", () =
     // it answers, and the only one about what happens next. What it gains is a
     // count of the models the dollars beside it also cover.
     expect(otherModelIds(root)).toEqual([OPUS]);
+  });
+});
+
+describe("a bucket that produced nothing is not a model the card names (#1173)", () => {
+  // `agentModelIds` is what the chip's "+N", its tooltip and `spansModels` are
+  // built on, and it skips two kinds of entry: one with no model, and one whose
+  // four token classes sum to zero. Every bucket in the cases above carries
+  // tokens, so neither skip had ever run. Both reach it for real. The server's
+  // `subagents/` merge (`mergeUsageByModel`) keeps a zero bucket the main
+  // transcript's read would have filtered, and `usageByModelFromWire` passes
+  // it through. And the remainder `usageByModelEntries` prices at the agent's
+  // own model has no model at all when the agent has none. Either one, counted,
+  // is "Opus 5 +1" over a model that cost nothing: #686's misreading, small.
+  it("drops an all-zero bucket from the list, from the +N and from the spans test", () => {
+    const root = {
+      model: SONNET,
+      usage: u(1_010, 110),
+      usageByModel: { [OPUS]: u(1_000, 100), [HAIKU]: u(0, 0), [SONNET]: u(10, 10) },
+    };
+    expect(agentModelIds(root)).toEqual([OPUS, SONNET]);
+    expect(otherModelIds(root)).toEqual([OPUS]);
+    expect(spansModels(root)).toBe(true);
+  });
+
+  it("does not read one real model and one empty bucket as two", () => {
+    const root = { model: OPUS, usage: u(1_000, 100), usageByModel: { [OPUS]: u(1_000, 100), [HAIKU]: u(0, 0) } };
+    expect(spansModels(root)).toBe(false);
+    expect(otherModelIds(root)).toEqual([]);
+  });
+
+  it("lists no undefined entry for the remainder of an agent with no model", () => {
+    // The flat total is larger than the split, and the remainder goes to the
+    // agent's own model, which is not known yet — a ModelObserved that has
+    // not landed. The entry is priced (as nothing) and must not be named.
+    const root = { model: undefined, usage: u(2_000, 200), usageByModel: { [OPUS]: u(1_000, 100) } };
+    expect(usageByModelEntries(root).map(e => e.model)).toEqual([OPUS, undefined]);
+    expect(agentModelIds(root)).toEqual([OPUS]);
+  });
+
+  it("drops the zero bucket a UsageObserved carries, end to end through the reducer", () => {
+    let state = applyEvent(initialState(), env({ hook_event_name: "SessionStart", session_id: "s3" }, 1));
+    state = applyEvent(state, env({
+      hook_event_name: "UsageObserved", session_id: "s3",
+      usage: { input_tokens: 5, output_tokens: 0 },
+      usageByModel: {
+        [HAIKU]: { input_tokens: 0, output_tokens: 0 },
+        [OPUS]: { input_tokens: 5 },
+      },
+    }, 2));
+    const root = state.agents.get("s3")!;
+    // The reducer keeps the empty bucket: it describes the file as the scan
+    // read it. Leaving it out is the reader's job.
+    expect(Object.keys(root.usageByModel!)).toEqual([HAIKU, OPUS]);
+    expect(agentModelIds(root)).toEqual([OPUS]);
   });
 });
 
@@ -595,13 +648,18 @@ describe("no cost surface multiplies a whole session by its last model", () => {
   });
 
   it("keys the usage panel's model table on the split rather than on one field", () => {
+    // The fold is board-usage.ts's since #1175 — the panel calls it, and the
+    // case above drives it. The row key comes from an ENTRY:
+    // `const key = a.model ?? UNKNOWN_MODEL` is what produced a single Sonnet
+    // row for a session that spent a million tokens on Opus.
+    const table = srcOf("board-usage.ts");
+    expect(table).not.toMatch(/const key = a\.model \?\? UNKNOWN_MODEL/);
+    expect(table).toMatch(/for \(const e of usageByModelEntries\(a\)\)/);
+    expect(table).toMatch(/const key = e\.model \?\? UNKNOWN_MODEL/);
+    // And the panel has no fold of its own left to disagree with it.
     const panel = srcOf("components/UsagePanel.tsx");
-    // The row key comes from an ENTRY now. `const key = a.model ?? UNKNOWN_MODEL`
-    // is what produced a single Sonnet row for a session that spent a million
-    // tokens on Opus.
-    expect(panel).not.toMatch(/const key = a\.model \?\? UNKNOWN_MODEL/);
-    expect(panel).toMatch(/for \(const e of usageByModelEntries\(a\)\)/);
-    expect(panel).toMatch(/const key = e\.model \?\? UNKNOWN_MODEL/);
+    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    expect(panel).not.toMatch(/usageByModelEntries/);
   });
 
   it("carries the split from the scanner to the client on the usage event", () => {

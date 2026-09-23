@@ -91,8 +91,17 @@ const EVENT = "Stop";
 // writes this any more; retirement reads it once and deletes it.
 const PARKED_PATH = join(homedir(), ".agents-deck", "parked-sound-hooks.json");
 
+// `Array.isArray`, not `?? []`, and that is a crash fix rather than a style
+// choice. A group whose `hooks` is not an array — hand-edited settings.json,
+// something else's schema, a half-finished edit — made this `.map` throw
+// `TypeError: … .map is not a function`, out of `retireSoundHookIn`, out of
+// `installHooks`, on the unconditional install every boot runs: the deck would
+// not start at all until the user found and fixed the entry, with nothing but a
+// stack to say which one. installer.mjs's own `isOurEntry` has always read the
+// same field with the same guard, and its answer for a group it cannot read is
+// to leave it exactly where it is.
 const commandsOf = (entry) =>
-  (entry?.hooks ?? []).map(h => (typeof h?.command === "string" ? h.command : ""));
+  (Array.isArray(entry?.hooks) ? entry.hooks : []).map(h => (typeof h?.command === "string" ? h.command : ""));
 
 /**
  * THE TAIL, NOT THE WHOLE PATH — and this is a data-loss fix, not a tidy-up.

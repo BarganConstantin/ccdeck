@@ -309,7 +309,8 @@ describe("the two names a section carries", () => {
 
   it("names every button with a verb", () => {
     const actions = [...src.matchAll(/action="([^"]+)"/g)].map(m => m[1]);
-    expect(actions.length).toBe(4);
+    // Cores, memory, load, network, thermal.
+    expect(actions.length).toBe(5);
     expect(actions.filter(a => !a.startsWith("Show "))).toEqual([]);
   });
 

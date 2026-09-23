@@ -33,6 +33,9 @@ interface Options {
   focusRef?: RefObject<HTMLElement | null>;
   /** Higher answers Escape first — see CONFIRM_LAYER in modal-dismiss.ts. */
   layer?: number;
+  /** A popover rather than a dialog: no scrim, nothing inert behind it. Only
+   *  what the canvas shortcuts do differs — see dialogDepth in modal-dismiss.ts. */
+  popover?: boolean;
 }
 
 /** Everywhere inside the dialog Tab can land, in document order: its controls,
@@ -94,7 +97,8 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
   onDismiss: () => void,
   opts: Options = {},
 ): RefObject<T> {
-  const { focusRef, layer } = opts;
+  const { focusRef, layer, popover } = opts;
+  const kind = popover ? "popover" : "dialog";
   const dialogRef = useRef<T | null>(null);
 
   // App.tsx hands these modals a fresh arrow on every render, so a stack entry
@@ -111,7 +115,7 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
   if (dismissRef.current === null) dismissRef.current = () => onDismissRef.current();
   const dismiss = dismissRef.current;
 
-  useEffect(() => modalStack.push(dismiss, layer), [dismiss, layer]);
+  useEffect(() => modalStack.push(dismiss, layer, kind), [dismiss, layer, kind]);
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;

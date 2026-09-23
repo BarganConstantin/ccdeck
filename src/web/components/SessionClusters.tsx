@@ -1,8 +1,11 @@
 import React from "react";
-import { useReactFlow, useStore, useViewport, type ReactFlowState } from "reactflow";
+import { useStore, useViewport, type ReactFlowState } from "reactflow";
 import { sessionHue } from "../reducer";
 import { sessionDisplay } from "../session-display";
+import { isAlarming } from "../ambient-counts";
+import { branchShort, type BranchSummary } from "../node-face";
 import type { AgentNodeData } from "../types";
+import { AlertMark } from "./StateMark";
 
 /**
  * The three fields a cluster header draws, kept apart rather than joined into
@@ -34,6 +37,14 @@ export interface ClusterHeader {
 export interface Cluster extends ClusterHeader {
   sessionId: string;
   x: number; y: number; w: number; h: number;
+  /** The session is stopped until a human answers — the root's `waiting`, the
+   *  two kinds isAlarming names. The label is the one thing on a cluster drawn
+   *  at 1× at every zoom, so it is where that has to be findable from afar. */
+  alarm?: boolean;
+  /** What the session's subagents add up to, `→ 8 · 7 live` — drawn only at
+   *  the overview distance, where the tiles are a column of marks too small to
+   *  count by eye. Absent for a session with no subagent on the canvas. */
+  branch?: string;
 }
 
 /** The part of a React Flow node the cluster geometry reads. */
@@ -103,7 +114,7 @@ function selectClusters(s: ReactFlowState): Cluster[] {
  * bug came from, not the arithmetic.
  */
 export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
-  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string }>();
+  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string }>();
   for (const n of nodes) {
     // Only agent cards define a session's bounds. The invisible per-session
     // drag handle is a React Flow node like any other and its data carries the
@@ -136,6 +147,8 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         minX: x1, minY: y1, maxX: x2, maxY: y2,
         label: rootLabel(d) ?? d.sessionId,
         name: rootName(d),
+        alarm: d.kind === "root" && isAlarming(d.waiting),
+        branch: rootBranch(d),
       });
     } else {
       existing.minX = Math.min(existing.minX, x1);
@@ -148,6 +161,8 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
       // reading one off whichever node arrived first would leave the header
       // waiting on iteration order for a field the root has had all along.
       if (d.kind === "root") existing.name = rootName(d);
+      if (d.kind === "root") existing.alarm = isAlarming(d.waiting);
+      if (d.kind === "root") existing.branch = rootBranch(d);
     }
   }
 
@@ -169,6 +184,8 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
       h: b.maxY - b.minY + PAD * 2 + HEADER_H,
+      ...(b.alarm ? { alarm: true } : null),
+      ...(b.branch ? { branch: b.branch } : null),
     });
   }
   return out;
@@ -322,6 +339,14 @@ function shortId(sessionId: string): string {
   return m ? m[0] : sessionId.slice(0, 4);
 }
 
+/** The summary App puts on a root's node data (FlowNodeData.branch), in the
+ *  card's own `→ N` notation. Only the root carries one. */
+function rootBranch(d: AgentNodeData): string | undefined {
+  if (d.kind !== "root") return undefined;
+  const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
+  return b && b.total > 0 ? branchShort(b) : undefined;
+}
+
 function rootLabel(d: AgentNodeData): string | undefined {
   if (d.kind !== "root") return undefined;
   return d.label;
@@ -344,42 +369,27 @@ function rootName(d: AgentNodeData): string | undefined {
 }
 
 /**
- * `onFit` is not decoration (#785).
+ * A click on a cluster's name asks the deck to bring that session into view,
+ * and the deck does the moving (#785).
  *
- * Every camera move the DECK makes has to say so, because `isUserViewportGesture`
- * cannot tell one from a drag: `fitView`'s animation emits `onMove` with no
- * source event, and the last branch of that predicate falls back to "was there
- * a pointerdown on the canvas recently" — which there was, since the press that
- * asked for this fit landed on `<main onPointerDownCapture={markCanvasInput}>`.
- * So the deck read its own move as the user grabbing the canvas, called
- * `disableAutoFit()`, and wrote it to localStorage: clicking a session's name
- * silently turned auto-fit off for good, across reloads, with nothing said.
- *
- * App's own `focusSession` stamps `lastFitTimeRef` immediately after its
- * `fitView` for exactly this reason. This component had no way to reach that
- * ref, which is the whole of why it was the one fit that did not.
+ * This component used to call `fitView` itself and then stamp the deck's
+ * `lastFitTimeRef` through an `onFit` prop — every camera move the deck makes
+ * has to say so, because `isUserViewportGesture` cannot tell an eventless fit
+ * from a drag, and an unstamped one turned auto-fit off for good. The stamp is
+ * App's own now, with the move: `onFocusSession` is App's focusAgent, the one
+ * routine every "go to this card" shares (focus-camera.ts), which frames the
+ * session clear of the floating panels at a readable zoom and stamps after it.
  */
-export default function SessionClusters({ onFit }: { onFit?: () => void }) {
+export default function SessionClusters({ onFocusSession }: { onFocusSession?: (sessionId: string) => void }) {
   const { x, y, zoom } = useViewport();
-  const rf = useReactFlow();
   const clusters = useStore(selectClusters, shallowEqualClusters);
 
   if (clusters.length <= 1) return null; // no need to disambiguate one tree
 
+  // A session's root card has the session's own id, so framing "the session"
+  // is framing its root with everything it belongs with.
   const focusSession = (sessionId: string) => {
-    // Build the list of nodes belonging to this session and zoom-to-fit just
-    // them. Falls back gracefully if no nodes match.
-    try {
-      const nodes = rf.getNodes().filter(n => {
-        const d = n.data as AgentNodeData | undefined;
-        return d?.sessionId === sessionId;
-      });
-      if (nodes.length === 0) return;
-      rf.fitView({ padding: 0.3, duration: 500, nodes });
-      // After the call and inside the try, the same placement App uses: a fit
-      // that threw moved no camera and has nothing to disown.
-      onFit?.();
-    } catch {}
+    try { onFocusSession?.(sessionId); } catch {}
   };
 
   // The camera, applied once to the layer, instead of folded into every number
@@ -513,10 +523,17 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
             <button
               type="button"
               className="cluster-label"
+              data-alarm={c.alarm ? "" : undefined}
               style={labelStyle}
-              title={`Fit view to ${c.fullLabel}\ndrag the wrapper to move the whole session`}
+              title={`${c.alarm ? "Waiting on you\n" : ""}Zoom to ${c.fullLabel}\ndrag the wrapper to move the whole session`}
               onClick={() => focusSession(c.sessionId)}
             >
+              {/* Stopped until a human answers, said first and in words for a
+                  screen reader, and as the triangle the faces use for the eye.
+                  The pill is the only thing on a cluster that is 1× at every
+                  zoom, so it is the one place a blocked session can always be
+                  found from — the tile under it may be twenty pixels wide. */}
+              {c.alarm ? <><AlertMark /><span className="cluster-label-said">waiting on you: </span></> : null}
               {/* THREE FIELDS, THREE RANKS. They were one run of identical
                   uppercase hue text, so the workspace, the session's own name
                   and the four-character address all asked for the eye equally
@@ -532,12 +549,19 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
                   that row reads, the pill was the name a second time — and
                   since #846 the pill keeps its size while the cards shrink, the
                   second copy was the larger one, three times the width of the
-                  card it labels. The sheet hides this span at the `full` detail
-                  tier, where the card's row is legible; at `mid` and `far` the
-                  card's row draws at 4-6px or not at all, and the pill is the
-                  only place left to read it. Its separator lives inside the span
-                  so the two leave together. The tooltip keeps all three fields. */}
+                  card it labels. The sheet hides this span at the `detail`
+                  distance, where the card's row is legible; at `compact` and
+                  `overview` the card is a face that gives the title up first,
+                  and the pill is the one place that always reads it. Its
+                  separator lives inside the span so the two leave together.
+                  The tooltip keeps all three fields. */}
               {c.label}
+              {/* The branch, between the address and the description: it is
+                  about what the session is doing now, and at a distance that
+                  is the question the pill is being read for. The sheet shows it
+                  at the overview distance only — nearer in, the subagents'
+                  own cards and the root's face say it. */}
+              {c.branch ? <span className="cluster-label-branch">{SEP + c.branch}</span> : null}
               {c.name ? <span className="cluster-label-name">{SEP + c.name}</span> : null}
               {c.shortId ? <span className="cluster-label-id">{SEP + c.shortId}</span> : null}
             </button>
@@ -561,6 +585,8 @@ function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
       // that had already settled.
       x.name !== y.name ||
       x.shortId !== y.shortId ||
+      x.alarm !== y.alarm ||
+      x.branch !== y.branch ||
       x.fullLabel !== y.fullLabel ||
       x.x !== y.x || x.y !== y.y ||
       x.w !== y.w || x.h !== y.h

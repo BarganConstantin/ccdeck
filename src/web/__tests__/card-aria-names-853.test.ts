@@ -47,13 +47,18 @@ describe("a card's spoken name (#853)", () => {
 });
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-const appCode = app
+const stripped = (src: string) => src
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+const appCode = stripped(app);
+/** The node-building half of the canvas, out of App.tsx since #1175. */
+const flowCode = stripped(readFileSync(fileURLToPath(new URL("../canvas-flow.ts", import.meta.url)), "utf8"));
 
 describe("the canvas wiring (#853)", () => {
   it("gives every agent node its composed name", () => {
-    expect(appCode).toMatch(/type: "agent",[\s\S]{0,200}?ariaLabel: agentAriaLabel\(a, now\),/);
+    // The node is built in canvas-flow.ts since #1175; App registers the
+    // renderer and this is what it is handed.
+    expect(flowCode).toMatch(/type: "agent",[\s\S]{0,200}?ariaLabel: agentAriaLabel\(a, now\),/);
   });
 
   it("drops React Flow's false keyboard instructions and its delete key", () => {

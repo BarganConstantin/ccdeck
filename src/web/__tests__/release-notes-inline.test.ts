@@ -164,6 +164,33 @@ describe("what is not a mark", () => {
     expect(kinds(parseInline("a ** b c"))).toEqual(["text"]);
   });
 
+  it("leaves a ** that is never closed as text, rather than bolding the rest of the note", () => {
+    // `a ** b c` above returns early because a space follows the opener. A
+    // typo like `**Restart` does not: the scan runs to the end of the note and
+    // finds nothing, and the answer has to be "no bold", not "bold to here".
+    const s = "**never closed";
+    expect(parseInline(s)).toEqual([{ kind: "text", text: s }]);
+    expect(plainOf(parseInline(s))).toBe(s);
+  });
+
+  it("leaves a bold whose code span never closes as text", () => {
+    // The backtick opens a span the scan has to skip, since a ** inside code
+    // closes nothing. When that span never ends there is nothing left to scan,
+    // and the ** after it must not be taken as the close.
+    const s = "**a `b** c";
+    expect(parseInline(s)).toEqual([{ kind: "text", text: s }]);
+    expect(plainOf(parseInline(s))).toBe(s);
+  });
+
+  it("still bolds the pair that closes when a later ** in the same note does not", () => {
+    const s = "x **y** and **z";
+    const nodes = parseInline(s);
+    expect(nodes.map(n => n.kind)).toEqual(["text", "bold", "text"]);
+    const last = nodes[2];
+    expect(last.kind === "text" && last.text).toBe(" and **z");
+    expect(plainOf(nodes)).toBe("x y and **z");
+  });
+
   it("refuses to bold across spaced delimiters", () => {
     // `2 ** 3` and `4 ** 5` in one paragraph is arithmetic, not one bold run
     // with the middle eaten.

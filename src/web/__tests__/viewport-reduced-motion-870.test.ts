@@ -56,14 +56,20 @@ const appCode = app
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 describe("every fit that frames a card asks the rule", () => {
-  it("passes fitView no bare duration", () => {
-    // A fourth fit added with `duration: 500` is this bug again.
+  it("frames a card only through the routine that asks the rule", () => {
+    // The three fits this pinned — the ribbon, j/k and a session's focus — and
+    // the cluster label's are all focusAgent now (focus-camera.ts), whose move
+    // goes through applyViewport, which asks shouldAnimateViewport before it
+    // animates. A fitView brought back with a bare `duration: 500` is this bug
+    // again, so any that returns still has to ask.
     const fits = [...appCode.matchAll(/rf\.fitView\(\{([^}]*)\}\)/g)].map(m => m[1]);
-    expect(fits.length).toBeGreaterThanOrEqual(3);
     for (const options of fits) {
       expect(options).not.toMatch(/duration:\s*\d/);
       expect(options).toMatch(/duration: fitViewDuration\(\d+\)/);
     }
+    const apply = appCode.slice(appCode.indexOf("const applyViewport = useCallback("), appCode.indexOf("}, [rf, storeApi]);"));
+    expect(apply).toMatch(/if \(shouldAnimateViewport\(\{ durationMs: duration, documentHidden: document\.hidden \}\)\)/);
+    expect(appCode).toMatch(/applyViewport\(want, FOCUS_MS\);/);
   });
 
   it("relies on a synchronous branch React Flow's fitView still has", () => {

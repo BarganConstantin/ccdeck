@@ -67,7 +67,8 @@ export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.j
  * `notifications` defaults OFF since 3.22.7. The deck's own sounds are how it
  * gets attention by default; a desktop notification is something a person
  * turns on. It defaulted on from 3.7.0 until then, and a deck that saved that
- * `true` keeps it.
+ * `true` keeps it. On, a CLOSED deck notifies wherever an open one would have
+ * played a sound (block-notify.mjs `isChimeEvent`).
  */
 export const DEFAULTS = Object.freeze({
   notifications: false,
@@ -109,6 +110,15 @@ export const DEFAULTS = Object.freeze({
     // of one person's machines show each other where they are working; off, and
     // paired decks read "current account hidden" instead.
     shareActive: true,
+    // FINDING THIS PERSON'S OTHER MACHINES OVER TAILSCALE, off until they turn
+    // it on: it is a new path off this machine, and the owner chooses it. Its
+    // two permissions ship on, like the local pair above, and they are narrower
+    // than those by construction — they only ever answer for a machine signed
+    // in to the same Tailscale account as this one (see tailscale.mjs), never
+    // for a colleague's node or one shared in from another tailnet.
+    tailscale: false,
+    tailscaleAsk: true,
+    tailscaleAccept: true,
     // What somebody HERE calls another deck, keyed by its fingerprint. The name
     // a deck gives itself is its owner's to choose; this is the other half.
     aliases: Object.freeze({}),
@@ -217,6 +227,11 @@ function normaliseLan(raw) {
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
     shareActive: typeof src.shareActive === "boolean" ? src.shareActive : DEFAULTS.lan.shareActive,
+    // The Tailscale switch and its two permissions. Only a real boolean
+    // overrides a default, as above.
+    tailscale: typeof src.tailscale === "boolean" ? src.tailscale : DEFAULTS.lan.tailscale,
+    tailscaleAsk: typeof src.tailscaleAsk === "boolean" ? src.tailscaleAsk : DEFAULTS.lan.tailscaleAsk,
+    tailscaleAccept: typeof src.tailscaleAccept === "boolean" ? src.tailscaleAccept : DEFAULTS.lan.tailscaleAccept,
   };
 }
 
@@ -398,6 +413,48 @@ export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
  */
 export async function updatePrefs(mutate, home = deckDataDir(), deps = {}) {
   return queued(() => save(mutate, home, deps));
+}
+
+/**
+ * The two `mutate`s the three callers above hand updatePrefs, named so that the
+ * callers and prefs-update-1041.test.ts run the same function. The suite used to
+ * carry its own copy of each closure and test the copy (#1168), which stays
+ * green however the one in index.mjs is edited.
+ */
+
+/** `lan.manual` with `entry` on the end, or no change when it is there already.
+ *  What `onDial` and the accept route both write. */
+export function withManualEntry(entry) {
+  return prev => {
+    const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
+    return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
+  };
+}
+
+/**
+ * `lan.shared` with `key` on the end, or no change when it is already there.
+ *
+ * The tick an account gets when it ARRIVES over the local network (#1188): the
+ * group already has that login, so a deck that was just given one is as useful
+ * to the next machine as the deck that gave it. Only on arrival — an untick
+ * afterwards is the person's answer and nothing re-ticks it, because an account
+ * this deck already holds is never added again.
+ */
+export function withShared(key) {
+  return prev => {
+    const shared = Array.isArray(prev?.lan?.shared) ? prev.lan.shared : [];
+    return !key || shared.includes(key) ? null : { lan: { shared: [...shared, key] } };
+  };
+}
+
+/** `lan.aliases` with `fp` called `name`, or without `fp` when the name is
+ *  empty. The alias route's write; the whole map, rebuilt from the one read. */
+export function withAlias(fp, name) {
+  return prev => {
+    const next = { ...(prev?.lan?.aliases ?? {}) };
+    if (name) next[fp] = name; else delete next[fp];
+    return { lan: { aliases: next } };
+  };
 }
 
 /** One read-modify-write, behind every other one. Both entry points go through

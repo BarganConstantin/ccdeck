@@ -25,7 +25,12 @@ function agent(id: string, sessionId: string): Node {
 
 const sizes = (nodes: Node[]) => new Map(nodes.map(n => [n.id, { width: W, height: H }]));
 
-/** The layout branch of snapshotToFlow: place what is unplaced, then repair. */
+/** The layout branch's three passes, in the order snapshotToFlow calls them.
+ *
+ *  Reduced on purpose — no lane map, no recap notes — because what this file is
+ *  about is what `positions` MEANS to those passes, and a placeholder is the
+ *  one thing none of them can be told apart from a placement on its own. The
+ *  composed function is driven in canvas-flow.test.ts (#1175). */
 function layoutPass(
   nodes: Node[],
   edges: Edge[],

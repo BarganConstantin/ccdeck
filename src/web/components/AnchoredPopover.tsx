@@ -98,7 +98,7 @@ export default function AnchoredPopover({
   const ref = useModalDismiss<HTMLDivElement>(() => {
     document.getElementById(anchorId)?.focus();
     closeRef.current();
-  });
+  }, { popover: true });
 
   const place = useCallback(() => {
     const el = ref.current;
