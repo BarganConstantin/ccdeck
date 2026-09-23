@@ -1,3 +1,5 @@
+import { CUSTOM_TARGET_PEAK, type CustomNotificationAsset, type CustomSelections } from "./notification-audio";
+
 // The two moments worth hearing, played by the deck itself.
 //
 // This used to be a `Stop` hook written into the user's settings.json running
@@ -511,6 +513,16 @@ export function createChimePlayer(opts: {
    *  shape as `enabled`, and for the same reason: the player is built once, on
    *  mount, and the settings move under it for the life of the tab. */
   prefs?: () => TonePrefs;
+  /** A local custom asset chosen for either tone (#1207). The asset bytes
+   *  themselves live in IndexedDB in a browser and in the desktop app's
+   *  userData directory. */
+  customSelection?: () => CustomSelections;
+  loadCustom?: (id: string) => Promise<CustomNotificationAsset | null>;
+  /** The chosen asset is gone or no longer decodes. The tone falls back to its
+   *  default figure, and the owner persists that. Not called when storage or
+   *  speech merely failed to answer this once — that plays the default figure
+   *  for this one event and leaves the choice alone. */
+  onCustomFailure?: (chime: Chime, id: string) => void;
   ctor?: Ctor | null;
   onState?: (s: ChimeState) => void;
 } = { enabled: () => true }) {
@@ -541,24 +553,9 @@ export function createChimePlayer(opts: {
     } catch { /* no audio on this machine; the switch will say "locked" */ }
   }
 
-  /**
-   * `audition` is the one caller allowed past the switch, and it is the sound
-   * menu — its preview buttons, and the controls that change a tone.
-   *
-   * Every other sound this deck makes is a report about something that
-   * happened, and the switch is the user saying they do not want those.
-   * Pressing "hear it" is not that: it is a direct request for the tone, the
-   * only gesture in the app whose entire purpose is to make a sound, and
-   * refusing it would leave the menu silent in exactly the state a user who
-   * turned the sound OFF BECAUSE IT WAS TOO LOUD is in when they open it. So
-   * the flag governs the deck's own tones and not the user's own press.
-   * `unlocked` is NOT waived with it — that one is the browser's rule, not the
-   * deck's, and nothing here can override it.
-   */
-  function play(chime: Chime, audition = false) {
-    if ((!audition && !opts.enabled()) || !ctx || ctx.state !== "running") return false;
-    const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
-    const figure = figureFor(chime, tone.figure);
+  function playFigure(chime: Chime, tone: ToneSettings, figureId = tone.figure) {
+    if (!ctx || ctx.state !== "running") return false;
+    const figure = figureFor(chime, figureId);
     const peak = peakFor(tone.level, figure);
     const now = ctx.currentTime;
     for (const note of figure.notes) {
@@ -592,5 +589,101 @@ export function createChimePlayer(opts: {
     return true;
   }
 
-  return { unlock, play, state, get context() { return ctx; } };
+  /**
+   * How a custom asset went. Only `missing` and `broken` say something about
+   * the asset itself — deleted, or bytes that no longer decode — and so only
+   * they are worth changing the user's setting over. `unavailable` is storage
+   * or speech failing to answer this once (a desktop IPC call during a reload,
+   * a browser with no speechSynthesis), and clearing the choice for that would
+   * throw away a working sound because of a moment's hiccup.
+   */
+  type CustomOutcome = "played" | "locked" | "missing" | "broken" | "unavailable";
+
+  async function playCustomAsset(id: string, tone: ToneSettings): Promise<CustomOutcome> {
+    if (!opts.loadCustom) return "unavailable";
+    let asset: CustomNotificationAsset | null;
+    try { asset = await opts.loadCustom(id); }
+    catch { return "unavailable"; }
+    if (!asset) return "missing";
+
+    if (asset.kind === "tts") {
+      if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return "unavailable";
+      const utterance = new SpeechSynthesisUtterance(asset.text);
+      const voices = window.speechSynthesis.getVoices();
+      utterance.voice = voices.find(v => v.voiceURI === asset.voiceURI) ?? null;
+      utterance.rate = asset.rate;
+      utterance.pitch = asset.pitch;
+      // The existing level owns custom voices too. Map the notification gain
+      // band to SpeechSynthesis' 0..1 volume without adding a second control.
+      utterance.volume = Math.min(1, gainForLevel(tone.level) / GAIN_CEILING);
+      try {
+        // Speech QUEUES where a chime overlaps. Five turns finishing together
+        // would otherwise be five sentences read out one after another, the
+        // last of them long after the moment it was about — so the newest
+        // replaces whatever is still being said.
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+        return "played";
+      } catch { return "unavailable"; }
+    }
+
+    if (!ctx || ctx.state !== "running") return "locked";
+    let decoded: AudioBuffer;
+    try { decoded = await ctx.decodeAudioData(asset.bytes.slice(0)); }
+    catch { return "broken"; }
+    try {
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      source.buffer = decoded;
+      // Import measured the file's peak once. Applying that gain here makes
+      // every imported file land at the same target before the user's existing
+      // per-tone level is applied.
+      const normalized = asset.normalizationGain * (gainForLevel(tone.level) / CUSTOM_TARGET_PEAK);
+      gain.gain.setValueAtTime(Math.max(0.0001, normalized), ctx.currentTime);
+      source.connect(gain).connect(ctx.destination);
+      source.start(ctx.currentTime);
+      return "played";
+    } catch {
+      return "unavailable";
+    }
+  }
+
+  /**
+   * `audition` is the one caller allowed past the switch, and it is the sound
+   * menu — its preview buttons, and the controls that change a tone.
+   *
+   * Every other sound this deck makes is a report about something that
+   * happened, and the switch is the user saying they do not want those.
+   * Pressing "hear it" is not that: it is a direct request for the tone, the
+   * only gesture in the app whose entire purpose is to make a sound, and
+   * refusing it would leave the menu silent in exactly the state a user who
+   * turned the sound OFF BECAUSE IT WAS TOO LOUD is in when they open it. So
+   * the flag governs the deck's own tones and not the user's own press.
+   * `unlocked` is NOT waived with it — that one is the browser's rule, not the
+   * deck's, and nothing here can override it.
+   */
+  function play(chime: Chime, audition = false) {
+    if (!audition && !opts.enabled()) return false;
+    const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
+    const customId = opts.customSelection?.()[chime] ?? null;
+    if (customId && opts.loadCustom) {
+      void playCustomAsset(customId, tone).then(outcome => {
+        if (outcome === "played" || outcome === "locked") return;
+        if (outcome === "missing" || outcome === "broken") opts.onCustomFailure?.(chime, customId);
+        // Something still sounds: a notification that fails silently is the
+        // one outcome worse than the wrong sound.
+        playFigure(chime, { ...tone, figure: DEFAULT_FIGURE_ID }, DEFAULT_FIGURE_ID);
+      });
+      return true;
+    }
+    if (!ctx || ctx.state !== "running") return false;
+    return playFigure(chime, tone);
+  }
+
+  function previewCustom(id: string, level = DEFAULT_LEVEL) {
+    void playCustomAsset(id, { level: clampLevel(level), figure: DEFAULT_FIGURE_ID });
+    return true;
+  }
+
+  return { unlock, play, previewCustom, state, get context() { return ctx; } };
 }

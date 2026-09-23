@@ -12,7 +12,7 @@
 // The tray icon is the favicon of a closed tab: the same four marks, the same
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
-import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,6 +23,7 @@ import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
+import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -407,6 +408,7 @@ function openWindow(steal = true) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: join(here, "preload.cjs"),
       // The page's chimes: in a browser they wait for the first click to
       // unlock audio. An app the person opened on purpose need not.
       autoplayPolicy: "no-user-gesture-required",
@@ -450,6 +452,35 @@ function openWindow(steal = true) {
 function statePath() { return join(app.getPath("userData"), "desktop-state.json"); }
 function readState() {
   try { return JSON.parse(readFileSync(statePath(), "utf8")); } catch { return {}; }
+}
+
+// Custom notification sounds and voices (#1207): local app data the page
+// reaches through preload.cjs by opaque id, never by path. What may be stored,
+// and how much of it, is notification-audio-store.mjs; who may ask is here.
+const notificationAudio = createNotificationAudioStore(() => join(app.getPath("userData"), "notification-audio.json"));
+
+/** Whether an IPC call came from the deck's own page in the deck's own window.
+ *  The preload runs in whatever this window shows, and navigation is already
+ *  held to the deck's origin (nav.mjs) — but that is the window's rule, and a
+ *  handler that trusted it would be one missed redirect from answering some
+ *  other site. So the door checks for itself, as Electron's security guidance
+ *  asks: the sender must be this window, and the frame must be on the origin
+ *  the window was opened at. */
+function fromDeckPage(event) {
+  if (!deck || !win || win.isDestroyed() || event.sender.id !== win.webContents.id) return false;
+  const url = event.senderFrame?.url;
+  return typeof url === "string" && navigationFor(url, `http://127.0.0.1:${deck.port}`) === "stay";
+}
+
+function installNotificationAudioIpc() {
+  const handle = (name, run) => ipcMain.handle(`ccdeck:notification-audio:${name}`, (event, arg) => {
+    if (!fromDeckPage(event)) throw new Error("Notification audio is only available to the deck.");
+    return run(arg);
+  });
+  handle("list", () => notificationAudio.list());
+  handle("get", id => notificationAudio.get(id));
+  handle("put", asset => { notificationAudio.put(asset); });
+  handle("remove", id => { notificationAudio.remove(id); });
 }
 
 /** How long a question waits for the window to reach the screen before it is
@@ -625,6 +656,7 @@ async function offerToReplaceLoginItem() {
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  installNotificationAudioIpc();
   setRegular(false);
   updateNoticeVersion = readState().readyUpdateNoticeVersion ?? null;
   await loadModel();

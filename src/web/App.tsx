@@ -139,10 +139,16 @@ import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
 import {
-  chimeFor, clampLevel, createChimePlayer, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
-  PREVIEW_DELAY_MS, readPrefs,
+  CHIME_ORDER, chimeFor, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
+  figureIdFrom, FIGURE_KEYS, LEVEL_KEYS, PREVIEW_DELAY_MS, readPrefs,
   type Chime, type ChimeState, type TonePrefs, type ToneSettings,
 } from "./sound";
+import {
+  CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
+  getCustomNotificationAsset, importCustomAudio, libraryFullReason, listCustomNotificationAssets,
+  readCustomSelections, saveCustomNotificationAsset,
+  type CustomNotificationAsset, type CustomSelections,
+} from "./notification-audio";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -880,6 +886,51 @@ function Inner() {
   const tonePrefsRef = useRef(tonePrefs);
   tonePrefsRef.current = tonePrefs;
 
+  // Custom sounds are selected independently from the built-in figure. Keeping
+  // the figure intact gives every custom choice a deterministic local fallback
+  // without changing the shape #711 stores and tests.
+  const [customSelections, setCustomSelections] = useState<CustomSelections>(() => readCustomSelections(readStored));
+  const customSelectionsRef = useRef(customSelections);
+  customSelectionsRef.current = customSelections;
+  const [customAssets, setCustomAssets] = useState<CustomNotificationAsset[]>([]);
+
+  const clearCustomOnly = useCallback((chime: Chime) => {
+    setCustomSelections(prev => {
+      const next = { ...prev, [chime]: null };
+      customSelectionsRef.current = next;
+      return next;
+    });
+    try { localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]); } catch { /* no storage */ }
+  }, []);
+
+  const fallbackCustom = useCallback((chime: Chime, expectedId?: string) => {
+    const selected = customSelectionsRef.current[chime];
+    if (expectedId && selected !== expectedId) return;
+    clearCustomOnly(chime);
+    setTonePrefs(prev => {
+      const next = { ...prev, [chime]: { ...prev[chime], figure: DEFAULT_FIGURE_ID } };
+      tonePrefsRef.current = next;
+      return next;
+    });
+    try { localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID); } catch { /* no storage */ }
+  }, [clearCustomOnly]);
+  const fallbackCustomRef = useRef(fallbackCustom);
+  fallbackCustomRef.current = fallbackCustom;
+
+  useEffect(() => {
+    let live = true;
+    void listCustomNotificationAssets().then(assets => {
+      if (!live) return;
+      setCustomAssets(assets);
+      const ids = new Set(assets.map(asset => asset.id));
+      for (const chime of CHIME_ORDER) {
+        const selected = customSelectionsRef.current[chime];
+        if (selected && !ids.has(selected)) fallbackCustomRef.current(chime, selected);
+      }
+    }, () => { /* storage unavailable: keep the stored selection for a later retry */ });
+    return () => { live = false; };
+  }, []);
+
   /** The trailing timer for the tone a changed setting plays back. */
   const previewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -936,6 +987,81 @@ function Inner() {
     previewTone(chime, true);
   }, [previewTone]);
 
+  const selectCustomTone = useCallback((chime: Chime, id: string) => {
+    if (!customAssets.some(asset => asset.id === id)) return;
+    const next = { ...customSelectionsRef.current, [chime]: id };
+    customSelectionsRef.current = next;
+    setCustomSelections(next);
+    try { localStorage.setItem(CUSTOM_AUDIO_KEYS[chime], id); } catch { /* no storage */ }
+    previewTone(chime, true);
+  }, [customAssets, previewTone]);
+
+  const importNotificationAudio = useCallback(async (file: File) => {
+    const full = libraryFullReason(customAssets.length);
+    if (full) throw new Error(full);
+    const Ctx = window.AudioContext
+      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) throw new Error("This browser cannot decode audio files.");
+    const decoder = new Ctx();
+    try {
+      const asset = await importCustomAudio(file, bytes => decoder.decodeAudioData(bytes));
+      await saveCustomNotificationAsset(asset);
+      setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
+    } finally {
+      void decoder.close?.();
+    }
+  }, [customAssets.length]);
+
+  const createNotificationVoice = useCallback(async (input: {
+    name: string; text: string; voiceURI: string; rate: number; pitch: number;
+  }) => {
+    const full = libraryFullReason(customAssets.length);
+    if (full) throw new Error(full);
+    const asset = createCustomVoice(input);
+    await saveCustomNotificationAsset(asset);
+    setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
+  }, [customAssets.length]);
+
+  const renameCustomAsset = useCallback(async (id: string, name: string) => {
+    const current = customAssets.find(asset => asset.id === id);
+    const nextName = name.trim().slice(0, 80);
+    if (!current || !nextName || nextName === current.name) return;
+    const next = { ...current, name: nextName } as CustomNotificationAsset;
+    await saveCustomNotificationAsset(next);
+    setCustomAssets(prev => prev.map(asset => asset.id === id ? next : asset));
+  }, [customAssets]);
+
+  const deleteCustomAsset = useCallback(async (id: string) => {
+    await deleteCustomNotificationAsset(id);
+    setCustomAssets(prev => prev.filter(asset => asset.id !== id));
+    const before = customSelectionsRef.current;
+    const after = clearCustomAssetSelections(before, id);
+    customSelectionsRef.current = after;
+    setCustomSelections(after);
+    const affected = CHIME_ORDER.filter(chime => before[chime] === id);
+    for (const chime of affected) {
+      try {
+        localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]);
+        localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID);
+      } catch { /* no storage */ }
+    }
+    if (affected.length > 0) {
+      setTonePrefs(prev => {
+        const next = { ...prev };
+        for (const chime of affected) next[chime] = { ...next[chime], figure: DEFAULT_FIGURE_ID };
+        tonePrefsRef.current = next;
+        return next;
+      });
+    }
+  }, []);
+
+  const previewCustomAsset = useCallback((id: string) => {
+    const selectedTone = CHIME_ORDER.find(chime => customSelectionsRef.current[chime] === id);
+    const level = selectedTone ? tonePrefsRef.current[selectedTone].level : DEFAULT_LEVEL;
+    chimesRef.current?.unlock();
+    chimesRef.current?.previewCustom(id, level);
+  }, []);
+
   // A timer outliving the tab it belongs to is a tone fired into an unmounted
   // tree. Cheap to clear, and the only thing this component leaves running.
   useEffect(() => () => { if (previewRef.current !== null) clearTimeout(previewRef.current); }, []);
@@ -965,6 +1091,9 @@ function Inner() {
     const player = createChimePlayer({
       enabled: () => soundOnRef.current === true,
       prefs: () => tonePrefsRef.current,
+      customSelection: () => customSelectionsRef.current,
+      loadCustom: getCustomNotificationAsset,
+      onCustomFailure: (chime, id) => fallbackCustomRef.current(chime, id),
       onState: setChimeState,
     });
     chimesRef.current = player;
@@ -4660,6 +4789,15 @@ function Inner() {
                   onLevel={(chime, level) => changeTone(chime, { level })}
                   onFigure={(chime, figure) => changeTone(chime, { figure })}
                   onPreview={chime => previewTone(chime)}
+                  customAssets={customAssets}
+                  customSelections={customSelections}
+                  onBuiltInSelected={clearCustomOnly}
+                  onCustomSelected={selectCustomTone}
+                  onImportCustom={importNotificationAudio}
+                  onCreateVoice={createNotificationVoice}
+                  onRenameCustom={renameCustomAsset}
+                  onPreviewCustom={previewCustomAsset}
+                  onDeleteCustom={deleteCustomAsset}
                   notifyOn={notifyOn}
                   onToggleNotify={toggleNotify}
                   notifyVetoed={notifyVetoed}
