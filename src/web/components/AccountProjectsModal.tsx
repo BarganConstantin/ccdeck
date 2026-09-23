@@ -12,6 +12,8 @@ import { createPortal } from "react-dom";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { reconcile, type Counters, type CcCell } from "../account-projects-reconcile";
+import { copyText } from "../copy-text";
+import { homeRelativePath, projectParentLabel } from "../account-project-paths";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
@@ -87,7 +89,7 @@ function labelledDays(count: number): (i: number) => boolean {
 
 /** A row ready to draw: priced, named, coloured. `other` folds the small tail;
  *  `unattributed` is the accountless bucket, shown apart from the bar. */
-interface Priced { key: string; label: string; title?: string; cost: number; tokens: number; color: string; muted?: boolean }
+interface Priced { key: string; label: string; path?: string; parentLabel?: string; cost: number; tokens: number; color: string; muted?: boolean; members?: Array<{ path: string; label: string; parentLabel?: string; cost: number; tokens: number }> }
 
 function niceDate(ms: number | null): string {
   if (!ms) return "";
@@ -103,6 +105,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   // Per-model and per-day-per-model costs are derived from it in the memo.
   const [ccRange, setCcRange] = useState<unknown>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -114,6 +117,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     setLoading(true);
     setError(null);
     setSelectedDay(null);   // a new window is a fresh chart
+    setExpandedRows(new Set());
     // The window the tally used: today back N-1 days (60 for "all", matching
     // the rollup's retention). ccusage is asked for the same span so the two
     // agree day-for-day.
@@ -184,6 +188,14 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
       return parent ? `${parent}/${base}` : base;
     };
 
+    const projectLabels = rec.projects.map(a => ({ path: a.path, label: labelFor(a.path) }));
+    const rowFor = (a: (typeof rec.projects)[number]) => ({
+      path: a.path,
+      label: labelFor(a.path),
+      parentLabel: projectParentLabel(a.path, projectLabels),
+      cost: a.cost,
+      tokens: a.tokens,
+    });
     const otherColor = PALETTE[MAX_ROWS % PALETTE.length];
     const colorForPath = new Map<string, string>();
     const rows: Priced[] = [];
@@ -191,17 +203,17 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const tail = rec.projects.slice(MAX_ROWS);
     head.forEach((a, i) => {
       colorForPath.set(a.path, PALETTE[i % PALETTE.length]);
-      rows.push({ key: a.path, label: labelFor(a.path), title: a.path, cost: a.cost, tokens: a.tokens, color: PALETTE[i % PALETTE.length] });
+      rows.push({ key: a.path, ...rowFor(a), color: PALETTE[i % PALETTE.length] });
     });
     if (tail.length) {
       rows.push({
         key: "__other__",
         label: `Other · ${tail.length} project${tail.length > 1 ? "s" : ""}`,
-        title: tail.map(a => nameOf(a.path)).join(", "),
-        cost: tail.reduce((s, a) => s + a.cost, 0),
-        tokens: tail.reduce((s, a) => s + a.tokens, 0),
+        cost: tail.reduce((sum, a) => sum + a.cost, 0),
+        tokens: tail.reduce((sum, a) => sum + a.tokens, 0),
         color: otherColor,
         muted: true,
+        members: tail.map(rowFor),
       });
     }
 
@@ -344,15 +356,44 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     {view.rows.map(r => {
                       const val = view.basis === "cost" ? r.cost : r.tokens;
                       const pct = view.denom > 0 ? (val / view.denom) * 100 : 0;
+                      const expanded = expandedRows.has(r.key);
                       return (
-                        <li key={r.key} className={`ap-proj-row${r.muted ? " muted" : ""}`}>
+                        <li key={r.key} className={`ap-proj-row${r.muted ? " muted" : ""}${expanded ? " expanded" : ""}`}>
                           <span className="ap-proj-dot" style={{ background: r.color }} aria-hidden="true" />
-                          <span className="ap-proj-name" title={r.title ?? r.label}>{r.label}</span>
+                          <span className="ap-proj-name">
+                            {r.label}{r.parentLabel && <span className="ap-proj-parent"> · in {r.parentLabel}</span>}
+                          </span>
                           <span className="ap-proj-track" title={`${pctLabel(r.cost, view.totalCost)} of tracked cost`}>
                             <span className="ap-proj-fill" style={{ width: `${pct}%`, background: r.color }} />
                           </span>
                           <span className="ap-proj-cost">{fmtCost(r.cost)}</span>
                           <span className="ap-proj-tok">{fmtTokens(r.tokens)}</span>
+                          <button type="button" className="glyph-btn ap-proj-info" aria-expanded={expanded}
+                            aria-label={`${expanded ? "Hide" : "Show"} location for ${r.label}`}
+                            onClick={() => setExpandedRows(prev => {
+                              const next = new Set(prev);
+                              if (next.has(r.key)) next.delete(r.key); else next.add(r.key);
+                              return next;
+                            })}>ⓘ</button>
+                          {expanded && r.path && (
+                            <div className="ap-proj-details">
+                              <code className="ap-proj-path">{homeRelativePath(r.path)}</code>
+                              <button type="button" className="ap-proj-copy" onClick={() => { void copyText(homeRelativePath(r.path!)); }}>Copy</button>
+                            </div>
+                          )}
+                          {expanded && r.members && (
+                            <div className="ap-proj-details ap-proj-other-members">
+                              {r.members.map(member => (
+                                <div key={member.path} className="ap-proj-other-member">
+                                  <div className="ap-proj-other-name">{member.label}{member.parentLabel && <span className="ap-proj-parent"> · in {member.parentLabel}</span>}</div>
+                                  <code className="ap-proj-path">{homeRelativePath(member.path)}</code>
+                                  <span className="ap-proj-cost">{fmtCost(member.cost)}</span>
+                                  <span className="ap-proj-tok">{fmtTokens(member.tokens)}</span>
+                                  <button type="button" className="ap-proj-copy" aria-label={`Copy location for ${member.label}`} onClick={() => { void copyText(homeRelativePath(member.path)); }}>Copy</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </li>
                       );
                     })}
