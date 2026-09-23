@@ -45,6 +45,7 @@ import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reach
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
+import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { appendFailureStats, appendLogLine, appendsLanded, codexCwdInWorkspace, electWriters, emptyLog, flushAppends, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
@@ -75,6 +76,11 @@ const MIME = {
   ".css":  "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg":  "image/svg+xml",
+  // The type is the whole of how a browser recognises a manifest: served as
+  // application/octet-stream — which is what the fallback below hands anything
+  // unlisted — Chrome fetches it, declines to parse it, and offers no install,
+  // with nothing in the console that names the reason.
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".png":  "image/png",
   ".jpg":  "image/jpeg",
   ".woff2": "font/woff2",
@@ -7480,6 +7486,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // background quota poll hit a network error. Answer the request instead.
   const guard = (p, res) => Promise.resolve(p).catch(err => sendInternalError(res, err));
 
+  // Which of the eleven candidates below this deck ended up on, set the moment
+  // one of them binds. Declared here rather than beside the loop that fills it
+  // so it is above the route that reads it — see the manifest gate.
+  let boundPort = null;
+
   const route = (req, res) => {
     const url = requestUrl(req.url);
     // Unparseable request target. Nothing below can route it, and throwing here
@@ -7653,6 +7664,20 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       return send(res, 404, { error: "not found" });
     }
 
+    // THE MANIFEST IS WITHDRAWN WHEN THE PORT WAS INVENTED, not served and
+    // then apologised for. An installed app is pinned to an origin and an
+    // origin includes the port, so offering one from a random fallback port
+    // promises a shortcut that the next boot breaks — and leaves a dead tile
+    // behind for every launch, because the browser keys an app by origin. See
+    // app-manifest.mjs, which is where the rule and its reasoning live.
+    //
+    // A 404 rather than a route that answers `{}`: an unparseable manifest is
+    // a console error on every page load, and "absent" is exactly what this
+    // means.
+    if (url.pathname === MANIFEST_PATH && !offerManifest({ asked: port, bound: boundPort })) {
+      return send(res, 404, { error: "not found" });
+    }
+
     if (req.method === "GET") return serveStatic(req, res, url);
     send(res, 405, { error: "method not allowed" });
   };
@@ -7692,6 +7717,13 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   for (const candidate of candidates) {
     try {
       await tryListen(server, candidate, host);
+      // What actually bound, read by the manifest gate above. `address()`
+      // rather than `candidate`, and the difference is the whole point of the
+      // gate: `port: 0` means "any ephemeral port", so the candidate and the
+      // request agree at 0 while the deck is listening on a number nobody chose
+      // and that will differ on the next boot. Every test in this suite boots
+      // that way. Comparing the candidate would hand those decks a manifest.
+      boundPort = server.address()?.port ?? candidate;
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) startCodexWatcher(workspace);
       // What a session is producing between its tool calls. Claude only — it

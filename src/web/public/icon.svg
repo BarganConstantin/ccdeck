@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ccdeck">
+  <!-- The deck's one mark, at icon size.
+
+       The same ring index.html carries as its favicon and the topbar draws as
+       .brand .logo, at the same proportion: the favicon is r=12 with a 5 stroke
+       on a 32 box, which is 0.42 of stroke to radius, and 68/170 here is 0.40.
+       Anything thinner stops reading at 32px in a Dock, and the ring IS the
+       product's mark — there is no wordmark small enough to be one.
+
+       A ROUNDED SQUARE, not a full bleed. This is the `any` icon, and `any` is
+       handed to the platform unmasked: macOS puts it in the Dock as drawn, so a
+       hard-edged square sits among rounded neighbours looking like a mistake.
+       112 is 22% of 512, which is what the platforms round their own to. The
+       maskable icon is the one that fills its square — see icon-maskable.svg,
+       where the ground is edge to edge precisely because something else is
+       going to cut it.
+
+       The ground is --bg of the dark theme and the ring is its --accent. One
+       pair, not two: an icon has no media query, it sits on a Dock whose own
+       colour we do not know, and the dark ground is the one that keeps a cyan
+       ring legible on either. -->
+  <rect width="512" height="512" rx="112" fill="#0b0c10"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#7dd3fc" stroke-width="68"/>
+</svg>
