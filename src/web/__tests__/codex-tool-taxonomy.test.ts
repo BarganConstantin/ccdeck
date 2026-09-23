@@ -5,7 +5,7 @@
 // CODEX_TOOLS in ToolBursts.tsx, plus DETAIL_TOOL_CAT in App.tsx, whose comment
 // claimed the duplication was "small enough that a shared module isn't worth
 // it". Six of six missed, which is what a set of parallel tables does: adding a
-// name costs six edits and misses at least one, and the miss is silent because
+// name costs several edits and misses at least one, and the miss is silent because
 // every table has a plausible default — "other", the ✨ fallback, the raw name,
 // no sub-bubble. The result is indistinguishable from the deck being broken.
 //
@@ -121,7 +121,7 @@ describe("every Codex tool the deck knows, drawn from the one spec table", () =>
       if (spec.shell) expect(sub, `${name} should chain a sub-bubble`).toBeTruthy();
       // DETAIL_TOOL_CAT: the detail strip and the canvas count it the same way.
       expect(categoryFor(name)).toBe(primary!.category);
-      // CODEX_TOOLS: the width estimate scales for it, so a long label cannot
+      // The width estimate scales for it, so a long label cannot
       // bury the chained sub-bubble inside the primary (#84).
       expect(primaryBubbleWidth(name, "a-very-long-label")).toBeGreaterThan(ESTIMATED_BUBBLE_W);
     });
@@ -179,7 +179,8 @@ describe("where the six tables get their Codex names from", () => {
     expect(toolBursts).toMatch(/\.\.\.CODEX_TOOL_EMOJI/);
     expect(toolBursts).toMatch(/\.\.\.CODEX_SHELL_TOOLS/);
     expect(toolBursts).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
-    expect(toolBursts).toMatch(/CODEX_TOOLS = CODEX_TOOL_NAMES/);
+    expect(toolBursts).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
+    expect(toolBursts).not.toMatch(/const CODEX_TOOLS\s*=/);
   });
 });
 

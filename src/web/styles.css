@@ -4955,6 +4955,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 .tool-burst {
   display: inline-flex;
+  max-width: 190px;
   align-items: center;
   gap: 6px;
   padding: 5px 12px 5px 10px;
@@ -4990,7 +4991,13 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   display: inline-block;
   /* tiny continuous wobble while inflight — see .status-inflight rule */
 }
-.tool-burst .tb-name { font-weight: 600; letter-spacing: 0.01em; }
+.tool-burst .tb-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tool-burst .tb-spin {
   width: 8px; height: 8px;
   border-radius: 50%;
@@ -5155,6 +5162,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    of pure lateness, measured, and it is what made a sub's glow trail its
    primary's by 220ms on a tool that finished once. */
 .tool-burst.sub {
+  max-width: 140px;
   font-size: 10px;
   padding: 4px 10px 4px 8px;
   opacity: 0.94;
