@@ -1268,13 +1268,30 @@ function Inner() {
   // naming the tray's line as the way out — that one talks to the updater
   // directly and works in every case here, including a deck that has lost the
   // app altogether.
+  // ONE PRESS AT A TIME, and only that one handed back. The half-minute clock
+  // used to be a bare setTimeout that checked the shared "asked" flag, so a
+  // press the stream had already released (the update stopped being ready),
+  // followed by a press for the next version, gave the old clock a flag that
+  // was true again: it fired "has not restarted after 30 seconds" into the new
+  // press seconds after it began. The same was true of a slow answer to the old
+  // request. So the clock's id is kept to be cleared — by a new press, by every
+  // hand-back and by the stream's release — and each press carries a number,
+  // and a hand-back for any number but the latest is about a press that is
+  // already over.
   const desktopUpdateAskedRef = useRef(false);
+  const desktopUpdateTimerRef = useRef(0);
+  const desktopUpdatePressRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(desktopUpdateTimerRef.current), []);
   const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
     if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;
+    const press = ++desktopUpdatePressRef.current;
+    window.clearTimeout(desktopUpdateTimerRef.current);
     desktopUpdateAskedRef.current = true;
     setDesktopUpdateRestarting(true);
     setDesktopUpdateFailure(null);
     const handBack = (failure: UpdateRestartFailure) => {
+      if (press !== desktopUpdatePressRef.current) return;
+      window.clearTimeout(desktopUpdateTimerRef.current);
       desktopUpdateAskedRef.current = false;
       setDesktopUpdateRestarting(false);
       setDesktopUpdateFailure({ failure, version: updateVersion });
@@ -1289,7 +1306,8 @@ function Inner() {
     } catch {
       return handBack("unreachable");
     }
-    window.setTimeout(() => { if (desktopUpdateAskedRef.current) handBack("timeout"); }, UPDATE_RESTART_WAIT_MS);
+    if (press !== desktopUpdatePressRef.current) return;
+    desktopUpdateTimerRef.current = window.setTimeout(() => handBack("timeout"), UPDATE_RESTART_WAIT_MS);
   }, []);
 
   // ── who is looking ────────────────────────────────────────────────────────
@@ -2339,7 +2357,14 @@ function Inner() {
         if (next) {
           desktopUpdateFramesRef.current++;
           setDesktopUpdate(next);
-          if (next.status !== "ready") { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); }
+          if (next.status !== "ready") {
+            // The press that was out is over, and so are its clock and any
+            // answer still on its way (see askDesktopUpdateRestart).
+            desktopUpdatePressRef.current++;
+            window.clearTimeout(desktopUpdateTimerRef.current);
+            desktopUpdateAskedRef.current = false;
+            setDesktopUpdateRestarting(false);
+          }
         }
       } catch { /* ignore */ }
     });

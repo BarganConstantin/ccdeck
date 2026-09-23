@@ -205,11 +205,30 @@ describe("a restart that did not happen says so (#1187)", () => {
     const modal = read("../components/ReleaseNotesModal.tsx");
     expect(app).toContain("handBack(updateRestartRefusal(await response.json().catch(() => null)))");
     expect(app).toContain('return handBack("unreachable");');
-    expect(app).toContain('handBack("timeout"); }, UPDATE_RESTART_WAIT_MS);');
+    expect(app).toContain('desktopUpdateTimerRef.current = window.setTimeout(() => handBack("timeout"), UPDATE_RESTART_WAIT_MS);');
     expect(app).toContain("setDesktopUpdateFailure({ failure, version: updateVersion });");
     expect(app).toContain("updateFailure={desktopUpdateFailure");
     // Mounted with the door, empty until a press fails.
     expect(modal).toContain('<p className="rn-update-said" role="status">{updateFailure}</p>');
     expect(modal).toMatch(/\{\(updateVersion \|\| updateFailure\) && \(\s*<div className="rn-update">/);
+  });
+
+  it("never lets an older press's clock or answer hand back a newer one", () => {
+    const app = read("../App.tsx");
+    const start = app.indexOf("const askDesktopUpdateRestart = useCallback(");
+    const ask = app.slice(start, app.indexOf("}, []);", start));
+    // Each press takes a number and stops whatever clock is still running.
+    expect(ask).toMatch(/const press = \+\+desktopUpdatePressRef\.current;\s*window\.clearTimeout\(desktopUpdateTimerRef\.current\);/);
+    // A hand-back for any press but the latest is ignored, and one that is
+    // taken stops the clock.
+    expect(ask).toMatch(/const handBack = \(failure: UpdateRestartFailure\) => \{\s*if \(press !== desktopUpdatePressRef\.current\) return;\s*window\.clearTimeout\(desktopUpdateTimerRef\.current\);/);
+    // The clock is armed only for a press that is still the current one, and
+    // its id is kept so it can be stopped.
+    expect(ask).toMatch(/if \(press !== desktopUpdatePressRef\.current\) return;\s*desktopUpdateTimerRef\.current = window\.setTimeout\(/);
+    expect(ask).not.toMatch(/window\.setTimeout\(\(\) => \{ if \(desktopUpdateAskedRef\.current\)/);
+    // The stream releasing the press ends it too: new number, clock stopped.
+    expect(app).toMatch(/if \(next\.status !== "ready"\) \{[\s\S]*?desktopUpdatePressRef\.current\+\+;\s*window\.clearTimeout\(desktopUpdateTimerRef\.current\);\s*desktopUpdateAskedRef\.current = false;/);
+    // And the page going away takes the clock with it.
+    expect(app).toContain("useEffect(() => () => window.clearTimeout(desktopUpdateTimerRef.current), []);");
   });
 });
