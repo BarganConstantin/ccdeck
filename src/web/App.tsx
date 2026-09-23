@@ -52,7 +52,7 @@ import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
-import { REMOVED_NODES_KEY, readRemovedNodes, saveRemovedNodes, visibleBoard } from "./remove-node";
+import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, visibleBoard } from "./remove-node";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -2353,18 +2353,26 @@ function Inner() {
   // from a previous run would only relayout a node that has been settled since.
   const provisionalRef = useRef<Provisional>(new Set());
   const lastLayoutSigRef = useRef<string>("");
+  // Everything "Remove node" has taken off the board: the removed agents, what
+  // descends from them, and every agent of a removed session. Worked out once
+  // and subtracted from BOTH layoutSig and visibleAgentIds below, so the cards,
+  // the tool bubbles and the layout drop a removed agent together.
+  const removedAgentIds = useMemo(
+    () => removalHiddenIds(stateRef.current.agents.values(), removedNodes),
+    [stateRef.current, stateRef.current.revision, removedNodes],
+  );
   const layoutSig = useMemo(() => {
     const ids: string[] = [];
     for (const a of stateRef.current.agents.values()) {
       // Mirror isAgentVisible exactly — layoutSig and visibleAgentIds must
       // agree, otherwise dagre re-runs for agents that never render and
       // the cached positions drift relative to what's actually on canvas.
-      if (!isAgentVisible(a, now)) continue;
+      if (!isAgentVisible(a, now) || removedAgentIds.has(a.id)) continue;
       ids.push(a.id + (a.parentId ? `>${a.parentId}` : ""));
     }
     ids.sort();
     return `${ids.join("|")}#sv${sizeVersion}.${domSizeVersion}`;
-  }, [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion]);
+  }, [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds]);
 
   // Persist the arrangement whenever it changes, not only when the user drags.
   // Auto-placed nodes are part of what gets restored on reload, so a session
@@ -2415,8 +2423,12 @@ function Inner() {
   // can never disagree (which previously left orphan bursts on screen
   // when an agent was filtered out via one path but not the other).
   const visibleAgentIds = useMemo<Set<string>>(
-    () => computeVisibleIds(stateRef.current, now),
-    [stateRef.current, stateRef.current.revision, now],
+    () => {
+      const ids = computeVisibleIds(stateRef.current, now);
+      for (const id of removedAgentIds) ids.delete(id);
+      return ids;
+    },
+    [stateRef.current, stateRef.current.revision, now, removedAgentIds],
   );
 
   // Width of the canvas column, not the window: the side panels come and go,
