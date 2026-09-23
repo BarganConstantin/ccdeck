@@ -32,7 +32,6 @@ import {
   CODEX_SHELL_TOOLS,
   CODEX_TOOL_EMOJI,
   CODEX_TOOL_LABEL,
-  CODEX_TOOL_NAMES,
   CODEX_TOOL_SPECS,
 } from "../tool-taxonomy";
 
@@ -133,7 +132,7 @@ describe("every Codex tool the deck knows, drawn from the one spec table", () =>
     // deck the user is running, so dropping a name re-creates this bug pointing
     // the other way.
     for (const name of ["exec", "exec_command", "apply_patch", "run"]) {
-      expect(CODEX_TOOL_NAMES.has(name), `${name} should be known`).toBe(true);
+      expect(Object.hasOwn(CODEX_TOOL_SPECS, name), `${name} should be known`).toBe(true);
       expect(categoryFor(name)).not.toBe("other");
       expect(CODEX_TOOL_EMOJI[name]).toBeTruthy();
       expect(CODEX_TOOL_LABEL[name]).toBeTruthy();
