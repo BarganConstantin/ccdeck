@@ -38,6 +38,13 @@ describe("month-to-date topbar usage (#737)", () => {
     expect(app).not.toContain("boardTotals(state.agents.values())");
   });
 
+  it("does not keep last month's figure under \"this month\" when a read fails", () => {
+    // A failed read leaves the last good figure standing only while it is
+    // still the same month; after the 1st it goes rather than being relabelled.
+    expect(app).toContain("goodSince = since;");
+    expect(app).toContain("if (since !== goodSince) setMonthlyUsage(null);");
+  });
+
   it("leaves the bar whole where it would otherwise be clipped", () => {
     // The readout clips from the left, so a phrase that does not fit loses its
     // period first. It leaves whole instead: under 920px, and under 1760px

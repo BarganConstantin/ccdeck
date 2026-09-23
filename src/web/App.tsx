@@ -722,6 +722,17 @@ function Inner() {
     let alive = true;
     let inFlight = false;
     let lastGoodRead = 0;
+    // The month the figure on screen was read for. A failed read leaves the
+    // last good figure standing, as the Usage panel does, but only inside the
+    // month it belongs to: once the 1st comes round, last month's total under
+    // the words "this month" is the label and the number disagreeing, the one
+    // pairing #737 says has to survive the change.
+    let goodSince = "";
+    const failed = (since: string) => {
+      if (!alive) return;
+      setMonthlyUsageUnavailable(true);
+      if (since !== goodSince) setMonthlyUsage(null);
+    };
 
     const read = () => {
       if (inFlight) return;
@@ -730,15 +741,14 @@ function Inner() {
       fetch(`/api/ccusage?since=${since}`)
         .then(r => (r.ok ? r.json() : null))
         .then(data => {
-          if (!alive || !data?.ok) {
-            if (alive) setMonthlyUsageUnavailable(true);
-            return;
-          }
+          if (!alive) return;
+          if (!data?.ok) { failed(since); return; }
           lastGoodRead = Date.now();
+          goodSince = since;
           setMonthlyUsage(monthlyUsageFrom(data));
           setMonthlyUsageUnavailable(false);
         })
-        .catch(() => { if (alive) setMonthlyUsageUnavailable(true); })
+        .catch(() => failed(since))
         .finally(() => { inFlight = false; });
     };
 
