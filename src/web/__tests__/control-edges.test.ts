@@ -555,6 +555,7 @@ const CONTROLS: Control[] = [
   // choice is a borderless button; the frame is its boundary, and choosing it
   // redraws the frame in --text.
   { at: ".appearance-preview", states: ['.appearance-theme[aria-checked="true"] .appearance-preview'], beds: ["--panel"] },
+  { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
@@ -1066,6 +1067,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // it, and the state is also said by the triangle and, for a screen
       // reader, in words. A state indicator on a decorative rim, not a boundary.
       ".cluster-label[data-alarm]",
+      ".appearance-source-option",
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {

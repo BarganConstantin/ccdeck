@@ -1216,22 +1216,21 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: 100%;
   min-height: 30px;
   padding: 5px 8px;
   color: var(--text);
   background: var(--sm-fill);
-  border: 1px solid var(--line);
+  border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
   font: inherit;
   font-size: 12px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
 }
 .appearance-source-trigger:hover,
 .appearance-source-picker.is-open .appearance-source-trigger {
-  background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
+  background: var(--sm-fill);
   border-color: var(--text);
 }
 .appearance-source-trigger svg {
@@ -1247,11 +1246,11 @@ button:focus-visible { outline-offset: 1px; }
 }
 .appearance-source-picker.is-open .appearance-source-trigger svg { transform: rotate(180deg); }
 .appearance-source-list {
-  max-height: min(196px, 28vh);
+  max-height: min(196px, 24vh);
   margin-top: 5px;
   padding: 4px;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
@@ -1270,23 +1269,29 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: 100%;
   min-height: 30px;
   padding: 5px 8px;
   color: var(--text);
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   font: inherit;
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+  transition: transform 120ms ease-out;
 }
 .appearance-source-option:hover,
 .appearance-source-option[data-highlighted="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .appearance-source-option[aria-selected="true"] {
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.appearance-source-trigger:active,
+.appearance-source-option:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .appearance-source-trigger:active,
+  .appearance-source-option:active { transform: none; }
 }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says

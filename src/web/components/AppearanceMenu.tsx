@@ -3,21 +3,12 @@ import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { type FmSource } from "../appearance";
+import { FM_SOURCE_OPTIONS, type FmSource } from "../appearance";
+import { isEscapeKey } from "../modal-dismiss";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
-const FM_SOURCES: Array<{ group?: string; value: FmSource; label: string }> = [
-  { value: "claude-fm", label: "🎧 Claude FM" },
-  { group: "📻 Lofi Girl", value: "lofi-relax", label: "📚 Relax / study" },
-  { group: "📻 Lofi Girl", value: "lofi-game", label: "🎮 Chill / game" },
-  { group: "📻 Lofi Girl", value: "lofi-vibe", label: "🌅 Vibe / chill" },
-  { group: "📻 Lofi Girl", value: "lofi-sleep", label: "💤 Sleep / chill" },
-  { group: "📻 Radio Mix", value: "radio-mix", label: "📡 Live radio mix" },
-  { group: "📻 Best of Nostalgia", value: "best-of-nostalgia", label: "📼 Best of nostalgia live" },
-  { group: "📻 The Good Life Radio", value: "good-life-radio", label: "🌴 The Good Life Radio" },
-  { group: "☕ Cafe Music BGM", value: "cafe-music-bgm", label: "☕ Cafe music BGM" },
-];
+const FM_SOURCES = FM_SOURCE_OPTIONS;
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -79,6 +70,11 @@ export default function AppearanceMenu({
 
   useEffect(() => {
     if (!sourceOpen) return;
+    document.getElementById(`appearance-fm-option-${highlightedSource}`)?.scrollIntoView({ block: "nearest" });
+  }, [highlightedSource, sourceOpen]);
+
+  useEffect(() => {
+    if (!sourceOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!sourceTriggerRef.current?.contains(target) && !sourceListRef.current?.contains(target)) {
@@ -99,8 +95,9 @@ export default function AppearanceMenu({
   };
 
   const moveSource = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === "Escape") {
+    if (isEscapeKey(event.key)) {
       event.preventDefault();
+      event.stopPropagation();
       setSourceOpen(false);
       return;
     }
@@ -234,9 +231,11 @@ export default function AppearanceMenu({
               type="button"
               id="appearance-fm-source"
               className="appearance-source-trigger"
+              role="combobox"
               aria-haspopup="listbox"
               aria-expanded={sourceOpen}
               aria-controls="appearance-fm-source-list"
+              aria-activedescendant={sourceOpen ? `appearance-fm-option-${highlightedSource}` : undefined}
               aria-describedby="appearance-fm-source-note"
               onClick={() => setSourceOpen(open => !open)}
               onKeyDown={moveSource}
@@ -251,10 +250,10 @@ export default function AppearanceMenu({
                     {source.group && (index === 0 || FM_SOURCES[index - 1].group !== source.group) && (
                       <div className="appearance-source-group" role="presentation">{source.group}</div>
                     )}
-                    <button
-                      type="button"
+                    <div
                       className="appearance-source-option"
                       role="option"
+                      id={`appearance-fm-option-${index}`}
                       aria-selected={fmSource === source.value}
                       data-highlighted={highlightedSource === index || undefined}
                       onMouseEnter={() => setHighlightedSource(index)}
@@ -262,7 +261,7 @@ export default function AppearanceMenu({
                     >
                       <span>{source.label}</span>
                       {fmSource === source.value && <span aria-hidden>✓</span>}
-                    </button>
+                    </div>
                   </div>
                 ))}
               </div>
