@@ -99,6 +99,13 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
+import {
+  fmtMonthlyCost,
+  monthlyUsageFrom,
+  monthlyUsageSince,
+  MONTHLY_USAGE_POLL_MS,
+  type MonthlyUsage,
+} from "./monthly-usage";
 import { inDesktopApp } from "./in-app";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
@@ -706,6 +713,51 @@ function Inner() {
   /** Usage panel visibility — persisted across refresh. */
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
+  /** Month-to-date usage for the topbar. Unlike the canvas aggregate, this is
+   *  read from transcripts via ccusage, so finished sessions never disappear
+   *  from the figure when their cards are pruned. */
+  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
+  const [monthlyUsageUnavailable, setMonthlyUsageUnavailable] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    let inFlight = false;
+    let lastGoodRead = 0;
+
+    const read = () => {
+      if (inFlight) return;
+      inFlight = true;
+      const since = monthlyUsageSince();
+      fetch(`/api/ccusage?since=${since}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => {
+          if (!alive || !data?.ok) {
+            if (alive) setMonthlyUsageUnavailable(true);
+            return;
+          }
+          lastGoodRead = Date.now();
+          setMonthlyUsage(monthlyUsageFrom(data));
+          setMonthlyUsageUnavailable(false);
+        })
+        .catch(() => { if (alive) setMonthlyUsageUnavailable(true); })
+        .finally(() => { inFlight = false; });
+    };
+
+    read();
+    const beat = () => {
+      if (document.visibilityState === "visible") read();
+    };
+    const timer = window.setInterval(beat, MONTHLY_USAGE_POLL_MS);
+    const wake = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastGoodRead >= MONTHLY_USAGE_POLL_MS) read();
+    };
+    document.addEventListener("visibilitychange", wake);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", wake);
+    };
+  }, []);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
   useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
   /** True while the session list holds the left column the accounts panel was
@@ -3946,21 +3998,12 @@ function Inner() {
                 </span>
               );
             })()}
-            {/* The strip is the pill, and that is the whole strip.
-                It used to carry two board readouts — a token count and a dollar
-                figure, both sums over the agents on the canvas right now.
-                Neither survived the question they kept provoking: the canvas
-                evicts finished work on a timer, so both numbers fall on their
-                own with nothing on screen to account for the fall, and #687 had
-                already spent a tooltip and two qualifiers ("board tokens",
-                "board cost") trying to say so in a row that has 12px to say
-                anything in.
-                The usage panel answers the same question properly and without
-                the qualifier: it is backed by ccusage, it reads the logs on
-                disk, it covers sessions this deck never watched, and it does
-                not forget. A qualified approximation beside an authoritative
-                figure one keystroke away is a readout earning its width by
-                being second-best.
+            {/* Month-to-date usage comes from ccusage, not from the cards that
+                happen to remain on this board (#737). The label and both values
+                live in one element so the period can never be separated from
+                the figures it qualifies. A successful empty month is explicitly
+                0 tokens / $0.00; a ccusage failure says unavailable rather than
+                dressing the current board total up as history.
                 THE MACHINE METER WENT THE SAME WAY, and it is the one that had
                 been earning its width. A 50x24 box drew a 60-second CPU
                 sparkline and a memory bar, and it was the only readout here
@@ -3974,6 +4017,26 @@ function Inner() {
                 What is left is the one thing the bar is FOR: whether the stream
                 is alive. That is a fact about right now, which is the only
                 tense a topbar can keep. */}
+            <span
+              className="month-usage"
+              title={monthlyUsage
+                ? `${monthlyUsage.tokens.toLocaleString()} tokens · ${fmtMonthlyCost(monthlyUsage.cost)} spent since the 1st of this local calendar month`
+                : monthlyUsageUnavailable
+                  ? "Monthly usage is unavailable — ccusage could not be read"
+                  : "Loading usage since the 1st of this local calendar month"}
+            >
+              <span className="month-usage-label">this month</span>
+              {monthlyUsage ? (
+                <>
+                  <b>{fmtTokens(monthlyUsage.tokens)}</b>
+                  <span className="month-usage-unit">tokens</span>
+                  <span className="month-usage-sep" aria-hidden>·</span>
+                  <b>{fmtMonthlyCost(monthlyUsage.cost)}</b>
+                </>
+              ) : (
+                <span className="month-usage-pending">{monthlyUsageUnavailable ? "unavailable" : "…"}</span>
+              )}
+            </span>
           </span>
           {/* The deck's one alarm, said out loud — and the only live region in
               the topbar (#372).

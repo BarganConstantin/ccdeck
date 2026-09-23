@@ -1846,16 +1846,30 @@ button.btn.sm-hear {
    controls, via a `margin-right: 6px` that made that boundary 14px too. The
    margin is gone; .readout's 24px and .topbar's 24px carry the two boundaries
    this strip actually has.
-   One member left, the pill, so the gap separates the strip from what follows
-   it and nothing else — the 1px dividers this strip used to draw went with the
-   two board readouts they separated, and the machine meter that was the pill's
-   last neighbour is a button in the run to the right now. */
+   The second member is one month-to-date usage phrase. It is intentionally one
+   element rather than separate token/cost chips: "this month" qualifies both
+   figures and must travel with them when the row reflows. */
 .topbar .status {
   color: var(--muted);
   font-size: 12px;
   display: inline-flex;
   align-items: center;
   gap: 14px;
+}
+.topbar .status .month-usage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.topbar .status .month-usage-label,
+.topbar .status .month-usage-unit,
+.topbar .status .month-usage-sep,
+.topbar .status .month-usage-pending { color: var(--muted); }
+.topbar .status .month-usage b {
+  color: var(--text);
+  font-weight: 650;
 }
 /* Nothing to say is no box at all. The strip renders nothing while the stream
    is live, and an empty flex item still takes a gap on either side, so the bar
