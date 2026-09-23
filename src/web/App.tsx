@@ -52,6 +52,7 @@ import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
+import { REMOVED_NODES_KEY, readRemovedNodes, saveRemovedNodes, visibleBoard } from "./remove-node";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -627,6 +628,8 @@ function Inner() {
   // ref stays.
   const initialGraph = useState(initialState)[0];
   const stateRef = useRef(initialGraph);
+  const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
+    readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   /** Right detail panel visibility — persisted across refresh. Declared ahead
@@ -2616,9 +2619,9 @@ function Inner() {
       positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
       selectedIds, spotlightSet, visibleAgentIds, openContext,
       );
-      return flow;
+      return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion],
+    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes],
   );
 
   // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
@@ -2857,9 +2860,24 @@ function Inner() {
     positionsRef.current.clear();
     lastLayoutSigRef.current = "";
     clearStoredLayout();
+    setRemovedNodes(new Set());
+    try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
     clearSelection();
     rerender();
   }, [rerender, clearSelection]);
+
+  const removeSelectedNode = useCallback(() => {
+    if (!primarySelectedId || !stateRef.current.agents.has(primarySelectedId)) return;
+    setRemovedNodes(previous => {
+      const next = new Set(previous);
+      next.add(primarySelectedId);
+      saveRemovedNodes(window.localStorage, next);
+      return next;
+    });
+    pinnedRef.current.delete(primarySelectedId);
+    positionsRef.current.delete(primarySelectedId);
+    clearSelection();
+  }, [primarySelectedId, clearSelection]);
 
   // The keydown listener below is registered once and must stay that way, so
   // the gate reads what is on screen through refs rather than closing over it.
@@ -4063,6 +4081,12 @@ function Inner() {
             </button>
           );
         })()}
+        {selected && (
+          <button type="button" className="selected-ribbon" onClick={removeSelectedNode}
+            title={`Remove ${selected.label} from this board`} aria-label={`Remove ${selected.label} from the board`}>
+            Remove node
+          </button>
+        )}
         <div className="actions">
           {/* Three runs, 4px inside and 12px between, and the settings run a
               further 12px out, so it stands at the 24px that separates this
