@@ -3,6 +3,19 @@ import { levelFrom } from "./sound";
 
 export const CHARACTER_ENABLED_KEY = "agent-dag.character-enabled";
 export const FM_VOLUME_KEY = "agent-dag.fm-volume";
+export const FM_SOURCE_KEY = "agent-dag.fm-source";
+
+export type FmSource = "claude-fm" | "lofi-relax" | "lofi-game" | "lofi-vibe" | "lofi-sleep" | "radio-mix";
+
+export function resolveFmSource(stored: string | null | undefined): FmSource {
+  return stored === "lofi-relax" || stored === "lofi-game" || stored === "lofi-vibe" || stored === "lofi-sleep" || stored === "radio-mix"
+    ? stored
+    : "claude-fm";
+}
+
+export function storedFmSource(): FmSource {
+  return resolveFmSource(readStored(FM_SOURCE_KEY));
+}
 
 export function resolveCharacterEnabled(stored: string | null | undefined): boolean {
   return stored !== "0";

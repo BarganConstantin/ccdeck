@@ -352,7 +352,7 @@ describe("the deck's own sound plays over the music", () => {
   it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
     expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
     expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
-    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} />}");
+    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
     expect(app).not.toMatch(/duck/i);
   });
 });
@@ -368,7 +368,7 @@ describe("absent, not broken", () => {
   it("builds no iframe until somebody presses play", () => {
     // A page that starts making noise on load is a bug, and an iframe that
     // exists has already called Google whether or not anybody asked.
-    expect(component).toContain("{armed && probe.channel && (");
+    expect(component).toContain("{armed && (probe.channel || probe.video) && (");
     expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
     expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
   });
@@ -1478,7 +1478,7 @@ describe("the character", () => {
 
   it("says its state to a reader who cannot see it dance", () => {
     expect(component).toContain("aria-pressed={playing}");
-    expect(component).toMatch(/aria-label=\{playing \? "Stop Claude FM" : "Play Claude FM"\}/);
+    expect(component).toContain("aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}");
     // And says where the sound comes from before anybody presses it.
     expect(component).toContain("streams from YouTube");
   });

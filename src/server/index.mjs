@@ -309,6 +309,17 @@ export function payloadChars(raw) {
   return n;
 }
 
+async function handleLiveRadioMix(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: true, live: false, off: true });
+  }
+  const { fetchLiveRadioMix } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/live-radio-mix.mjs")).href
+  );
+  const answer = await fetchLiveRadioMix();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Radio Mix is not live" });
+}
+
 // Where the charge rides. A Symbol key rather than an ordinary field, because
 // the envelope is JSON.stringify'd on the hot path into both the SSE frame and
 // the events.jsonl line, and JSON.stringify ignores symbol-keyed properties
@@ -5828,6 +5839,23 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+async function handleLofiGirl(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: true, live: false, off: true });
+  }
+  const url = new URL(req.url, "http://localhost");
+  const station = url.searchParams.get("station");
+  if (!["relax", "game", "vibe", "sleep"].includes(station)) {
+    return send(res, 400, { ok: false, error: "unknown Lofi Girl station" });
+  }
+  const { fetchLofiStations } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/lofi-girl.mjs")).href
+  );
+  const stations = await fetchLofiStations();
+  const answer = stations[station];
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "station is not live" });
+}
+
 async function handleCodexQuota(req, res) {
   const { fetchCodexQuota } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/codex-quota.mjs")).href
@@ -6215,6 +6243,8 @@ const PINNED_MODULES = [
   "browser-watch.mjs",
   "browser-watch-store.mjs",
   "claude-fm.mjs",
+  "lofi-girl.mjs",
+  "live-radio-mix.mjs",
   // system-metrics.mjs's two, on the platforms that have them, and the one
   // installer.mjs reaches for while it rewrites the hooks.
   "macmon.mjs",
@@ -7539,6 +7569,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
