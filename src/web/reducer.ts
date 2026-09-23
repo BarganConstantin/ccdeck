@@ -202,6 +202,9 @@ export interface GraphState {
    *  write once it is older than `HOOK_REDELIVERY_WINDOW_MS` — past which it
    *  could no longer be the same subagent anyway. */
   subagentTombstones: Map<string, number>;
+  /** Model observations that overtook SubagentStart. Only Start creates a node;
+   * cap the pending entries so scans of old subagents cannot grow this forever. */
+  pendingSubagentModels: Map<string, string>;
   lastSeq: number;
   /** Which server process the `lastSeq` counter belongs to — the `epoch` the
    *  envelopes carry. Stays null while talking to a server too old to stamp it. */
@@ -237,6 +240,7 @@ export function initialState(): GraphState {
     toolIndex: new Map(),
     activeSubagentStack: new Map(),
     subagentTombstones: new Map(),
+    pendingSubagentModels: new Map(),
     lastSeq: 0,
     seqEpoch: null,
     totalEvents: 0,
@@ -474,6 +478,11 @@ function ensureSubagent(state: GraphState, sessionId: string, key: string, p: Ho
     usage: emptyUsage(),
   };
   state.agents.set(id, a);
+  const pendingModel = state.pendingSubagentModels.get(id);
+  if (pendingModel) {
+    a.model = pendingModel;
+    state.pendingSubagentModels.delete(id);
+  }
   root.childCount += 1;
   return a;
 }
@@ -965,6 +974,9 @@ export function pruneDoneSessions(
       const a = state.agents.get(id);
       if (a) releaseToolIds(state, a);
       state.agents.delete(id);
+    }
+    for (const id of state.pendingSubagentModels.keys()) {
+      if (id.startsWith(`${sid}::`)) state.pendingSubagentModels.delete(id);
     }
     // Whole, so there is nothing left to check: the page has forgotten this
     // session and the server has to be told. See `ForgetSession`.
@@ -1712,7 +1724,19 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
         if (typeof subModel !== "string") continue;
         const subId = `${sessionId}::${parentToolUseId}`;
         const sub = state.agents.get(subId);
-        if (sub) sub.model = subModel;
+        if (sub) {
+          sub.model = subModel;
+          state.pendingSubagentModels.delete(subId);
+        } else {
+          state.pendingSubagentModels.delete(subId);
+          state.pendingSubagentModels.set(subId, subModel);
+          // A transcript scan may name thousands of already-pruned agents.
+          // Keep the most recently observed models for Starts still in flight.
+          if (state.pendingSubagentModels.size > 256) {
+            const oldest = state.pendingSubagentModels.keys().next().value;
+            if (oldest !== undefined) state.pendingSubagentModels.delete(oldest);
+          }
+        }
       }
     }
     return state;
