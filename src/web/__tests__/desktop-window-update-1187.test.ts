@@ -2,7 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { matchesReadyUpdate, restartReadyUpdate } from "../../../desktop/window-update.mjs";
-import { desktopAppVersion, readDesktopUpdate, readyDesktopUpdate } from "../desktop-update";
+import {
+  desktopAppVersion,
+  readDesktopUpdate,
+  readyChipCopy,
+  readyDesktopUpdate,
+  RESTART_TO_UPDATE,
+  trayMenuName,
+  UPDATE_RESTART_WAIT_MS,
+  updateRestartFailureText,
+  updateRestartRefusal,
+  type UpdateRestartFailure,
+} from "../desktop-update";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 
@@ -69,20 +80,40 @@ describe("the one-button window wiring", () => {
     expect(config).toContain('"window-update.mjs"');
   });
 
-  it("shows the verified target version and one Update and restart action", () => {
+  it("shows the verified target version and one Restart to update action", () => {
     const app = read("../App.tsx");
     const modal = read("../components/ReleaseNotesModal.tsx");
     expect(app).toContain('es.addEventListener("desktop-update"');
     expect(app).toMatch(/es\.addEventListener\("desktop-update"[\s\S]*?if \(!inDesktopApp\(\)\) return;/);
     expect(app).toContain('fetch("/api/desktop-update/restart"');
-    expect(app).toContain("v{desktopAppVersion() ?? chipVersion} → v{readyAppUpdate.version}");
+    expect(app).toContain("readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version)");
     // One restart door: the deck's own Restart is not offered beside it.
     expect(app).toContain("onRestart={!readyAppUpdate && version?.canRestart");
     expect(modal).toContain("ccdeck v{updateVersion} is downloaded and verified.");
-    expect(modal).toContain('"Update and restart"');
+    expect(modal).toContain('{updateBusy ? "Restarting…" : RESTART_TO_UPDATE}');
     // Busy but never disabled (#620); the guard is App's ref.
     expect(modal).toContain("onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>");
     expect(app).toContain("if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;");
+  });
+
+  it("puts the update first and holds the tour back while it is ready", () => {
+    const modal = read("../components/ReleaseNotesModal.tsx");
+    const body = modal.slice(modal.indexOf('<section className="modal-body">'));
+    const update = body.indexOf("onClick={onUpdateRestart}");
+    expect(update).toBeGreaterThan(-1);
+    // Ahead of the intro, the tour and the deck's own Restart.
+    expect(update).toBeLessThan(body.indexOf('<p className="modal-note">'));
+    expect(update).toBeLessThan(body.indexOf("onClick={onTour}"));
+    expect(update).toBeLessThan(body.indexOf("onClick={onRestart}"));
+    expect(body).toMatch(/\{onTour && !updateVersion && \(/);
+  });
+
+  it("wears its own chip, not the stale chip's warning", () => {
+    const app = read("../App.tsx");
+    const at = app.indexOf("readyChipCopy(desktopAppVersion()");
+    const chip = app.slice(at, app.indexOf("</button>", at));
+    expect(chip).toContain('className="v ready"');
+    expect(chip).not.toContain("stale");
   });
 
   it("tells the app when the dialog has offered the update", () => {
@@ -94,5 +125,91 @@ describe("the one-button window wiring", () => {
   it("asks for the app's state again on every reconnect, not only on load", () => {
     const app = read("../App.tsx");
     expect(app).toMatch(/if \(!live \|\| !inDesktopApp\(\)\) return;[\s\S]*?fetch\("\/api\/desktop-update"\)[\s\S]*?\}, \[live\]\);/);
+  });
+});
+
+describe("the ready chip's words (#1187)", () => {
+  it("starts its accessible name with what it prints (WCAG 2.5.3)", () => {
+    const copy = readyChipCopy("1.63.0", "1.64.0");
+    expect(copy.text).toBe("v1.63.0 → v1.64.0");
+    expect(copy.label.startsWith(copy.text)).toBe(true);
+  });
+
+  it("says what a click does, which is open What's new, not restart", () => {
+    const { title } = readyChipCopy("1.63.0", "1.64.0");
+    expect(title).toContain("v1.64.0 is downloaded and verified");
+    expect(title).toContain("click to open What's new");
+    expect(title).toContain(RESTART_TO_UPDATE);
+    expect(title).not.toMatch(/click to (?:update|restart)/i);
+    const app = read("../App.tsx");
+    expect(app).not.toContain("click to update and restart");
+  });
+});
+
+describe("one phrase and one version spelling on all three surfaces (#1187)", () => {
+  const main = read("../../../desktop/main.mjs");
+  const modal = read("../components/ReleaseNotesModal.tsx");
+
+  it("says Restart to update in the window, the native sheet and the tray", () => {
+    expect(RESTART_TO_UPDATE).toBe("Restart to update");
+    expect(modal).toContain("RESTART_TO_UPDATE");
+    expect(main).toContain('buttons: ["Restart to update", "Later"]');
+    expect(main).toContain("label: `Restart to update to v${u.version}`");
+    for (const src of [main, modal, read("../App.tsx")]) {
+      expect(src).not.toMatch(/"Update and restart"|"Restart now", "Later"/);
+    }
+  });
+
+  it("spells the version with its v everywhere the update is named", () => {
+    expect(main).toContain("message: `ccdeck v${version} is ready`");
+    expect(main).toContain("label: `Downloading ccdeck v${u.version}…`");
+    expect(main).toContain("`ccdeck v${app.getVersion()}");
+    expect(modal).toContain("ccdeck v{updateVersion} is downloaded and verified.");
+    // No bare version after "ccdeck " or "update to " in the desktop copy.
+    expect(main).not.toMatch(/(?:ccdeck|update to|deck) \$\{(?:u\.version|version|app\.getVersion\(\)|deck\.version)\}/);
+  });
+
+  it("names the tray menu the way the native sheet does", () => {
+    expect(trayMenuName("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ccdeck-desktop/1.63.0")).toBe("the ccdeck menu in the menu bar");
+    expect(trayMenuName("Mozilla/5.0 (Windows NT 10.0; Win64; x64) ccdeck-desktop/1.63.0")).toBe("the ccdeck tray menu");
+    expect(trayMenuName("Mozilla/5.0 (X11; Linux x86_64) ccdeck-desktop/1.63.0")).toBe("the ccdeck tray menu");
+    expect(main).toContain('process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu"');
+  });
+});
+
+describe("a restart that did not happen says so (#1187)", () => {
+  const linux = "Mozilla/5.0 (X11; Linux x86_64) ccdeck-desktop/1.63.0";
+
+  it("reads the server's two refusals and calls anything else refused", () => {
+    expect(updateRestartRefusal({ ok: false, reason: "app_disconnected" })).toBe("app_disconnected");
+    expect(updateRestartRefusal({ ok: false, reason: "update_not_ready" })).toBe("update_not_ready");
+    expect(updateRestartRefusal({ ok: false, reason: "app_token_required" })).toBe("refused");
+    expect(updateRestartRefusal(null)).toBe("refused");
+  });
+
+  it("says what happened and names the tray's Restart to update, every time", () => {
+    const all: UpdateRestartFailure[] = ["app_disconnected", "update_not_ready", "refused", "unreachable", "timeout"];
+    const said = all.map(f => updateRestartFailureText(f, "1.64.0", linux));
+    expect(new Set(said).size).toBe(all.length);
+    for (const text of said) {
+      expect(text).toContain(RESTART_TO_UPDATE);
+      expect(text).toContain("the ccdeck tray menu");
+    }
+    expect(updateRestartFailureText("app_disconnected", "1.64.0", linux)).toMatch(/not connected to this deck/);
+    expect(updateRestartFailureText("update_not_ready", "1.64.0", linux)).toMatch(/no longer has v1\.64\.0 ready/);
+    expect(updateRestartFailureText("timeout", "1.64.0", linux)).toContain(`${UPDATE_RESTART_WAIT_MS / 1000} seconds`);
+  });
+
+  it("hands the press back with a reason, into a live region the dialog already has", () => {
+    const app = read("../App.tsx");
+    const modal = read("../components/ReleaseNotesModal.tsx");
+    expect(app).toContain("handBack(updateRestartRefusal(await response.json().catch(() => null)))");
+    expect(app).toContain('return handBack("unreachable");');
+    expect(app).toContain('handBack("timeout"); }, UPDATE_RESTART_WAIT_MS);');
+    expect(app).toContain("setDesktopUpdateFailure({ failure, version: updateVersion });");
+    expect(app).toContain("updateFailure={desktopUpdateFailure");
+    // Mounted with the door, empty until a press fails.
+    expect(modal).toContain('<p className="rn-update-said" role="status">{updateFailure}</p>');
+    expect(modal).toMatch(/\{\(updateVersion \|\| updateFailure\) && \(\s*<div className="rn-update">/);
   });
 });

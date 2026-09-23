@@ -112,7 +112,17 @@ import {
   type MonthlyUsage,
 } from "./monthly-usage";
 import { inDesktopApp } from "./in-app";
-import { desktopAppVersion, readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
+import {
+  desktopAppVersion,
+  readDesktopUpdate,
+  readyChipCopy,
+  readyDesktopUpdate,
+  UPDATE_RESTART_WAIT_MS,
+  updateRestartFailureText,
+  updateRestartRefusal,
+  type DesktopUpdateState,
+  type UpdateRestartFailure,
+} from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -1145,6 +1155,11 @@ function Inner() {
   const [version, setVersion] = useState<VersionInfo | null>(null);
   const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateState | null>(null);
   const [desktopUpdateRestarting, setDesktopUpdateRestarting] = useState(false);
+  /** Why the last press of Restart to update did not end in a restart, and for
+   *  which version. Null until one fails, and again from the next press. */
+  const [desktopUpdateFailure, setDesktopUpdateFailure] = useState<
+    { failure: UpdateRestartFailure; version: string } | null
+  >(null);
   const [versionDismissed, setVersionDismissed] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
@@ -1230,23 +1245,36 @@ function Inner() {
   // and this ref is what a second Enter meets. Handed back after a while, as
   // askRestart does, because the answer to a restart that worked is the
   // window closing — one still here after half a minute did not happen.
+  // HANDED BACK WITH A REASON. It used to be handed back and nothing else: a
+  // 409 from the deck, or the half minute running out, turned "Restarting…"
+  // back into the button it had been, which looks exactly like a press that
+  // never registered, so the only thing left to try was the same press again.
+  // Each way it can fail now leaves a sentence in the dialog saying which, and
+  // naming the tray's line as the way out — that one talks to the updater
+  // directly and works in every case here, including a deck that has lost the
+  // app altogether.
   const desktopUpdateAskedRef = useRef(false);
   const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
     if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;
     desktopUpdateAskedRef.current = true;
     setDesktopUpdateRestarting(true);
-    const handBack = () => { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); };
+    setDesktopUpdateFailure(null);
+    const handBack = (failure: UpdateRestartFailure) => {
+      desktopUpdateAskedRef.current = false;
+      setDesktopUpdateRestarting(false);
+      setDesktopUpdateFailure({ failure, version: updateVersion });
+    };
     try {
       const response = await fetch("/api/desktop-update/restart", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ version: updateVersion }),
       });
-      if (!response.ok) return handBack();
+      if (!response.ok) return handBack(updateRestartRefusal(await response.json().catch(() => null)));
     } catch {
-      return handBack();
+      return handBack("unreachable");
     }
-    window.setTimeout(() => { if (desktopUpdateAskedRef.current) handBack(); }, 30_000);
+    window.setTimeout(() => { if (desktopUpdateAskedRef.current) handBack("timeout"); }, UPDATE_RESTART_WAIT_MS);
   }, []);
 
   // ── who is looking ────────────────────────────────────────────────────────
@@ -4171,19 +4199,26 @@ function Inner() {
                 behind stays behind until somebody upgrades it, and while this
                 branch is the one on screen it is the ONLY way back into a
                 dismissed dialog. */}
-            {readyAppUpdate ? (
-              <button
-                type="button"
-                className="v stale"
-                onClick={openReleaseNotes}
-                aria-haspopup="dialog"
-                aria-label={`ccdeck v${readyAppUpdate.version} is ready to update and restart`}
-                title={`ccdeck v${readyAppUpdate.version} is downloaded and verified · click to update and restart`}
-              >
-                v{desktopAppVersion() ?? chipVersion} → v{readyAppUpdate.version}
-                <span className="v-dot" aria-hidden />
-              </button>
-            ) : notice ? (
+            {readyAppUpdate ? (() => {
+              // Good news, so not the stale chip's amber: that colour is this
+              // bar's warning, and an update the app has already downloaded
+              // and verified is the opposite of something being wrong. It
+              // wears the accent instead — see .v.ready.
+              const copy = readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version);
+              return (
+                <button
+                  type="button"
+                  className="v ready"
+                  onClick={openReleaseNotes}
+                  aria-haspopup="dialog"
+                  aria-label={copy.label}
+                  title={copy.title}
+                >
+                  {copy.text}
+                  <span className="v-dot" aria-hidden />
+                </button>
+              );
+            })() : notice ? (
               <button
                 type="button"
                 className="v stale"
@@ -5858,6 +5893,13 @@ function Inner() {
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
           updateVersion={readyAppUpdate?.version}
           updateBusy={desktopUpdateRestarting}
+          /* Said until the next press. A failure for a version the app has
+             since replaced is about nothing that is on offer any more, so it
+             goes when a different one is ready. */
+          updateFailure={desktopUpdateFailure
+            && (!readyAppUpdate || readyAppUpdate.version === desktopUpdateFailure.version)
+            ? updateRestartFailureText(desktopUpdateFailure.failure, desktopUpdateFailure.version)
+            : undefined}
           onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
           /* Only where the server would do it: an unsupervised deck answers
              501 and one without a writable log 409, and the button is not

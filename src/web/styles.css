@@ -771,11 +771,11 @@ button:focus-visible { outline-offset: 1px; }
    it does not read as part of the name. The hairline it had made it a pill;
    the pointer still finds the control, because the fill and the foreground
    come up under it exactly as they do on the toolbar. */
-.topbar .brand button.v:not(.stale) {
+.topbar .brand button.v:not(.stale):not(.ready) {
   color: var(--muted);
   font-weight: 400;
 }
-.topbar .brand button.v:not(.stale):hover {
+.topbar .brand button.v:not(.stale):not(.ready):hover {
   color: var(--text);
   background: var(--ctl-fill);
 }
@@ -799,6 +799,30 @@ button:focus-visible { outline-offset: 1px; }
 .topbar .brand button.v.stale:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+/* THE APP'S UPDATE IS READY (#1187), and that is good news, which is why it no
+   longer wears the stale chip's amber. Amber is this bar's warning — the deck
+   running superseded code, a session blocked on you — and a download the app
+   has already verified is the opposite of something being wrong. So it is
+   drawn in the accent, the deck's own colour for "here, this is for you",
+   in the stale chip's proportions so the two read as one family: a full-
+   strength edge (the accent clears 3:1 on both ends of the bar in both themes
+   without being mixed down, where --warn needed 85%), a tenth of it for the
+   bed, and a little more under the pointer. Its dot holds still: a pulse is
+   how this bar says something needs you, and nothing here does until you
+   choose it. */
+.topbar .brand button.v.ready {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.topbar .brand button.v.ready:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.topbar .brand button.v.ready .v-dot {
+  background: var(--accent);
+  box-shadow: none;
+  animation: none;
 }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
@@ -883,7 +907,8 @@ button:focus-visible { outline-offset: 1px; }
      Here the bar spends its readout on the alarm: the wordmark leaves the
      screen but not the outline (it is the page's <h1>, so it is hidden the way
      .vis-hidden hides, never with display), an up-to-date version chip leaves
-     (a stale one stays, it is a warning), and the chip says its number without
+     (a stale one stays, it is a warning, and so does the app's ready update,
+     the one way into it from the window), and the chip says its number without
      the word, which its accessible name still carries in full. */
   .topbar .readout { gap: 12px; }
   .topbar .brand h1 {
@@ -894,7 +919,7 @@ button:focus-visible { outline-offset: 1px; }
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .topbar .brand button.v:not(.stale),
+  .topbar .brand button.v:not(.stale):not(.ready),
   .topbar .waiting-stat .ws-word { display: none; }
   .topbar .waiting-stat { padding: 3px 8px; }
 }
@@ -6482,6 +6507,21 @@ button.tool.clickable:last-child { border-bottom: none; }
    comfortable to read at. Wider than the shortcuts sheet's 560 because that
    sheet is a two-column table and this is sentences. */
 .modal.release-notes { width: min(620px, 92vw); }
+/* The app's verified update and what became of the last press of its button
+   (#1187), held as ONE item of the body's column, so the body's 16px gap does
+   not open between a button and the sentence about it — or open at all while
+   that sentence is empty, which it is until a press fails. The line stays on
+   the page while empty because it is a live region; only its margin goes, the
+   way .ap-lan-status's does. Amber because it reports that nothing happened,
+   which is a warning about the press and not an error in the deck. */
+.release-notes .rn-update { display: flow-root; }
+.release-notes .rn-update-said {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.release-notes .rn-update-said:empty { margin: 0; }
 /* The release a run of notes belongs to. Monospace and quiet: it is a label on
    the group, not a heading competing with the note titles under it, and the
    version chip it echoes in the topbar is set the same way. */
@@ -13257,7 +13297,8 @@ input, textarea { caret-color: var(--accent); }
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .topbar .brand button.v .v-dot,
+  .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
   /* An open toolbar button keeps a boundary in the theme's own highlight, so
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */

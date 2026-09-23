@@ -483,6 +483,9 @@ const CONTROLS: Control[] = [
   // beside the wordmark, identified by its own text, and it wears the
   // toolbar's resting look. The stale chip is a warning and keeps its edge.
   { at: ".topbar .brand button.v.stale", states: [".topbar .brand button.v.stale:hover"], beds: TOPBAR },
+  // The app's ready update (#1187): good news, so the accent rather than the
+  // stale chip's amber, and an edge that has to clear 3:1 on its own.
+  { at: ".topbar .brand button.v.ready", states: [".topbar .brand button.v.ready:hover"], beds: TOPBAR },
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
