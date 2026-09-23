@@ -44,8 +44,12 @@ import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
-import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, storedCharacterEnabled, storedFmSource, storedFmVolume } from "./appearance";
-import type { FmSource } from "./appearance";
+import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, resolveFmSource, storedCharacterEnabled, storedFmVolume } from "./appearance";
+import {
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_NAME_MAX, customFmId, customFmSelection,
+  resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation,
+  type CustomFmStation, type FmSelection,
+} from "./fm-stations";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
@@ -1754,7 +1758,17 @@ function Inner() {
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
   const [fmVolume, setFmVolume] = useState(storedFmVolume);
-  const [fmSource, setFmSource] = useState<FmSource>(storedFmSource);
+  const [customFmStations, setCustomFmStations] = useState<CustomFmStation[]>(() =>
+    resolveCustomFmStations(readStored(FM_CUSTOM_STATIONS_KEY))
+  );
+  const [fmMuted, setFmMuted] = useState(() => resolveFmMuted(readStored(FM_MUTED_KEY)));
+  const [fmSource, setFmSource] = useState<FmSelection>(() =>
+    resolveFmSelection(readStored(FM_SOURCE_KEY), customFmStations, resolveFmSource)
+  );
+  const [unavailableFmStations, setUnavailableFmStations] = useState<Set<string>>(() => new Set());
+  /** How many times somebody has picked a station. ClaudeFm starts the station
+   *  when this moves and not when `fmSource` does — see its probe effect. */
+  const [fmPlayRequest, setFmPlayRequest] = useState(0);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -1807,8 +1821,59 @@ function Inner() {
   }, [fmVolume]);
 
   useEffect(() => {
+    try { window.localStorage.setItem(FM_MUTED_KEY, fmMuted ? "1" : "0"); } catch { /* private mode */ }
+  }, [fmMuted]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FM_CUSTOM_STATIONS_KEY, JSON.stringify(customFmStations)); } catch { /* private mode */ }
+  }, [customFmStations]);
+
+  useEffect(() => {
     try { window.localStorage.setItem(FM_SOURCE_KEY, fmSource); } catch { /* private mode */ }
   }, [fmSource]);
+
+  const addFmStation = useCallback((station: CustomFmStation) => {
+    setCustomFmStations(current => current.some(item => item.id === station.id) ? current : [...current, station]);
+    setUnavailableFmStations(current => {
+      if (!current.has(station.id)) return current;
+      const next = new Set(current); next.delete(station.id); return next;
+    });
+  }, []);
+
+  const renameFmStation = useCallback((id: string, name: string) => {
+    const clean = name.trim();
+    if (!clean || clean.length > STATION_NAME_MAX) return;
+    setCustomFmStations(current => current.map(station => station.id === id ? { ...station, name: clean } : station));
+  }, []);
+
+  const removeFmStation = useCallback((id: string) => {
+    setCustomFmStations(current => current.filter(station => station.id !== id));
+    setFmSource(current => selectionAfterRemovingStation(current, id));
+    setUnavailableFmStations(current => {
+      if (!current.has(id)) return current;
+      const next = new Set(current); next.delete(id); return next;
+    });
+  }, []);
+
+  // A pick of the station already playing changes nothing, as it did before
+  // custom stations: counting it would restart the stream under the person.
+  const pickFmSource = useCallback((next: FmSelection) => {
+    if (next === fmSource) return;
+    setFmSource(next);
+    setFmPlayRequest(count => count + 1);
+  }, [fmSource]);
+
+  const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
+    const id = customFmId(selection);
+    if (!id) return;
+    setUnavailableFmStations(current => {
+      const had = current.has(id);
+      if (had === unavailable) return current;
+      const next = new Set(current);
+      if (unavailable) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
 
   /**
    * The window's own title bar, which only an INSTALLED deck has.
@@ -4565,8 +4630,15 @@ function Inner() {
                   onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
                   fmVolume={fmVolume}
                   onFmVolume={setFmVolume}
+                  fmMuted={fmMuted}
+                  onFmMuted={() => setFmMuted(muted => !muted)}
                   fmSource={fmSource}
-                  onFmSource={setFmSource}
+                  onFmSource={pickFmSource}
+                  customFmStations={customFmStations}
+                  unavailableFmStations={unavailableFmStations}
+                  onAddFmStation={addFmStation}
+                  onRenameFmStation={renameFmStation}
+                  onRemoveFmStation={removeFmStation}
                   onClose={() => setAppearanceMenuOpen(false)}
                 />
               )}
@@ -5401,7 +5473,16 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          {characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}
+          {characterEnabled && (
+            <ClaudeFm
+              volume={fmVolume}
+              muted={fmMuted}
+              source={fmSource}
+              playRequest={fmPlayRequest}
+              customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
+              onAvailabilityChange={markFmStationAvailability}
+            />
+          )}
         </ReactFlow>
         <SessionPeek
           agentFor={peekAgent}

@@ -5936,6 +5936,31 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+/**
+ * A custom station's YouTube link, resolved to the channel and video the
+ * embed plays (#1208). fm-station.mjs rebuilds the request from the parsed
+ * link rather than fetching it as given, and caches the answer.
+ *
+ * AGENTS_DECK_NO_MUSIC is the promise that this deck never contacts YouTube,
+ * and a station somebody added is not an exception to it: the answer is the
+ * same plain no /api/claude-fm gives, and the canvas draws nothing for it.
+ */
+async function handleFmStation(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: false, off: true });
+  }
+  const url = new URL(req.url, "http://localhost");
+  const stationUrl = url.searchParams.get("url") ?? "";
+  const { parseYouTubeStationUrl, resolveYouTubeStation } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/fm-station.mjs")).href
+  );
+  if (!parseYouTubeStationUrl(stationUrl)) {
+    return send(res, 400, { ok: false, error: "unsupported_url" });
+  }
+  const answer = await resolveYouTubeStation(stationUrl);
+  send(res, answer.ok ? 200 : 404, answer);
+}
+
 async function handleLofiGirl(req, res) {
   if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
     return send(res, 200, { ok: true, live: false, off: true });
@@ -6340,6 +6365,7 @@ const PINNED_MODULES = [
   "browser-watch.mjs",
   "browser-watch-store.mjs",
   "claude-fm.mjs",
+  "fm-station.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",
@@ -7305,6 +7331,13 @@ const GUARDED_READS = new Set([
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.
   "/api/account-projects",
+  // Not a secret, and here for the other reason a read can be dangerous: it is
+  // the one route where the caller names what the deck goes and fetches
+  // (#1208). fm-station.mjs holds that to YouTube, but a page on another site
+  // still had a way to make this process download pages on demand, and the
+  // only caller that needs it is the deck's own canvas, which sends
+  // Sec-Fetch-Site: same-origin on every fetch.
+  "/api/fm-station",
 ]);
 
 function isAuthorizedMutation(req) {
@@ -7678,6 +7711,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);
