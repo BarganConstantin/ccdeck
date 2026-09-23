@@ -89,20 +89,16 @@ describe("ModelObserved puts each subagent's model on that subagent", () => {
 });
 
 describe("a subagent's model that arrives before its SubagentStart", () => {
-  it("is dropped, and the SubagentStart that follows does not recover it (known loss, #1178)", () => {
-    // PINNED AS IT IS, NOT AS IT SHOULD BE. The loop only writes to a node that
-    // exists, and the server does not send the map again while its signature is
-    // unchanged (`subsSig` in maybeResolveModel), so a ModelObserved that
-    // overtakes its SubagentStart leaves that subagent without a model until
-    // some other subagent changes the map. That goes against the order
-    // independence reducer.ts states on its first line; #1178 is the fix. When
-    // it lands, this case flips to expecting the Haiku chip.
+  it("is applied when SubagentStart creates the node (#1178)", () => {
+    // ModelObserved does not create a node; SubagentStart consumes its pending
+    // model when it arrives, even when the server deduplicates the map later.
     seq = 0;
     let state = send(initialState(), { hook_event_name: "SessionStart", cwd: "/repo" });
     state = modelObserved(state, "claude-opus-5", { late: "claude-haiku-4-5" });
     expect(state.agents.has("s1::late")).toBe(false);
 
     state = send(state, { hook_event_name: "SubagentStart", agent_id: "late", agent_type: "Explore" });
-    expect(state.agents.get("s1::late")!.model).toBeUndefined();
+    expect(state.agents.get("s1::late")!.model).toBe("claude-haiku-4-5");
+    expect(state.pendingSubagentModels.size).toBe(0);
   });
 });
