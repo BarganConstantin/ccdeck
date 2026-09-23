@@ -5,7 +5,8 @@
 // calls are the one new thing any page in it can reach. These pin that the
 // page cannot name a path, cannot store more or larger than the importer
 // allows, cannot fill the disk, and cannot call in from anywhere but the
-// deck's own page — and that the packaged app actually ships the two files.
+// deck's own page — that the listing it reads at boot carries no clip's bytes,
+// and that the packaged app actually ships the two files.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -74,6 +75,33 @@ describe("the desktop store on disk (#1207)", () => {
     expect(again.get("voice-1")).toMatchObject({ kind: "tts", text: "Your turn" });
     expect(again.list().map((a: { id: string }) => a.id)).toEqual(["clip-1", "voice-1"]);
     expect(again.get("../clip-1")).toBeNull();
+  });
+
+  it("lists names and lengths without a single clip's bytes, which only get hands out", () => {
+    // The menu reads the listing at every start, over IPC: at the ceiling and
+    // the byte limit, decoding every clip for it was about 24 MB copied into a
+    // page that only drew names. The bytes go out one clip at a time, to play.
+    const store = createNotificationAudioStore(() => file);
+    store.put(clip());
+    store.put(voice());
+    const listed = createNotificationAudioStore(() => file).list();
+    expect(listed).toEqual([
+      { id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1.5, normalizationGain: 2 },
+      { id: "voice-1", name: "Voice", kind: "tts", text: "Your turn", voiceURI: "", rate: 1, pitch: 1 },
+    ]);
+    for (const row of listed) expect(row).not.toHaveProperty("bytes");
+    expect(store.get("clip-1")?.bytes).toBeInstanceOf(ArrayBuffer);
+  });
+
+  it("lists only the fields it knows, whatever else the file holds", () => {
+    // Built field by field like cleanAsset, so a hand-edited file cannot put
+    // its bytes, or anything else, back into the listing under another name.
+    writeFileSync(file, JSON.stringify([
+      { id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1, normalizationGain: 1, bytes: "AQID", extra: "x" },
+      { id: "odd-1", name: "Odd", kind: "video", bytes: "AQID" },
+    ]));
+    expect(createNotificationAudioStore(() => file).list())
+      .toEqual([{ id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1, normalizationGain: 1 }]);
   });
 
   it("renames in place, deletes, and leaves no half-written file behind", () => {
