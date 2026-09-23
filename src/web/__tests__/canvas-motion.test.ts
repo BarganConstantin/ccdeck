@@ -347,6 +347,8 @@ const PRESSES: Press[] = [
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
+  [".appearance-source-trigger:active", "0.97", "transform"],
+  [".appearance-source-option:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on
   // every ancestor of what was pressed — without the guard, clearing the

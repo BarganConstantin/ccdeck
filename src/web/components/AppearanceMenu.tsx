@@ -101,11 +101,6 @@ export default function AppearanceMenu({
   // letters back to App (#851) cannot switch it twice.
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === " ") { event.stopPropagation(); return; }
-    if (event.key === "Escape" && sourceOpen) {
-      event.stopPropagation();
-      setSourceOpen(false);
-      return;
-    }
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
