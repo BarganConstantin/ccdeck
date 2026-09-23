@@ -76,6 +76,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "W", action: "the session waiting on you — oldest first, again for the next", binds: ["w", "W"] },
       { cap: "F", action: "fit every agent on screen", binds: ["f", "F"] },
       { cap: "Z", action: "zoom to the selected agent and its session", binds: ["z", "Z"] },
+      { cap: "Delete", action: "take the selected card off the board — Undo brings it back", binds: ["Delete"] },
       { cap: "R", action: "re-arrange the canvas and drop the pins", binds: ["r", "R"] },
       { cap: "C", action: "clear the canvas and the event log — asks first", binds: ["c", "C"] },
     ],

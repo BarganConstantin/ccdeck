@@ -3229,6 +3229,15 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 .ver-banner.done .ver-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
 
+/* A note about something the reader just did, not a warning. Remove from board
+   is undoable, so its row keeps the banner's shape and drops the amber the
+   restart rows use: the dot goes quiet and Undo is an ordinary control. */
+.ver-banner.note {
+  background: var(--bg-soft);
+  border-bottom-color: var(--line);
+}
+.ver-banner.note .ver-dot { background: var(--muted); box-shadow: none; }
+
 /* The one action in the row. Filled, because everything else here is text. */
 .ver-banner .ver-act {
   padding: 3px 12px;
@@ -3262,6 +3271,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
    alone did not. */
 .ver-banner .ver-act:active:not(:disabled) { transform: scale(0.97); }
+.ver-banner.note .ver-act { border-color: var(--ctl-edge); background: transparent; }
+.ver-banner.note .ver-act:hover:not(:disabled) { border-color: var(--text); background: var(--panel); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
 /* A failed install is not a warning, it is a failure, and the command beside it
    is now the only way forward — so it reads in the error colour. */
@@ -5685,6 +5696,22 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   flex: 1;
   width: 100%;
 }
+/* A session "Remove from board" took off the canvas. Still listed, because the
+   row is the way back; muted, because what it points at is not on the board. */
+.session-list .sl-row.removed .sl-label { color: var(--muted); }
+.session-list .sl-removed {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Pinned under the rows by the list's own flex: 1, so it stays at the panel's
+   foot however few sessions there are. */
+.session-list .sl-foot {
+  padding: 8px var(--panel-inset) 12px;
+  border-top: 1px solid var(--line);
+}
+.session-list .sl-bring-back { width: 100%; }
 .session-list .sl-empty {
   padding: 16px 12px;
   color: var(--muted);
