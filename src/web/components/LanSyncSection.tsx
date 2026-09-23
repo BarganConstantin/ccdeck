@@ -1658,7 +1658,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   }, [claim, release, onChanged]);
 
   const on = status?.enabled === true;
-  const rows = deckRows(status, now);
+  // Invite-only has no actionable manual pairing requests, including during
+  // the brief interval before a refreshed engine status reaches this panel.
+  const rows = deckRows(status?.pairingMode === "invite" && status
+    ? { ...status, pending: [] } : status, now);
   // The deck whose dialog is open, found again in every poll's rows. When it
   // is gone — unpaired and not heard since, or an address whose answer just
   // gave it an identity — the dialog closes rather than drawing a machine that
@@ -2139,7 +2142,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             spends no line on it — `.vis-hidden` is out of flow, and
                             the stylesheet gives such a row a single grid track. */}
                         <span id={`lan-who-state-${i}`} className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
-                        {p.kind === "nearby" && (
+                        {p.kind === "nearby" && status?.pairingMode !== "invite" && (
                           <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
                             onClick={() => void answer("accept", p.fp, "reach that deck")}
                             aria-label={`Ask ${p.name} to pair`}
@@ -2192,7 +2195,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             stop
                           </button>
                         )}
-                        {p.kind === "declined" && (
+                        {p.kind === "declined" && status?.pairingMode !== "invite" && (
                           <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`allow:${p.fp}`)}
                             onClick={() => void answer("allow", p.fp, "let that deck ask again")}
                             aria-label={`Let ${p.name} ask again`}

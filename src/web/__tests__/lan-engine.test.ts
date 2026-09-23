@@ -1597,6 +1597,28 @@ describe("a deck this one heard rather than reached for", () => {
 // One of those winning the race won the whole token, and being trusted is the
 // whole inbound gate.
 describe("invite-only pairing mode", () => {
+  it("discards pending requests when entering invite-only instead of auto-approving them on return", async () => {
+    const requester = await deck(store([]), "Requester", []);
+    const receiver = await deck(store([]), "Receiver", []);
+    requester.e.addPeer("127.0.0.1", receiver.port);
+    await requester.e.round();
+    expect(receiver.e.status().pending).toMatchObject([{ fp: requester.id.fp }]);
+
+    await receiver.e.apply({ pairingMode: "invite", autoAccept: true });
+    expect(receiver.e.status().pending).toEqual([]);
+    expect(receiver.e.status().trusted).toEqual([]);
+    expect(receiver.e.accept(requester.id.fp)).toBeNull();
+
+    await receiver.e.apply({ pairingMode: "automatic" });
+    expect(receiver.e.status().pending).toEqual([]);
+    expect(receiver.e.status().trusted).toEqual([]);
+
+    // The other deck may request pairing again after automatic mode returns;
+    // only that new handshake is eligible for automatic acceptance.
+    await requester.e.round();
+    expect(receiver.e.status().trusted).toMatchObject([{ fp: requester.id.fp }]);
+  }, 20_000);
+
   it("requires an invite for new peers and retains existing trust", async () => {
     const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite", autoAsk: true, autoAccept: true });
     const b = await deck(store([]), "Other", []);

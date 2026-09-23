@@ -1003,6 +1003,13 @@ export function createEngine({
       engine = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
+      // A request made before invite-only was enabled must not survive the
+      // switch and become an automatic approval when automatic mode returns.
+      // A fresh handshake after that switch may request pairing again.
+      if (was.pairingMode !== "invite" && cfg.pairingMode === "invite" && pending.size) {
+        pending.clear();
+        onChange?.();
+      }
       // TURNING IT ON ANSWERS WHAT IS ALREADY WAITING. A person who switches
       // this on with two rows sitting in the panel means those two as much as
       // the next one, and leaving them queued behind a setting called

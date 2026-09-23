@@ -709,7 +709,7 @@ export default function LanPeerModal({
               {busy === `unpair:${row.fp}` ? "Unpairing…" : armed ? "Confirm unpair" : "Unpair"}
             </button>
           )}
-          {row.kind === "nearby" && (
+          {row.kind === "nearby" && status.pairingMode !== "invite" && (
             <button type="button" className="btn primary lan-peer-verb" {...press(`accept:${row.fp}`)}
               onClick={() => void run(onVerb)}
               title="Send it a request. Somebody at that machine has to accept it before anything is shared.">
@@ -723,7 +723,7 @@ export default function LanPeerModal({
               {busy === `drop:${row.fp}` ? "Stopping…" : "Stop dialling"}
             </button>
           )}
-          {row.kind === "declined" && (
+          {row.kind === "declined" && status.pairingMode !== "invite" && (
             <button type="button" className="btn lan-peer-verb" {...press(`allow:${row.fp}`)}
               onClick={() => void run(onVerb)}
               title="Take the no back. That deck is still trying, so its request comes round again on its own.">

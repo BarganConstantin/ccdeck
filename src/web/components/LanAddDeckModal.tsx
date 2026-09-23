@@ -89,10 +89,12 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
   onChanged: () => void;
 }) {
   const addrRef = useRef<HTMLInputElement>(null);
+  const joinRef = useRef<HTMLInputElement>(null);
+  const inviteOnly = status.pairingMode === "invite";
   // The address field takes focus rather than the dialog's first control: the
   // reader pressed `+ add a deck` and the deck they mean is either an address
   // or a token, and only one of the two is something they are holding.
-  const dialogRef = useModalDismiss(onClose, { focusRef: addrRef });
+  const dialogRef = useModalDismiss(onClose, { focusRef: inviteOnly ? joinRef : addrRef });
   const [addrDraft, setAddrDraft] = useState("");
   const [joinDraft, setJoinDraft] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -139,6 +141,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
     setFailure(f => (f && f.field === field ? null : f));
 
   const addAddress = useCallback(async () => {
+    if (inviteOnly) return;
     const parsed = parseAddress(addrDraft);
     if (!parsed) {
       setFailure({ text: addressFault(addrDraft), field: "addr" });
@@ -170,7 +173,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
     } finally {
       release();
     }
-  }, [addrDraft, manual, status.peers, onChanged, onClose, claim, release]);
+  }, [addrDraft, inviteOnly, manual, status.peers, onChanged, onClose, claim, release]);
 
   const invite = useCallback(async (action: "make" | "withdraw") => {
     if (!claim(`invite:${action}`)) return;
@@ -267,7 +270,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
               the same question answered two ways: does anybody have to say yes.
               Nothing else about the network is here — a reader choosing between
               two ways in cannot use a subnet. */}
-          <div className="modal-section">
+          {!inviteOnly && <div className="modal-section">
             <h3 className="lan-h">By address</h3>
             <div className="ap-lan-row">
               <input
@@ -325,7 +328,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                 </button>
               </p>
             )}
-          </div>
+          </div>}
 
           <div className="modal-section">
             {/* The other direction, on the heading's own row. Below the heading
@@ -343,6 +346,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
             </h3>
             <div className="ap-lan-row">
               <input
+                ref={joinRef}
                 className="ap-manage-input ap-lan-input"
                 aria-label="An invite you were sent"
                 value={joinDraft}
