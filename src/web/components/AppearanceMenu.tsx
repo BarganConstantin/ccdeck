@@ -1,4 +1,5 @@
 import { type CSSProperties, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -87,7 +88,8 @@ export default function AppearanceMenu({
     }
   };
 
-  return (
+  return createPortal(
+    (
     <div className="modal-backdrop appearance-backdrop" onClick={onClose} role="presentation">
       <div
         ref={dialogRef}
@@ -226,5 +228,7 @@ export default function AppearanceMenu({
       </section>
       </div>
     </div>
+    ),
+    document.body,
   );
 }
