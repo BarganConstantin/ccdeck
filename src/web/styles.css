@@ -14382,16 +14382,20 @@ input, textarea { caret-color: var(--accent); }
 
 .ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
 
-/* Phone: the track column is the first thing to go; keep name + numbers. */
+/* Phone: the track column is the first thing to go; keep name + numbers.
+   An Other member is two rows: name, cost, tokens and Copy across the first,
+   the location under them. The first row needs a column for each of its four
+   — with three, Copy took the tokens' cell and the tokens fell onto a third
+   row by themselves. */
 @media (max-width: 520px) {
   .ap-proj-head { flex-wrap: wrap; }
   .ap-proj-sub { max-width: 100%; }
   .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content 24px; }
   .ap-proj-track { display: none; }
   .ap-proj-details { grid-column: 2 / -1; }
-  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content; }
+  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content max-content; }
   .ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }
-  .ap-proj-other-member .ap-proj-copy { grid-column: 3; grid-row: 1; }
+  .ap-proj-other-member .ap-proj-copy { grid-column: 4; grid-row: 1; }
 }
 
 /* Per-day chart in the Projects report: a stacked column per day, coloured by

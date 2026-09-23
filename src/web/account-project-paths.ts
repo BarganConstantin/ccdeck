@@ -8,19 +8,21 @@ function normalizeForCompare(path: string): string {
   return /^[A-Za-z]:\//.test(clean) ? clean.toLowerCase() : clean;
 }
 
-export function homeRelativePath(path: string, home?: string): string {
+/**
+ * A project's location as the report DISPLAYS it: the home directory folded to
+ * `~`, so a row reads `~/work/ccdeck` rather than repeating `/home/<you>/` on
+ * every line.
+ *
+ * It is a shortening for the eye and nothing more. The browser is not told
+ * where home is, so the fold is by shape — `/Users/<anyone>`, `/home/<anyone>`,
+ * `C:\Users\<anyone>` — and a path under somebody else's home folds too. That
+ * is why no caller copies this: Copy puts the absolute path on the clipboard,
+ * so a pasted location is always the real one. There used to be a `home`
+ * parameter for an exact fold; no caller had a home to pass, so it went.
+ */
+export function homeRelativePath(path: string): string {
   if (!path) return path;
   const cleanPath = trimTrailing(path);
-  const cleanHome = home ? trimTrailing(home) : "";
-  if (cleanHome) {
-    const pathCmp = normalizeForCompare(cleanPath);
-    const homeCmp = normalizeForCompare(cleanHome);
-    if (pathCmp === homeCmp) return "~";
-    if (pathCmp.startsWith(`${homeCmp}/`)) {
-      const rest = cleanPath.replace(/\\/g, "/").slice(cleanHome.replace(/\\/g, "/").length);
-      return `~${rest}`;
-    }
-  }
 
   const unix = cleanPath.match(/^\/(?:Users|home)\/[^/]+(\/.*)?$/);
   if (unix) return `~${unix[1] ?? ""}`;
