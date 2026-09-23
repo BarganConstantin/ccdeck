@@ -350,9 +350,16 @@ function trace(line) {
   } catch { /* a log that cannot be written is not worth failing over */ }
 }
 
-function openWindow() {
+/** @param {boolean} steal Whether to pull OS-level activation to this app on
+ *  top of showing the window — only for a person's own gesture (a tray click,
+ *  a Dock reactivation, a second launch, a notification). The one caller that
+ *  is not that is startup's own `if (deck) openWindow()`: an app relaunching
+ *  itself after a quiet auto-update, or restored at login, opens with nobody
+ *  having asked for it, and had no business pulling a person out of a
+ *  fullscreen browser Space to do it (#1214). */
+function openWindow(steal = true) {
   if (!deck) {
-    ensureDeck().then(found => { if (found) openWindow(); });
+    ensureDeck().then(found => { if (found) openWindow(steal); });
     return;
   }
   if (win && !win.isDestroyed()) {
@@ -394,6 +401,7 @@ function openWindow() {
   });
   win.once("ready-to-show", () => {
     win?.show();
+    if (steal) app.focus({ steal: true });
   });
   win.on("focus", () => trace(`focus onTop=${win?.isAlwaysOnTop()}`));
   win.on("blur", () => trace(`blur onTop=${win?.isAlwaysOnTop()} visible=${win?.isVisible()}`));
@@ -513,7 +521,8 @@ app.whenReady().then(async () => {
   // that came up while none was running.
   setInterval(() => { model?.tick(); scheduleRedraw(); updateWhenQuiet(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
-  if (deck) openWindow();
+  // Nobody asked for this one — see openWindow's own doc on `steal`.
+  if (deck) openWindow(false);
   await firstRun();
   await offerToReplaceLoginItem().catch(err => trace(`login item check failed: ${err?.message ?? err}`));
 });
