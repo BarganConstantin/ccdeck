@@ -51,13 +51,18 @@ interface Props {
   /** Close this and open the tour. The version chip is one of the two doors a
    *  reader always has to it, whatever is on the canvas. */
   onTour?: () => void;
+  /** A verified desktop-app update waiting on disk. Electron remains the
+   *  authority that decides whether this exact version may restart. */
+  updateVersion?: string;
+  updateBusy?: boolean;
+  onUpdateRestart?: () => void;
   /** Close this and restart the deck (#1163). Absent where the deck cannot be
    *  restarted from the page — see `canRestart` — so no button offers what the
    *  server would refuse. */
   onRestart?: () => void;
 }
 
-export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, onRestart }: Props) {
+export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, onRestart }: Props) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
@@ -113,12 +118,26 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
               <button type="button" className="btn" onClick={onTour}>Take the tour</button>
             </div>
           )}
+          {updateVersion && onUpdateRestart && (
+            <div className="guide-door">
+              <span>ccdeck v{updateVersion} is downloaded and verified.</span>
+              {/* Busy, never disabled, while its request is out (#620): the
+                  second press is refused by App's ref, in askDesktopUpdateRestart,
+                  and focus stays where the reader was. */}
+              <button type="button" className="btn" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
+                {updateBusy ? "Restarting…" : "Update and restart"}
+              </button>
+            </div>
+          )}
           {/* AND THE WAY TO RESTART IT (#1163). The only restart the page had
               was inside the update notice, so a deck that needed one for any
               other reason — a network it missed, a port another program took —
               needed a terminal. The version chip is where the deck's own
               lifecycle already lives. Nothing is lost: the canvas replays from
-              the event log, and settings and pairings are on disk. */}
+              the event log, and settings and pairings are on disk. App
+              leaves it out while the app's update is ready: that door above
+              restarts too, and two restarts side by side, only one of which
+              updates, is a guess nobody should have to make. */}
           {onRestart && (
             <div className="guide-door">
               <span>Restart the deck. Sessions, settings and pairings come back as they were.</span>

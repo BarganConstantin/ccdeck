@@ -44,8 +44,12 @@ import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
-import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, storedCharacterEnabled, storedFmSource, storedFmVolume } from "./appearance";
-import type { FmSource } from "./appearance";
+import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, resolveFmSource, storedCharacterEnabled, storedFmVolume } from "./appearance";
+import {
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_NAME_MAX, customFmId, customFmSelection,
+  resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation,
+  type CustomFmStation, type FmSelection,
+} from "./fm-stations";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
@@ -100,6 +104,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
 import { inDesktopApp } from "./in-app";
+import { desktopAppVersion, readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -926,6 +931,8 @@ function Inner() {
    *  tab-census.ts. */
   const [tabCapped, setTabCapped] = useState(false);
   const [version, setVersion] = useState<VersionInfo | null>(null);
+  const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateState | null>(null);
+  const [desktopUpdateRestarting, setDesktopUpdateRestarting] = useState(false);
   const [versionDismissed, setVersionDismissed] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
@@ -985,6 +992,50 @@ function Inner() {
   // "restarting…" until the five-minute poll came round — and in a background
   // tab, where visibilitychange never fires, that was the only thing left.
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
+  // On every (re)connect, not once: the app republishes its updater state when
+  // its own stream comes back, and after a deck restart that can land before
+  // this page's stream does, so the broadcast alone would be missed. Counted
+  // against the stream's own frames so a slow answer cannot overwrite a newer
+  // one that arrived while it was in flight.
+  const desktopUpdateFramesRef = useRef(0);
+  useEffect(() => {
+    if (!live || !inDesktopApp()) return;
+    let cancelled = false;
+    const frames = desktopUpdateFramesRef.current;
+    fetch("/api/desktop-update")
+      .then(r => r.ok ? r.json() : null)
+      .then(value => {
+        if (cancelled || desktopUpdateFramesRef.current !== frames) return;
+        const next = readDesktopUpdate(value);
+        if (next) setDesktopUpdate(next);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [live]);
+
+  const readyAppUpdate = readyDesktopUpdate(desktopUpdate);
+  // The press rule (#620): the button stays enabled while its request is out,
+  // and this ref is what a second Enter meets. Handed back after a while, as
+  // askRestart does, because the answer to a restart that worked is the
+  // window closing — one still here after half a minute did not happen.
+  const desktopUpdateAskedRef = useRef(false);
+  const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
+    if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;
+    desktopUpdateAskedRef.current = true;
+    setDesktopUpdateRestarting(true);
+    const handBack = () => { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); };
+    try {
+      const response = await fetch("/api/desktop-update/restart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ version: updateVersion }),
+      });
+      if (!response.ok) return handBack();
+    } catch {
+      return handBack();
+    }
+    window.setTimeout(() => { if (desktopUpdateAskedRef.current) handBack(); }, 30_000);
+  }, []);
 
   // ── who is looking ────────────────────────────────────────────────────────
   // The server updates the deck on its own while nobody is looking at it
@@ -1043,6 +1094,21 @@ function Inner() {
   const [releaseNotes, setReleaseNotes] = useState<
     { entries: VersionNotes[]; since: string | null; firstRun: boolean } | null
   >(null);
+  // This dialog offering the app's verified update IS that version's one
+  // notice (#1182), so the app is told and its native sheet does not ask the
+  // same question on top of it, or again after it is closed. Once per version
+  // per page; the app keeps the memory, on disk, for both surfaces.
+  const offeredAppUpdate = releaseNotes && readyAppUpdate ? readyAppUpdate.version : null;
+  const toldAppUpdateRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!offeredAppUpdate || toldAppUpdateRef.current === offeredAppUpdate) return;
+    toldAppUpdateRef.current = offeredAppUpdate;
+    fetch("/api/desktop-update/seen", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ version: offeredAppUpdate }),
+    }).catch(() => {});
+  }, [offeredAppUpdate]);
   // Decided once per load and then never again, and the ref is not belt and
   // braces. The decision writes the running version to the store, so a second
   // run would normally answer "seen" on its own — but a store that REFUSES the
@@ -1692,7 +1758,17 @@ function Inner() {
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
   const [fmVolume, setFmVolume] = useState(storedFmVolume);
-  const [fmSource, setFmSource] = useState<FmSource>(storedFmSource);
+  const [customFmStations, setCustomFmStations] = useState<CustomFmStation[]>(() =>
+    resolveCustomFmStations(readStored(FM_CUSTOM_STATIONS_KEY))
+  );
+  const [fmMuted, setFmMuted] = useState(() => resolveFmMuted(readStored(FM_MUTED_KEY)));
+  const [fmSource, setFmSource] = useState<FmSelection>(() =>
+    resolveFmSelection(readStored(FM_SOURCE_KEY), customFmStations, resolveFmSource)
+  );
+  const [unavailableFmStations, setUnavailableFmStations] = useState<Set<string>>(() => new Set());
+  /** How many times somebody has picked a station. ClaudeFm starts the station
+   *  when this moves and not when `fmSource` does — see its probe effect. */
+  const [fmPlayRequest, setFmPlayRequest] = useState(0);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -1745,8 +1821,59 @@ function Inner() {
   }, [fmVolume]);
 
   useEffect(() => {
+    try { window.localStorage.setItem(FM_MUTED_KEY, fmMuted ? "1" : "0"); } catch { /* private mode */ }
+  }, [fmMuted]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FM_CUSTOM_STATIONS_KEY, JSON.stringify(customFmStations)); } catch { /* private mode */ }
+  }, [customFmStations]);
+
+  useEffect(() => {
     try { window.localStorage.setItem(FM_SOURCE_KEY, fmSource); } catch { /* private mode */ }
   }, [fmSource]);
+
+  const addFmStation = useCallback((station: CustomFmStation) => {
+    setCustomFmStations(current => current.some(item => item.id === station.id) ? current : [...current, station]);
+    setUnavailableFmStations(current => {
+      if (!current.has(station.id)) return current;
+      const next = new Set(current); next.delete(station.id); return next;
+    });
+  }, []);
+
+  const renameFmStation = useCallback((id: string, name: string) => {
+    const clean = name.trim();
+    if (!clean || clean.length > STATION_NAME_MAX) return;
+    setCustomFmStations(current => current.map(station => station.id === id ? { ...station, name: clean } : station));
+  }, []);
+
+  const removeFmStation = useCallback((id: string) => {
+    setCustomFmStations(current => current.filter(station => station.id !== id));
+    setFmSource(current => selectionAfterRemovingStation(current, id));
+    setUnavailableFmStations(current => {
+      if (!current.has(id)) return current;
+      const next = new Set(current); next.delete(id); return next;
+    });
+  }, []);
+
+  // A pick of the station already playing changes nothing, as it did before
+  // custom stations: counting it would restart the stream under the person.
+  const pickFmSource = useCallback((next: FmSelection) => {
+    if (next === fmSource) return;
+    setFmSource(next);
+    setFmPlayRequest(count => count + 1);
+  }, [fmSource]);
+
+  const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
+    const id = customFmId(selection);
+    if (!id) return;
+    setUnavailableFmStations(current => {
+      const had = current.has(id);
+      if (had === unavailable) return current;
+      const next = new Set(current);
+      if (unavailable) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
 
   /**
    * The window's own title bar, which only an INSTALLED deck has.
@@ -1939,6 +2066,17 @@ function Inner() {
       replayActiveRef.current = false;
       coalescer.flush();
       setLiveSince(Date.now());
+    });
+    es.addEventListener("desktop-update", (e) => {
+      if (!inDesktopApp()) return;
+      try {
+        const next = readDesktopUpdate(JSON.parse((e as MessageEvent).data));
+        if (next) {
+          desktopUpdateFramesRef.current++;
+          setDesktopUpdate(next);
+          if (next.status !== "ready") { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); }
+        }
+      } catch { /* ignore */ }
     });
     es.addEventListener("hook", (e) => {
       try {
@@ -3821,7 +3959,19 @@ function Inner() {
                 behind stays behind until somebody upgrades it, and while this
                 branch is the one on screen it is the ONLY way back into a
                 dismissed dialog. */}
-            {notice ? (
+            {readyAppUpdate ? (
+              <button
+                type="button"
+                className="v stale"
+                onClick={openReleaseNotes}
+                aria-haspopup="dialog"
+                aria-label={`ccdeck v${readyAppUpdate.version} is ready to update and restart`}
+                title={`ccdeck v${readyAppUpdate.version} is downloaded and verified · click to update and restart`}
+              >
+                v{desktopAppVersion() ?? chipVersion} → v{readyAppUpdate.version}
+                <span className="v-dot" aria-hidden />
+              </button>
+            ) : notice ? (
               <button
                 type="button"
                 className="v stale"
@@ -4480,8 +4630,15 @@ function Inner() {
                   onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
                   fmVolume={fmVolume}
                   onFmVolume={setFmVolume}
+                  fmMuted={fmMuted}
+                  onFmMuted={() => setFmMuted(muted => !muted)}
                   fmSource={fmSource}
-                  onFmSource={setFmSource}
+                  onFmSource={pickFmSource}
+                  customFmStations={customFmStations}
+                  unavailableFmStations={unavailableFmStations}
+                  onAddFmStation={addFmStation}
+                  onRenameFmStation={renameFmStation}
+                  onRemoveFmStation={removeFmStation}
                   onClose={() => setAppearanceMenuOpen(false)}
                 />
               )}
@@ -5316,7 +5473,16 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          {characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}
+          {characterEnabled && (
+            <ClaudeFm
+              volume={fmVolume}
+              muted={fmMuted}
+              source={fmSource}
+              playRequest={fmPlayRequest}
+              customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
+              onAvailabilityChange={markFmStationAvailability}
+            />
+          )}
         </ReactFlow>
         <SessionPeek
           agentFor={peekAgent}
@@ -5450,10 +5616,13 @@ function Inner() {
           running={chipVersion}
           onClose={() => setReleaseNotes(null)}
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
+          updateVersion={readyAppUpdate?.version}
+          updateBusy={desktopUpdateRestarting}
+          onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
           /* Only where the server would do it: an unsupervised deck answers
              501 and one without a writable log 409, and the button is not
              offered for either (#1163). */
-          onRestart={version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
+          onRestart={!readyAppUpdate && version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those

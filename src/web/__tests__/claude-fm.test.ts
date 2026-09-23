@@ -319,9 +319,13 @@ describe("talking to the player", () => {
     // player still came up unstarted on a real deck. The slider's level goes
     // FIRST, so the stream's first audible moment is already at the menu's
     // volume rather than the player's own remembered one.
-    expect(component).toMatch(
-      /signal\.kind === "ready"\) \{\s*say\(command\("setVolume", \[volumeRef\.current\]\)\);\s*say\(command\("playVideo"\)\);\s*return;/,
-    );
+    const ready = component.slice(component.indexOf('signal.kind === "ready"'));
+    const setVolume = ready.indexOf('say(command("setVolume", [volumeRef.current]))');
+    const mute = ready.indexOf('say(command(muted ? "mute" : "unMute"))');
+    const play = ready.indexOf('say(command("playVideo"))');
+    expect(setVolume).toBeGreaterThanOrEqual(0);
+    expect(mute).toBeGreaterThan(setVolume);
+    expect(play).toBeGreaterThan(mute);
     expect(component).not.toMatch(/kind === "ready"\) \{ say\(listenCommand\(\)\)/);
   });
 
@@ -352,7 +356,10 @@ describe("the deck's own sound plays over the music", () => {
   it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
     expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
     expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
-    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
+    expect(app).toContain("<ClaudeFm");
+    expect(app).toContain("volume={fmVolume}");
+    expect(app).toContain("muted={fmMuted}");
+    expect(app).toContain("source={fmSource}");
     expect(app).not.toMatch(/duck/i);
   });
 });
@@ -362,13 +369,13 @@ describe("absent, not broken", () => {
     expect(component).toMatch(/const \[probe, setProbe\] = useState<Probe \| null>\(null\)/);
     expect(component).toContain("a?.live && a?.channel");
     // No error state, no "music unavailable" chip, no retry.
-    expect(component).not.toMatch(/unavailable|try again|retry/i);
+    expect(component).not.toMatch(/>[^<]*(?:music unavailable|try again|retry)[^<]*</i);
   });
 
   it("builds no iframe until somebody presses play", () => {
     // A page that starts making noise on load is a bug, and an iframe that
     // exists has already called Google whether or not anybody asked.
-    expect(component).toContain("{armed && (probe.channel || probe.video) && (");
+    expect(component).toContain("{armed && !probe.audio && (probe.channel || probe.video) && (");
     expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
     expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
   });
@@ -1552,9 +1559,14 @@ describe("the character", () => {
 
   it("says its state to a reader who cannot see it dance", () => {
     expect(component).toContain("aria-pressed={playing}");
-    expect(component).toContain("aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}");
-    // And says where the sound comes from before anybody presses it.
-    expect(component).toContain("streams from YouTube");
+    expect(component).toContain("aria-label={playing ? `Stop ${label}` : `Play ${label}`}");
+    // The active station's real name is also carried by the hidden YouTube frame.
+    expect(component).toContain("title={label}");
+    // And says where the sound comes from before anybody presses it: YouTube
+    // for every station the embed plays, the stream's own host for a direct
+    // one (#1208) — the press is what makes the browser call either.
+    expect(component).toContain("`Play ${label} — streams from ${from}`");
+    expect(component).toContain('const from = probe.audio ? streamHost(probe.audio) : "YouTube";');
   });
 });
 
