@@ -12,7 +12,7 @@ import {
 } from "../board-usage";
 import {
   PERIODS, periodFocusMove, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
-  rangeTotals, nounFor, panelFigures, rangeView, type Landed,
+  rangeTotals, sessionListScale, sessionListNote, nounFor, panelFigures, rangeView, type Landed,
   type PeriodKey, type UsageRange,
 } from "../usage-from-ccusage";
 import { readStored } from "../storage";
@@ -865,6 +865,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
       : r));
   }, [range, fromRange, boardNames]);
   const rangeSum = useMemo(() => rangeTotals(range), [range]);
+  // Off the WHOLE list, which is why it is not folded into `rangeSessionRows`
+  // above: those are cut at twelve and would under-count by everything the cut
+  // took away. See sessionListScale for what the two generations of ccusage
+  // each do to a session's totals, and why the panel measures instead of
+  // naming one of them.
+  const sessionScale = useMemo(() => sessionListScale(range, rangeSum.cost), [range, rangeSum.cost]);
 
   // The word over the figures names the range the figures came from, not the
   // chip the reader just pressed. While a slower range loads, the panel reads
@@ -1453,14 +1459,18 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             <section className={`up-section${staleCls}`}>
               {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
                   in a tooltip, because the reader can see the arithmetic fail
-                  without it. `--since` picks WHICH sessions appear; it does not
-                  cut their figures to the window. Measured on this machine:
-                  session 07ac7b2b spans Sep 2-4 and reports the same $376.88
-                  whether asked for today or for all time, and today's rows then
-                  sum to $4,391 under a day that cost $839.
-                  Both numbers are right and they answer different questions —
-                  "what did today cost" and "what has each session running today
-                  cost in total" — so the heading names the second one. */}
+                  without it: rows that add up past the figure above read as a
+                  bug in the panel until something on screen says otherwise.
+                  What the panel may NOT do is name the reason, because the
+                  reason changed under it. Through ccusage 20.0.20 a row carried
+                  the session's lifetime — `--since` picked WHICH sessions
+                  appeared and left their figures whole — and 20.0.21 scopes
+                  them to the window. The deck runs `ccusage@latest` and
+                  refreshes it daily, so both are live on real machines and
+                  either sentence is false on half of them.
+                  So the qualifier is measured: sessionListScale sums every row
+                  in the range against the period's own cost, and the heading
+                  speaks only when that sum really is the larger one. */}
               {/* THE ONE SECTION THAT SHUTS, and the chevron is what says so.
                   Every other block in this panel is a fixed two or three rows;
                   this one is as long as the reader's week and is the reason the
@@ -1492,7 +1502,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
                   {fromRange && (
                     <span
                       className="up-section-age"
-                      title={`Sessions with activity ${periodNoun}, each showing what that session has cost since it started.\nA session that began earlier brings its whole total with it, so these rows can add up to more than the figure above.`}
+                      title={sessionListNote(periodNoun, sessionScale, fmtCost)}
                     >active {periodNoun}</span>
                   )}
                   {/* Drawn, not typed. `.bw-chev` swaps two Unicode glyphs and
