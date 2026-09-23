@@ -72,6 +72,9 @@ export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.j
  */
 export const DEFAULTS = Object.freeze({
   notifications: false,
+  // The web tour is a deck-level marker, not browser-profile state. Electron
+  // may serve the same deck from a different loopback port after an update.
+  tourSeen: false,
   // Whether the deck may update itself: restart into code already on disk once
   // it is idle, and — while nobody is looking — install a newer release and
   // restart into that (auto-update.mjs). ON, because this is the banner's
@@ -245,6 +248,7 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: typeof src.notifications === "boolean" ? src.notifications : DEFAULTS.notifications,
+    tourSeen: typeof src.tourSeen === "boolean" ? src.tourSeen : DEFAULTS.tourSeen,
     autoUpdate: typeof src.autoUpdate === "boolean" ? src.autoUpdate : DEFAULTS.autoUpdate,
     lan: normaliseLan(src.lan),
   };

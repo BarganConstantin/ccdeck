@@ -80,6 +80,16 @@
       "body": "The station picker now keeps the same keyboard, motion, focus, and layout behavior as the rest of ccdeck across desktop and browser builds."
     }
   ],
+  "3.27.5": [
+    {
+      "title": "🧭 The welcome tour stays dismissed",
+      "body": "Electron now remembers that you completed the onboarding tour at the deck level, so an update or loopback port change no longer shows the same tour again."
+    },
+    {
+      "title": "🎵 The station picker has a clearer finish",
+      "body": "The music selector has a tighter trigger, a purposeful chevron, and more deliberate option spacing so it reads like a native part of Appearance."
+    }
+  ],
   "3.25.0": [
     {
       "title": "🖱️ A click goes to the session, a double-click opens the details",

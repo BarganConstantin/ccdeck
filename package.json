@@ -1,6 +1,6 @@
 {
   "name": "ccdeck",
-  "version": "3.27.4",
+  "version": "3.27.5",
   "description": "Live dashboard for Claude Code and Codex — which agent is waiting on you, tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
   "type": "module",
   "bin": {

@@ -1046,8 +1046,19 @@ function Inner() {
   // would come back on every /api/version poll for as long as the tab is open.
   // A deck that cannot remember must show the notes at most once, not forever.
   const releaseNotesDecidedRef = useRef(false);
+  // Keep this marker with the deck rather than the page origin. Electron can
+  // change its loopback port between launches, which gives localStorage a new
+  // origin and makes a completed tour look unseen.
+  const [serverTourSeen, setServerTourSeen] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/prefs")
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setServerTourSeen(typeof d?.prefs?.tourSeen === "boolean" ? d.prefs.tourSeen : false))
+      .catch(() => setServerTourSeen(false));
+  }, []);
   useEffect(() => {
     if (releaseNotesDecidedRef.current) return;
+    if (serverTourSeen === null) return;
     const store = seenStore();
     const stored = readSeen(store);
     // The server's running version, never the bundle's __APP_VERSION__: an
@@ -1081,6 +1092,11 @@ function Inner() {
     // welcome left for the tour, so a changelog opened here is always about an
     // upgrade. The welcome sentence in releaseNotesIntro stays for the day a
     // caller wants it back.
+    // Migrate the stable deck marker into the current origin so the existing
+    // pure decision path and browser-only fallback remain unchanged.
+    if (serverTourSeen) {
+      try { store?.setItem("agent-dag.tourSeen", "1"); } catch { /* local fallback */ }
+    }
     const plan = decideWelcome({ tourSeen: readTourSeen(store), decision });
     const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
     // Opened here, and marked seen only when a person CLOSES it — see the
@@ -1091,7 +1107,7 @@ function Inner() {
     if (plan.tour) setTourOpen(true);
     if (plan.notes === "now") setReleaseNotes(notes);
     else if (plan.notes === "after") notesAfterTour.current = notes;
-  }, [version?.running]);
+  }, [serverTourSeen, version?.running]);
   // Everything this build has to say, for the version chip — which is the way
   // back after the dialog is dismissed, and the only recovery for a profile
   // whose site data was cleared along with the marker above. The bundle's
@@ -5384,6 +5400,11 @@ function Inner() {
           // Seen means a person closed it — Done, ×, Escape or the scrim. A tab
           // that reloaded with it open never got here, so it opens again.
           writeTourSeen(seenStore());
+          fetch("/api/prefs", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ tourSeen: true }),
+          }).catch(() => {});
           // The changelog an upgrade was holding back, now that the pictures
           // have been seen. Taken out of the ref first, so a tour opened by
           // hand later never replays it.

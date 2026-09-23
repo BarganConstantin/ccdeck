@@ -199,7 +199,9 @@ export default function AppearanceMenu({
                 onClick={() => setSourceOpen(open => !open)}
               >
                 <span>{selectedSource.label}</span>
-                <span className="appearance-source-chevron" aria-hidden>⌄</span>
+                <svg className="appearance-source-chevron" viewBox="0 0 12 8" aria-hidden focusable="false">
+                  <path d="m1 1.5 5 5 5-5" />
+                </svg>
               </button>
               {sourceOpen && (
                 <div className="appearance-source-list" role="listbox" aria-label="Music station">

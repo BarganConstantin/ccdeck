@@ -1223,15 +1223,24 @@ button:focus-visible { outline-offset: 1px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 36px;
+  padding: 0 10px;
   cursor: pointer;
   text-align: left;
 }
 .appearance-source-chevron {
   margin-left: 8px;
+  width: 12px;
+  height: 8px;
   color: var(--muted);
-  font-size: 16px;
-  line-height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  transition: transform 140ms ease-out, color 140ms ease-out;
 }
+.appearance-source-trigger[aria-expanded="true"] .appearance-source-chevron { transform: rotate(180deg); color: var(--accent); }
 .appearance-source-list {
   position: absolute;
   top: calc(100% + 4px);
@@ -1240,7 +1249,7 @@ button:focus-visible { outline-offset: 1px; }
   z-index: 2;
   max-height: 240px;
   overflow-y: auto;
-  padding: 4px;
+  padding: 6px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
@@ -1250,8 +1259,8 @@ button:focus-visible { outline-offset: 1px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 30px;
-  padding: 5px 8px;
+  min-height: 32px;
+  padding: 6px 8px;
   color: var(--text);
   background: transparent;
   border: 0;
