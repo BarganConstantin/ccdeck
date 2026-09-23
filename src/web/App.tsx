@@ -4608,7 +4608,11 @@ function Inner() {
             <button
               type="button"
               className="selected-ribbon"
-              title={`Zoom to ${selected.label} and its session (Z)`}
+              /* The cost rides in the title as well as in the chip, because the
+                 chip drops it where the bar is short (see WHERE THE MONTH GIVES
+                 WAY in styles.css) and a hover should still find it there. */
+              title={`Zoom to ${selected.label} and its session (Z)${
+                c.total > 0 ? `\n${fmtCost(c.total)} spent${rate ? ` · ${rate}` : ""}` : ""}`}
               onClick={() => { try { focusAgent(selected.id); } catch {} }}
             >
               <span className={`state-pill state-${selected.state}`}>

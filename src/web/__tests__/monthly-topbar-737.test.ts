@@ -54,20 +54,60 @@ describe("month-to-date topbar usage (#737)", () => {
 
   it("leaves the bar whole where it would otherwise be clipped, by width alone", () => {
     // The readout clips from the left, so a phrase that does not fit loses its
-    // period first. It leaves whole instead, in the two bands where a blocked
-    // session beside a selected node's ribbon does not fit with it: under
-    // 1130px, and from 1440 (where the words arrive) to 1639. The strip goes
-    // with it when no pill is left.
-    const giveWay = "@media (max-width: 1129px), (min-width: 1440px) and (max-width: 1639px) {";
+    // period first. It leaves whole instead, but only under 1040px, where even
+    // a ribbon cut down to its floor leaves no room beside a blocked session.
+    // The strip goes with it when no pill is left.
+    const giveWay = "@media (max-width: 1039px) {";
     expect(css).toContain(`${giveWay}
   .topbar .status .month-usage,
   .topbar .status:not(:has(.pill)) { display: none; }
 }`);
     // After the base rule, whose own `display` would otherwise win on order.
     expect(css.indexOf(giveWay)).toBeGreaterThan(css.indexOf(".topbar .status .month-usage {"));
-    // The words band opens exactly where the words do, so the two cannot drift
-    // into a band where both are on the bar and neither fits.
+    // Nowhere else: 1440 is the app's default window, and the phrase is on it.
+    const hiders = [...css.matchAll(/@media ([^{]+)\{\s*\.topbar \.status \.month-usage,/g)].map(m => m[1].trim());
+    expect(hiders).toEqual(["(max-width: 1039px)"]);
+  });
+
+  it("makes the ribbon give up the room instead, and never past what fits", () => {
+    // Room for the ribbon beside the budget case, measured in Chromium, less
+    // 40px of headroom: W - 867 on glyphs, W - 1253 once the words arrive.
+    const glyphs = /@media \(min-width: (\d+)px\) and \(max-width: (\d+)px\) \{\s*\.selected-ribbon \{ max-width: min\(24vw, calc\(100vw - (\d+)px\)\); \}/.exec(css);
+    const words = /@media \(min-width: (\d+)px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css);
+    expect(glyphs, "the glyph band's ribbon cap").toBeTruthy();
+    expect(words, "the words band's ribbon cap").toBeTruthy();
+    const [, gFrom, gTo, gReserve] = glyphs!.map(Number);
+    const [, wFrom, wReserve] = words!.map(Number);
+    // The bands meet the phrase's floor and the words' arrival exactly.
+    expect(gFrom).toBe(1040);
+    expect(gTo).toBe(1439);
+    expect(wFrom).toBe(1440);
     expect(css).toContain("@media (min-width: 1440px) {\n  .topbar .tb-word {");
+    // The same budget both sides of 1440: only the words' width differs.
+    expect(wReserve - gReserve).toBe(386);
+    // At its tightest the ribbon still holds a state, ten-odd characters of a
+    // name and its ×: 173px at the floor, 187 where the words arrive.
+    expect(gFrom - gReserve).toBeGreaterThanOrEqual(170);
+    expect(wFrom - wReserve).toBeGreaterThanOrEqual(170);
+    // And it is after the ribbon's own rule, which would otherwise win on order.
+    expect(css.indexOf(glyphs![0])).toBeGreaterThan(css.indexOf(".selected-ribbon {"));
+    expect(css.indexOf(words![0])).toBeGreaterThan(css.indexOf(".selected-ribbon {"));
+  });
+
+  it("drops the ribbon's cost exactly where its cap is held under the usual one", () => {
+    // Where min(380px, 24vw) takes over again the ribbon is its usual self, cost
+    // and all. Short of that the name gets the room, and the cost stays on the
+    // card, in the detail panel and in the ribbon's own title.
+    const reserve = (re: RegExp) => Number(re.exec(css)![1]);
+    const g = reserve(/max-width: min\(24vw, calc\(100vw - (\d+)px\)\)/);
+    const w = reserve(/max-width: min\(380px, calc\(100vw - (\d+)px\)\)/);
+    const cost = /@media \(min-width: 1040px\) and \(max-width: (\d+)px\), \(min-width: 1440px\) and \(max-width: (\d+)px\) \{\s*\.selected-ribbon \.selected-cost \{ display: none; \}\s*\}/.exec(css);
+    expect(cost, "the cost's band").toBeTruthy();
+    const [, gEnd, wEnd] = cost!.map(Number);
+    // Glyphs: W - g meets 24vw at g / 0.76. Words: W - w meets 380 at w + 380.
+    expect(gEnd).toBe(Math.floor(g / 0.76) - 1);
+    expect(wEnd).toBe(w + 380 - 1);
+    expect(app).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`Zoom to \$\{selected\.label\} and its session \(Z\)\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
   });
 
   it("never lets a selection decide whether the phrase is there", () => {

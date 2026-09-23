@@ -2051,38 +2051,56 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 /* WHERE THE MONTH GIVES WAY (#737). The readout clips from the left when the
    bar is short, and the monthly phrase is ~180px of it. A figure without its
    period is the one thing #737 said must not ship, and the version chip is a
-   control, which this bar never gives up for a readout. So where the phrase
-   does not fit it leaves whole.
-   BY WIDTH ALONE, and that is the half that changed. It used to leave as soon
-   as a node was selected under 1760px, and the phrase sits AHEAD of the
-   blocked-session chip in this left-packed group, so one click on a card slid
-   the alarm 204px left at 1440 and 1600 — the one light on the bar that is
-   meant to be an anchor, moving because of something done on the canvas. Now a
-   selection changes nothing in the readout: the bounds are set so that the
-   case that needs the most room already fits wherever the phrase is shown.
-   That case is a blocked session and a selected node whose ribbon is at its
-   cap, measured in Chromium since Remove node left the bar for the detail
-   panel (#1242; while it was here, the words band below needed 1720 and the
-   glyph band 1260). Two bands come out of that, because the words (#836)
-   arrive at 1440 and spend about 390px at once:
-     under 1440   glyphs only, and everything fits from 1090
-     from 1440    with the words, everything fits from 1600
-   Each bound carries 40px of headroom for faces wider than the one measured,
-   so the phrase is shown from 1130 to 1439 and from 1640 up. A paused pill or
-   the app's ready-update chip on top of that is outside the budget, the way
-   .tb-word leaves a paused deck outside its own — the pill needs 1240 and
-   1710, the chip 1180 and 1660 — and short of that the readout gives up the
-   logo and the wordmark from the left, never the alarm. The Usage panel is
-   one keystroke away (U) and says the same number with more beside it.
-   The strip goes with it when the pill is not there either, for the reason the
-   :empty rule above gives: an empty flex item still takes both gaps. After the
-   base rules, and not in the 640 block at the top of the topbar section, where
-   `.month-usage`'s own `display` would win on source order. The page's
-   ccusage poll asks the phrase whether it is drawn rather than repeating these
-   numbers, so a bound moved here moves the poll with it. */
-@media (max-width: 1129px), (min-width: 1440px) and (max-width: 1639px) {
+   control, which this bar never gives up for a readout.
+   BY WIDTH ALONE. The phrase used to leave as soon as a node was selected
+   under 1760px, and it sits AHEAD of the blocked-session chip in this
+   left-packed group, so one click on a card slid the alarm 204px left at 1440
+   and 1600 — the one light on the bar that is meant to be an anchor, moving
+   because of something done on the canvas. Nothing a click on the canvas puts
+   on the bar may change what the readout holds.
+   AND THE RIBBON PAYS FOR IT, not the phrase. 1440 is the app's default
+   window, so hiding the phrase wherever a selection might not fit beside it
+   hid "this month" from most people most of the time. The selected-node ribbon
+   is the one member of the bar that can say less and still be itself — a
+   state, a name cut with an ellipsis, a ×; the cost is on the card and in the
+   detail panel, and in the ribbon's own title — so where the room is short it
+   is the ribbon's cap that comes down.
+   The budget is a blocked session, the phrase with a nine-digit month, and a
+   selected node whose name is long enough to fill any cap. Measured in
+   Chromium (dark and light alike; Remove node left the bar in #1242),
+   everything but the ribbon comes to W - 827 of room for it on glyphs and
+   W - 1213 once the words (#836) arrive at 1440. Less 40px of headroom for
+   faces wider than the one measured, those are the two caps below; each meets
+   the ribbon's usual min(380px, 24vw) where the room runs out — 1140 and 1633
+   — so the ribbon never grows back past what fits. Where it is held under its
+   usual cap it drops its cost and rate first, so what it has left goes to the
+   name, which keeps about ten characters at the 1040 floor and twelve at 1440.
+   Under 1040 even that ribbon leaves no room, and the phrase leaves whole —
+   which also covers the phone bar, where the readout is spent on the alarm.
+   A paused pill or the app's ready-update chip on top of the budget is outside
+   it, the way .tb-word leaves a paused deck outside its own, and there the
+   readout gives up the logo and the wordmark from the left, never the alarm.
+   The Usage panel is one keystroke away (U) and says the same number with more
+   beside it.
+   The strip goes with the phrase when the pill is not there either, for the
+   reason the :empty rule above gives: an empty flex item still takes both
+   gaps. All of this after the base rules, and not in the 640 block at the top
+   of the topbar section, where `.month-usage`'s own `display` and the ribbon's
+   own cap would win on source order. The page's ccusage poll asks the phrase
+   whether it is drawn rather than repeating these numbers, so a bound moved
+   here moves the poll with it. */
+@media (max-width: 1039px) {
   .topbar .status .month-usage,
   .topbar .status:not(:has(.pill)) { display: none; }
+}
+@media (min-width: 1040px) and (max-width: 1439px) {
+  .selected-ribbon { max-width: min(24vw, calc(100vw - 867px)); }
+}
+@media (min-width: 1440px) {
+  .selected-ribbon { max-width: min(380px, calc(100vw - 1253px)); }
+}
+@media (min-width: 1040px) and (max-width: 1139px), (min-width: 1440px) and (max-width: 1632px) {
+  .selected-ribbon .selected-cost { display: none; }
 }
 /* ---------------- machine detail ----------------
    Docked in the right rail, in the same slot family as the usage panel, rather
