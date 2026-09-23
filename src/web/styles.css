@@ -958,6 +958,16 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+.modal.appearance-modal {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  width: min(540px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
 /* The same two layers on white, in the light theme's slate and at its own
    shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
    third stayed black at a third on the white page (#876). */

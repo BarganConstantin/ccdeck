@@ -4377,7 +4377,6 @@ function Inner() {
                   fmSource={fmSource}
                   onFmSource={setFmSource}
                   onClose={() => setAppearanceMenuOpen(false)}
-                  openerRef={appearanceButtonRef}
                 />
               )}
             </div>

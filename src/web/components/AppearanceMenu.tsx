@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { type CSSProperties, type KeyboardEvent } from "react";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -49,26 +49,12 @@ interface Props {
   fmSource: FmSource;
   onFmSource: (source: FmSource) => void;
   onClose: () => void;
-  openerRef: RefObject<HTMLElement | null>;
 }
 
 export default function AppearanceMenu({
-  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose, openerRef,
+  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose,
 }: Props) {
-  // A popover: the canvas stays in view around it, so its letters stay live.
-  const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-
-  useEffect(() => {
-    const onDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target || dialogRef.current?.contains(target) || openerRef.current?.contains(target)) return;
-      closeRef.current();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    return () => window.removeEventListener("pointerdown", onDown, true);
-  }, [dialogRef, openerRef]);
+  const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
@@ -102,14 +88,17 @@ export default function AppearanceMenu({
   };
 
   return (
-    <div
-      ref={dialogRef}
-      id="appearance-menu"
-      className="appearance-menu"
-      role="dialog"
-      aria-labelledby="appearance-title"
-      onKeyDown={onMenuKey}
-    >
+    <div className="modal-backdrop appearance-backdrop" onClick={onClose} role="presentation">
+      <div
+        ref={dialogRef}
+        id="appearance-menu"
+        className="modal appearance-menu appearance-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="appearance-title"
+        onClick={event => event.stopPropagation()}
+        onKeyDown={onMenuKey}
+      >
       {/* Built like the deck's own panels — Usage, This machine: a title over a
           hairline, then sections under uppercase captions — so it reads as part
           of this app rather than a settings form any app could have. */}
@@ -235,6 +224,7 @@ export default function AppearanceMenu({
           Controls live music volume.
         </span>
       </section>
+      </div>
     </div>
   );
 }

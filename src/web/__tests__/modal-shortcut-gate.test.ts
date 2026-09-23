@@ -175,7 +175,7 @@ describe("every dialog reaches the gate (#1175)", () => {
     }
     // Named, so the count cannot drift without somebody reading this.
     expect(callers.filter(c => isPopover(c.code)).map(c => c.name).sort())
-      .toEqual(["AnchoredPopover.tsx", "AppearanceMenu.tsx", "SoundMenu.tsx"]);
+      .toEqual(["AnchoredPopover.tsx", "SoundMenu.tsx"]);
     // The nine the issue found, among the dialogs the stack now carries.
     const dialogs = callers.filter(c => isDialog(c.code)).map(c => c.name);
     for (const name of [

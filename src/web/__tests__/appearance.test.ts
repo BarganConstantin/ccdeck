@@ -26,15 +26,22 @@ describe("character appearance preference", () => {
     expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
   });
 
-  it("uses a dismissible, accessible popover for the two appearance settings", () => {
+  it("uses a dismissible, accessible centered modal for the two appearance settings", () => {
     const menu = read("components/AppearanceMenu.tsx");
+    const styles = read("styles.css");
     expect(menu).toContain("useModalDismiss");
     expect(menu).toContain('role="dialog"');
+    expect(menu).toContain('aria-modal="true"');
+    expect(menu).toContain('className="modal-backdrop appearance-backdrop"');
+    expect(menu).toContain('className="modal appearance-menu appearance-modal"');
     expect(menu).toContain('aria-labelledby="appearance-title"');
     expect(menu).toContain('role="radiogroup"');
     expect(menu).toContain('role="radio"');
     expect(menu).toContain('role="switch"');
-    expect(menu).toContain('addEventListener("pointerdown", onDown, true)');
+    expect(menu).toContain('onClick={onClose}');
+    expect(styles).toContain(".modal.appearance-modal");
+    expect(styles).toContain("max-height: calc(100vh - 32px)");
+    expect(styles).toContain("overflow: auto");
     expect(menu).toContain("onKeyDown={moveTheme}");
     expect(menu).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
   });
