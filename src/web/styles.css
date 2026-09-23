@@ -1149,6 +1149,18 @@ button:focus-visible { outline-offset: 1px; }
   font-size: 11px;
   line-height: 16px;
 }
+.appearance-source-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.appearance-source-row > label {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.appearance-source-row .sm-select { min-height: 28px; }
 
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says

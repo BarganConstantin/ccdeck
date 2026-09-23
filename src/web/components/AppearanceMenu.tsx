@@ -161,23 +161,28 @@ export default function AppearanceMenu({
         <div className="appearance-caption">
           <h3 id="appearance-fm-caption">Music source</h3>
         </div>
-        <div className="sm-row">
-          <label htmlFor="appearance-fm-source">Play from</label>
+        <div className="appearance-source-row">
+          <label htmlFor="appearance-fm-source">Station</label>
           <select
             id="appearance-fm-source"
             className="sm-select"
             value={fmSource}
+            aria-describedby="appearance-fm-source-note"
             onChange={event => onFmSource(resolveFmSource(event.target.value))}
           >
             <option value="claude-fm">Claude FM</option>
-            <option value="lofi-relax">Lofi Girl — relax/study</option>
-            <option value="lofi-game">Lofi Girl — chill/game</option>
-            <option value="lofi-vibe">Lofi Girl — vibe/chill</option>
-            <option value="lofi-sleep">Lofi Girl — sleep/chill</option>
-            <option value="radio-mix">Radio Mix — Live</option>
+            <optgroup label="Lofi Girl">
+              <option value="lofi-relax">Relax / study</option>
+              <option value="lofi-game">Chill / game</option>
+              <option value="lofi-vibe">Vibe / chill</option>
+              <option value="lofi-sleep">Sleep / chill</option>
+            </optgroup>
+            <optgroup label="Radio Mix">
+              <option value="radio-mix">Live radio mix</option>
+            </optgroup>
           </select>
         </div>
-        <p className="appearance-row-note">Choose which live YouTube channel plays from the minimap character.</p>
+        <p className="appearance-row-note" id="appearance-fm-source-note">Used when the minimap character plays music.</p>
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —
