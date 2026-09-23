@@ -5362,7 +5362,12 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    status class lands and the sub therefore has to wait out its own spawn. The
    list does not restart — see .tool-burst.status-done — so that sum was 680ms
    of pure lateness, measured, and it is what made a sub's glow trail its
-   primary's by 220ms on a tool that finished once. */
+   primary's by 220ms on a tool that finished once.
+
+   The 140px is what SUB_LABEL_MAX in ToolBursts.tsx is counted against: the
+   word is cut there, to the thirteen characters this pill shows, so this
+   max-width only catches a glyph wider than that count assumed. Raise one and
+   the other has to follow — and the lane has 2px left for it (#978). */
 .tool-burst.sub {
   max-width: 140px;
   font-size: 10px;
