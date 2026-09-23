@@ -1015,6 +1015,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       // is one press on the row away, and held by account (#542).
       const open = a.active || openLanes.includes(laneKey(a));
       const name = a.alias ?? a.email ?? `account ${a.num}`;
+      // The whole identity, for the door. The head clips both names with an
+      // ellipsis and the door lies over them, so the door is where a pointer
+      // lands and where the full string has to be (#1115).
+      const identity = a.alias && a.email ? `${a.alias} · ${a.email}` : name;
       // Numbers that cannot move: nothing collected for a quarter of an
       // hour, or a login that no collection can get past. They stay on
       // screen as the last reading and are drawn as one.
@@ -1033,12 +1037,22 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
             network: a button laid over the whole row, under the row's
             own controls, so a press anywhere on it opens or shuts the
             detail and the keyboard's ring goes round the row. The live
-            row has nothing folded, so it has no door. */}
+            row has nothing folded, so it has no door.
+
+            It carries the whole identity because it covers the clipped
+            names: the title for a pointer, and — since a title reaches
+            neither the keyboard nor a screen reader (WCAG 1.4.13) — the
+            email in its description when the name it is called by is the
+            alias. */}
         {!a.active && (
           <button type="button" className="ap-row-open" id={`ap-row-${a.num}`}
+            title={identity}
             aria-expanded={open}
             aria-controls={open ? `ap-detail-${a.num}` : undefined}
-            aria-describedby={!open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : undefined}
+            aria-describedby={[
+              a.alias && a.email ? `ap-email-${a.num}` : null,
+              !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
+            ].filter(Boolean).join(" ") || undefined}
             onClick={() => setOpenLanes(o => toggleLane(o, a))}>
             <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
           </button>
@@ -1056,9 +1070,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           {/* Both of these are clipped with an ellipsis so a long one
               cannot widen the panel, which means the row can be showing
               less than the whole string — so each one carries its own
-              whole value in a title (#517). */}
+              whole value in a title (#517). On a shut row the door lies
+              over them and says the same in its own title; the email's
+              id is what the door's description points at. */}
           {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
-          <span className="ap-email" title={a.email ?? undefined}>{a.email}</span>
+          <span className="ap-email" id={`ap-email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
           {/* A state, said in a word and not in a pill. It stands where
               `Switch` would, because a switch to a held-out account is
               refused and a control that can never act is worse than

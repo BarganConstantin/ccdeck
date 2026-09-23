@@ -5362,7 +5362,12 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    status class lands and the sub therefore has to wait out its own spawn. The
    list does not restart — see .tool-burst.status-done — so that sum was 680ms
    of pure lateness, measured, and it is what made a sub's glow trail its
-   primary's by 220ms on a tool that finished once. */
+   primary's by 220ms on a tool that finished once.
+
+   The 140px is what SUB_LABEL_MAX in ToolBursts.tsx is counted against: the
+   word is cut there, to the thirteen characters this pill shows, so this
+   max-width only catches a glyph wider than that count assumed. Raise one and
+   the other has to follow — and the lane has 2px left for it (#978). */
 .tool-burst.sub {
   max-width: 140px;
   font-size: 10px;
@@ -8147,10 +8152,16 @@ button.qb-pace::after {
   position: relative;
   z-index: 1;
 }
-/* Titled text must be hit-testable above the row's overlay button. Otherwise
-   the button intercepts hover, hiding full clipped identities and usage ages.
-   The rest of the row remains the disclosure target. (#1115) */
-.ap-account :is(.ap-alias, .ap-email, .ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+/* The small titled labels sit above the door so their own tooltips answer the
+   pointer — each one says what the age or the trade means (#1115). They are a
+   few words wide, so the door keeps the row.
+
+   The alias and the email are NOT raised. The email is `flex: 1` and spans
+   about 152px of the 272px head, so raising it took most of the row away from
+   the door while the hover tint still promised the row would open. The door
+   carries the whole identity itself instead, in its title and its
+   description, so a clipped name is recoverable from anywhere on the row. */
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
   position: relative;
   z-index: 1;
 }
@@ -14376,16 +14387,20 @@ input, textarea { caret-color: var(--accent); }
 
 .ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
 
-/* Phone: the track column is the first thing to go; keep name + numbers. */
+/* Phone: the track column is the first thing to go; keep name + numbers.
+   An Other member is two rows: name, cost, tokens and Copy across the first,
+   the location under them. The first row needs a column for each of its four
+   — with three, Copy took the tokens' cell and the tokens fell onto a third
+   row by themselves. */
 @media (max-width: 520px) {
   .ap-proj-head { flex-wrap: wrap; }
   .ap-proj-sub { max-width: 100%; }
   .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content 24px; }
   .ap-proj-track { display: none; }
   .ap-proj-details { grid-column: 2 / -1; }
-  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content; }
+  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content max-content; }
   .ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }
-  .ap-proj-other-member .ap-proj-copy { grid-column: 3; grid-row: 1; }
+  .ap-proj-other-member .ap-proj-copy { grid-column: 4; grid-row: 1; }
 }
 
 /* Per-day chart in the Projects report: a stacked column per day, coloured by

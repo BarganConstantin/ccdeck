@@ -355,16 +355,40 @@ describe("the account alias in the accounts panel row", () => {
     expect(decl(".ap-account-head", "display")).toBe("flex");
   });
 
-  it("keeps titled account text above the inactive row disclosure overlay (#1115)", () => {
+  it("raises only the small age labels above the inactive row's door (#1115)", () => {
+    // The age labels are a few words wide and their titles explain them, so
+    // they sit above the door and answer the pointer themselves.
     const match = /\.ap-account :is\(([^)]+)\)\s*\{([^}]+)\}/g;
-    const raised = [...bare.matchAll(match)].find(([, selectors]) => selectors.includes(".ap-alias"));
+    const raised = [...bare.matchAll(match)].find(([, selectors]) => selectors.includes(".ap-age"));
     expect(raised).toBeDefined();
-    for (const selector of [".ap-alias", ".ap-email", ".ap-q-age", ".ap-issue-age", ".ap-age", ".ap-swap-note"]) {
+    for (const selector of [".ap-q-age", ".ap-issue-age", ".ap-age", ".ap-swap-note"]) {
       expect(raised![1]).toContain(selector);
     }
     expect(raised![2]).toMatch(/position:\s*relative\s*;/);
     expect(raised![2]).toMatch(/z-index:\s*1\s*;/);
+    // The names are not. `.ap-email` is `flex: 1` and measured about 152px of
+    // the 272px head, so raising it handed most of the row to the text: a press
+    // there hit the email, not the door, while the hover tint still said the
+    // row would open. No rule may lift either name above the door.
+    for (const [, selectors, body] of bare.matchAll(match)) {
+      if (!/z-index/.test(body)) continue;
+      expect(selectors, "a name is raised above the row's door").not.toMatch(/\.ap-(alias|email)\b/);
+    }
     expect(accounts).toMatch(/className="ap-row-open"/);
+  });
+
+  it("puts the whole identity on the door, which lies over the clipped names (#1115)", () => {
+    // The door covers the head, so it is what a pointer rests on: its title is
+    // the full alias and email, not the one the row is called by.
+    expect(accounts).toMatch(/const identity = a\.alias && a\.email \? `\$\{a\.alias\} · \$\{a\.email\}` : name;/);
+    const door = /<button type="button" className="ap-row-open"[^>]*>/.exec(accounts)?.[0] ?? "";
+    expect(door, "the door button was not found").not.toBe("");
+    expect(door).toMatch(/title=\{identity\}/);
+    // A title reaches neither a keyboard nor a screen reader (WCAG 1.4.13), and
+    // the door is NAMED by the alias when there is one — so the email rides in
+    // its description, pointed at by the id the email span carries.
+    expect(door).toMatch(/aria-describedby=\{\[\s*a\.alias && a\.email \? `ap-email-\$\{a\.num\}` : null,/);
+    expect(accounts).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\}/);
   });
 
   it("carries the whole name in a title, because the row may be showing part of it", () => {
@@ -380,7 +404,7 @@ describe("the account alias in the accounts panel row", () => {
     // is 31.98px — about four characters and an ellipsis of a 55-character
     // address. Both spans carry their own whole value now.
     expect(accounts).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
-    expect(accounts).toMatch(/<span className="ap-email" title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
+    expect(accounts).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
     // And the org is not quietly promoted into the same attribute: two values
     // in one tooltip is how the identifier lost it in the first place.
     expect(accounts).not.toMatch(/className="ap-email"[^>]*a\.org/);

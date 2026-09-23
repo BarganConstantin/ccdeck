@@ -69,4 +69,20 @@ describe("the controls that say it (#1236)", () => {
     // And the add dialog opened through that door arrives with the invite made.
     expect(addModal).toMatch(/if \(startWith !== "invite" \|\| madeOnArrival\.current \|\| live\) return;/);
   });
+
+  it("says the row's invite opens a dialog, the way the row's own door does", () => {
+    const invite = /<button type="button" className="ap-manage-btn ap-lan-do"([^>]*?)onClick=\{\(\) => setAddOpen\("invite"\)\}/.exec(section);
+    expect(invite, "the row's invite button was not found").not.toBeNull();
+    expect(invite![1]).toMatch(/aria-haspopup="dialog"/);
+  });
+
+  it("names the invite's copy for what it copies, since focus lands on it once one is made", () => {
+    // A bare "copy" named nothing. The name keeps the visible word in it
+    // (2.5.3) in both states, and the expiry describes it.
+    const copy = /<button type="button" className="ap-manage-btn" ref=\{copyRef\}[^>]*?>/.exec(addModal)?.[0] ?? "";
+    expect(copy, "the invite's copy button was not found").not.toBe("");
+    expect(copy).toMatch(/aria-label=\{copied === "invite" \? "Invite copied" : "Copy invite"\}/);
+    expect(copy).toMatch(/aria-describedby="lan-invite-left"/);
+    expect(addModal).toMatch(/<span className="ap-lan-invite-left" id="lan-invite-left">/);
+  });
 });
