@@ -102,7 +102,10 @@ export default function AppearanceMenu({
         onKeyDown={onMenuKey}
       >
       <div className="appearance-head">
-        <h2 id="appearance-title" className="appearance-title">Appearance</h2>
+        <div className="appearance-heading">
+          <h2 id="appearance-title" className="appearance-title">Appearance</h2>
+          <p className="appearance-subtitle">Tune the deck to your workspace.</p>
+        </div>
         <button
           type="button"
           className="glyph-btn appearance-close"
@@ -114,7 +117,10 @@ export default function AppearanceMenu({
 
       <section className="appearance-section" aria-labelledby="appearance-theme-caption">
         <div className="appearance-caption">
-          <h3 id="appearance-theme-caption">Color theme</h3>
+          <div>
+            <h3 id="appearance-theme-caption">Color theme</h3>
+            <p className="appearance-section-note">Choose how the dashboard looks.</p>
+          </div>
           {/* The key App already answers anywhere on the deck. Shown where the
               choice is, the way the sound menu shows M; named to assistive tech
               by aria-keyshortcuts on the group rather than by a stray letter. */}
@@ -156,84 +162,86 @@ export default function AppearanceMenu({
         <div className="appearance-caption">
           <h3 id="appearance-fm-caption">Music source</h3>
         </div>
-        <div className="appearance-source-row">
-          <label htmlFor="appearance-fm-source">Station</label>
-          <select
-            id="appearance-fm-source"
-            className="sm-select"
-            value={fmSource}
-            aria-describedby="appearance-fm-source-note"
-            onChange={event => onFmSource(resolveFmSource(event.target.value))}
-          >
-            <option value="claude-fm">🎧 Claude FM</option>
-            <optgroup label="📻 Lofi Girl">
-              <option value="lofi-relax">📚 Relax / study</option>
-              <option value="lofi-game">🎮 Chill / game</option>
-              <option value="lofi-vibe">🌅 Vibe / chill</option>
-              <option value="lofi-sleep">💤 Sleep / chill</option>
-            </optgroup>
-            <optgroup label="📻 Radio Mix">
-              <option value="radio-mix">📡 Live radio mix</option>
-            </optgroup>
-            <optgroup label="📻 Best of Nostalgia">
-              <option value="best-of-nostalgia">📼 Best of nostalgia live</option>
-            </optgroup>
-            <optgroup label="📻 The Good Life Radio">
-              <option value="good-life-radio">🌴 The Good Life Radio</option>
-            </optgroup>
-            <optgroup label="☕ Cafe Music BGM">
-              <option value="cafe-music-bgm">☕ Cafe music BGM</option>
-            </optgroup>
-          </select>
-        </div>
-        <span id="appearance-fm-source-note" className="vis-hidden">
-          Changing station starts live playback automatically.
-        </span>
+        <div className="appearance-controls">
+          <div className="appearance-source-row">
+            <label htmlFor="appearance-fm-source">Station</label>
+            <select
+              id="appearance-fm-source"
+              className="sm-select"
+              value={fmSource}
+              aria-describedby="appearance-fm-source-note"
+              onChange={event => onFmSource(resolveFmSource(event.target.value))}
+            >
+              <option value="claude-fm">🎧 Claude FM</option>
+              <optgroup label="📻 Lofi Girl">
+                <option value="lofi-relax">📚 Relax / study</option>
+                <option value="lofi-game">🎮 Chill / game</option>
+                <option value="lofi-vibe">🌅 Vibe / chill</option>
+                <option value="lofi-sleep">💤 Sleep / chill</option>
+              </optgroup>
+              <optgroup label="📻 Radio Mix">
+                <option value="radio-mix">📡 Live radio mix</option>
+              </optgroup>
+              <optgroup label="📻 Best of Nostalgia">
+                <option value="best-of-nostalgia">📼 Best of nostalgia live</option>
+              </optgroup>
+              <optgroup label="📻 The Good Life Radio">
+                <option value="good-life-radio">🌴 The Good Life Radio</option>
+              </optgroup>
+              <optgroup label="☕ Cafe Music BGM">
+                <option value="cafe-music-bgm">☕ Cafe music BGM</option>
+              </optgroup>
+            </select>
+          </div>
+          <span id="appearance-fm-source-note" className="vis-hidden">
+            Changing station starts live playback automatically.
+          </span>
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —
             so there is one tab stop and no second toggle. The switch shares the
             label's line; the note hangs under both. Showing the character and
             playing the stream are two things, and the note says which is which. */}
-        <label className="appearance-row">
-          <span className="appearance-row-label" id="appearance-character-label">Show character on minimap</span>
-          <button
-            type="button"
-            className="switch"
-            role="switch"
-            aria-checked={characterEnabled}
-            aria-labelledby="appearance-character-label"
-            aria-describedby="appearance-character-note"
-            onClick={onToggleCharacter}
-          >
-            <span className="switch-knob" />
-          </button>
-          <span id="appearance-character-note" className="vis-hidden">
-            Shows the animated minimap character and enables music playback.
-          </span>
-        </label>
+          <label className="appearance-row">
+            <span className="appearance-row-label" id="appearance-character-label">Show character on minimap</span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={characterEnabled}
+              aria-labelledby="appearance-character-label"
+              aria-describedby="appearance-character-note"
+              onClick={onToggleCharacter}
+            >
+              <span className="switch-knob" />
+            </button>
+            <span id="appearance-character-note" className="vis-hidden">
+              Shows the animated minimap character and enables music playback.
+            </span>
+          </label>
         {/* The sound menu's own slider row, borrowed rather than respelled:
             .sm-row and .sm-read are already the sheet's shape for "a level
             with a reading", and the range stays native for the reasons
             SoundMenu.tsx argues. It lives OUTSIDE the theme radiogroup on
             purpose — the arrow keys that walk the themes are handled on that
             group's own onKeyDown, and a slider's arrows belong to the slider. */}
-        <div className="sm-row">
-          <label htmlFor="appearance-fm-volume">Volume</label>
-          <input
-            id="appearance-fm-volume"
-            type="range"
-            min={LEVEL_MIN}
-            max={LEVEL_MAX}
-            step={LEVEL_STEP}
-            value={fmVolume}
-            aria-describedby="appearance-fm-volume-note"
-            onChange={e => onFmVolume(Number(e.target.value))}
-            /* The filled half, read off the same render that sets `value` —
-               the pattern SoundMenu.tsx's slider comments spell out. */
-            style={{ "--sm-level": `${((fmVolume - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
-          />
-          <span className="sm-read">{fmVolume}%</span>
+          <div className="sm-row">
+            <label htmlFor="appearance-fm-volume">Volume</label>
+            <input
+              id="appearance-fm-volume"
+              type="range"
+              min={LEVEL_MIN}
+              max={LEVEL_MAX}
+              step={LEVEL_STEP}
+              value={fmVolume}
+              aria-describedby="appearance-fm-volume-note"
+              onChange={e => onFmVolume(Number(e.target.value))}
+              /* The filled half, read off the same render that sets `value` —
+                 the pattern SoundMenu.tsx's slider comments spell out. */
+              style={{ "--sm-level": `${((fmVolume - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
+            />
+            <span className="sm-read">{fmVolume}%</span>
+          </div>
         </div>
         <span id="appearance-fm-volume-note" className="vis-hidden">
           Controls live music volume.

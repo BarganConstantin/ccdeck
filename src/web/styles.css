@@ -963,7 +963,7 @@ button:focus-visible { outline-offset: 1px; }
   top: auto;
   right: auto;
   z-index: auto;
-  width: min(500px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   max-width: none;
   max-height: calc(100vh - 32px);
   overflow: auto;
@@ -987,15 +987,22 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   justify-content: space-between;
   margin: 0 -12px 12px;
-  padding: 0 12px 10px;
+  padding: 2px 16px 14px;
   border-bottom: 1px solid var(--line-soft);
 }
 .appearance-title {
   margin: 0;
   color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 22px;
+}
+.appearance-heading { min-width: 0; }
+.appearance-subtitle {
+  margin: 3px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
   line-height: 16px;
 }
 .appearance-close {
@@ -1006,22 +1013,28 @@ button:focus-visible { outline-offset: 1px; }
   font-size: 18px;
 }
 .appearance-close:hover { color: var(--text); }
-.appearance-section + .appearance-section { margin-top: 16px; }
+.appearance-section + .appearance-section { margin-top: 20px; }
 .appearance-caption {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .appearance-caption h3 {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
   line-height: 16px;
-  text-transform: uppercase;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.appearance-section-note {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
 }
 /* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
    where the panels put a caption's one piece of metadata. */
@@ -1053,15 +1066,15 @@ button:focus-visible { outline-offset: 1px; }
 .appearance-themes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 -4px;
+  gap: 12px;
+  margin: 0;
 }
 .appearance-theme {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  padding: 4px;
+  padding: 8px;
   border: 0;
   border-radius: var(--r-panel);
   background: transparent;
@@ -1074,18 +1087,19 @@ button:focus-visible { outline-offset: 1px; }
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 .appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .appearance-theme[aria-checked="true"] { color: var(--text); }
 .appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .appearance-preview {
   display: block;
   overflow: hidden;
   border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
+  border-radius: calc(var(--r-ctl) + 2px);
   transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
 }
 .appearance-theme[aria-checked="true"] .appearance-preview {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .appearance-preview svg {
   display: block;
@@ -1153,8 +1167,8 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   column-gap: 12px;
   row-gap: 2px;
-  margin: 0 -8px;
-  padding: 6px 8px;
+  margin: 0;
+  padding: 10px 0 2px;
   border-radius: var(--r-ctl);
   cursor: pointer;
   transition: background-color 120ms ease-out;
@@ -1180,6 +1194,15 @@ button:focus-visible { outline-offset: 1px; }
   grid-template-columns: 48px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
+}
+.appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--bg) 34%, var(--panel));
 }
 .appearance-source-row > label {
   color: var(--muted);
