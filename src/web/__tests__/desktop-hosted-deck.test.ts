@@ -148,11 +148,13 @@ describe("the tray's connection to the deck", () => {
       res.write('event: replay-end\ndata: \n\n');
       res.write('event: notify\ndata: {"title":"agent","body":"waiting"}\n\n');
       res.write('event: desktop-update-restart\ndata: {"version":"3.28.0"}\n\n');
+      res.write('event: desktop-update-seen\ndata: {"version":"3.28.0"}\n\n');
       res.write("event: hook\ndata: not json\n\n");
     });
     const hooks: unknown[] = [];
     const notices: unknown[] = [];
     const restarts: unknown[] = [];
+    const seen: unknown[] = [];
     let connected = 0, live = 0;
     const stream = openTrayStream(deck, {
       connected: () => { connected++; },
@@ -160,8 +162,11 @@ describe("the tray's connection to the deck", () => {
       hook: (e: unknown) => hooks.push(e),
       notify: (n: unknown) => notices.push(n),
       restartUpdate: (request: unknown) => restarts.push(request),
+      updateSeen: (request: unknown) => seen.push(request),
     });
-    await vi.waitFor(() => expect(notices).toHaveLength(1));
+    // The last well-formed frame the fake deck writes, so every one before it
+    // has been read by the time this settles.
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
     stream.close();
 
     // role=tray is the whole point: the deck counts this client as no page, so
@@ -172,6 +177,7 @@ describe("the tray's connection to the deck", () => {
     expect(hooks).toEqual([{ seq: 1 }]);       // the unparseable frame is dropped, the stream is not
     expect(notices).toEqual([{ title: "agent", body: "waiting" }]);
     expect(restarts).toEqual([{ version: "3.28.0" }]);
+    expect(seen).toEqual([{ version: "3.28.0" }]);
   });
 
   it("keeps trying when the deck refuses the stream, and stops when it is closed", async () => {

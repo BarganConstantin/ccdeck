@@ -71,8 +71,9 @@ export function deckJson(deck, path, { method = "GET", body = null, timeoutMs = 
  * `on.connected()` fires when the stream opens — the deck then replays its ring
  * from the start, so the caller resets its model there — `on.hook(envelope)`
  * for every event, `on.notify({title, body})` for a closed-deck notification,
- * `on.restartUpdate({version})` for a window-requested app update, and
- * `on.lost()` when it ends. Returns a handle whose `close()` stops it.
+ * `on.restartUpdate({version})` for a window-requested app update,
+ * `on.updateSeen({version})` when the window has shown that update's offer,
+ * and `on.lost()` when it ends. Returns a handle whose `close()` stops it.
  */
 export function openTrayStream(deck, on, { retryMs = 1500 } = {}) {
   let req = null;
@@ -99,6 +100,8 @@ export function openTrayStream(deck, on, { retryMs = 1500 } = {}) {
             try { on.notify?.(JSON.parse(f.data)); } catch { /* ignore */ }
           } else if (f.event === "desktop-update-restart") {
             try { on.restartUpdate?.(JSON.parse(f.data)); } catch { /* ignore */ }
+          } else if (f.event === "desktop-update-seen") {
+            try { on.updateSeen?.(JSON.parse(f.data)); } catch { /* ignore */ }
           } else if (f.event === "replay-end") {
             on.live?.();
           }

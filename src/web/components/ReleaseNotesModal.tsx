@@ -121,13 +121,10 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           {updateVersion && onUpdateRestart && (
             <div className="guide-door">
               <span>ccdeck v{updateVersion} is downloaded and verified.</span>
-              <button
-                type="button"
-                className="btn"
-                onClick={onUpdateRestart}
-                aria-busy={updateBusy || undefined}
-                disabled={updateBusy}
-              >
+              {/* Busy, never disabled, while its request is out (#620): the
+                  second press is refused by App's ref, in askDesktopUpdateRestart,
+                  and focus stays where the reader was. */}
+              <button type="button" className="btn" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
                 {updateBusy ? "Restarting…" : "Update and restart"}
               </button>
             </div>
@@ -137,8 +134,11 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
               other reason — a network it missed, a port another program took —
               needed a terminal. The version chip is where the deck's own
               lifecycle already lives. Nothing is lost: the canvas replays from
-              the event log, and settings and pairings are on disk. */}
-          {!onUpdateRestart && onRestart && (
+              the event log, and settings and pairings are on disk. App
+              leaves it out while the app's update is ready: that door above
+              restarts too, and two restarts side by side, only one of which
+              updates, is a guess nobody should have to make. */}
+          {onRestart && (
             <div className="guide-door">
               <span>Restart the deck. Sessions, settings and pairings come back as they were.</span>
               <button type="button" className="btn" onClick={onRestart}>Restart</button>

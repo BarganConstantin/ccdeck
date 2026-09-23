@@ -99,7 +99,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
-import { inDesktopApp } from "./in-app";
+import { desktopAppVersion, inDesktopApp } from "./in-app";
 import { readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
@@ -988,35 +988,50 @@ function Inner() {
   // "restarting…" until the five-minute poll came round — and in a background
   // tab, where visibilitychange never fires, that was the only thing left.
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
+  // On every (re)connect, not once: the app republishes its updater state when
+  // its own stream comes back, and after a deck restart that can land before
+  // this page's stream does, so the broadcast alone would be missed. Counted
+  // against the stream's own frames so a slow answer cannot overwrite a newer
+  // one that arrived while it was in flight.
+  const desktopUpdateFramesRef = useRef(0);
   useEffect(() => {
-    if (!inDesktopApp()) return;
+    if (!live || !inDesktopApp()) return;
     let cancelled = false;
+    const frames = desktopUpdateFramesRef.current;
     fetch("/api/desktop-update")
       .then(r => r.ok ? r.json() : null)
       .then(value => {
-        if (cancelled) return;
+        if (cancelled || desktopUpdateFramesRef.current !== frames) return;
         const next = readDesktopUpdate(value);
         if (next) setDesktopUpdate(next);
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [live]);
 
   const readyAppUpdate = readyDesktopUpdate(desktopUpdate);
+  // The press rule (#620): the button stays enabled while its request is out,
+  // and this ref is what a second Enter meets. Handed back after a while, as
+  // askRestart does, because the answer to a restart that worked is the
+  // window closing — one still here after half a minute did not happen.
+  const desktopUpdateAskedRef = useRef(false);
   const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
-    if (desktopUpdateRestarting) return;
+    if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;
+    desktopUpdateAskedRef.current = true;
     setDesktopUpdateRestarting(true);
+    const handBack = () => { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); };
     try {
       const response = await fetch("/api/desktop-update/restart", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ version: updateVersion }),
       });
-      if (!response.ok) setDesktopUpdateRestarting(false);
+      if (!response.ok) return handBack();
     } catch {
-      setDesktopUpdateRestarting(false);
+      return handBack();
     }
-  }, [desktopUpdateRestarting]);
+    window.setTimeout(() => { if (desktopUpdateAskedRef.current) handBack(); }, 30_000);
+  }, []);
 
   // ── who is looking ────────────────────────────────────────────────────────
   // The server updates the deck on its own while nobody is looking at it
@@ -1075,6 +1090,21 @@ function Inner() {
   const [releaseNotes, setReleaseNotes] = useState<
     { entries: VersionNotes[]; since: string | null; firstRun: boolean } | null
   >(null);
+  // This dialog offering the app's verified update IS that version's one
+  // notice (#1182), so the app is told and its native sheet does not ask the
+  // same question on top of it, or again after it is closed. Once per version
+  // per page; the app keeps the memory, on disk, for both surfaces.
+  const offeredAppUpdate = releaseNotes && readyAppUpdate ? readyAppUpdate.version : null;
+  const toldAppUpdateRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!offeredAppUpdate || toldAppUpdateRef.current === offeredAppUpdate) return;
+    toldAppUpdateRef.current = offeredAppUpdate;
+    fetch("/api/desktop-update/seen", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ version: offeredAppUpdate }),
+    }).catch(() => {});
+  }, [offeredAppUpdate]);
   // Decided once per load and then never again, and the ref is not belt and
   // braces. The decision writes the running version to the store, so a second
   // run would normally answer "seen" on its own — but a store that REFUSES the
@@ -1977,8 +2007,9 @@ function Inner() {
       try {
         const next = readDesktopUpdate(JSON.parse((e as MessageEvent).data));
         if (next) {
+          desktopUpdateFramesRef.current++;
           setDesktopUpdate(next);
-          if (next.status !== "ready") setDesktopUpdateRestarting(false);
+          if (next.status !== "ready") { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); }
         }
       } catch { /* ignore */ }
     });
@@ -3872,7 +3903,7 @@ function Inner() {
                 aria-label={`ccdeck v${readyAppUpdate.version} is ready to update and restart`}
                 title={`ccdeck v${readyAppUpdate.version} is downloaded and verified · click to update and restart`}
               >
-                v{chipVersion} → v{readyAppUpdate.version}
+                v{desktopAppVersion() ?? chipVersion} → v{readyAppUpdate.version}
                 <span className="v-dot" aria-hidden />
               </button>
             ) : notice ? (

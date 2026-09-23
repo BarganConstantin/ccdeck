@@ -474,7 +474,13 @@ async function handleDesktopUpdateReport(req, res) {
   send(res, 200, { ok: true });
 }
 
-async function handleDesktopUpdateRestart(req, res) {
+// The window's two messages about that update, relayed to the app as frames
+// on its tray stream: apply it (`desktop-update-restart`), or it has been shown
+// (`desktop-update-seen`, so the app's own ready notice stands down, #1182).
+// Both behind the same gates as /api/restart, and neither decides anything:
+// this refuses only what cannot be current, and Electron checks the exact
+// ready version again before acting on either.
+async function handleDesktopUpdateRequest(req, res, event) {
   const body = await readBody(req, res).catch(() => null);
   let version = "";
   try { version = String(JSON.parse(body ?? "")?.version ?? "").trim(); } catch { /* bad JSON */ }
@@ -482,7 +488,7 @@ async function handleDesktopUpdateRestart(req, res) {
     return send(res, 409, { ok: false, reason: "update_not_ready" });
   }
   if (trayClients.size === 0) return send(res, 409, { ok: false, reason: "app_disconnected" });
-  const frame = `event: desktop-update-restart\ndata: ${JSON.stringify({ version })}\n\n`;
+  const frame = `event: ${event}\ndata: ${JSON.stringify({ version })}\n\n`;
   for (const client of trayClients) writeSse(client, frame);
   send(res, 202, { ok: true });
 }
@@ -7611,7 +7617,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/desktop-update") return handleDesktopUpdateRead(req, res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update") return guard(handleDesktopUpdateReport(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/desktop-update/restart") return guard(handleDesktopUpdateRestart(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/restart") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-restart"), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/seen") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-seen"), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
