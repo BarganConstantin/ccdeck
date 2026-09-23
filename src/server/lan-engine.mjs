@@ -213,7 +213,7 @@ export function ticksOnArrival(step, via) {
 
 export function createEngine({
   readAccounts, exportAccount, importAccount,
-  onChange, onError, onIdentity, onPort, onTrust, onDial, onShared, now = Date.now,
+  onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
    * lan-socket exposes it — and for one more that only showed up in use.
@@ -262,7 +262,7 @@ export function createEngine({
   routes = null,
 } = {}) {
   let cfg = {
-    enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
+    enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], unpaired: [], port: 0,
     autoAsk: true, autoAccept: true, aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
@@ -426,6 +426,21 @@ export function createEngine({
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
   const routeTo = addr => routeOf(tailnet?.snapshot?.() ?? null, addr);
+
+  /** A pairing somebody explicitly removed. Unlike `declined`, this survives a
+   * restart because the old dial row survives too; forgetting the decision
+   * would let that row silently recreate the pairing on the next round. */
+  const wasUnpaired = fp => Array.isArray(cfg.unpaired) && cfg.unpaired.includes(fp);
+  const markUnpaired = (fp, value) => {
+    const before = Array.isArray(cfg.unpaired) ? cfg.unpaired : [];
+    const next = value
+      ? (before.includes(fp) ? before : [...before, fp])
+      : before.filter(x => x !== fp);
+    if (next.length === before.length && next.every((x, i) => x === before[i])) return false;
+    cfg = { ...cfg, unpaired: next };
+    onUnpaired?.(next);
+    return true;
+  };
 
   /** The two permissions that answer for one route. */
   const asksOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
@@ -618,7 +633,10 @@ export function createEngine({
     const via = route ? "tailscale" : "lan";
     const own = !!route?.own;
     pending.set(entry.fp, { ...entry, via, own, at: had?.at ?? now(), lastAt: now() });
-    if (saysYesOn(via) && (via === "lan" || own)) { engine?.accept(entry.fp); return; }
+    if (!wasUnpaired(entry.fp) && saysYesOn(via) && (via === "lan" || own)) {
+      engine?.accept(entry.fp, { byHand: false });
+      return;
+    }
     if (!had) onChange?.();
   };
 
@@ -740,7 +758,7 @@ export function createEngine({
       // A deck we DO have a pin for was checked before this line: connectToPeer
       // was given expectPub and refuses a different key at that address.
       if (!trustedPeer(cfg.trusted, conn.peerFp)) {
-        if (!peer.typed) {
+        if (!peer.typed || wasUnpaired(conn.peerFp)) {
           // The same row the listener's own `onPending` draws, from the other
           // direction: this deck dialled rather than being dialled, and the
           // handshake it just finished is the same evidence either way — a real
@@ -996,11 +1014,11 @@ export function createEngine({
       const ask = c => ({ lan: !!c.autoAsk, tailscale: !!c.tailscale && c.tailscaleAsk !== false });
       const turnedOn = (f, via) => !f(was)[via] && f(cfg)[via];
       const mayAnswer = p => (p.via === "tailscale" ? turnedOn(yes, "tailscale") && p.own : turnedOn(yes, "lan"));
-      for (const [fp, p] of [...pending]) if (mayAnswer(p)) this.accept(fp);
+      for (const [fp, p] of [...pending]) if (!wasUnpaired(fp) && mayAnswer(p)) this.accept(fp, { byHand: false });
       // The same for the other direction: switching `ask` on with four machines
       // already listed asks those four.
       const mayAsk = p => (p.via === "tailscale" ? turnedOn(ask, "tailscale") && p.own : turnedOn(ask, "lan"));
-      for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
+      for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !wasUnpaired(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
       // OFF MEANS THE TAILNET GOES QUIET HERE: nobody heard over it is offered,
       // and syncTailnet stops the reads. Decks already paired stay paired.
       if (was.tailscale && !cfg.tailscale) {
@@ -1037,6 +1055,7 @@ export function createEngine({
         onInviteUsed: entry => {
           const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name, at: now() });
           cfg = { ...cfg, trusted: list };
+          markUnpaired(entry.fp, false);
           invite = null;
           // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
           // deck with no way to reach it: an inbound connection puts nothing in
@@ -1123,7 +1142,7 @@ export function createEngine({
           // Over the tailnet only a machine on this person's own account is
           // asked unprompted; any other is a row for somebody to decide on.
           const mayAsk = asksOn(entry.via) && (entry.via !== "tailscale" || own);
-          if (mayAsk && !had && !declined.has(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
+          if (mayAsk && !had && !declined.has(entry.fp) && !wasUnpaired(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
           // Only a deck that is new to us is news. A beacon every thirty
           // seconds from one already on the list is not a reason to redraw.
           if (!had) onChange?.();
@@ -1229,6 +1248,7 @@ export function createEngine({
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),
           });
           cfg = { ...cfg, trusted: list };
+          markUnpaired(conn.peerFp, false);
           this.addPeer(at.addr, at.port);
           onDial?.(`${at.addr}:${at.port}`);
           learned.set(`${at.addr}:${at.port}`, { fp: conn.peerFp, name: conn.peerName || inv.name });
@@ -1262,6 +1282,7 @@ export function createEngine({
       const heard = strangers.get(fp) ?? null;
       const seen = asked ?? heard;
       if (!seen) return null;
+      if (wasUnpaired(fp) && !byHand) return null;
       // TWO KINDS OF ROW, AND THEY ARE NOT THE SAME CLAIM.
       //
       // A deck that ASKED finished a handshake, so it held the private half of
@@ -1276,6 +1297,7 @@ export function createEngine({
       // is the same two presses, in the other order.
       if (!seen.pub) {
         if (!seen.addr || !seen.port) return null;
+        markUnpaired(fp, false);
         // `byHand` IS WHAT THE ROW WILL BE ALLOWED TO DO LATER. A press here is
         // a person naming a machine, so the row may be pinned on the round that
         // reaches it. `autoAsk` reaches this same line with byHand false — the
@@ -1288,6 +1310,7 @@ export function createEngine({
       }
       const { list, added } = addTrusted(cfg.trusted, { fp, pub: seen.pub, name: seen.name, at: now() });
       cfg = { ...cfg, trusted: list };
+      markUnpaired(fp, false);
       pending.delete(fp);
       strangers.delete(fp);
       onTrust?.(list);
@@ -1338,6 +1361,7 @@ export function createEngine({
       const list = dropTrusted(cfg.trusted, fp);
       if (list.length === cfg.trusted.length) return false;
       cfg = { ...cfg, trusted: list };
+      markUnpaired(fp, true);
       onTrust?.(list);
       onChange?.();
       return true;

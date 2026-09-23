@@ -211,13 +211,14 @@ describe("two writes of one field inside one turn", () => {
 
 // ── 2. what a settings write may tell the engine ────────────────────────────
 
-const ENGINE_AUTHORED = ["secret", "trusted", "port"];
+const ENGINE_AUTHORED = ["secret", "trusted", "unpaired", "port"];
 
-describe("the three fields the engine authors", () => {
+describe("the fields the engine authors", () => {
   const stored = {
     lan: {
       enabled: true, name: "Deck-B", secret: "A-PRIVATE-KEY", port: 45_318,
       trusted: [{ fp: "old-deck-fp", pub: "PUB", name: "Yesterday" }],
+      unpaired: ["removed-deck-fp"],
       shared: ["a@example.test@@org-1"], aliases: { "aaa-bbb-111": "Laptop" },
       autoAsk: true, autoAccept: false, shareActive: true,
     },
@@ -228,6 +229,7 @@ describe("the three fields the engine authors", () => {
     for (const k of ENGINE_AUTHORED) expect(fields, k).toHaveProperty(k);
     expect(fields.secret).toBe("A-PRIVATE-KEY");
     expect(fields.trusted).toEqual(stored.lan.trusted);
+    expect(fields.unpaired).toEqual(stored.lan.unpaired);
     expect(fields.port).toBe(45_318);
   });
 

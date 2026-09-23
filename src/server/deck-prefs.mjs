@@ -87,7 +87,7 @@ export const DEFAULTS = Object.freeze({
   // write below names a mode. AGENTS_DECK_NO_LAN=1 keeps a deck off the network
   // whatever this file says — see lanEnabled.
   lan: Object.freeze({
-    enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
+    enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], unpaired: [], port: 0,
     // WHO PAIRS WITH WHOM, WITHOUT ANYBODY PRESSING ANYTHING. Asking is on, so
     // two decks on one network find each other and send each other a request —
     // which is what a person with three of their own machines wants and had to
@@ -179,8 +179,8 @@ function aliasesFrom(raw) {
 }
 
 /** One LAN section, coerced. Unknown keys dropped like everything else here,
- *  and the two lists forced to arrays of strings — they arrive from a page and
- *  are then compared against account keys and dialled as addresses. */
+ *  and string lists forced to arrays of strings before anything compares them
+ *  with account keys, addresses or fingerprints. */
 function normaliseLan(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
@@ -207,6 +207,10 @@ function normaliseLan(raw) {
         // kept, and absent is drawn as "before" rather than guessed.
         ...(Number.isFinite(t.at) && t.at > 0 ? { at: t.at } : {}),
       })),
+    // Fingerprints somebody explicitly unpaired. Kept separately from trusted
+    // because manual dial rows survive the action and must not silently rebuild
+    // trust on the next round or restart.
+    unpaired: strings(src.unpaired),
     aliases: aliasesFrom(src.aliases),
     // The port this deck listened on last time, so an address somebody typed on
     // the other machine still works after a restart. It asked the OS for a new
@@ -567,7 +571,10 @@ async function save(mutate, home, deps) {
  */
 export function publicPrefs(prefs) {
   const p = normalise(prefs);
-  const { secret, trusted, ...lan } = p.lan;
+  // unpaired is engine-authored state too. No page draws or edits it; keeping
+  // it out also means a future whole-prefs form cannot replay a stale unpair
+  // list over a decision the engine made after the form loaded.
+  const { secret, trusted, unpaired: _unpaired, ...lan } = p.lan;
   return {
     ...p,
     lan: { ...lan, trusted: trusted.map(t => ({ fp: t.fp, name: t.name })) },
