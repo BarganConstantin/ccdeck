@@ -104,7 +104,7 @@ const PROP_PIXELS = {
 };
 
 export default memo(
-  function ClaudeFm({ fetchImpl }: { fetchImpl?: typeof fetch }) {
+  function ClaudeFm({ fetchImpl, volume }: { fetchImpl?: typeof fetch; volume: number }) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
@@ -186,6 +186,27 @@ export default memo(
       frame.current?.contentWindow?.postMessage(json, PLAYER_ORIGIN);
     }, []);
 
+    /** The slider's level, readable at SEND time. The "ready" handler below
+     *  lives behind an [armed, say] effect, so a prop read straight would be
+     *  the volume as it was when the listener attached — a drag finished
+     *  before the player answered would be silently reverted on ready. */
+    const volumeRef = useRef(volume);
+    volumeRef.current = volume;
+
+    // HOW LOUD, WHILE IT PLAYS. `setVolume` is a plain command: the player
+    // accepts it and reports nothing, so there is nothing to listen for here —
+    // the volume changes infoDelivery carries are exactly the payloads
+    // readSignal already ignores, and reading the level BACK would only
+    // re-introduce the optimistic-state flapping that handler spent a comment
+    // ruling out. A prop in the deps rather than the ref, because a ref cannot
+    // ask for the re-run a slider drag needs. The send this makes the moment
+    // `armed` flips is allowed to be dropped — the player is not ready yet —
+    // because the ready handshake below repeats it.
+    useEffect(() => {
+      if (!armed) return;
+      say(command("setVolume", [volume]));
+    }, [volume, armed, say]);
+
     // WHETHER THERE IS ANYTHING TO PLAY. One request, on mount, and the answer
     // is cached by the server for everyone else. A failure is indistinguishable
     // from "not live" on purpose: both mean nothing renders.
@@ -217,7 +238,14 @@ export default memo(
         // `playVideo` the moment it is ready costs nothing when the stream is
         // already running and is the difference between a press that works and
         // a press that silently does not.
-        if (signal.kind === "ready") { say(command("playVideo")); return; }
+        if (signal.kind === "ready") {
+          // The volume goes FIRST: the stream's first audible moment is at the
+          // level the menu says, not at whatever the player remembers from its
+          // own store — there is no window at the wrong loudness to notice.
+          say(command("setVolume", [volumeRef.current]));
+          say(command("playVideo"));
+          return;
+        }
         if (signal.kind === "playing") { setPlaying(signal.playing); return; }
         if (FATAL_ERRORS.includes(signal.code)) {
           // The stream is gone, or this channel does not allow embedding. There

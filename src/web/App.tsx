@@ -44,7 +44,7 @@ import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
-import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
+import { CHARACTER_ENABLED_KEY, FM_VOLUME_KEY, storedCharacterEnabled, storedFmVolume } from "./appearance";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
@@ -1654,6 +1654,7 @@ function Inner() {
   // won't hand over blanks the deck instead of costing a preference.
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
+  const [fmVolume, setFmVolume] = useState(storedFmVolume);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -1700,6 +1701,10 @@ function Inner() {
   useEffect(() => {
     try { window.localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0"); } catch { /* private mode */ }
   }, [characterEnabled]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FM_VOLUME_KEY, String(fmVolume)); } catch { /* private mode */ }
+  }, [fmVolume]);
 
   /**
    * Put the pane where the deck wants it — and make sure it gets there.
@@ -4361,6 +4366,8 @@ function Inner() {
                   onTheme={setTheme}
                   characterEnabled={characterEnabled}
                   onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+                  fmVolume={fmVolume}
+                  onFmVolume={setFmVolume}
                   onClose={() => setAppearanceMenuOpen(false)}
                   openerRef={appearanceButtonRef}
                 />
@@ -5196,7 +5203,7 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          {characterEnabled && <ClaudeFm />}
+          {characterEnabled && <ClaudeFm volume={fmVolume} />}
         </ReactFlow>
         <SessionPeek
           agentFor={peekAgent}
