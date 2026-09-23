@@ -136,7 +136,7 @@ export function blockedAnnouncement(blocked: readonly Blocked[]): string {
  * for this page, and a polite announcement queues behind whatever the screen
  * reader is already saying about the page rather than cutting it off.
  */
-export function nextAnnouncement(said: string, now: string): string {
+export function nextAnnouncement(said: string, now: string, allClear: string = ALL_CLEAR): string {
   if (now !== "") return now;
-  return said === "" ? "" : ALL_CLEAR;
+  return said === "" ? "" : allClear;
 }

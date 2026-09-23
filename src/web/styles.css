@@ -5543,10 +5543,20 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   --sl-card-gutter: 4px;
   --sl-card-edge: 1px;
   flex: 1;
+  margin: 0;
   padding: 6px var(--sl-card-gutter);
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.session-list .sl-row-item {
+  display: flex;
+  min-width: 0;
+}
+.session-list .sl-row-item > .sl-row {
+  flex: 1;
+  width: 100%;
 }
 .session-list .sl-empty {
   padding: 16px 12px;

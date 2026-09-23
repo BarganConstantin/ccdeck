@@ -503,7 +503,7 @@ export function waitingSentence(waiting: WaitingBlock): string {
  *  is composed from the data instead, so it does not change with zoom, and it
  *  says the things a reader chooses a card by, in the card's own words: name,
  *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
-export function agentAriaLabel(data: AgentNodeData, now: number = Date.now()): string {
+export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false): string {
   const failed = data.tools.filter(t => t.ok === false).length;
   const cost = agentCost(data, now).total;
   return [
@@ -515,6 +515,7 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now()): s
     `${data.toolCount} ${data.toolCount === 1 ? "tool" : "tools"}`,
     failed > 0 ? `${failed} failed` : null,
     cost > 0 ? `${fmtCost(cost)}${agentUnpricedTokens(data, now) > 0 ? "+" : ""}` : null,
+    selected ? "selected" : null,
   ].filter(Boolean).join(", ");
 }
 

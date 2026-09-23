@@ -162,7 +162,7 @@ export function snapshotToFlow(
       data: dataFor(a),
       className: cls,
       // Composed, not read off the card: see agentAriaLabel (#853).
-      ariaLabel: agentAriaLabel(a, now),
+      ariaLabel: agentAriaLabel(a, now, selectedIds.has(a.id)),
       ...(m ? { width: m.width, height: m.height } : null),
     });
     if (a.parentId && visibleIds.has(a.parentId)) {
