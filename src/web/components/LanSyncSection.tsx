@@ -2169,9 +2169,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                         {/* INVITE-ONLY TAKES THE ASK AWAY, AND THIS IS WHAT IT
                             LEAVES: the one way this machine can still be paired,
                             on its own row, where the reader is already looking.
-                            Opens the add dialog with the invite made. */}
+                            Opens the add dialog with the invite made — a
+                            dialog, said the way the row's own door says it. */}
                         {(p.kind === "nearby" || p.kind === "declined") && status?.pairingMode === "invite" && (
-                          <button type="button" className="ap-manage-btn ap-lan-do"
+                          <button type="button" className="ap-manage-btn ap-lan-do" aria-haspopup="dialog"
                             onClick={() => setAddOpen("invite")}
                             aria-label={`Invite ${p.name} to pair`}
                             title={`This deck pairs only by invite. Make one and send it to whoever is at ${p.name}.`}>
