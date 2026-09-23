@@ -39,6 +39,19 @@ export interface CustomVoiceAsset {
 
 export type CustomNotificationAsset = CustomAudioAsset | CustomVoiceAsset;
 
+/** What the sound menu lists: every field but a clip's bytes. A menu row needs
+ *  a name, a kind and a length, and the bytes are up to a megabyte a clip —
+ *  twenty-four of them decoded, carried over IPC and held in React state from
+ *  boot, for a list that only ever read the names. Playback asks for the one
+ *  clip it is about to play (`getCustomNotificationAsset`), when it plays it. */
+export type CustomAssetSummary = Omit<CustomAudioAsset, "bytes"> | CustomVoiceAsset;
+
+export function summarizeCustomAsset(asset: CustomNotificationAsset): CustomAssetSummary {
+  if (asset.kind !== "audio") return asset;
+  const { bytes: _bytes, ...summary } = asset;
+  return summary;
+}
+
 type DecodedAudio = {
   duration: number;
   numberOfChannels: number;
@@ -46,7 +59,7 @@ type DecodedAudio = {
 };
 
 type DesktopAssetBridge = {
-  list(): Promise<CustomNotificationAsset[]>;
+  list(): Promise<CustomAssetSummary[]>;
   get(id: string): Promise<CustomNotificationAsset | null>;
   put(asset: CustomNotificationAsset): Promise<void>;
   remove(id: string): Promise<void>;
@@ -190,61 +203,133 @@ export function createCustomVoice(input: {
 }
 
 const DB_NAME = "ccdeck-notification-audio";
+/** Version 2 gave the listing a store of its own; see openDb. */
+const DB_VERSION = 2;
+/** Whole assets, bytes included, read one at a time to play. */
 const STORE = "assets";
+/** The same assets without their bytes, which is all `list` reads. */
+const SUMMARIES = "summaries";
 
 function desktopBridge(): DesktopAssetBridge | null {
   return typeof window !== "undefined" ? window.ccdeckNotificationAudio ?? null : null;
 }
 
+// Two stores rather than one, because IndexedDB has no way to read part of a
+// record: a `getAll` over the assets hands back every clip's bytes, and a
+// cursor that dropped them would still have read each one off disk first. So
+// the listing is written beside the asset, in the same transaction, and the
+// menu never opens the store the bytes are in.
+//
+// A library saved before version 2 has assets and no listing. The upgrade
+// builds the listing from them once, inside the version change, so no sound a
+// person already added goes missing from the menu — and then from the tone it
+// was chosen for, which the boot load clears for any id it cannot find.
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: "id" });
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = event => {
+      const db = req.result;
+      const assets = db.objectStoreNames.contains(STORE)
+        ? req.transaction!.objectStore(STORE)
+        : db.createObjectStore(STORE, { keyPath: "id" });
+      if (db.objectStoreNames.contains(SUMMARIES)) return;
+      const summaries = db.createObjectStore(SUMMARIES, { keyPath: "id" });
+      if (event.oldVersion < 1) return;
+      const walk = assets.openCursor();
+      walk.onsuccess = () => {
+        const cursor = walk.result;
+        if (!cursor) return;
+        summaries.put(summarizeCustomAsset(cursor.value as CustomNotificationAsset));
+        cursor.continue();
+      };
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error ?? new Error("Could not open local audio storage."));
   });
 }
 
-async function idbRequest<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+/** One transaction over `stores`, settled when it COMMITS rather than when its
+ *  first request answers: a write to both stores is only done when both are,
+ *  and a listing that outlived its asset would be a row with nothing to play. */
+async function idbRun<T>(
+  stores: string[],
+  mode: IDBTransactionMode,
+  run: (tx: IDBTransaction) => IDBRequest<T> | void,
+): Promise<T | undefined> {
   const db = await openDb();
   try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE, mode);
-      const req = run(tx.objectStore(STORE));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error ?? new Error("Local audio storage failed."));
+    return await new Promise<T | undefined>((resolve, reject) => {
+      const tx = db.transaction(stores, mode);
+      const req = run(tx);
+      const failed = () => reject(tx.error ?? new Error("Local audio storage failed."));
+      tx.oncomplete = () => resolve(req ? req.result : undefined);
+      tx.onerror = failed;
+      tx.onabort = failed;
     });
   } finally {
     db.close();
   }
 }
 
-export async function listCustomNotificationAssets(): Promise<CustomNotificationAsset[]> {
+export async function listCustomNotificationAssets(): Promise<CustomAssetSummary[]> {
   const bridge = desktopBridge();
   if (bridge) return bridge.list();
   if (typeof indexedDB === "undefined") return [];
-  return idbRequest("readonly", store => store.getAll());
+  return (await idbRun<CustomAssetSummary[]>([SUMMARIES], "readonly", tx => tx.objectStore(SUMMARIES).getAll())) ?? [];
 }
 
 export async function getCustomNotificationAsset(id: string): Promise<CustomNotificationAsset | null> {
   const bridge = desktopBridge();
   if (bridge) return bridge.get(id);
   if (typeof indexedDB === "undefined") return null;
-  return (await idbRequest<CustomNotificationAsset | undefined>("readonly", store => store.get(id))) ?? null;
+  return (await idbRun<CustomNotificationAsset | undefined>([STORE], "readonly", tx => tx.objectStore(STORE).get(id))) ?? null;
 }
 
 export async function saveCustomNotificationAsset(asset: CustomNotificationAsset): Promise<void> {
   const bridge = desktopBridge();
   if (bridge) { await bridge.put(asset); return; }
   if (typeof indexedDB === "undefined") throw new Error("Local audio storage is unavailable in this browser.");
-  await idbRequest("readwrite", store => store.put(asset));
+  await idbRun([STORE, SUMMARIES], "readwrite", tx => {
+    tx.objectStore(STORE).put(asset);
+    tx.objectStore(SUMMARIES).put(summarizeCustomAsset(asset));
+  });
+}
+
+/**
+ * A new name for a stored asset. The menu holds only the listing, so the
+ * asset is read back whole and written again under the new name: in the
+ * browser inside one transaction, and on the desktop through the bridge's own
+ * `get` and `put` — a rename is rare enough that one clip crossing IPC twice
+ * costs less than a fifth call on the one surface a page in that window can
+ * reach (preload.cjs). An asset that is gone by now is left gone.
+ */
+export async function renameCustomNotificationAsset(id: string, name: string): Promise<void> {
+  const bridge = desktopBridge();
+  if (bridge) {
+    const found = await bridge.get(id);
+    if (found) await bridge.put({ ...found, name });
+    return;
+  }
+  if (typeof indexedDB === "undefined") throw new Error("Local audio storage is unavailable in this browser.");
+  await idbRun([STORE, SUMMARIES], "readwrite", tx => {
+    const assets = tx.objectStore(STORE);
+    const read = assets.get(id);
+    read.onsuccess = () => {
+      const found = read.result as CustomNotificationAsset | undefined;
+      if (!found) return;
+      const next = { ...found, name };
+      assets.put(next);
+      tx.objectStore(SUMMARIES).put(summarizeCustomAsset(next));
+    };
+  });
 }
 
 export async function deleteCustomNotificationAsset(id: string): Promise<void> {
   const bridge = desktopBridge();
   if (bridge) { await bridge.remove(id); return; }
   if (typeof indexedDB === "undefined") return;
-  await idbRequest("readwrite", store => store.delete(id));
+  await idbRun([STORE, SUMMARIES], "readwrite", tx => {
+    tx.objectStore(STORE).delete(id);
+    tx.objectStore(SUMMARIES).delete(id);
+  });
 }

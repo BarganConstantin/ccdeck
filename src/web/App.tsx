@@ -146,8 +146,8 @@ import {
 import {
   CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
   getCustomNotificationAsset, importCustomAudio, libraryFullReason, listCustomNotificationAssets,
-  readCustomSelections, saveCustomNotificationAsset,
-  type CustomNotificationAsset, type CustomSelections,
+  readCustomSelections, renameCustomNotificationAsset, saveCustomNotificationAsset, summarizeCustomAsset,
+  type CustomAssetSummary, type CustomSelections,
 } from "./notification-audio";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
@@ -892,7 +892,9 @@ function Inner() {
   const [customSelections, setCustomSelections] = useState<CustomSelections>(() => readCustomSelections(readStored));
   const customSelectionsRef = useRef(customSelections);
   customSelectionsRef.current = customSelections;
-  const [customAssets, setCustomAssets] = useState<CustomNotificationAsset[]>([]);
+  // The listing only — names, kinds and lengths. A clip's bytes stay in the
+  // store until the player asks for the one it is about to play (loadCustom).
+  const [customAssets, setCustomAssets] = useState<CustomAssetSummary[]>([]);
 
   const clearCustomOnly = useCallback((chime: Chime) => {
     setCustomSelections(prev => {
@@ -1006,7 +1008,10 @@ function Inner() {
     try {
       const asset = await importCustomAudio(file, bytes => decoder.decodeAudioData(bytes));
       await saveCustomNotificationAsset(asset);
-      setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
+      // The row, not the clip: keeping the bytes here would be the boot load
+      // this state stopped holding, one import at a time.
+      const row = summarizeCustomAsset(asset);
+      setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
     } finally {
       void decoder.close?.();
     }
@@ -1019,16 +1024,17 @@ function Inner() {
     if (full) throw new Error(full);
     const asset = createCustomVoice(input);
     await saveCustomNotificationAsset(asset);
-    setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
+    const row = summarizeCustomAsset(asset);
+    setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
   }, [customAssets.length]);
 
   const renameCustomAsset = useCallback(async (id: string, name: string) => {
     const current = customAssets.find(asset => asset.id === id);
     const nextName = name.trim().slice(0, 80);
     if (!current || !nextName || nextName === current.name) return;
-    const next = { ...current, name: nextName } as CustomNotificationAsset;
-    await saveCustomNotificationAsset(next);
-    setCustomAssets(prev => prev.map(asset => asset.id === id ? next : asset));
+    // By id, not by writing this row back: the row has no bytes to write.
+    await renameCustomNotificationAsset(id, nextName);
+    setCustomAssets(prev => prev.map(asset => asset.id === id ? { ...asset, name: nextName } : asset));
   }, [customAssets]);
 
   const deleteCustomAsset = useCallback(async (id: string) => {

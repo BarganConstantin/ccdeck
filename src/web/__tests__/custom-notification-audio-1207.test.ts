@@ -1,11 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   CUSTOM_AUDIO_KEYS, MAX_CUSTOM_ASSETS, MAX_CUSTOM_AUDIO_BYTES, clearCustomAssetSelections,
-  createCustomVoice, importCustomAudio, libraryFullReason, newAssetId, normalizationGain,
-  readCustomSelections, sameCustomSelection, validateAudioImport,
-  type CustomAudioAsset,
+  createCustomVoice, deleteCustomNotificationAsset, getCustomNotificationAsset,
+  importCustomAudio, libraryFullReason, listCustomNotificationAssets, newAssetId, normalizationGain,
+  readCustomSelections, renameCustomNotificationAsset, sameCustomSelection, saveCustomNotificationAsset,
+  summarizeCustomAsset, validateAudioImport,
+  type CustomAudioAsset, type CustomNotificationAsset, type CustomVoiceAsset,
 } from "../notification-audio";
 import { createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
+import { withoutComments } from "./tsx-scan";
 
 const audio = (size = 4, name = "voice.wav") =>
   Object.assign(new Blob([new Uint8Array(size)], { type: "audio/wav" }), { name });
@@ -125,5 +130,197 @@ describe("custom notification assets (#1207)", () => {
     expect(player.play("done")).toBe(true);
     await vi.waitFor(() => expect(started).toHaveBeenCalled());
     expect(failed).not.toHaveBeenCalled();
+  });
+});
+
+// ── the listing and the bytes ───────────────────────────────────────────────
+//
+// The menu used to be handed every clip whole at boot — up to 24 × 1 MB, read
+// with `getAll` in a browser and decoded and copied over IPC in the desktop app
+// — and to keep them in React state for a list that only ever drew names. Now
+// `list` is the listing and nothing else, and the player asks for one clip's
+// bytes when it plays that clip.
+
+const clip = (): CustomAudioAsset => ({
+  id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1.5,
+  normalizationGain: 2, bytes: new Uint8Array([1, 2, 3, 4]).buffer,
+});
+const voice = (): CustomVoiceAsset => ({
+  id: "voice-1", name: "Voice", kind: "tts", text: "Your turn", voiceURI: "", rate: 1, pitch: 1,
+});
+const clipRow = { id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1.5, normalizationGain: 2 };
+const source = (rel: string) => readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
+/** Comment-stripped, so a sentence explaining the code cannot pass for it. */
+const menu = withoutComments(source("components/SoundMenu.tsx"));
+const app = withoutComments(source("App.tsx"));
+const bytesOf = (asset: CustomNotificationAsset | null) =>
+  asset?.kind === "audio" ? [...new Uint8Array(asset.bytes)] : null;
+
+/**
+ * Just enough IndexedDB for notification-audio.ts, in memory: a versioned
+ * open with its upgrade transaction, and get / getAll / put / delete /
+ * openCursor inside transactions that commit once their last request has
+ * answered. Every value goes in and comes out through structuredClone, as it
+ * would through the real thing. `reads` names the store each read touched,
+ * which is the whole question for the listing.
+ */
+function memoryIdb(seed: { version: number; stores: Record<string, { id: string }[]> } = { version: 0, stores: {} }) {
+  let version = seed.version;
+  const data = new Map(Object.entries(seed.stores).map(([name, rows]) =>
+    [name, new Map(rows.map(row => [row.id, structuredClone(row)]))] as const));
+  const reads: string[] = [];
+  const later = (fn: () => void) => { setTimeout(fn, 0); };
+  type Req = { result: unknown; onsuccess: null | (() => void) };
+
+  function transaction() {
+    let pending = 0;
+    let done = false;
+    const tx = {
+      error: null,
+      oncomplete: null as null | (() => void),
+      onerror: null as null | (() => void),
+      onabort: null as null | (() => void),
+      settle() {
+        if (pending > 0 || done) return;
+        done = true;
+        later(() => tx.oncomplete?.());
+      },
+      ask(work: () => unknown, req: Req = { result: undefined, onsuccess: null }) {
+        pending++;
+        later(() => { req.result = work(); req.onsuccess?.(); pending--; tx.settle(); });
+        return req;
+      },
+      objectStore(name: string) {
+        const rows = () => data.get(name)!;
+        return {
+          get: (id: string) => tx.ask(() => { reads.push(name); return structuredClone(rows().get(id)); }),
+          getAll: () => tx.ask(() => { reads.push(name); return [...rows().values()].map(row => structuredClone(row)); }),
+          put: (row: { id: string }) => tx.ask(() => { rows().set(row.id, structuredClone(row)); return row.id; }),
+          delete: (id: string) => tx.ask(() => { rows().delete(id); }),
+          openCursor: () => {
+            const keys = [...rows().keys()];
+            const req: Req = { result: null, onsuccess: null };
+            const step = (i: number): Req => tx.ask(() => {
+              reads.push(name);
+              return i < keys.length ? { value: structuredClone(rows().get(keys[i])), continue: () => { step(i + 1); } } : null;
+            }, req);
+            return step(0);
+          },
+        };
+      },
+    };
+    // A transaction nobody asks anything of still commits.
+    later(() => tx.settle());
+    return tx;
+  }
+
+  const factory = {
+    open(_name: string, want: number) {
+      const req = {
+        result: null as unknown,
+        error: null,
+        transaction: null as ReturnType<typeof transaction> | null,
+        onupgradeneeded: null as null | ((event: { oldVersion: number }) => void),
+        onsuccess: null as null | (() => void),
+        onerror: null as null | (() => void),
+      };
+      later(() => {
+        let upgrade: ReturnType<typeof transaction> | null = null;
+        req.result = {
+          objectStoreNames: { contains: (name: string) => data.has(name) },
+          createObjectStore: (name: string) => { data.set(name, new Map()); return upgrade!.objectStore(name); },
+          transaction: () => transaction(),
+          close: () => {},
+        };
+        if (want <= version) { req.onsuccess?.(); return; }
+        const old = version;
+        upgrade = transaction();
+        upgrade.oncomplete = () => { version = want; req.transaction = null; req.onsuccess?.(); };
+        req.transaction = upgrade;
+        req.onupgradeneeded?.({ oldVersion: old });
+      });
+      return req;
+    },
+  };
+  return { factory, reads, stores: data };
+}
+
+describe("the listing carries no bytes (#1207)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("is the asset without its bytes, and a voice as it is", () => {
+    expect(summarizeCustomAsset(clip())).toEqual(clipRow);
+    expect(summarizeCustomAsset(voice())).toEqual(voice());
+  });
+
+  it("lists from a browser without opening the store the bytes are in, and plays from it", async () => {
+    const idb = memoryIdb();
+    vi.stubGlobal("indexedDB", idb.factory);
+    await saveCustomNotificationAsset(clip());
+    await saveCustomNotificationAsset(voice());
+    idb.reads.length = 0;
+    const listed = await listCustomNotificationAssets();
+    expect(listed).toEqual([clipRow, voice()]);
+    expect(idb.reads).toEqual(["summaries"]);
+    expect(bytesOf(await getCustomNotificationAsset("clip-1"))).toEqual([1, 2, 3, 4]);
+  });
+
+  it("builds the listing once from a library saved before it had one", async () => {
+    // Version 1 kept whole assets and nothing else. Were the upgrade to skip
+    // them, the boot load would find no row for a chosen id and clear the
+    // tone it was chosen for — a person's sound gone because of a schema.
+    const idb = memoryIdb({ version: 1, stores: { assets: [clip(), voice()] } });
+    vi.stubGlobal("indexedDB", idb.factory);
+    expect(await listCustomNotificationAssets()).toEqual([clipRow, voice()]);
+    idb.reads.length = 0;
+    expect(await listCustomNotificationAssets()).toHaveLength(2);
+    expect(idb.reads).toEqual(["summaries"]);
+    expect(bytesOf(await getCustomNotificationAsset("clip-1"))).toEqual([1, 2, 3, 4]);
+  });
+
+  it("renames in both stores and keeps the bytes, and deletes from both", async () => {
+    const idb = memoryIdb();
+    vi.stubGlobal("indexedDB", idb.factory);
+    await saveCustomNotificationAsset(clip());
+    await saveCustomNotificationAsset(voice());
+    await renameCustomNotificationAsset("clip-1", "Renamed");
+    expect((await listCustomNotificationAssets())[0]).toEqual({ ...clipRow, name: "Renamed" });
+    const renamed = await getCustomNotificationAsset("clip-1");
+    expect(renamed?.name).toBe("Renamed");
+    expect(bytesOf(renamed)).toEqual([1, 2, 3, 4]);
+    // One that is gone by now stays gone rather than coming back as a row.
+    await renameCustomNotificationAsset("gone", "Ghost");
+    expect(await listCustomNotificationAssets()).toHaveLength(2);
+    await deleteCustomNotificationAsset("clip-1");
+    expect((await listCustomNotificationAssets()).map(row => row.id)).toEqual(["voice-1"]);
+    expect(await getCustomNotificationAsset("clip-1")).toBeNull();
+    expect([...idb.stores.get("assets")!.keys()]).toEqual(["voice-1"]);
+  });
+
+  it("keeps only the listing in the deck's state, and gives an import back as a row", () => {
+    expect(app).toMatch(/useState<CustomAssetSummary\[\]>\(\[\]\)/);
+    expect(menu).toMatch(/customAssets: CustomAssetSummary\[\];/);
+    // Both ways a sound is added put its row in state, never the asset.
+    expect([...app.matchAll(/const row = summarizeCustomAsset\(asset\);\s*setCustomAssets\(prev => \[\.\.\.prev\.filter\(item => item\.id !== row\.id\), row\]\);/g)]).toHaveLength(2);
+    expect(app).toMatch(/await renameCustomNotificationAsset\(id, nextName\);/);
+  });
+
+  it("renames through the desktop bridge's own get and put, bytes and all", async () => {
+    const stored = new Map<string, CustomNotificationAsset>([["clip-1", clip()]]);
+    const put = vi.fn(async (asset: CustomNotificationAsset) => { stored.set(asset.id, asset); });
+    vi.stubGlobal("window", {
+      ccdeckNotificationAudio: {
+        list: async () => [...stored.values()].map(summarizeCustomAsset),
+        get: async (id: string) => stored.get(id) ?? null,
+        put,
+        remove: async (id: string) => { stored.delete(id); },
+      },
+    });
+    await renameCustomNotificationAsset("clip-1", "Renamed");
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(bytesOf(stored.get("clip-1")!)).toEqual([1, 2, 3, 4]);
+    expect(await listCustomNotificationAssets()).toEqual([{ ...clipRow, name: "Renamed" }]);
+    await renameCustomNotificationAsset("gone", "Ghost");
+    expect(put).toHaveBeenCalledTimes(1);
   });
 });

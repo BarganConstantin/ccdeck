@@ -7,7 +7,13 @@
 // opaque id that never becomes part of a path, its bytes, length and gain are
 // held to the same limits the page's own importer applies, and the library has
 // a ceiling — without one, a page could put asset after asset until the disk
-// was full, and every one of them would be read back on every chime.
+// was full.
+//
+// A listing carries no bytes. The menu reads it at boot to draw its rows, and
+// rows need names and lengths: decoding every clip out of base64 and copying
+// it over IPC for a list that never plays one was up to 24 MB at every start.
+// The bytes leave this file one clip at a time, through `get`, when a tone
+// plays.
 //
 // Knows nothing about Electron, so it can be pinned directly. main.mjs owns the
 // IPC and who is allowed to call it.
@@ -55,6 +61,21 @@ function toDisk(asset) {
   return asset.kind === "audio" ? { ...asset, bytes: asset.bytes.toString("base64") } : asset;
 }
 
+/** What `list` hands the page: every field a row shows or a check needs, and
+ *  not the bytes. Built field by field, like cleanAsset, so nothing else on
+ *  disk rides along either. */
+function toSummary(asset) {
+  if (asset.kind === "audio") {
+    const { id, name, kind, mime, duration, normalizationGain } = asset;
+    return { id, name, kind, mime, duration, normalizationGain };
+  }
+  if (asset.kind === "tts") {
+    const { id, name, kind, text, voiceURI, rate, pitch } = asset;
+    return { id, name, kind, text, voiceURI, rate, pitch };
+  }
+  return null;
+}
+
 /** Back over IPC they are an ArrayBuffer, which is what decodeAudioData takes. */
 function toWire(asset) {
   if (!asset || asset.kind !== "audio" || typeof asset.bytes !== "string") return asset;
@@ -92,7 +113,7 @@ export function createNotificationAudioStore(file) {
   }
 
   return {
-    list: () => read().map(toWire),
+    list: () => read().map(toSummary).filter(Boolean),
     get(id) {
       if (!validAssetId(id)) return null;
       const found = read().find(a => a.id === id);

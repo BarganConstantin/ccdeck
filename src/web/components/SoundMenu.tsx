@@ -49,7 +49,7 @@ import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } f
 import { inDesktopApp } from "../in-app";
 import {
   sameCustomSelection,
-  type CustomNotificationAsset,
+  type CustomAssetSummary,
   type CustomSelections,
 } from "../notification-audio";
 
@@ -80,7 +80,7 @@ interface Props {
   onFigure: (chime: Chime, id: string) => void;
   /** Play this tone now, at what it is currently set to. */
   onPreview: (chime: Chime) => void;
-  customAssets: CustomNotificationAsset[];
+  customAssets: CustomAssetSummary[];
   customSelections: CustomSelections;
   onBuiltInSelected: (chime: Chime) => void;
   onCustomSelected: (chime: Chime, id: string) => void;
