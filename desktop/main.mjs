@@ -394,7 +394,6 @@ function openWindow() {
   });
   win.once("ready-to-show", () => {
     win?.show();
-    app.focus({ steal: true });
   });
   win.on("focus", () => trace(`focus onTop=${win?.isAlwaysOnTop()}`));
   win.on("blur", () => trace(`blur onTop=${win?.isAlwaysOnTop()} visible=${win?.isVisible()}`));
