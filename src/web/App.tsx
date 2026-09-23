@@ -3437,6 +3437,14 @@ function Inner() {
     setBlockedSaid(said => nextAnnouncement(said, blockedNow));
   }, [blockedNow]);
 
+  const [watchSaid, setWatchSaid] = useState("");
+  const watchNow = watchUnseen > 0
+    ? `Browser watch has ${watchUnseen} unread ${watchUnseen === 1 ? "finding" : "findings"}.`
+    : "";
+  useEffect(() => {
+    setWatchSaid(said => nextAnnouncement(said, watchNow, "Browser watch has no unread findings."));
+  }, [watchNow]);
+
   // The fifth surface, and the only one that leaves the page.
   //
   // The four above — chip, title, favicon, live region — all answer "which
@@ -3997,6 +4005,7 @@ function Inner() {
               partial reading of it is exactly the failure the strip above was
               guilty of. */}
           <div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>
+          <div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>
           {/* Outside the .status strip and inside .readout, which are two
               separate placements and only one of them still has the reason it
               was given.

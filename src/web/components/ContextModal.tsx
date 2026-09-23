@@ -274,7 +274,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
          aria-valuenow; this is the surface that was silent. */
       aria-label={`Context ${Math.round(pct * 100)}% of ${window.toLocaleString()} tokens — show breakdown`}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
         <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2.5" fill="none" />
         <circle
           cx={c} cy={c} r={r}

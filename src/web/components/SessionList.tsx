@@ -163,18 +163,19 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
         {liveCount > 0 && <span className="sl-live-count">{liveCount} live</span>}
         <button className="glyph-btn sl-close" onClick={onClose} title="Hide sidebar (L)" aria-label="Hide session list">‹</button>
       </div>
-      <div className="sl-rows">
-        {rows.length === 0 && <div className="sl-empty">No sessions yet.</div>}
+      <ul className="sl-rows">
+        {rows.length === 0 && <li className="sl-empty">No sessions yet.</li>}
         {rows.map(r => {
           const isSelected = selectedIds.has(r.sessionId);
           return (
-            <button
-              type="button"
-              key={r.sessionId}
-              className={`sl-row state-${r.state}${isSelected ? " selected" : ""}`}
-              onClick={() => onSelect(r.sessionId)}
-              title={`Focus ${r.label}`}
-            >
+            <li key={r.sessionId} className="sl-row-item">
+              <button
+                type="button"
+                className={`sl-row state-${r.state}${isSelected ? " selected" : ""}`}
+                aria-current={isSelected ? "true" : undefined}
+                onClick={() => onSelect(r.sessionId)}
+                title={`Focus ${r.label}`}
+              >
               {/* The dot stays hidden and the word beside it is new (#373).
                   A row's accessible name is its contents, so this joins it in
                   DOM order — "live vcrm-core Opus 5 …" — and the state is heard
@@ -245,10 +246,11 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     of it is in the detail panel. */}
                 {r.recap && <span className="sl-recap" title={r.recap.text}><RecapMark />{r.recap.text}</span>}
               </div>
-            </button>
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </aside>
   );
 }
