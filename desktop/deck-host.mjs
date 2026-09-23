@@ -108,9 +108,8 @@ export function startDeck({ deckRoot, appBinary, logFile, path, launcher, env = 
     });
   } finally {
     // The deck has its own copy of the log's descriptor once spawn returns.
-    // The app's stayed open for as long as the app ran, one more for every
-    // deck it started, and on Windows an open handle keeps the file from
-    // being deleted (#1176).
+    // Closing the app's copy avoids leaking a handle on every restart and
+    // keeping the log file locked against rotation on Windows (#1183).
     closeSync(out);
   }
 }
