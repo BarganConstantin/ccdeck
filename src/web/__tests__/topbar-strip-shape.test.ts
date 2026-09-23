@@ -12,21 +12,16 @@
 // why `topbar-divider-run.test.ts` existed: it walked every row the strip could
 // render and counted lines.
 //
-// That file is gone because its subject is. The two board readouts it counted
-// lines between — a token total and a dollar figure, both sums over the agents
-// on the canvas right now — were dropped, and the dividers went with them. Then
-// the machine meter went too: a 50x24 sparkline that moved every three seconds
-// in a bar whose job is to say whether the stream is alive, replaced by a
-// button in the icon run that opens the same panel and draws nothing. There is
-// nothing left to count: one member, no gap to fill, no rules.
+// That file is gone because its subject is. The two BOARD readouts it counted
+// were dropped. #737 later added one month-to-date phrase backed by ccusage;
+// tokens and cost stay inside that one phrase so the period label cannot drift
+// away from either number. The machine meter remains out of the strip.
 //
 // WHY A TEST STILL. The removal is only durable if the strip cannot quietly
 // grow a second member and a divider to go with it. The next such addition is
 // the one that has to redo the geometry, and this file is where it finds out.
-// So the invariant is now the SHAPE rather than the run: one member, and no
-// divider rules under `.topbar .status` at all. A second readout arriving fails
-// here first, and whoever adds it either brings the counting test back with it
-// or explains why the gap alone is enough.
+// So the invariant is now the SHAPE rather than the run: status pill plus one
+// monthly usage phrase, and no divider rules under `.topbar .status` at all.
 //
 // No DOM, same as before: the rules come out of styles.css and the row out of
 // App.tsx's markup, the way dead-css and session-hue read the same two files.
@@ -59,13 +54,18 @@ describe("the topbar's readout strip", () => {
     expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
   });
 
-  it("holds the status pill and nothing else", () => {
+  it("holds the status pill and one month-to-date usage phrase", () => {
     expect(strip, "the strip lost the pill").toContain("`pill ${pill.tone}`");
     expect(strip, "the machine meter is back in the strip").not.toContain("<MachinePanel");
-    // The pill's own three spans are the only other elements in here. A second
-    // member of the strip proper would show up as a fourth class name.
+    expect(strip).toContain('className="month-usage"');
+    expect(strip).toContain('className="month-usage-label">this month</span>');
+    expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");
+    expect(strip).toContain("fmtMonthlyCost(monthlyUsage.cost)");
     const classes = new Set([...strip.matchAll(/className="([\w- ]+)"/g)].map(m => m[1]));
-    expect([...classes].sort()).toEqual(["pill-box", "pill-label", "pill-widest", "status"]);
+    expect([...classes].sort()).toEqual([
+      "month-usage", "month-usage-label", "month-usage-pending", "month-usage-sep",
+      "month-usage-unit", "pill-box", "pill-label", "pill-widest", "status",
+    ]);
   });
 
   it("draws no divider at all — the 14px gap is the whole separation", () => {
@@ -75,13 +75,13 @@ describe("the topbar's readout strip", () => {
       .filter(r => /width:\s*1px/.test(r.body) && /background:\s*var\(--line\)/.test(r.body))
       .flatMap(r => r.selectors)
       .filter(s => s.startsWith(".topbar .status") && s.endsWith("::before"));
-    expect(dividers, "a divider rule came back to a strip with one member").toEqual([]);
+    expect(dividers, "a divider rule came back to the compact readout strip").toEqual([]);
     const status = RULES.filter(r => r.selectors.includes(".topbar .status"));
     expect(status, "the strip lost its own rule").toHaveLength(1);
     expect(status[0].body, "the 14px between readouts moved").toMatch(/gap:\s*14px/);
   });
 
-  it("keeps the two board readouts out, along with the words that qualified them", () => {
+  it("keeps board-scoped readouts out", () => {
     // The chips said "board tokens" and "board cost" because the figures fall
     // on their own as the canvas evicts finished work, and a bare "tokens" read
     // as a claim about the day. A qualifier and a three-line tooltip is a lot of
@@ -95,6 +95,7 @@ describe("the topbar's readout strip", () => {
     for (const gone of ["BOARD_TOKENS_LABEL", "BOARD_COST_LABEL", `className="stat"`]) {
       expect(app, `${gone} is back in App.tsx`).not.toContain(gone);
     }
+    expect(strip).not.toContain("boardTotals");
     // And the constants are gone from the module that declared them, so there is
     // nothing to import back in from anywhere else either.
     const boardUsage = readFileSync(join(web, "board-usage.ts"), "utf8");

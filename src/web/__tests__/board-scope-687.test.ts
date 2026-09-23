@@ -420,22 +420,23 @@ describe("every surface that prints one of these figures prints the shared label
     expect(read("styles.css"), "the rule outlived its markup").not.toContain(".up-live");
   });
 
-  it("has no unlabelled board figure left in the topbar", () => {
+  it("has no board-scoped figure left in the topbar", () => {
     // This case used to check the opposite: that BOTH topbar chips printed the
     // constants and BOTH carried the sentence — the tokens figure falls by the
     // same 40% the dollars do, and the report named only the dollars.
     //
-    // The chips are gone, so the claim inverts. The strip carries no aggregate
-    // at all now, which satisfies #687 the other way round: there is no figure
-    // there to mislabel. What the case still has to catch is a board number
-    // reappearing in the bar WITHOUT the scope the panel gives its own.
+    // #737 puts an aggregate back, but its source is ccusage and its period is
+    // explicit. This case still guards the original failure: a board total must
+    // never reappear in the bar and shrink when cards are pruned.
     const strip = app.slice(
       app.indexOf(`<span className="status">`),
       app.indexOf(`<div className="vis-hidden"`),
     );
     expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
     expect(strip).not.toContain("boardTotals");
-    expect(strip).not.toMatch(/fmtCost\(|fmtTokens\(/);
+    expect(strip).toContain("this month");
+    expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");
+    expect(strip).toContain("fmtMonthlyCost(monthlyUsage.cost)");
   });
 
   it("labels the sidebar row and the end-of-session recap", () => {
