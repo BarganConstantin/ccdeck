@@ -4021,6 +4021,13 @@ const lanEngine = createEngine({
     try { _prefs = await writePrefs({ lan: { trusted } }); }
     catch (err) { console.error(`${PRODUCT}: lan sync could not save the pairing:`, err?.message ?? err); }
   },
+  // An explicit unpair must outlive the process too. Manual dial rows are kept
+  // deliberately, so without this marker the next successful round could pin
+  // the same fingerprint again without another press.
+  onUnpaired: async unpaired => {
+    try { _prefs = await writePrefs({ lan: { unpaired } }); }
+    catch (err) { console.error(`${PRODUCT}: lan sync could not save the unpair decision:`, err?.message ?? err); }
+  },
   // An address this deck must keep dialling: the far end of a pairing that
   // happened over an invite. Kept in prefs, because setPeers replaces the dial
   // list wholesale on every settings write and a row that lives only in memory
@@ -4052,7 +4059,7 @@ const lanEngine = createEngine({
       // one it is given, so this settles after one pass rather than looping.
       //
       // The key is handed over HERE rather than read back off `_prefs`, because
-      // `applyLanPrefs` no longer round-trips the three fields the engine
+      // `applyLanPrefs` no longer round-trips the fields the engine
       // authors — see what it does and does not pass. This is the one caller
       // that legitimately changes one of them, and it is holding the new value.
       await applyLanPrefs({ secret });
@@ -4069,9 +4076,9 @@ const lanEngine = createEngine({
 /**
  * What prefs is entitled to tell the LAN engine, and what it is not.
  *
- * THREE FIELDS ARE THE ENGINE'S OWN AND ARE LOADED ONCE. `trusted`, `secret`
- * and `port` are written BY the engine, through `onTrust`, `onIdentity` and
- * `onPort` — prefs is where they are kept between runs, not where they are
+ * FOUR FIELDS ARE THE ENGINE'S OWN AND ARE LOADED ONCE. `trusted`, `unpaired`,
+ * `secret` and `port` are written BY the engine, through `onTrust`,
+ * `onUnpaired`, `onIdentity` and `onPort` — prefs is where they are kept between runs, not where they are
  * decided. Handing them back on every settings write round-trips the engine's
  * live state through a module-level copy of a file, and that copy is stale for
  * as long as one of those writes is queued.
@@ -4126,11 +4133,12 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     ...page,
     secret: lan.secret || "",
     trusted: Array.isArray(lan.trusted) ? lan.trusted : [],
+    unpaired: Array.isArray(lan.unpaired) ? lan.unpaired : [],
     port: lan.port || 0,
   };
 }
 
-/** Whether the engine has already been handed the three fields it authors.
+/** Whether the engine has already been handed the fields it authors.
  *  Reset by `startServer`, because a boot is what reads them off the file. */
 let _lanLoaded = false;
 
