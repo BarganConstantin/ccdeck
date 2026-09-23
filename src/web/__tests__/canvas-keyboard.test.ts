@@ -140,7 +140,7 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     expect(canvasKeyIntent({ key: "Enter", shiftKey: true }, NODE))
       .toEqual({ kind: "activate", nodeId: NODE, additive: true });
     expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\)/);
-    expect(app).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(n\.id, e\.shiftKey\)/);
+    expect(app).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\)/);
   });
 
   it("leaves the card the keys the card owns", () => {

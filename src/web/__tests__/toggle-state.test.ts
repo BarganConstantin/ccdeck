@@ -470,7 +470,7 @@ describe("what each of the four toggles announces", () => {
     // was put to them, and `D` in the shortcuts sheet is the route that
     // replaced it.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "machinePanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
+    expect(expandeds).toEqual(["accountsPanelOpen", "appearanceMenuOpen", "machinePanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
   });
 
   it("leaves the session list a way in and a way out, which is what the button was", () => {

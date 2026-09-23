@@ -64,7 +64,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { rmTempDir } from "./rm-temp-dir";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -483,5 +483,106 @@ describe("`--flag=value` is the same as `--flag value`", () => {
     // `-` is a conventional stdin placeholder and must not be read as a flag
     // with a joined value; `eq > 2` keeps both away from the split.
     expect(parseArgs(["-"]).unknown).toEqual(["-"]);
+  });
+});
+
+// ── 4. the one-shots, spawned ───────────────────────────────────────────────
+//
+// `--stop`, `--status` and `--logs` exit before anything is served, so they
+// never appear in coverage and were pinned only as source text: an `indexOf`
+// ordering for the refusal above, and nothing at all for the other two. An
+// ordering pin survives the regression that matters — `badPort && askedPort`
+// instead of `||` — and that regression turns `ccdeck --stop --port $UNSET`
+// into "end every deck on this machine, and exit 0".
+//
+// They are cheap to run for real, on the same sandboxed HOME as the spawns
+// above: no deck is registered there, so `--stop` and `--status` take the empty
+// path and `--logs` reads a file this file writes.
+describe("the one-shot commands, run as real processes", () => {
+  // deckLogDir falls back to the legacy directory whenever CLAUDE_CONFIG_DIR is
+  // set — which it is, for the whole of this file — so the log lives beside the
+  // registry rather than in ~/Library/Logs.
+  const LOG_DIR = join(ENV.CLAUDE_CONFIG_DIR!, "agent-dag");
+  const LOG = join(LOG_DIR, "deck.log");
+
+  describe("`--stop` with a port it cannot use", () => {
+    // AN OFF SWITCH THAT FAILS OPEN. `--port` narrows `--stop` to one deck, and
+    // a value the parser cannot read used to leave `flags.port` undefined —
+    // which the selector below reads as "no port asked for", which means every
+    // deck. The user asking for one deck got all of them, and a zero exit.
+    it("refuses a malformed value instead of ending every deck", async () => {
+      const { code, out, err } = await runDeck(["--stop", "--port", "431x"]);
+      expect(code).toBe(1);
+      expect(err).toContain("--port 431x: not a port number");
+      expect(err).toContain("refusing to stop every deck when you asked for one.");
+      // Nothing was stopped and nothing was listed: it never reached the
+      // registry at all.
+      expect(out).not.toContain("stopped");
+      expect(out).not.toContain("no deck is running");
+    }, 30_000);
+
+    it("refuses a `--port` with no value at all", async () => {
+      // `ccdeck --stop --port $PROJ_PORT` with the variable unset, which is the
+      // likeliest way anybody types this: after word splitting there is no
+      // value left, so `flags.port` is undefined for the second reason and the
+      // incomplete list is the only place the intent survives.
+      const { code, out, err } = await runDeck(["--stop", "--port"]);
+      expect(code).toBe(1);
+      expect(err).toContain("refusing to stop every deck when you asked for one.");
+      // The parser's own row, said before the refusal, so the reader is told
+      // what was wrong with the command line and not only what it declined.
+      expect(err).toMatch(/missing value\s+--port .* expected a port number/);
+      expect(err.indexOf("missing value")).toBeLessThan(err.indexOf("refusing to stop"));
+    }, 30_000);
+  });
+
+  describe("a machine with no deck on it", () => {
+    it("says so for `--stop`, and calls that a success", async () => {
+      // Nothing to stop is not a failure — `ccdeck --stop` in a teardown script
+      // runs whether or not the start ever happened.
+      const { code, out } = await runDeck(["--stop"]);
+      expect(code).toBe(0);
+      expect(out).toContain("no deck is running");
+    }, 30_000);
+
+    it("says so for `--status`, and points at what would start one", async () => {
+      const { code, out } = await runDeck(["--status"]);
+      expect(code).toBe(0);
+      expect(out).toContain("no deck is running");
+      expect(out).toMatch(/starts one/);
+    }, 30_000);
+  });
+
+  describe("`--logs`, which is the only window on a detached deck", () => {
+    it("names the file it would have read when there is none", async () => {
+      // A deck that never started, or a log that was swept. The path is the
+      // useful half of the answer: it is what the reader points `tail -f` at
+      // once the deck is up.
+      const { code, out } = await runDeck(["--logs"]);
+      expect(code).toBe(0);
+      expect(out).toContain("nothing logged yet");
+      expect(out).toContain(LOG);
+    }, 30_000);
+
+    it("prints the tail of a long log, and says it is a tail", async () => {
+      // An attach appends to a running deck's log every time, so a long-lived
+      // deck's log is somebody's week. Printing all of it would bury the rows
+      // that are being looked for.
+      mkdirSync(LOG_DIR, { recursive: true });
+      const lines = Array.from({ length: 250 }, (_, i) => `L${i + 1}`);
+      writeFileSync(LOG, lines.join("\n") + "\n");
+
+      const { code, out } = await runDeck(["--logs"]);
+      expect(code).toBe(0);
+      // 251 because the trailing newline leaves an empty last line, and the
+      // count is of what would be printed rather than of what a reader counts.
+      expect(out).toContain("showing the last 200 of 251 lines");
+      expect(out).toContain("L250");
+      expect(out).toContain("L52");
+      expect(out).not.toMatch(/^L51$/m);
+      // The path last, with the real size beside it, because that is the line
+      // somebody copies.
+      expect(out.trimEnd()).toMatch(new RegExp(`${LOG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} . \\d+ bytes$`));
+    }, 30_000);
   });
 });

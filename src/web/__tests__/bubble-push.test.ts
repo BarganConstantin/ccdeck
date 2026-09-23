@@ -334,6 +334,46 @@ describe("bubblePush — boxes that cross without anything growing", () => {
     expect(pos.get("s1")).toEqual({ x: 300, y: 250 });
     expect(moved).toEqual(["tall"]);   // the push routed around them, not nowhere
   });
+
+  it("parts two sessions restored onto the same box, the same way every time", () => {
+    // Identical boxes have no line between their centres to push along, so the
+    // session ids decide the direction. Left to the order the pair came in, the
+    // board would jitter from one render to the next.
+    const run = () => {
+      const nodes = [agent("a1", "s1"), agent("b1", "s2")];
+      const pos = at([["a1", 400, 400], ["b1", 400, 400]]);
+      const m = sizes(["a1", "b1"]);
+      expect(collidingSessions(nodes, pos, m)).not.toEqual([]);
+      settle(nodes, pos, m, new Map());
+      return { pos, hits: collidingSessions(nodes, pos, m) };
+    };
+    const { pos, hits } = run();
+    expect(hits).toEqual([]);
+    const a1 = pos.get("a1")!, b1 = pos.get("b1")!;
+    expect(a1.x < 400 || a1.y < 400).toBe(true);   // the lower id goes up or left
+    expect(b1.x > 400 || b1.y > 400).toBe(true);   // and the other down or right
+    expect(JSON.stringify([...run().pos])).toBe(JSON.stringify([...pos]));
+  });
+
+  it("parts a box wedged into the corner under a dragged one the other way", () => {
+    // Same tie, and the direction the ids pick is the one neither box can take:
+    // s1 is against both edges and s2 holds a dragged card. The opposite
+    // direction is just as valid, and without trying it the two stay drawn on
+    // top of each other with the solver calling the pair wedged.
+    const nodes = [agent("a1", "s1"), agent("b1", "s2")];
+    const pos = at([["a1", 0, 0], ["b1", 0, 0]]);
+    const m = sizes(["a1", "b1"]);
+    const pinned = new Map([["b1", { x: 0, y: 0 }]]);
+    const prev = new Map<string, { w: number; h: number }>();
+    bubblePush(nodes, pos, pinned, m, prev);   // records only
+    const moved = bubblePush(nodes, pos, pinned, m, prev);
+
+    expect(moved).toEqual(["s1"]);
+    expect(pos.get("b1")).toEqual({ x: 0, y: 0 });
+    const a1 = pos.get("a1")!;
+    expect(a1.x > 0 || a1.y > 0).toBe(true);
+    expect(collidingSessions(nodes, pos, m)).toEqual([]);
+  });
 });
 
 // An agent gaining a burst lane is the most common way a session on this canvas

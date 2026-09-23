@@ -1,3 +1,4 @@
+import { figureText, latencyFigure, rateFigure } from "./net-format";
 // What each history series reads RIGHT NOW, keyed the way the ring keys it.
 //
 // The footer strip draws two things per cell from two different sources, and
@@ -81,7 +82,11 @@ export function liveReadings(sys: LiveSource): Record<string, number> {
  * the two decimals the panel gives it, because a load that reads `78` when the
  * panel says `78.89` is a different number to anyone comparing the two.
  */
-export function fmtReading(v: number, unit: "C" | "%" | ""): string {
+export function fmtReading(v: number, unit: "C" | "%" | "" | "B/s" | "ms"): string {
+  // The network's units are written by net-format.ts, the one place that
+  // decides what a speed or a round trip looks like.
+  if (unit === "B/s") return figureText(rateFigure(v));
+  if (unit === "ms") return figureText(latencyFigure(v));
   if (unit === "C") return `${Math.round(v)}°`;
   if (unit === "%") return `${Math.round(v)}%`;
   return v.toFixed(2);
@@ -101,7 +106,8 @@ export function fmtReading(v: number, unit: "C" | "%" | ""): string {
  * number; this is written over the value rather than over that fact, so a
  * fractional one would still print correctly instead of being rounded away.
  */
-export function fmtThreshold(v: number, unit: "C" | "%" | ""): string {
+export function fmtThreshold(v: number, unit: "C" | "%" | "" | "B/s" | "ms"): string {
+  if (unit === "B/s" || unit === "ms") return fmtReading(v, unit);
   if (!Number.isInteger(v)) return fmtReading(v, unit);
   if (unit === "C") return `${v}°`;
   if (unit === "%") return `${v}%`;

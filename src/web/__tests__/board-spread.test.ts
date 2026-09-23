@@ -220,7 +220,14 @@ describe("a subagent lands beside the session it joined", () => {
 });
 
 describe("the passes together, in the order App runs them", () => {
-  /** snapshotToFlow's layout branch: place what has no position, then repair. */
+  /** The three passes in the order snapshotToFlow calls them, reduced to what
+   *  the spread is about: place what has no position, then repair.
+   *
+   *  Not a stand-in for snapshotToFlow — it passes no lane map and knows
+   *  nothing about recap notes, and a re-typed branch goes on passing after the
+   *  real one changes. The composition itself is driven in canvas-flow.test.ts
+   *  since #1175; what is here is the arrangement these three produce, over
+   *  boards big enough to see a column count in. */
   function pass(nodes: Node[], edges: Edge[], positions: Map<string, Point>) {
     const measured = sizes(nodes);
     const pinned = new Map<string, Point>();

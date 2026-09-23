@@ -170,6 +170,8 @@ describe("the modals themselves", () => {
   it("wires every backdrop in the app to the shared hook", () => {
     const withBackdrop = sources.filter(([, src]) => /className="[a-z-]*backdrop"/.test(src));
     expect(withBackdrop.map(([name]) => name).sort()).toEqual([
+      // The account-projects report, opened from an account's ⋯ row.
+      "AccountProjectsModal.tsx",
       "AddAccountDialog.tsx",
       // Browser Watch, named here for the same reason as the two below.
       "BrowserWatchModal.tsx",

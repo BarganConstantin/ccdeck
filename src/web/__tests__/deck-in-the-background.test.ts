@@ -13,15 +13,20 @@
 // with it (the leash, and the pipe that dies with it), and a parent that detaches
 // something which was never a start at all (`ccdeck --version` printing its
 // answer into a log file).
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { EventEmitter } from "node:events";
+import { mkdtempSync, readFileSync, writeFileSync, writeSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rmTempDir } from "./rm-temp-dir";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
-const { DECK_LOG, DETACHED_ENV, detachEnv, logMode, stopCommand, tailFile } = detach as {
+const { DECK_LOG, DETACHED_ENV, detachAndWatch, detachEnv, logMode, stopCommand, tailFile } = detach as {
   DECK_LOG: string;
   DETACHED_ENV: string;
+  detachAndWatch: (o: Record<string, unknown>) => Promise<{ ok: false; reason: string }>;
   detachEnv: (o?: { isTTY?: boolean; profile?: string; columns?: number }) => Record<string, string>;
   logMode: (n: number) => string;
   stopCommand: (o?: { npx?: boolean; invokedAs?: string | null; product?: string }) => string;
@@ -295,5 +300,212 @@ describe("what an npx run is told it is missing", () => {
   it("says nothing extra when the deck was installed normally", () => {
     const at = SRC_SUP.indexOf("const offer = npx");
     expect(SRC_SUP.slice(at, at + 400)).toContain(': "";');
+  });
+});
+
+// ── the launcher itself, driven ──────────────────────────────────────────────
+//
+// Everything above pins detachAndWatch as source text, and the only run of it
+// in the suite is tarball-install-smoke's happy path. The exits are the part a
+// caller depends on: `ccdeck --port banana; echo $?` and `ccdeck && open …`
+// read the launcher's code as the deck's, so an exit path that answered 0 for
+// a deck that never started — or never answered at all — is a script told the
+// deck is up when it is not, or a terminal that hangs. So the launcher is run
+// here with a fake spawn: a child that is an EventEmitter the case speaks for,
+// a terminal that is an array, and an exit that is a spy.
+describe("the launcher, driven with a child it can be told anything by", () => {
+  type FakeChild = EventEmitter & {
+    kill: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
+    unref: ReturnType<typeof vi.fn>;
+  };
+  type SpawnOpts = { detached?: boolean; stdio: unknown[]; env: Record<string, string>; windowsHide?: boolean };
+
+  const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+  const dirs: string[] = [];
+  const before = new Map<string, Function[]>();
+
+  afterEach(() => {
+    // The launcher installs its Ctrl+C handlers on the real `process`, and in
+    // production the process exits right after. Here it does not, so each case
+    // takes back whatever it added — otherwise a later SIGINT to the vitest
+    // worker would run every one of them.
+    for (const sig of SIGNALS) {
+      const had = before.get(sig) ?? [];
+      for (const fn of process.listeners(sig)) {
+        if (!had.includes(fn)) process.removeListener(sig, fn as (...a: unknown[]) => void);
+      }
+    }
+    before.clear();
+    for (const d of dirs.splice(0)) rmTempDir(d);
+  });
+
+  /** One launch. Not awaited on the paths that work: detachAndWatch never
+   *  returns on those, by design — every way out of it is an exit. */
+  function launch(opts: {
+    liveCount?: number;
+    isTTY?: boolean;
+    profile?: string;
+    logDir?: string;
+    onSpawn?: (o: SpawnOpts) => void;
+  } = {}) {
+    for (const sig of SIGNALS) before.set(sig, process.listeners(sig).slice());
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-launcher-"));
+    dirs.push(dir);
+    const logDir = opts.logDir ?? join(dir, "logs");
+    const child = Object.assign(new EventEmitter(), {
+      kill: vi.fn(), disconnect: vi.fn(), unref: vi.fn(),
+    }) as FakeChild;
+    const written: string[] = [];
+    const exit = vi.fn();
+    const spawnFn = vi.fn((_file: string, _args: string[], o: SpawnOpts) => {
+      opts.onSpawn?.(o);
+      return child;
+    });
+    const outcome = detachAndWatch({
+      file: "/pkg/bin/agent-dag.js",
+      argv: ["--no-open"],
+      logDir,
+      liveCount: opts.liveCount ?? 0,
+      env: { PATH: "/usr/bin" },
+      out: { write: (b: Buffer | string) => { written.push(String(b)); return true; } },
+      isTTY: opts.isTTY ?? false,
+      profile: opts.profile ?? "none",
+      execPath: "/usr/bin/node",
+      spawnFn,
+      backgroundLine: "  -  running in the background\n",
+      exit,
+    });
+    const signalled = (sig: NodeJS.Signals) => {
+      const had = before.get(sig) ?? [];
+      return process.listeners(sig).filter(fn => !had.includes(fn));
+    };
+    return { child, exit, spawnFn, written, outcome, logDir, signalled, text: () => written.join("") };
+  }
+
+  it("leaves on `booted`, and not a moment earlier on `listening`", () => {
+    const run = launch();
+    run.child.emit("message", { type: "listening", port: 4317 });
+    // The port is bound before the report is finished; leaving here would cut
+    // the last rows of the boot off the terminal.
+    expect(run.exit).not.toHaveBeenCalled();
+    expect(run.child.disconnect).not.toHaveBeenCalled();
+
+    run.child.emit("message", { type: "booted" });
+    expect(run.text().endsWith("  -  running in the background\n")).toBe(true);
+    // Disconnected and unref'd, so the deck is not left holding a channel to a
+    // process that has gone, and the launcher's event loop is not held by it.
+    expect(run.child.disconnect).toHaveBeenCalledTimes(1);
+    expect(run.child.unref).toHaveBeenCalledTimes(1);
+    expect(run.exit).toHaveBeenCalledTimes(1);
+    expect(run.exit).toHaveBeenCalledWith(0);
+
+    // The deck's own exit, hours later, is not the launcher's to report twice.
+    run.child.emit("exit", 1, null);
+    expect(run.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it("exits with the child's code when the child ends first", () => {
+    // `ccdeck --port banana; echo $?` — the refusal is the worker's, and the
+    // launcher is the only process the shell can see.
+    const failed = launch();
+    failed.child.emit("exit", 1, null);
+    expect(failed.exit.mock.calls).toEqual([[1]]);
+
+    // Killed rather than exiting has no code to forward, and it is still not
+    // a deck that started.
+    const killed = launch();
+    killed.child.emit("exit", null, "SIGTERM");
+    expect(killed.exit.mock.calls).toEqual([[1]]);
+
+    // And a child that says its piece and leaves 0 is the attach: another deck
+    // was already up, the six lines are on screen, and nothing failed.
+    const attached = launch();
+    attached.child.emit("exit", 0, null);
+    expect(attached.exit.mock.calls).toEqual([[0]]);
+  });
+
+  it("exits 1 when the child cannot be started at all", () => {
+    const run = launch();
+    run.child.emit("error", Object.assign(new Error("spawn EACCES"), { code: "EACCES" }));
+    expect(run.exit.mock.calls).toEqual([[1]]);
+  });
+
+  it("spawns a detached copy whose only output is one file and whose only voice is IPC", () => {
+    let seen: SpawnOpts | null = null;
+    launch({ isTTY: true, profile: "truecolor", onSpawn: (o) => { seen = o; } });
+    const o = seen as unknown as SpawnOpts;
+    expect(o.detached).toBe(true);
+    expect(o.stdio[0]).toBe("ignore");
+    // One descriptor for both streams — a FILE, never a pipe that would die
+    // with this process and EPIPE the deck hours later.
+    expect(typeof o.stdio[1]).toBe("number");
+    expect(o.stdio[2]).toBe(o.stdio[1]);
+    expect(o.stdio[3]).toBe("ipc");
+    // Marked so the copy cannot do this again, with the caller's environment
+    // kept and the terminal's colour tier handed down.
+    expect(o.env[DETACHED_ENV]).toBe("1");
+    expect(o.env.PATH).toBe("/usr/bin");
+    expect(o.env.FORCE_COLOR).toBe("3");
+  });
+
+  it("hands back a reason instead of starting, when the log cannot be opened", async () => {
+    // A read-only or full home. A deck that refuses to start over its LOG is a
+    // worse answer than one that stays in the terminal, so the caller is told
+    // why and bin/agent-dag.js carries on in the foreground.
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-launcher-file-"));
+    dirs.push(dir);
+    const file = join(dir, "not-a-dir");
+    writeFileSync(file, "x");
+    const run = launch({ logDir: join(file, "logs") });
+    const got = await run.outcome;
+    expect(got.ok).toBe(false);
+    expect(typeof got.reason).toBe("string");
+    expect(got.reason.length).toBeGreaterThan(0);
+    expect(run.spawnFn).not.toHaveBeenCalled();
+    expect(run.exit).not.toHaveBeenCalled();
+  });
+
+  it("shows an attach only its own lines, and leaves the running deck's log alone", () => {
+    // A registered deck holds a descriptor into this file. The attach appends
+    // rather than truncating under it, and tails from the old end, so its six
+    // lines are not preceded by a replay of that deck's whole log.
+    const onSpawn = (o: SpawnOpts) => { writeSync(o.stdio[1] as number, "NEW\n"); };
+    const probe = mkdtempSync(join(tmpdir(), "ccdeck-launcher-log-"));
+    dirs.push(probe);
+    writeFileSync(join(probe, DECK_LOG), "OLD\n");
+
+    const attach = launch({ liveCount: 1, logDir: probe, onSpawn });
+    attach.child.emit("message", { type: "booted" });
+    expect(attach.text()).toContain("NEW");
+    expect(attach.text()).not.toContain("OLD");
+    expect(readFileSync(join(probe, DECK_LOG), "utf8")).toBe("OLD\nNEW\n");
+  });
+
+  it("starts the log afresh when no deck is registered to own it", () => {
+    const onSpawn = (o: SpawnOpts) => { writeSync(o.stdio[1] as number, "NEW\n"); };
+    const probe = mkdtempSync(join(tmpdir(), "ccdeck-launcher-log-"));
+    dirs.push(probe);
+    writeFileSync(join(probe, DECK_LOG), "OLD\n");
+
+    const start = launch({ liveCount: 0, logDir: probe, onSpawn });
+    start.child.emit("message", { type: "booted" });
+    expect(start.text()).toContain("NEW");
+    expect(readFileSync(join(probe, DECK_LOG), "utf8")).toBe("NEW\n");
+  });
+
+  it("ends an interrupted start instead of leaving it running behind the user", () => {
+    // The child is in its own process group, so the terminal's Ctrl+C never
+    // reached it. Called through the handler the launcher installed rather than
+    // by raising SIGINT at the vitest worker, which has handlers of its own.
+    const run = launch();
+    const handlers = run.signalled("SIGINT");
+    expect(handlers).toHaveLength(1);
+    (handlers[0] as () => void)();
+    expect(run.child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(run.exit.mock.calls).toEqual([[130]]);
+    // SIGTERM and SIGHUP are answered the same way, by one handler each.
+    expect(run.signalled("SIGTERM")).toHaveLength(1);
+    expect(run.signalled("SIGHUP")).toHaveLength(1);
   });
 });

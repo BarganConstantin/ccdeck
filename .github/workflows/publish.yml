@@ -34,7 +34,7 @@ jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
   #
-  #   ubuntu-latest   the 18 sites gated `skipIf(process.platform === "win32")`
+  #   ubuntu-latest   the 19 sites gated `skipIf(process.platform === "win32")`
   #                   run here, plus the `runIf(posix)` family — the widest
   #                   coverage of the three. That number is not something a
   #                   reader has to take on trust: skip-gate-inventory.test.ts
@@ -44,12 +44,13 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 37 skipped cases in all — together with the
-  #                   `runIf(posix)` family and sound-hook-park's read-only
-  #                   directory case, whose probe cannot block a write on
-  #                   Windows. Windows is where this repo's recurring bugs live:
-  #                   .cmd shim resolution, cmd.exe quoting, kill-tree, atomic
-  #                   rename. It used to be the only leg that ran the drive-colon
+  #                   here — 42 skipped cases in all — together with the
+  #                   `runIf(posix)` family and the two read-only-directory
+  #                   cases (sound-hook-park's and the macOS swap script's),
+  #                   whose probe cannot block a write on Windows. Windows is
+  #                   where this repo's recurring bugs live: .cmd shim
+  #                   resolution, cmd.exe quoting, kill-tree, atomic rename.
+  #                   It used to be the only leg that ran the drive-colon
   #                   case in cc-project-slug.test.ts, which was gated
   #                   `skipIf(process.platform !== "win32")`; #585 un-gated it —
   #                   it compares tails like its three siblings now — so that
@@ -507,3 +508,208 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- \`ccdeck\` — **$CCDECK**, not published at this version" >> $GITHUB_STEP_SUMMARY
           fi
+
+  # ── the desktop app (#1160) ──────────────────────────────────────────────────
+  #
+  # Built on every pull request, so a packaging break shows in review rather
+  # than on release day, and uploaded as workflow artifacts. Only a v* tag turns
+  # them into a GitHub Release (desktop-release below). Every OS builds on its
+  # own runner: macOS makes both the Apple silicon and the Intel app, because
+  # its signing (rcodesign, with a requirement compiled by Apple's csreq) and
+  # its .dmg need a Mac; Windows makes the NSIS installer; Linux the AppImage
+  # and the .deb.
+  #
+  # Signing needs three repository secrets, none of which a pull request from a
+  # fork can read:
+  #   CCDECK_MAC_CERT / CCDECK_MAC_KEY — ccdeck's self-signed code-signing
+  #     certificate and key (PEM). They keep the macOS app ONE app across
+  #     updates, which is what lets its notification permission survive them.
+  #   CCDECK_UPDATE_KEY — the Ed25519 key every update is signed with; the app
+  #     checks the signature with the public half it carries.
+  # Without them a pull-request build is ad-hoc signed and its updates
+  # unsigned — fine to look at, refused by any installed app, and refused
+  # outright on a tag (the check below).
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            build: --mac --x64 --arm64
+          - os: windows-latest
+            build: --win --x64
+          - os: ubuntu-latest
+            build: --linux --x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      HAS_SIGNING: ${{ secrets.CCDECK_UPDATE_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Refuse to release unsigned
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING != 'true' }}
+        shell: bash
+        run: |
+          echo "::error::A tagged desktop build needs CCDECK_MAC_CERT, CCDECK_MAC_KEY and CCDECK_UPDATE_KEY"
+          exit 1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Draw icons, bundle the tray model, render the tones
+        working-directory: desktop
+        run: npm run prepare-app
+
+      # Electron itself and electron-builder's toolsets (NSIS, AppImage, fpm)
+      # come from GitHub releases, which have answered 504 on these runners.
+      # Kept between runs, most builds download nothing.
+      - name: Cache Electron and its build tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json') }}
+
+      # rcodesign signs with a PEM key and needs no keychain trust — the reason
+      # a self-signed certificate works at all (scripts/sign-mac.cjs). Pinned,
+      # and checked against the checksum the release publishes.
+      - name: Install rcodesign
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          V=0.29.0
+          NAME="apple-codesign-$V-macos-universal"
+          cd "$RUNNER_TEMP"
+          # Retried: GitHub's release downloads have answered 504 on these
+          # runners, and one refused download should not fail the build.
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 10 "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/$NAME.tar.gz"
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 10 "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/$NAME.tar.gz.sha256"
+          test "$(shasum -a 256 "$NAME.tar.gz" | cut -d' ' -f1)" = "$(tr -d ' \n' < "$NAME.tar.gz.sha256")"
+          tar -xzf "$NAME.tar.gz"
+          echo "RCODESIGN=$RUNNER_TEMP/$NAME/rcodesign" >> "$GITHUB_ENV"
+
+      - name: Signing identity
+        if: runner.os == 'macOS' && env.HAS_SIGNING == 'true'
+        shell: bash
+        env:
+          CERT: ${{ secrets.CCDECK_MAC_CERT }}
+          KEY: ${{ secrets.CCDECK_MAC_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$CERT" > "$RUNNER_TEMP/ccdeck-signing.cert.pem"
+          printf '%s\n' "$KEY" > "$RUNNER_TEMP/ccdeck-signing.key.pem"
+          echo "CCDECK_SIGNING_CERT=$RUNNER_TEMP/ccdeck-signing.cert.pem" >> "$GITHUB_ENV"
+          echo "CCDECK_SIGNING_KEY=$RUNNER_TEMP/ccdeck-signing.key.pem" >> "$GITHUB_ENV"
+
+      # --publish never: electron-builder publishes to GitHub on its own when it
+      # sees a tag and a token, and the release is desktop-release's to make.
+      - name: Package
+        working-directory: desktop
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('../package.json').version")
+          # Up to three tries, for the same 504s as above: a download that
+          # fails inside electron-builder has no retry of its own.
+          for attempt in 1 2 3; do
+            npx electron-builder ${{ matrix.build }} --config electron-builder.config.cjs --publish never -c.extraMetadata.version="$VERSION" && exit 0
+            echo "::warning::electron-builder failed (attempt $attempt), retrying in 20s"
+            sleep 20
+          done
+          exit 1
+
+      - name: Sign the updates
+        if: env.HAS_SIGNING == 'true'
+        working-directory: desktop
+        shell: bash
+        env:
+          CCDECK_UPDATE_KEY: ${{ secrets.CCDECK_UPDATE_KEY }}
+        run: |
+          VERSION=$(node -p "require('../package.json').version")
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            for zip in dist/app/*-mac-*.zip; do
+              arch=$(basename "$zip" .zip); arch=${arch##*-mac-}
+              node scripts/sign-update.mjs "$zip" "$VERSION" "$arch" dist/app/latest-mac.json
+            done
+          else
+            node scripts/sign-yml.mjs dist/app
+          fi
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            desktop/dist/app/*.dmg
+            desktop/dist/app/*.zip
+            desktop/dist/app/*.exe
+            desktop/dist/app/*.AppImage
+            desktop/dist/app/*.deb
+            desktop/dist/app/*.blockmap
+            desktop/dist/app/latest*.yml
+            desktop/dist/app/latest-mac.json
+
+  # The GitHub Release for a v* tag: every OS's installers and the manifests
+  # the installed apps update from (releases/latest/download/…). After the npm
+  # publish, so the release never announces a version npm does not have.
+  desktop-release:
+    needs: [desktop, publish]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Collect the installers
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # The text is the annotated tag's message, which is what the person
+          # releasing chose to say — often only "Bug fixes and improvements".
+          # Read through the API because this job has no checkout; a
+          # lightweight tag has no message and gets a plain line instead.
+          REF=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME")
+          if [ "$(echo "$REF" | jq -r .object.type)" = "tag" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$(echo "$REF" | jq -r .object.sha)" --jq .message > notes.md
+          else
+            echo "ccdeck $VERSION" > notes.md
+          fi
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" \
+              --title "ccdeck $VERSION" \
+              --notes-file notes.md
+          fi
+          ls -la release

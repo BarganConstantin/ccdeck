@@ -14,11 +14,11 @@ import {
   mayAskYouTube, readLiveMarks, readUntilMarks,
 } from "../../server/claude-fm.mjs";
 import {
-  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME, STOPPED_STATES,
+  command, embedSrc, FATAL_ERRORS, STOPPED_STATES,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
-  nextActivity, pickActivity, propSpot, sitSteps,
+  ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  nextActivity, pickActivity, propSpot, sitSteps, fishSteps, skipSteps, SKIP_BEAT_MS, ballRollTo,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
@@ -316,8 +316,12 @@ describe("talking to the player", () => {
     expect(component).toContain("onLoad={() => say(listenCommand())}");
     // And asks for play once the player answers: `autoplay=1` inside the click
     // that built the frame is everything the autoplay policy asks for, and the
-    // player still came up unstarted on a real deck.
-    expect(component).toContain('if (signal.kind === "ready") { say(command("playVideo")); return; }');
+    // player still came up unstarted on a real deck. The slider's level goes
+    // FIRST, so the stream's first audible moment is already at the menu's
+    // volume rather than the player's own remembered one.
+    expect(component).toMatch(
+      /signal\.kind === "ready"\) \{\s*say\(command\("setVolume", \[volumeRef\.current\]\)\);\s*say\(command\("playVideo"\)\);\s*return;/,
+    );
     expect(component).not.toMatch(/kind === "ready"\) \{ say\(listenCommand\(\)\)/);
   });
 
@@ -329,32 +333,27 @@ describe("talking to the player", () => {
   });
 });
 
-describe("getting out of the way of the deck's own sound", () => {
-  it("ducks rather than mutes", () => {
-    // The music going silent and coming back is more noticeable than the music
-    // getting quieter, and the point is to make the chime audible, not to
-    // interrupt the track.
-    expect(DUCK_VOLUME).toBeGreaterThan(0);
-    expect(DUCK_VOLUME).toBeLessThan(FULL_VOLUME / 3);
+describe("the deck's own sound plays over the music", () => {
+  it("only the slider touches the player's volume", () => {
+    // Every chime used to drop the stream to a fraction of its level and bring
+    // it back a moment later, and with notifications on that dip was heard as
+    // Claude FM cutting out. The chime is a short tone on its own
+    // AudioContext; the browser mixes the two, and the music keeps going.
+    // setVolume exists now — the Appearance menu's slider drives it — so the
+    // blanket absence check below had to become a narrower one: exactly the two
+    // senders fm-volume.test.ts names (the ready handshake and the live
+    // retune), both passing the user's own level, and nothing that moves it on
+    // a chime's behalf.
+    expect(component.match(/command\("setVolume"/g) ?? []).toHaveLength(2);
+    expect(component).not.toMatch(/duck/i);
+    expect(component).not.toContain("useImperativeHandle");
   });
 
-  it("holds the music down for the figure's own length", () => {
-    // A fixed number would clip the long figures and leave the music quiet
-    // after the short ones — and the sound menu lets a user pick either.
-    const short = duckMsFor([{ at: 0, ms: 90 }]);
-    const long = duckMsFor([{ at: 0, ms: 90 }, { at: 0.42, ms: 220 }]);
-    expect(short).toBe(90 + DUCK_TAIL_MS);
-    expect(long).toBe(640 + DUCK_TAIL_MS);
-    expect(long).toBeGreaterThan(short);
-    expect(duckMsFor([])).toBe(DUCK_TAIL_MS);
-  });
-
-  it("is wired to every chime the deck plays, and only when one sounded", () => {
-    // `play` returns false when the switch is off or the page has not been
-    // touched yet; ducking then would drop the music for nothing.
-    expect(app).toContain("if (chime && chimesRef.current?.play(chime)) duckForChime(chime);");
-    expect(app).toContain("if (chimesRef.current?.play(chime, true)) duckForChime(chime);");
-    expect(app).toContain("figureFor(chime, tonePrefsRef.current[chime]?.figure)");
+  it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
+    expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
+    expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
+    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
+    expect(app).not.toMatch(/duck/i);
   });
 });
 
@@ -369,7 +368,7 @@ describe("absent, not broken", () => {
   it("builds no iframe until somebody presses play", () => {
     // A page that starts making noise on load is a bug, and an iframe that
     // exists has already called Google whether or not anybody asked.
-    expect(component).toContain("{armed && probe.channel && (");
+    expect(component).toContain("{armed && (probe.channel || probe.video) && (");
     expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
     expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
   });
@@ -377,6 +376,28 @@ describe("absent, not broken", () => {
   it("never restores a playing state from storage", () => {
     expect(component).not.toContain("localStorage");
     expect(component).not.toContain("sessionStorage");
+  });
+
+  it("releases the player on explicit stop and rejects messages from old frames", () => {
+    expect(component).toContain('if (e.source !== frame.current?.contentWindow) return;');
+    expect(component).toMatch(/if \(!next\) setArmed\(false\);/);
+  });
+
+  it("caches pixel geometry outside the memoized component", () => {
+    const start = component.indexOf('export default memo(');
+    expect(start).toBeGreaterThan(0);
+    expect(component.indexOf('const TORSO_RECTS')).toBeLessThan(start);
+    expect(component.indexOf('const PROP_PIXELS')).toBeLessThan(start);
+    expect(component.slice(start)).not.toContain('spriteRects(');
+  });
+
+  it("pauses scene timers and visual animations without stopping music", () => {
+    expect(component).toContain('createSceneTimer(document)');
+    expect(component).toContain('timer.dispose()');
+    expect(component).toContain('data-suspended={suspended ? "" : undefined}');
+    expect(component).toContain('animation.pause()');
+    expect(component).toContain('animation.play()');
+    expect(css).toMatch(/\.fm\.fm\[data-suspended\][\s\S]*?animation-play-state:\s*paused/);
   });
 
   it("lets a deck refuse to contact YouTube at all", () => {
@@ -723,7 +744,7 @@ describe("the character", () => {
   it("changes its mind only while something is playing", () => {
     // A timer running for a character standing still is a timer running for
     // nothing.
-    expect(component).toContain("if (!playing) { setDance(null); return; }");
+    expect(component).toContain("if (!playing || reducedMotion) { setDance(null); return; }");
   });
 
   it("listens to no audio, because it cannot", () => {
@@ -749,14 +770,9 @@ describe("the character", () => {
     }
   });
 
-  it("keeps its weight in both themes, which is not the same number twice", () => {
-    // 0.55 is a dark-theme number: there the accent is a bright ink on
-    // near-black and survives being halved. In light it is a dark ink on a
-    // light ground, where dimming does not make it quieter, it makes it grey —
-    // the light sprite read as a smudge on the minimap next to a dark one that
-    // read as a character.
-    expect(decl(".fm-sprite", "opacity")).toBe("0.55");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBe("0.72");
+  it("stays fully visible with music off in either theme", () => {
+    expect(decl(".fm-sprite", "opacity")).toBe("1");
+    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBeNull();
     // Both themes drive the same three tokens, so nothing is hard-coded to one
     // of them: the canvas shows through the eyes on either.
     expect(decl(".fm-body, .fm-leg", "fill")).toBe("var(--accent)");
@@ -785,9 +801,11 @@ describe("the character", () => {
     // everything around them, and two copies of that fact would drift.
     expect(decl(".fm-sprite", "--fm-ink")).toBe("var(--bg)");
     expect(decl(':root[data-theme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
-    // And the blink closes onto the body colour from whichever ink is in use.
+    expect(decl(':root[data-theme="light"] .fm-sprite', "--accent")).toBe("var(--pixel-character-body)");
+    // Blinking leaves a dark eyelid instead of erasing the face.
     const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(blink).toContain("var(--fm-ink)");
+    expect(blink).toContain("scaleY(0.35)");
+    expect(blink).not.toContain("fill:");
     expect(blink).not.toContain("var(--bg)");
     expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
   });
@@ -822,14 +840,27 @@ describe("the character", () => {
     expect(decl(".fm-sprite", "animation")).toBeNull();
   });
 
-  it("walks the edge in two frames, not on a curve", () => {
-    // A pixel character that eases between poses looks like a picture being
-    // tweened; one that snaps between two looks like it is taking steps. So the
-    // keyframes hold each pose for half the cycle and the timing is linear.
+  it("raises only the arms on hover or keyboard focus", () => {
+    expect(component).toContain('className="fm-arms"');
+    expect(decl('.fm-arms', 'transition')).toBe('transform 160ms steps(2, end)');
+    expect(decl('.fm-sprite:is(:hover, :focus-visible) .fm-arms', 'transform')).toBe('translateY(-2px)');
+  });
+
+  it("bends to pick up objects without splaying or moving the feet", () => {
+    expect(component).toContain('(act === "land" || act === "dismount")');
+    expect(decl('.fm-walker[data-act="stoop"] .fm-sprite', 'animation')).toBeNull();
+    expect(decl('.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion)', 'animation')).toBe('fm-stoop 720ms steps(2, end)');
+    expect(decl('.fm-walker[data-act="stoop"] .fm-arms', 'animation')).toBe('fm-reach 720ms steps(2, end)');
+    expect(component).not.toContain('H15V13');
+  });
+
+  it("uses the original development walking animation", () => {
     expect(css).toContain('.fm-walker[data-act="walk"]');
     // Carrying something is still walking.
     expect(css).toContain('.fm-walker[data-act="carry"]');
-    expect(css).toMatch(/animation: fm-stride-a 440ms linear infinite/);
+    expect(decl(':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"]', 'animation')).toBe('fm-stride-a 440ms linear infinite');
+    expect(decl(':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"]', 'animation')).toBe('fm-stride-b 440ms linear infinite');
+    expect(component).not.toContain('fm-walk-frames');
 
     // The curve is a compromise: pure linear starts and stops dead, a full ease
     // makes the middle race and the feet stop matching the ground. This is the
@@ -922,21 +953,25 @@ describe("the character", () => {
 
   it("looks before it steps off, and absorbs when it arrives", () => {
     // Nothing sensible jumps from a height it has not looked at.
-    expect(decl('.fm-walker[data-act="peer"] .fm-sprite', "transform")).toContain("rotate(-9deg)");
+    expect(decl('.fm-walker[data-act="peer"] .fm-sprite', "transform")).toBe("translateX(-3px)");
     // A body that arrives at speed and stops dead did not land, it was placed.
     // This is the deepest squash in the block because it is the only impact.
     const land = decl('.fm-walker[data-act="land"] .fm-sprite', "transform") ?? "";
-    const [, , sy] = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(land) ?? [];
-    const sit = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(
-      decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "") ?? [];
-    expect(Number(sy)).toBeLessThan(Number(sit[2]));
+    expect(land).toBe("translateY(3px)");
+    expect(component).toContain('className="fm-crouch-legs"');
   });
 
   it("always comes home, and never plans a trip it cannot measure", () => {
     const ground = { ledgeH: 152, floorSpan: 900 };
     const steps = leaveLedgeSteps(-20, ground, () => 0.5);
     expect(steps.map(s2 => s2.act)).toEqual(
-      ["walk", "peer", "fall", "land", "walk", "walk", "walk", "lasso", "climb"]);
+      ["walk", "peer", "fall", "land", "walk", "walk", "walk", "lasso", "rope-throw", "rope-catch", "climb", "pull-up"]);
+    // The character stays grounded until the hook has landed and taken weight.
+    const throwAt = steps.findIndex(step => step.act === "rope-throw");
+    expect(steps[throwAt].place).toBe("floor");
+    expect(steps[throwAt + 1].act).toBe("rope-catch");
+    expect(steps[throwAt + 1].place).toBe("floor");
+    expect(steps[throwAt + 1].ms).toBeGreaterThanOrEqual(200);
     // It ends ON THE LEDGE. Anything else strands the character on the canvas
     // floor with nothing scheduled to bring it back.
     expect(steps.at(-1)?.place).toBeUndefined();
@@ -946,7 +981,8 @@ describe("the character", () => {
     expect(steps[2].x).toBe(steps.at(-1)!.x);
     // The fall and the climb are the measured height, not a guess.
     expect(steps[2].ms).toBe(fallMsFor(152));
-    expect(steps.at(-1)!.ms).toBe(climbMsFor(152));
+    expect(steps.find(step => step.act === "climb")!.ms).toBe(climbMsFor(152));
+    expect(steps.at(-1)!.act).toBe("pull-up");
 
     // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
     // height would drop the character through the floor or leave it hanging.
@@ -1044,8 +1080,8 @@ describe("the character", () => {
     // the extra floor by moving faster — the stride is a fixed cadence, and it
     // would stop matching the ground.
     expect(component).toContain(
-      'stepMs = step.act === "walk" ? Math.max(walkMsFor(here, to), WALK_MIN_MS) : step.ms;');
-    expect(component).toContain("timer = setTimeout(() => run(rest), stepMs);");
+      'stepMs = step.act === "walk" ? Math.max(walkMsFor(from, to), WALK_MIN_MS) : step.ms;');
+    expect(component).toContain("timer.schedule(() => run(rest), stepMs);");
     // A floor narrowed to nothing leaves a walk with no ground to cover, and a
     // step of no duration would chain the whole plan through in one frame.
     expect(WALK_MIN_MS).toBeGreaterThan(0);
@@ -1058,7 +1094,7 @@ describe("the character", () => {
   it("hangs the rope from the ledge, not from the character", () => {
     // A rope that travelled with whoever was climbing it would be a rope
     // climbing itself.
-    expect(component).toMatch(/\{\(act === "lasso" \|\| act === "climb"\) && \(/);
+    expect(component).toMatch(/\{\(act === "lasso" \|\| act === "rope-throw" \|\| act === "rope-catch" \|\| act === "climb" \|\| act === "pull-up"\) && \(/);
     const ropeAt = component.indexOf('className="fm-rope"');
     const walkerAt = component.indexOf('className="fm-walker"');
     expect(ropeAt).toBeGreaterThan(-1);
@@ -1175,13 +1211,11 @@ describe("the character", () => {
     expect(decl('.fm-walker[data-place="floor"]', "--fm-y")).toBe("calc(-1 * var(--fm-riser, 0px))");
   });
 
+
   it("takes strides rather than hopping", () => {
     // A body that rises and falls with its legs welded on is a hop. The two
     // legs run the same cycle half a beat apart, so one is always forward while
     // the other is back — which is the whole of what makes a walk a walk.
-    const walk = ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])';
-    expect(decl(`${walk} .fm-leg[data-side="left"]`, "animation")).toBe("fm-stride-a 440ms linear infinite");
-    expect(decl(`${walk} .fm-leg[data-side="right"]`, "animation")).toBe("fm-stride-b 440ms linear infinite");
     // OPPOSITE PHASE, which is the whole point: the poses are the same two, in
     // the other order. Compared as poses rather than as lines, since the same
     // pose is written under a different percentage in each set.
@@ -1214,11 +1248,11 @@ describe("the character", () => {
   it("climbs in pulls, not as a glide", () => {
     // The rise is linear because a rope is climbed at a steady rate. Nothing
     // about the body doing it is smooth: it gathers, pulls, and reaches again.
-    expect(decl('.fm-walker[data-act="climb"] .fm-sprite', "animation")).toBe("fm-haul 620ms ease-in-out infinite");
+    expect(decl('.fm-walker[data-act="climb"] .fm-sprite', "animation")).toBe("fm-haul 620ms steps(2, end) infinite");
     expect(css).toMatch(/@keyframes fm-haul/);
     // Slower than the walk — hauling your own weight is not a stroll, and the
     // cadence is most of what says so.
-    const stride = /fm-stride-a (\d+)ms linear/.exec(css)?.[1];
+    const stride = 440;
     const haul = /fm-haul (\d+)ms/.exec(css)?.[1];
     expect(Number(haul)).toBeGreaterThan(Number(stride));
     // The rise underneath it stays linear.
@@ -1251,9 +1285,8 @@ describe("the character", () => {
       return Number(/(\d+)ms/.exec(value)?.[1] ?? NaN);
     };
     const pairs: [string, number, string][] = [
-      ['.fm-walker[data-act="stoop"] .fm-sprite', STOOP_MS, "stoop"],
+      ['.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion)', STOOP_MS, "stoop"],
       [".fm-held[data-toss]", TOSS_MS, "toss"],
-      ['.fm-prop[data-prop="ball"][data-leaving]', KICK_MS, "kick"],
     ];
     for (const [selector, stepMs, name] of pairs) {
       const anim = animMs(selector);
@@ -1273,36 +1306,101 @@ describe("the character", () => {
     expect(decl(".fm-held[data-toss]", "animation")).toMatch(/^fm-toss/);
   });
 
+  it.each([[0, -90, "left"], [-140, -30, "right"]] as const)(
+    "kicks from %s toward %s with the ball in front of the foot", (from, at, direction) => {
+      const steps = kickSteps(from, at);
+      let x = from;
+      let facing: "left" | "right" = "right";
+      for (const step of steps) {
+        facing = facingFor(step, x, facing);
+        x = step.x;
+      }
+      expect(facing).toBe(direction);
+      expect(Math.abs(x - at)).toBe(15);
+      expect(Math.sign(at - x)).toBe(direction === "right" ? 1 : -1);
+      expect(steps[0].ms).toBe(walkMsFor(from, x));
+      expect(steps[2].facing).toBe(direction);
+      expect(steps[3].prop).toEqual(steps[2].prop);
+      expect(steps[2].ms + steps[3].ms).toBe(BALL_FLIGHT_MS);
+    },
+  );
+
+  it.each([320, 768, 1500])("keeps the flying ball visible until it drops at viewport width %s", width => {
+    for (let at = 18; at <= width - 18; at++) {
+      for (const facing of ["left", "right"] as const) {
+        const travel = ballRollTo(at, facing, width);
+        expect(travel * (facing === "right" ? 1 : -1)).toBeGreaterThanOrEqual(0);
+        expect(at + travel).toBeGreaterThanOrEqual(18);
+        expect(at + travel).toBeLessThanOrEqual(width - 18);
+        expect(Math.abs(travel)).toBeLessThanOrEqual(BALL_ROLL_PX);
+      }
+    }
+  });
+
+  it("packs away fishing equipment before standing and walking again", () => {
+    for (const from of [-148, 0]) for (const at of [-148, -60, 0]) {
+      const steps = fishSteps(from, at, () => 0.5);
+      expect(steps.map(step => step.act)).toEqual([
+        "walk", "sit", "cast", "fish", "reel", "stow", "stand", "walk",
+      ]);
+      const seated = steps.slice(1, -1);
+      expect(seated.every(step => step.x === steps[0].x)).toBe(true);
+      expect(seated.every(step => facingFor(step, step.x, "right") === "left")).toBe(true);
+      expect(steps.every(step => step.prop === null && step.ms > 0)).toBe(true);
+      expect(steps.at(-1)?.x).toBe(0);
+      expect(steps[3].ms).toBeGreaterThanOrEqual(6000);
+      // The rod reaches 108px left of the walker's right edge, within a 202px ledge.
+      expect(steps[0].x - 108).toBeGreaterThanOrEqual(-202);
+    }
+  });
+
+  it("finishes whole rope revolutions, puts the rope away, then walks", () => {
+    for (const random of [0, 0.5, 0.999]) {
+      const steps = skipSteps(0, -148, () => random);
+      expect(steps.map(step => step.act)).toEqual([
+        "walk", "skip-ready", "skip", "skip-rest", "stand", "walk",
+      ]);
+      expect(steps[2].ms % SKIP_BEAT_MS).toBe(0);
+      expect(steps[2].ms / SKIP_BEAT_MS).toBeGreaterThanOrEqual(6);
+      expect(steps[2].ms / SKIP_BEAT_MS).toBeLessThanOrEqual(10);
+      expect(steps.slice(1, -1).every(step => step.x === steps[0].x)).toBe(true);
+      expect(steps.at(-1)?.x).toBe(0);
+    }
+  });
+
   it("sends the ball down the ledge instead of tidying it", () => {
     // The same errand with the opposite ending — and the ball never leaves the
     // floor, which is the one structural difference and why both fit one shape.
     const steps = kickSteps(-30, -90);
-    expect(steps.map(s2 => s2.act)).toEqual(["walk", "windup", "kick"]);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "windup", "kick", "stand"]);
     expect(steps.every(s2 => !s2.prop?.held)).toBe(true);
     expect(steps.at(-1)?.prop?.leaving).toBe(true);
     // It stays where it was kicked from; the ball is what travels.
-    expect(steps.every(s2 => s2.x === -90)).toBe(true);
+    expect(steps.every(s2 => s2.x === -75)).toBe(true);
+    expect(steps.every(s2 => s2.prop?.at === -90)).toBe(true);
   });
 
-  it("drops far enough when sitting that the pose is not just standing lower", () => {
-    // The legs are two rows — six pixels at 3px a cell — so a drop shorter than
-    // their own height leaves them straddling the ledge line and the whole thing
-    // reads as the character standing slightly lower. Seven did exactly that.
+  it("places the hips on the ledge with a separate seated silhouette", () => {
     const drop = Number(/translateY\((\d+)px\)/.exec(
       decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "")?.[1]);
     // Counted off the sprite, not assumed: the legs got a row longer once
     // already and this number had to move with them.
     const legRows = SPRITE.length - LEG_TOP_ROW;
     const legHeight = legRows * (54 / SPRITE_W);
-    expect(drop).toBeGreaterThan(legHeight);
-    // And it folds rather than being lowered.
-    expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).toContain("scale(1.04, 0.87)");
+    expect(drop).toBe(legHeight);
+    // A separately drawn bent-knee silhouette replaces the standing legs.
+    expect(component).toContain('className="fm-seated-legs"');
+    // Straight, two-cell shins and flat toes, with the near foot one row lower.
+    expect(component).toContain('d="M10 10H12V11H11V14H8V13H9V11H10Z"');
+    expect(component).toContain('d="M6 10H9V11H7V15H4V14H5V11H6Z"');
+    expect(component).toContain('className="fm-seated-far"');
+    expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).not.toContain("scale");
   });
 
   it("walks somewhere before it sits, and sits for a while", () => {
     // Sitting down on the spot it is already standing on reads as falling over.
     const steps = sitSteps(-10, -80, () => 0.5);
-    expect(steps.map(s2 => s2.act)).toEqual(["walk", "sit"]);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "sit", "stand"]);
     expect(steps[0].ms).toBe(walkMsFor(-10, -80));
     expect(steps[1].ms).toBeGreaterThan(steps[0].ms);
     expect(steps[1].prop).toBeNull();
@@ -1311,7 +1409,9 @@ describe("the character", () => {
   it("takes out a scope and looks at the board", () => {
     // The one activity that is ABOUT the canvas rather than about the ledge.
     const steps = watchSteps(0, -60, () => 0.5);
-    expect(steps.map(s2 => s2.act)).toEqual(["walk", "watch"]);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "watch", "scope-pack", "stand"]);
+    expect(steps[2].prop).toEqual(steps[1].prop);
+    expect(steps[3].prop).toBeNull();
     expect(steps[1].prop?.kind).toBe("scope");
     expect(steps[1].prop?.held).toBe(true);
     // Held at the eyes and pointed away from the minimap, or the pose reads as
@@ -1323,7 +1423,12 @@ describe("the character", () => {
     const eyeRow = SPRITE.findIndex(r => r.includes("e"));
     const eyeFromFloor = (SPRITE_H - 1 - eyeRow) * CELL;
     const scopeBottom = parseFloat(decl('.fm-held[data-prop="scope"]', "bottom") ?? "");
-    const scopeH = PROP_ART.scope.length * CELL;
+    const scopeCell = parseFloat(decl('.fm-held[data-prop="scope"]', "width") ?? "") / PROP_ART.scope[0].length;
+    const scopeH = PROP_ART.scope.length * scopeCell;
+    expect(scopeBottom).toBe(0);
+    // Eyepiece rows 9–10, not merely the whole image, must meet the eye.
+    expect(scopeH - 11 * scopeCell).toBeLessThanOrEqual(eyeFromFloor);
+    expect(scopeH - 9 * scopeCell).toBeGreaterThanOrEqual(eyeFromFloor + CELL);
     expect(scopeBottom).toBeLessThanOrEqual(eyeFromFloor);
     expect(scopeBottom + scopeH).toBeGreaterThanOrEqual(eyeFromFloor + CELL);
     expect(decl(".fm-held", "bottom")).toBe("3px");
@@ -1339,17 +1444,24 @@ describe("the character", () => {
     expect(farEnd).toBeLessThan(7 * CELL);     // and stops short of the eye
   });
 
-  it("gives every prop art, and no prop a recognisable identity", () => {
+  it("gives every prop rectangular pixel art with a supported palette", () => {
     for (const kind of ["litter", "ball", "scope"] as const) {
       const art = PROP_ART[kind];
       expect(art.length).toBeGreaterThan(1);
       const w = art[0].length;
       for (const row of art) expect(row).toHaveLength(w);
-      for (const row of art) expect(row).toMatch(/^[.x]+$/);
+      for (const row of art) expect(row).toMatch(/^[.xsla]+$/);
     }
     // A character tidying away an identifiable thing invites the question of
     // what it was, and the answer is nothing.
     expect(PROP_ART.litter).not.toEqual(PROP_ART.ball);
+  });
+
+  it("keeps the telescope silver instead of inverting its barrel with theme text", () => {
+    const scope = '.fm-held[data-prop="scope"]';
+    expect(decl(scope, "--fm-prop-light")).toBe("var(--pixel-metal-light)");
+    expect(decl(scope, "--fm-prop-shadow")).toBe("var(--pixel-metal-shadow)");
+    expect(decl(`${scope} svg`, "fill")).toBe("var(--pixel-metal-edge)");
   });
 
   it("moves the headphones with the body when they are not on the head", () => {
@@ -1375,17 +1487,21 @@ describe("the character", () => {
   });
 
   it("rolls a kicked ball away from the end it would otherwise pile up at", () => {
-    expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toMatch(/^fm-roll 520ms/);
+    expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toBe('fm-roll var(--fm-ball-flight-ms) linear forwards');
     expect(css).toMatch(/@keyframes fm-roll/);
     // Negative: down the ledge, away from the bin corner.
     // THE SIGN IS THE FACING'S, and only the distance is fixed. This rolled a
     // hardcoded -132px, which is right exactly half the time: approach the ball
     // from the left and the kick sent it backwards, straight through the
     // character that had just kicked it.
-    expect(css).toContain("var(--fm-roll-to, -132px)");
+    expect(css).toContain("var(--fm-ball-drop)");
     expect(css).not.toMatch(/- 21px - 132px/);
-    expect(component).toContain('facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`');
-    expect(BALL_ROLL_PX).toBe(132);
+    expect(component).toContain('ballRollTo(ball.x, facingFor(step, from, "left"), window.innerWidth)');
+    expect(BALL_ROLL_PX).toBe(420);
+    const frames = /@keyframes fm-roll \{([\s\S]*?)\n\}/.exec(css)?.[1];
+    expect(frames).toBeTruthy();
+    expect(frames).not.toContain('opacity');
+    expect(BALL_FLIGHT_MS).toBeGreaterThan(KICK_MS * 2);
   });
 
   it("rests between things without going quiet enough to look broken", () => {
@@ -1422,20 +1538,21 @@ describe("the character", () => {
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
-      '.fm-walker[data-act="stoop"] .fm-sprite',
+      '.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion)',
+      '.fm-walker[data-act="stoop"] .fm-arms',
       ".fm-prop",
       ".fm-held[data-toss]",
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye, \.fm-hat \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye, \.fm-hat, \.fm-arms \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });
 
   it("says its state to a reader who cannot see it dance", () => {
     expect(component).toContain("aria-pressed={playing}");
-    expect(component).toMatch(/aria-label=\{playing \? "Stop Claude FM" : "Play Claude FM"\}/);
+    expect(component).toContain("aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}");
     // And says where the sound comes from before anybody presses it.
     expect(component).toContain("streams from YouTube");
   });

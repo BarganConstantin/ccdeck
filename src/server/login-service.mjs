@@ -31,6 +31,7 @@
 // (crashPolicy, in supervisor.mjs), it is identical on every platform, and it is
 // tested. Two policies over one process is how `ccdeck --stop` becomes a
 // suggestion the machine overrules a second later.
+import { inApp } from "./app-host.mjs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -264,6 +265,9 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
  */
 export function shouldOfferService({ record = null, npx = false, checkout = false, env = process.env } = {}) {
   if (env.AGENTS_DECK_NO_INSTALL === "1") return false;
+  // The desktop app owns start-at-login; a second login item from the deck it
+  // started would launch that deck with no app around it (app-host.mjs).
+  if (inApp(env)) return false;
   if (npx || checkout) return false;
   return record === null;
 }

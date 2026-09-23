@@ -59,8 +59,8 @@ describe("each topbar button can say its name (#836)", () => {
     expect(app.match(/className="tb-word"/g)).toHaveLength(WORDS.length);
   });
 
-  it("leaves the theme button without one, since a sun and a moon need no caption", () => {
-    const at = app.indexOf("aria-label={`Switch to ${theme");
+  it("leaves the appearance button without one, since its icon opens a compact menu", () => {
+    const at = app.indexOf("aria-label={`Appearance settings");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(at, app.indexOf("</button>", at))).not.toMatch(/tb-word/);
   });

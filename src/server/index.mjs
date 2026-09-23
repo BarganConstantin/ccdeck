@@ -34,8 +34,12 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
+import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
+import { portHolder } from "./port-holder.mjs";
+import { createRouteCheck } from "./route-via.mjs";
+import { DISCOVERY_PORT } from "./lan-socket.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
@@ -305,6 +309,39 @@ export function payloadChars(raw) {
   return n;
 }
 
+async function handleLiveRadioMix(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: true, live: false, off: true });
+  }
+
+  const { fetchLiveRadioMix } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/live-radio-mix.mjs")).href
+  );
+  const answer = await fetchLiveRadioMix();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Radio Mix is not live" });
+}
+
+async function handleBestOfNostalgia(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
+  const { fetchBestOfNostalgia } = await import(pathToFileURL(join(PKG_ROOT, "src/server/best-of-nostalgia.mjs")).href);
+  const answer = await fetchBestOfNostalgia();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Best of Nostalgia is not live" });
+}
+
+async function handleGoodLifeRadio(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
+  const { fetchGoodLifeRadio } = await import(pathToFileURL(join(PKG_ROOT, "src/server/good-life-radio.mjs")).href);
+  const answer = await fetchGoodLifeRadio();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "The Good Life Radio is not live" });
+}
+
+async function handleCafeMusicBgm(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
+  const { fetchCafeMusicBgm } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cafe-music-bgm.mjs")).href);
+  const answer = await fetchCafeMusicBgm();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Cafe Music BGM is not live" });
+}
+
 // Where the charge rides. A Symbol key rather than an ordinary field, because
 // the envelope is JSON.stringify'd on the hot path into both the SSE frame and
 // the events.jsonl line, and JSON.stringify ignores symbol-keyed properties
@@ -366,6 +403,28 @@ let nextSeq = 1;
 // duplicate" instead of silently dropping the live stream.
 const SEQ_EPOCH = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const sseClients = new Set();       // res handles
+// The desktop app's own connections (#1160): subscribed like any client, so
+// they receive every event, and ALSO kept here so they are never counted as a
+// page. The app reads the stream to draw its tray icon; if that counted as a
+// tab, the deck would believe a page was open whenever the app ran, and the
+// notifications a closed deck raises (block-notify.mjs) would never fire —
+// the one thing the app exists to deliver. See `pageCount`.
+const trayClients = new Set();
+
+/** Pages — deck tabs and the app's window — as opposed to the app's tray
+ *  connection, which is a reader and not somebody looking. */
+function pageCount() {
+  return sseClients.size - trayClients.size;
+}
+
+/** A notification for the desktop app to raise as itself, instead of the OS
+ *  helper raising it as Script Editor (osascript) or PowerShell. */
+function notifyTrays(title, body, { chime = null, who = null } = {}) {
+  // The app names itself above the notification, so the title is the session.
+  const line = `event: notify\ndata: ${JSON.stringify({ title: who ?? title, body, chime })}\n\n`;
+  for (const res of trayClients) writeSse(res, line);
+  return true;
+}
 
 let persistPath = null;             // absolute path to events.jsonl, or null
 
@@ -3438,6 +3497,7 @@ export function queuedBytes(res) {
  *  before they are subscribed — is a harmless no-op. */
 function dropSse(res) {
   sseClients.delete(res);
+  trayClients.delete(res);
   // Destroying the socket is what makes the request emit 'close', which is
   // where the ping interval is cleared.
   try { res.destroy(); } catch {}
@@ -3677,7 +3737,10 @@ let _prefs = { ...PREF_DEFAULTS };
 const _prefsRead = readPrefs().then(p => { _prefs = p; }).catch(() => {});
 
 const blockNotifier = createBlockNotifier({
-  notify: osNotify,
+  // The desktop app, while it is connected, raises the notification itself —
+  // under its own name, icon and permission, with a click that opens its
+  // window. Only when no app is listening does the OS helper speak.
+  notify: (title, body, meta) => (trayClients.size > 0 ? notifyTrays(title, body, meta) : osNotify(title, body)),
   product: PRODUCT,
   // A function, not a boolean: this is a switch a person flips from the sound
   // menu while the deck is running, and a mute that waited for a restart would
@@ -3815,7 +3878,17 @@ async function handlePresence(req, res) {
 // The engine is built once and told the settings; it opens and closes its own
 // sockets as those change. Nothing here touches a credential — see
 // lan-engine.mjs, which passes an opaque blob between two claude-swap commands.
+/** This machine's view of its tailnet, read through the Tailscale CLI — see
+ *  tailscale.mjs. Built whatever the switch says: the dialog asks it whether
+ *  Tailscale is here at all before anybody can turn discovery on. */
+const tailnet = createTailnet();
+
 const lanEngine = createEngine({
+  tailnet,
+  // Who holds the discovery port when it is taken, so the panel can say.
+  portHolder: () => portHolder(DISCOVERY_PORT),
+  // Where each broadcast would leave by, so none goes into a VPN tunnel.
+  routes: createRouteCheck(),
   // This deck's version and machine, for the decks it is paired with and
   // nobody else. RUNNING_VERSION rather than a fresh read, for the reason it
   // is read at import: it is what this process actually runs.
@@ -3922,6 +3995,19 @@ const lanEngine = createEngine({
     // listener had one is missing half of them — see forgetReach.
     forgetReach();
   },
+  // An account arrived from a paired deck, and this deck now offers it too
+  // (#1188). Written before the engine hears it, so a restart between the two
+  // leaves the tick on disk rather than only in the running engine's copy.
+  onShared: async key => {
+    try {
+      const before = _prefs;
+      _prefs = await updatePrefs(withShared(key));
+      if (_prefs?.lan?.shared === before?.lan?.shared) return;   // it was already ticked
+      await lanEngine.apply({ shared: _prefs.lan.shared });
+    } catch (err) {
+      console.error(`${PRODUCT}: lan sync could not share the account it just received:`, err?.message ?? err);
+    }
+  },
   // A deck was accepted or unpaired. Written straight through, because the
   // trusted list is the whole of who this deck will talk to and a list that
   // only existed in memory would drop every pairing on restart.
@@ -3942,10 +4028,7 @@ const lanEngine = createEngine({
       // is the WHOLE array, so a stale one wins. Pressing accept on a heard deck
       // at the moment an invite round fires this dropped the dialled address out
       // of `lan.manual`, which is the failure the comment above describes.
-      _prefs = await updatePrefs(prev => {
-        const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
-        return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
-      });
+      _prefs = await updatePrefs(withManualEntry(entry));
       // AND RECONCILE THE ENGINE'S DIAL LIST with what was just written. The
       // disk is now right, but `setPeers` replaces the list wholesale from
       // `_prefs` on every settings write — so a write that raced this one, and
@@ -4023,6 +4106,11 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     autoAccept: lan.autoAccept !== false,
     // Whether paired decks are told which shared account this one is on.
     shareActive: lan.shareActive !== false,
+    // Discovery over Tailscale, off unless somebody turned it on, and the two
+    // permissions that answer for the owner's own machines there.
+    tailscale: lan.tailscale === true,
+    tailscaleAsk: lan.tailscaleAsk !== false,
+    tailscaleAccept: lan.tailscaleAccept !== false,
     // Names somebody here gave other decks. The engine only hands them to
     // the page, so a change never restarts anything.
     aliases: lan.aliases && typeof lan.aliases === "object" ? lan.aliases : {},
@@ -4247,6 +4335,9 @@ function refreshReach() {
  *  else is in the group. No passphrase, for the reason prefsPayload gives. */
 function handleLanStatus(req, res) {
   refreshReach();
+  // Behind the answer, like the reach probe: the dialog's poll is what finds a
+  // Tailscale somebody installed while the deck was running.
+  if (lanEnabled(_prefs)) void tailnet.freshen(TAILNET_IDLE_MS);
   return send(res, 200, { ok: true, ...lanEngine.status(), reach: reachSaid });
 }
 
@@ -4312,12 +4403,7 @@ async function handleLanPeer(req, res) {
         // Inside the job, like `onDial` — the same whole-array patch computed
         // from the same stale copy, and the same address lost when two of them
         // land in one turn.
-        try {
-          _prefs = await updatePrefs(prev => {
-            const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
-            return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
-          });
-        }
+        try { _prefs = await updatePrefs(withManualEntry(entry)); }
         catch { /* it is dialled this session; the next accept re-adds it */ }
       }
       return send(res, 200, { ok: true, added, ...lanEngine.status() });
@@ -4343,11 +4429,7 @@ async function handleLanPeer(req, res) {
     case "alias": {
       if (!isAliasKey(fp)) return send(res, 400, { ok: false, reason: "bad_request" });
       const name = cleanAlias(body.name);
-      _prefs = await updatePrefs(prev => {
-        const next = { ...(prev?.lan?.aliases ?? {}) };
-        if (name) next[fp] = name; else delete next[fp];
-        return { lan: { aliases: next } };
-      });
+      _prefs = await updatePrefs(withAlias(fp, name));
       await lanEngine.apply({ aliases: _prefs.lan.aliases });
       return send(res, 200, { ok: true, ...lanEngine.status() });
     }
@@ -4547,7 +4629,7 @@ function pushEvent(raw, source, opts = {}) {
   // other means". The web notifier owns the case where a page exists, and this
   // owns the case where none does; the two never both fire, and neither has to
   // know the other exists. block-notify.mjs holds the gates and the cooldown.
-  blockNotifier.consider(raw, { clients: sseClients.size, replay: !!opts.replay });
+  blockNotifier.consider(raw, { clients: pageCount(), replay: !!opts.replay });
 
   // Whether a turn is running, for the away-update. Not from a replay: the log
   // is history, and a turn it shows open is one that ended in another process.
@@ -5300,7 +5382,7 @@ function handleSse(req, res) {
   // is already committed to a 200 and its own failure path is to hang up — so
   // start it, keep the router's contract of returning nothing, and make sure a
   // rejection ends the stream rather than the process.
-  resumeSse(req, res, lastId).catch(() => dropSse(res));
+  resumeSse(req, res, lastId, { tray: isTrayRequest(req) }).catch(() => dropSse(res));
 }
 
 /**
@@ -5314,7 +5396,17 @@ function handleSse(req, res) {
  * neither stream — a hole the client cannot even ask for again, its last id
  * having moved past it.
  */
-async function resumeSse(req, res, lastId) {
+/**
+ * Is this the desktop app's tray connection? Only with the deck's own token:
+ * a page cannot opt itself out of being counted, because that would let any
+ * tab switch on the closed-deck notifications over itself.
+ */
+function isTrayRequest(req) {
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  return url.searchParams.get("role") === "tray" && presentsDeckToken(req.headers ?? {});
+}
+
+async function resumeSse(req, res, lastId, { tray = false } = {}) {
   let sentThrough = lastId;
   let ping = null;
   let closed = false;
@@ -5322,6 +5414,7 @@ async function resumeSse(req, res, lastId) {
     closed = true;
     if (ping) clearInterval(ping);
     sseClients.delete(res);
+    trayClients.delete(res);
   });
 
   for (;;) {
@@ -5393,6 +5486,7 @@ async function resumeSse(req, res, lastId) {
   // takes it back out of the set — the same exit writeSse uses.
   const flushed = writeResume(res, `event: replay-end\ndata: {}\n\n`);
   sseClients.add(res);
+  if (tray) trayClients.add(res);
   // Through writeSse like every other frame: on a client that has stopped
   // reading, the ping is the one thing still being written between events, and
   // it is what eventually reveals the socket as unrecoverable.
@@ -5767,6 +5861,23 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+async function handleLofiGirl(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: true, live: false, off: true });
+  }
+  const url = new URL(req.url, "http://localhost");
+  const station = url.searchParams.get("station");
+  if (!["relax", "game", "vibe", "sleep"].includes(station)) {
+    return send(res, 400, { ok: false, error: "unknown Lofi Girl station" });
+  }
+  const { fetchLofiStations } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/lofi-girl.mjs")).href
+  );
+  const stations = await fetchLofiStations();
+  const answer = stations[station];
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "station is not live" });
+}
+
 async function handleCodexQuota(req, res) {
   const { fetchCodexQuota } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/codex-quota.mjs")).href
@@ -6004,8 +6115,47 @@ async function handleClaudeAccountSwitch(req, res) {
       pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
     );
     invalidateQuotaCache();
+    // Note who became active, and when, for the account-projects report. Best
+    // effort — a failed log write must never fail the switch — so it is not
+    // awaited into the response.
+    import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href)
+      .then(({ recordSwap }) => recordSwap(parsed.account, "manual"))
+      .catch(() => {});
   }
   send(res, result.ok ? 200 : 400, result);
+}
+
+// The account-projects rollup, started once and shared. Its timer is unref'd
+// inside start(), so holding the instance here never keeps the process alive.
+let _projectRollup = null;
+function getProjectRollup() {
+  if (!_projectRollup) {
+    _projectRollup = import(pathToFileURL(join(PKG_ROOT, "src/server/account-projects.mjs")).href)
+      .then(m => { const r = m.createProjectRollup(); r.start().catch(() => {}); return r; });
+  }
+  return _projectRollup;
+}
+
+/**
+ * The "Projects" report for one account: how many tokens it spent per project
+ * over a window. The server tallies only tokens (per model); the web side
+ * prices them with its own table, so cost never lives in two places. `num` is
+ * the account's slot, resolved to its `(email, org)` key here; `days` is 7, 30,
+ * or 0 for all tracked.
+ */
+async function handleAccountProjects(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const num = Number(url.searchParams.get("num"));
+  const d = Number(url.searchParams.get("days"));
+  const days = d === 30 ? 30 : d === 0 ? 0 : 7;
+  if (!Number.isInteger(num) || num <= 0) return send(res, 400, { ok: false, reason: "bad_account" });
+  const { identityForSlot } = await import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href);
+  const id = await identityForSlot(num);
+  if (!id) return send(res, 400, { ok: false, reason: "bad_account" });
+  const { accountKey } = await import(pathToFileURL(join(PKG_ROOT, "src/server/lan-sync.mjs")).href);
+  const rollup = await getProjectRollup();
+  const report = await rollup.report(accountKey(id.email, id.orgUuid), days);
+  send(res, 200, { ok: true, ...report });
 }
 
 function cswapAdminModule() {
@@ -6115,11 +6265,22 @@ const PINNED_MODULES = [
   "browser-watch.mjs",
   "browser-watch-store.mjs",
   "claude-fm.mjs",
+  "lofi-girl.mjs",
+  "live-radio-mix.mjs",
+  "best-of-nostalgia.mjs",
+  "good-life-radio.mjs",
+  "cafe-music-bgm.mjs",
   // system-metrics.mjs's two, on the platforms that have them, and the one
   // installer.mjs reaches for while it rewrites the hooks.
   "macmon.mjs",
   "hwmonitor.mjs",
   "retire-sound-hook.mjs",
+  // The account-projects report: the rollup and the swap log its attribution
+  // reads, plus lan-sync for the account key — all reached only through
+  // import() from the report's route.
+  "account-projects.mjs",
+  "swap-log.mjs",
+  "lan-sync.mjs",
 ];
 
 let _pinned = null;
@@ -6576,7 +6737,9 @@ function handleHealth(_req, res) {
     ok: true,
     name: "agent-dag",
     seq: nextSeq - 1,
-    clients: sseClients.size,
+    clients: pageCount(),
+    // The desktop app's tray connections, which are not pages (#1160).
+    trays: trayClients.size,
     uptimeMs: Math.round(process.uptime() * 1000),
     workspace: _workspace,
     providers: _providers,
@@ -6694,10 +6857,25 @@ export function requestUrl(rawUrl) {
 // So the Host check runs for every method now. What it asks is only the
 // rebinding question — did this request arrive addressed to a name that can
 // only ever be this machine — and it asks it of browser-shaped requests alone,
-// meaning anything carrying an Origin or fetch metadata. A client sending
-// neither is not a page and has no ambient authority to borrow: that is
-// hook/hook.js, a plain Node http.request from the user's own machine, and it
-// keeps reaching the deck under whatever name it used before.
+// meaning anything carrying an Origin, fetch metadata or a Referer. A client
+// sending none of them is not a page and has no ambient authority to borrow:
+// that is hook/hook.js, a plain Node http.request from the user's own machine,
+// and it keeps reaching the deck under whatever name it used before.
+//
+// THE REFERER IS ON THAT LIST because on one browser it is the only mark a page
+// leaves (#1168). A same-origin GET carries no Origin, and Safari 16.0-16.3
+// sends no Sec-Fetch-Site — the premise isAuthorizedDataRead's fallback is
+// built on — so a rebound page on that browser sent `Host: attacker.example:
+// 4317` and `Referer: http://attacker.example:4317/` and nothing else, was not
+// browser-shaped by the test as it stood, and was answered. Measured against a
+// running deck before this line changed: /api/health (the absolute workspace
+// path), /api/hook-challenge (the proof oracle, which handleHookChallenge says
+// a rebound page cannot see), /api/system/processes and the page itself all
+// answered 200. The guarded reads held only because isAuthorizedDataRead
+// happens to test the Host before it reads the Referer. No client of this
+// server that is not a browser sends a Referer — hook.js, the desktop app and
+// bin/ send none — so nothing that reached the deck before is turned away by
+// this, and the deck's own page names a loopback Host whatever it sends.
 //
 // Deliberately not part of this: the Sec-Fetch-Site test that isTrustedMutation
 // applies. `cross-site` on a read is an ordinary top-level navigation — a link
@@ -6705,9 +6883,10 @@ export function requestUrl(rawUrl) {
 // the deck's own UI on the deck's own origin, which is not an attack and used
 // to work. Rebinding does not need that test either: a rebound page's requests
 // report `same-origin`, and it is the Host that gives it away.
-export function isTrustedRead({ origin, host, secFetchSite } = {}) {
+export function isTrustedRead({ origin, host, secFetchSite, referer } = {}) {
   const browserShaped = (typeof origin === "string" && origin !== "")
-    || (typeof secFetchSite === "string" && secFetchSite.trim() !== "");
+    || (typeof secFetchSite === "string" && secFetchSite.trim() !== "")
+    || (typeof referer === "string" && referer.trim() !== "");
   if (!browserShaped) return true;
   return isLoopbackHost(host);
 }
@@ -7048,6 +7227,9 @@ const GUARDED_READS = new Set([
   "/api/browser-watch",
   "/api/lan",
   "/api/prefs",
+  // Per-account, per-project token spend — the user's own work, the same class
+  // of secret as the accounts list it hangs off.
+  "/api/account-projects",
 ]);
 
 function isAuthorizedMutation(req) {
@@ -7315,6 +7497,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       origin: req.headers.origin,
       host: req.headers.host,
       secFetchSite: req.headers["sec-fetch-site"],
+      referer: req.headers.referer,
     })) {
       return send(res, 403, { error: "cross-site request blocked" });
     }
@@ -7393,7 +7576,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // An allowlist, not a pass-through: the parameter names a section of this
       // panel and nothing else, so an unknown one is a 400 rather than an empty
       // chart that looks like a machine with nothing to report.
-      if (!["thermal", "cores", "memory", "load"].includes(group)) {
+      if (!["thermal", "cores", "memory", "load", "network"].includes(group)) {
         return send(res, 400, { ok: false, error: "unknown_group" });
       }
       return send(res, 200, historySnapshot(group));
@@ -7403,6 +7586,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch/dismiss") return guard(handleBrowserWatchDismiss(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/account-projects") return guard(handleAccountProjects(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
@@ -7410,6 +7594,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/good-life-radio") return guard(handleGoodLifeRadio(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/cafe-music-bgm") return guard(handleCafeMusicBgm(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
@@ -7509,8 +7698,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // reads `transcript_path`, which Codex hooks never send — and unref'd
       // like its neighbours.
       startOutputWatch();
-      // Both timers are unref'd, so this never holds the process open.
-      startSystemMetrics();
+      // Every timer is unref'd, so this never holds the process open. `probe`
+      // lets the network section time the API and read the route while the
+      // Machine panel is open — the only caller allowed to reach out.
+      startSystemMetrics({ probe: true });
       // LAN sync, from the prefs the import read — and only from here, so a
       // deck that had it on comes back with it on, and a launcher that only
       // asked the registry never binds a port it is about to walk away from.
@@ -7521,6 +7712,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // being installed or upgraded underneath them (#1043) — null from every
       // caller with nothing to wait for.
       cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
+      // The account-projects rollup: fold Claude transcripts into a per-account,
+      // per-project token tally, incrementally. Claude only — it reads Claude
+      // transcripts — best effort, and its timer is unref'd so it never holds
+      // the process open.
+      if (claude) getProjectRollup().catch(() => {});
       return server;
     } catch (err) {
       lastErr = err;

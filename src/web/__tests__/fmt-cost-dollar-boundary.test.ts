@@ -152,3 +152,44 @@ describe("fmtCostRate over a long cheap session, and where it refuses", () => {
     expect(fmtCostRate(-1, 3600)).toBeNull();
   });
 });
+
+// ── THE SAME CARRY AT THE TWO DOLLAR BOUNDARIES (#1173) ─────────────────────
+//
+// Every tier above checks the raw value and prints a rounded one, and the ¢
+// branch was the only one taught that the two can disagree. $99.995 is under
+// 100, so it printed with two decimals — `(99.995).toFixed(2)` is "100.00" —
+// beside "$100" for the dollar after it; and $9,999.50 printed "$10000" beside
+// "$10.0k". The usage headline counts up through both (count-up.ts), and a
+// session's cost crosses them, so a card and the panel could print one figure
+// in two formats in the same second. Checked the way the cents branch is: on
+// the rounded string, handing off to the next tier when rounding reaches it.
+describe("fmtCost carries into the next dollar tier the way it carries out of cents (#1173)", () => {
+  it("prints $100 and $10.0k at the carry, not $100.00 and $10000", () => {
+    expect(fmtCost(99.995)).toBe("$100");
+    expect(fmtCost(9999.5)).toBe("$10.0k");
+    // And either side of it, unchanged.
+    expect(fmtCost(99.99)).toBe("$99.99");
+    expect(fmtCost(9999.49)).toBe("$9999");
+  });
+
+  it("holds across both boundaries", () => {
+    // [99.9, 100) by hundredths of a cent, and [9999, 10000) by cents. Collected
+    // and asserted whole, like the sub-dollar sweep above, with the tallies of
+    // what crossed stated as counts so an emptied class cannot pass.
+    const wrong: string[] = [];
+    const carried = new Map<string, number>();
+    const judge = (usd: number) => {
+      const out = fmtCost(usd);
+      if (!/^\$\d{1,2}\.\d\d$|^\$\d{3,4}$|^\$\d+\.\dk$/.test(out) || out === "$100.00" || out === "$10000") {
+        wrong.push(`fmtCost(${usd}) = ${out}`);
+      }
+      if (out === "$100" || out === "$10.0k") carried.set(out, (carried.get(out) ?? 0) + 1);
+    };
+    for (let i = 999_000; i < 1_000_000; i++) judge(i / 10_000);
+    for (let i = 999_900; i < 1_000_000; i++) judge(i / 100);
+    expect(wrong).toEqual([]);
+    // 99.9950 … 99.9999 and 9999.50 … 9999.99: fifty inputs each, the half of
+    // the last step that rounds up.
+    expect(Object.fromEntries(carried)).toEqual({ "$100": 50, "$10.0k": 50 });
+  });
+});

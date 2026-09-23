@@ -52,13 +52,14 @@
 // covers sessions this deck never watched, and does not forget. A canvas-scoped
 // number beside an authoritative one is useful; two competing totals are not.
 // So the board figure says it is the board's, and points at the durable one.
-import { type CostBreakdown } from "./pricing";
+import { costForUsage, ratesForModel, type CostBreakdown } from "./pricing";
+import type { AgentState } from "./types";
 // Tokens are priced at the model that produced them, not at the last model the
 // agent was seen on (#686). This module is the seventh surface that multiplied
 // one by the other, and the reason it is the seventh rather than a survivor is
 // that it was written to be the ONE place the board arithmetic lives — so it is
 // also the one place the board arithmetic can be wrong.
-import { agentCost, type UsageBearing } from "./usage-models";
+import { agentCost, agentUnpricedTokens, usageByModelEntries, type UsageBearing } from "./usage-models";
 
 /** Anything the deck can price: an agent, or a test's stand-in for one.
  *
@@ -165,3 +166,163 @@ export const BOARD_SCOPE_TITLE =
  * beside the figure.
  */
 export const SESSION_SPEND_LABEL = "session spend";
+
+// ── the usage panel's two tables, when ccusage has not answered ─────────────
+//
+// ccusage is optional (AGENTS_DECK_NO_INSTALL, or no npm at all), and without
+// it the "by model" and "by session" tables are folded from the board. The two
+// folds lived inline in UsagePanel's memos, where nothing could run them: the
+// tests that checked them re-typed the loops, and a re-typed loop goes on
+// passing after the real one changes (#1175). They are here, beside the
+// headline they have to agree with, and the panel calls them.
+
+/** The model key for an agent that has not reported one yet. Kept out of the
+ *  display: the map needs a key and the reader needs a word, and `__unknown__`
+ *  is only the first of those. */
+export const UNKNOWN_MODEL = "__unknown__";
+
+/** One row of the board's "by model" table. */
+export interface BoardModelRow {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+  cost: CostBreakdown;
+  agentCount: number;
+  /** False when this build holds no rate for the model — the row's tokens are
+   *  real and its dollars are unknowable, which is not the same as zero. */
+  priced: boolean;
+}
+
+/** One row of the board's "by session" table. */
+export interface BoardSessionRow {
+  sessionId: string;
+  label: string;
+  state: AgentState;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Tokens on this session that no rate could be applied to. Non-zero and a
+   *  `cost` of zero is a session nothing here can price; non-zero beside a
+   *  non-zero cost is a mixed session whose figure is a floor, not a total. */
+  unpricedTokens: number;
+}
+
+/** What the session table reads off an agent, beyond what prices it. */
+export interface SessionBillable extends Billable {
+  kind: string;
+  sessionId: string;
+  label?: string;
+  cwdBasename?: string;
+  state: AgentState;
+}
+
+/** How many sessions the board's table keeps. */
+export const BOARD_SESSION_ROWS = 12;
+
+/**
+ * The board's "by model" table: one row per model the board's tokens came
+ * from, cost first and tokens as the tiebreak.
+ *
+ * One pass per MODEL SHARE, not one per agent (#686). An agent whose session
+ * switched model contributes a share to each row it actually spent on, with the
+ * tokens that model produced and the dollars those tokens cost — so a
+ * mostly-Opus session that ended on Sonnet is an Opus row AND a Sonnet row
+ * rather than one Sonnet row holding the whole 1.1M. The rows sum to the
+ * headline, because `boardTotals` prices the same shares through the same
+ * helper.
+ *
+ * `now` reaches the price table, whose rates move on dates of their own.
+ */
+export function boardModelTable(agents: Iterable<Billable>, now: number = Date.now()): BoardModelRow[] {
+  const modelMap = new Map<string, BoardModelRow>();
+  for (const a of agents) {
+    for (const e of usageByModelEntries(a)) {
+      const key = e.model ?? UNKNOWN_MODEL;
+      const c = costForUsage(e.usage, e.model, now);
+      const row = modelMap.get(key);
+      if (row) {
+        row.inputTokens        += e.usage.inputTokens;
+        row.outputTokens       += e.usage.outputTokens;
+        row.cacheReadTokens    += e.usage.cacheReadTokens;
+        row.cacheCreateTokens  += e.usage.cacheCreateTokens;
+        row.cost.total         += c.total;
+        row.cost.input         += c.input;
+        row.cost.output        += c.output;
+        row.cost.cacheRead     += c.cacheRead;
+        row.cost.cacheWrite    += c.cacheWrite;
+        row.agentCount++;
+      } else {
+        modelMap.set(key, {
+          model: key,
+          inputTokens:       e.usage.inputTokens,
+          outputTokens:      e.usage.outputTokens,
+          cacheReadTokens:   e.usage.cacheReadTokens,
+          cacheCreateTokens: e.usage.cacheCreateTokens,
+          cost: { ...c },
+          agentCount: 1,
+          priced: ratesForModel(e.model, now) != null,
+        });
+      }
+    }
+  }
+  // Cost first, then tokens. Every unpriced row costs exactly zero, so without
+  // the tiebreak they arrive at the bottom of the table in Map insertion order
+  // — which is the order their agents happened to be observed in, and reads as
+  // no order at all. Tokens are the only magnitude those rows have.
+  return Array.from(modelMap.values()).sort((a, b) =>
+    (b.cost.total - a.cost.total)
+    || ((b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens)));
+}
+
+/**
+ * The board's "by session" table: one row per root, carrying its own figures
+ * and every same-session subagent's, the top BOARD_SESSION_ROWS by cost then
+ * tokens.
+ *
+ * Unpriced tokens are counted per agent because a session can mix providers — a
+ * Claude root that spawned a Codex subagent prices one and not the other — and,
+ * since #686, per MODEL inside each agent as well: a root that ran on a priced
+ * model and then on one this build has never heard of prints its priced
+ * dollars with the floor marker beside them, rather than swinging between fully
+ * priced and fully unpriced depending on which model wrote its last line.
+ *
+ * Roots only, which is the one place this can fall short of the headline: a
+ * subagent left on the board after its root was evicted is in `boardTotals` and
+ * in no row here.
+ */
+export function boardSessionTable(agents: Iterable<SessionBillable>, now: number = Date.now()): BoardSessionRow[] {
+  const all = [...agents];
+  const roots: BoardSessionRow[] = [];
+  for (const a of all) {
+    if (a.kind !== "root") continue;
+    let cost = agentCost(a, now).total;
+    let inT = a.usage.inputTokens, outT = a.usage.outputTokens;
+    let unpricedT = agentUnpricedTokens(a, now);
+    for (const sub of all) {
+      if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
+      cost += agentCost(sub, now).total;
+      inT  += sub.usage.inputTokens;
+      outT += sub.usage.outputTokens;
+      unpricedT += agentUnpricedTokens(sub, now);
+    }
+    roots.push({
+      sessionId: a.sessionId,
+      label: a.label || a.cwdBasename || "session",
+      state: a.state,
+      cost,
+      inputTokens: inT,
+      outputTokens: outT,
+      unpricedTokens: unpricedT,
+    });
+  }
+  // Same tiebreak as the model table, and it matters more here: this list is
+  // cut, so before the tiebreak an unpriced session — however large — sat at
+  // cost zero among every other zero and could be cut for a row with fewer
+  // tokens than it.
+  return roots
+    .sort((a, b) => (b.cost - a.cost)
+      || ((b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens)))
+    .slice(0, BOARD_SESSION_ROWS);
+}

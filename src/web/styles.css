@@ -6,6 +6,11 @@
   --line: #1f2229;
   --line-soft: #1a1c22;
   --text: #d8dae0;
+  /* Pixel-art metal keeps its material identity across UI themes. */
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
   /* SECONDARY READABLE TEXT — prose somebody reads to understand something,
      as distinct from metadata they glance at.
      It exists because dark had no room below the muted tier, which sits at
@@ -900,7 +905,7 @@ button:focus-visible { outline-offset: 1px; }
    something off a button. The slot is what gives the menu something to be
    absolute against; it adds no box and no gap of its own, so the run's 8px
    rhythm is unchanged and the button sits exactly where it always did. */
-.sound-slot { position: relative; display: flex; }
+.sound-slot, .appearance-slot { position: relative; display: flex; }
 
 /* Right-aligned to the button rather than centred on it, because this button is
    near the right edge of a bar it can never overhang. 268px is the width the
@@ -935,13 +940,284 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+/* 268px, the sound menu's width: two popovers hung off one bar are one family,
+   and two theme previews side by side need the room 224px did not have. The
+   clamp keeps a phone-width window's 16px gutter; the grid inside gives. */
+.appearance-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
+  text-align: left;
+}
+.modal.appearance-modal {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  width: min(560px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
 /* The same two layers on white, in the light theme's slate and at its own
    shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
    third stayed black at a third on the white page (#876). */
 :root[data-theme="light"] .sound-menu {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
 }
+:root[data-theme="light"] .appearance-menu {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+/* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
+   open, and sections under the uppercase caption their sections use
+   (.up-section-title: 11px, 600, 0.06em, --muted — 4.70:1 dark, 7.87:1 light).
+   One 4px scale: 8 between a caption and what it names, 12 under the header,
+   16 between sections. Spacing is the only separator below the header. */
+.appearance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -12px 12px;
+  padding: 2px 16px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.appearance-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 22px;
+}
+.appearance-heading { min-width: 0; }
+.appearance-subtitle {
+  margin: 3px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appearance-close {
+  width: 26px;
+  height: 26px;
+  margin: -4px -4px -4px 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+.appearance-close:hover { color: var(--text); }
+.appearance-section + .appearance-section { margin-top: 20px; }
+.appearance-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.appearance-caption h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.appearance-section-note {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+/* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
+   where the panels put a caption's one piece of metadata. */
+.appearance-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
 
+/* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
+   so it is recognised before it is read. The -4px bleed gives each choice a
+   4px plate to hover in while the previews stay on the text edge above them.
+   THE CHOSEN ONE: its frame goes to --text and doubles to 2px with a ring
+   rather than a wider border, so nothing shifts; a check stands at the end of
+   its name; the name comes up from --muted to --text. The frame is 3.16:1
+   dark / 5.32:1 light against the --ctl-edge the other one rests on, so the
+   state holds without the check or the colour. The accent stays the focus
+   ring's, which is drawn round the whole plate.
+   HOVER lifts the plate and the name, never the frame, so a pointer resting on
+   the other theme cannot pass for choosing it. No press-scale: at 118px a
+   3% shrink is a lurch, not a click. */
+.appearance-themes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.appearance-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.appearance-theme[aria-checked="true"] { color: var(--text); }
+.appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.appearance-preview {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--ctl-edge);
+  border-radius: calc(var(--r-ctl) + 2px);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.appearance-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
+.appearance-theme-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  line-height: 16px;
+}
+.appearance-check {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
+
+/* Each swatch's palette is its theme's tokens, copied: --bg for the canvas,
+   --panel for the bar, the column and the card (the bar's gradient drawn flat),
+   --line for every rule, --muted-dim for the session's tag, --accent for
+   the one bar. appearance-swatch.test.ts fails the day a token moves and its
+   copy here does not. */
+.appearance-preview[data-swatch="dark"] {
+  --tp-canvas: #0b0c10;
+  --tp-surface: #14161b;
+  --tp-rule: #1f2229;
+  --tp-mark: #50535b;
+  --tp-accent: #7dd3fc;
+}
+.appearance-preview[data-swatch="light"] {
+  --tp-canvas: #eef1f6;
+  --tp-surface: #ffffff;
+  --tp-rule: #c8cdd6;
+  --tp-mark: #7c8493;
+  --tp-accent: #0369a1;
+}
+.tp-canvas { fill: var(--tp-canvas); }
+.tp-surface { fill: var(--tp-surface); }
+.tp-rule { fill: var(--tp-rule); }
+.tp-accent { fill: var(--tp-accent); }
+/* A session is a card with its name tag sitting on its top edge, as the
+   canvas draws one; the tag is the outline in --muted-dim. */
+.tp-card, .tp-tag { stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
+.tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
+
+/* One control, the width of the card. The <label> is the target (see
+   AppearanceMenu.tsx); the -8px bleed lets its hover fill reach the card's
+   padding while the words stay on the text edge. The switch sits in the
+   label's grid row, so it centres on the label's line and not on the pair of
+   lines, and the note spans under both. */
+.appearance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 0;
+  padding: 10px 0 2px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+.appearance-row:hover { background: var(--ctl-fill); }
+.appearance-row-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-row-note {
+  grid-column: 1 / -1;
+  /* Also used on a bare <p> under the volume row, outside the grid — so the
+     margin is reset here rather than left to the UA's paragraph default. */
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appearance-source-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--bg) 34%, var(--panel));
+}
+.appearance-source-row > label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-source-row .sm-select {
+  min-height: 30px;
+  padding-right: 8px;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-source-row .sm-select:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
+}
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
    so now that the boxes are gone. */
@@ -1265,9 +1541,12 @@ button.btn.sm-hear {
    `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
-   about what ships. The span is rendered in exactly one place, SoundMenu.tsx's
-   `.sound-menu` subtree, so the descendant selector loses nothing. */
-.sound-menu .sm-read {
+   about what ships. Descendant-scoped on purpose, and now to TWO menus: the
+   span is rendered in SoundMenu.tsx's subtree and, since the Claude FM volume
+   row, in AppearanceMenu.tsx's — the same reading in the same shape, so the
+   same rule. */
+.sound-menu .sm-read,
+.appearance-menu .sm-read {
   min-width: 34px;
   text-align: right;
   color: var(--muted);
@@ -1629,7 +1908,36 @@ button.btn.sm-hear {
 .sysdetail.leaving,
 .usage-panel.leaving { animation: rail-out var(--rail-exit) linear both; }
 
-.sd-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+/* THE HEAD DOES NOT SCROLL AWAY. The panel is 280px wide and as tall as the
+   window allows; on a short viewport it scrolls, and the first thing to leave
+   was the title, the uptime and the ×. Sticky against the panel's own
+   scrollport, on the panel's own ground, with the top padding pulled into it so
+   it stops flush against the border rather than 12px down. z-index 2 puts it
+   over the full-bleed section buttons, which would otherwise slide across it.
+
+   The negative side margins are the panel's padding given back, the same
+   derivation `.sd-open` uses, so the ground under the title reaches both edges
+   and nothing shows through beside it. */
+.sd-top {
+  position: sticky;
+  /* -12, not 0, and it is the panel's own padding-top. A sticky box is held
+     against the scrollport's CONTENT edge, so `top: 0` pinned this 12px BELOW
+     where it sits at rest and its opaque ground covered the first section's
+     heading — measured, with the CPU label at 103.4 under a head ending at
+     115.4. Offsetting it by the padding lets it rest exactly where it is drawn
+     and stick where the border is. */
+  top: -12px;
+  z-index: 2;
+  margin: -12px calc(var(--pad-x) * -1) 0;
+  padding: 12px var(--pad-x) 12px;
+  background: var(--panel);
+}
+.sd-head { display: flex; align-items: baseline; gap: 8px; }
+/* The one condition worth saying at the top of the panel, and nothing when
+   there is none. A sentence in the warning colour — no dot, no pill, no badge:
+   the words are the state, so a reader who cannot see the colour loses
+   nothing, and a reader who can has already found it. */
+.sd-flag { margin: 6px 0 0; color: var(--warn); font-size: 11px; line-height: 1.4; }
 /* An <h2> since #879; the margin reset keeps the tag from moving the title. */
 .sd-title { margin: 0; font-size: 12px; font-weight: 600; }
 .sd-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1639,14 +1947,38 @@ button.btn.sm-hear {
    row. It was measured at 13.34 x 16 before, which is why `.glyph-btn` carries
    a hit area at all; the exemplar was the smallest target of the lot. */
 .sd-close { margin-left: auto; }
-.sd-section + .sd-section { margin-top: 13px; }
+/* 16, not 13: the CPU section holds two readings 12px apart, and a section
+   boundary has to be wider than the gap inside one or the block does not read
+   as one block. It is also 8px of daylight between two full-bleed hover bands
+   where there were 5. */
+.sd-section + .sd-section { margin-top: 16px; }
+/* The strip and the load average are one reading of one thing, so they sit
+   closer to each other than to the section after them — and far enough apart
+   that their hover bands keep 4px of daylight. */
+.sd-cpu > .sd-open + .sd-open { margin-top: 12px; }
 .sd-h {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   margin: 0 0 6px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+}
+/* The section's own figure, at the far end of its heading. One section has one:
+   CPU, whose reading is a strip of bars with no number in it. It opts out of
+   the heading's case and tracking because it is a reading and not a label — the
+   same 11px tabular the rows to its right are set in. */
+.sd-h-val {
+  margin-left: auto;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* One column per core, so the shape of the load is visible — a saturated
@@ -1665,21 +1997,23 @@ button.btn.sm-hear {
    machines big enough for it to matter. A 64-core workstation is squarely
    inside this deck's audience.
 
-   Flex rather than grid: `flex-wrap` is the only one of the two that can let a
-   row it cannot fit become two rows. Below the wrap point the layout is
-   identical to the grid it replaces — `flex: 1 1 3px` over a 2px gap
-   distributes the leftover exactly as `1fr` did, and 12 threads still measure
-   19px each. Above it the strip grows downward, in a panel that already
-   scrolls, rather than showing nothing. No core is hidden and none is narrower
-   than 3px, which is the width the 2px corner radius needs to still read as a
-   bar. */
+   `auto-fit`, not a wrapped flex row, and that is the second half of the same
+   fix. Flex wraps, but each LINE distributes its own leftover: 64 threads drew
+   a first row of fifty 3px columns and a second row of fourteen 14px ones —
+   one reading in two widths, where a wide bar means "this core is late in the
+   list" and nothing else. A grid's tracks are the same on every row, so a
+   column is one width whatever the count, and `minmax(3px, 1fr)` keeps the
+   floor that made the strip wrap in the first place. `auto-fit` rather than
+   `auto-fill` because the empty tracks of a 16-thread machine have to collapse
+   and give their width back — otherwise sixteen cores draw sixteen 3px slivers
+   against an empty right half. */
 .sd-cores {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3px, 1fr));
+  align-content: start;
   gap: 2px;
 }
-.sd-cores .sd-core { flex: 1 1 3px; min-width: 3px; height: 26px; }
+.sd-cores .sd-core { min-width: 3px; height: 26px; }
 .sd-core {
   display: flex;
   align-items: flex-end;
@@ -1729,7 +2063,7 @@ button.btn.sm-hear {
   transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sd-row + .sd-row { margin-top: 9px; }
+.sd-row + .sd-row { margin-top: 10px; }
 /* The THERMAL section is one control (#738): pressing anywhere in it opens the
    chart of what the machine did with its heat. One button rather than one per
    row, because both rows opened the same dialog showing both series — a second
@@ -1830,6 +2164,7 @@ button.btn.sm-hear {
   color: var(--text-dim);
   transition: color 140ms ease;
 }
+.sysdetail .sd-open:hover .sd-h,
 .sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
 
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
@@ -1838,7 +2173,10 @@ button.btn.sm-hear {
 .sd-row-label { color: var(--muted); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
 .sd-row-val b { color: var(--text); font-weight: 600; }
+/* `position: relative` for the one thing drawn INSIDE a track rather than
+   filling it: the mark at the temperature a thermal row turns amber. */
 .sd-track {
+  position: relative;
   display: block;
   height: 4px;
   border-radius: 999px;
@@ -1858,16 +2196,108 @@ button.btn.sm-hear {
 /* The third band, which only the thermal rows reach: past the temperature the
    chip itself calls critical, or a third of the clock already taken away. */
 .sd-fill.hot { background: var(--err); }
+/* WHERE THE COLOUR CHANGES, cut into the track as a 1px gap in the panel's own
+   ground. The thermal rows are drawn against their own sensor's critical point
+   rather than a flat 100°C, so the bar is a scale — and a scale with no point
+   on it cannot be read, only compared with itself. It is the panel's ground and
+   not a colour of its own: a coloured pip would be a third meaning on a bar
+   whose two meanings are already the fill and its tone. */
+.sd-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--panel);
+}
 
-.sd-load { display: flex; gap: 14px; }
-.sd-load-item { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
-.sd-load-item b { font-size: 13px; font-weight: 600; }
-.sd-load-item span { color: var(--muted); font-size: 10px; }
-.sd-load-item.over b { color: var(--warn); }
+/* A ROW OF FIGURES: the number in the reading weight, what it is in the caption
+   under it. Load average and the network both draw one, which is why it is
+   named for the shape rather than for either of them.
+
+   THREE EQUAL COLUMNS, not a flex row, and the difference is what happens when
+   a reading changes width. A rate that crosses a unit — "245 KB/s down" to
+   "1.2 MB/s down" — is a different string of a different length, and in a flex
+   row every figure after it slides. Fixed thirds also put the network's three
+   columns on the load average's three, so the two rows read down the panel as
+   one grid rather than as two ragged rows. 77px a column in a 250px content
+   box, which is two characters more than the widest caption needs. */
+.sd-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sd-fig { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+.sd-fig b { font-size: 13px; font-weight: 600; }
+.sd-fig-cap { color: var(--muted); font-size: 10px; white-space: nowrap; }
+/* THE OTHER ORDER, where the three columns are three different measurements
+   rather than three samples of one: the name on top, and under it the number
+   with its unit beside it rather than below it. "112" over "KB/s down" made
+   the caption carry the unit AND the name, which is how "down" — the only word
+   in it that says what was measured — ended up last. 2px under the label
+   because a name and its reading are one object; 1px was the spacing of a
+   number over its own footnote. */
+.sd-figs-named .sd-fig { gap: 2px; }
+.sd-fig-read { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+/* Beside the number, not under it, and a tier down: a unit is part of the
+   reading, and at the number's own weight "112 KB/s" reads as five characters
+   of equal importance. */
+.sd-fig-unit { color: var(--muted); font-size: 10px; }
 
 /* 11px, the panel's reading size (#859): these are sentences — "reading this
    machine…", why a reading is missing — not labels. */
 .sd-note { margin-top: 5px; color: var(--muted); font-size: 11px; }
+/* A reading that could not be taken says so in the warning colour, the one the
+   load figures turn when the queue outgrows the cores. */
+.sd-note.sd-note-warn { color: var(--warn); }
+
+/* THE WAY INTO THE PATH, where two lines of sentence used to sit. It is the
+   section's second control — the first opens the chart — so it takes the same
+   full bleed, the same 6% hover and the same press as every other control in
+   this panel, at a row's height rather than a section's. 11px of clearance
+   above it leaves 7px of daylight under the hover band of the button over it.
+
+   The state that costs something stays outside: `.sd-route-relay` is the one
+   word the panel keeps on the surface, in the colour the load figures no
+   longer use, because a relayed path is slower than the same exit node reached
+   directly and that is worth knowing without opening anything. */
+.sysdetail .sd-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  width: calc(100% + var(--pad-x) * 2);
+  margin: 11px calc(var(--pad-x) * -1) -3px;
+  padding: 3px var(--pad-x);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+.sd-detail .sd-row-more { margin-left: auto; }
+.sysdetail .sd-detail:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.sysdetail .sd-detail:hover .sd-row-more { color: var(--text); }
+.sysdetail .sd-detail:active { transform: scale(0.97); }
+.sd-route-relay { color: var(--warn); }
+
+/* THE PATH ITSELF, hung off that control. 228px — wider than the panel's own
+   column would allow for a sentence, narrower than a dialog, and the surface,
+   the placement and the dismissals are `.anchored-popover`'s, the same ones the
+   accounts panel's ⋯ opens onto.
+
+   A definition list, because that is what it is: four labels and what each one
+   measures. The term is the section heading's own type so the popover reads as
+   part of the panel rather than as a tooltip that arrived from somewhere else. */
+.sd-pop { width: 240px; padding: 10px 12px 12px; }
+.sd-pop-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--text); }
+.sd-pop-rows { display: grid; gap: 8px; margin: 0; }
+.sd-pop-row dt {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sd-pop-row dd { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text); }
 
 :is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
@@ -1946,6 +2376,7 @@ button.btn.sm-hear {
   .sysdetail .sd-fill { transition: none; }
   :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
   .sysdetail .sd-open:active { transform: none; }
+  .sysdetail .sd-detail:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
@@ -3228,53 +3659,6 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .agent-node.state-done { border-color: rgba(134,239,172,0.5); }
 .agent-node.state-err { border-color: rgba(252,165,165,0.6); }
 
-/* WHAT A CARD IS WORTH DRAWING AT A DISTANCE.
-   `data-detail` is written on the canvas by App.tsx — see zoomDetail — and
-   never by a node, so this costs no React render at all.
-
-   Everything hidden here keeps its space. `visibility` rather than `display`
-   is the whole of that: a node's measured height is an input to the layout, so
-   collapsing a card at overview zoom would reflow the graph while somebody was
-   looking at it. The card keeps its box and stops shouting through it.
-
-   What survives to the last tier is what a graph is for when you are far away
-   from it — which session, what state, and the shape of the tree. */
-.canvas-wrap[data-detail="mid"] .tool-spark-row,
-.canvas-wrap[data-detail="far"] .tool-spark-row {
-  visibility: hidden;
-}
-.canvas-wrap[data-detail="far"] .agent-node .meta,
-.canvas-wrap[data-detail="far"] .agent-node .sub,
-.canvas-wrap[data-detail="far"] .agent-node .session-name,
-.canvas-wrap[data-detail="far"] .ctx-donut,
-.canvas-wrap[data-detail="far"] .agent-node .time {
-  visibility: hidden;
-}
-/* The bubbles are a second view of the tool list and are the densest thing on
-   the canvas; at overview they are a field of 2px pills with nothing readable
-   in them. Their leader lines go with them — a line to a bubble that is not
-   drawn is worse than no line, and the tool trail is the layer this codebase
-   already calls decoration. The graph's real structure is the agent edges,
-   which are React Flow's own and are untouched here. */
-.canvas-wrap[data-detail="far"] .tool-burst,
-.canvas-wrap[data-detail="far"] .tool-conn {
-  visibility: hidden;
-}
-/* AND WHAT SURVIVES IS DRAWN BIG ENOUGH TO READ (#846). The far tier kept the
-   state pill and the name, but at the canvas's scale: at the 0.32 a real board
-   settles into, a 12px name drew at about 4px, so the tier kept exactly the line
-   a reader cannot use. The title row is scaled back up by 0.9 / zoom — about
-   11px on screen — and widened by the inverse first, so after the scale it spans
-   the card's width exactly and the name still ellipsises inside it. A transform
-   and not a font size, because a card's measured height is an input to the
-   layout (see above): the row keeps its box and only draws larger, over the
-   card's own rows, which this tier has already hidden. `--zoom` is written on
-   the canvas by App.tsx beside `data-detail`, with no render of its own. */
-.canvas-wrap[data-detail="far"] .agent-node .title {
-  width: calc(100% * var(--zoom, 1) / 0.9);
-  transform: scale(calc(0.9 / var(--zoom, 1)));
-  transform-origin: left top;
-}
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
    rules with the same specificity — so on every live node the state won both
@@ -3312,6 +3696,220 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    `display: none` takes them out of the tree along with the view. */
 [id^="react-flow__node-desc"],
 [id^="react-flow__edge-desc"] { display: none; }
+
+/* WHICH CARD THE CANVAS DRAWS AT THIS DISTANCE.
+   `data-lod` is written on the canvas by App.tsx — semantic-zoom.ts says how it
+   is chosen — and never by a node, so changing it costs no React render at all.
+
+   NOTHING HERE CHANGES A CARD'S BOX. A node's measured size is an input to the
+   layout, so a card that shrank at a distance would reflow the graph while
+   somebody was looking at it, and every auto-fit would chase the reflow. The
+   box is kept in every mode; what is drawn in it is not. At `detail` that is
+   the card as it has always been. Below it, the card's own rows keep their
+   space and stop painting — `visibility`, not `display`, for exactly that
+   reason — and `.lod-face`, laid out in screen pixels, is drawn in their place.
+
+   This replaces `data-detail` (#846), whose far tier hid the same rows and kept
+   the title row at the canvas's scale, scaled back up by 0.9 / zoom: a state
+   pill and, beside it, whatever of the name fitted in the 22% of the width the
+   pill left — usually one character. */
+.lod-face { display: none; }
+.canvas-wrap[data-lod="compact"] .agent-node > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .agent-node > :not(.lod-face) {
+  visibility: hidden;
+}
+/* The card's own chrome is drawn in layout units, so at 0.3 its 1px border is
+   a third of a pixel and its 10px radius is three. The face draws the chrome
+   instead, in screen pixels, and the card underneath lets go of its own. Its
+   ring is MOVED rather than removed: the selection's and the keyboard's ring
+   are drawn on the face below at 2px on screen, so the card's layout-unit
+   outline — a hairline out here — only goes transparent, and overflow opens so
+   the face's ring is not clipped. (0,5,0) because the light theme's state
+   borders are (0,4,0) and must not paint through. */
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .agent-node,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .agent-node {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  outline-color: transparent;
+  overflow: visible;
+}
+
+/* THE FACE: the card's box, in screen pixels. Sized to the box times the zoom
+   and scaled back by the inverse from the same corner, so it covers the card
+   exactly and everything inside it is laid out at 1:1 on the display — 11px is
+   11px at 0.25 and at 0.6. `--zoom` is written on the canvas by App.tsx with no
+   render of its own. The -1px corner and the +2px take in the card's border,
+   which the face now draws.
+
+   A size container, so which lines it keeps is decided per card against its
+   own on-screen box: a root card is taller than a subagent's, and a tall card
+   at a distance still has room for its title when a short one does not. */
+.canvas-wrap[data-lod="compact"] .lod-face,
+.canvas-wrap[data-lod="overview"] .lod-face {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  box-sizing: border-box;
+  width: calc((100% + 2px) * var(--zoom, 1));
+  height: calc((100% + 2px) * var(--zoom, 1));
+  transform: scale(calc(1 / var(--zoom, 1)));
+  transform-origin: left top;
+  container: lod / size;
+  overflow: hidden;
+  padding: 5px 8px 5px 10px;
+  background: var(--node-grad);
+  border: 1px solid var(--lod-alarm, var(--lod-edge, var(--line)));
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 14px;
+}
+/* The session's stripe, at the width the card's reads at 1× less a pixel —
+   the same mark in the same hue, so the face is recognisably the card. */
+.lod-face::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+/* The state's edge, on a variable rather than on `border-color`, and the one
+   state that must win — blocked on a human — on a variable of its own that the
+   border reads first. Neither competes with the face's `border` shorthand or
+   with the other theme's twin on specificity; the order is in the var() chain.
+   The state values are the card's own, theme for theme. */
+.agent-node.state-active > .lod-face { --lod-edge: var(--inflight); }
+.agent-node.state-done > .lod-face { --lod-edge: rgba(134,239,172,0.5); }
+.agent-node.state-err > .lod-face { --lod-edge: rgba(252,165,165,0.6); }
+:root[data-theme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
+:root[data-theme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
+:root[data-theme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
+.lod-face[data-alarm] { --lod-alarm: var(--warn); }
+.agent-node.synthetic > .lod-face { border-style: dashed; }
+.react-flow__node:hover .lod-face {
+  background: color-mix(in srgb, var(--text) 6%, var(--panel));
+}
+/* Selection and the keyboard's ring move to the face with the chrome — the
+   card's own outline is 2px of layout, which at a distance is a hairline. No
+   mode in the selectors: the face is only ever drawn at the two distances this
+   is for, and a ring gated on a canvas attribute is the shape #434 refused. */
+.agent-node.selected > .lod-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.react-flow__node:focus-visible .lod-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The lines. The name leads at the card's own 12px weight; the title and the
+   signal are the 11px tier under it, the title in the secondary ink and the
+   signal in whatever its tone says. Each ellipsises on its own line. */
+.lod-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+.lod-name,
+.lod-inline,
+.lod-title,
+.lod-signal {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lod-name { flex: 1 1 auto; }
+.lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
+/* The title in the voice the card's own session-name row uses for it. */
+.lod-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+}
+.lod-signal { color: var(--muted); }
+.lod-short { display: none; }
+.lod-face [data-tone="warn"] { color: var(--warn); }
+.lod-face [data-tone="err"] { color: var(--err); }
+.lod-face [data-tone="idle"] { color: var(--accent); }
+.state-mark { flex: none; }
+.state-mark[data-kind="live"] { color: var(--inflight); }
+.state-mark[data-kind="done"] { color: var(--ok); }
+.state-mark[data-kind="err"] { color: var(--err); }
+.alert-mark { flex: none; margin-left: auto; color: var(--warn); }
+
+/* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
+   where the card is tall enough, no title, and the short form of the signal. */
+.canvas-wrap[data-lod="overview"] .lod-face { padding: 3px 6px 3px 8px; gap: 1px; }
+.canvas-wrap[data-lod="overview"] .lod-id { font-size: 11px; line-height: 14px; }
+.canvas-wrap[data-lod="overview"] .lod-title,
+.canvas-wrap[data-lod="overview"] .lod-long { display: none; }
+.canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
+
+/* Read off the face's content box: three lines need 47px of it, and below 57
+   the title is the first to go, so a third line never sits against the edge —
+   but only from a face that has a signal to keep. A card with nothing to say
+   under its name keeps its title on the second line. */
+@container lod (max-height: 56px) {
+  .lod-face[data-signal] .lod-title { display: none; }
+}
+/* One line only. A root card gives its line to the signal rather than its
+   name, because the name is already on the cluster's label at 1×, directly
+   above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
+   for. A subagent keeps its name: it has no label above it. */
+@container lod (max-height: 36px) {
+  .lod-signal,
+  .lod-title { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-inline { display: block; }
+}
+/* Narrower than a mark and a short word: the mark alone, centred. Nothing is
+   truncated to three letters — the peek beside the pointer has the name, and
+   the shape of the branch is what reads at this size. */
+@container lod (max-width: 72px) {
+  .lod-name,
+  .lod-inline,
+  .lod-signal { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
+  .lod-id { justify-content: center; }
+  .alert-mark { margin-left: 0; }
+}
+
+/* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
+   width — live, settled, selected — is multiplied by `--edge-k` inline (see
+   snapshotToFlow), 1 at `detail`, so that choice stays the edge's and only the
+   scale is the mode's: about 1.3px and up on screen instead of half of one. */
+.canvas-wrap[data-lod="compact"] { --edge-k: max(1, calc(0.9 / var(--zoom, 1))); }
+.canvas-wrap[data-lod="overview"] { --edge-k: calc(0.85 / var(--zoom, 1)); }
+/* And without the width's 200ms ease: the width now follows the zoom, so it
+   changes on every frame of a gesture, and an ease restarted on every edge on
+   every frame is a lag and a cost with nothing to show for either. The fade on
+   opacity, which is what a selection or an exit actually animates, stays. */
+.canvas-wrap[data-lod="compact"],
+.canvas-wrap[data-lod="overview"] { --edge-transition: opacity 500ms ease; }
+
+/* The bubbles are a second view of the tool list and the densest thing on the
+   canvas; below the full card they are 5px pills with nothing readable in them.
+   Their leader lines go with them — a line to a bubble that is not drawn is
+   worse than no line. The call a bubble would have named is on the face now,
+   as its signal, while it is still open. */
+.canvas-wrap[data-lod="compact"] .tool-burst,
+.canvas-wrap[data-lod="compact"] .tool-conn,
+.canvas-wrap[data-lod="overview"] .tool-burst,
+.canvas-wrap[data-lod="overview"] .tool-conn {
+  visibility: hidden;
+}
 
 .agent-node .accent-stripe {
   position: absolute;
@@ -3660,13 +4258,55 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .recap-tie-end {
   fill: var(--tie);
 }
-/* At the far tier a card keeps its title and nothing else. The note keeps its
-   box, so nothing under it moves, and draws only its mark. */
-.canvas-wrap[data-detail="far"] .recap-note-age,
-.canvas-wrap[data-detail="far"] .recap-note-close,
-.canvas-wrap[data-detail="far"] .recap-note-text {
+/* Below the full card the note does what a card does: it keeps its box, so
+   nothing under it moves, stops painting its own rows and chrome — which draw
+   at the canvas's scale, a 3px "recap" in an empty frame — and draws its face
+   instead (RecapNoteNode), in screen pixels. */
+.canvas-wrap[data-lod="compact"] .recap-note > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face) {
   visibility: hidden;
 }
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.canvas-wrap[data-lod="compact"] .lod-face.recap-face,
+.canvas-wrap[data-lod="overview"] .lod-face.recap-face {
+  display: flex;
+  justify-content: flex-start;
+  padding: 5px 8px;
+  background: var(--panel);
+  --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+/* A note has no stripe: its hue is its edge, as it is at the full size. */
+.lod-face.recap-face::before { display: none; }
+.recap-face .recap-note-mark { flex: none; font-size: 11px; }
+.recap-face-age {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* As many lines of the recap as the face has room for, read off its content
+   box: the mark row is 15px and a line of the text 14px after a 2px gap. */
+.recap-face-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+@container lod (max-height: 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
+@container lod (max-height: 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
+@container lod (max-height: 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
+@container lod (max-height: 30px) { .recap-face-text { display: none; } }
 .recap-note-head {
   display: flex;
   align-items: center;
@@ -4173,13 +4813,44 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-/* The name is the pill's only when the card cannot say it. At the `full` tier
-   the root card prints the same name on a row of its own, and the pill — held
-   at its own size since #846 while the cards shrink — drew the second copy
-   larger than the first. At `mid` and `far` the card's row draws at 4-6px or
-   not at all, and the pill is where the name is read. See SessionClusters.tsx. */
-.canvas-wrap[data-detail="full"] .cluster-label-name {
+/* The name is the pill's only when the card cannot say it. At `detail` the
+   root card prints the same name on a row of its own, and the pill — held at
+   its own size since #846 while the cards shrink — drew the second copy larger
+   than the first. At `compact` and `overview` the card is a face that gives the
+   title up first, and the pill is where the name is read. See
+   SessionClusters.tsx. */
+.canvas-wrap[data-lod="detail"] .cluster-label-name {
   display: none;
+}
+/* A session stopped until a human answers says so on the one thing a cluster
+   draws at 1× at every zoom. The edge takes --warn, the app's "this one is on
+   you", and the triangle the faces use leads; the words are for a screen
+   reader, which cannot see either. */
+.cluster-label[data-alarm] {
+  border-color: var(--warn);
+}
+.cluster-label .alert-mark {
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.cluster-label-branch {
+  display: none;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
+.cluster-label-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .cluster-label:hover {
   filter: brightness(1.25);
@@ -5375,6 +6046,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
+.appearance-backdrop { z-index: 101; }
 :root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
 
 .modal {
@@ -7976,6 +8648,119 @@ button.qb-pace::after {
    for. The name takes the room; the state is measured off `not read yet`, the
    longest thing it can say. */
 .ap-fold-peek { width: 244px; }
+/* THE CARD'S PEEK: the same hover card, carrying one agent card's facts at 1:1
+   beside a tile the canvas has drawn too small to say them (SessionPeek). Wider
+   than the fold's, because a session title is the widest thing it holds and
+   gets two lines to say it before it ellipsises. Nothing in it is a control, so
+   unlike the fold's it refuses the pointer — the tile under the pointer keeps
+   its hover, and a double-click on the tile still lands on the tile. */
+.node-peek {
+  width: 288px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.node-peek p { margin: 0; }
+.node-peek-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.node-peek-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.node-peek-time {
+  flex: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.node-peek-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.node-peek-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.node-peek-state[data-kind="live"] { color: var(--inflight); }
+.node-peek-state[data-kind="done"] { color: var(--ok); }
+.node-peek-state[data-kind="err"] { color: var(--err); }
+.node-peek-title {
+  font-size: 12px;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.node-peek-wait {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.node-peek-wait.warn { color: var(--warn); }
+.node-peek-wait > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.node-peek-wait b { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Counts and labels, which are what --muted is for; the title above is the
+   card's one piece of prose. */
+.node-peek-facts,
+.node-peek-branch {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.node-peek-failed { color: var(--err); }
+/* A recap note's peek: the note's own mark in its session's hue, and the
+   recap whole — prose, at the note's size and ink, with room for it. */
+.recap-peek {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  width: 320px;
+}
+.recap-peek-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.recap-peek-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.node-peek-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .ap-fold-who { gap: 8px; justify-content: space-between; }
 .ap-fold-name {
   min-width: 0;
@@ -8266,6 +9051,9 @@ button.qb-pace::after {
   overflow-wrap: anywhere;
 }
 .ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
+/* The route, beside the name of a row reached over the tailnet: a fact about
+   the path rather than about the machine, so it is set in the quiet ink. */
+.ap-lan-via { color: var(--muted); }
 .ap-lan-who[data-tone="ok"] .ap-lan-who-when { color: var(--text-dim); }
 .ap-lan-who[data-tone="wait"] .ap-lan-who-when { color: var(--accent); }
 /* A TRAFFIC LIGHT, BECAUSE THAT IS THE QUESTION. The mark said one thing —
@@ -9500,7 +10288,11 @@ button.qb-pace::after {
      shape, only through a selector actually written down. It carries the same
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
-  .sound-menu { animation: fadeIn 140ms ease-out; }
+  .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
+  .appearance-theme,
+  .appearance-preview,
+  .appearance-check,
+  .appearance-row { transition: none; }
 }
 
 
@@ -10514,6 +11306,10 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .hist-rule-tag.warn { fill: var(--warn); }
 .hist-rule-tag.hot { fill: var(--err); }
 .hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+/* Where the network's route changed. Solid and quieter than the crosshair, so
+   the two never read as one thing: a mark is a fact about the past, the
+   crosshair is the pointer. */
+.hist-mark { stroke: var(--text-dim); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
 
 .hist-axis {
   display: flex;
@@ -10531,6 +11327,8 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    text-tiers.test.ts is the rule that says so. */
 .hist-at b { color: var(--text); font-weight: 600; }
 .hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+/* A run of route notes sits tight under the chart, one line per change. */
+.hist-note.hist-route + .hist-note.hist-route { margin-top: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   /* `popIn` scales and lifts the card, which is movement rather than a fade,
@@ -10931,6 +11729,15 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   font-size: 11px;
   line-height: 1.45;
   color: var(--text-dim);
+}
+/* The one fact a switch's label cannot say, under it in the quiet ink: whose
+   devices "my devices" means, and how many of them are there. */
+.lan-switch-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 /* The one switch that is about the list above it, set a step below its rows. */
 .ap-lan-picks + .lan-switch { margin-top: 10px; }
@@ -12235,6 +13042,10 @@ input, textarea { caret-color: var(--accent); }
   .uh-model-bar,
   .uh-agent-bar,
   .cost-bar { outline: 1px solid CanvasText; outline-offset: -1px; }
+  /* The notch in a thermal track is the panel's ground showing through, and a
+     Contrast theme repaints that ground: it takes Canvas so the gap stays a
+     gap, against a fill that is now Highlight and a track that is outlined. */
+  .sd-mark { forced-color-adjust: none; background: Canvas; }
 
   /* The track keeps its forced border either way; the knob is what moves, so
      it is what has to survive, and the track fills when the switch is on. */
@@ -12246,6 +13057,12 @@ input, textarea { caret-color: var(--accent); }
   .ver-banner .switch[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
   .switch[aria-checked="true"] .switch-knob,
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
+
+  /* A preview is a picture of a palette, and a palette repainted in system
+     colours is two identical grey boxes: it keeps its own. The chosen frame
+     takes Highlight, the way an on switch fills with it. */
+  .appearance-preview svg { forced-color-adjust: none; }
+  .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
 }
 
 /* ---------------- Claude FM ------------------------------------------------
@@ -12340,8 +13157,8 @@ input, textarea { caret-color: var(--accent); }
   transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
 }
 /* Up on the toes to make the step, and absorbing it on the way down. */
-.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-1px) scale(0.98, 1.04); }
-.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(2px) scale(1.06, 0.9); }
+.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-3px); }
+.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(3px); }
 
 /* THE DROP, AND IT IS THE ONLY MOTION HERE THAT ACCELERATES. Everything else on
    this canvas eases out, because everything else is a thing settling into
@@ -12355,20 +13172,33 @@ input, textarea { caret-color: var(--accent); }
 }
 /* Going up is work at a steady rate, not the fall run backwards. Linear. */
 .fm-walker[data-act="climb"] {
+  /* Stop with hands at the ledge; the final step pulls the hips over it. */
+  --fm-y: calc(-1 * var(--minimap-h) + 24px);
   transition: transform var(--fm-walk-ms, 0ms) linear;
 }
+.fm-walker[data-act="pull-up"] { transition: transform var(--fm-walk-ms, 0ms) steps(4, end); }
+.fm-walker[data-act="pull-up"] .fm-sprite { animation: fm-pull-up 480ms steps(2, end) forwards; }
+.fm-rope[data-act="pull-up"] .fm-rope-line { animation: fm-rope-recover 480ms steps(4, end) forwards; }
+@keyframes fm-pull-up {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+@keyframes fm-rope-recover { to { clip-path: inset(0 0 100% 0); } }
 
 /* Looking over before stepping off: it leans out over the edge. Nothing
    sensible jumps from a height it has not looked at. */
-.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-2px) rotate(-9deg); }
+.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-3px); }
 
 /* The landing absorbs. A body that arrives at speed and stops dead did not
    land, it was placed — the squash is where the energy goes, and it is the
    deepest one in this block because it is the only impact. */
-.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px) scale(1.12, 0.8); }
+.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px); }
 
 /* Winding up the throw. */
-.fm-walker[data-act="lasso"] .fm-sprite { transform: rotate(-5deg); }
+.fm-walker[data-act="lasso"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="rope-throw"] .fm-sprite { transform: translateY(-3px); }
+.fm-walker[data-act="rope-catch"] .fm-sprite { transform: translateY(2px); }
 
 /* THE ROPE. Anchored to the ledge and standing still while the character climbs
    past it — it is drawn outside the walker for exactly that reason, since a
@@ -12382,24 +13212,40 @@ input, textarea { caret-color: var(--accent); }
   right: 0;
   bottom: 0;
   transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px));
-  background: var(--muted);
+  width: 3px;
+  height: var(--minimap-h);
 }
-/* Spinning overhead before it is thrown: an ellipse turning about its middle
-   is a loop of rope seen from the side, and the only reason it reads as one is
-   that it is wider than it is tall. */
-.fm-rope[data-act="lasso"] {
-  width: 16px;
-  height: 7px;
-  bottom: 45px;   /* just above the head: the sprite is 42px tall */
-  background: none;
-  border: 1.5px solid var(--muted);
-  border-radius: 50%;
-  animation: fm-spin 420ms linear infinite;
+.fm-rope-line {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(to bottom, var(--muted) 0 6px, var(--accent) 6px 9px);
 }
-@keyframes fm-spin {
-  0%   { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(0deg)   scaleX(1); }
-  50%  { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(180deg) scaleX(0.35); }
-  100% { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(360deg) scaleX(1); }
+.fm-rope-hook {
+  position: absolute; left: -12px; top: -18px;
+  width: 27px; height: 27px; overflow: visible; fill: var(--text);
+}
+.fm-rope-knot { fill: var(--accent); }
+.fm-rope[data-act="lasso"] .fm-rope-line { clip-path: inset(100% 0 0 0); }
+.fm-rope[data-act="lasso"] .fm-rope-hook { animation: fm-hook-ready 380ms steps(2, end) infinite; }
+.fm-rope[data-act="rope-throw"] .fm-rope-hook { animation: fm-hook-throw var(--fm-rope-ms) steps(10, end) both; }
+.fm-rope[data-act="rope-throw"] .fm-rope-line { animation: fm-rope-unroll var(--fm-rope-ms) steps(10, end) both; }
+.fm-rope[data-act="rope-catch"] .fm-rope-hook { animation: fm-hook-catch var(--fm-rope-ms) steps(2, end) both; }
+@keyframes fm-hook-ready {
+  0%, 100% { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  50% { transform: translate(6px, calc(var(--minimap-h) - 45px)); }
+}
+@keyframes fm-hook-throw {
+  from { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  80% { transform: translate(0, -6px); }
+  to { transform: translate(0, 0); }
+}
+@keyframes fm-rope-unroll {
+  /* Reveal at the hook's speed without stretching the rope's pixel pattern. */
+  from { clip-path: inset(calc(var(--minimap-h) - 42px) 0 0 0); }
+  80%, to { clip-path: inset(0); }
+}
+@keyframes fm-hook-catch {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
 }
 /* Thrown and caught: a line from the ledge down to the floor, which is the
    height the character is about to cover. */
@@ -12425,15 +13271,20 @@ input, textarea { caret-color: var(--accent); }
 /* KICKED, IT GOES THE WAY THE FOOT WAS POINTING. This rolled a fixed -132px,
    which is fine exactly half the time: approach the ball from the left and the
    kick sends it backwards, straight through the character that just kicked it.
-   The distance is the same either way; only the sign follows the facing, and
-   the component writes it. */
+   The component supplies a signed distance bounded by the ledge's edge. */
 .fm-prop[data-prop="ball"][data-leaving] {
-  animation: fm-roll 520ms cubic-bezier(0.12, 0.6, 0.4, 1) forwards;
+  animation: fm-roll var(--fm-ball-flight-ms) linear forwards;
 }
+.fm-prop[data-prop="ball"] svg { fill: var(--accent); }
+.fm-prop[data-prop="ball"][data-leaving] svg { animation: fm-ball-turn var(--fm-ball-flight-ms) steps(12, end) forwards; }
+@keyframes fm-ball-turn { to { transform: rotate(var(--fm-ball-turn, -360deg)); } }
 @keyframes fm-roll {
-  0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px),         var(--fm-y)); opacity: 1; }
-  70%  { opacity: 1; }
-  100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to, -132px)), var(--fm-y)); opacity: 0; }
+  0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y)); }
+  20%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.2), calc(var(--fm-y) + var(--fm-ball-drop) * 0.04 - 58px)); }
+  40%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.4), calc(var(--fm-y) + var(--fm-ball-drop) * 0.16 - 86px)); }
+  60%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.6), calc(var(--fm-y) + var(--fm-ball-drop) * 0.36 - 86px)); }
+  80%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to) * 0.8), calc(var(--fm-y) + var(--fm-ball-drop) * 0.64 - 58px)); }
+  100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to)), calc(var(--fm-y) + var(--fm-ball-drop))); }
 }
 @keyframes fm-settle {
   0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), calc(var(--fm-y) - 5px)); opacity: 0; }
@@ -12455,11 +13306,17 @@ input, textarea { caret-color: var(--accent); }
    same objection as the headphones blinking off a head and the same answer.
    The throw below is a higher-specificity rule, so a prop on its way out
    overrides this rather than fighting it. */
-.fm-held { animation: fm-draw 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fm-held { animation: fm-draw 300ms steps(3, end); }
 @keyframes fm-draw {
-  0%   { transform: translate(13px, 7px) scale(0.35); opacity: 0; }
+  0%   { transform: translate(12px, 6px); opacity: 0; }
   60%  { opacity: 1; }
-  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+.fm-walker[data-act="scope-pack"] .fm-held { animation: fm-scope-fold 480ms steps(4, end) forwards; }
+@keyframes fm-scope-fold {
+  0% { clip-path: inset(0); transform: translateY(0); opacity: 1; }
+  60% { clip-path: inset(0 0 50% 0); transform: translateY(0); opacity: 1; }
+  100% { clip-path: inset(0 0 50% 0); transform: translateY(6px); opacity: 0; }
 }
 
 /* The scope is held UP, at the height of the eyes, pointing away from the
@@ -12473,19 +13330,25 @@ input, textarea { caret-color: var(--accent); }
    the eye, and the overlap does the work an arm would — which is how every
    pixel character that has ever held something to its face does it. */
 .fm-held[data-prop="scope"] {
+  /* Material colours must not invert with the UI's text/background tokens:
+     the silver barrel used to become near-black in the light theme. */
+  --fm-prop-light: var(--pixel-metal-light);
+  --fm-prop-shadow: var(--pixel-metal-shadow);
   right: 34px;
-  /* The eye row, measured from the feet: a 14-row sprite at 3px a row puts row
-     four 27px up, and a 9px scope starting at 24 covers it. Moved with the
-     legs — the eyes did not change row, but the floor got further away. */
-  bottom: 24px;
-  width: 15px;
+  /* 20 × 24 cells at 2px. The tripod stands on the ledge; its eyepiece
+     occupies 26–32px above it, level with the character's eye row. */
+  bottom: 0;
+  width: 40px;
+  transform-origin: bottom right;
 }
+.fm-held[data-prop="scope"] svg { fill: var(--pixel-metal-edge); }
 /* CARRIED ON THE SIDE IT IS FACING. Held on the left while walking right, an
    object trails along behind the character, which is the other half of what
    made it look like it was going backwards. 54px sprite less the 12px object
    puts the far side at 0; the scope is 15px wide, so its mirror is 5. */
 .fm-walker[data-facing="right"] .fm-held { right: 0; }
 .fm-walker[data-facing="right"] .fm-held[data-prop="scope"] { right: 5px; }
+.fm-walker[data-facing="right"] .fm-held[data-prop="scope"] svg { transform: scaleX(-1); }
 
 /* No surface, no border, no shadow. Every other instrument on this canvas
    wears --chrome-bg and an edge because it is a panel of controls; this is one
@@ -12505,21 +13368,13 @@ input, textarea { caret-color: var(--accent); }
   background: none;
   line-height: 0;
   cursor: pointer;
-  /* Quiet until it is wanted: the canvas is for the sessions, and a bright
-     character parked on the minimap would pull the eye all day. The pointer
-     and the music both bring it up. */
-  opacity: 0.55;
-  transition: opacity 140ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  /* The character stays equally visible whether or not music is playing. */
+  opacity: 1;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .fm-sprite:hover { opacity: 1; }
-/* THE SAME QUIET COSTS DIFFERENT AMOUNTS IN THE TWO THEMES, and 0.55 is a dark
-   number. There the accent is #7dd3fc on near-black, which is still a colour at
-   just over half strength; here it is #0369a1 on #eef1f6, and dimming a dark
-   ink toward a light ground does not make it quieter — it makes it grey. Side
-   by side the light sprite had lost its blue and read as a smudge on the
-   minimap while the dark one read as a character. A higher floor is what buys
-   the same restraint, not the same number. */
-:root[data-theme="light"] .fm-sprite { opacity: 0.72; }
+.fm-arms { transition: transform 160ms steps(2, end); }
+.fm-sprite:is(:hover, :focus-visible) .fm-arms { transform: translateY(-2px); }
 .fm-sprite[data-playing] { opacity: 1; }
 /* The deck's one press convention, at the tier a control with no label wears.
    0.94 rather than the 0.97 a labelled button takes: the ink here IS the
@@ -12547,7 +13402,11 @@ input, textarea { caret-color: var(--accent); }
    the hat band cannot drift apart — they are the two marks on this character
    that have to be darker than everything around them. */
 .fm-sprite { --fm-ink: var(--bg); }
-:root[data-theme="light"] .fm-sprite { --fm-ink: var(--text); }
+:root[data-theme="light"] .fm-sprite {
+  --fm-ink: var(--text);
+  /* UI link blue is too dark for the character's large filled silhouette. */
+  --accent: var(--pixel-character-body);
+}
 
 /* The headphones, in the same --muted every glyph on this canvas is drawn in,
    and the body in the deck's accent so the character belongs to this palette
@@ -12661,18 +13520,13 @@ input, textarea { caret-color: var(--accent); }
    it sits in, without a third colour to keep in step with the palette. */
 .fm-pad { fill: var(--muted-dim); }
 
-/* IT BLINKS. Twice a minute, for about a tenth of a second, and the whole of
-   it is the eye taking the body's colour for that moment — an eye that vanishes
-   reads as a hole appearing, and an eye that closes reads as a character. The
-   window is bounded by stops half a percent either side so the change is a cut
-   rather than a fade: at 5.4s a period, half a percent is 27ms.
-   This runs whether or not anything is playing. The dance is a state; being
-   alive is not. */
-.fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
+/* A short, stepped blink keeps a dark eyelid visible. Never paint the eyes
+   blue: that erases the face altogether during the closed frame. */
+.fm-eye { animation: fm-blink 5.4s steps(1, end) infinite; }
 @keyframes fm-blink {
-  0%, 93.5%  { fill: var(--fm-ink); }
-  94%, 96.5% { fill: var(--accent); }
-  97%, 100%  { fill: var(--fm-ink); }
+  0%, 93.5%  { transform: scaleY(var(--fm-eye-h, 1)); }
+  94%, 96.5% { transform: scaleY(0.35); }
+  97%, 100%  { transform: scaleY(var(--fm-eye-h, 1)); }
 }
 
 /* ONE PIVOT FOR EVERY GROUP, and getting this wrong is invisible in the
@@ -12816,28 +13670,37 @@ input, textarea { caret-color: var(--accent); }
 }
 
 @keyframes fm-bob {
-  0%   { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
-  25%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
-  50%  { transform: translate(0.35px, 0)  scale(1.04, 0.95) rotate(3deg); }
-  75%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
-  100% { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(0, -1px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(0, -1px); }
 }
 
 /* A slow lean with almost no lift — what somebody does to something calm. */
 @keyframes fm-sway {
-  0%, 100% { transform: translate(-0.5px, 0)     scale(1.02, 0.98) rotate(-5.5deg); }
-  50%      { transform: translate(0.5px, -0.15px) scale(1.02, 0.98) rotate(5.5deg); }
+  0%, 100% { transform: translate(-1px, 0); }
+  25%, 75% { transform: translate(0, 0); }
+  50% { transform: translate(1px, 0); }
 }
 
 /* Straight up and down, twice a bar, leaning the other way each time. The
    busiest of the three and the one that reads from furthest away. */
 @keyframes fm-groove {
-  0%   { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
-  20%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(-4.5deg); }
-  50%  { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
-  70%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(4.5deg); }
-  100% { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, -1px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(1px, -1px); }
 }
+.fm-walker:not([data-act]) .fm-sprite[data-playing] :is(.fm-body, .fm-leg, .fm-gear-motion) {
+  animation-timing-function: steps(1, end);
+}
+
+.fm-seated-legs, .fm-crouch-legs { fill: var(--accent); }
+.fm-walker:is([data-act="land"], [data-act="dismount"]) .fm-leg { display: none; }
+.fm-walker[data-facing="right"] .fm-seated-legs { transform: translateX(18px) scaleX(-1); }
+.fm-seated-far { fill: color-mix(in srgb, var(--accent) 65%, var(--muted)); }
+.fm-walker:is([data-act="sit"], [data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-leg { display: none; }
+.fm-walker:is([data-act="walk"], [data-act="carry"]) .fm-sprite { transition: none; }
 
 /* THE LEGS STEP, THEY DO NOT SWING, and the difference is the grid.
 
@@ -12883,11 +13746,16 @@ input, textarea { caret-color: var(--accent); }
 .fm-walker[data-act="climb"] .fm-leg[data-side="right"] {
   animation: fm-stride-b 620ms ease-in-out infinite;
 }
-.fm-walker[data-act="climb"] .fm-sprite { animation: fm-haul 620ms ease-in-out infinite; }
+.fm-walker[data-act="climb"] .fm-sprite { animation: fm-haul 620ms steps(2, end) infinite; }
+.fm-grip { fill: var(--accent); }
+.fm-walker[data-act="climb"] .fm-grip-left { animation: fm-grip-left 620ms steps(1, end) infinite; }
+.fm-walker[data-act="climb"] .fm-grip-right { animation: fm-grip-right 620ms steps(1, end) infinite; }
+@keyframes fm-grip-left { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+@keyframes fm-grip-right { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @keyframes fm-haul {
-  0%, 100% { transform: translateY(0)      scale(1, 1); }
-  35%      { transform: translateY(1px)    scale(1.05, 0.93); }
-  70%      { transform: translateY(-1.2px) scale(0.96, 1.06); }
+  0%, 100% { transform: translateY(0); }
+  35%      { transform: translateY(3px); }
+  70%      { transform: translateY(-3px); }
 }
 
 /* THE BODY RISES ONCE PER FOOTFALL, WHICH IS TWICE PER STRIDE — and getting
@@ -12946,21 +13814,35 @@ input, textarea { caret-color: var(--accent); }
    transition is the stoop, because it has to come back up on its own — the
    others each end when the next one starts. The whole sequence is timed in
    claude-fm.ts; these are what it looks like. */
-.fm-walker[data-act="stoop"] .fm-sprite { animation: fm-stoop 720ms ease-in-out; }
+.fm-walker[data-facing="right"] { --fm-bend-x: 1px; }
+/* Feet stay planted; the upper body lowers over the knees and reaches toward
+   the object. Moving the whole sprite or splaying its legs reads as a split. */
+.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion) {
+  animation: fm-stoop 720ms steps(2, end);
+}
+.fm-walker[data-act="stoop"] .fm-arms { animation: fm-reach 720ms steps(2, end); }
 @keyframes fm-stoop {
-  0%, 100% { transform: translateY(0)   scale(1, 1); }
-  30%, 70% { transform: translateY(2px) scale(1.06, 0.86); }
+  0%, 100% { transform: translate(0, 0); }
+  30%, 70% { transform: translate(var(--fm-bend-x, -1px), 1px); }
+}
+@keyframes fm-reach {
+  0%, 100% { transform: translateY(0); }
+  30%, 70% { transform: translateY(3px); }
 }
 
 /* Leaning away from the throw, then into it. A character that arrives and
    tosses in one motion reads as dropping something. */
-.fm-walker[data-act="windup"] .fm-sprite { transform: rotate(-7deg); }
-.fm-walker[data-act="toss"] .fm-sprite { transform: rotate(5deg); }
+.fm-walker[data-act="windup"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="toss"] .fm-sprite { transform: translateX(3px); }
 
 /* The kick: back, then through. The wind-up above is shared with the throw;
    the follow-through is its own, further and quicker, because a kick is the
    faster of the two motions and a slow one reads as a nudge. */
-.fm-walker[data-act="kick"] .fm-sprite { transform: rotate(9deg); }
+.fm-walker[data-act="kick"] .fm-sprite { transform: translateX(3px); }
+.fm-walker[data-facing="left"][data-act="windup"] .fm-sprite { transform: translateX(3px); }
+.fm-walker[data-facing="left"][data-act="kick"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="kick"][data-facing="left"] .fm-leg[data-side="left"] { transform: translate(-2px, -1px); }
+.fm-walker[data-act="kick"][data-facing="right"] .fm-leg[data-side="right"] { transform: translate(2px, -1px); }
 
 /* Sitting on the edge, legs over the side. The sprite drops below the line it
    stands on, which is what puts the feet over the minimap — the same pixels
@@ -12978,11 +13860,71 @@ input, textarea { caret-color: var(--accent); }
    the silhouette changes, which is the only thing a pose has to do. The squash
    goes with it, because sitting down is a body folding rather than a body being
    lowered. */
-.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(13px) scale(1.04, 0.87); }
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(9px); }
+
+/* A rod built from grid-aligned steps; the line lowers over the minimap.
+   Keeping the seated pose through stowing prevents a jump up with gear out. */
+.fm-walker:is([data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-sprite {
+  transform: translateY(9px);
+}
+.fm-fishing {
+  position: absolute; right: 36px; bottom: -57px;
+  width: 72px; height: 96px; overflow: visible;
+  fill: none; stroke: var(--muted); stroke-width: 1;
+}
+.fm-fishing-grip { fill: var(--accent); stroke: none; }
+.fm-fishing-line { transform-origin: 8px 2px; }
+.fm-float { fill: var(--accent); stroke: none; }
+.fm-ripple { stroke: var(--accent); opacity: 0.55; }
+.fm-walker[data-act="cast"] .fm-fishing { animation: fm-unpack 900ms steps(6, end) both; }
+.fm-walker[data-act="fish"] .fm-float { animation: fm-nibble 1800ms steps(2, end) infinite; }
+.fm-walker[data-act="reel"] .fm-fishing-line { animation: fm-reel 1200ms steps(8, end) forwards; }
+.fm-walker[data-act="reel"] .fm-ripple { opacity: 0; }
+.fm-walker[data-act="stow"] .fm-fishing-line { transform: scaleY(0.08); }
+.fm-walker[data-act="stow"] .fm-ripple { opacity: 0; }
+.fm-walker[data-act="stow"] .fm-fishing { animation: fm-pack 500ms steps(5, end) forwards; }
+@keyframes fm-unpack {
+  from { opacity: 0; transform: translate(18px, -12px); }
+  to { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes fm-pack {
+  from { opacity: 1; transform: translate(0, 0); }
+  to { opacity: 0; transform: translate(18px, -12px); }
+}
+@keyframes fm-nibble { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1px); } }
+@keyframes fm-reel { from { transform: scaleY(1); } to { transform: scaleY(0.08); } }
+
+/* Two halves of one turn: behind the head, then under the airborne feet.
+   Stepped motion keeps the rope on the same pixel grid as the character. */
+.fm-skipping-rope {
+  position: absolute; right: -12px; bottom: -6px; width: 78px; height: 78px;
+  /* The forward quarter of the turn crosses in front of the torso. */
+  z-index: 1;
+  fill: none; stroke: var(--accent); stroke-width: 1;
+}
+.fm-skip-back, .fm-skip-forward, .fm-skip-return { opacity: 0; }
+.fm-skip-handles { stroke: var(--muted); stroke-width: 2; }
+.fm-walker[data-act="skip-ready"] .fm-skipping-rope { animation: fm-unpack 500ms steps(5, end) both; }
+.fm-walker[data-act="skip-rest"] .fm-skipping-rope { animation: fm-pack 600ms steps(6, end) forwards; }
+.fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope) { animation: fm-skip-hop var(--fm-skip-beat) steps(4, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-back { animation: fm-skip-back var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-forward { animation: fm-skip-forward var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-front { animation: fm-skip-front var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-return { animation: fm-skip-return var(--fm-skip-beat) steps(1, end) infinite; }
+@keyframes fm-skip-hop {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-3px); }
+  50% { transform: translateY(-12px); }
+  75% { transform: translateY(-6px); }
+}
+@keyframes fm-skip-back { 0% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes fm-skip-forward { 0%, 50%, 100% { opacity: 0; } 25% { opacity: 1; } }
+@keyframes fm-skip-front { 0%, 75%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes fm-skip-return { 0%, 100% { opacity: 0; } 75% { opacity: 1; } }
 
 /* Looking at the board. A small lean back, the way anybody holding something up
    to their eye stands. */
-.fm-walker[data-act="watch"] .fm-sprite { transform: rotate(-3deg); }
+.fm-walker[data-act="watch"] .fm-sprite { transform: translateX(-1px); }
 
 /* And the thing itself, out of the hand on an arc. It leaves upward and to the
    right, slows at the top the way a thrown object does, and is gone before it
@@ -12991,9 +13933,9 @@ input, textarea { caret-color: var(--accent); }
    the one second a minute it is used. */
 .fm-held[data-toss] { animation: fm-toss 620ms cubic-bezier(0.3, 0, 0.7, 1) forwards; }
 @keyframes fm-toss {
-  0%   { transform: translate(0, 0)        scale(1);    opacity: 1; }
-  55%  { transform: translate(26px, -24px) scale(0.92); opacity: 1; }
-  100% { transform: translate(46px, 4px)   scale(0.72); opacity: 0; }
+  0%   { transform: translate(0, 0); opacity: 1; }
+  55%  { transform: translate(27px, -24px); opacity: 1; }
+  100% { transform: translate(45px, 3px); opacity: 0; }
 }
 
 /* A character dancing and wandering in the corner of a monitoring tool is
@@ -13004,10 +13946,28 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
-  .fm-walker, .fm-gear, .fm-eye, .fm-hat { transition: none; }
+  .fm-prop[data-prop="ball"][data-leaving] svg,
+  .fm-walker[data-act="scope-pack"] .fm-held,
+  .fm-walker[data-act="pull-up"] .fm-sprite,
+  .fm-rope[data-act="pull-up"] .fm-rope-line { animation: none; }
+  .fm-walker[data-act="pull-up"] { transition: none; }
+  .fm-walker[data-act="cast"] .fm-fishing,
+  .fm-walker[data-act="stow"] .fm-fishing,
+  .fm-walker[data-act="fish"] .fm-float,
+  .fm-walker[data-act="reel"] .fm-fishing-line,
+  .fm-walker[data-act="skip-ready"] .fm-skipping-rope,
+  .fm-walker[data-act="skip-rest"] .fm-skipping-rope,
+  .fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope),
+  .fm-walker[data-act="skip"] :is(.fm-skip-back, .fm-skip-front, .fm-skip-forward, .fm-skip-return) { animation: none; }
+  .fm-walker, .fm-gear, .fm-eye, .fm-hat, .fm-arms { transition: none; }
   .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
   .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
-  .fm-rope[data-act="lasso"] { animation: none; }
+  .fm-rope[data-act="lasso"] .fm-rope-hook,
+  .fm-rope[data-act="rope-throw"] .fm-rope-hook,
+  .fm-rope[data-act="rope-throw"] .fm-rope-line,
+  .fm-rope[data-act="rope-catch"] .fm-rope-hook,
+  .fm-walker[data-act="climb"] .fm-grip-left,
+  .fm-walker[data-act="climb"] .fm-grip-right { animation: none; }
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"],
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"],
   .fm-walker[data-act="climb"] .fm-leg[data-side="left"],
@@ -13024,10 +13984,21 @@ input, textarea { caret-color: var(--accent); }
   .fm-held,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
-  .fm-walker[data-act="stoop"] .fm-sprite,
+  .fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion),
+  .fm-walker[data-act="stoop"] .fm-arms,
   .fm-held[data-toss],
   .fm-eye { animation: none; }
   .fm-sprite:active { transform: none; }
+}
+
+/* This comes after every animation shorthand. Shorthands reset
+   animation-play-state, so the paused-tab override must be last. */
+.fm.fm[data-suspended] :is(.fm-walker, .fm-prop, .fm-sprite, .fm-gear,
+  .fm-gear-motion, .fm-body, .fm-leg, .fm-hat, .fm-eye, .fm-arms, .fm-held,
+  .fm-fishing, .fm-float, .fm-fishing-line, .fm-skipping-rope, .fm-skip-back,
+  .fm-skip-front, .fm-skip-forward, .fm-skip-return, .fm-rope, .fm-rope-hook,
+  .fm-rope-line, .fm-grip, .fm-grip-left, .fm-grip-right) {
+  animation-play-state: paused;
 }
 
 /* THE PLAYER. Off-screen at a real size rather than shrunk to a pixel or hidden
@@ -13046,3 +14017,145 @@ input, textarea { caret-color: var(--accent); }
   border: 0;
   pointer-events: none;
 }
+
+/* ─── Account "Projects" report modal ──────────────────────────────────────
+   Where one account spent its work, per project (AccountProjectsModal.tsx).
+   Reuses .modal / .modal-backdrop for the shell; everything below is scoped to
+   the report so it cannot bleed into the usage modals it sits beside. */
+.ap-proj-modal { width: min(680px, 94vw); }
+
+.ap-proj-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.ap-proj-titlewrap { min-width: 0; margin-right: auto; }
+.ap-proj-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.ap-proj-sub {
+  font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42ch;
+}
+
+.ap-proj-close { margin-left: 2px; }
+
+.ap-proj-body { padding: 16px; overflow-y: auto; }
+
+.ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
+.ap-proj-error { color: var(--text); }
+.ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+
+/* The one-glance stacked bar: 100% of this account's spend on the window. */
+.ap-proj-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-inset);
+  border: 1px solid var(--line);
+}
+.ap-proj-seg { height: 100%; min-width: 2px; }
+.ap-proj-seg + .ap-proj-seg { box-shadow: inset 1px 0 0 rgba(0,0,0,0.18); }
+
+.ap-proj-totals {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 12px 0 4px;
+}
+.ap-proj-total-cost { font-size: 18px; font-weight: 650; color: var(--text); }
+.ap-proj-total-tok { font-size: 12px; color: var(--muted); }
+.ap-proj-total-win { font-size: 12px; color: var(--text-dim); }
+
+.ap-proj-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.ap-proj-row {
+  display: grid;
+  grid-template-columns: 10px minmax(80px, 1fr) minmax(64px, 2fr) max-content max-content;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+  border-top: 1px solid var(--line-soft);
+}
+.ap-proj-row:first-child { border-top: none; }
+.ap-proj-row.muted .ap-proj-name { color: var(--muted); font-style: italic; }
+.ap-proj-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ap-proj-name {
+  font-size: 13px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ap-proj-track {
+  height: 6px; border-radius: 3px;
+  background: var(--panel-inset);
+  overflow: hidden;
+}
+.ap-proj-fill { display: block; height: 100%; border-radius: 3px; }
+.ap-proj-cost { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+.ap-proj-tok  { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; min-width: 5ch; }
+
+.ap-proj-unattributed {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content max-content;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+}
+.ap-proj-un-labels { display: flex; flex-direction: column; min-width: 0; }
+.ap-proj-un-title { font-size: 13px; color: var(--text); }
+.ap-proj-un-tag { font-size: 11px; color: var(--muted); }
+.ap-proj-un-cost { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.ap-proj-un-tok { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 5ch; }
+.ap-proj-unattributed .ap-proj-note { grid-column: 1 / -1; margin-top: 2px; }
+
+.ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
+
+/* Phone: the track column is the first thing to go; keep name + numbers. */
+@media (max-width: 520px) {
+  .ap-proj-head { flex-wrap: wrap; }
+  .ap-proj-sub { max-width: 100%; }
+  .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content; }
+  .ap-proj-track { display: none; }
+}
+
+/* Per-day chart in the Projects report: a stacked column per day, coloured by
+   project like the list, its height the day's reconciled total. */
+.ap-proj-days { margin: 14px 0 4px; }
+.ap-proj-days-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.ap-proj-days-plot { display: flex; align-items: flex-end; justify-content: flex-start; gap: 2px; height: 64px; }
+.ap-proj-day {
+  flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%;
+  display: flex; align-items: flex-end;
+  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
+.ap-proj-colseg { width: 100%; display: block; }
+.ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
+.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: 10px; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
+
+/* Click a day column for its own breakdown; keyboard-focusable as a button.
+   Hover brightens (not a ring); selection and focus draw the accent ring. */
+.ap-proj-day:hover .ap-proj-col { filter: brightness(1.12); }
+.ap-proj-day.selected .ap-proj-col { box-shadow: 0 0 0 2px var(--accent); }
+.ap-proj-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.ap-proj-day-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+}
+.ap-proj-day-detail-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--text); margin-bottom: 6px;
+}
+.ap-proj-day-detail-total { font-variant-numeric: tabular-nums; }
+.ap-proj-day-detail-row {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content;
+  align-items: center; gap: 8px; padding: 2px 0;
+}
+.ap-proj-day-detail-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-proj-day-detail-cost { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }

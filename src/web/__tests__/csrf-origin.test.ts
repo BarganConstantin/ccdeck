@@ -16,12 +16,14 @@
 // answered with the account's live OAuth refresh token in the clear. The second
 // half of this file pins the credential that mutations now require.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { withoutComments } from "./tsx-scan";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Temp home, set before the dynamic import: the server resolves its config
 // directories at import time and the real ~/.claude must stay untouched. The
@@ -251,6 +253,52 @@ describe("mutations require the deck's own authority", () => {
     // route carries no credential and destroys nothing.
     const body = JSON.stringify({ hook_event_name: "PreToolUse", session_id: "s", cwd: "" });
     expect(await post("/api/event", { body })).toBe(200);
+  });
+
+  it("does not take the shapes isTrustedMutation admits for the deck's own page", async () => {
+    // isTrustedMutation lets `Sec-Fetch-Site: none` through beside a matching
+    // Origin — a top-level navigation the user typed — and lets fetch metadata
+    // through with no Origin at all. Both are right for the question it asks,
+    // which is whether a page chose this. Neither is the deck's page, and it is
+    // isDeckUiRequest alone that says so; had it been written as a reuse of
+    // isTrustedMutation, both shapes would change the deck with no token (#1168).
+    const here = `127.0.0.1:${port}`;
+    expect(await post("/api/clear", { headers: { Host: here, Origin: `http://${here}`, "Sec-Fetch-Site": "none" } })).toBe(401);
+    expect(await post("/api/clear", { headers: { Host: here, "Sec-Fetch-Site": "same-origin" } })).toBe(401);
+  });
+
+  // EVERY ROUTE, NOT A LIST OF THEM. PROTECTED above is six of the POST routes,
+  // chosen for what their handlers answer, and nothing POSTed /api/prefs,
+  // /api/presence, the three LAN routes or either browser-watch route without
+  // a credential. The gate denies by default, so a route added tomorrow is
+  // covered — and the way that stops being true is a route landing in
+  // OPEN_MUTATIONS, which this reads out of the router rather than trusting a
+  // copy of it (#1168).
+  const routerSource = withoutComments(readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8"));
+  const postRoutes = [...new Set(
+    [...routerSource.matchAll(/req\.method === "POST"\s*&&\s*url\.pathname === "([^"]+)"/g)].map(m => m[1]),
+  )];
+
+  it("finds the router's POST routes, so the sweep below cannot pass on an empty list", () => {
+    // Named rather than counted, so a new route does not have to edit this.
+    for (const path of ["/api/event", "/api/clear", "/api/prefs", "/api/presence", "/api/lan/peer", "/api/claude-accounts/admin"]) {
+      expect(postRoutes, path).toContain(path);
+    }
+  });
+
+  it("refuses every POST route but the hook's ingest to a caller that presents nothing", async () => {
+    for (const path of postRoutes.filter(p => p !== "/api/event")) {
+      expect(await post(path), `${path} acted for an unauthenticated caller`).toBe(401);
+    }
+  });
+
+  it("leaves exactly one route open, and it is the hook's", () => {
+    // The set the whole gate turns on. Anything added to it is a route any local
+    // process may call with no credential, and the comment above it says what
+    // has to be asked of each one first.
+    const literal = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(routerSource)?.[1];
+    expect(literal, "OPEN_MUTATIONS is no longer a Set literal this can read").toBeDefined();
+    expect([...literal!.matchAll(/"([^"]*)"/g)].map(m => m[1])).toEqual(["/api/event"]);
   });
 
   it("answers the cross-site page before it ever asks who it is", async () => {

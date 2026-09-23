@@ -31,6 +31,9 @@ const css = readFileSync(join(web, "styles.css"), "utf8");
 const src = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const COMPONENTS: Record<string, string> = {
   "App.tsx": src("../App.tsx"),
+  // The canvas's nodes and edges, out of App.tsx since #1175 — the two sites
+  // that hand a session's hue across the boundary moved with them.
+  "canvas-flow.ts": src("../canvas-flow.ts"),
   "SessionClusters.tsx": src("../components/SessionClusters.tsx"),
   "AgentNode.tsx": src("../components/AgentNode.tsx"),
   "ToolBursts.tsx": src("../components/ToolBursts.tsx"),
@@ -540,7 +543,7 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
   it("hands each site its hue as a custom property and nothing else", () => {
     expect(COMPONENTS["SessionClusters.tsx"]).toMatch(/"--session-hue": hue/);
     expect(COMPONENTS["AgentNode.tsx"]).toMatch(/"--session-hue": hue/);
-    expect(COMPONENTS["App.tsx"]).toMatch(/"--session-hue": hue/);
+    expect(COMPONENTS["canvas-flow.ts"]).toMatch(/"--session-hue": hue/);
     // App's --mcp-hue was the topbar legend's dot until that row was removed;
     // the MCP category chip hands its hue across the same boundary the same
     // way, so the rule this line states is unchanged and still has a subject.
@@ -654,7 +657,7 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     for (const site of [SITES[2], SITES[3]]) {
       expect(site.where.split(".").length - 1, site.where).toBeGreaterThanOrEqual(4);
     }
-    expect(COMPONENTS["App.tsx"]).toMatch(/a\.state === "active" \? "sess-live" : "sess-idle"/);
+    expect(COMPONENTS["canvas-flow.ts"]).toMatch(/a\.state === "active" \? "sess-live" : "sess-idle"/);
     expect(decl(".react-flow__edge.animated .react-flow__edge-path", "stroke")).toBe("var(--inflight)");
   });
 });

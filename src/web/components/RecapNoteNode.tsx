@@ -59,6 +59,19 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
         >×</button>
       </div>
       <p className="recap-note-text">{data.recap.text}</p>
+      {/* The note at a distance, drawn in screen pixels over its own box the
+          way a card's face is (AgentNode's NodeFace): its mark and age, and as
+          many lines of the recap as the box has room for at 1:1. Without it the
+          note below the full card was an empty box around a 3px "recap". The
+          whole text is the peek's, beside the pointer. Hidden from assistive
+          technology, which has the note itself. */}
+      <div className="lod-face recap-face" aria-hidden>
+        <div className="lod-id">
+          <span className="recap-note-mark"><RecapMark />recap</span>
+          <span className="recap-face-age">{written.label}</span>
+        </div>
+        <p className="recap-face-text">{data.recap.text}</p>
+      </div>
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
   );

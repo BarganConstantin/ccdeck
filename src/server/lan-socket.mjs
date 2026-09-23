@@ -23,6 +23,7 @@
 // address.
 import dgram from "node:dgram";
 import { networkInterfaces } from "node:os";
+import { looksLikeTunnel } from "./route-via.mjs";
 
 /** An IPv4 dotted quad as four numbers, or null for anything that is not one. */
 /**
@@ -75,17 +76,42 @@ export function directedBroadcast(address, netmask) {
  * IPv6 broadcast address.
  */
 export function broadcastTargets(ifaces) {
-  const out = ["255.255.255.255"];
-  for (const list of Object.values(ifaces ?? {})) {
+  return broadcastPlan(ifaces).map(p => p.to);
+}
+
+/**
+ * The same targets, each with the interface whose subnet it is — null for the
+ * limited broadcast, which is nobody's. What lets a beacon be held back when
+ * the machine would send it out by some OTHER interface: see leavesByTunnel.
+ */
+export function broadcastPlan(ifaces) {
+  const out = [{ to: "255.255.255.255", iface: null }];
+  for (const [name, list] of Object.entries(ifaces ?? {})) {
     for (const ni of list ?? []) {
       if (!ni || ni.internal) continue;
       // Node 18 reports `family` as the string "IPv4"; older shapes used 4.
       if (ni.family !== "IPv4" && ni.family !== 4) continue;
       const to = directedBroadcast(ni.address, ni.netmask);
-      if (to && !out.includes(to)) out.push(to);
+      if (to && !out.some(p => p.to === to)) out.push({ to, iface: name });
     }
   }
   return out;
+}
+
+/**
+ * Would this broadcast leave the local network?
+ *
+ * A directed broadcast belongs to the interface whose subnet it is, so the
+ * machine sending it out by any other one means something rerouted the local
+ * network — a VPN, or a Tailscale exit node without local network access —
+ * and the beacon would come out on the far end of the tunnel. The limited
+ * broadcast belongs to none, so it is held back only when it would go into
+ * something that is plainly a tunnel. Unknown answers nothing: send.
+ */
+export function leavesByTunnel(target, via, isTunnel) {
+  if (!via) return false;
+  if (target.iface) return via !== target.iface;
+  return isTunnel(via);
 }
 import net from "node:net";
 import { randomBytes } from "node:crypto";
@@ -201,6 +227,30 @@ export function createBeacon({
   // restarting the deck, and a list captured at start would announce to the
   // addresses it had at breakfast.
   ifaces = () => networkInterfaces(),
+  /**
+   * Addresses to send the beacon to one by one, beside the broadcast — the
+   * owner's machines on Tailscale, whose tunnel carries no broadcast at all.
+   * Read per announce like `ifaces`, because the tailnet list is re-read while
+   * the deck runs and a machine that just came online belongs in the next one.
+   */
+  unicast = () => [],
+  /**
+   * Which way a packet from this address came: "lan", "tailscale", or null for
+   * one to ignore entirely. Null is what a tailnet packet gets while this
+   * deck's Tailscale switch is off — the sockets hear it either way, because
+   * they bind every interface, and off has to mean the deck does not act on it.
+   */
+  routeFor = () => "lan",
+  /** How long to wait before trying the discovery port again while another
+   *  program holds it, and who to tell when hearing stops or comes back. */
+  rebindMs = 30_000,
+  onHearing,
+  /**
+   * Where the machine would send each broadcast — see createRouteCheck in
+   * route-via.mjs. Absent, every broadcast goes, as before; the suite's
+   * beacons have none.
+   */
+  routes = null,
 } = {}) {
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
@@ -213,7 +263,34 @@ export function createBeacon({
   const host = hostId();
   const peers = new Map();
   let sock = null;
+  /**
+   * The socket beacons LEAVE by, on a port of its own. See start.
+   *
+   * Null until it is bound, and whenever it could not be — the listening
+   * socket then sends as it always did, because a beacon from the wrong port is
+   * still a beacon and none at all is a deck nobody finds.
+   */
+  let out = null;
   let timer = null;
+  /**
+   * Whether this deck can HEAR — whether it holds the discovery port.
+   *
+   * SEPARATE FROM RUNNING, because a deck that cannot bind 45317 is still most
+   * of a deck. It announces from its own socket, so every other deck still
+   * finds it, asks it and dials it; what it has lost is hearing them announce.
+   * Stopping the whole feature over that — which is what this did — took a
+   * working sync away from somebody whose Tailscale exit node happened to be
+   * holding the port. It keeps trying for the port instead, and takes it back
+   * the moment it is free.
+   */
+  let hearing = false;
+  let deafError = null;
+  /** Whether the last announce held back every broadcast because the local
+   *  network goes through a tunnel here — see leavesByTunnel. */
+  let tunneled = false;
+  let told = null;
+  let rebind = null;
+  let stopped = true;
   /** When this deck last answered a deck it had not heard, so answering cannot
    *  become a storm, and which decks it has already answered — without the
    *  second, a deck that is never accepted is answered again on every packet
@@ -223,8 +300,8 @@ export function createBeacon({
 
     const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
 
-  const announce = () => {
-    if (!sock) return;
+  const announce = (also = []) => {
+    if (!sock && !out) return;
     // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
     //
     // This used to send only to 255.255.255.255, on the argument that the
@@ -246,11 +323,18 @@ export function createBeacon({
     // broadcast is filtered, and it is what Syncthing sends — and every
     // interface's own directed broadcast goes out beside it. A duplicate packet
     // costs one datagram; a missing one costs the whole feature.
-    const targets = broadcastTargets(ifaces());
+    const plan = broadcastPlan(ifaces());
+    // Asked behind the send, and read from what was last answered: the first
+    // beacon after a start goes as it always did, and the ones after it know.
+    void routes?.want?.(plan.map(p => p.to));
+    const kept = routes ? plan.filter(p => !leavesByTunnel(p, routes.via(p.to), looksLikeTunnel)) : plan;
+    tunneled = kept.length === 0;
+    const targets = kept.map(p => p.to);
+    const from = out ?? sock;
     let left = targets.length;
     const failed = [];
     for (const to of targets) {
-      sock.send(payload(), DISCOVERY_PORT, to, err => {
+      from.send(payload(), DISCOVERY_PORT, to, err => {
         if (err) failed.push(`${to} (${err.code ?? err.message})`);
         // REPORTED ONLY WHEN EVERY ONE FAILED. One address being unreachable is
         // the ordinary state of a machine with a VPN up, and a panel that said
@@ -262,82 +346,181 @@ export function createBeacon({
         }
       });
     }
+    // AND ONE PACKET PER TAILNET MACHINE. Not part of the verdict above: a node
+    // that has gone to sleep since the list was read is the ordinary state of a
+    // laptop, and it says nothing about whether this deck can be discovered.
+    let direct = [];
+    try { direct = [...(unicast() ?? []), ...also]; } catch { direct = [...also]; }
+    for (const to of new Set(direct)) {
+      if (typeof to !== "string" || !to || targets.includes(to)) continue;
+      from.send(payload(), DISCOVERY_PORT, to, () => {});
+    }
   };
 
-  const start = () => new Promise(resolve => {
-    sock = createSocket({ type: "udp4", reuseAddr: true });
-    sock.on("error", err => { onError?.("socket", err); });
-    sock.on("message", (msg, rinfo) => {
-      // Everything about whether to care lives in lan-sync.mjs. This hands it
-      // the bytes and the address and does what it is told.
-      if (msg.length > MAX_BEACON_BYTES) return;
-      const beacon = readBeacon(msg);
-      const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
-      // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
-      // part is the change. It used to answer only a deck already in the group,
-      // which was fine when a group existed. Now the first thing a new deck has
-      // to become is a row on somebody's screen, and it cannot become one if
-      // this deck never tells it that it exists.
-      //
-      // Measured on two real decks before any of this: deck 1 saw deck 2 the
-      // instant it started and deck 2 saw nobody, because deck 1's own
-      // immediate announce went out before deck 2 was listening. Thirty seconds
-      // of an empty list is how a working feature reads as broken.
-      //
-      // At most once every few seconds, because the obvious version is a shout
-      // storm: two decks answering each other's answers forever. A new pair
-      // converges in two extra packets.
-      const newToUs = beacon && verdict !== "self" && verdict !== "id-clash" && verdict !== "unreadable"
-        && !peers.has(beacon.fp) && !answered.has(beacon.fp);
-      if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
-        repliedAt = now();
-        answered.add(beacon.fp);
-        announce();
+  const onMessage = (msg, rinfo) => {
+    // Everything about whether to care lives in lan-sync.mjs. This hands it
+    // the bytes and the address and does what it is told.
+    if (msg.length > MAX_BEACON_BYTES) return;
+    let via = "lan";
+    try { via = routeFor(rinfo.address); } catch { via = "lan"; }
+    if (!via) return;
+    const beacon = readBeacon(msg);
+    const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
+    // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
+    // part is the change. It used to answer only a deck already in the group,
+    // which was fine when a group existed. Now the first thing a new deck has
+    // to become is a row on somebody's screen, and it cannot become one if
+    // this deck never tells it that it exists.
+    //
+    // Measured on two real decks before any of this: deck 1 saw deck 2 the
+    // instant it started and deck 2 saw nobody, because deck 1's own
+    // immediate announce went out before deck 2 was listening. Thirty seconds
+    // of an empty list is how a working feature reads as broken.
+    //
+    // At most once every few seconds, because the obvious version is a shout
+    // storm: two decks answering each other's answers forever. A new pair
+    // converges in two extra packets.
+    const newToUs = beacon && verdict !== "self" && verdict !== "id-clash" && verdict !== "unreadable"
+      && !peers.has(beacon.fp) && !answered.has(beacon.fp);
+    if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
+      repliedAt = now();
+      answered.add(beacon.fp);
+      // A deck that reached this one over the tailnet is answered there too:
+      // a broadcast never gets back down its tunnel.
+      announce(via === "tailscale" ? [rinfo.address] : []);
+    }
+    if (verdict !== "peer") {
+      // Another deck is using this one's key — see beaconVerdict. Reported
+      // rather than fixed here: this file carries packets, and choosing a new
+      // identity for the deck belongs to whoever stores it.
+      if (verdict === "id-clash") onIdClash?.();
+      // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
+      // dropped: it is a name and an address on the same network, which is a
+      // row somebody can accept. Nothing is asked of it and nothing is
+      // offered to it until they do.
+      if (verdict === "stranger") {
+        onStranger?.({
+          fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
+          // Carried through so the list can show one row per machine rather
+          // than one per key that machine has ever held.
+          host: beacon.host, at: now(), via,
+        });
       }
-      if (verdict !== "peer") {
-        // Another deck is using this one's key — see beaconVerdict. Reported
-        // rather than fixed here: this file carries packets, and choosing a new
-        // identity for the deck belongs to whoever stores it.
-        if (verdict === "id-clash") onIdClash?.();
-        // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
-        // dropped: it is a name and an address on the same network, which is a
-        // row somebody can accept. Nothing is asked of it and nothing is
-        // offered to it until they do.
-        if (verdict === "stranger") {
-          onStranger?.({
-            fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
-            // Carried through so the list can show one row per machine rather
-            // than one per key that machine has ever held.
-            host: beacon.host, at: now(),
-          });
-        }
-        return;
-      }
-      const noted = notePeer(peers, beacon, rinfo.address, now());
-      if (noted.changed || noted.restarted) onPeer?.(noted);
+      return;
+    }
+    const noted = notePeer(peers, beacon, rinfo.address, now(), via);
+    if (noted.changed || noted.restarted) onPeer?.(noted);
+  };
+
+  /** Tell whoever asked, once per change rather than once per try. */
+  const tell = now => {
+    if (told === now) return;
+    told = now;
+    onHearing?.(now);
+  };
+
+  /** One try at the discovery port: the listening socket, or the error that
+   *  kept it. A bind that fails never calls back; it arrives as an error. */
+  const listen = () => new Promise(resolve => {
+    let s;
+    try { s = createSocket({ type: "udp4", reuseAddr: true }); } catch (err) { resolve({ err }); return; }
+    let bound = false;
+    s.on("error", err => {
+      if (bound) { onError?.("socket", err); return; }
+      try { s.close(); } catch { /* never opened */ }
+      resolve({ err });
     });
-    sock.bind(DISCOVERY_PORT, "0.0.0.0", () => {
-      try { sock.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
-      // Immediately, not on the next tick. Syncthing's rule: a deck that just
-      // came up should appear now rather than up to thirty seconds later, which
-      // is the difference between "it works" and "it seems broken" for anybody
-      // who starts two decks and watches.
-      announce();
-      timer = setInterval(announce, ANNOUNCE_MS);
-      timer.unref?.();
-      resolve();
+    s.on("message", onMessage);
+    s.bind(DISCOVERY_PORT, "0.0.0.0", () => {
+      bound = true;
+      try { s.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
+      resolve({ sock: s });
     });
   });
+
+  const tryListen = async () => {
+    const got = await listen();
+    if (stopped) { try { got.sock?.close(); } catch { /* gone */ } return; }
+    if (got.sock) {
+      sock = got.sock;
+      hearing = true;
+      deafError = null;
+      tell(true);
+      return;
+    }
+    hearing = false;
+    deafError = got.err;
+    tell(false);
+    rebind = setTimeout(() => { rebind = null; void tryListen(); }, rebindMs);
+    rebind.unref?.();
+  };
+
+  /**
+   * The socket beacons leave by, bound to whatever port the OS gives it.
+   *
+   * SENT FROM A PORT OF ITS OWN, NOT FROM 45317. Nothing that hears a beacon
+   * reads the port it came from — the reply goes to 45317 whatever the source
+   * — and sending from the discovery port gave that port away. Measured on a
+   * Mac that is a Tailscale exit node: a deck elsewhere on the tailnet routed a
+   * beacon through it, and Tailscale's forwarder binds its end of every UDP
+   * flow to the CLIENT's source port (netstack.go, forwardUDP), idling it out
+   * after two minutes. A beacon every thirty seconds never idles, so the Mac's
+   * own deck could never bind 45317 again. From an ephemeral port, the
+   * forwarder takes an ephemeral port.
+   */
+  const openOut = () => new Promise(resolve => {
+    let o;
+    try { o = createSocket({ type: "udp4" }); } catch { resolve(null); return; }
+    let opened = false;
+    o.on("error", err => {
+      if (opened) { onError?.("socket", err); return; }
+      opened = true;
+      try { o.close(); } catch { /* never opened */ }
+      resolve(null);
+    });
+    o.bind(0, "0.0.0.0", () => {
+      if (opened) return;
+      opened = true;
+      try { o.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
+      resolve(o);
+    });
+  });
+
+  const start = async () => {
+    stopped = false;
+    told = null;
+    await tryListen();
+    out = await openOut();
+    if (stopped) return;
+    // Immediately, not on the next tick. Syncthing's rule: a deck that just
+    // came up should appear now rather than up to thirty seconds later, which
+    // is the difference between "it works" and "it seems broken" for anybody
+    // who starts two decks and watches.
+    announce();
+    timer = setInterval(announce, ANNOUNCE_MS);
+    timer.unref?.();
+  };
 
   return {
     start,
     announce,
     peers,
+    /** Whether this deck holds the discovery port, and why not when it does
+     *  not. */
+    hearing: () => hearing,
+    deafError: () => deafError,
+    tunneled: () => tunneled,
     stop() {
+      stopped = true;
       if (timer) clearInterval(timer);
       timer = null;
+      if (rebind) clearTimeout(rebind);
+      rebind = null;
+      hearing = false;
       try { sock?.close(); } catch { /* already closed */ }
       sock = null;
+      try { out?.close(); } catch { /* already closed */ }
+      out = null;
     },
   };
 }
@@ -784,6 +967,15 @@ export function createSyncServer({
       if (!frame) return refuse("a sealed frame did not open");
       handlers?.(frame, {
         sock, peerFp, key, sealed: !!chan,
+        // Where this deck dials the caller BACK. A deck that only ever calls in
+        // is one this deck holds no address for, so it could receive nothing —
+        // accounts move only toward the deck that dials (see roundWith). The
+        // address the caller connected from, and the port it said it listens
+        // on, are a dialable pair the engine can add so the next round reaches
+        // it. `peerAddr` is the source of this very connection; `peerPort` came
+        // from the hello, not the ephemeral source port.
+        peerAddr: from(sock),
+        peerPort,
         send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
       });
     }, refuse));

@@ -28,7 +28,7 @@
 // anything the row could not.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { pressState } from "../panel-press";
+import { armedPress, pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
 import type { DeckAbout, DeckRow, Lane, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
@@ -266,10 +266,14 @@ export default function LanPeerModal({
   // machine's own words.
   const echoed = !!line && !!raw && !row.quiet && row.state.startsWith(line.text);
   const showRound = paired || row.kind === "dialling";
+  // Over the tailnet the same three sentences name it, because "on this
+  // network" about a laptop at home is the one thing the row must not say.
+  const overTailnet = (peer?.via ?? row.via) === "tailscale";
   const how = peer
-    ? peer.waiting ? null : peer.manual ? "added by address" : "on this network"
-    : row.kind === "nearby" ? "heard on this network"
-    : "asked this deck to pair";
+    ? peer.waiting ? null : peer.manual ? (overTailnet ? "added by its Tailscale address" : "added by address")
+      : overTailnet ? "over Tailscale" : "on this network"
+    : row.kind === "nearby" ? (overTailnet ? "heard over Tailscale" : "heard on this network")
+    : overTailnet ? "asked this deck to pair, over Tailscale" : "asked this deck to pair";
 
   // THE NETWORK, drawn the way the row's mark is coloured: whole and lit while
   // it answers, broken in the warning ink when the last round failed, and a
@@ -628,8 +632,12 @@ export default function LanPeerModal({
                           {...press(`unpair:${fpT}`)}
                           onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
                           onClick={() => {
-                            if (armedTwin !== fpT) { setArmedTwin(fpT); armedAt.current = Date.now(); return; }
-                            if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                            const now = Date.now();
+                            const press = armedPress({
+                              armedFor: armedTwin, target: fpT, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                            });
+                            if (press === "arm") { setArmedTwin(fpT); armedAt.current = now; return; }
+                            if (press === "ignore") return;
                             setArmedTwin(null);
                             void run(() => onUnpair(fpT));
                           }}
@@ -682,9 +690,13 @@ export default function LanPeerModal({
               // repeat never reaches the click at all.
               onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
               onClick={() => {
-                if (!armed) { setArmed(true); armedAt.current = Date.now(); return; }
+                const now = Date.now();
+                const press = armedPress({
+                  armedFor: armed ? row.fp : null, target: row.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                });
+                if (press === "arm") { setArmed(true); armedAt.current = now; return; }
                 // A double-click is one decision, not two — the row's rule.
-                if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                if (press === "ignore") return;
                 setArmed(false);
                 void run(onVerb);
               }}

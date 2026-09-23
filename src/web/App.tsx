@@ -12,7 +12,7 @@ import ReactFlow, {
   useStoreApi,
   type ReactFlowState,
 } from "reactflow";
-import AgentNode, { agentAriaLabel, waitingSentence } from "./components/AgentNode";
+import AgentNode, { waitingSentence } from "./components/AgentNode";
 import { shortModel, modelFamily } from "./model-label";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -20,7 +20,7 @@ import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
 import SessionClusters from "./components/SessionClusters";
 import SessionGroupNode from "./components/SessionGroupNode";
-import RecapNoteNode from "./components/RecapNoteNode";
+import RecapNoteNode, { type RecapNoteData } from "./components/RecapNoteNode";
 import RecapTieEdge from "./components/RecapTieEdge";
 import ToolBursts, { mcpChipIdentity } from "./components/ToolBursts";
 import SessionSummary from "./components/SessionSummary";
@@ -34,22 +34,26 @@ import {
   restartLandingStep, restartSafety, upgradeFailureId,
 } from "./restart";
 import { copyText } from "./copy-text";
-import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { laneMap, snapshotToFlow, type FlowNodeData } from "./canvas-flow";
+import { exportFileName, sessionExport } from "./session-export";
+import { canvasModalOpen, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
 import GuideModal from "./components/GuideModal";
 import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
-import ClaudeFm, { type ClaudeFmHandle } from "./components/ClaudeFm";
-import { duckMsFor } from "./claude-fm";
+import AppearanceMenu from "./components/AppearanceMenu";
+import ClaudeFm from "./components/ClaudeFm";
+import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, storedCharacterEnabled, storedFmSource, storedFmVolume } from "./appearance";
+import type { FmSource } from "./appearance";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
-import { liveNodeIds, pruneSelection, pruneStaleEntries, measuredNodeIds } from "./prune";
+import { pruneSelection, sweepTick } from "./prune";
 import { spotlightUnion } from "./spotlight";
-import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
+import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { createPauseGate } from "./pause";
 import { readStored } from "./storage";
@@ -73,17 +77,20 @@ const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
-import { autoLayout, bubblePush, columnsWouldChange, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps, type Frame } from "./layout";
-import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
+import { columnsWouldChange, type Frame } from "./layout";
+import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, settlesInFlightCall, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
-import { restoreLayout, type StoredLayout } from "./stored-layout";
+import { parseLayoutFrame, parseStoredLayout, restoreLayout, serializeLayout, type StoredLayout } from "./stored-layout";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport, type StoredViewport } from "./stored-viewport";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
-import { fitViewDuration, shouldAnimateViewport } from "./viewport-motion";
+import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
+import { fitZoomForDrawnLanes, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
+import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { fmtCost, fmtCostRate } from "./pricing";
 // The topbar strip, the burn ticker, the selected-session ribbon and the detail
 // panel all multiply usage by a price, and all four used to multiply a whole
@@ -93,8 +100,8 @@ import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
-import { isRecapDismissed, isRecapNoteId, recapKey, recapNoteId, useRecapNotesVersion } from "./recap-note";
-import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
+import { useRecapNotesVersion } from "./recap-note";
+import { noticeIsOpen, noticeKeyFor, versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
 // pure function over what the store said, what is running and what shipped
@@ -118,7 +125,7 @@ import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
 import {
-  chimeFor, clampLevel, createChimePlayer, figureFor, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
+  chimeFor, clampLevel, createChimePlayer, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
   PREVIEW_DELAY_MS, readPrefs,
   type Chime, type ChimeState, type TonePrefs, type ToneSettings,
 } from "./sound";
@@ -149,13 +156,6 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
-/** A recap note's size before React Flow has measured it — the sheet's width,
- *  and about a card's height — and the gap it keeps to the left of its card:
- *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
- *  would put it. */
-const RECAP_NOTE_W = 300;
-const RECAP_NOTE_H = 130;
-const RECAP_NOTE_GAP = 160;
 
 /** The class React Flow puts on the wrapper it renders around every node — the
  *  element it makes tabbable, not the .agent-node card AgentNode draws inside
@@ -246,37 +246,14 @@ const BUBBLE_MS = 420;
 // Padding of the invisible session drag-handle node. Matches SessionClusters'
 // PAD so the handle lines up with the card's body (the card's header strip is
 // left uncovered so its label stays clickable).
-/** The three distances a card is read from.
- *
- *  `full` is where every tier on the card is legible. `mid` drops the 9-10px
- *  annotations, which are the first to go illegible and the last anybody needs
- *  at a distance. `far` keeps only what a graph is for at overview: which
- *  session, what state, and the shape of the tree.
- *
- *  The thresholds are where the SMALLEST tier in each group stops resolving.
- *  The sheet's floor is 9px, so at 0.55 that tier draws at 5px and at 0.35 the
- *  11px body draws at under 4 — both past the point where the glyphs carry
- *  anything, and both well inside React Flow's 0.2 minimum. */
-type ZoomDetail = "full" | "mid" | "far";
-function zoomDetail(zoom: number): ZoomDetail {
-  if (zoom < 0.35) return "far";
-  if (zoom < 0.55) return "mid";
-  return "full";
-}
-
 const GROUP_PAD = 18;
 
-const AGENT_CAP = 200;
-const AGENT_GRACE_MS = 5 * 60_000;
-// How many finished sessions stay on the canvas. Small on purpose: the board
-// is for what is happening now, and a day of sessions otherwise buries it.
-// The 2-minute grace is shorter than AGENT_GRACE_MS — a session is a bigger,
-// more obvious thing to disappear, so it should not linger once it is over.
-const DONE_SESSION_CAP = 6;
-const DONE_SESSION_GRACE_MS = 2 * 60_000;
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
 const OPENING_FIT_MS = 400;
+/** How long a focus takes to arrive (focusAgent): the fit's own pace, a little
+ *  quicker, because the reader asked for this one and is waiting on it. */
+const FOCUS_MS = 450;
 const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 /** The frame the stored layout was packed into columns for — see #995. */
 const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
@@ -446,26 +423,14 @@ function saveMachinePanelOpen(open: boolean): void {
   try { window.localStorage.setItem(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
 }
 
+/** The stored arrangement. The format, its v1 migration and what a garbled
+ *  value reads as are parseStoredLayout's (#1174); the try is for the storage
+ *  read itself, which can throw on its own. */
 function loadLayout(): StoredLayout {
-  const empty: StoredLayout = { positions: [], pins: [] };
-  if (typeof window === "undefined") return empty;
+  if (typeof window === "undefined") return { positions: [], pins: [] };
   try {
-    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!raw) return empty;
-    const obj = JSON.parse(raw) as
-      | Record<string, { x: number; y: number }>
-      | { v: 2; positions: Record<string, { x: number; y: number }>; pins: string[] };
-
-    // v1 stored a bare id → point map of drags only. Read it as all-pinned so
-    // an upgrade keeps whatever the user had arranged.
-    if (!("v" in obj)) {
-      const entries = Object.entries(obj).filter(([, v]) => v && typeof v.x === "number" && typeof v.y === "number");
-      return { positions: entries, pins: entries.map(([id]) => id) };
-    }
-    const entries = Object.entries(obj.positions ?? {})
-      .filter(([, v]) => v && typeof v.x === "number" && typeof v.y === "number");
-    return { positions: entries, pins: Array.isArray(obj.pins) ? obj.pins : [] };
-  } catch { return empty; }
+    return parseStoredLayout(window.localStorage.getItem(LAYOUT_STORAGE_KEY));
+  } catch { return { positions: [], pins: [] }; }
 }
 
 function saveLayout(
@@ -474,12 +439,7 @@ function saveLayout(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const obj: Record<string, { x: number; y: number }> = {};
-    for (const [id, pos] of positions) obj[id] = pos;
-    for (const [id, pos] of pinned) obj[id] = pos;   // a drag wins over the layout
-    window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
-      v: 2, positions: obj, pins: Array.from(pinned.keys()),
-    }));
+    window.localStorage.setItem(LAYOUT_STORAGE_KEY, serializeLayout(positions, pinned));
   } catch { /* quota / private mode — ignore */ }
 }
 
@@ -501,12 +461,7 @@ function saveLayout(
 function loadLayoutFrame(): Frame | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(LAYOUT_FRAME_KEY);
-    if (!raw) return null;
-    const f = JSON.parse(raw);
-    if (!(typeof f?.width === "number" && typeof f?.height === "number")) return null;
-    if (!(f.width > 0 && f.height > 0)) return null;
-    return { width: f.width, height: f.height };
+    return parseLayoutFrame(window.localStorage.getItem(LAYOUT_FRAME_KEY));
   } catch { return null; }
 }
 
@@ -542,58 +497,21 @@ function clearStoredLayout(): void {
   try { window.localStorage.removeItem(LAYOUT_FRAME_KEY); } catch {}
 }
 
-/** Build a portable JSON snapshot of a single session (root + every
- *  subagent) and trigger a browser download. Useful for offline analysis,
- *  bug reports, or just keeping a record of a noteworthy run. */
+/** Build a portable JSON snapshot of a single session (root + every subagent)
+ *  and trigger a browser download.
+ *
+ *  What goes IN the file, and what the file is called, are session-export.ts's
+ *  — the format is the half people keep, and it was unreachable by any test
+ *  while it lived in here (#1175). This is the download around it. */
 function exportSessionJson(state: GraphState, sessionId: string): void {
-  const root = state.agents.get(sessionId);
-  if (!root) return;
-  const agents: AgentNodeData[] = [];
-  for (const a of state.agents.values()) {
-    if (a.sessionId === sessionId) agents.push(a);
-  }
-  const payload = {
-    schemaVersion: 1,
-    exportedAt: new Date().toISOString(),
-    sessionId,
-    label: root.label,
-    cwd: root.cwd,
-    startedAt: root.startedAt,
-    endedAt: root.endedAt,
-    model: root.model,
-    agents: agents.map(a => ({
-      id: a.id,
-      kind: a.kind,
-      label: a.label,
-      parentId: a.parentId,
-      state: a.state,
-      startedAt: a.startedAt,
-      endedAt: a.endedAt,
-      model: a.model,
-      cwd: a.cwd,
-      usage: a.usage,
-      prompts: a.prompts,
-      // Strip the heavy `input`/`response` fields by default to keep the
-      // file portable. Tool name + timing + ok flag are usually enough.
-      tools: a.tools.map(t => ({
-        id: t.id,
-        name: t.name,
-        inputPreview: t.inputPreview,
-        startedAt: t.startedAt,
-        endedAt: t.endedAt,
-        ok: t.ok,
-        errorPreview: t.errorPreview,
-        usage: t.usage,
-      })),
-    })),
-  };
+  const payload = sessionExport(state, sessionId, new Date().toISOString());
+  if (!payload) return;
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const safeLabel = (root.label || "session").replace(/[^a-z0-9._-]/gi, "_");
   a.href = url;
-  a.download = `${PRODUCT}-${safeLabel}-${sessionId.slice(0, 8)}.json`;
+  a.download = exportFileName(payload.label, sessionId);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -663,355 +581,6 @@ const DETAIL_CAT_LABEL: Record<DetailCategory, string> = {
  *  purely so the call sites below read the way they always have. */
 const detailCategoryFor = categoryFor;
 
-type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void };
-
-/**
- * Node data that keeps its identity while the board has not changed (#873).
- *
- * This was `{ ...a, now, onOpenContext }`: a fresh object for every card on every
- * 250ms tick, so React Flow's memoised node wrapper never bailed and every card
- * and its sparkline re-rendered four times a second on an idle board. The
- * reducer bumps `state.revision` on every change it makes to an agent, so a copy
- * taken at one revision is still true until the next — and the cards, memoised
- * on it, sit still between events. Time reaches them through the leaves that
- * print it, on their own beat (use-now.ts).
- */
-const NODE_DATA = new WeakMap<GraphState, {
-  revision: number;
-  open: (sessionId: string) => void;
-  byId: Map<string, FlowNodeData>;
-}>();
-
-function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
-  let entry = NODE_DATA.get(state);
-  if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
-    entry = { revision: state.revision, open: onOpenContext, byId: new Map() };
-    NODE_DATA.set(state, entry);
-  }
-  const { byId } = entry;
-  return a => {
-    let d = byId.get(a.id);
-    if (!d) {
-      d = { ...a, onOpenContext };
-      byId.set(a.id, d);
-    }
-    return d;
-  };
-}
-
-/**
- * How much room each agent's bubbles need.
- *
- * ToolBursts keeps the last four tools as a permanent trail — no time-based
- * culling — so an agent that has called a tool occupies its lane for as long as
- * it is on the canvas, and every pass that places a box has to be told. Without
- * it the next rank is placed 160px away and lands on top of bubbles that reach
- * 420px out, and the repair passes — which run far more often than dagre does —
- * pack the neighbours straight back over the chips.
- *
- * A named function rather than four lines inside snapshotToFlow because the
- * reframe effect has to ask layout.ts the same question about the same board
- * (#995), and a second copy of this loop is a second thing to keep in step.
- */
-function laneMap(state: GraphState): Map<string, number> {
-  const lanes = new Map<string, number>();
-  for (const a of state.agents.values()) {
-    if (a.tools.length > 0) lanes.set(a.id, Math.min(4, a.tools.length));
-  }
-  return lanes;
-}
-
-function snapshotToFlow(
-  state: GraphState,
-  now: number,
-  availableWidth: number,
-  availableHeight: number,
-  pinned: Map<string, { x: number; y: number }>,
-  measured: Map<string, { width: number; height: number }>,
-  prevSessionSize: Map<string, { w: number; h: number }>,
-  onBubble: (sessions: string[]) => void,
-  /** False while the page is still mounting and measuring. */
-  settled: boolean,
-  /**
-   * A drag is in progress.
-   *
-   * Dragging a card out of its session makes that session's bounding box
-   * bigger, which is indistinguishable from the session growing — so the push
-   * fired on every pointer move and shoved the other sessions around while the
-   * user was still holding the mouse down. The new size is still recorded, so
-   * letting go does not then trigger a push for a change the user made by hand.
-   */
-  dragging: boolean,
-  positions: Map<string, { x: number; y: number }>,
-  /** Ids in `positions` that hold a placeholder rather than a laid-out spot. */
-  provisional: Provisional,
-  layoutSig: string,
-  lastLayoutSigRef: { current: string },
-  selectedIds: Set<string>,
-  lineage: Set<string> | null,
-  visibleIds: Set<string>,
-  onOpenContext: (sessionId: string) => void,
-): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
-  const nodes: Node<FlowNodeData>[] = [];
-  const edges: Edge[] = [];
-  const dataFor = nodeDataFor(state, onOpenContext);
-  for (const a of state.agents.values()) {
-    if (!visibleIds.has(a.id)) continue;
-    const exiting = a.exitAt != null;
-    // Spotlight: out-of-lineage agents fade hard when a selection is active.
-    const spotlitOut = lineage != null && !lineage.has(a.id);
-    const cls = [
-      exiting ? "rf-exiting" : "",
-      spotlitOut ? "rf-spotlit-out" : "",
-    ].filter(Boolean).join(" ") || undefined;
-    // ReactFlow's createNodeInternals wipes width/height from internals on
-    // every setNodes call — and we re-pass `nodes` on every `now` tick.
-    // Without supplying them on the node prop, RF flips `initialized=false`
-    // → `visibility:hidden` until ResizeObserver re-fires. Under live event
-    // storms RO lags multiple frames → nodes persistently invisible while
-    // tool bursts (which read positions directly) keep rendering. Pull
-    // cached measurements through so internals survive the rewrite.
-    const m = measured.get(a.id);
-    nodes.push({
-      id: a.id,
-      type: "agent",
-      position: { x: 0, y: 0 },
-      data: dataFor(a),
-      className: cls,
-      // Composed, not read off the card: see agentAriaLabel (#853).
-      ariaLabel: agentAriaLabel(a, now),
-      ...(m ? { width: m.width, height: m.height } : null),
-    });
-    if (a.parentId && visibleIds.has(a.parentId)) {
-      const hue = sessionHue(a.sessionId);
-      const fading = exiting;
-      // Selected-edge emphasis: thicker stroke + animated for edges that
-      // touch any selected agent (multi-select: any in the set counts).
-      const isSelectedEdge = selectedIds.size > 0 && (selectedIds.has(a.id) || selectedIds.has(a.parentId));
-      // Spotlight: edges entirely outside the lineage fade too.
-      const spotlitOutEdge = lineage != null && !lineage.has(a.id) && !lineage.has(a.parentId);
-      const baseWidth = a.state === "active" ? 2 : 1.5;
-      const selectedWidth = isSelectedEdge ? baseWidth + 1.5 : baseWidth;
-      const effectiveOpacity = fading
-        ? 0.2
-        : spotlitOutEdge ? 0.12 : 1;
-      // The class picks the tier, the tier picks the lightness. Which of the
-      // two an edge wears is a state this loop owns; how bright that state has
-      // to be to survive its canvas is the sheet's, and used to be decided
-      // here at a value tuned for #0b0c10 (1.19:1 on white at its worst hue).
-      const cls = [
-        "sess-edge",
-        a.state === "active" ? "sess-live" : "sess-idle",
-        fading ? "rf-edge-exiting" : "",
-        isSelectedEdge ? "rf-edge-selected" : "",
-      ].filter(Boolean).join(" ");
-      edges.push({
-        id: `e:${a.parentId}->${a.id}`,
-        source: a.parentId,
-        target: a.id,
-        animated: (a.state === "active" || isSelectedEdge) && !fading,
-        type: "smoothstep",
-        // No edge label — the target node already displays the agent name.
-        // The transition is named here and valued in the stylesheet. An inline
-        // style outranks every selector, so the literal string this used to
-        // carry could not be answered by a `prefers-reduced-motion` rule at
-        // all (#357) — a reader who asked for less motion still got 200ms of
-        // stroke-width travel on every edge that gained or lost a selection.
-        // `--edge-transition` moves that decision into styles.css, where the
-        // media query drops the stroke-width half and keeps the opacity fade,
-        // and it costs this component nothing: no hook, no listener, and no
-        // re-render of the canvas when the preference changes.
-        style: { "--session-hue": hue, strokeWidth: selectedWidth, opacity: effectiveOpacity, transition: "var(--edge-transition)" } as React.CSSProperties,
-        className: cls,
-      });
-    }
-    // Claude Code's recap, as a node of its own beside the root — RecapNoteNode
-    // holds why a node and not something drawn over the canvas. Built only while
-    // the recap still describes the session and nobody has put it away, and tied
-    // to the root by an edge FROM the note, which is also what makes dagre rank
-    // it to the left of the card.
-    const recap = a.kind === "root" ? recapShown(a) : null;
-    const noteKey = recap ? recapKey(a.sessionId, recap.at) : null;
-    if (recap && noteKey && !isRecapDismissed(noteKey)) {
-      const noteId = recapNoteId(a.id);
-      const hue = sessionHue(a.sessionId);
-      const mn = measured.get(noteId);
-      // A second shape of node in an array typed for cards. Every reader here
-      // that treats a node's data as a card's checks the node's type first —
-      // the frame, the minimap, the click, the j/k step.
-      nodes.push({
-        id: noteId,
-        type: "recapNote",
-        position: { x: 0, y: 0 },
-        data: { sessionId: a.sessionId, parentId: a.id, recap, noteKey, hue },
-        className: spotlitOut ? "rf-spotlit-out" : undefined,
-        selectable: false,
-        // Not a keyboard stop either, like the session drag handles: Enter on a
-        // focused node selects its id, and a note's id is not an agent's. Its ×
-        // is still a button, and still reached by Tab.
-        focusable: false,
-        ariaLabel: `Claude Code's recap for ${a.label}`,
-        ...(mn ? { width: mn.width, height: mn.height } : null),
-      } as unknown as (typeof nodes)[number]);
-      edges.push({
-        id: `e:recap:${a.id}`,
-        source: noteId,
-        target: a.id,
-        type: "recapTie",
-        className: "recap-edge",
-        // Decoration: not a stop for Tab. It draws no hit area to click either
-        // (RecapTieEdge renders none, and the sheet gives it no pointer).
-        focusable: false,
-        style: { "--session-hue": hue } as React.CSSProperties,
-      });
-    }
-  }
-  // Only rerun dagre when the structure or measured sizes actually change.
-  // Between layouts, reuse cached positions so per-event renders don't shift
-  // nodes — that was the source of canvas flicker + drag-snap-back.
-  // A structural change no longer reshuffles the canvas. Nodes that already
-  // have a position keep it — the arrangement on screen is one the user has
-  // been reading, and rebuilding it under them costs more than the tidier
-  // result is worth. Only nodes without a position are laid out, and only
-  // nodes that end up overlapping get moved. The relayout button (R) is the
-  // way to ask for a full reflow.
-  const lanes = laneMap(state);
-  // A lane appearing is a structural change, so it invalidates the cached
-  // arrangement the way a new node or a re-measured card does.
-  //
-  // Without this the reservation was applied on exactly one frame per node —
-  // the frame it first appears, which is the frame it has just been created by
-  // SessionStart and has called nothing, so its lane is zero. It then made
-  // forty tool calls, grew 420px sideways, and nothing ever reconsidered its
-  // neighbours. Clamping at four bubbles is what keeps this cheap: the string
-  // stops changing after an agent's fourth tool call.
-  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}`;
-  // A node holding a placeholder counts as missing however real its entry in
-  // `positions` looks — see placement.ts. Without that, the one write that
-  // exists to keep a node on screen for a frame was also the write that told
-  // this filter the node had been laid out.
-  // A recap note that is not on the board forgets where the layout put it, so
-  // the next one is placed beside its card as the card sits THEN — a note put
-  // away before its card moved must not come back to where the card used to
-  // be. Where somebody DRAGGED one is a pin, and pins are kept (liveNodeIds).
-  const shownNotes = new Set(nodes.filter(n => n.type === "recapNote").map(n => n.id));
-  for (const id of Array.from(positions.keys())) {
-    if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
-      positions.delete(id);
-      provisional.delete(id);
-    }
-  }
-  const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
-  if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
-    if (missing.length > 0) {
-      // A card joining a session already on the canvas goes beside that session
-      // as it sits now, not where a layout from scratch would have it.
-      const laidOut = joinSessions(
-        autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes }),
-        pinned,
-        id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
-      );
-      for (const n of laidOut) if (isUnplaced(n.id, positions, provisional)) recordPlacement(n.id, n.position, positions, provisional);
-      // Finished sessions are pruned as they complete, so the column they were
-      // in has holes while new work keeps being appended underneath. Offer the
-      // arrivals those holes first, and past them whichever of a column's foot
-      // or a new column to the right lets the fit show the board largest.
-      fillGapsWithNewSessions(
-        nodes, positions, pinned, measured,
-        // Cards only: a recap note joins a session that is already here, and
-        // offered a hole it was taken for a session of its own and dropped in
-        // a gap at the foot of some column, nowhere near its card.
-        new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,
-        { width: availableWidth, height: availableHeight },
-      );
-      // A recap note joining a card that is already on the canvas goes to the
-      // LEFT of that card, where R puts it too. It is tied to its root by an
-      // edge, but a card somebody has dragged is pinned, and dagre lays out only
-      // what still flows — so the note was laid out on its own and the overlap
-      // pass slid it underneath the card. Placed from the card, it cannot be.
-      for (const n of missing) {
-        if (n.type !== "recapNote") continue;
-        const rootId = (n.data as { parentId?: string } | undefined)?.parentId;
-        if (!rootId) continue;
-        const root = pinned.get(rootId) ?? (isUnplaced(rootId, positions, provisional) ? undefined : positions.get(rootId));
-        if (!root) continue;
-        const nw = measured.get(n.id)?.width ?? RECAP_NOTE_W;
-        const nh = measured.get(n.id)?.height ?? RECAP_NOTE_H;
-        const rh = measured.get(rootId)?.height ?? RECAP_NOTE_H;
-        recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
-      }
-    }
-    separateOverlaps(nodes, positions, pinned, measured, lanes);
-    lastLayoutSigRef.current = sig;
-  }
-  // A session that just fanned out subagents is wider and taller than it was a
-  // frame ago, and is now sitting on whatever was beside it. separateOverlaps
-  // would clear that by sliding the covered session down past the whole grown
-  // block; this nudges the neighbours aside by the least that works, which is
-  // both shorter and legible as a cause — the box grew, so the others moved.
-  // Self-gating: returns immediately unless something actually grew.
-  const bubbled = bubblePush(nodes, positions, pinned, measured, prevSessionSize, !settled || dragging, lanes);
-  if (bubbled.length > 0) onBubble(bubbled);
-  // Evict cached positions for agents that aren't in state.agents anymore.
-  // Stale positions for invisible-but-still-tracked agents are KEPT so a
-  // transient flicker out of visibleIds (e.g. one frame where isAgentVisible
-  // is false during a state transition) doesn't lose the position and snap
-  // the node to {0,0} on return — that was causing "nodes vanish on action
-  // change" while bursts (which gate on visibleIds) also disappeared.
-  // Like the pins below, this is guarded on a non-empty graph: positions are
-  // restored from storage before the event log has replayed, so pruning them
-  // against an empty agent map would wipe the whole saved arrangement on every
-  // page load and re-derive it with dagre.
-  const live = liveNodeIds(state.agents.values());
-  pruneStaleEntries(positions, live);
-  // A mark normally lives one frame — the pass it asks for clears it — but an
-  // agent that leaves between the stamp and that pass would leave its id in the
-  // set for the life of the tab, which is the leak the size cache below had.
-  pruneStaleEntries(provisional, live);
-  // Drop pins for agents that are gone. Pinned positions are restored from
-  // localStorage on every load, so without this a drag from some previous run
-  // outlives the agent it belonged to and keeps claiming that spot on the
-  // canvas — where a later session, laid out from the top, gets stacked
-  // straight onto it.
-  pruneStaleEntries(pinned, live);
-  // Drop measurements for nodes that no longer exist. This cache is not
-  // restored from storage, but it is not rebuilt either: nothing but the Clear
-  // button ever removed an id, so a tab left open for days holds a size for
-  // every agent and every session that has ever been on the canvas. columnGap()
-  // takes the widest measured node of all, and a session drag handle is as wide
-  // as the whole session box, so a single long-gone session kept the gap
-  // between columns at its width for the rest of the tab's life.
-  pruneStaleEntries(measured, measuredNodeIds(state.agents.values()));
-  // Never silently drop a visible node — if its position is missing, place
-  // it at {0,0} for THIS frame and force a fresh layout pass on the next
-  // frame by invalidating lastLayoutSigRef. The previous skip-this-frame
-  // strategy caused the catastrophic "every node vanished while bursts
-  // remained" symptom when, for whatever reason, positions got out of sync
-  // with state.agents (the bursts gate on visibleAgentIds + positions; the
-  // node renderer gated on positions only, so the two halves disagreed).
-  const finalNodes: typeof nodes = [];
-  let missingPosition = false;
-  for (const n of nodes) {
-    let p = pinned.get(n.id) ?? positions.get(n.id);
-    if (!p) {
-      p = stampPlaceholder(n.id, positions, provisional);
-      missingPosition = true;
-    }
-    finalNodes.push({ ...n, position: p });
-  }
-  if (missingPosition) {
-    // Force the layout branch above to run again on the next render, even if
-    // nothing else changed. The stamp is recorded as provisional, so that pass
-    // sees the node in `missing` and hands it to dagre — which is what the
-    // invalidation was always meant to buy and never did while a placeholder
-    // was indistinguishable from a placement, leaving separateOverlaps as the
-    // only thing that ever touched the node and the x=0 column as the only
-    // place it could be.
-    lastLayoutSigRef.current = "";
-  }
-  return { nodes: finalNodes, edges };
-}
-
 export default function App() {
   return (
     <ReactFlowProvider>
@@ -1073,7 +642,7 @@ function Inner() {
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
   const [openedToolId, setOpenedToolId] = useState<string | null>(null);
 
-  const selectAgent = useCallback((id: string, additive: boolean) => {
+  const selectAgent = useCallback((id: string, additive: boolean, inspect: boolean = !additive) => {
     setSelectedIds(prev => {
       if (!additive) return new Set([id]);
       const next = new Set(prev);
@@ -1092,7 +661,12 @@ function Inner() {
     // detail panel; its × still closes it for now, and the next selection
     // brings it back. Shift+click only widens the spotlight, so it leaves the
     // panel as it was.
-    if (!additive) setDetailOpen(true);
+    //
+    // Except from a pointer on the canvas, which passes `inspect: false`: a
+    // click on a card goes to its session instead (onNodeClick), and the panel
+    // is the double-click's — the owner's call on 2026-09-19, over #814's for
+    // the click. j/k, the list, W, Enter and D still open it.
+    if (!additive && inspect) setDetailOpen(true);
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -1235,25 +809,6 @@ function Inner() {
   const tonePrefsRef = useRef(tonePrefs);
   tonePrefsRef.current = tonePrefs;
 
-  /** Claude FM, if it is on the canvas at all. The handle is one method: drop
-   *  the music while a chime plays. Null whenever the channel is off air or
-   *  nobody has pressed play, which is what every call below tolerates. */
-  const fmRef = useRef<ClaudeFmHandle | null>(null);
-
-  /**
-   * Get the music out of the way of the deck's own sound.
-   *
-   * The chimes are the reason the sound menu exists: they are how this deck
-   * says a turn finished or that Claude is waiting on somebody. Music playing
-   * over them does not merely make them harder to hear, it makes them
-   * indistinguishable from the track — so every chime ducks the music for
-   * exactly its own length, measured from the figure the user picked rather
-   * than from a constant that would clip the long ones.
-   */
-  const duckForChime = useCallback((chime: Chime) => {
-    const figure = figureFor(chime, tonePrefsRef.current[chime]?.figure);
-    fmRef.current?.duck(duckMsFor(figure.notes));
-  }, []);
   /** The trailing timer for the tone a changed setting plays back. */
   const previewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1279,12 +834,12 @@ function Inner() {
     chimesRef.current?.unlock();
     if (previewRef.current !== null) clearTimeout(previewRef.current);
     previewRef.current = null;
-    if (!soon) { if (chimesRef.current?.play(chime, true)) duckForChime(chime); return; }
+    if (!soon) { chimesRef.current?.play(chime, true); return; }
     previewRef.current = setTimeout(() => {
       previewRef.current = null;
-      if (chimesRef.current?.play(chime, true)) duckForChime(chime);
+      chimesRef.current?.play(chime, true);
     }, PREVIEW_DELAY_MS);
-  }, [duckForChime]);
+  }, []);
 
   /**
    * One tone's settings, written and then played back.
@@ -1322,6 +877,9 @@ function Inner() {
    *  its own onClick already toggles, and both running would close the menu and
    *  reopen it in the same gesture. */
   const soundButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [appearanceMenuOpen, setAppearanceMenuOpen] = useState(false);
+  const appearanceButtonRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { if (soundMenuOpen) setAppearanceMenuOpen(false); }, [soundMenuOpen]);
 
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
@@ -1594,9 +1152,11 @@ function Inner() {
   const providersRef = useRef(providers);
   providersRef.current = providers;
   // Keyed to the version it is about, so dismissing today's notice does not
-  // silence next month's release.
-  const noticeKey = notice ? `${notice.kind}:${notice.to}` : "";
-  const noticeOpen = notice != null && versionDismissed !== noticeKey;
+  // silence next month's release — and, through `noticeOpen`, does not turn
+  // off restart-to-update for good either (#804). The rule is version-chip.ts's
+  // so it can be driven (#1175).
+  const noticeKey = noticeKeyFor(notice);
+  const noticeOpen = noticeIsOpen(notice, versionDismissed);
   // Two idempotent halves rather than one toggle (#715). The chip used to flip
   // this, which was fine while flipping it was all the chip did; it now opens
   // the release notes as well, and a click that opens a modal AND silently
@@ -2094,6 +1654,9 @@ function Inner() {
   // panel loaders are: an initialiser is the one place a store the browser
   // won't hand over blanks the deck instead of costing a preference.
   const [theme, setTheme] = useState<Theme>(storedTheme);
+  const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
+  const [fmVolume, setFmVolume] = useState(storedFmVolume);
+  const [fmSource, setFmSource] = useState<FmSource>(storedFmSource);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -2136,6 +1699,18 @@ function Inner() {
       return samePalette(prev, next) ? prev : next;
     });
   }, [theme]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0"); } catch { /* private mode */ }
+  }, [characterEnabled]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FM_VOLUME_KEY, String(fmVolume)); } catch { /* private mode */ }
+  }, [fmVolume]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FM_SOURCE_KEY, fmSource); } catch { /* private mode */ }
+  }, [fmSource]);
 
   /**
    * Put the pane where the deck wants it — and make sure it gets there.
@@ -2198,6 +1773,24 @@ function Inner() {
    *  part-way to a fit, with `getViewport` reporting a transform the deck never
    *  asked for and the drift watchdog measuring against it. */
   const pendingFitRef = useRef<{ target: { x: number; y: number; zoom: number }; until: number } | null>(null);
+  /** WHICH CAMERA MOVE IS THE LATEST ONE ANYBODY ASKED FOR. Bumped by every
+   *  frame the deck sets on purpose — a fit, a focus — and by the reader's own
+   *  pan or zoom, so that a move can tell it has been superseded.
+   *
+   *  fitLeft's trailing correction is what needs it. That check exists to land a
+   *  fit whose animation was cut short, and it could not tell "cut short" from
+   *  "replaced": a fit started by the frame change a selection causes (the
+   *  detail panel opens and the canvas narrows), then a double-click focusing a
+   *  session 100ms later — and 560ms after the fit began, its correction found
+   *  the camera somewhere it had not put it and snapped the whole board back,
+   *  over the focus. A pan made during a fit's animation was undone the same
+   *  way. The correction now lands only while its fit is still the latest. */
+  const cameraEpochRef = useRef(0);
+  /** The card the last focus framed, and when — so a re-pack that lands just
+   *  after it (the reframe effect below) can frame it again where it went. */
+  const lastFocusRef = useRef<{ id: string; at: number } | null>(null);
+  /** focusAgent, for an effect declared above it. */
+  const focusAgentRef = useRef<(id: string) => void>(() => {});
 
   // Apply restored viewport once ReactFlow's instance is ready. We skip
   // the initial fitView in that case (see <ReactFlow fitView={…}/> below).
@@ -2295,8 +1888,11 @@ function Inner() {
         else coalescer.live();
         // After the coalescer, and reusing its `isReplay`: a reconnect is sent
         // the whole ring, and every Stop in a day's work is in it.
+        // Over Claude FM, never under it: the chime is short and the music
+        // keeps its level. Turning the track down for each one was heard as
+        // the stream cutting out.
         const chime = chimeFor(env, isReplay);
-        if (chime && chimesRef.current?.play(chime)) duckForChime(chime);
+        if (chime) chimesRef.current?.play(chime);
       } catch { /* ignore */ }
     });
     return () => {
@@ -2318,45 +1914,17 @@ function Inner() {
     const id = setInterval(() => {
       const t = Date.now();
       setNow(t);
-      // Both sweeps run on STALE_SESSION_MS because they are asking the same
-      // question — is this session still there? — about two things that die
-      // together. #436: the tool sweep used to ask it on a ninety-second clock of
-      // its own, which meant the deck failed a session's tool calls an hour and a
-      // half before it was willing to call that session gone, and stamped a red ×
-      // on every `Bash` slower than a minute and a half. Order between the two is
-      // immaterial: neither writes `lastEventAt`, which is what both read.
-      let changed = sweepStaleTools(stateRef.current, t, STALE_SESSION_MS);
-      // And the session above those tools, when nothing at all has been heard
-      // from it in STALE_SESSION_MS. A terminal killed while a permission prompt
-      // was up sends no final event, so its root stays `active` and its
-      // `waiting` block stays lit — on the tab title and the favicon, which have
-      // no age printed on them to give the staleness away. Runs on this tick
-      // rather than one of its own: the periodic mechanism the three sweeps
-      // below already share is the whole of what this needed.
-      if (sweepStaleSessions(stateRef.current, t, STALE_SESSION_MS)) changed = true;
-      // AND THE SERVER IS TOLD WHAT LEFT (#1024). Both pruners below drop whole
-      // sessions, and the server keeps two caches that gate an emit on "has this
-      // changed" — a session's name and each subagent's model. Nothing told them
-      // the page had forgotten a session, so a session evicted while idle and
-      // then resumed never got a `SessionNamed` again and showed as unnamed in
-      // the sidebar and on the card for the rest of the day, recoverable only by
-      // reloading the tab. #445's own measurement: 7 of 20 evicted sessions went
-      // on to emit more events.
-      //
-      // One POST for the whole tick rather than one per session, because the two
-      // pruners run back to back and a cap coming down by six is six ids, not
-      // six requests.
-      const forgotten: string[] = [];
-      const forget = (sid: string) => { forgotten.push(sid); };
-      // Prune long-finished agents so memory doesn't grow over multi-day
-      // sessions. Keeps most-recent AGENT_CAP — past 5 minutes since done.
-      if (pruneOldAgents(stateRef.current, t, AGENT_CAP, AGENT_GRACE_MS, forget)) changed = true;
-      // Keep the canvas to the last few finished sessions, so a long day of
-      // work doesn't bury the running ones under everything already done.
-      if (pruneDoneSessions(stateRef.current, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS, forget)) changed = true;
+      // Every sweep this tick runs, on the shipped constants, with the whole
+      // sessions they evicted collected — see sweepTick in prune.ts, which is
+      // where the order, the constants and the #1024 collection can be run by
+      // a test (#1175).
+      const { changed, forgotten } = sweepTick(stateRef.current, t);
       if (forgotten.length > 0) {
-        // Failure is not worth reporting and not worth retrying: the worst it
-        // costs is the state this fixes, which is what every deck had before.
+        // The server drops its change-gated name and model caches for these,
+        // or a session evicted while idle and then resumed shows as unnamed for
+        // the rest of the day (#1024). Failure is not worth reporting and not
+        // worth retrying: the worst it costs is the state this fixes, which is
+        // what every deck had before.
         fetch("/api/forget", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -2439,11 +2007,17 @@ function Inner() {
       // these rects — leave room or the last column's chips get clipped. The
       // rail's strip is not room either: a board framed into it would put its
       // last column under the machine and usage panels.
-      const zoom = Math.max(MIN_ZOOM, Math.min(
+      //
+      // Only where they are drawn, though (fitZoomForDrawnLanes): below the
+      // full card the bubbles are hidden, and room kept for them there is the
+      // band of empty canvas a board used to sit in the middle of.
+      const railWidth = railCover(pane);
+      const fitWith = (lane: number) => Math.max(MIN_ZOOM, Math.min(
         MAX_ZOOM,
-        ((paneRect.width - railCover(pane) - MARGIN * 2) / (w + TOOL_LANE_ALLOWANCE)) * FILL,
+        ((paneRect.width - railWidth - MARGIN * 2) / (w + lane)) * FILL,
         ((paneRect.height - MARGIN * 2) / h) * FILL,
       ));
+      const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));
 
       // One frame, computed once. It used to be spelled out twice — here and
       // again inside the correction below — which is two chances to disagree
@@ -2453,6 +2027,7 @@ function Inner() {
         y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom,
         zoom,
       };
+      const epoch = ++cameraEpochRef.current;
       applyViewport(want, duration);
       lastFitTimeRef.current = Date.now();
       // Remembered only while an animation is actually running: a fit that went
@@ -2470,6 +2045,7 @@ function Inner() {
           // meantime owns the ref now, and clearing it would leave that
           // animation with nothing to land if the tab went away mid-flight.
           if (pendingFitRef.current?.target === want) pendingFitRef.current = null;
+          if (cameraEpochRef.current !== epoch) return;
           const vpNow = rf.getViewport();
           if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2) {
             applyViewport(want, 0);
@@ -2880,25 +2456,43 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
-  /** HOW MUCH OF A CARD IS WORTH DRAWING AT THIS DISTANCE.
+  /** WHICH CARD IS DRAWN AT THIS DISTANCE — detail, compact or overview.
    *
-   *  The canvas zooms to 0.2 and nothing ever simplified: at that distance the
-   *  9px tier renders at 1.8px and the 10px tier at 2px, which is a smear that
-   *  still costs a layout and a paint. This is the one signal the sheet needs
-   *  to stop drawing what cannot be read.
+   *  The canvas zooms to 0.2, and below the full card every word on it is drawn
+   *  at the canvas's scale: at 0.3 the 12px name is under 4px. The two smaller
+   *  modes are faces laid out in screen pixels instead (AgentNode's NodeFace);
+   *  which one is drawn is decided in semantic-zoom.ts from what the smallest
+   *  card measures on screen, with a band either side of each threshold so a
+   *  zoom resting near one cannot flip the canvas back and forth.
    *
    *  It lives on the canvas element rather than in each node ON PURPOSE. A node
    *  that subscribed to the viewport would re-render every card on every frame
    *  of a pinch, on a surface that already runs a 200-iteration relaxation and
    *  four resting animations; this is one attribute on one element, written
-   *  only when the tier actually changes, which is a handful of times per
+   *  only when the mode actually changes, which is a handful of times per
    *  gesture at most.
    *
-   *  Nothing here changes a card's BOX. What it hides keeps its space, because
-   *  the measured height of a node is a layout input — shrinking a card at
-   *  distance would reflow the graph under the reader's hands. */
-  const [detail, setDetail] = useState<ZoomDetail>("full");
-  const detailRef = useRef<ZoomDetail>("full");
+   *  Nothing here changes a card's BOX. The faces are drawn over the card's own
+   *  rows, which keep their space, because the measured height of a node is a
+   *  layout input — shrinking a card at a distance would reflow the graph under
+   *  the reader's hands, and the auto-fit would chase it. */
+  const [lod, setLod] = useState<LodMode>("detail");
+  const lodRef = useRef<LodMode | null>(null);
+  /** The card the mode has to work for: the smallest agent card on the board,
+   *  re-measured only when a measurement moved (measuredVersionRef). */
+  const lodCardRef = useRef<{ version: number; card: CardSize } | null>(null);
+  const lodCard = useCallback((): CardSize => {
+    const version = measuredVersionRef.current;
+    if (lodCardRef.current?.version === version) return lodCardRef.current.card;
+    const sizes: CardSize[] = [];
+    for (const id of stateRef.current.agents.keys()) {
+      const m = measuredRef.current.get(id);
+      if (m) sizes.push(m);
+    }
+    const card = referenceCard(sizes);
+    lodCardRef.current = { version, card };
+    return card;
+  }, []);
   const endBubble = useCallback(() => {
     if (bubbleTimerRef.current) { window.clearTimeout(bubbleTimerRef.current); bubbleTimerRef.current = null; }
     setBubbling(false);
@@ -2959,6 +2553,11 @@ function Inner() {
     const cover = railCover(canvasRef.current);
     setRailInset(prev => (Math.abs(prev - cover) > 40 ? cover : prev));
   }, [machinePhase, usagePhase, usagePanelOpen, detailShown, canvasSize.w]);
+  // The same reading for the handlers that frame a card or place its peek:
+  // they run on a press or a hover, and asking the document again there would
+  // be a third query of what this effect has just measured.
+  const railInsetRef = useRef(railInset);
+  railInsetRef.current = railInset;
 
   // The frame fitLeft will show the board in, in flow units at full size: the
   // canvas less the rail's strip, less the fit's margins and fill. The layout
@@ -3042,6 +2641,18 @@ function Inner() {
       lanes: laneMap(stateRef.current),
     };
     if (!columnsWouldChange(nodes, edges, opts, prev, frame)) return;
+    // WHAT THE READER IS LOOKING AT, BEFORE THE BOARD MOVES UNDER IT. With the
+    // auto-fit on, the fit below frames the new arrangement and nothing needs
+    // keeping. With it off — a pan, or a focus — the camera used to stay where
+    // it was while every session moved to a new column, so selecting a card
+    // (which opens the detail panel, which narrows the canvas, which is this
+    // frame change) sent the card the reader had just clicked somewhere off
+    // the screen they were reading. A double-click to focus lost its session
+    // the same way: the focus framed where the card was a paint before the
+    // re-pack moved it.
+    const focused = lastFocusRef.current && Date.now() - lastFocusRef.current.at < 1500 ? lastFocusRef.current.id : null;
+    const keepId = focused ?? primarySelectedIdRef.current;
+    const keptAt = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
     for (const id of Array.from(positionsRef.current.keys())) {
       if (!pinnedRef.current.has(id)) positionsRef.current.delete(id);
     }
@@ -3059,13 +2670,26 @@ function Inner() {
       // arrangement this pass just replaced, beside a frame record saying it
       // was packed for the new window.
       saveLayout(positionsRef.current, pinnedRef.current);
-      if (autoFitDisabledRef.current) return;
+      if (autoFitDisabledRef.current) {
+        // A focus this recent is framed again, from the new arrangement.
+        if (focused) { focusAgentRef.current(focused); return; }
+        // Otherwise the selected card stays where it was on screen: the view
+        // moves by exactly as far as the re-pack moved the card.
+        const movedTo = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
+        if (keptAt && movedTo && (movedTo.x !== keptAt.x || movedTo.y !== keptAt.y)) {
+          const vp = rf.getViewport();
+          cameraEpochRef.current += 1;
+          applyViewport({ x: vp.x - (movedTo.x - keptAt.x) * vp.zoom, y: vp.y - (movedTo.y - keptAt.y) * vp.zoom, zoom: vp.zoom }, 0);
+          lastFitTimeRef.current = Date.now();
+        }
+        return;
+      }
       fitLeft(500);
     }, 80);
     // `nodes` and `edges` are read, not watched: they are rebuilt four times a
     // second and this has to run when the FRAME moves, on whatever board was on
     // screen at that moment.
-  }, [availableWidth, availableHeight, settled, dragging, rerender, fitLeft]);
+  }, [availableWidth, availableHeight, settled, dragging, rerender, fitLeft, rf, applyViewport]);
 
   // Invisible per-session drag-handle nodes. One per session, sized to the
   // bounding box of that session's agent nodes and rendered behind them
@@ -3268,6 +2892,93 @@ function Inner() {
   // sees the array that was just drawn.
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+
+  /** BRING ONE CARD, AND THE SESSION IT BELONGS TO, INTO A READABLE VIEW.
+   *
+   *  Every "take me to this card" in the deck comes through here — the ribbon,
+   *  a cluster's name, a double-click, Z, j/k, W and the session list. They each
+   *  called React Flow's `fitView` over the one node, which centres on the whole
+   *  pane — under the machine and usage panels whenever those are open — and
+   *  zooms to the canvas's 1.6 ceiling, with the rest of the session cut out of
+   *  the frame. focus-camera.ts holds the replacement: the session in the part
+   *  of the pane nobody covers, at a zoom the full card is drawn at.
+   *
+   *  AND IT TAKES THE WHEEL, the way a pan does. Asking to look at one session
+   *  is the reader choosing the view, and the auto-fit used to take it straight
+   *  back: the next tool lane or card anywhere moved layoutSig, fitLeft framed
+   *  the whole board again, and the session the reader had just gone to was a
+   *  tile once more. The chip that says auto-fit is off, and its Resume, are
+   *  the way back — the same as after a pan. */
+  const focusAgent = useCallback((id: string) => {
+    const pane = canvasRef.current;
+    const agent = stateRef.current.agents.get(id);
+    if (!pane || !agent) return;
+    const lanes = laneMap(stateRef.current);
+    const boxOf = (n: Node<FlowNodeData>, withLane: boolean): FlowBox | null => {
+      const m = measuredRef.current.get(n.id);
+      if (!m) return null;
+      // The bubbles an agent has called are drawn to its right and are part
+      // of what the reader came to see: the same allowance fitLeft makes.
+      const lane = withLane && lanes.has(n.id) ? TOOL_LANE_ALLOWANCE : 0;
+      return { x: n.position.x, y: n.position.y, width: m.width + lane, height: m.height };
+    };
+    const own = nodesRef.current.find(n => n.id === id);
+    const anchor = own ? boxOf(own, false) : null;
+    if (!anchor) return;
+    const members: FlowBox[] = [];
+    for (const n of nodesRef.current) {
+      if (n.type !== "agent" && n.type !== "recapNote") continue;
+      if ((n.data as { sessionId?: string } | undefined)?.sessionId !== agent.sessionId) continue;
+      const b = boxOf(n, n.type === "agent");
+      if (b) members.push(b);
+    }
+    const rect = pane.getBoundingClientRect();
+    const want = focusViewport({
+      pane: { width: rect.width, height: rect.height },
+      // Left: the control stack. Top: the tool filter bar. Right: whatever of
+      // the rail of floating panels is open, as the rail effect measured it.
+      insets: { top: 56, left: 72, bottom: 32, right: railInsetRef.current + 32 },
+      context: unionBox(members) ?? anchor,
+      anchor,
+    });
+    hidePeek();
+    disableAutoFit();
+    lastFocusRef.current = { id, at: Date.now() };
+    cameraEpochRef.current += 1;
+    applyViewport(want, FOCUS_MS);
+    lastFitTimeRef.current = Date.now();
+    // The same insurance fitLeft takes against a tab hidden mid-flight: the
+    // visibility handler lands whatever is pending where it was going.
+    pendingFitRef.current = shouldAnimateViewport({ durationMs: FOCUS_MS, documentHidden: document.hidden })
+      ? { target: want, until: Date.now() + FOCUS_MS + 60 }
+      : null;
+  }, [applyViewport, disableAutoFit]);
+
+  focusAgentRef.current = focusAgent;
+
+  // What the peek reads, through refs so the three are made once: the node's
+  // own data (branch summary included), a parent's label, and the room it may
+  // open into — the canvas less the rail of panels over its right edge.
+  const peekAgent = useCallback((id: string) => {
+    const n = nodesRef.current.find(x => x.id === id && x.type === "agent");
+    return n ? (n.data as FlowNodeData) : undefined;
+  }, []);
+  const peekLabel = useCallback((id: string) => stateRef.current.agents.get(id)?.label, []);
+  const peekRecap = useCallback((id: string) => {
+    const n = nodesRef.current.find(x => x.id === id && x.type === "recapNote");
+    if (!n) return undefined;
+    const d = n.data as unknown as RecapNoteData;
+    return { recap: d.recap, hue: d.hue, sessionLabel: stateRef.current.agents.get(d.parentId)?.label };
+  }, []);
+  const peekBounds = useCallback(() => {
+    // The canvas's own box, not the window's: the peek belongs over the canvas,
+    // and the canvas already runs to the foot of the page.
+    const box = canvasRef.current?.getBoundingClientRect();
+    const doc = document.documentElement;
+    return box
+      ? { width: box.right - railInsetRef.current, height: box.bottom }
+      : { width: doc.clientWidth, height: doc.clientHeight };
+  }, []);
   const primarySelectedIdRef = useRef(primarySelectedId);
   primarySelectedIdRef.current = primarySelectedId;
 
@@ -3299,11 +3010,10 @@ function Inner() {
     // Fit-view to the chosen node so it lands on screen even if the user
     // had panned away.
     window.setTimeout(() => {
-      try { rf.fitView({ padding: 0.35, duration: fitViewDuration(350), nodes: [target] }); } catch {}
-      lastFitTimeRef.current = Date.now();
+      try { focusAgent(target.id); } catch {}
       if (follow) focusCanvasNode(target.id);
     }, 30);
-  }, [selectAgent, rf]);
+  }, [selectAgent, focusAgent]);
 
   /** Select a session's root and bring it on screen. Reads `nodesRef` rather
    *  than the render-scope array so callers can be memoised: the array is
@@ -3318,13 +3028,9 @@ function Inner() {
   const focusSession = useCallback((sessionId: string) => {
     selectAgent(sessionId, false);
     window.setTimeout(() => {
-      try {
-        const node = nodesRef.current.find(n => n.id === sessionId);
-        if (node) rf.fitView({ padding: 0.3, duration: fitViewDuration(500), nodes: [node] });
-        lastFitTimeRef.current = Date.now();
-      } catch {}
+      try { focusAgent(sessionId); } catch {}
     }, 60);
-  }, [selectAgent, rf]);
+  }, [selectAgent, focusAgent]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851; the rule is ownsKeystroke's).
@@ -3448,13 +3154,25 @@ function Inner() {
       // a toggle, so it has to be able to close what it opened; over any OTHER
       // modal it would stack a second one, which is what this gate is for.
       // Escape is unaffected — it is answered further up, through modalStack.
+      //
+      // And the gate asks the stack as well as modalOpenRef (#1175): the nine
+      // dialogs a panel opens — processes, history, add, share, the LAN four,
+      // a pairing request, the clear prompt — have no flag in this component,
+      // so the ref alone let R wipe the layout behind every one of them.
       if (shortcutBlocked({
-        key: e.key, modalOpen: modalOpenRef.current, sheetOpen: keyHelpOpenRef.current,
+        key: e.key,
+        modalOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
+        sheetOpen: keyHelpOpenRef.current,
       })) return;
       if (e.key === " ") { e.preventDefault(); togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();
       if (e.key === "f" || e.key === "F") handleFit();
+      // F is the whole board; Z is the one card the selection is on, framed
+      // with its session at a readable size — the ribbon's click, on a key.
+      if (e.key === "z" || e.key === "Z") {
+        if (primarySelectedIdRef.current) focusAgent(primarySelectedIdRef.current);
+      }
       // The only way in, now that the topbar's ☰ is gone — and a genuine
       // toggle, so the same key that opened the sidebar closes it again. The
       // panel's own ‹ is the second way out and calls the same setter; Escape
@@ -3544,7 +3262,7 @@ function Inner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, togglePause]);
+  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause]);
 
   /** Not a topbar readout any more — the "agents" counter went with the
    *  sessions and events ones. This is the emptiness test: zero agents is what
@@ -4293,14 +4011,8 @@ function Inner() {
             <button
               type="button"
               className="selected-ribbon"
-              title={`Fit view to ${selected.label}`}
-              onClick={() => {
-                try {
-                  const node = nodes.find(n => n.id === selected.id);
-                  if (node) rf.fitView({ padding: 0.35, duration: fitViewDuration(500), nodes: [node] });
-                  lastFitTimeRef.current = Date.now();
-                } catch {}
-              }}
+              title={`Zoom to ${selected.label} and its session (Z)`}
+              onClick={() => { try { focusAgent(selected.id); } catch {} }}
             >
               <span className={`state-pill state-${selected.state}`}>
                 {selected.state === "active" ? "live" : selected.state}
@@ -4629,12 +4341,20 @@ function Inner() {
               )}
             </div>
             )}
-            <button
-              className="btn icon-btn"
-              onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))}
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (T)`}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
+            <div className="appearance-slot">
+              <button
+                ref={appearanceButtonRef}
+                className="btn icon-btn"
+                onClick={() => {
+                  setSoundMenuOpen(false);
+                  setAppearanceMenuOpen(open => !open);
+                }}
+                title="Appearance settings"
+                aria-label={`Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}`}
+                aria-haspopup="dialog"
+                aria-expanded={appearanceMenuOpen}
+                aria-controls={appearanceMenuOpen ? "appearance-menu" : undefined}
+              >
               {theme === "dark" ? (
                 <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <circle cx="7" cy="7" r="2.5" />
@@ -4645,11 +4365,21 @@ function Inner() {
                   <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
                 </svg>
               )}
-              {/* No word here at any width. Every other word in the bar names
-                  a thing, and "Dark" on a light bar named an action, so it read
-                  as the mode the deck was already in. A sun and a moon need no
-                  caption, and the accessible name says which way it goes. */}
-            </button>
+              </button>
+              {appearanceMenuOpen && (
+                <AppearanceMenu
+                  theme={theme}
+                  onTheme={setTheme}
+                  characterEnabled={characterEnabled}
+                  onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+                  fmVolume={fmVolume}
+                  onFmVolume={setFmVolume}
+                  fmSource={fmSource}
+                  onFmSource={setFmSource}
+                  onClose={() => setAppearanceMenuOpen(false)}
+                />
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -4933,7 +4663,7 @@ function Inner() {
         id="canvas"
         tabIndex={-1}
         className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}`}
-        data-detail={detail}
+        data-lod={lod}
         ref={canvasRef}
         onMouseDownCapture={releasePointerFocus}
         /* The three that say a human is working this canvas right now. They
@@ -4955,6 +4685,21 @@ function Inner() {
         onPointerDownCapture={markCanvasInput}
         onPointerUpCapture={markCanvasInput}
         onWheelCapture={markCanvasInput}
+        /* The peek is not hover-only. A card the keyboard reaches at a distance
+           opens the same card the pointer would — Tab, j/k and W all land focus
+           on a card — and closes when focus moves on. Only a focus the browser
+           would ring (`:focus-visible`): a click also focuses the card, and a
+           peek that opened under every click would cover what was clicked. */
+        onFocusCapture={e => {
+          const el = e.target as Element;
+          if (!isCanvasNodeElement(el) || lodRef.current == null || lodRef.current === "detail") return;
+          const id = el.getAttribute("data-id");
+          if (id && stateRef.current.agents.has(id) && el.matches(":focus-visible")) showPeek(id, el, "focus");
+        }}
+        onBlurCapture={e => {
+          const id = (e.target as Element).getAttribute?.("data-id");
+          if (id) hidePeek(id);
+        }}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero />
@@ -5073,13 +4818,56 @@ function Inner() {
           deleteKeyCode={null}
           onNodeClick={(e, n) => {
             if (n.type === "sessionGroup") { clearSelection(); return; }
-            // A recap note speaks for its session, so a click on it selects the
-            // root — whose detail panel holds the whole recap.
-            if (n.type === "recapNote") { selectAgent((n.data as { parentId: string }).parentId, e.shiftKey); return; }
-            selectAgent(n.id, e.shiftKey);
+            // A click on a card SELECTS it and GOES TO its session — the frame
+            // focusAgent builds, the card and its session at a readable zoom —
+            // and leaves the detail panel shut: that is the double-click's, one
+            // press further in. Shift+click only widens the selection, as ever.
+            // A recap note speaks for its session, so a click on it is a click
+            // on the root.
+            const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
+            selectAgent(id, e.shiftKey, false);
+            if (e.shiftKey) return;
+            // AND SHUTS THE PANEL, whether or not it is showing. `detailOpen` is
+            // persisted, so every deck that clicked a card under #814 has it
+            // stored open — and after a reload nothing is selected, so nothing
+            // is SHOWN, and a test of what is on screen let this very click
+            // select the card and bring the stored panel up with it. The frame
+            // waits a paint only when a panel was really there, for the canvas
+            // it gives back, the way the double-click's does for the one it takes.
+            if (detailOpen) setDetailOpen(false);
+            if (detailShown) {
+              window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
+            } else {
+              focusAgent(id);
+            }
           }}
-          onPaneClick={() => clearSelection()}
+          onPaneClick={() => { hidePeek(); clearSelection(); }}
+          // The details, one press past the click that went to the session:
+          // the panel opens on the card — the prompt, every tool call, tokens
+          // and timing — and the frame is built again a paint later, for the
+          // canvas the panel has just narrowed. React Flow's own double-click
+          // zoom never reaches a card (its filter drops a dblclick inside a
+          // draggable node), so nothing else answers here.
+          onNodeDoubleClick={(_, n) => {
+            if (n.type !== "agent" && n.type !== "recapNote") return;
+            const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
+            selectAgent(id, false);
+            window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
+          }}
+          // The peek (SessionPeek) is for the distances where the card cannot
+          // say it itself. At the detail tier the card is readable and a copy
+          // over it would be noise, so it never opens there.
+          onNodeMouseEnter={(e, n) => {
+            if ((n.type !== "agent" && n.type !== "recapNote") || draggingRef.current) return;
+            if (lodRef.current == null || lodRef.current === "detail") return;
+            showPeek(n.id, e.currentTarget as Element);
+          }}
+          onNodeMouseLeave={(_, n) => hidePeek(n.id)}
           onMoveStart={e => {
+            // A pan or a zoom moves the tile out from under its peek.
+            hidePeek();
+            // And supersedes any fit still settling — see cameraEpochRef.
+            if (isUserViewportGesture(viewportMove(e))) cameraEpochRef.current += 1;
             // The pane's own gesture, and only ever that: React Flow drops a
             // move with no source event before this callback is reached. Kept
             // alongside onMove because d3-zoom raises `start` on the press and
@@ -5099,16 +4887,25 @@ function Inner() {
             if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
             // Debounce viewport persistence — pan/zoom fires many times
             // per gesture, but we only need the final state.
-            const tier = zoomDetail(vp.zoom);
-            if (tier !== detailRef.current) { detailRef.current = tier; setDetail(tier); }
-            // The zoom itself, for the far tier's title scale (#846). Written on
-            // the element rather than through state: it changes every frame of
-            // a gesture, and the sheet is the only reader.
+            // The zoom itself first, for the faces' screen-pixel layout and the
+            // edges' stroke (styles.css, `data-lod`). Written on the element
+            // rather than through state: it changes every frame of a gesture,
+            // and the sheet is the only reader.
             canvasRef.current?.style.setProperty("--zoom", String(vp.zoom));
+            const mode = nextLod(lodRef.current, vp.zoom, lodCard());
+            if (mode !== lodRef.current) {
+              lodRef.current = mode;
+              // The attribute now, the state for React with it: the face must
+              // not wait a render to appear on the frame the mode changed on.
+              canvasRef.current?.setAttribute("data-lod", mode);
+              setLod(mode);
+              if (mode === "detail") hidePeek();
+            }
             if (vpSaveTimerRef.current) window.clearTimeout(vpSaveTimerRef.current);
             vpSaveTimerRef.current = window.setTimeout(() => saveViewport(vp), 250);
           }}
           onNodeDragStart={(_, n) => {
+            hidePeek();
             // A drag must never inherit the push animation. The node under the
             // cursor is excluded by CSS, but a session drag moves its members
             // through state instead of the drag itself, and those would follow
@@ -5200,7 +4997,7 @@ function Inner() {
           {/* The stamp that keeps a click on a session's name from reading as
               the user grabbing the canvas — see the note on the component
               (#785). Same line App's own focusSession runs after its fitView. */}
-          <SessionClusters onFit={() => { lastFitTimeRef.current = Date.now(); }} />
+          <SessionClusters onFocusSession={focusAgent} />
           <ToolBursts
             agents={stateRef.current.agents}
             visibleAgentIds={visibleAgentIds}
@@ -5413,8 +5210,14 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          <ClaudeFm ref={fmRef} />
+          {characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}
         </ReactFlow>
+        <SessionPeek
+          agentFor={peekAgent}
+          recapFor={peekRecap}
+          labelFor={peekLabel}
+          bounds={peekBounds}
+        />
       </main>
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
@@ -5541,6 +5344,10 @@ function Inner() {
           running={chipVersion}
           onClose={() => setReleaseNotes(null)}
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
+          /* Only where the server would do it: an unsupervised deck answers
+             501 and one without a writable log 409, and the button is not
+             offered for either (#1163). */
+          onRestart={version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those

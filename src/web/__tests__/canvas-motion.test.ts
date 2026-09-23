@@ -279,6 +279,11 @@ const PRESSES: Press[] = [
   // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
   // number.
   [".sysdetail .sd-open:active", "0.97", "transform"],
+  // `Connection details` in the network section — the panel's one disclosure,
+  // a row rather than a section, and pressed at the same 0.97 as the block
+  // above it: it is a labelled control in the same panel, and a second number
+  // for a second shape would make one panel answer a press two ways.
+  [".sysdetail .sd-detail:active", "0.97", "transform"],
   // Busiest processes is `.sd-open` too now. It was the one section that could
   // not be — its column headers are buttons and a button cannot contain one —
   // and it drew eight rows with a small `more` beside the heading, each of
@@ -382,6 +387,14 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // A day column in the Projects report's chart, clickable to reveal that day's
+  // breakdown. It stays out of the transform convention for the reason a thin
+  // bar always does: a 3-to-26px column scaled on press moves out from under
+  // the pointer, and the width is data (the day's share of the plot), not a
+  // control's own size. The feedback it gives instead is a box-shadow ring it
+  // keeps through hover and while selected — the same "brightness held through
+  // the gesture" answer `.cluster-label` gives.
+  ".ap-proj-day",
   ".cluster-label",
   // A row in the share picker, which is a <label> and not a second
   // control: it carries `cursor: pointer` because the whole row is the
@@ -430,6 +443,14 @@ const EXEMPT: string[] = [
   // their own 0.97.
   ".ap-row-open",
   ".ap-nav",
+  // The appearance menu's Claude FM row: a <label> round the switch, the same
+  // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
+  // answer the press, and a scaled row would slide the words out from under it.
+  ".appearance-row",
+  // A theme choice. Its press is answered by the whole deck changing theme and
+  // the frame moving to it; a 118px preview scaled by 3% lurches rather than
+  // clicks, and the hover plate under it already deepens.
+  ".appearance-theme",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

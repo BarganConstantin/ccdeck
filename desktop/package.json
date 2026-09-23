@@ -1,0 +1,29 @@
+{
+  "name": "ccdeck-desktop",
+  "private": true,
+  "version": "3.27.2",
+  "description": "ccdeck as a desktop app: the deck, a window, a tray icon and native notifications.",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://ccdeck.dev",
+  "author": {
+    "name": "ccdeck",
+    "url": "https://ccdeck.dev"
+  },
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "icons": "node scripts/icons.mjs",
+    "tray-model": "node ../node_modules/vite/bin/vite.js build -c vite.tray.config.mjs",
+    "prepare-app": "npm run icons && npm run tray-model && node scripts/chimes.mjs",
+    "start": "npm run prepare-app && electron .",
+    "pack:mac": "npm run prepare-app && electron-builder --mac dir --config electron-builder.config.cjs"
+  },
+  "devDependencies": {
+    "electron": "42.11.6",
+    "electron-builder": "26.15.3",
+    "js-yaml": "4.3.2"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  }
+}

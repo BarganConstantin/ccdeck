@@ -17,6 +17,7 @@
 // matched. Only the names on the watchlist are checked that way, so a new
 // selector going dead is still a job for the next audit.
 import { describe, it, expect } from "vitest";
+import { withoutComments } from "./tsx-scan";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -31,12 +32,15 @@ const css = readFileSync(join(web, "styles.css"), "utf8");
  *  explanation itself the dangling half. */
 const rules = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
+/** Every module that ends up in the bundle. The suite's own files are not part
+ *  of it — and `.ts` counts as well as `.tsx`: the canvas's nodes and edges are
+ *  built in canvas-flow.ts, which is where `--edge-k` and `--edge-transition`
+ *  are read from (#1175). Scanning markup alone called both of them dead. */
 function components(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return name === "__tests__" ? [] : components(path);
-    return path.endsWith(".tsx") ? [path] : [];
+    return path.endsWith(".tsx") || path.endsWith(".ts") ? [path] : [];
   });
 }
 const tsx = components(web).map(p => readFileSync(p, "utf8")).join("\n");
@@ -53,7 +57,11 @@ const declared = new Set([...rules.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
  *  bubble, --rot on a confetti bit) or reads it back through cssVar(). */
 const namedInJs = new Set([...tsx.matchAll(/"(--[\w-]+)"/g)].map(m => m[1]));
 const readInCss = new Set([...rules.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
-const readInTsx = new Set([...tsx.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
+/** Off the CODE, not the prose. usage-agents.ts explains its palette as "five
+ *  `var(--usage-…)` names", and read raw that sentence is a component reading a
+ *  property called `--usage-`. The same rule the stylesheet is held to above:
+ *  a comment about a rule is not a rule. */
+const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 
 describe("custom properties have both a writer and a reader", () => {
   it("reads no property from the stylesheet that nothing anywhere writes", () => {

@@ -933,7 +933,9 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // Not a second spelling: useModalDismiss owns where focus starts, where Tab
     // may go, and where focus lands on close. A popover needs all three and has
     // no reason to reimplement any of them.
-    expect(menu).toMatch(/const dialogRef = useModalDismiss<HTMLDivElement>\(onClose\);/);
+    // And registers as a popover, so the canvas letters stay live under it
+    // (#1175) — see modal-shortcut-gate.test.ts.
+    expect(menu).toMatch(/const dialogRef = useModalDismiss<HTMLDivElement>\(onClose, \{ popover: true \}\);/);
     expect(menu).toMatch(/role="dialog"/);
     expect(menu).toMatch(/aria-label="Sound settings"/);
     // Non-modal on purpose: there is no scrim and nothing behind it is inert.
@@ -984,10 +986,7 @@ describe("hearing it is the point, not a nicety", () => {
   it("answers a press at once and a drag after it settles", () => {
     // The distinction that makes both usable: a slider crossing a dozen steps
     // must collapse to one figure, and a deliberate press must not feel laggy.
-    // The `if` around the play is Claude FM's: `play` returns false when the
-    // switch is off or the page has not been touched yet, and ducking the music
-    // for a chime that never sounded would drop the track for nothing.
-    expect(app).toMatch(/if \(!soon\) \{ if \(chimesRef\.current\?\.play\(chime, true\)\) duckForChime\(chime\); return; \}/);
+    expect(app).toMatch(/if \(!soon\) \{ chimesRef\.current\?\.play\(chime, true\); return; \}/);
     expect(app).toMatch(/previewRef\.current = setTimeout\(/);
     expect(app).toMatch(/\}, PREVIEW_DELAY_MS\);/);
     // A pending debounce is cancelled before either path runs, so a press and a

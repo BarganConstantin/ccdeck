@@ -37,7 +37,7 @@
 // every machine at once.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { pressAccepted, pressState } from "../panel-press";
+import { armedPress, pressAccepted, pressState } from "../panel-press";
 import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
@@ -93,11 +93,44 @@ export interface Peer {
   /** When somebody here accepted it. Null for a pairing made before this was
    *  kept, and for a row that is not paired. */
   pairedAt?: number | null;
+  /** How it is reached: the local network, or this person's tailnet. Absent
+   *  from a deck older than Tailscale discovery, and absent means local. */
+  via?: LanRoute;
 }
+
+/** The two ways a deck is reached. */
+export type LanRoute = "lan" | "tailscale";
 
 /** A deck that finished a handshake, or was merely heard, and that nobody here
  *  has accepted yet. */
-export interface LanStranger { fp: string; name: string; addr: string; port?: number; at: number }
+export interface LanStranger {
+  fp: string; name: string; addr: string; port?: number; at: number;
+  /** Heard or asked over the tailnet rather than the local network, and
+   *  whether from a machine on this person's own Tailscale account. */
+  via?: LanRoute;
+  own?: boolean;
+}
+
+/** Discovery over Tailscale, as the engine reports it. Null on a deck that has
+ *  no reader for it; `found: false` on a machine without Tailscale, where the
+ *  dialog shows nothing about it at all. */
+export interface LanTailscale {
+  found: boolean;
+  /** Tailscale's own word for its state: Running, Stopped, NeedsLogin… */
+  state: string | null;
+  running: boolean;
+  on: boolean;
+  ask: boolean;
+  accept: boolean;
+  /** The Tailscale account this machine is signed in to — the one whose
+   *  machines count as this person's own. */
+  login: string | null;
+  addr: string | null;
+  /** This person's machines online on the tailnet right now. */
+  devices: number;
+  /** This machine sends its traffic through a Tailscale exit node. */
+  exitNode?: boolean;
+}
 
 export interface LanStatus {
   enabled: boolean;
@@ -108,6 +141,14 @@ export interface LanStatus {
   /** Why there is no listener, on a deck that is switched on. Null every other
    *  time — including while it is still coming up. */
   stalled?: string | null;
+  /** Running, and unable to hear other decks announce because another program
+   *  holds the discovery port — said by the engine, with who holds it when the
+   *  machine will say. Null whenever this deck can hear. */
+  deaf?: string | null;
+  /** Every local broadcast held back, because this machine sends its local
+   *  network through a tunnel — a VPN, or a Tailscale exit node without local
+   *  network access. */
+  lanTunneled?: boolean;
   name: string;
   /** Whether this deck asks the machines it finds, and whether a request that
    *  arrives is answered here or answered for you. */
@@ -116,6 +157,7 @@ export interface LanStatus {
   /** Whether paired decks are told which shared account this one is on.
    *  Absent is on, which is what the engine does with a missing setting. */
   shareActive?: boolean;
+  tailscale?: LanTailscale | null;
   fp: string | null;
   port: number | null;
   /** When a connection from another machine last arrived here. Null on a deck
@@ -428,10 +470,56 @@ export function writeFailure(what: string, out: { ok?: boolean; reason?: string 
 
 /** Two lists of account keys, same members or not. Order is not meaning here:
  *  the server stores what it is sent, and the panel sends a Set. */
-export function sameKeys(a: string[], b: string[]): boolean {
+export function sameKeys(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const seen = new Set(a);
   return b.every(k => seen.has(k));
+}
+
+/**
+ * The list one tick in "Share these accounts" sends.
+ *
+ * Built from what the dialog last SENT while that is still unconfirmed, and
+ * from the server's list otherwise. `status.shared` only moves once a write has
+ * landed AND the poll after it has returned, so a second tick inside that window
+ * built from the server's list would silently drop the first one's account.
+ */
+export function nextShared(
+  pending: readonly string[] | null, server: readonly string[], key: string, checked: boolean,
+): string[] {
+  const next = new Set(pending ?? server);
+  if (checked) next.add(key); else next.delete(key);
+  return [...next];
+}
+
+/**
+ * What the share boxes draw from after news arrives: the list last sent, or —
+ * as null — the server's own.
+ *
+ * `lastWrite` is the answer to the newest share write, or null when the news
+ * is only a fresh read of the server's list. Three outcomes:
+ *
+ *   * REFUSED, or never answered: the deck stored nothing, so the server's list
+ *     is the truth again and the boxes go back to it (#1175). Keeping what was
+ *     sent drew an unticked login as not offered while the deck went on
+ *     offering it — and the next tick re-sent the refused state with it.
+ *   * The server's list MATCHES what was sent: it has caught up, and the
+ *     optimistic copy is retired.
+ *   * Accepted but not matching yet: kept. The server stores the list it is
+ *     sent as it is, so a list that still differs after an accepted write is a
+ *     read that left before the write landed — and going back to it would let
+ *     the next tick build from it, which is the race `nextShared` exists for.
+ *
+ * Hands back the very list it was given when it keeps it, so a caller can tell
+ * by identity whether a newer tick has replaced it since.
+ */
+export function settlePending<T extends readonly string[]>(
+  pending: T | null, server: readonly string[], lastWrite: { ok: boolean } | null,
+): T | null {
+  if (pending == null) return null;
+  if (lastWrite != null && !lastWrite.ok) return null;
+  if (sameKeys(pending, server)) return null;
+  return pending;
 }
 
 /** What this deck is offering, and until when. */
@@ -511,6 +599,18 @@ export function rosterSplit(peers: Peer[], now: number): { online: Peer[]; offli
  * cannot tell "nobody yet" from "it broke", and those are the two states a
  * reader most needs told apart.
  */
+/**
+ * What to say when this machine sends its local network through a tunnel. The
+ * Tailscale case is named, with the setting that fixes it; any other VPN is
+ * said generally. Exported for the suite.
+ */
+export function tunnelNote(s: { tailscale?: LanTailscale | null }): string {
+  if (s.tailscale?.exitNode) {
+    return "Tailscale sends this machine's local network through an exit node, so decks on this network cannot find this one. Turn on Allow local network access in Tailscale's exit node menu to bring them back.";
+  }
+  return "This machine sends its local network through a VPN, so decks on this network cannot find this one. Allowing local network access in the VPN brings them back.";
+}
+
 export function sectionState(
   s: { enabled?: boolean; running?: boolean; stalled?: string | null; peers?: Peer[]; pending?: LanStranger[] } | null,
   now: number,
@@ -647,6 +747,8 @@ export interface DeckRow {
    *  machine running more than one deck — folded into it and listed in its
    *  dialog. See oneRowPerMachine. */
   twins?: DeckRow[];
+  /** Reached over this person's tailnet rather than the local network. */
+  via?: LanRoute;
 }
 
 /** A deck that is paired, holds no address here, and reaches this one by
@@ -746,7 +848,8 @@ export function deckRows(
     rows.push({
       fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
-      hint: `${n.name} at ${p.addr} is waiting for an answer.`,
+      hint: `${n.name} at ${p.addr}${p.via === "tailscale" ? ", over Tailscale," : ""} is waiting for an answer.`,
+      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
     });
   }
 
@@ -776,6 +879,7 @@ export function deckRows(
         hint: p.last?.error
           ? `Nothing has answered at ${where} yet — ${p.last.error}.`
           : `Dialling ${where} until something answers.`,
+        ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
       });
       continue;
     }
@@ -822,6 +926,7 @@ export function deckRows(
       // says nothing about whether that machine is switched on now, and drawing
       // it live on that evidence is the panel inventing a fact.
       here: called ? called.here : here,
+      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
       hint: called
         ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
             p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
@@ -842,7 +947,10 @@ export function deckRows(
     nearby.push({
       fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "nearby", state: "not paired yet", tone: "idle", here: true,
-      hint: `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
+      hint: p.via === "tailscale"
+        ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
+        : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
+      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
     });
   }
   rows.push(...nearby.sort(byName));
@@ -1200,7 +1308,7 @@ function LanPeek({ anchorId, id, rows, onHold, onLet }: {
           {shown.map(r => (
             <span key={`${r.kind}:${r.fp}`} className="ap-peek-who">
               <i className="ap-nav-live" aria-hidden />
-              <span>{r.name}</span>
+              <span>{r.name}{r.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}</span>
             </span>
           ))}
         </div>
@@ -1863,6 +1971,17 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               a deck anything is failing to reach, and the switch below would be
               answering a question nobody has asked yet. */}
           {on && <LanReachNote reach={status?.reach} where="panel" />}
+          {/* A DECK THAT CANNOT HEAR IS STILL A DECK. It announces, it is found,
+              it pairs and syncs; what it has lost is hearing new decks announce
+              themselves, and the one line says so and who has the port. Not the
+              warning ink: nothing here is for the reader to do, and the deck
+              takes the port back on its own. */}
+          {on && status?.deaf && <p className="ap-lan-fine">{status.deaf}</p>}
+          {/* THE LOCAL NETWORK GOES THROUGH A TUNNEL HERE, so nothing on it can
+              find this deck, and the deck has stopped shouting into the tunnel
+              rather than onto somebody else's network. The one line says what
+              to change, in the words the VPN's own menu uses. */}
+          {on && status?.lanTunneled && <p className="ap-lan-fine">{tunnelNote(status)}</p>}
 
             {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
                 question — should I turn this on — and a deck that is already on has
@@ -2000,14 +2119,19 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             row. The name drawn here is the same words the button
                             says, so a screen reader is told them once, by the
                             button. */}
-                        <span className="ap-lan-who-name" aria-hidden>{p.name}</span>
+                        <span className="ap-lan-who-name" aria-hidden>
+                          {p.name}
+                          {/* Which route, only when it is the unusual one: a row
+                              reached over the tailnet says so beside its name. */}
+                          {p.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}
+                        </span>
                         {/* Described by the row's own sentence, which sits outside the
                             button: a row reached with Tab is announced with what is
                             happening to that machine, not with its name alone. */}
                         <button type="button" className="ap-lan-who-open" aria-haspopup="dialog"
                           aria-describedby={`lan-who-state-${i}`}
                           onClick={() => setPeerOpen(p.fp)}>
-                          <span className="vis-hidden">{p.name}, details</span>
+                          <span className="vis-hidden">{p.name}{p.via === "tailscale" ? ", over Tailscale" : ""}, details</span>
                         </button>
                         {/* One node, two presentations. A row with nothing to report
                             keeps its sentence for anybody being read the list and
@@ -2032,15 +2156,19 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             className={`ap-manage-btn ap-lan-do danger${armed === p.fp ? " armed" : ""}`}
                             {...pressProps(`unpair:${p.fp}`)}
                             onClick={() => {
-                              if (armed !== p.fp) {
+                              const now = Date.now();
+                              const press = armedPress({
+                                armedFor: armed, target: p.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                              });
+                              if (press === "arm") {
                                 setArmed(p.fp);
-                                armedAt.current = Date.now();
+                                armedAt.current = now;
                                 window.setTimeout(() => setArmed(a => (a === p.fp ? null : a)), 4_000);
                                 return;
                               }
                               // A double-click is one decision, not two: its second
                               // press lands before anybody could have read `confirm`.
-                              if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                              if (press === "ignore") return;
                               setArmed(null);
                               void answer("unpair", p.fp, "unpair that deck");
                             }}
@@ -2111,7 +2239,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                 </div>
                 )}
 
-                {rest.length === 0 && asks.length === 0 && (
+                {/* Not while it is stalled or cannot hear: the list is empty
+                    because of this deck, and "no other deck yet" would blame
+                    the network for the line above it. */}
+                {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && !status?.lanTunneled && (
                   <>
                     <p className="ap-lan-fine">
                       No other deck yet. Decks on one network usually find each other on their own;

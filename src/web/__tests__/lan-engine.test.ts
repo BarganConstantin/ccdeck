@@ -20,13 +20,17 @@
 // of this was written and it is the same fact that makes self-recognition a
 // fingerprint question rather than an address question.
 import { describe, it, expect, afterEach } from "vitest";
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS } from "../../server/lan-engine.mjs";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
-import { accountKey, hostId, identityFrom, PROTOCOL } from "../../server/lan-sync.mjs";
+import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "../../server/lan-socket.mjs";
 
 
 const K = (email: string, org: string) => accountKey(email, org);
@@ -85,6 +89,13 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
   // every engine gets its own, made once, rather than a fresh one per apply.
   const id = identityFrom("");
   const trusted: Array<{ fp: string; pub: string; name: string }> = [];
+  // Everything else the engine hands index.mjs to write into prefs.json, kept
+  // as it arrives: what survives a restart is only what went through one of
+  // these, so a case about persistence reads them rather than the engine.
+  const trustWrites: string[][] = [];
+  const dials: string[] = [];
+  const ports: number[] = [];
+  const identities: string[] = [];
   const sock = deafSocket();
   const e = createEngine({
     ...s.deps(over),
@@ -94,7 +105,11 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
     // index.mjs does through prefs.
     onTrust: (list: Array<{ fp: string; pub: string; name: string }>) => {
       trusted.splice(0, trusted.length, ...list);
+      trustWrites.push(list.map(t => t.fp));
     },
+    onDial: (entry: string) => dials.push(entry),
+    onPort: (port: number) => ports.push(port),
+    onIdentity: (secret: string) => identities.push(secret),
   });
   running.push(e);
   // BY HAND, unless a test says otherwise. Both switches ship on, so a deck
@@ -106,7 +121,7 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
     enabled: true, name, secret: id.secret, shared, trusted,
     autoAsk: false, autoAccept: false, ...on,
   });
-  return { e, errors, id, trusted, sock, port: e.status().port as number };
+  return { e, errors, id, trusted, trustWrites, dials, ports, identities, sock, port: e.status().port as number };
 }
 
 /**
@@ -209,9 +224,10 @@ describe("the account that is dead here and alive there", () => {
 
 describe("what a peer is refused", () => {
   it("gets nothing for an account its owner did not tick", async () => {
-    // The tick is checked when the credential is asked for, not only when the
-    // manifest was built: the list can change between the two, and the answer
-    // that matters is the one at the moment of sending.
+    // The manifest half of the rule: an unticked account is not in the list,
+    // so nothing is ever asked for. The other half — the tick read again at the
+    // moment of sending, because the list can change between the two — is
+    // "what the holder checks when a credential is asked for", below.
     const mine = store([{ num: 2, email: "secret@sapec.md", orgUuid: "org-2", alive: false }]);
     const theirs = store([{ num: 5, email: "secret@sapec.md", orgUuid: "org-2", alive: true }]);
     const a = await deck(mine, "Deck-A", [K("secret@sapec.md", "org-2")]);
@@ -251,6 +267,161 @@ describe("what a peer is refused", () => {
     expect(await a.e.round()).toEqual([]);
     expect(theirs.exported).toEqual([]);
     expect(mine.imported).toEqual([]);
+  }, 20_000);
+});
+
+// THE ONE VERB THAT MOVES A CREDENTIAL, FROM THE SIDE THAT HOLDS IT (#1171).
+//
+// `serve` answers a paired deck's `want` with five refusals before it seals
+// anything — a second proof, the tick, the account alive here, an export that
+// produced something, and a store that threw — and until these cases none of
+// them had ever run. The case above builds its holder with nothing ticked, so
+// the manifest is empty and the requester never sends a `want` at all.
+//
+// Each case reaches its refusal over a real handshake between two engines, and
+// checks both halves: the requester was told why, and claude-swap on the holder
+// was never asked to export.
+describe("what the holder checks when a credential is asked for", () => {
+  const S = K("s@x", "o");
+
+  it("reads the tick again at the moment of sending, so a login unticked since the manifest stays", async () => {
+    // Two logins, so the untick can land between the two asks: the holder's
+    // owner unticks the second while the first is being written here. That is
+    // the race the check exists for — the manifest said yes, a moment ago.
+    const A = K("a@x", "o");
+    const mine = store([
+      { num: 1, email: "a@x", orgUuid: "o", alive: false },
+      { num: 2, email: "s@x", orgUuid: "o", alive: false },
+    ]);
+    const theirs = store([
+      { num: 5, email: "a@x", orgUuid: "o", alive: true },
+      { num: 6, email: "s@x", orgUuid: "o", alive: true },
+    ]);
+    let b!: Awaited<ReturnType<typeof deck>>;
+    const a = await deck(mine, "Deck-A", [A, S], {
+      importAccount: async (blob: string) => {
+        mine.imported.push(blob);
+        await b.e.apply({ shared: [A] });
+        return true;
+      },
+    });
+    b = await deck(theirs, "Deck-B", [A, S]);
+    await point(a, b, b.port);
+
+    expect(await a.e.round()).toEqual([
+      { key: A, email: "a@x", action: "heal", ok: true, why: null },
+      { key: S, email: "s@x", action: "heal", ok: false, why: "not shared" },
+    ]);
+    expect(theirs.exported, "the unticked login was exported").toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+
+  it("gives nothing it no longer holds alive, whatever its manifest said a moment ago", async () => {
+    // Asked again rather than remembered: between the manifest and the ask the
+    // login can die here, or be removed, and a dead or missing slot is nothing
+    // to hand anybody.
+    for (const [what, later] of [
+      ["died", [{ num: 5, email: "s@x", orgUuid: "o", alive: false }]],
+      ["was removed", []],
+    ] as Array<[string, Row[]]>) {
+      const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+      const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+      let reads = 0;
+      const a = await deck(mine, "Deck-A", [S]);
+      // The first read answers the manifest; every one after it is the ask.
+      const b = await deck(theirs, "Deck-B", [S], {
+        readAccounts: async () => ({ accounts: ++reads === 1 ? theirs.rows : later }),
+      });
+      await point(a, b, b.port);
+      expect(await a.e.round(), what).toEqual([
+        { key: S, email: "s@x", action: "heal", ok: false, why: "not mine to give" },
+      ]);
+      expect(theirs.exported, what).toEqual([]);
+    }
+  }, 20_000);
+
+  it("says so when claude-swap exported nothing, rather than sealing nothing", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { exportAccount: async () => null });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("answers a store that threw with a refusal, and keeps what threw", async () => {
+    // A throw inside `serve` would otherwise leave the asking deck waiting out
+    // its ten-second bell for a reply that never comes.
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    let reads = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => {
+        if (++reads > 1) throw new Error("cswap list timed out");
+        return { accounts: theirs.rows };
+      },
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "error" },
+    ]);
+    expect(b.errors).toContain("serve");
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses a want whose proof is not over this connection, this account and these two decks", async () => {
+    // THE SESSION SAYS WHO CONNECTED, AND NOT WHAT THEY ASK FOR NOW. The
+    // connection below is a real one, made with Deck-A's own key to the deck
+    // that trusts it; only the `want` on it is wrong. Without the second proof,
+    // any paired deck's long-lived connection is enough to pull every ticked
+    // account, and a round never sends a bad one to show it.
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: true }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S]);
+    await point(a, b, b.port);
+    // Paired, both copies alive, and so nothing asked for.
+    expect(await a.e.round()).toEqual([]);
+
+    const conn = await connectToPeer({
+      host: "127.0.0.1", port: b.port, fp: a.id.fp, pub: a.id.pub, secret: a.id.secret,
+      name: "Deck-A", expectPub: b.id.pub,
+    });
+    /** One frame out and the next one back, through the connection's own seal. */
+    const ask = (frame: Record<string, unknown>) => new Promise<Record<string, unknown>>(resolve => {
+      let buf = "";
+      const onData = (chunk: string) => {
+        buf += chunk;
+        const i = buf.indexOf("\n");
+        if (i === -1) return;
+        conn.sock.off("data", onData);
+        resolve(conn.read(JSON.parse(buf.slice(0, i))));
+      };
+      conn.sock.on("data", onData);
+      conn.send(frame);
+    });
+    const proofFor = (nonce: string, accountKey: string) =>
+      transferChallenge(conn.key, { nonce, accountKey, fromFp: a.id.fp, toFp: b.id.fp });
+    try {
+      expect(await ask({ t: "want", key: S, nonce: "n1", proof: "0".repeat(64) })).toEqual({ t: "no", why: "proof" });
+      // A real proof, over this connection's key and between these two decks,
+      // for ANOTHER account. It names what it asks for, so it is worth nothing
+      // for this one.
+      expect(await ask({ t: "want", key: S, nonce: "n2", proof: proofFor("n2", K("else@x", "o")) }))
+        .toEqual({ t: "no", why: "proof" });
+      expect(theirs.exported, "a login left on a proof that did not hold").toEqual([]);
+
+      // And the same connection with the proof made properly is answered, so
+      // the two refusals above were the proof and not the connection.
+      expect(await ask({ t: "want", key: S, nonce: "n3", proof: proofFor("n3", S) })).toMatchObject({ t: "have", key: S });
+      expect(theirs.exported).toEqual([5]);
+    } finally {
+      conn.sock.destroy();
+    }
   }, 20_000);
 });
 
@@ -603,6 +774,64 @@ describe("saying no, and meaning it", () => {
   });
 });
 
+// UNPAIRING, WHICH NO CASE HAD EVER CALLED (#1171). The only tests were source
+// pins on the panel's button and the pure `dropTrusted`. What `unpair` does to
+// the engine — the pin gone, the shorter list written through, the answer the
+// route hands back — is pinned here, and so is the half of the next round that
+// holds today: the other deck, which still trusts this one and still dials it,
+// is a request again when it calls, and is given nothing.
+//
+// WHAT IS LEFT OUT, AND WHY. This deck's OWN next round pins the unpaired deck
+// again, silently, when it reaches it through a row somebody typed, accepted or
+// joined by invite — and with `autoAccept` on, the other deck's next call is
+// accepted again. Both undo the unpair within a minute. Which of the two ways
+// of stopping that is right is the owner's decision (#1181), and a case that
+// asserted today's behaviour would pin the bug.
+describe("unpairing", () => {
+  it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+
+    expect(a.e.unpair(b.id.fp)).toBe(true);
+    expect(a.e.status().trusted).toEqual([]);
+    // What index.mjs writes to prefs.json, and so what the next start reads.
+    expect(a.trusted, "the pin would come back at the next restart").toEqual([]);
+    expect(a.trustWrites.at(-1)).toEqual([]);
+
+    // A second press, or a fingerprint nobody paired, is not a change: the
+    // route answers `ok: false`, and nothing is written for it.
+    const writes = a.trustWrites.length;
+    expect(a.e.unpair(b.id.fp)).toBe(false);
+    expect(a.e.unpair("nobody-at-all")).toBe(false);
+    expect(a.trustWrites).toHaveLength(writes);
+  }, 20_000);
+
+  it("makes the deck it unpaired a request again when it calls, and gives it nothing", async () => {
+    // Unpairing here says nothing to the other machine: it still trusts this
+    // deck and still dials it every minute, so its next round is what the
+    // unpair has to hold against. Its own copy of the login is dead, so a
+    // round that got through would ask for it.
+    const key = K("s@x", "o");
+    const holder = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const asker = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const a = await deck(holder, "Deck-A", [key]);
+    const b = await deck(asker, "Deck-B", [key]);
+    await point(b, a, a.port);
+    expect(await b.e.round()).toMatchObject([{ key, action: "heal", ok: true }]);
+    expect(holder.exported).toEqual([5]);
+
+    expect(a.e.unpair(b.id.fp)).toBe(true);
+    expect(await b.e.round()).toEqual([]);
+    expect(holder.exported, "a deck unpaired a moment ago was handed a login").toEqual([5]);
+    expect(a.e.status().trusted).toEqual([]);
+    expect(a.e.status().pending).toMatchObject([{ fp: b.id.fp, name: "Deck-B" }]);
+    expect(peerRow(b, a.id.fp)?.last?.error).toBe("waiting for the other deck to accept this one");
+  }, 20_000);
+});
+
 describe("pairing that nobody presses", () => {
   // Three of somebody's own machines is three pairings and six presses, and
   // every one of them is the same answer: yes, that one is mine. Both switches
@@ -715,9 +944,6 @@ describe("a heal that healed nothing", () => {
   const src = readFileSync(
     fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8",
   );
-  const engine = readFileSync(
-    fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8",
-  );
   const admin = readFileSync(
     fileURLToPath(new URL("../../server/cswap-admin.mjs", import.meta.url)), "utf8",
   );
@@ -740,10 +966,35 @@ describe("a heal that healed nothing", () => {
     expect(fillEmptySlot).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
-  it("carries a reason, because refused and skipped are different sentences", () => {
-    expect(engine).toContain("const got = await importAccount(blob, step);");
-    expect(engine).toContain('why: ok ? null : (got?.why ?? "import failed")');
-  });
+  it("carries the import's own reason, because refused and skipped are different sentences", async () => {
+    // Driven rather than read (#1171). This was two `toContain` pins on the
+    // lines below, which a rewrite keeping the strings and changing the logic
+    // passed. What the verdict turns into is what the panel draws as the
+    // result of the last round, so that is what is asserted — for the plain
+    // `true` the suite hands it everywhere else, the verdict the route
+    // returns, and a verdict that says nothing.
+    const key = K("claude2@sapec.md", "org-2");
+    for (const [got, verdict] of [
+      [true, { ok: true, why: null }],
+      [{ ok: true }, { ok: true, why: null }],
+      [{ ok: false, why: "kept the slot it already has" }, { ok: false, why: "kept the slot it already has" }],
+      [{}, { ok: false, why: "import failed" }],
+    ] as Array<[unknown, { ok: boolean; why: string | null }]>) {
+      const steps: unknown[] = [];
+      const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
+      const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
+      const a = await deck(mine, "Deck-A", [key], {
+        importAccount: async (_blob: string, step: unknown) => { steps.push(step); return got; },
+      });
+      const b = await deck(theirs, "Deck-B", [key]);
+      await point(a, b, b.port);
+      const step = { key, email: "claude2@sapec.md", action: "heal" };
+      expect(await a.e.round(), JSON.stringify(got)).toEqual([{ ...step, ...verdict }]);
+      // The step goes down with the blob: the route has to know WHICH account
+      // it is placing before it may treat a decline as an empty slot.
+      expect(steps).toEqual([step]);
+    }
+  }, 20_000);
 
   it("narrows the plain import too, not only the forced one", () => {
     // The AAD on the seal is `${peerFp}->${identity.fp}|${step.key}`: it binds
@@ -822,10 +1073,6 @@ describe("a heal that healed nothing", () => {
     // was about is what keeps an overwrite a named act.
     expect((fillEmptySlot.match(/force: true/g) ?? []).length).toBe(1);
     expect(fillEmptySlot).toMatch(/force: true, only: \{ email, org/);
-  });
-
-  it("still takes a plain true, which is what the suite hands it", () => {
-    expect(engine).toContain("const ok = got === true || got?.ok === true;");
   });
 
   it("does not reach for --force to get around the decline", () => {
@@ -964,23 +1211,52 @@ describe("which account a paired deck is on", () => {
     expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ hidden: true });
   }, 20_000);
 
-  it("is heard from a deck that only calls in, with its list and its card", async () => {
+  it("learns a paired caller's address and pulls from it, though nothing here dialled first", async () => {
+    // Accounts move only toward the deck that dials, so a deck this one holds
+    // no address for could offer everything and this one would take nothing —
+    // the exact state a deck falls into when it cannot hear beacons (a firewall,
+    // or Tailscale holding the discovery port). The call carries the address:
+    // this deck learns it and dials back, so a pull happens in the direction it
+    // could not start on its own.
     const MAC = { version: "3.23.0", os: "macOS 26.5", arch: "arm64" };
     const a = await deck(store(rows("on")), "Deck-A", [ON, OFF], { about: MAC });
-    const b = await deck(store([]), "Deck-B", []);
+    const sb = store([]);
+    const b = await deck(sb, "Deck-B", []);
+    // Paired both ways, so each answers the other.
     await point(a, b, b.port);
-    // Accepting dials back at the port A's hello carried; a deck behind a
-    // firewall or a VPN is one where that address never answers, which is
-    // what taking it away here stands for. B now holds no way to reach A.
+    await point(b, a, a.port);
+    // B loses its address for A — the state after a settings write, or a deck
+    // that can only ever be called. A now only calls in to B.
     b.e.setPeers([]);
+    // A calls in. B keeps the card and the offer it always did...
     await a.e.round();
-    // So to B, A is a deck that calls in, and everything B knows about it
-    // came with A's question.
-    const row = peerRow(b, a.id.fp);
-    expect(row?.waiting).toBe(true);
+    let row = peerRow(b, a.id.fp);
     expect(row?.about).toMatchObject(MAC);
     expect(row?.offers?.accounts.map((x: { key: string }) => x.key)).toEqual([OFF, ON].sort());
-    expect(row?.offers?.current).toEqual({ key: ON });
+    // ...and now learns A's address from the call, so it is no longer one-way.
+    expect(row?.waiting).not.toBe(true);
+    // The whole point: B dials A back and pulls the accounts it lacks, though
+    // nothing on B ever dialled A first.
+    await b.e.round();
+    expect(sb.imported.length).toBeGreaterThan(0);
+  }, 20_000);
+
+  it("drops a caller it cannot reach back, so it does not fail every round", async () => {
+    // The dial-back is on trial until it proves the deck can reach the caller.
+    // A strict NAT or a one-way path is a caller whose own listener never
+    // answers; the row is taken away rather than left failing, and the peer
+    // goes back to calling in.
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    // Paired both ways.
+    await point(a, b, b.port);
+    await point(b, a, a.port);
+    b.e.setPeers([]);           // B loses A; A only calls in
+    await a.e.round();          // A calls B → B learns A's address (on trial)
+    expect(peerRow(b, a.id.fp)?.waiting).not.toBe(true);
+    a.e.stop();                 // the address B learned no longer answers
+    await b.e.round();          // B dials back, fails → the trial row is removed
+    expect(peerRow(b, a.id.fp)?.waiting).toBe(true);
   }, 20_000);
 });
 
@@ -999,37 +1275,110 @@ describe("which account a paired deck is on", () => {
 //     thousands of sequential want/have round trips plus a claude-swap
 //     subprocess each, while the panel drew 50.
 //
-// Source assertions, because both live inside a socket exchange several frames
-// into a handshake against a live peer. lan-socket.test.ts owns what
-// frameReader does with the cap; this owns that the round reaches for it.
+// DRIVEN, AGAINST A PAIRED DECK THAT ANSWERS BADLY (#1171). These were source
+// assertions, on the reasoning that both live several frames into a handshake
+// against a live peer — and a live peer is cheap to stand up: createSyncServer
+// does the handshake for real, trusts the deck under test, and then answers
+// each frame however the case says. A rewrite that kept the pinned strings and
+// changed the logic used to ship green. The one pin left is the one no reply
+// can show from outside. lan-socket.test.ts owns what frameReader does with
+// the cap; this owns that the round's own reader keeps it too.
 describe("the sync round keeps the caps the rest of the protocol keeps", () => {
-  const src = readFileSync(
-    fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
+  type Answer = (msg: Record<string, any>, ctx: { send: (o: unknown) => void; sock: net.Socket }) => void;
 
-  it("bounds its own reader at MAX_FRAME_BYTES, like frameReader", () => {
-    expect(src).toContain("if (buf.length > MAX_FRAME_BYTES) {");
-    expect(src).toContain('give(reject, new Error("frame too large"))');
-    // Reached for rather than re-typed, so the two cannot drift apart.
-    expect(src).toContain("MAX_FRAME_BYTES } from \"./lan-socket.mjs\"");
-  });
+  /** A paired deck whose every reply after the handshake is the case's to
+   *  write. It has pinned the deck under test already, and the deck under test
+   *  reaches it through an address somebody typed, so the first round both
+   *  pins it and is the round being tested. */
+  async function hostile(a: Awaited<ReturnType<typeof deck>>, answer: Answer) {
+    const id = identityFrom("");
+    const s = createSyncServer({
+      fp: id.fp, pub: id.pub, secret: id.secret, name: "Hostile", host: "127.0.0.1",
+      trusted: () => [{ fp: a.id.fp, pub: a.id.pub, name: "Deck-A" }],
+      handlers: answer,
+    });
+    running.push(s);
+    expect(a.e.addPeer("127.0.0.1", await s.start())).toBe(true);
+    return { id };
+  }
+
+  it("drops a reply that runs past MAX_FRAME_BYTES with no newline, like frameReader", async () => {
+    // Without the cap this reader buffers for the round's whole ten-second
+    // bell, and every other paired deck's round waits behind it.
+    const a = await deck(store([]), "Deck-A", []);
+    const peer = await hostile(a, (msg, ctx) => {
+      if (msg.t === "manifest") ctx.sock.write("x".repeat(MAX_FRAME_BYTES + 1));
+    });
+    expect(await a.e.round()).toEqual([]);
+    expect(peerRow(a, peer.id.fp)?.last?.error).toBe("frame too large");
+  }, 20_000);
+
+  it("ends the round on a reply that is not JSON, or is not a manifest", async () => {
+    for (const [why, answer] of [
+      ["bad reply", (_m, ctx) => { ctx.sock.write("not json\n"); }],
+      ["no manifest", (_m, ctx) => ctx.send({ t: "pong" })],
+    ] as Array<[string, Answer]>) {
+      const a = await deck(store([]), "Deck-A", []);
+      const peer = await hostile(a, answer);
+      expect(await a.e.round(), why).toEqual([]);
+      expect(peerRow(a, peer.id.fp)?.last?.error, why).toBe(why);
+    }
+  }, 20_000);
+
+  it("plans over the fifty rows the panel is shown, however many the manifest carried", async () => {
+    // Five hundred rows this deck lacks, every one an `add` that needs no tick.
+    // Planned over the raw array, that was five hundred sequential asks, each
+    // with its own bell and a claude-swap subprocess, while the panel drew 50.
+    const rows = Array.from({ length: 500 }, (_, i) => ({ key: K(`u${i}@x`, "o"), email: `u${i}@x`, alive: true }));
+    let wants = 0;
+    const a = await deck(store([]), "Deck-A", []);
+    const peer = await hostile(a, (msg, ctx) => {
+      if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: rows });
+      if (msg.t === "want") { wants += 1; ctx.send({ t: "no", why: "busy" }); }
+    });
+    const done = await a.e.round() as Array<{ key: string; action: string; ok: boolean; why: string }>;
+    expect(done).toHaveLength(50);
+    expect(wants).toBe(50);
+    // Every step carries the far side's own reason for saying no.
+    expect(done.every(d => d.action === "add" && d.ok === false && d.why === "busy")).toBe(true);
+    // And what was asked for is exactly what the panel was shown: one list.
+    const shown = peerRow(a, peer.id.fp)?.offers?.accounts as Array<{ key: string }>;
+    expect(shown).toHaveLength(50);
+    expect(done.map(d => d.key).sort()).toEqual(shown.map(x => x.key).sort());
+  }, 20_000);
+
+  it("counts a login that arrives sealed under some other key as a failure, not a login", async () => {
+    const key = K("new@x", "o");
+    const mine = store([]);
+    const a = await deck(mine, "Deck-A", []);
+    await hostile(a, (msg, ctx) => {
+      if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: [{ key, email: "new@x", alive: true }] });
+      // A `have` in the right shape, sealed under a key nobody on this
+      // connection holds.
+      if (msg.t === "want") ctx.send({ t: "have", key: msg.key, sealed: seal(randomBytes(32), "ccdeck2:forged", "aad") });
+    });
+    expect(await a.e.round()).toEqual([{ key, email: "new@x", action: "add", ok: false, why: "could not open" }]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("says a refusal was a refusal when the far side gave no reason", async () => {
+    const key = K("new@x", "o");
+    const a = await deck(store([]), "Deck-A", []);
+    await hostile(a, (msg, ctx) => {
+      if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: [{ key, email: "new@x", alive: true }] });
+      if (msg.t === "want") ctx.send({ t: "no" });
+    });
+    expect(await a.e.round()).toEqual([{ key, email: "new@x", action: "add", ok: false, why: "refused" }]);
+  }, 20_000);
 
   it("detaches its listener on every way out, not only on the newline", () => {
     // The reject path used to leave `onData` attached, so the buffer kept
-    // growing until roundWith's finally destroyed the socket.
+    // growing until roundWith's finally destroyed the socket. A pin, because
+    // the only thing that shows it from outside is memory.
+    const src = readFileSync(
+      fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
     expect(src).toContain('conn.sock.off("data", onData);');
     expect(src).toContain("const give = (fn, arg) => {");
-  });
-
-  it("plans over the capped list rather than the raw manifest", () => {
-    expect(src).toContain("const wanted = plan(mine, list)");
-    expect(src, "the raw array must not come back").not.toContain("plan(mine, theirs.accounts)");
-  });
-
-  it("and the list it plans over is the one the panel was shown", () => {
-    // One value, so what is drawn and what is done cannot disagree.
-    expect(src).toContain("const list = offered(theirs.accounts);");
-    expect(src.indexOf("const list = offered(theirs.accounts);"))
-      .toBeLessThan(src.indexOf("const wanted = plan(mine, list)"));
   });
 });
 
@@ -1142,6 +1491,47 @@ describe("a deck this one heard rather than reached for", () => {
     expect(peers.filter(r => r.typed)).toHaveLength(6);
   });
 
+  // TURNING `autoAsk` ON ANSWERS WHAT IS ALREADY LISTED (#1171). The cases
+  // above build their deck with the switch already on; this is the press, with
+  // decks already heard, and it goes through a different line in `apply`. The
+  // row it leaves is one the deck added itself, so it may raise a request and
+  // may never pin — if that argument regressed to its default, one press of
+  // the switch would pin every deck already listed, which is #969 again through
+  // a second door.
+  it("asks the decks it already heard when the switch goes on, and asking is all it does", async () => {
+    // A says yes for its owner, so the second round completes the handshake:
+    // that is the round a row somebody typed would pin on.
+    const a = await deck(store([]), "Deck-A", [], {}, { autoAccept: true });
+    const b = await deck(store([]), "Deck-B", []);
+    announce(b, a, "Deck-A");
+    expect(b.e.status().strangers).toMatchObject([{ fp: a.id.fp }]);
+    expect(b.e.status().peers).toEqual([]);
+
+    await b.e.apply({ autoAsk: true });
+    expect(b.e.status().strangers).toEqual([]);
+    expect(b.e.status().peers).toMatchObject([{ addr: "127.0.0.1", port: a.port, typed: false }]);
+
+    await b.e.round();
+    await b.e.round();
+    expect(a.e.status().trusted, "A was never asked").toMatchObject([{ fp: b.id.fp }]);
+    expect(b.e.status().trusted, "the switch pinned a deck nobody pressed for").toEqual([]);
+    expect(b.trusted).toEqual([]);
+    expect(b.e.status().pending).toMatchObject([{ fp: a.id.fp, name: "Deck-A" }]);
+  }, 20_000);
+
+  it("leaves a deck its owner turned away alone when the switch goes on", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    announce(b, a, "Deck-A");
+    expect(b.e.dismiss(a.id.fp)).toBe(true);
+    // Heard again after the no, as it is every thirty seconds, so it is on the
+    // list the switch walks — and it is the owner's no that keeps it off.
+    announce(b, a, "Deck-A");
+    await b.e.apply({ autoAsk: true });
+    expect(b.e.status().peers, "a deck told no was put on the dial list").toEqual([]);
+    expect(b.e.status().declined).toMatchObject([{ fp: a.id.fp }]);
+  }, 20_000);
+
   it("keeps the vouching when a beacon arrives for an address somebody typed", async () => {
     // Order must not decide this. An address in the field is a person naming a
     // machine, and the next packet from that machine is not a reason to demote
@@ -1251,6 +1641,87 @@ describe("the invite, and the half of it that was never checked", () => {
     expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
     expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
   }, 20_000);
+});
+
+// WHAT THE ENGINE HANDS ITS CALLER TO KEEP (#1171).
+//
+// The engine holds everything in memory and index.mjs writes four things of it
+// into prefs.json: the trusted list, the dial list, the port and the key. What
+// survives a restart is only what went out through one of those callbacks, and
+// the harness above used to wire two of them — so dropping any of the other
+// three shipped green, and each one is a pairing that quietly stops working
+// after the next start.
+describe("what the engine hands its caller to keep", () => {
+  it("writes the far deck's address down on both ends of an invite", async () => {
+    // Without it the pairing is two-way in the trusted list and one-way in
+    // fact after a restart: `addPeer` alone lives in memory, and the minter
+    // never dials the joiner again.
+    const a = await deck(store([]), "Minter", []);
+    const b = await deck(store([]), "Joiner", []);
+    // Re-addressed to loopback, as the case above does, so the address each end
+    // writes down is one this suite can name.
+    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const code = readInvite(a.e.invite().token).code;
+    const token = mintInvite({ addrs: [`127.0.0.1:${a.port}`], name: "Minter", code }).token;
+    expect((await b.e.join(token)).ok).toBe(true);
+
+    expect(b.dials, "the joiner kept no way back to the minter").toEqual([`127.0.0.1:${a.port}`]);
+    expect(a.dials, "the minter kept no way back to the joiner").toEqual([`127.0.0.1:${b.port}`]);
+    // And the minter already knows who is at that address, so the machine is
+    // one row rather than an address beside a fingerprint until the next round.
+    expect(a.e.status().peers).toHaveLength(1);
+    expect(peerRow(a, b.id.fp)).toMatchObject({ addr: "127.0.0.1", port: b.port, paired: true });
+  }, 20_000);
+
+  it("writes down a port that moved, and only one that moved", async () => {
+    // An address typed on the other machine names this port, so a restart that
+    // lands on another one has to be kept or that address stops working.
+    // Loopback, so the port this case takes over is the same socket address
+    // the deck asks for on every platform.
+    const LOOPBACK = "127.0.0.1";
+    const d = await deck(store([]), "Deck-A", [], { host: LOOPBACK });
+    // No pin at all on the first start, so whatever the OS chose is news.
+    expect(d.ports).toEqual([d.port]);
+
+    // Back on the same pin while it is free: nothing to write.
+    await d.e.apply({ enabled: false });
+    await d.e.apply({ enabled: true, port: d.port });
+    expect(d.e.status().port).toBe(d.port);
+    expect(d.ports, "a port that did not move was written again").toHaveLength(1);
+
+    // Back while something else holds it: it moves, and says where to.
+    await d.e.apply({ enabled: false });
+    const squatter = net.createServer();
+    await new Promise<void>((resolve, reject) => {
+      squatter.once("error", reject);
+      squatter.listen(d.port, LOOPBACK, () => resolve());
+    });
+    try {
+      await d.e.apply({ enabled: true });
+      const moved = d.e.status().port;
+      expect(moved).not.toBe(d.port);
+      expect(d.ports).toEqual([d.port, moved]);
+    } finally {
+      await new Promise<void>(resolve => squatter.close(() => resolve()));
+    }
+  }, 20_000);
+
+  it("takes a new key when another machine announces this one's, and hands it over", async () => {
+    // A ~/.claude copied to a second machine: two decks with one key, each
+    // filing the other's beacons as its own, invisible to each other for good
+    // unless one of them moves. The one that notices moves, and index.mjs
+    // keeps the new key and restarts on it — which it can only do if told.
+    const d = await deck(store([]), "Deck-A", []);
+    const was = d.e.status().fp as string;
+    d.sock.deliver(Buffer.from(JSON.stringify({
+      m: "CCDK", v: PROTOCOL, n: "Deck-A", f: was, p: 40_000,
+      // Another process (its own instance) on another machine (its own host).
+      i: "deadbeef", h: hostId({ hostname: "the-copy", home: "/home/somebody" }),
+    })), "192.168.1.50");
+    expect(d.identities).toHaveLength(1);
+    expect(identityFrom(d.identities[0]).fp, "the key handed over is the old one").not.toBe(was);
+    expect(d.errors).toContain("id-clash");
+  });
 });
 
 // #1040, second half. `round` walks the peer list one deck at a time, under a
@@ -1510,5 +1981,90 @@ describe("two rounds at once", () => {
     // Deck-C's login moved once, by the round.
     expect(theirs.exported).toEqual([5]);
     expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+});
+
+// An account that ARRIVES here is offered onward, because people forget to tick
+// it and a group where one machine heals everybody and nobody heals it back is
+// the shape that costs them (#1188). The login came from the group, so nothing
+// new is exposed by holding it out; what IS the person's decision — an untick
+// afterwards, and whether a tailnet counts — is left to them.
+describe("an account that arrives over the network", () => {
+  const NEW = K("new@sapec.md", "org-9");
+
+  /** A deck whose tick list is written back the way index.mjs writes it. */
+  async function receiver(s: ReturnType<typeof store>, shared: string[], over = {}) {
+    const ticked: string[] = [];
+    const d = await deck(s, "Deck-A", shared, {
+      onShared: async (key: string) => {
+        ticked.push(key);
+        if (!shared.includes(key)) shared.push(key);
+        await d.e.apply({ shared });
+      },
+      ...over,
+    });
+    return { ...d, ticked, shared };
+  }
+
+  it("is ticked for sharing here, so this deck can heal the next one", async () => {
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")]);
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+
+    expect((await a.e.round()).map((d: { action: string }) => d.action)).toEqual(["add"]);
+    expect(a.ticked).toEqual([NEW]);
+    // And the engine is running on the new list, not only the file: what this
+    // deck offers a third machine from here on includes the account it was
+    // given.
+    expect(a.e.status().shared).toContain(NEW);
+  }, 20_000);
+
+  it("is not ticked when the import failed, because nothing arrived", async () => {
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")], {
+      importAccount: async () => ({ ok: false, why: "import refused" }),
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+
+    expect((await a.e.round()).map((d: { ok: boolean }) => d.ok)).toEqual([false]);
+    expect(a.ticked).toEqual([]);
+  }, 20_000);
+
+  it("keeps the person's untick: the tick happens on arrival and never again", async () => {
+    // The account is here after the first round, so `syncAction` answers
+    // nothing for it in the second — which is what makes the default a
+    // one-time decision rather than a fight with whoever unticked it.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")]);
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    await a.e.round();
+
+    // The person unticks it, as they may untick any account.
+    mine.rows.push({ num: 2, email: "new@sapec.md", orgUuid: "org-9", alive: true });
+    const kept = a.shared.filter(k => k !== NEW);
+    await a.e.apply({ shared: kept });
+    a.ticked.length = 0;
+
+    await a.e.round();
+    expect(a.ticked).toEqual([]);
+    expect(a.e.status().shared).not.toContain(NEW);
+  }, 20_000);
+
+  it("is ticked for an add from the local network, and for nothing else", () => {
+    // The rule on its own, because the one case a round cannot stage is a peer
+    // reached over the tailnet: routeOf answers by address, and no test can
+    // hold a 100.x one. An add from the local network is the whole of it.
+    expect(ticksOnArrival({ key: NEW, action: "add" }, "lan")).toBe(true);
+    expect(ticksOnArrival({ key: NEW, action: "add" }, "tailscale")).toBe(false);
+    // A heal is an account this deck already shares — there is nothing to tick
+    // — and an unticked one is never healed in the first place.
+    expect(ticksOnArrival({ key: NEW, action: "heal" }, "lan")).toBe(false);
+    expect(ticksOnArrival({ action: "add" }, "lan")).toBe(false);
   }, 20_000);
 });

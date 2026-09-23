@@ -8,6 +8,7 @@
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState } from "react";
+import AccountProjectsModal from "./AccountProjectsModal";
 import AddAccountDialog from "./AddAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -18,9 +19,10 @@ import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { laneSplit } from "../lane-view";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
-import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
+import { armedPress, focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
+import { copyText } from "../copy-text";
 import {
   type Failure,
   RELOAD_SLOW,
@@ -413,36 +415,6 @@ function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?
   );
 }
 
-/**
- * Copy text, and say whether it worked.
- *
- * navigator.clipboard is undefined outside a secure context and can sit
- * unresolved while the browser decides on permission — which leaves a Copy
- * button silently dead. Race it, then fall back to the old selection trick.
- * Same shape as the version banner's copy, for the same reason.
- */
-async function copyText(text: string): Promise<boolean> {
-  let ok = false;
-  try {
-    ok = await Promise.race([
-      navigator.clipboard?.writeText(text).then(() => true) ?? Promise.resolve(false),
-      new Promise<boolean>(r => window.setTimeout(() => r(false), 500)),
-    ]);
-  } catch { ok = false; }
-  if (ok) return true;
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-    document.body.appendChild(ta);
-    ta.select();
-    ok = document.execCommand("copy");
-    ta.remove();
-  } catch { ok = false; }
-  return ok;
-}
-
 interface Props {
   onClose: () => void;
   /** Asked to close, still on screen for the length of its exit. The panel
@@ -517,6 +489,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // path and neither has to explain the other.
   const [shareSetOpen, setShareSetOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  // The account whose "Projects" report is open, by slot number, or null. A
+  // full modal rather than an inline popover: the report carries a chart, a
+  // list and per-window totals that a menu-sized panel would crush.
+  const [projectsFor, setProjectsFor] = useState<number | null>(null);
   // A move into an occupied slot relocates an account the user never picked.
   // Nothing else on screen says so — both accounts simply appear where they
   // were not — so the moved row says it, in its own freshness line.
@@ -1613,6 +1589,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                           title={`Copy this account to another ${PRODUCT}. Anyone who has the text can use the account — treat it as the password. The other deck stops accepting it after 10 minutes; that does not make an escaped copy safe.`}
                           onClick={() => makeShare(a.num)}
                         >{busy === `share-${a.num}` ? "Sharing…" : "Share"}</button>
+                        {/* Where this account spent its work, per project. Opens a
+                            full modal — the report is a chart and a list, not a
+                            menu-sized thing — so the popover closes behind it. */}
+                        <button type="button" role="menuitem" className="ap-menu-item"
+                          title="See how much this account worked in each project"
+                          onClick={() => { setProjectsFor(a.num); closeMenu(a.num); }}
+                        >Projects</button>
                         {/* Holding an account out only matters while something is
                             rotating, so it is offered with it. Putting one BACK is
                             offered whenever an account is out (#519): the row says
@@ -1649,15 +1632,20 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                             ? "This deletes the stored credentials for this account"
                             : "Remove this account from claude-swap"}
                           onClick={() => {
-                            if (confirmRemove !== a.num) {
+                            const now = Date.now();
+                            const press = armedPress({
+                              armedFor: confirmRemove, target: a.num,
+                              armedAt: removeArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                            });
+                            if (press === "arm") {
                               setConfirmRemove(a.num);
-                              removeArmedAt.current = Date.now();
+                              removeArmedAt.current = now;
                               window.setTimeout(() => setConfirmRemove(c => (c === a.num ? null : c)), 4000);
                               return;
                             }
                             // A double-click is one decision, not two: its second
                             // press lands before anybody could have read `Confirm`.
-                            if (Date.now() - removeArmedAt.current < CONFIRM_GAP_MS) return;
+                            if (press === "ignore") return;
                             setConfirmRemove(null);
                             admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(out => {
                               load(true);
@@ -1905,6 +1893,19 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           copyText={copyText}
         />
       )}
+      {projectsFor != null && (() => {
+        const a = (data?.accounts ?? []).find(x => x.num === projectsFor);
+        // The account may have vanished (removed while the menu was open); close
+        // rather than open an empty report.
+        if (!a) { setProjectsFor(null); return null; }
+        return (
+          <AccountProjectsModal
+            num={a.num}
+            name={a.alias ?? a.email ?? `account ${a.num}`}
+            onClose={() => setProjectsFor(null)}
+          />
+        );
+      })()}
     </aside>
   );
 }

@@ -31,25 +31,35 @@
 // suite can run it on any platform. That is the same division lan-sync.mjs and
 // lan-socket.mjs already keep, for the same reason.
 
-/** What the probe asks Windows for. Three reads, none of them privileged —
- *  measured: `Get-NetConnectionProfile`, `Get-NetFirewallProfile` and
- *  `Get-NetFirewallApplicationFilter` all answer for an ordinary user, while
- *  `Get-NetFirewallPortFilter` returns "Access is denied". So the rule this
- *  looks for is scoped to a PROGRAM rather than to a port, which is also the
- *  only kind that keeps working: the sync listener's port is ephemeral and is
- *  a different number after every restart. */
+/** What the probe asks Windows for. `Get-NetConnectionProfile` and
+ *  `Get-NetFirewallProfile` answer for an ordinary user; `Get-NetFirewallPortFilter`
+ *  returns "Access is denied", which is why the rule this looks for is scoped
+ *  to a PROGRAM rather than a port — also the only kind that keeps working,
+ *  since the sync listener's port is ephemeral and different after every
+ *  restart. `Get-NetFirewallApplicationFilter` answers on many machines but is
+ *  denied on some domain-managed ones, so it is wrapped and its failure carried
+ *  through as `rulesReadable=$false` rather than silently read as "no rule". */
 export const PROBE_PS = [
   "$ErrorActionPreference='SilentlyContinue'",
   "$nets = @(Get-NetConnectionProfile | ForEach-Object { [pscustomobject]@{ alias=$_.InterfaceAlias; category=[string]$_.NetworkCategory; v4=[string]$_.IPv4Connectivity } })",
   "$profiles = @(Get-NetFirewallProfile | ForEach-Object { [pscustomobject]@{ name=[string]$_.Name; enabled=[bool]$_.Enabled } })",
-  "$rules = @(Get-NetFirewallApplicationFilter | Where-Object { $_.Program -eq $env:CCDECK_EXE } | ForEach-Object { $_ | Get-NetFirewallRule } | ForEach-Object { [pscustomobject]@{ direction=[string]$_.Direction; action=[string]$_.Action; enabled=[bool]$_.Enabled; profile=[string]$_.Profile } })",
+  // AN EMPTY LIST HAS TWO MEANINGS, AND THEY ARE OPPOSITE. `Get-NetFirewallApplicationFilter`
+  // answers for an ordinary user on some machines and throws "Access is denied"
+  // on others (a domain-managed box, measured). With errors silenced it came
+  // back empty either way — and empty was read as "no rule", so a machine whose
+  // rule the deck simply could not see was told, wrongly, that it had none, and
+  // handed a command that added one more every time it was run. Wrapped so the
+  // throw is caught and reported as `rulesReadable=$false`: the difference
+  // between "there is no rule" and "I was not allowed to look".
+  "$rulesReadable=$true",
+  "try { $rules = @(Get-NetFirewallApplicationFilter -ErrorAction Stop | Where-Object { $_.Program -eq $env:CCDECK_EXE } | ForEach-Object { $_ | Get-NetFirewallRule } | ForEach-Object { [pscustomobject]@{ direction=[string]$_.Direction; action=[string]$_.Action; enabled=[bool]$_.Enabled; profile=[string]$_.Profile } }) } catch { $rulesReadable=$false; $rules=@() }",
   // WHICH INTERFACE IS THE LAN, asked of the routing table rather than guessed
   // from a name. The beacon goes to 255.255.255.255, so the interface that
   // carries the broadcast IS the one this feature lives or dies on — and on a
   // machine with Tailscale beside wifi the two have different categories, so
   // picking the wrong one reports Private and clears a machine that is blocked.
   "$bcast = [string](Find-NetRoute -RemoteIPAddress 255.255.255.255 | Select-Object -First 1 -ExpandProperty InterfaceAlias)",
-  "[pscustomobject]@{ nets=$nets; profiles=$profiles; rules=$rules; bcast=$bcast } | ConvertTo-Json -Depth 4 -Compress",
+  "[pscustomobject]@{ nets=$nets; profiles=$profiles; rules=$rules; rulesReadable=$rulesReadable; bcast=$bcast } | ConvertTo-Json -Depth 4 -Compress",
 ].join("; ");
 
 /**
@@ -88,6 +98,9 @@ export function readProbe(stdout) {
       enabled: r.enabled === true,
       profile: typeof r.profile === "string" ? r.profile : "",
     })),
+    // True unless the probe said it could not read the rules — and true for an
+    // older probe that did not report it, which kept working as it always did.
+    rulesReadable: raw.rulesReadable !== false,
     bcast: typeof raw.bcast === "string" ? raw.bcast.trim() : "",
   };
 }
@@ -171,15 +184,31 @@ export function ruleCovers(rules, profileName) {
  * wrong one for the router at home, and this module cannot tell which one
  * somebody is sitting in. The panel says so beside it.
  */
-export function fixSteps({ category, alias, exePath }) {
+export function fixSteps({ category, alias, exePath, rules = [] }) {
   const steps = [];
-  if (profileFor(category) === "Public" && alias) {
+  const name = profileFor(category);
+  if (name === "Public" && alias) {
     steps.push(`Set-NetConnectionProfile -InterfaceAlias "${alias}" -NetworkCategory Private`);
   }
-  steps.push(
-    "New-NetFirewallRule -DisplayName \"ccdeck (local network)\" -Direction Inbound"
-    + ` -Program "${exePath}" -Action Allow -Profile Private`,
-  );
+  // THE PROFILE OF THE NETWORK THE DECK IS ON, NOT ALWAYS PRIVATE. A company
+  // LAN joined to a domain is `DomainAuthenticated`, which the firewall answers
+  // with its Domain profile, and a rule scoped to Private never applies there.
+  // Measured on a Windows box whose Ethernet is DomainAuthenticated: the rule
+  // was pasted, the panel went on saying there was none — correctly — and a
+  // second paste made a second rule that did nothing either. Domain and
+  // Private together, so a laptop that goes home keeps working there too.
+  // Public is never added: a Public network gets the category line above.
+  const profile = name === "Domain" ? "Domain,Private" : "Private";
+  // AND A RULE THAT IS ALREADY THERE IS WIDENED, NOT JOINED BY ANOTHER. The
+  // probe only returns rules for this program, so an inbound allow rule in
+  // `rules` is one of ours on the wrong profile, and a new rule beside it is
+  // the duplicate this was reported with.
+  const ours = (Array.isArray(rules) ? rules : [])
+    .some(r => r?.enabled && String(r.direction).toLowerCase() === "inbound" && String(r.action).toLowerCase() === "allow");
+  steps.push(ours
+    ? `Get-NetFirewallApplicationFilter -Program "${exePath}" | Get-NetFirewallRule | Set-NetFirewallRule -Profile ${profile}`
+    : "New-NetFirewallRule -DisplayName \"ccdeck (local network)\" -Direction Inbound"
+      + ` -Program "${exePath}" -Action Allow -Profile ${profile}`);
   return steps;
 }
 
@@ -463,6 +492,16 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   if (ruleCovers(probe.rules, name)) {
     return { blocked: false, why: "rule present", category, alias: net?.alias ?? "" };
   }
+  // COULD NOT READ THE RULES, SO CANNOT SAY THERE IS NONE. An empty list here
+  // is "Access is denied", not "no rule" (see PROBE_PS), so claiming a missing
+  // rule would be a guess dressed as a read — and the command that guess hands
+  // over adds a duplicate rule on a machine that may already be covered. On a
+  // Public network the fix is the category, which was read reliably, so that
+  // verdict still stands; anywhere else the honest answer is the measurement,
+  // which `refreshReach` falls back to when this returns null.
+  // Only an EMPTY list is ambiguous — a rule in hand was plainly readable,
+  // whatever the flag says.
+  if (!probe.rulesReadable && probe.rules.length === 0 && name !== "Public") return null;
   return {
     blocked: true,
     why: "no inbound rule",
@@ -477,8 +516,10 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
     // workaround below obvious rather than magic.
     text: name === "Public"
       ? "This network is set to Public, and Windows drops what other decks send. They can still hear this deck — that is why one of them may already show it."
-      : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
-    steps: fixSteps({ category, alias: net?.alias ?? "", exePath }),
+      : name === "Domain" && probe.rules.length
+        ? "Windows lets this deck in on Private networks only, and this one is a company (Domain) network, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine."
+        : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
+    steps: fixSteps({ category, alias: net?.alias ?? "", exePath, rules: probe.rules }),
   };
 }
 

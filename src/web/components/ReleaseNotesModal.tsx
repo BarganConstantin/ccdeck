@@ -51,9 +51,13 @@ interface Props {
   /** Close this and open the tour. The version chip is one of the two doors a
    *  reader always has to it, whatever is on the canvas. */
   onTour?: () => void;
+  /** Close this and restart the deck (#1163). Absent where the deck cannot be
+   *  restarted from the page — see `canRestart` — so no button offers what the
+   *  server would refuse. */
+  onRestart?: () => void;
 }
 
-export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour }: Props) {
+export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, onRestart }: Props) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
@@ -107,6 +111,18 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
             <div className="guide-door">
               <span>Eight pictures of what the deck shows.</span>
               <button type="button" className="btn" onClick={onTour}>Take the tour</button>
+            </div>
+          )}
+          {/* AND THE WAY TO RESTART IT (#1163). The only restart the page had
+              was inside the update notice, so a deck that needed one for any
+              other reason — a network it missed, a port another program took —
+              needed a terminal. The version chip is where the deck's own
+              lifecycle already lives. Nothing is lost: the canvas replays from
+              the event log, and settings and pairings are on disk. */}
+          {onRestart && (
+            <div className="guide-door">
+              <span>Restart the deck. Sessions, settings and pairings come back as they were.</span>
+              <button type="button" className="btn" onClick={onRestart}>Restart</button>
             </div>
           )}
           {entries.map(entry => (
