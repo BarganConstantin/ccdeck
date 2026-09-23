@@ -75,7 +75,7 @@ export const DEFAULTS = Object.freeze({
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
-  desktopTourSeen: false,
+  tourSeen: false,
   // Whether the deck may update itself: restart into code already on disk once
   // it is idle, and — while nobody is looking — install a newer release and
   // restart into that (auto-update.mjs). ON, because this is the banner's
@@ -253,7 +253,7 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: typeof src.notifications === "boolean" ? src.notifications : DEFAULTS.notifications,
-    desktopTourSeen: src.desktopTourSeen === true,
+    tourSeen: src.tourSeen === true,
     autoUpdate: typeof src.autoUpdate === "boolean" ? src.autoUpdate : DEFAULTS.autoUpdate,
     lan: normaliseLan(src.lan),
   };
