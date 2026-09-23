@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  CUSTOM_AUDIO_KEYS, MAX_CUSTOM_AUDIO_BYTES, clearCustomAssetSelections,
-  createCustomVoice, importCustomAudio, normalizationGain, readCustomSelections,
-  sameCustomSelection, validateAudioImport,
+  CUSTOM_AUDIO_KEYS, MAX_CUSTOM_ASSETS, MAX_CUSTOM_AUDIO_BYTES, clearCustomAssetSelections,
+  createCustomVoice, importCustomAudio, libraryFullReason, newAssetId, normalizationGain,
+  readCustomSelections, sameCustomSelection, validateAudioImport,
   type CustomAudioAsset,
 } from "../notification-audio";
 import { createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
@@ -55,6 +55,24 @@ describe("custom notification assets (#1207)", () => {
       .toMatchObject({ id: "voice-1", name: "Custom voice", text: "Finished", rate: 2, pitch: 0.5 });
   });
 
+  it("names a new asset even on a deck reached over plain-http LAN, where randomUUID is missing", () => {
+    const real = crypto.randomUUID;
+    try {
+      Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
+      const id = newAssetId();
+      expect(readCustomSelections(() => id).done).toBe(id);
+      const voiceId = createCustomVoice({ name: "v", text: "hi" }).id;
+      expect(readCustomSelections(() => voiceId).done).toBe(voiceId);
+    } finally {
+      Object.defineProperty(crypto, "randomUUID", { value: real, configurable: true });
+    }
+  });
+
+  it("says why a full library cannot take another sound, before the store refuses it", () => {
+    expect(libraryFullReason(MAX_CUSTOM_ASSETS - 1)).toBeNull();
+    expect(libraryFullReason(MAX_CUSTOM_ASSETS)).toMatch(/Delete one first/);
+  });
+
   it("falls back to the default figure after a missing asset or a failed decode", async () => {
     const started = vi.fn();
     const gain = () => ({ gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn(() => ({ connect: vi.fn() })) });
@@ -86,5 +104,26 @@ describe("custom notification assets (#1207)", () => {
     expect(player.play("done")).toBe(true);
     await vi.waitFor(() => expect(failed).toHaveBeenCalledWith("done", "broken", DEFAULT_FIGURE_ID));
     expect(started).toHaveBeenCalled();
+  });
+
+  it("plays the default figure once, and keeps the choice, when storage fails to answer", async () => {
+    const started = vi.fn();
+    const context = {
+      state: "running", currentTime: 0, destination: {}, resume: () => Promise.resolve(),
+      createOscillator: () => ({ type: "sine", frequency: { value: 0 }, connect: vi.fn(() => ({ connect: vi.fn() })), start: started, stop: vi.fn() }),
+      createGain: () => ({ gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn(() => ({ connect: vi.fn() })) }),
+    };
+    const Ctor = class { constructor() { return context; } } as unknown as typeof AudioContext;
+    const failed = vi.fn();
+    const player = createChimePlayer({
+      enabled: () => true, ctor: Ctor, prefs: () => DEFAULT_PREFS,
+      customSelection: () => ({ done: "kept", "needs-input": null }),
+      loadCustom: async () => { throw new Error("IPC unavailable during reload"); },
+      onCustomFailure: failed,
+    });
+    player.unlock();
+    expect(player.play("done")).toBe(true);
+    await vi.waitFor(() => expect(started).toHaveBeenCalled());
+    expect(failed).not.toHaveBeenCalled();
   });
 });

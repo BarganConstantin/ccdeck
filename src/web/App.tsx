@@ -133,8 +133,8 @@ import {
 } from "./sound";
 import {
   CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
-  getCustomNotificationAsset, importCustomAudio, listCustomNotificationAssets, readCustomSelections,
-  saveCustomNotificationAsset,
+  getCustomNotificationAsset, importCustomAudio, libraryFullReason, listCustomNotificationAssets,
+  readCustomSelections, saveCustomNotificationAsset,
   type CustomNotificationAsset, type CustomSelections,
 } from "./notification-audio";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
@@ -930,6 +930,8 @@ function Inner() {
   }, [customAssets, previewTone]);
 
   const importNotificationAudio = useCallback(async (file: File) => {
+    const full = libraryFullReason(customAssets.length);
+    if (full) throw new Error(full);
     const Ctx = window.AudioContext
       ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) throw new Error("This browser cannot decode audio files.");
@@ -941,15 +943,17 @@ function Inner() {
     } finally {
       void decoder.close?.();
     }
-  }, []);
+  }, [customAssets.length]);
 
   const createNotificationVoice = useCallback(async (input: {
     name: string; text: string; voiceURI: string; rate: number; pitch: number;
   }) => {
+    const full = libraryFullReason(customAssets.length);
+    if (full) throw new Error(full);
     const asset = createCustomVoice(input);
     await saveCustomNotificationAsset(asset);
     setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
-  }, []);
+  }, [customAssets.length]);
 
   const renameCustomAsset = useCallback(async (id: string, name: string) => {
     const current = customAssets.find(asset => asset.id === id);

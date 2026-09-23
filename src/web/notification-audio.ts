@@ -3,6 +3,9 @@ import type { Chime } from "./sound";
 export const MAX_CUSTOM_AUDIO_BYTES = 1024 * 1024;
 export const MAX_CUSTOM_AUDIO_SECONDS = 5;
 export const CUSTOM_TARGET_PEAK = 0.8;
+/** The same ceiling the desktop store enforces (desktop/notification-audio-store.mjs),
+ *  checked here too so the person reads why rather than an IPC error. */
+export const MAX_CUSTOM_ASSETS = 24;
 
 const DONE_CUSTOM_KEY = "agent-dag.soundCustom.done";
 const ASKING_CUSTOM_KEY = "agent-dag.soundCustom.needs-input";
@@ -110,6 +113,11 @@ export function validateAudioImport(meta: { name: string; type: string; size: nu
   return null;
 }
 
+/** Why another custom sound cannot be added, or null when it can. */
+export function libraryFullReason(count: number): string | null {
+  return count >= MAX_CUSTOM_ASSETS ? `There are already ${MAX_CUSTOM_ASSETS} custom sounds. Delete one first.` : null;
+}
+
 export function normalizationGain(channels: readonly Float32Array[]): number {
   let peak = 0;
   for (const samples of channels) {
@@ -119,10 +127,20 @@ export function normalizationGain(channels: readonly Float32Array[]): number {
   return Math.min(16, CUSTOM_TARGET_PEAK / peak);
 }
 
+/** A new asset's id. `crypto.randomUUID` exists only in a secure context, and a
+ *  deck reached over the LAN is plain http — the same fallback presence.ts
+ *  uses, in the alphabet `safeId` and the desktop store accept. */
+export function newAssetId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch { /* not a secure context */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export async function importCustomAudio(
   file: Blob & { name?: string; type: string; size: number },
   decode: (bytes: ArrayBuffer) => Promise<DecodedAudio>,
-  id = crypto.randomUUID(),
+  id = newAssetId(),
 ): Promise<CustomAudioAsset> {
   const name = file.name?.trim() || "Custom sound";
   const firstError = validateAudioImport({ name, type: file.type, size: file.size });
@@ -154,7 +172,7 @@ export function createCustomVoice(input: {
   voiceURI?: string;
   rate?: number;
   pitch?: number;
-}, id = crypto.randomUUID()): CustomVoiceAsset {
+}, id = newAssetId()): CustomVoiceAsset {
   const name = input.name.trim() || "Custom voice";
   const text = input.text.trim();
   if (!text) throw new Error("Enter the words this voice should say.");

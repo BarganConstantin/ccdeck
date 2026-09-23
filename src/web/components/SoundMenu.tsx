@@ -135,8 +135,12 @@ export default function SoundMenu({
   const [voiceName, setVoiceName] = useState("Custom voice");
   const [voiceText, setVoiceText] = useState("Your turn");
   const [voiceURI, setVoiceURI] = useState("");
-  const [voiceRate, setVoiceRate] = useState(1);
-  const [voicePitch, setVoicePitch] = useState(1);
+  // Kept as the text in the field, not a number. A controlled number input
+  // bound to Number(value) turns a cleared field into 0 on the spot, so the
+  // person could never empty it to type a new value — and 0 would then have
+  // been saved as the slowest rate rather than read as "not set".
+  const [voiceRate, setVoiceRate] = useState("1");
+  const [voicePitch, setVoicePitch] = useState("1");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -485,15 +489,15 @@ export default function SoundMenu({
       </div>
 
       {sharedCustomId && (
-        <p className="sm-custom-warning" role="status">
+        <p className="sm-note" role="status">
           Both tones use “{sharedCustomName}”. They may be harder to tell apart.
         </p>
       )}
 
       <section className="sm-custom" aria-labelledby="sm-custom-title">
         <div className="sm-custom-head">
-          <h3 id="sm-custom-title">Custom sounds</h3>
-          <span>Local only</span>
+          <h3 className="sm-tone-name" id="sm-custom-title">Custom sounds</h3>
+          <span>Kept on this machine</span>
         </div>
         <label className="sm-file">
           <span>Import WAV, MP3 or OGG</span>
@@ -520,23 +524,25 @@ export default function SoundMenu({
         <details className="sm-voice">
           <summary>Add spoken voice</summary>
           <div className="sm-voice-fields">
-            <label>Name<input value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
-            <label>Text<input value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
+            <label>Name<input className="sm-select" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
+            <label>Text<input className="sm-select" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
             <label>Voice
-              <select value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
+              <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
                 <option value="">System default</option>
                 {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
               </select>
             </label>
             <div className="sm-voice-pair">
-              <label>Rate<input type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(Number(e.target.value))} /></label>
-              <label>Pitch<input type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(Number(e.target.value))} /></label>
+              <label>Rate<input className="sm-select" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
+              <label>Pitch<input className="sm-select" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
             </div>
             <button
               type="button"
               className="btn sm-custom-action"
               onClick={() => void runCustom(async () => {
-                await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: voiceRate, pitch: voicePitch });
+                // parseFloat, so an empty field is NaN and createCustomVoice's
+                // default rather than Number("")'s 0.
+                await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
                 setVoiceText("Your turn");
               })}
             >
@@ -550,15 +556,24 @@ export default function SoundMenu({
             {customAssets.map(asset => (
               <div className="sm-custom-item" key={asset.id}>
                 <input
+                  className="sm-select"
                   aria-label={`Rename ${asset.name}`}
                   defaultValue={asset.name}
                   maxLength={80}
-                  onBlur={e => void runCustom(() => onRenameCustom(asset.id, e.target.value))}
+                  onBlur={e => {
+                    // A name cannot be blank, so a cleared field goes back to
+                    // the one it had rather than showing a name nothing saved.
+                    if (!e.target.value.trim()) { e.target.value = asset.name; return; }
+                    void runCustom(() => onRenameCustom(asset.id, e.target.value));
+                  }}
                   onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                 />
                 <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
-                <button type="button" className="btn sm-custom-icon" onClick={() => onPreviewCustom(asset.id)}>Play</button>
-                <button type="button" className="btn sm-custom-icon" onClick={() => void runCustom(() => onDeleteCustom(asset.id))}>Delete</button>
+                {/* Named for the sound, not only the verb: a list of eight
+                    rows read aloud as "Play, Delete, Play, Delete" says
+                    nothing about which one a press would act on. */}
+                <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
+                <button type="button" className="btn sm-custom-icon" aria-label={`Delete ${asset.name}`} onClick={() => void runCustom(() => onDeleteCustom(asset.id))}>Delete</button>
               </div>
             ))}
           </div>

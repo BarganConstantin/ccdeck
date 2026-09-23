@@ -924,8 +924,11 @@ button:focus-visible { outline-offset: 1px; }
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
-  width: 340px;
-  max-width: calc(100vw - 32px);
+  width: 268px;
+  /* Custom sounds (#1207) made the menu taller than a short window, and a
+     popover whose bottom is off-screen has controls no one can reach. It
+     scrolls rather than widening: 268px is the width the comment above
+     defends, and the appearance menu beside it keeps. */
   max-height: calc(100vh - 76px);
   overflow-y: auto;
   padding: 12px;
@@ -1659,28 +1662,24 @@ button.btn.sm-hear {
 }
 .sm-select:hover { border-color: var(--text); }
 
-.sm-custom-warning {
-  margin: -2px 0 0;
-  padding: 8px 9px;
-  border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line));
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--warn) 8%, transparent);
-  color: var(--text-dim);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
+/* Custom sounds and voices (#1207), under the tones they can stand in for.
+   Built from this menu's own parts wherever one fits — the heading is a tone's
+   caption, every field is `.sm-select`, every button a plain `.btn` — so the
+   section reads as more of the menu rather than a form dropped into it, and
+   the edge, focus and height sweeps already know every control in it. */
 .sm-custom {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding-top: 12px;
+  gap: 10px;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
 }
 .sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .sm-custom-head span { font-size: 10px; color: var(--muted); }
-.sm-file {
+/* A caption over its control rather than beside it: at 268px neither the file
+   picker nor "Record with microphone" leaves room for a label on its left. */
+.sm-file,
+.sm-record {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1696,23 +1695,13 @@ button.btn.sm-hear {
 }
 .sm-voice { color: var(--text-dim); font-size: 11px; }
 .sm-voice summary { color: var(--text); }
-.sm-voice-fields { display: flex; flex-direction: column; gap: 7px; padding-top: 8px; }
+.sm-voice-fields { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
 .sm-voice-fields label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
-.sm-voice-fields label > input,
-.sm-voice-fields label > select {
-  flex: 1;
-  min-width: 0;
-  min-height: 26px;
-  padding: 2px 6px;
-  border: 1px solid var(--sm-edge);
-  border-radius: 6px;
-  background: var(--sm-fill);
-  color: var(--text);
-  font: inherit;
-}
 .sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sm-voice-pair label { display: grid; grid-template-columns: auto 1fr; }
-button.btn.sm-custom-action { align-self: flex-start; padding: 0 9px; font-size: 11px; }
+/* Trimmed like `.sm-hear` and exactly as tall as every other button: the
+   height is --ctl-h's, which panel-rhythm.test.ts keeps to one value. */
+button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: 11px; }
 .sm-custom-list { display: flex; flex-direction: column; gap: 6px; }
 .sm-custom-item {
   display: grid;
@@ -1720,20 +1709,9 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 9px; font-size:
   align-items: center;
   gap: 6px;
 }
-.sm-custom-item > input {
-  min-width: 0;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--sm-edge);
-  border-radius: 6px;
-  background: var(--sm-fill);
-  color: var(--text);
-  font: inherit;
-  font-size: 11px;
-}
 .sm-custom-item > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-button.btn.sm-custom-icon { min-height: 26px; padding: 0 6px; font-size: 10px; }
-.sm-custom-error { margin: 0; color: var(--danger); font-size: 11px; line-height: 1.4; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: 10px; }
+.sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
    Notification — said next to the control it applies to rather than only in a
