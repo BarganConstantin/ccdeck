@@ -170,19 +170,21 @@ export default function AppearanceMenu({
             aria-describedby="appearance-fm-source-note"
             onChange={event => onFmSource(resolveFmSource(event.target.value))}
           >
-            <option value="claude-fm">Claude FM</option>
-            <optgroup label="Lofi Girl">
-              <option value="lofi-relax">Relax / study</option>
-              <option value="lofi-game">Chill / game</option>
-              <option value="lofi-vibe">Vibe / chill</option>
-              <option value="lofi-sleep">Sleep / chill</option>
+            <option value="claude-fm">🎧 Claude FM</option>
+            <optgroup label="📻 Lofi Girl">
+              <option value="lofi-relax">📚 Relax / study</option>
+              <option value="lofi-game">🎮 Chill / game</option>
+              <option value="lofi-vibe">🌅 Vibe / chill</option>
+              <option value="lofi-sleep">💤 Sleep / chill</option>
             </optgroup>
-            <optgroup label="Radio Mix">
-              <option value="radio-mix">Live radio mix</option>
+            <optgroup label="📻 Radio Mix">
+              <option value="radio-mix">📡 Live radio mix</option>
             </optgroup>
           </select>
         </div>
-        <p className="appearance-row-note" id="appearance-fm-source-note">Live audio source for the minimap character.</p>
+        <span id="appearance-fm-source-note" className="vis-hidden">
+          Changing station starts live playback automatically.
+        </span>
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —
@@ -202,7 +204,9 @@ export default function AppearanceMenu({
           >
             <span className="switch-knob" />
           </button>
-          <span className="appearance-row-note" id="appearance-character-note">Press it to play the live stream</span>
+          <span id="appearance-character-note" className="vis-hidden">
+            Shows the animated minimap character and enables music playback.
+          </span>
         </label>
         {/* The sound menu's own slider row, borrowed rather than respelled:
             .sm-row and .sm-read are already the sheet's shape for "a level
@@ -219,15 +223,17 @@ export default function AppearanceMenu({
             max={LEVEL_MAX}
             step={LEVEL_STEP}
             value={fmVolume}
-            onChange={e => onFmVolume(Number(e.target.value))}
             aria-describedby="appearance-fm-volume-note"
+            onChange={e => onFmVolume(Number(e.target.value))}
             /* The filled half, read off the same render that sets `value` —
                the pattern SoundMenu.tsx's slider comments spell out. */
             style={{ "--sm-level": `${((fmVolume - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
           />
           <span className="sm-read">{fmVolume}%</span>
         </div>
-        <p className="appearance-row-note" id="appearance-fm-volume-note">Applies to the live stream as it plays.</p>
+        <span id="appearance-fm-volume-note" className="vis-hidden">
+          Controls live music volume.
+        </span>
       </section>
     </div>
   );

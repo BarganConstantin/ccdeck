@@ -51,6 +51,8 @@ describe("character appearance preference", () => {
     expect(menu).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
     expect(menu).toContain('aria-labelledby="appearance-character-label"');
     expect(menu).toContain('aria-describedby="appearance-character-note"');
+    expect(menu).toContain('aria-describedby="appearance-fm-source-note"');
+    expect(menu).toContain('aria-describedby="appearance-fm-volume-note"');
     expect(menu).toContain(">Show character on minimap<");
   });
 
