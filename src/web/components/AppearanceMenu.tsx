@@ -1,9 +1,13 @@
-import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { FM_SOURCE_OPTIONS, type FmSource } from "../appearance";
+import { FM_SOURCE_OPTIONS } from "../appearance";
+import {
+  customFmId, customFmSelection, newCustomFmStation,
+  type CustomFmStation, type FmSelection,
+} from "../fm-stations";
 import { isEscapeKey } from "../modal-dismiss";
 
 const THEMES: Theme[] = ["light", "dark"];
@@ -49,24 +53,55 @@ interface Props {
   /** The stream's loudness, as the slider's own 0–100 level. */
   fmVolume: number;
   onFmVolume: (level: number) => void;
-  fmSource: FmSource;
-  onFmSource: (source: FmSource) => void;
+  fmMuted: boolean;
+  onFmMuted: () => void;
+  fmSource: FmSelection;
+  onFmSource: (source: FmSelection) => void;
+  customFmStations: CustomFmStation[];
+  unavailableFmStations: Set<string>;
+  onAddFmStation: (station: CustomFmStation) => void;
+  onRenameFmStation: (id: string, name: string) => void;
+  onRemoveFmStation: (id: string) => void;
   onClose: () => void;
 }
 
 export default function AppearanceMenu({
-  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose,
+  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmMuted, onFmMuted,
+  fmSource, onFmSource, customFmStations, unavailableFmStations,
+  onAddFmStation, onRenameFmStation, onRemoveFmStation, onClose,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  const fmSources = [
+    ...FM_SOURCES,
+    ...customFmStations.map(station => ({
+      group: "🎵 Your stations",
+      value: customFmSelection(station.id),
+      label: unavailableFmStations.has(station.id) ? `${station.name} · unavailable` : station.name,
+      unavailable: unavailableFmStations.has(station.id),
+    })),
+  ];
   const [sourceOpen, setSourceOpen] = useState(false);
-  const [highlightedSource, setHighlightedSource] = useState(() => Math.max(0, FM_SOURCES.findIndex(source => source.value === fmSource)));
+  const [highlightedSource, setHighlightedSource] = useState(() => Math.max(0, fmSources.findIndex(source => source.value === fmSource)));
+  const [addingStation, setAddingStation] = useState(false);
+  const [stationName, setStationName] = useState("");
+  const [stationUrl, setStationUrl] = useState("");
+  const [stationError, setStationError] = useState("");
+  const [renamingStation, setRenamingStation] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
   const sourceTriggerRef = useRef<HTMLButtonElement>(null);
   const sourceListRef = useRef<HTMLDivElement>(null);
+  const activeCustomId = customFmId(fmSource);
+  const activeCustomStation = activeCustomId ? customFmStations.find(station => station.id === activeCustomId) : undefined;
 
   useEffect(() => {
-    const selectedIndex = FM_SOURCES.findIndex(source => source.value === fmSource);
+    const selectedIndex = fmSources.findIndex(source => source.value === fmSource);
     setHighlightedSource(selectedIndex < 0 ? 0 : selectedIndex);
-  }, [fmSource]);
+  }, [fmSource, customFmStations, unavailableFmStations]);
+
+  useEffect(() => {
+    setRenamingStation(false);
+    setRenameValue(activeCustomStation?.name ?? "");
+  }, [activeCustomStation?.id, activeCustomStation?.name]);
 
   useEffect(() => {
     if (!sourceOpen) return;
@@ -86,8 +121,8 @@ export default function AppearanceMenu({
   }, [sourceOpen]);
 
   const chooseSource = (index: number) => {
-    const source = FM_SOURCES[index];
-    if (!source) return;
+    const source = fmSources[index];
+    if (!source || ("unavailable" in source && source.unavailable)) return;
     setHighlightedSource(index);
     onFmSource(source.value);
     setSourceOpen(false);
@@ -112,9 +147,31 @@ export default function AppearanceMenu({
     setSourceOpen(true);
     setHighlightedSource(current => {
       if (event.key === "Home") return 0;
-      if (event.key === "End") return FM_SOURCES.length - 1;
-      return Math.min(FM_SOURCES.length - 1, Math.max(0, current + (event.key === "ArrowDown" ? 1 : -1)));
+      if (event.key === "End") return fmSources.length - 1;
+      return Math.min(fmSources.length - 1, Math.max(0, current + (event.key === "ArrowDown" ? 1 : -1)));
     });
+  };
+
+  const addStation = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const station = newCustomFmStation(stationName, stationUrl);
+    if (!station) {
+      setStationError("Use a name and an https YouTube live/channel link or .mp3, .aac, .ogg, or .m3u8 stream.");
+      return;
+    }
+    onAddFmStation(station);
+    onFmSource(customFmSelection(station.id));
+    setStationName("");
+    setStationUrl("");
+    setStationError("");
+    setAddingStation(false);
+  };
+
+  const saveRename = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeCustomId || !renameValue.trim()) return;
+    onRenameFmStation(activeCustomId, renameValue);
+    setRenamingStation(false);
   };
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -240,14 +297,14 @@ export default function AppearanceMenu({
               onClick={() => setSourceOpen(open => !open)}
               onKeyDown={moveSource}
             >
-              <span>{FM_SOURCES.find(source => source.value === fmSource)?.label ?? FM_SOURCES[0].label}</span>
+              <span>{fmSources.find(source => source.value === fmSource)?.label ?? FM_SOURCES[0].label}</span>
               <svg viewBox="0 0 12 12" aria-hidden focusable="false"><path d="m2.5 4.5 3.5 3 3.5-3" /></svg>
             </button>
             {sourceOpen && (
               <div ref={sourceListRef} id="appearance-fm-source-list" className="appearance-source-list" role="listbox" aria-label="Music stations">
-                {FM_SOURCES.map((source, index) => (
+                {fmSources.map((source, index) => (
                   <div key={source.value}>
-                    {source.group && (index === 0 || FM_SOURCES[index - 1].group !== source.group) && (
+                    {source.group && (index === 0 || fmSources[index - 1].group !== source.group) && (
                       <div className="appearance-source-group" role="presentation">{source.group}</div>
                     )}
                     <div
@@ -255,6 +312,7 @@ export default function AppearanceMenu({
                       role="option"
                       id={`appearance-fm-option-${index}`}
                       aria-selected={fmSource === source.value}
+                      aria-disabled={("unavailable" in source && source.unavailable) || undefined}
                       data-highlighted={highlightedSource === index || undefined}
                       onMouseEnter={() => setHighlightedSource(index)}
                       onClick={() => chooseSource(index)}
@@ -269,8 +327,34 @@ export default function AppearanceMenu({
             </div>
           </div>
           <span id="appearance-fm-source-note" className="vis-hidden">
-            Changing station starts live playback automatically.
+            Choose a station, then press the minimap character to play it.
           </span>
+          <div className="appearance-station-manage">
+            <button type="button" className="appearance-station-button" onClick={() => { setAddingStation(open => !open); setStationError(""); }}>
+              {addingStation ? "Cancel add" : "Add station"}
+            </button>
+            {activeCustomStation && !renamingStation && (
+              <>
+                <button type="button" className="appearance-station-button" onClick={() => { setRenameValue(activeCustomStation.name); setRenamingStation(true); }}>Rename</button>
+                <button type="button" className="appearance-station-button" onClick={() => onRemoveFmStation(activeCustomStation.id)}>Remove</button>
+              </>
+            )}
+          </div>
+          {addingStation && (
+            <form className="appearance-station-form" onSubmit={addStation}>
+              <input value={stationName} onChange={event => setStationName(event.target.value)} placeholder="Station name" aria-label="Station name" maxLength={80} />
+              <input value={stationUrl} onChange={event => setStationUrl(event.target.value)} placeholder="https://…" aria-label="Station URL" inputMode="url" />
+              {stationError && <p className="appearance-station-error" role="alert">{stationError}</p>}
+              <button type="submit" className="appearance-station-button is-primary">Add</button>
+            </form>
+          )}
+          {activeCustomStation && renamingStation && (
+            <form className="appearance-station-form is-rename" onSubmit={saveRename}>
+              <input value={renameValue} onChange={event => setRenameValue(event.target.value)} aria-label="Rename station" maxLength={80} autoFocus />
+              <button type="submit" className="appearance-station-button is-primary">Save</button>
+              <button type="button" className="appearance-station-button" onClick={() => setRenamingStation(false)}>Cancel</button>
+            </form>
+          )}
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —
@@ -317,6 +401,19 @@ export default function AppearanceMenu({
             />
             <span className="sm-read">{fmVolume}%</span>
           </div>
+          <label className="appearance-row">
+            <span className="appearance-row-label" id="appearance-fm-mute-label">Mute music</span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={fmMuted}
+              aria-labelledby="appearance-fm-mute-label"
+              onClick={onFmMuted}
+            >
+              <span className="switch-knob" />
+            </button>
+          </label>
         </div>
         <span id="appearance-fm-volume-note" className="vis-hidden">
           Controls live music volume.

@@ -5875,6 +5875,19 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+async function handleFmStation(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const stationUrl = url.searchParams.get("url") ?? "";
+  const { parseYouTubeStationUrl, resolveYouTubeStation } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/fm-station.mjs")).href
+  );
+  if (!parseYouTubeStationUrl(stationUrl)) {
+    return send(res, 400, { ok: false, error: "unsupported_url" });
+  }
+  const answer = await resolveYouTubeStation(stationUrl);
+  send(res, answer.ok ? 200 : 404, answer);
+}
+
 async function handleLofiGirl(req, res) {
   if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
     return send(res, 200, { ok: true, live: false, off: true });
@@ -6279,6 +6292,7 @@ const PINNED_MODULES = [
   "browser-watch.mjs",
   "browser-watch-store.mjs",
   "claude-fm.mjs",
+  "fm-station.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",
@@ -7613,6 +7627,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);

@@ -30,7 +30,10 @@ describe("character appearance preference", () => {
     const app = read("App.tsx");
     expect(app).toContain("useState(storedCharacterEnabled)");
     expect(app).toContain('localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
-    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
+    expect(app).toContain("{characterEnabled && (");
+    expect(app).toContain("<ClaudeFm");
+    expect(app).toContain("muted={fmMuted}");
+    expect(app).toContain("source={fmSource}");
   });
 
   it("uses a dismissible, accessible centered modal for the two appearance settings", () => {

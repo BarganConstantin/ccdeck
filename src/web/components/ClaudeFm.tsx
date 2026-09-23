@@ -41,6 +41,7 @@ import {
   memo, useCallback, useEffect, useRef, useState,
   type CSSProperties,
 } from "react";
+import Hls from "hls.js";
 import {
   command, embedSrc, FATAL_ERRORS, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
@@ -53,8 +54,12 @@ import {
 } from "../claude-fm";
 import { createSceneTimer } from "../claude-fm-runtime";
 import type { FmSource } from "../appearance";
+import {
+  customFmId, customFmSelection, parseFmStationUrl,
+  type CustomFmStation, type FmSelection,
+} from "../fm-stations";
 
-interface Probe { live: boolean; channel: string; video?: string }
+interface Probe { live: boolean; channel: string; video?: string; audio?: string; hls?: boolean }
 
 const SOURCE_LABEL: Record<FmSource, string> = {
   "claude-fm": "Claude FM",
@@ -67,6 +72,12 @@ const SOURCE_LABEL: Record<FmSource, string> = {
   "good-life-radio": "The Good Life Radio Live",
   "cafe-music-bgm": "Cafe Music BGM Live",
 };
+
+function sourceLabel(source: FmSelection, customStation?: CustomFmStation): string {
+  if (customStation && customFmSelection(customStation.id) === source) return customStation.name;
+  if (customFmId(source)) return "Custom FM";
+  return SOURCE_LABEL[source as FmSource];
+}
 
 const LIVE_ENDPOINT: Record<FmSource, string | null> = {
   "claude-fm": null,
@@ -129,7 +140,16 @@ const PROP_PIXELS = {
 };
 
 export default memo(
-  function ClaudeFm({ fetchImpl, volume, source = "claude-fm" }: { fetchImpl?: typeof fetch; volume: number; source?: FmSource }) {
+  function ClaudeFm({
+    fetchImpl, volume, muted = false, source = "claude-fm", customStation, onAvailabilityChange,
+  }: {
+    fetchImpl?: typeof fetch;
+    volume: number;
+    muted?: boolean;
+    source?: FmSelection;
+    customStation?: CustomFmStation;
+    onAvailabilityChange?: (source: FmSelection, unavailable: boolean) => void;
+  }) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
@@ -137,6 +157,8 @@ export default memo(
     const [armed, setArmed] = useState(false);
     const [playing, setPlaying] = useState(false);
     const sourceRef = useRef(source);
+    const audio = useRef<HTMLAudioElement | null>(null);
+    const hls = useRef<Hls | null>(null);
 
     /** Where along the minimap's top edge it is standing, in pixels left of
      *  the right-hand end. Zero is where it starts. */
@@ -204,6 +226,17 @@ export default memo(
 
     const frame = useRef<HTMLIFrameElement | null>(null);
 
+    const stopDirect = useCallback(() => {
+      hls.current?.destroy();
+      hls.current = null;
+      const player = audio.current;
+      if (!player) return;
+      player.pause();
+      player.removeAttribute("src");
+      player.load();
+      audio.current = null;
+    }, []);
+
     /** One place that talks to the player, so every send is origin-targeted
      *  rather than `"*"` — a wildcard target posts the message to whatever
      *  document happens to be in the frame, which is not a thing to be relaxed
@@ -231,7 +264,12 @@ export default memo(
     useEffect(() => {
       if (!armed) return;
       say(command("setVolume", [volume]));
-    }, [volume, armed, say]);
+      say(command(muted ? "mute" : "unMute"));
+      if (audio.current) {
+        audio.current.volume = volume / 100;
+        audio.current.muted = muted;
+      }
+    }, [volume, muted, armed, say]);
 
     // WHETHER THERE IS ANYTHING TO PLAY. One request, on mount, and the answer
     // is cached by the server for everyone else. A failure is indistinguishable
@@ -239,13 +277,55 @@ export default memo(
     useEffect(() => {
       let alive = true;
       const get = fetchImpl ?? fetch;
-      const sourceChanged = sourceRef.current !== source;
       sourceRef.current = source;
       setProbe(null);
       setDead(false);
-      setArmed(sourceChanged);
-      setPlaying(sourceChanged);
-      const liveEndpoint = LIVE_ENDPOINT[source];
+      setArmed(false);
+      setPlaying(false);
+      stopDirect();
+
+      const custom = customStation && customFmSelection(customStation.id) === source
+        ? parseFmStationUrl(customStation.url)
+        : null;
+      if (custom) {
+        if (custom.kind === "direct-audio") {
+          setProbe({ live: true, channel: "", audio: custom.url, hls: custom.format === "hls" });
+          onAvailabilityChange?.(source, false);
+          return () => { alive = false; };
+        }
+        if (custom.kind === "youtube-channel") {
+          setProbe({ live: true, channel: custom.channel });
+          onAvailabilityChange?.(source, false);
+          return () => { alive = false; };
+        }
+        get(`/api/fm-station?url=${encodeURIComponent(custom.url)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(a => {
+            if (!alive) return;
+            if (a?.channel || a?.video) {
+              setProbe({ live: true, channel: a.channel ?? "", video: a.video ?? undefined });
+              onAvailabilityChange?.(source, false);
+            } else {
+              setDead(true);
+              onAvailabilityChange?.(source, true);
+            }
+          })
+          .catch(() => {
+            if (!alive) return;
+            setDead(true);
+            onAvailabilityChange?.(source, true);
+          });
+        return () => { alive = false; };
+      }
+
+      if (customFmId(source)) {
+        setDead(true);
+        onAvailabilityChange?.(source, true);
+        return () => { alive = false; };
+      }
+
+      const builtIn = source as FmSource;
+      const liveEndpoint = LIVE_ENDPOINT[builtIn];
       if (liveEndpoint) {
         get(liveEndpoint)
           .then(r => r.ok ? r.json() : null)
@@ -253,8 +333,8 @@ export default memo(
             if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
           })
           .catch(() => { /* no music today */ });
-      } else if (source !== "claude-fm") {
-        const station = source.replace("lofi-", "");
+      } else if (builtIn !== "claude-fm") {
+        const station = builtIn.replace("lofi-", "");
         get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
           .then(r => r.ok ? r.json() : null)
           .then(a => {
@@ -268,7 +348,9 @@ export default memo(
           .catch(() => { /* no music today */ });
       }
       return () => { alive = false; };
-    }, [fetchImpl, source]);
+    }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, source, stopDirect]);
+
+    useEffect(() => () => stopDirect(), [stopDirect]);
 
     // WHAT THE PLAYER SAYS BACK, once the iframe's onLoad below has opened the
     // conversation. The origin check is the whole security of this listener:
@@ -293,6 +375,7 @@ export default memo(
           // level the menu says, not at whatever the player remembers from its
           // own store — there is no window at the wrong loudness to notice.
           say(command("setVolume", [volumeRef.current]));
+          say(command(muted ? "mute" : "unMute"));
           say(command("playVideo"));
           return;
         }
@@ -303,11 +386,12 @@ export default memo(
           setArmed(false);
           setPlaying(false);
           setDead(true);
+          onAvailabilityChange?.(source, true);
         }
       };
       window.addEventListener("message", onMessage);
       return () => window.removeEventListener("message", onMessage);
-    }, [armed, say]);
+    }, [armed, muted, onAvailabilityChange, say, source]);
 
     // WHAT IT DOES WITH ITSELF. A rest, then an activity, then
     // long stillness again — see claude-fm.ts for why the restraint is the
@@ -579,6 +663,55 @@ export default memo(
     if (!probe || dead) return null;
 
     const press = () => {
+      if (probe.audio) {
+        if (armed) {
+          stopDirect();
+          setArmed(false);
+          setPlaying(false);
+          return;
+        }
+
+        const player = new Audio();
+        player.preload = "none";
+        player.volume = volume / 100;
+        player.muted = muted;
+        audio.current = player;
+        setArmed(true);
+        setPlaying(true);
+
+        const failed = () => {
+          stopDirect();
+          setArmed(false);
+          setPlaying(false);
+          setDead(true);
+          onAvailabilityChange?.(source, true);
+        };
+        player.addEventListener("playing", () => {
+          setPlaying(true);
+          onAvailabilityChange?.(source, false);
+        });
+        player.addEventListener("ended", () => {
+          stopDirect();
+          setArmed(false);
+          setPlaying(false);
+        });
+        player.addEventListener("error", failed, { once: true });
+
+        if (probe.hls && !player.canPlayType("application/vnd.apple.mpegurl")) {
+          if (!Hls.isSupported()) { failed(); return; }
+          const stream = new Hls();
+          hls.current = stream;
+          stream.on(Hls.Events.ERROR, (_event, data) => { if (data.fatal) failed(); });
+          stream.on(Hls.Events.MEDIA_ATTACHED, () => stream.loadSource(probe.audio!));
+          stream.on(Hls.Events.MANIFEST_PARSED, () => { void player.play().catch(failed); });
+          stream.attachMedia(player);
+        } else {
+          player.src = probe.audio;
+          void player.play().catch(failed);
+        }
+        return;
+      }
+
       if (!armed) { setArmed(true); setPlaying(true); return; }
       // Optimistic: the player confirms with onStateChange a moment later, and
       // a control that waits for a round trip before it looks pressed feels
@@ -588,6 +721,8 @@ export default memo(
       say(command(next ? "playVideo" : "pauseVideo"));
       if (!next) setArmed(false);
     };
+
+    const label = sourceLabel(source, customStation);
 
     return (
       <div
@@ -687,8 +822,8 @@ export default memo(
           data-dance={playing ? dance ?? DANCES[0] : undefined}
           aria-pressed={playing}
           onClick={press}
-          title={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]} — streams from YouTube`}
-          aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}
+          title={playing ? `Stop ${label}` : `Play ${label}`}
+          aria-label={playing ? `Stop ${label}` : `Play ${label}`}
         >
           <svg viewBox={`0 0 ${SPRITE_W} ${SPRITE_H}`} shapeRendering="crispEdges" aria-hidden>
             {/* Two groups so the body can bob while the cups hold still — a
@@ -800,11 +935,11 @@ export default memo(
           </svg>
         </button>
         </div>
-        {armed && (probe.channel || probe.video) && (
+        {armed && !probe.audio && (probe.channel || probe.video) && (
           <iframe
             ref={frame}
             className="fm-frame"
-            title={SOURCE_LABEL[source]}
+            title={label}
             src={embedSrc(probe.channel, window.location.origin, probe.video)}
             // THE HANDSHAKE GOES HERE AND NOWHERE ELSE, and the first build had
             // it the wrong way round: it waited for `onReady` and answered that
