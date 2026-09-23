@@ -34,6 +34,7 @@ import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from ".
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
+const STATE_VERSION = 2;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -139,6 +140,10 @@ export function foldLine(tally, line, timeline, fallbackCwd) {
   if (!line || !line.includes('"usage"')) return;
   let obj = null;
   try { obj = JSON.parse(line); } catch { return; }
+  // Claude writes one assistant record for each content block in a request.
+  // Every block repeats the request's usage, so only block 0 is billable for
+  // this rollup. Older records without the field are kept compatible.
+  if (obj?.apiBlockIndex !== undefined && obj.apiBlockIndex !== 0) return;
   const usage = obj?.message?.usage;
   if (!usage || typeof usage !== "object") return;
   const ts = Date.parse(obj?.timestamp);
@@ -311,7 +316,7 @@ export function createProjectRollup({
   setInterval: setIv = setInterval,
   clearInterval: clearIv = clearInterval,
 } = {}) {
-  let state = { version: 1, cursors: {}, tally: {} };
+  let state = { version: STATE_VERSION, cursors: {}, tally: {} };
   let timer = null;
   let running = false;
   let dirty = false;
@@ -322,7 +327,14 @@ export function createProjectRollup({
     loaded = true;
     try {
       const disk = JSON.parse(await readFile(stateFile, "utf8"));
-      if (disk && disk.version === 1 && disk.tally && disk.cursors) state = disk;
+      if (disk && disk.version === STATE_VERSION && disk.tally && disk.cursors) {
+        state = disk;
+      } else if (disk && disk.version === 1) {
+        // Version 1 counted every API content block. Keep the heartbeat so a
+        // restart gap remains fenced, but rebuild the tally from transcripts.
+        state = { version: STATE_VERSION, cursors: {}, tally: {}, lastAlive: disk.lastAlive };
+        dirty = true;
+      }
     } catch { /* first run: empty state */ }
   }
 
