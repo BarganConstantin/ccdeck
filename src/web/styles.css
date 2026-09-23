@@ -1142,6 +1142,9 @@ button:focus-visible { outline-offset: 1px; }
 }
 .appearance-row-note {
   grid-column: 1 / -1;
+  /* Also used on a bare <p> under the volume row, outside the grid — so the
+     margin is reset here rather than left to the UA's paragraph default. */
+  margin: 0;
   color: var(--text-dim);
   font-size: 11px;
   line-height: 16px;
@@ -1470,9 +1473,12 @@ button.btn.sm-hear {
    `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
-   about what ships. The span is rendered in exactly one place, SoundMenu.tsx's
-   `.sound-menu` subtree, so the descendant selector loses nothing. */
-.sound-menu .sm-read {
+   about what ships. Descendant-scoped on purpose, and now to TWO menus: the
+   span is rendered in SoundMenu.tsx's subtree and, since the Claude FM volume
+   row, in AppearanceMenu.tsx's — the same reading in the same shape, so the
+   same rule. */
+.sound-menu .sm-read,
+.appearance-menu .sm-read {
   min-width: 34px;
   text-align: right;
   color: var(--muted);

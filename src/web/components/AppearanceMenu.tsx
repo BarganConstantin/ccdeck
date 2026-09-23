@@ -1,5 +1,6 @@
-import { useEffect, useRef, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import type { Theme } from "../theme";
+import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 const THEMES: Theme[] = ["light", "dark"];
@@ -41,12 +42,15 @@ interface Props {
   onTheme: (theme: Theme) => void;
   characterEnabled: boolean;
   onToggleCharacter: () => void;
+  /** The stream's loudness, as the slider's own 0–100 level. */
+  fmVolume: number;
+  onFmVolume: (level: number) => void;
   onClose: () => void;
   openerRef: RefObject<HTMLElement | null>;
 }
 
 export default function AppearanceMenu({
-  theme, onTheme, characterEnabled, onToggleCharacter, onClose, openerRef,
+  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, onClose, openerRef,
 }: Props) {
   // A popover: the canvas stays in view around it, so its letters stay live.
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
@@ -175,6 +179,30 @@ export default function AppearanceMenu({
           </button>
           <span className="appearance-row-note" id="appearance-character-note">Press it to play the live stream</span>
         </label>
+        {/* The sound menu's own slider row, borrowed rather than respelled:
+            .sm-row and .sm-read are already the sheet's shape for "a level
+            with a reading", and the range stays native for the reasons
+            SoundMenu.tsx argues. It lives OUTSIDE the theme radiogroup on
+            purpose — the arrow keys that walk the themes are handled on that
+            group's own onKeyDown, and a slider's arrows belong to the slider. */}
+        <div className="sm-row">
+          <label htmlFor="appearance-fm-volume">Volume</label>
+          <input
+            id="appearance-fm-volume"
+            type="range"
+            min={LEVEL_MIN}
+            max={LEVEL_MAX}
+            step={LEVEL_STEP}
+            value={fmVolume}
+            onChange={e => onFmVolume(Number(e.target.value))}
+            aria-describedby="appearance-fm-volume-note"
+            /* The filled half, read off the same render that sets `value` —
+               the pattern SoundMenu.tsx's slider comments spell out. */
+            style={{ "--sm-level": `${((fmVolume - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
+          />
+          <span className="sm-read">{fmVolume}%</span>
+        </div>
+        <p className="appearance-row-note" id="appearance-fm-volume-note">Applies to the live stream as it plays.</p>
       </section>
     </div>
   );
