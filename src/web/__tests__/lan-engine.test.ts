@@ -1634,6 +1634,24 @@ describe("invite-only pairing mode", () => {
     await a.e.apply({ pairingMode: "invite" });
     expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
   }, 20_000);
+
+  it("still lets an invite-only deck join someone else's invite, and keeps talking to it", async () => {
+    // The mode refuses a pairing nobody invited. Joining an invite IS the
+    // invitation, from this side: `join` dials with the code and pins what
+    // proved it, and never goes through the round's untrusted-peer refusal.
+    const minter = await deck(store([]), "Minter", []);
+    const joiner = await deck(store([]), "Invite-only joiner", [], {}, { pairingMode: "invite" });
+    const joined = await joiner.e.join(minter.e.invite().token);
+    expect(joined.ok).toBe(true);
+    expect(joiner.e.status().trusted).toMatchObject([{ fp: minter.id.fp }]);
+    expect(minter.e.status().trusted).toMatchObject([{ fp: joiner.id.fp }]);
+
+    // And the next round reaches it as a trusted peer, not a stranger the
+    // mode would refuse to dial.
+    await joiner.e.round();
+    expect(joiner.errors).toEqual([]);
+    expect(joiner.e.status().trusted).toMatchObject([{ fp: minter.id.fp }]);
+  }, 20_000);
 });
 
 describe("the invite, and the half of it that was never checked", () => {
