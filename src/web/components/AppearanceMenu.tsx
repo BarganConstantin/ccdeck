@@ -90,7 +90,7 @@ export default function AppearanceMenu({
 
   return createPortal(
     (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop appearance-backdrop" onClick={onClose} role="presentation">
       <div
         ref={dialogRef}
         id="appearance-menu"

@@ -1218,11 +1218,6 @@ button:focus-visible { outline-offset: 1px; }
 .appearance-source-row .sm-select:hover {
   background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
 }
-.appearance-source-row .sm-select:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
-}
-
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
    so now that the boxes are gone. */
@@ -6051,6 +6046,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
+.appearance-backdrop { z-index: 101; }
 :root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
 
 .modal {
