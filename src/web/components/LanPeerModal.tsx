@@ -52,6 +52,10 @@ interface Props {
   /** Close this and open what this deck offers — the one list here that is
    *  not about the machine on the other end. */
   onSettings: () => void;
+  /** Close this and open the add dialog with an invite made — the one way a
+   *  nearby or declined machine can still be paired while this deck pairs
+   *  only by invite. Optional so a caller from before the mode still fits. */
+  onInvite?: () => void;
   /** The other decks folded into this row — its name at its address, one
    *  machine running more than one — each with the peer it was built from. */
   twins?: Array<{ row: DeckRow; peer: RowSource["peer"] }>;
@@ -129,7 +133,7 @@ function laneSaid(l: Lane): string {
 }
 
 export default function LanPeerModal({
-  row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings,
+  row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings, onInvite,
   twins = [], onUnpair,
 }: Props) {
   // The keyboard lands on ×, as it does in the tool inspector: this dialog is
@@ -709,7 +713,7 @@ export default function LanPeerModal({
               {busy === `unpair:${row.fp}` ? "Unpairing…" : armed ? "Confirm unpair" : "Unpair"}
             </button>
           )}
-          {row.kind === "nearby" && (
+          {row.kind === "nearby" && status.pairingMode !== "invite" && (
             <button type="button" className="btn primary lan-peer-verb" {...press(`accept:${row.fp}`)}
               onClick={() => void run(onVerb)}
               title="Send it a request. Somebody at that machine has to accept it before anything is shared.">
@@ -723,11 +727,22 @@ export default function LanPeerModal({
               {busy === `drop:${row.fp}` ? "Stopping…" : "Stop dialling"}
             </button>
           )}
-          {row.kind === "declined" && (
+          {row.kind === "declined" && status.pairingMode !== "invite" && (
             <button type="button" className="btn lan-peer-verb" {...press(`allow:${row.fp}`)}
               onClick={() => void run(onVerb)}
               title="Take the no back. That deck is still trying, so its request comes round again on its own.">
               {busy === `allow:${row.fp}` ? "Allowing…" : "Let it ask again"}
+            </button>
+          )}
+          {/* INVITE-ONLY LEAVES THIS FOOTER ONE VERB, not none. Without it a
+              nearby or declined machine opened here showed a border with
+              nothing in it — the state the comment on this footer says was
+              fixed — at the moment the reader came here to pair it. */}
+          {(row.kind === "nearby" || row.kind === "declined") && status.pairingMode === "invite" && onInvite && (
+            <button type="button" className="btn primary lan-peer-verb"
+              onClick={onInvite}
+              title="This deck pairs only by invite. Make one and send it to whoever is at that machine.">
+              Invite to pair
             </button>
           )}
         </footer>

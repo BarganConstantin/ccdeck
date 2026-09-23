@@ -109,6 +109,7 @@ export const DEFAULTS = Object.freeze({
     // network it does not own turns this off in the dialog, in one press.
     autoAsk: true,
     autoAccept: true,
+    pairingMode: "automatic",
     // WHICH ACCOUNT THIS DECK IS ON, told to the decks it is paired with — and
     // only ever one it shares, so an unticked account is never named. On, so two
     // of one person's machines show each other where they are working; off, and
@@ -232,6 +233,7 @@ function normaliseLan(raw) {
     // overrides it, because a truthy string from a hand-edited file is not an
     // answer.
     autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : DEFAULTS.lan.autoAccept,
+    pairingMode: src.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
     shareActive: typeof src.shareActive === "boolean" ? src.shareActive : DEFAULTS.lan.shareActive,

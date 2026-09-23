@@ -11968,6 +11968,15 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 }
 /* The one switch that is about the list above it, set a step below its rows. */
 .ap-lan-picks + .lan-switch { margin-top: 10px; }
+/* INVITE-ONLY, above the pair it holds, set off by the same step: it is the
+   answer that overrides them, not a third row of the same question. */
+.lan-switches-lead + .lan-switches { margin-top: 10px; }
+/* A switch invite-only is holding. The label steps down with the knob, so the
+   row reads as paused rather than as a live sentence beside a dead control.
+   --muted rather than --text-dim: this line is on --panel, where --muted still
+   clears 4.5:1. */
+.lan-switches[data-paused] .lan-switch-what,
+.lan-switch[data-paused] .lan-switch-what { color: var(--muted); }
 
 /* The one paragraph in the dialog that is a warning rather than an explanation,
    above the only control that cannot be undone. It takes --warn, which is what

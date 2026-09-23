@@ -1596,6 +1596,117 @@ describe("a deck this one heard rather than reached for", () => {
 // since moved to somebody else's machine is an ordinary thing to find in one.
 // One of those winning the race won the whole token, and being trusted is the
 // whole inbound gate.
+describe("invite-only pairing mode", () => {
+  it("discards pending requests when entering invite-only instead of auto-approving them on return", async () => {
+    const requester = await deck(store([]), "Requester", []);
+    const receiver = await deck(store([]), "Receiver", []);
+    requester.e.addPeer("127.0.0.1", receiver.port);
+    await requester.e.round();
+    expect(receiver.e.status().pending).toMatchObject([{ fp: requester.id.fp }]);
+
+    await receiver.e.apply({ pairingMode: "invite", autoAccept: true });
+    expect(receiver.e.status().pending).toEqual([]);
+    expect(receiver.e.status().trusted).toEqual([]);
+    expect(receiver.e.accept(requester.id.fp)).toBeNull();
+
+    await receiver.e.apply({ pairingMode: "automatic" });
+    expect(receiver.e.status().pending).toEqual([]);
+    expect(receiver.e.status().trusted).toEqual([]);
+
+    // The other deck may request pairing again after automatic mode returns;
+    // only that new handshake is eligible for automatic acceptance.
+    await requester.e.round();
+    expect(receiver.e.status().trusted).toMatchObject([{ fp: requester.id.fp }]);
+  }, 20_000);
+
+  it("requires an invite for new peers and retains existing trust", async () => {
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite", autoAsk: true, autoAccept: true });
+    const b = await deck(store([]), "Other", []);
+    expect(a.e.status().pairingMode).toBe("invite");
+    b.e.addPeer("127.0.0.1", a.port);
+    await b.e.round();
+    expect(a.e.status().trusted).toHaveLength(0);
+    expect(a.e.accept(b.id.fp)).toBeNull();
+    const offered = a.e.invite();
+    expect((await b.e.join(offered.token)).ok).toBe(true);
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    await a.e.apply({ pairingMode: "invite" });
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+  }, 20_000);
+
+  it("tells a deck that calls without an invite why, instead of leaving it waiting for a yes", async () => {
+    // The engine records no request in this mode, so the old "pending" answer
+    // left the caller's row reading "waiting for them to say yes" for good.
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite" });
+    const b = await deck(store([]), "Caller", []);
+    b.e.addPeer("127.0.0.1", a.port);
+    await b.e.round();
+    const rowAt = (d: typeof a, port: number) =>
+      (d.e.status().peers as Array<Record<string, any>>).find(p => p.port === port);
+    expect(rowAt(b, a.port)?.last?.error).toBe("that deck pairs only by invite");
+    expect(a.e.status().pending).toEqual([]);
+  }, 20_000);
+
+  it("does not knock on a deck it only heard, which is a request by another name", async () => {
+    // Dialling a stranger IS asking it: the far listener queues the caller as a
+    // request, and with its accept switch on — the shipped default — pins it.
+    // A deck that pairs only by invite must not be sending those.
+    // The shipped defaults — ask and accept both on — plus the mode, which is
+    // what a person who flips invite-only on is actually running.
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite", autoAsk: true, autoAccept: true });
+    const b = await deck(store([]), "Neighbour", [], {}, { autoAsk: true, autoAccept: true });
+    a.sock.deliver(Buffer.from(JSON.stringify({
+      m: "CCDK", v: PROTOCOL, n: "Neighbour", f: b.e.status().fp, p: b.e.status().port,
+      i: "00".repeat(8), h: hostId({ hostname: "somewhere-else", home: "/home/somebody" }),
+    })), "127.0.0.1");
+    await a.e.round();
+    await a.e.round();
+
+    expect(b.e.status().pending, "the neighbour was sent a request").toEqual([]);
+    expect(b.e.status().trusted, "and its accept switch pinned the caller").toEqual([]);
+    expect(a.e.status().trusted).toEqual([]);
+    // Nothing was put on the dial list to knock with: the heard deck is a
+    // nearby row, which the panel offers an invite on.
+    expect((a.e.status().peers as unknown[]).length).toBe(0);
+  }, 20_000);
+
+  it("reaches an address it already had without turning into a request there", async () => {
+    // A row typed before invite-only was switched on is still dialled — an
+    // invite-paired deck is one of those rows — but a stranger at that address
+    // must refuse it rather than queue it, and the row says whose setting it is.
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite" });
+    const b = await deck(store([]), "Stranger", [], {}, { autoAsk: true, autoAccept: true });
+    a.e.addPeer("127.0.0.1", b.port);
+    await a.e.round();
+    await a.e.round();
+
+    expect(b.e.status().pending, "the far deck was sent a request").toEqual([]);
+    expect(b.e.status().trusted, "and its accept switch pinned the caller").toEqual([]);
+    const row = (a.e.status().peers as Array<{ port: number; last?: { error?: string } }>)
+      .find(p => p.port === b.port);
+    expect(row?.last?.error).toBe("this deck pairs only by invite");
+  }, 20_000);
+
+  it("still lets an invite-only deck join someone else's invite, and keeps talking to it", async () => {
+    // The mode refuses a pairing nobody invited. Joining an invite IS the
+    // invitation, from this side: `join` dials with the code and pins what
+    // proved it, and never goes through the round's untrusted-peer refusal.
+    const minter = await deck(store([]), "Minter", []);
+    const joiner = await deck(store([]), "Invite-only joiner", [], {}, { pairingMode: "invite" });
+    const joined = await joiner.e.join(minter.e.invite().token);
+    expect(joined.ok).toBe(true);
+    expect(joiner.e.status().trusted).toMatchObject([{ fp: minter.id.fp }]);
+    expect(minter.e.status().trusted).toMatchObject([{ fp: joiner.id.fp }]);
+
+    // And the next round reaches it as a trusted peer, not a stranger the
+    // mode would refuse to dial.
+    await joiner.e.round();
+    expect(joiner.errors).toEqual([]);
+    expect(joiner.e.status().trusted).toMatchObject([{ fp: minter.id.fp }]);
+  }, 20_000);
+});
+
 describe("the invite, and the half of it that was never checked", () => {
   it("pairs with the deck that minted the token", async () => {
     const a = await deck(store([]), "Minter", []);

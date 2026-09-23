@@ -31,8 +31,10 @@ describe("every switch is the one switch (#886)", () => {
     // Thirteen since discovery over Tailscale added its own switch and the two
     // permissions under it; fourteen since Claude FM's mute (#1208), which is a
     // switch and not a speaker glyph because it is an on/off setting that is
-    // remembered, and it sits in the Appearance menu under the character switch.
-    expect(switches, "the fourteen switches in the app").toBe(14);
+    // remembered, and it sits in the Appearance menu under the character switch;
+    // fifteen since invite-only pairing (#1236), which was two native radios
+    // before it was made one of these.
+    expect(switches, "the fifteen switches in the app").toBe(15);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

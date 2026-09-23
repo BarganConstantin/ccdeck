@@ -263,7 +263,7 @@ export function createEngine({
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], unpaired: [], port: 0,
-    autoAsk: true, autoAccept: true, aliases: {},
+    autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
     // DISCOVERY OVER TAILSCALE, off until somebody turns it on, and its own
@@ -443,8 +443,8 @@ export function createEngine({
   };
 
   /** The two permissions that answer for one route. */
-  const asksOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
-  const saysYesOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
+  const asksOn = via => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
+  const saysYesOn = via => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
 
   /**
    * Read the tailnet on a timer while the switch is on, and not at all while it
@@ -623,7 +623,7 @@ export function createEngine({
    * is nothing before this, so the check lives here.
    */
   const askToAccept = entry => {
-    if (declined.has(entry.fp)) return;
+    if (cfg.pairingMode === "invite" || declined.has(entry.fp)) return;
     const had = pending.get(entry.fp);
     // WHICH SWITCH ANSWERS depends on where the deck is. A request from the
     // tailnet is answered by the Tailscale pair, and only for a machine on this
@@ -667,6 +667,10 @@ export function createEngine({
         // The key pinned when this deck was accepted, so a second machine
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
+        // Invite-only still dials the rows it has — an invite-paired deck is one
+        // of them — but tells the far end it is not asking, so a row that turns
+        // out to be a stranger is refused there instead of becoming a request.
+        ask: cfg.pairingMode !== "invite",
         sealFrames, ephemeral,
       });
       // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
@@ -758,6 +762,9 @@ export function createEngine({
       // A deck we DO have a pin for was checked before this line: connectToPeer
       // was given expectPub and refuses a different key at that address.
       if (!trustedPeer(cfg.trusted, conn.peerFp)) {
+        // Said as this deck's own setting, not as a fault: the row the panel
+        // draws for it is a state the owner chose (see WIRE_ANSWERS).
+        if (cfg.pairingMode === "invite") throw new Error("this deck pairs only by invite");
         if (!peer.typed || wasUnpaired(conn.peerFp)) {
           // The same row the listener's own `onPending` draws, from the other
           // direction: this deck dialled rather than being dialled, and the
@@ -1002,6 +1009,13 @@ export function createEngine({
       engine = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
+      // A request made before invite-only was enabled must not survive the
+      // switch and become an automatic approval when automatic mode returns.
+      // A fresh handshake after that switch may request pairing again.
+      if (was.pairingMode !== "invite" && cfg.pairingMode === "invite" && pending.size) {
+        pending.clear();
+        onChange?.();
+      }
       // TURNING IT ON ANSWERS WHAT IS ALREADY WAITING. A person who switches
       // this on with two rows sitting in the panel means those two as much as
       // the next one, and leaving them queued behind a setting called
@@ -1010,8 +1024,8 @@ export function createEngine({
       // PER ROUTE, because each pair of switches answers for its own: turning
       // the local one on does not answer a tailnet request, and turning the
       // Tailscale one on answers only the owner's own machines.
-      const yes = c => ({ lan: !!c.autoAccept, tailscale: !!c.tailscale && c.tailscaleAccept !== false });
-      const ask = c => ({ lan: !!c.autoAsk, tailscale: !!c.tailscale && c.tailscaleAsk !== false });
+      const yes = c => ({ lan: c.pairingMode !== "invite" && !!c.autoAccept, tailscale: c.pairingMode !== "invite" && !!c.tailscale && c.tailscaleAccept !== false });
+      const ask = c => ({ lan: c.pairingMode !== "invite" && !!c.autoAsk, tailscale: c.pairingMode !== "invite" && !!c.tailscale && c.tailscaleAsk !== false });
       const turnedOn = (f, via) => !f(was)[via] && f(cfg)[via];
       const mayAnswer = p => (p.via === "tailscale" ? turnedOn(yes, "tailscale") && p.own : turnedOn(yes, "lan"));
       for (const [fp, p] of [...pending]) if (!wasUnpaired(fp) && mayAnswer(p)) this.accept(fp, { byHand: false });
@@ -1079,6 +1093,9 @@ export function createEngine({
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
         declined: fp => declined.has(fp),
+        // Read on every handshake rather than captured, so switching the mode
+        // takes effect on the next caller without restarting the listener.
+        inviteOnly: () => cfg.pairingMode === "invite",
         // The same helper the outbound round uses, because a deck that called
         // in and a deck this one called have proved exactly the same thing —
         // see askToAccept.
@@ -1281,7 +1298,7 @@ export function createEngine({
       const asked = pending.get(fp) ?? null;
       const heard = strangers.get(fp) ?? null;
       const seen = asked ?? heard;
-      if (!seen) return null;
+      if (!seen || cfg.pairingMode === "invite") return null;
       if (wasUnpaired(fp) && !byHand) return null;
       // TWO KINDS OF ROW, AND THEY ARE NOT THE SAME CLAIM.
       //
@@ -1494,6 +1511,7 @@ export function createEngine({
         // arrives is answered here or answered for you.
         autoAsk: !!cfg.autoAsk,
         autoAccept: !!cfg.autoAccept,
+        pairingMode: cfg.pairingMode === "invite" ? "invite" : "automatic",
         // Whether paired decks are told which shared account this one is on.
         shareActive: cfg.shareActive !== false,
         // Discovery over Tailscale: whether this machine has it at all, which

@@ -154,6 +154,7 @@ export interface LanStatus {
    *  arrives is answered here or answered for you. */
   autoAsk?: boolean;
   autoAccept?: boolean;
+  pairingMode?: "automatic" | "invite";
   /** Whether paired decks are told which shared account this one is on.
    *  Absent is on, which is what the engine does with a missing setting. */
   shareActive?: boolean;
@@ -248,6 +249,10 @@ export interface RoundLine { text: string; tone: "bad" | "idle" | "ok" }
 const WIRE_ANSWERS: Record<string, RoundLine> = {
   "waiting for the other deck to accept this one": { text: "waiting for them to say yes", tone: "idle" },
   "that deck said no": { text: "it said no", tone: "bad" },
+  // Invite-only, from both ends. Neither is a fault, so neither is red: the
+  // other deck chose it, or this one did, and an invite is the way through.
+  "that deck pairs only by invite": { text: "it pairs only by invite", tone: "idle" },
+  "this deck pairs only by invite": { text: "needs an invite · your setting", tone: "idle" },
 };
 
 /**
@@ -824,6 +829,8 @@ export function deckRows(
   s: {
     peers?: Peer[]; pending?: LanStranger[]; strangers?: LanStranger[]; declined?: LanStranger[];
     aliases?: Record<string, string>;
+    /** Read for the one word a nearby row says: what pairing it takes. */
+    pairingMode?: "automatic" | "invite";
   } | null,
   now: number,
 ): DeckRow[] {
@@ -946,7 +953,9 @@ export function deckRows(
     const n = named(p.fp, p.name || p.fp);
     nearby.push({
       fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
-      kind: "nearby", state: "not paired yet", tone: "idle", here: true,
+      // Under invite-only the row says what it takes, since "not paired yet"
+      // over a row with no ask on it reads as a machine that cannot be paired.
+      kind: "nearby", state: s.pairingMode === "invite" ? "needs an invite" : "not paired yet", tone: "idle", here: true,
       hint: p.via === "tailscale"
         ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
         : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
@@ -1422,7 +1431,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  monospace, an invite is 140 characters and the firewall block is a
    *  paragraph and a shell command — unfolded in 288px they turned a list of
    *  machines into a form with a list on top of it. */
-  const [addOpen, setAddOpen] = useState(false);
+  // WHICH DOOR the add dialog was opened through: the `+`, or a nearby row's
+  // invite — which arrives with one made, because that press already said so.
+  const [addOpen, setAddOpen] = useState<false | "add" | "invite">(false);
   /** The four pictures that say what this section is for and what to do on
    *  each machine. Opened from a press only — the card while the section is
    *  off, and the word under an empty list — never from a flag. */
@@ -1657,7 +1668,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   }, [claim, release, onChanged]);
 
   const on = status?.enabled === true;
-  const rows = deckRows(status, now);
+  // Invite-only has no actionable manual pairing requests, including during
+  // the brief interval before a refreshed engine status reaches this panel.
+  const rows = deckRows(status?.pairingMode === "invite" && status
+    ? { ...status, pending: [] } : status, now);
   // The deck whose dialog is open, found again in every poll's rows. When it
   // is gone — unpaired and not heard since, or an address whose answer just
   // gave it an identity — the dialog closes rather than drawing a machine that
@@ -1700,6 +1714,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
         <LanAddDeckModal
           status={status}
           manual={manual}
+          startWith={addOpen === "invite" ? "invite" : undefined}
           onClose={() => setAddOpen(false)}
           onChanged={() => { void load(); onChanged(); }}
         />
@@ -1751,6 +1766,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
           // What this deck offers is this deck's setting, not that deck's —
           // so the door to it closes this dialog on the way through.
           onSettings={() => { setPeerOpen(null); setSetupOpen(true); }}
+          // The same door for an invite-only deck's one way to pair a nearby
+          // machine: out of this dialog and into the add dialog, invite made.
+          onInvite={() => { setPeerOpen(null); setAddOpen("invite"); }}
           twins={(openRow.twins ?? []).map(t => ({ row: t, peer: rowSource(status, t).peer ?? null }))}
           onUnpair={fp => answer("unpair", fp, "unpair that deck")}
         />
@@ -1879,9 +1897,11 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               decks is a broadcast, one ask sent to all of them. */}
           {on && (
             <button type="button" className="glyph-btn ap-lan-plus"
-              onClick={() => setAddOpen(true)}
+              onClick={() => setAddOpen("add")}
               aria-label="Add a deck"
-              title="Reach a deck that has not turned up on its own — by address, or with an invite">
+              title={status?.pairingMode === "invite"
+                ? "Send an invite, or use one you were sent. This deck pairs only by invite."
+                : "Reach a deck that has not turned up on its own — by address, or with an invite"}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
                 strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M6.1 7.9a2.6 2.6 0 0 0 3.7 0l1.9-1.9a2.6 2.6 0 0 0-3.7-3.7l-.9.9" />
@@ -2138,12 +2158,24 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             spends no line on it — `.vis-hidden` is out of flow, and
                             the stylesheet gives such a row a single grid track. */}
                         <span id={`lan-who-state-${i}`} className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
-                        {p.kind === "nearby" && (
+                        {p.kind === "nearby" && status?.pairingMode !== "invite" && (
                           <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
                             onClick={() => void answer("accept", p.fp, "reach that deck")}
                             aria-label={`Ask ${p.name} to pair`}
                             title={`Send ${p.name} a request. Somebody at that machine has to accept it before anything is shared. Its fingerprint is ${p.fp}.`}>
                             ask
+                          </button>
+                        )}
+                        {/* INVITE-ONLY TAKES THE ASK AWAY, AND THIS IS WHAT IT
+                            LEAVES: the one way this machine can still be paired,
+                            on its own row, where the reader is already looking.
+                            Opens the add dialog with the invite made. */}
+                        {(p.kind === "nearby" || p.kind === "declined") && status?.pairingMode === "invite" && (
+                          <button type="button" className="ap-manage-btn ap-lan-do"
+                            onClick={() => setAddOpen("invite")}
+                            aria-label={`Invite ${p.name} to pair`}
+                            title={`This deck pairs only by invite. Make one and send it to whoever is at ${p.name}.`}>
+                            invite
                           </button>
                         )}
                         {p.kind === "paired" && (
@@ -2191,7 +2223,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             stop
                           </button>
                         )}
-                        {p.kind === "declined" && (
+                        {p.kind === "declined" && status?.pairingMode !== "invite" && (
                           <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`allow:${p.fp}`)}
                             onClick={() => void answer("allow", p.fp, "let that deck ask again")}
                             aria-label={`Let ${p.name} ask again`}
