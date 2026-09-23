@@ -8147,10 +8147,16 @@ button.qb-pace::after {
   position: relative;
   z-index: 1;
 }
-/* Titled text must be hit-testable above the row's overlay button. Otherwise
-   the button intercepts hover, hiding full clipped identities and usage ages.
-   The rest of the row remains the disclosure target. (#1115) */
-.ap-account :is(.ap-alias, .ap-email, .ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+/* The small titled labels sit above the door so their own tooltips answer the
+   pointer — each one says what the age or the trade means (#1115). They are a
+   few words wide, so the door keeps the row.
+
+   The alias and the email are NOT raised. The email is `flex: 1` and spans
+   about 152px of the 272px head, so raising it took most of the row away from
+   the door while the hover tint still promised the row would open. The door
+   carries the whole identity itself instead, in its title and its
+   description, so a clipped name is recoverable from anywhere on the row. */
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
   position: relative;
   z-index: 1;
 }
