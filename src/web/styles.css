@@ -8010,6 +8010,13 @@ button.qb-pace::after {
   position: relative;
   z-index: 1;
 }
+/* Titled text must be hit-testable above the row's overlay button. Otherwise
+   the button intercepts hover, hiding full clipped identities and usage ages.
+   The rest of the row remains the disclosure target. (#1115) */
+.ap-account :is(.ap-alias, .ap-email, .ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+  position: relative;
+  z-index: 1;
+}
 /* The tint is not the state channel and never could have been. At the 6% it
    shipped at it measured 1.118:1 against the panel in dark and 1.091:1 in light
    — invisible as a signal — while lifting the bed enough that --muted on it
