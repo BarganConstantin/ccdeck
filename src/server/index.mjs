@@ -5875,7 +5875,19 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+/**
+ * A custom station's YouTube link, resolved to the channel and video the
+ * embed plays (#1208). fm-station.mjs rebuilds the request from the parsed
+ * link rather than fetching it as given, and caches the answer.
+ *
+ * AGENTS_DECK_NO_MUSIC is the promise that this deck never contacts YouTube,
+ * and a station somebody added is not an exception to it: the answer is the
+ * same plain no /api/claude-fm gives, and the canvas draws nothing for it.
+ */
 async function handleFmStation(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: false, off: true });
+  }
   const url = new URL(req.url, "http://localhost");
   const stationUrl = url.searchParams.get("url") ?? "";
   const { parseYouTubeStationUrl, resolveYouTubeStation } = await import(
@@ -7258,6 +7270,13 @@ const GUARDED_READS = new Set([
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.
   "/api/account-projects",
+  // Not a secret, and here for the other reason a read can be dangerous: it is
+  // the one route where the caller names what the deck goes and fetches
+  // (#1208). fm-station.mjs holds that to YouTube, but a page on another site
+  // still had a way to make this process download pages on demand, and the
+  // only caller that needs it is the deck's own canvas, which sends
+  // Sec-Fetch-Site: same-origin on every fetch.
+  "/api/fm-station",
 ]);
 
 function isAuthorizedMutation(req) {

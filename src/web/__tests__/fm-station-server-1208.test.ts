@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  parseYouTubeStationUrl, readYouTubeStationPage, resolveYouTubeStation,
+  FM_STATION_CACHE_MS, FM_STATION_MISS_CACHE_MS,
+  forgetFmStations, parseYouTubeStationUrl, readYouTubeStationPage, resolveYouTubeStation,
 } from "../../server/fm-station.mjs";
 
 const CHANNEL = "UCV03SRZXJEz-hchIAogeJOg";
@@ -14,9 +15,13 @@ function page({ live = true, channel = CHANNEL, canonical = VIDEO } = {}) {
   ].join("");
 }
 
-function response(html: string) {
-  return { ok: true, status: 200, body: null, text: async () => html } as Response;
+function response(html: string, url = "") {
+  return { ok: true, status: 200, url, body: null, text: async () => html } as unknown as Response;
 }
+
+// The resolver keeps one answer per link for every caller in the process, so
+// every case starts from an empty cache rather than inheriting the last one's.
+beforeEach(() => forgetFmStations());
 
 describe("custom FM YouTube resolver (#1208)", () => {
   it("accepts only HTTPS YouTube station shapes", () => {
@@ -29,7 +34,23 @@ describe("custom FM YouTube resolver (#1208)", () => {
       `https://youtube.com.evil.example/watch?v=${VIDEO}`,
       `https://127.0.0.1/watch?v=${VIDEO}`,
       "https://youtube.com/@lofigirl",
+      // A port or a login changes where the request goes, and neither is in
+      // any link copied out of YouTube.
+      `https://www.youtube.com:8443/watch?v=${VIDEO}`,
+      "https://user:pass@www.youtube.com/@lofigirl/live",
     ]) expect(parseYouTubeStationUrl(unsafe), unsafe).toBeNull();
+  });
+
+  it("fetches a link it rebuilt, never the one it was given", async () => {
+    // The caller chooses the link, so what reaches `fetch` is assembled from
+    // the parsed id alone: fixed scheme and host, no port, no stray query.
+    const fetchImpl = vi.fn(async () => response(page()));
+    await resolveYouTubeStation(`https://m.youtube.com/watch?v=${VIDEO}&list=x&redirect=https://evil.example`, { fetchImpl });
+    await resolveYouTubeStation("https://youtube.com/@lofigirl/live?si=tracking", { fetchImpl });
+    expect(fetchImpl.mock.calls.map(call => (call as unknown[])[0])).toEqual([
+      `https://www.youtube.com/watch?v=${VIDEO}`,
+      "https://www.youtube.com/@lofigirl/live",
+    ]);
   });
 
   it("returns a stable /channel URL without making a network request", async () => {
@@ -51,6 +72,7 @@ describe("custom FM YouTube resolver (#1208)", () => {
     await expect(resolveYouTubeStation(`https://youtube.com/watch?v=${VIDEO}`, { fetchImpl: liveFetch }))
       .resolves.toEqual({ ok: true, channel: CHANNEL, video: VIDEO });
 
+    forgetFmStations();
     const recordedFetch = vi.fn(async () => response(page({ live: false })));
     await expect(resolveYouTubeStation(`https://youtube.com/watch?v=${VIDEO}`, { fetchImpl: recordedFetch }))
       .resolves.toEqual({ ok: false, error: "not_live" });
@@ -59,5 +81,55 @@ describe("custom FM YouTube resolver (#1208)", () => {
   it("does not take a recommended channelId ahead of the current video metadata", () => {
     const html = `{"channelId":"${OTHER_CHANNEL}"}${page()}`;
     expect(readYouTubeStationPage(html)).toEqual({ live: true, channel: CHANNEL, video: VIDEO });
+  });
+
+  it("does not believe a page a redirect took off YouTube", async () => {
+    const fetchImpl = vi.fn(async () => response(page(), "https://evil.example/landing"));
+    await expect(resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }))
+      .resolves.toEqual({ ok: false, error: "unresolved" });
+  });
+
+  it("tells the page that the lookup failed, not how", async () => {
+    // The error text is the operator's: a DNS message names the resolver and a
+    // proxy's names the proxy, and neither is the page's business.
+    const fetchImpl = vi.fn(async () => { throw new Error("getaddrinfo ENOTFOUND proxy.corp.internal"); });
+    await expect(resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }))
+      .resolves.toEqual({ ok: false, error: "unreachable" });
+  });
+});
+
+describe("one lookup per link, shared by every canvas (#1208)", () => {
+  it("answers callers that arrive together with one request", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const fetchImpl = vi.fn(async () => { await gate; return response(page()); });
+    const both = Promise.all([
+      resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }),
+      // The same station written the other ways a person might paste it.
+      resolveYouTubeStation("https://m.youtube.com/@lofigirl/live/", { fetchImpl }),
+    ]);
+    release();
+    const [first, second] = await both;
+    expect(first).toEqual(second);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an answer for its window, and a miss for a shorter one", async () => {
+    let at = 1_000_000;
+    const now = () => at;
+    const liveFetch = vi.fn(async () => response(page()));
+    await resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl: liveFetch, now });
+    at += FM_STATION_CACHE_MS - 1;
+    await resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl: liveFetch, now });
+    expect(liveFetch).toHaveBeenCalledOnce();
+    at += 2;
+    await resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl: liveFetch, now });
+    expect(liveFetch).toHaveBeenCalledTimes(2);
+
+    const offAir = vi.fn(async () => response(page({ live: false, canonical: "" })));
+    await resolveYouTubeStation("https://youtube.com/@quiet/live", { fetchImpl: offAir, now });
+    at += FM_STATION_MISS_CACHE_MS + 1;
+    await resolveYouTubeStation("https://youtube.com/@quiet/live", { fetchImpl: offAir, now });
+    expect(offAir).toHaveBeenCalledTimes(2);
   });
 });
