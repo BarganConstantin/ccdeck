@@ -88,8 +88,10 @@ describe("the source names no way to speak on either channel", () => {
  *  what it was told. */
 function honestDeck(token: string) {
   const seen: string[] = [];
+  const bodies: string[] = [];
   return {
     seen,
+    bodies,
     handler(req: IncomingMessage, res: ServerResponse) {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
       if (url.pathname === "/api/hook-challenge") {
@@ -98,8 +100,13 @@ function honestDeck(token: string) {
         return res.end(JSON.stringify({ proof }));
       }
       seen.push(url.pathname);
-      req.resume();
-      req.on("end", () => res.writeHead(200).end());
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", c => { body += c; });
+      req.on("end", () => {
+        bodies.push(body);
+        res.writeHead(200).end();
+      });
     },
   };
 }
@@ -161,6 +168,7 @@ async function startDeck() {
   const { port } = server.address() as AddressInfo;
   return {
     seen: deck.seen,
+    bodies: deck.bodies,
     record: { pid: process.pid, port, workspace: "", token, startedAt: new Date().toISOString() },
     close: () => new Promise<void>(done => {
       server.closeAllConnections?.();
@@ -271,14 +279,14 @@ describe("an event the hook cannot handle", () => {
   // is five times the depth stringify gives up at, so it throws on every leg
   // however deep that platform's stack goes.
   //
-  // These assert that the hook stays out of the transcript, and no more. Where
-  // the deep event should go is #1180: today it reaches no deck.
+  // A deep payload still has to reach the deck. The hook cannot stringify the
+  // original tree, so it sends the scalar top-level identity as a shallow
+  // stand-in and marks the omitted nested data explicitly (#1180).
   const deep = (levels: number) =>
     `{"hook_event_name":"PostToolUse","session_id":"s1","cwd":${JSON.stringify(process.cwd())},"deep":`
     + '{"a":'.repeat(levels) + "1" + "}".repeat(levels) + "}";
 
   for (const [what, input] of [
-    ["an event nested deeper than JSON.stringify goes", deep(20_000)],
     ["a cwd that is a number", '{"hook_event_name":"Stop","session_id":"s1","cwd":42}'],
     ["a cwd that is an object", '{"cwd":{}}'],
   ] as const) {
@@ -294,6 +302,28 @@ describe("an event the hook cannot handle", () => {
       }
     });
   }
+
+  it("delivers a shallow stand-in when the event is nested deeper than JSON.stringify can write", async () => {
+    const deck = await startDeck();
+    try {
+      const run = await runHook(deep(20_000), deck.record);
+      expect(run.code, run.stderr.split("\n")[0]).toBe(0);
+      expect(run.stderr).toBe("");
+      expect(run.stdout).toBe("");
+      expect(deck.seen).toEqual(["/api/event"]);
+      expect(deck.bodies).toHaveLength(1);
+      expect(JSON.parse(deck.bodies[0])).toEqual({
+        hook_event_name: "PostToolUse",
+        session_id: "s1",
+        cwd: process.cwd(),
+        provider: "claude",
+        ccdeck_truncated: true,
+        ccdeck_truncation_reason: "serialization-depth",
+      });
+    } finally {
+      await deck.close();
+    }
+  });
 });
 
 // THE PROPERTY THIS FILE ASSERTS, ASSERTED BY RUNNING IT.
