@@ -355,6 +355,18 @@ describe("the account alias in the accounts panel row", () => {
     expect(decl(".ap-account-head", "display")).toBe("flex");
   });
 
+  it("keeps titled account text above the inactive row disclosure overlay (#1115)", () => {
+    const match = /\.ap-account :is\(([^)]+)\)\s*\{([^}]+)\}/g;
+    const raised = [...bare.matchAll(match)].find(([, selectors]) => selectors.includes(".ap-alias"));
+    expect(raised).toBeDefined();
+    for (const selector of [".ap-alias", ".ap-email", ".ap-q-age", ".ap-issue-age", ".ap-age", ".ap-swap-note"]) {
+      expect(raised![1]).toContain(selector);
+    }
+    expect(raised![2]).toMatch(/position:\s*relative\s*;/);
+    expect(raised![2]).toMatch(/z-index:\s*1\s*;/);
+    expect(accounts).toMatch(/className="ap-row-open"/);
+  });
+
   it("carries the whole name in a title, because the row may be showing part of it", () => {
     // Truncation without a title is deletion, and it was deletion here: the
     // rule above was written for both spans and only the alias followed it.
