@@ -36,6 +36,8 @@ import { rmTempDir } from "./rm-temp-dir";
 import { createUpdater, FEED } from "../../../desktop/updater.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { pickFile } from "../../../desktop/updater-mac.mjs";
+// @ts-expect-error — plain .mjs, no types
+import { LINUX_ICON_SIZES, appIconPng } from "../../../desktop/scripts/icons.mjs";
 
 const require = createRequire(import.meta.url);
 const config = require("../../../desktop/electron-builder.config.cjs");
@@ -339,5 +341,45 @@ describe("what a Linux download needs from the system", () => {
     // have to be one string or GNOME shows a running ccdeck as an unnamed
     // window with a blank icon instead of the one it was launched from.
     expect(meta.desktopName, "desktopName must be the name Electron reports as app_id").toBe(meta.name);
+  });
+});
+
+// The icon, which Linux gets in a shape neither other OS needs.
+//
+// macOS takes one .icns and Windows one .ico, and each of those carries every
+// size inside it — so both were right while Linux had no icon at all, in the
+// dock, the switcher or the applications menu. electron-builder had been left
+// to make the Linux set from icon.png, and from that one 1024-pixel file it
+// installed exactly one icon, at hicolor/1024x1024. The hicolor theme's own
+// index.theme declares sizes up to 512 and never mentions 1024, and GTK reads
+// only the directories the theme declares — so the icon was on disk and
+// invisible. A png at an undeclared size is not a small icon, it is no icon.
+describe("the icon Linux is given", () => {
+  // Straight out of /usr/share/icons/hicolor/index.theme, which is the file
+  // that decides whether a directory is ever looked in.
+  const DECLARED = [16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192, 256, 512];
+
+  it("is drawn at sizes the hicolor theme declares, and at no other", () => {
+    for (const size of LINUX_ICON_SIZES) {
+      expect(DECLARED, `hicolor declares no ${size}x${size}, so GTK would never look there`).toContain(size);
+    }
+    expect(LINUX_ICON_SIZES, "1024 is the size that made the app iconless").not.toContain(1024);
+    expect(LINUX_ICON_SIZES.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("is taken from the drawn set, not from the single 1024 icon.png", () => {
+    expect(config.linux?.icon, "unset, electron-builder falls back to icon.png and installs one 1024 icon").toBeDefined();
+    expect(config.linux.icon).toMatch(/linux$/);
+  });
+
+  it("writes each file at the size its name claims, which is how the set is read", () => {
+    // electron-builder reads an icon directory by the size in the filename, so
+    // a file whose pixels disagree with its name installs at the wrong size.
+    for (const size of [16, 48, 256]) {
+      const png = appIconPng(size);
+      expect(png.subarray(1, 4).toString()).toBe("PNG");
+      expect(png.readUInt32BE(16), `${size}x${size}.png is not ${size} wide`).toBe(size);
+      expect(png.readUInt32BE(20), `${size}x${size}.png is not ${size} tall`).toBe(size);
+    }
   });
 });

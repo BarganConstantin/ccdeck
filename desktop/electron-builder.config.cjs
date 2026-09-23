@@ -75,6 +75,11 @@ module.exports = {
     target: ["AppImage", "deb"],
     category: "Development",
     maintainer: "ccdeck <https://ccdeck.dev>",
+    // The size set scripts/icons.mjs draws, not icon.png. From that one file
+    // electron-builder installed one icon, at 1024 — a size hicolor does not
+    // declare — so Linux showed no icon at all. Named <size>x<size>.png, which
+    // is how electron-builder reads an icon directory.
+    icon: "dist/icons/linux",
     // Electron's Wayland app_id is the packaged package.json name,
     // ccdeck-desktop. The entry file is already named for it, but its
     // StartupWMClass said "ccdeck" — the product name — so the hint a desktop
