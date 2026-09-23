@@ -165,7 +165,10 @@ export default function ContextModal({ agent, onClose }: Props) {
         </header>
 
         <section className="ctx-window-row">
-          <div className="ctx-window-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
+          {/* A progressbar needs a name of its own (4.1.2): the percentage
+              beside it is a sibling, not a label, so without one a reader
+              heard "progress bar, 42" with nothing to say what was 42. */}
+          <div className="ctx-window-bar" role="progressbar" aria-label="Context window used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
             <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} />
           </div>
           <div className="ctx-window-meta">

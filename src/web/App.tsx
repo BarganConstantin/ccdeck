@@ -5801,6 +5801,13 @@ function Inner() {
         <BrowserWatchModal
           onClose={() => setBrowserWatchOpen(false)}
           onSeen={ms => {
+            // The reader has just looked, so the count falling to nothing is
+            // their own doing and not news: the region goes back to the silence
+            // it starts in rather than telling them "no unread findings" about
+            // the list they were reading. Only the reducer's all-clear is
+            // skipped — the next finding still speaks, because "" is the state
+            // a first announcement is made from.
+            setWatchSaid("");
             setWatchSeenMs(ms);
             try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
           }}
