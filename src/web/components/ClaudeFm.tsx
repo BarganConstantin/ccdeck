@@ -41,6 +41,8 @@ import {
   memo, useCallback, useEffect, useRef, useState,
   type CSSProperties,
 } from "react";
+// Type only: the library itself is imported on demand, in startDirect.
+import type Hls from "hls.js";
 import {
   command, embedSrc, FATAL_ERRORS, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
@@ -53,8 +55,12 @@ import {
 } from "../claude-fm";
 import { createSceneTimer } from "../claude-fm-runtime";
 import type { FmSource } from "../appearance";
+import {
+  customFmId, customFmSelection, parseFmStationUrl,
+  type CustomFmStation, type FmSelection,
+} from "../fm-stations";
 
-interface Probe { live: boolean; channel: string; video?: string }
+interface Probe { live: boolean; channel: string; video?: string; audio?: string; hls?: boolean }
 
 const SOURCE_LABEL: Record<FmSource, string> = {
   "claude-fm": "Claude FM",
@@ -67,6 +73,12 @@ const SOURCE_LABEL: Record<FmSource, string> = {
   "good-life-radio": "The Good Life Radio Live",
   "cafe-music-bgm": "Cafe Music BGM Live",
 };
+
+function sourceLabel(source: FmSelection, customStation?: CustomFmStation): string {
+  if (customStation && customFmSelection(customStation.id) === source) return customStation.name;
+  if (customFmId(source)) return "Custom FM";
+  return SOURCE_LABEL[source as FmSource];
+}
 
 const LIVE_ENDPOINT: Record<FmSource, string | null> = {
   "claude-fm": null,
@@ -128,15 +140,35 @@ const PROP_PIXELS = {
   scope: pixels(PROP_ART.scope, "scope"),
 };
 
+/** A direct stream's host, which is what the play control names as the place
+ *  the sound comes from — the way it names YouTube for everything else. */
+function streamHost(url: string): string {
+  try { return new URL(url).host; } catch { return "the station's server"; }
+}
+
 export default memo(
-  function ClaudeFm({ fetchImpl, volume, source = "claude-fm" }: { fetchImpl?: typeof fetch; volume: number; source?: FmSource }) {
+  function ClaudeFm({
+    fetchImpl, volume, muted = false, source = "claude-fm", playRequest = 0, customStation, onAvailabilityChange,
+  }: {
+    fetchImpl?: typeof fetch;
+    volume: number;
+    muted?: boolean;
+    source?: FmSelection;
+    /** Bumped by App each time somebody PICKS a station. A change of `source`
+     *  alone is not a request for sound — see the probe effect. */
+    playRequest?: number;
+    customStation?: CustomFmStation;
+    onAvailabilityChange?: (source: FmSelection, unavailable: boolean) => void;
+  }) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
     /** Buffering keeps the iframe mounted; an explicit stop releases it. */
     const [armed, setArmed] = useState(false);
     const [playing, setPlaying] = useState(false);
-    const sourceRef = useRef(source);
+    const playRequestRef = useRef(playRequest);
+    const audio = useRef<HTMLAudioElement | null>(null);
+    const hls = useRef<Hls | null>(null);
 
     /** Where along the minimap's top edge it is standing, in pixels left of
      *  the right-hand end. Zero is where it starts. */
@@ -204,6 +236,17 @@ export default memo(
 
     const frame = useRef<HTMLIFrameElement | null>(null);
 
+    const stopDirect = useCallback(() => {
+      hls.current?.destroy();
+      hls.current = null;
+      const player = audio.current;
+      if (!player) return;
+      player.pause();
+      player.removeAttribute("src");
+      player.load();
+      audio.current = null;
+    }, []);
+
     /** One place that talks to the player, so every send is origin-targeted
      *  rather than `"*"` — a wildcard target posts the message to whatever
      *  document happens to be in the frame, which is not a thing to be relaxed
@@ -218,6 +261,77 @@ export default memo(
      *  before the player answered would be silently reverted on ready. */
     const volumeRef = useRef(volume);
     volumeRef.current = volume;
+    const mutedRef = useRef(muted);
+    mutedRef.current = muted;
+
+    /**
+     * A direct stream (#1208), started. Reached from the press on the character
+     * and from a station pick, and both are the gesture that asked for sound.
+     *
+     * EVERY CALLBACK ASKS WHETHER ITS PLAYER IS STILL THE CURRENT ONE FIRST.
+     * Stopping a stream, or switching station, while it is still connecting
+     * rejects its pending play() with an AbortError. That is the person's own
+     * press, not the stream failing, and the first version answered it as a
+     * failure: the station it stopped was marked unavailable, and `dead` landed
+     * on whichever station had just replaced it, so the character vanished.
+     */
+    const startDirect = useCallback((url: string, isHls: boolean, selection: FmSelection) => {
+      stopDirect();
+      const player = new Audio();
+      player.preload = "none";
+      player.volume = volumeRef.current / 100;
+      player.muted = mutedRef.current;
+      audio.current = player;
+      setArmed(true);
+      setPlaying(true);
+
+      const current = () => audio.current === player;
+      const released = () => {
+        stopDirect();
+        setArmed(false);
+        setPlaying(false);
+      };
+      const failed = () => {
+        if (!current()) return;
+        released();
+        setDead(true);
+        onAvailabilityChange?.(selection, true);
+      };
+      // A refused autoplay is the browser wanting a press of its own, not a
+      // broken station: the control stays, idle, and pressing it plays.
+      const refused = (error: unknown) => {
+        if (!current()) return;
+        if (error instanceof DOMException && error.name === "NotAllowedError") { released(); return; }
+        failed();
+      };
+      player.addEventListener("playing", () => {
+        if (!current()) return;
+        setPlaying(true);
+        onAvailabilityChange?.(selection, false);
+      });
+      player.addEventListener("ended", () => { if (current()) released(); });
+      player.addEventListener("error", failed, { once: true });
+
+      if (isHls && !player.canPlayType("application/vnd.apple.mpegurl")) {
+        // hls.js is fetched here and nowhere else. It is a third of the size of
+        // the whole deck again, and only somebody playing an HLS station in a
+        // browser without native HLS ever needs it, so it is its own chunk
+        // rather than part of every page load.
+        import("hls.js").then(({ default: HlsPlayer }) => {
+          if (!current()) return;
+          if (!HlsPlayer.isSupported()) { failed(); return; }
+          const stream = new HlsPlayer();
+          hls.current = stream;
+          stream.on(HlsPlayer.Events.ERROR, (_event, data) => { if (data.fatal) failed(); });
+          stream.on(HlsPlayer.Events.MEDIA_ATTACHED, () => stream.loadSource(url));
+          stream.on(HlsPlayer.Events.MANIFEST_PARSED, () => { void player.play().catch(refused); });
+          stream.attachMedia(player);
+        }, failed);
+      } else {
+        player.src = url;
+        void player.play().catch(refused);
+      }
+    }, [onAvailabilityChange, stopDirect]);
 
     // HOW LOUD, WHILE IT PLAYS. `setVolume` is a plain command: the player
     // accepts it and reports nothing, so there is nothing to listen for here —
@@ -231,21 +345,79 @@ export default memo(
     useEffect(() => {
       if (!armed) return;
       say(command("setVolume", [volume]));
-    }, [volume, armed, say]);
+      say(command(muted ? "mute" : "unMute"));
+      if (audio.current) {
+        audio.current.volume = volume / 100;
+        audio.current.muted = muted;
+      }
+    }, [volume, muted, armed, say]);
 
     // WHETHER THERE IS ANYTHING TO PLAY. One request, on mount, and the answer
     // is cached by the server for everyone else. A failure is indistinguishable
     // from "not live" on purpose: both mean nothing renders.
+    //
+    // AND WHETHER TO START IT. Picking a station plays it — the pick is the
+    // click that asked for sound, which is what "start the newly selected
+    // stream immediately" meant when the station list first shipped. It is the
+    // PICK that counts, not the source changing: the source also changes when
+    // a reload restores it and when removing the active custom station falls
+    // back to Claude FM, and neither of those is anybody asking for music. So
+    // this compares App's pick counter, which only a pick moves, and a mount
+    // takes the counter as it finds it.
     useEffect(() => {
       let alive = true;
       const get = fetchImpl ?? fetch;
-      const sourceChanged = sourceRef.current !== source;
-      sourceRef.current = source;
+      const asked = playRequestRef.current !== playRequest;
+      playRequestRef.current = playRequest;
       setProbe(null);
       setDead(false);
-      setArmed(sourceChanged);
-      setPlaying(sourceChanged);
-      const liveEndpoint = LIVE_ENDPOINT[source];
+      setArmed(asked);
+      setPlaying(asked);
+      stopDirect();
+
+      const custom = customStation && customFmSelection(customStation.id) === source
+        ? parseFmStationUrl(customStation.url)
+        : null;
+      if (custom) {
+        if (custom.kind === "direct-audio") {
+          setProbe({ live: true, channel: "", audio: custom.url, hls: custom.format === "hls" });
+          onAvailabilityChange?.(source, false);
+          if (asked) startDirect(custom.url, custom.format === "hls", source);
+          return () => { alive = false; };
+        }
+        if (custom.kind === "youtube-channel") {
+          setProbe({ live: true, channel: custom.channel });
+          onAvailabilityChange?.(source, false);
+          return () => { alive = false; };
+        }
+        get(`/api/fm-station?url=${encodeURIComponent(custom.url)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(a => {
+            if (!alive) return;
+            if (a?.channel || a?.video) {
+              setProbe({ live: true, channel: a.channel ?? "", video: a.video ?? undefined });
+              onAvailabilityChange?.(source, false);
+            } else {
+              setDead(true);
+              onAvailabilityChange?.(source, true);
+            }
+          })
+          .catch(() => {
+            if (!alive) return;
+            setDead(true);
+            onAvailabilityChange?.(source, true);
+          });
+        return () => { alive = false; };
+      }
+
+      if (customFmId(source)) {
+        setDead(true);
+        onAvailabilityChange?.(source, true);
+        return () => { alive = false; };
+      }
+
+      const builtIn = source as FmSource;
+      const liveEndpoint = LIVE_ENDPOINT[builtIn];
       if (liveEndpoint) {
         get(liveEndpoint)
           .then(r => r.ok ? r.json() : null)
@@ -253,8 +425,8 @@ export default memo(
             if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
           })
           .catch(() => { /* no music today */ });
-      } else if (source !== "claude-fm") {
-        const station = source.replace("lofi-", "");
+      } else if (builtIn !== "claude-fm") {
+        const station = builtIn.replace("lofi-", "");
         get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
           .then(r => r.ok ? r.json() : null)
           .then(a => {
@@ -268,7 +440,9 @@ export default memo(
           .catch(() => { /* no music today */ });
       }
       return () => { alive = false; };
-    }, [fetchImpl, source]);
+    }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
+
+    useEffect(() => () => stopDirect(), [stopDirect]);
 
     // WHAT THE PLAYER SAYS BACK, once the iframe's onLoad below has opened the
     // conversation. The origin check is the whole security of this listener:
@@ -293,6 +467,7 @@ export default memo(
           // level the menu says, not at whatever the player remembers from its
           // own store — there is no window at the wrong loudness to notice.
           say(command("setVolume", [volumeRef.current]));
+          say(command(muted ? "mute" : "unMute"));
           say(command("playVideo"));
           return;
         }
@@ -303,11 +478,12 @@ export default memo(
           setArmed(false);
           setPlaying(false);
           setDead(true);
+          onAvailabilityChange?.(source, true);
         }
       };
       window.addEventListener("message", onMessage);
       return () => window.removeEventListener("message", onMessage);
-    }, [armed, say]);
+    }, [armed, muted, onAvailabilityChange, say, source]);
 
     // WHAT IT DOES WITH ITSELF. A rest, then an activity, then
     // long stillness again — see claude-fm.ts for why the restraint is the
@@ -579,6 +755,17 @@ export default memo(
     if (!probe || dead) return null;
 
     const press = () => {
+      if (probe.audio) {
+        if (armed) {
+          stopDirect();
+          setArmed(false);
+          setPlaying(false);
+          return;
+        }
+        startDirect(probe.audio, probe.hls === true, source);
+        return;
+      }
+
       if (!armed) { setArmed(true); setPlaying(true); return; }
       // Optimistic: the player confirms with onStateChange a moment later, and
       // a control that waits for a round trip before it looks pressed feels
@@ -588,6 +775,9 @@ export default memo(
       say(command(next ? "playVideo" : "pauseVideo"));
       if (!next) setArmed(false);
     };
+
+    const label = sourceLabel(source, customStation);
+    const from = probe.audio ? streamHost(probe.audio) : "YouTube";
 
     return (
       <div
@@ -687,8 +877,8 @@ export default memo(
           data-dance={playing ? dance ?? DANCES[0] : undefined}
           aria-pressed={playing}
           onClick={press}
-          title={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]} — streams from YouTube`}
-          aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}
+          title={playing ? `Stop ${label}` : `Play ${label} — streams from ${from}`}
+          aria-label={playing ? `Stop ${label}` : `Play ${label}`}
         >
           <svg viewBox={`0 0 ${SPRITE_W} ${SPRITE_H}`} shapeRendering="crispEdges" aria-hidden>
             {/* Two groups so the body can bob while the cups hold still — a
@@ -800,11 +990,11 @@ export default memo(
           </svg>
         </button>
         </div>
-        {armed && (probe.channel || probe.video) && (
+        {armed && !probe.audio && (probe.channel || probe.video) && (
           <iframe
             ref={frame}
             className="fm-frame"
-            title={SOURCE_LABEL[source]}
+            title={label}
             src={embedSrc(probe.channel, window.location.origin, probe.video)}
             // THE HANDSHAKE GOES HERE AND NOWHERE ELSE, and the first build had
             // it the wrong way round: it waited for `onReady` and answered that

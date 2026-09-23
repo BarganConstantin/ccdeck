@@ -257,7 +257,10 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // rotor's entry for this page would be a paragraph.
     const brand = code(app).slice(code(app).indexOf('<div className="brand">'));
     expect(brand).toContain("<h1>");
-    expect(brand.indexOf("<h1>")).toBeLessThan(brand.indexOf("{notice ?"));
+    // The chip's branches open with the desktop app's ready update (#1187),
+    // then the deck's own notice; the heading comes before both.
+    expect(brand.indexOf("<h1>")).toBeLessThan(brand.indexOf("{readyAppUpdate ?"));
+    expect(brand.indexOf("{readyAppUpdate ?")).toBeLessThan(brand.indexOf(") : notice ?"));
     expect(brand).not.toMatch(/<h1>[\s\S]*?<button[\s\S]*?<\/h1>/);
   });
 

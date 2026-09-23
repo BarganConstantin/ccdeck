@@ -142,6 +142,28 @@ describe("what the deck's own page can read", () => {
   });
 });
 
+describe("the custom-station lookup, which makes the deck fetch a page (#1208)", () => {
+  // Not a secret read: the one route where the caller names what the deck
+  // goes and downloads. Every case here is answered before any network — by
+  // the gate, or by the parser refusing a link — so none of them reaches out.
+  const station = `/api/fm-station?url=${encodeURIComponent("https://example.com/not-youtube")}`;
+
+  it("refuses a page on another site, which could otherwise fire it at will", async () => {
+    expect(await get(station, { host: `127.0.0.1:${port}`, "sec-fetch-site": "cross-site" })).toBe(401);
+    expect(await get(station, { host: `127.0.0.1:${port}`, referer: "https://evil.example/" })).toBe(401);
+  });
+
+  it("refuses a client that presents nothing", async () => {
+    expect(await get(station)).toBe(401);
+  });
+
+  it("lets the deck's own page through, where the parser refuses anything but YouTube", async () => {
+    const r = await getJson(station, uiHeaders());
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ ok: false, error: "unsupported_url" });
+  });
+});
+
 describe("a browser that sends no fetch metadata", () => {
   // Sec-Fetch-Site is Safari 16.4 and newer. Vite's default target is Safari
   // 16, so 16.0-16.3 runs this bundle perfectly well and sends none of it —

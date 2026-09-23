@@ -97,6 +97,14 @@ const FINGERPRINTS: { pkg: string; needle: string; note: string }[] = [
   },
   { pkg: "@reactflow/node-toolbar", needle: "react-flow__node-toolbar", note: "the node toolbar's class name" },
   {
+    pkg: "hls.js",
+    // An event name the player dispatches by string, so it survives the
+    // minifier. In a chunk of its own (#1208), which `emitted` reads with the
+    // rest: lazily loaded is still shipped.
+    needle: "hlsManifestParsed",
+    note: "the manifest-parsed event's name",
+  },
+  {
     pkg: "js-tokens",
     // The flags character class out of its single exported regex. Inside a
     // regex literal, so it survives minification exactly as written.

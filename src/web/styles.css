@@ -1293,11 +1293,38 @@ button:focus-visible { outline-offset: 1px; }
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
+.appearance-source-option[aria-disabled="true"] {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
 .appearance-source-trigger:active,
 .appearance-source-option:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .appearance-source-trigger:active,
   .appearance-source-option:active { transform: none; }
+}
+/* The custom-station controls (#1208). Layout only: the buttons are
+   `button.btn` and the fields `.ap-manage-input`, so their edges, focus ring
+   and press are the ones already swept rather than a third copy of each. */
+.appearance-station-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.appearance-station-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.appearance-station-form input:first-child { grid-column: 1 / -1; }
+.appearance-station-form.is-rename input:first-child { grid-column: 1; }
+.appearance-station-form.is-rename { grid-template-columns: minmax(0, 1fr) auto auto; }
+.appearance-station-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--err);
+  font-size: 11px;
+  line-height: 16px;
 }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says

@@ -18,7 +18,7 @@ module.exports = {
     // icon.png (1024) lives here; electron-builder makes .icns and .ico from it.
     buildResources: "dist/icons",
   },
-  files: ["main.mjs", "preload.cjs", "auto-update.mjs", "update-notice.mjs", "notification-audio-store.mjs", "deck-link.mjs", "deck-host.mjs", "nav.mjs", "updater.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
+  files: ["main.mjs", "preload.cjs", "auto-update.mjs", "update-notice.mjs", "window-update.mjs", "notification-audio-store.mjs", "deck-link.mjs", "deck-host.mjs", "nav.mjs", "updater.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
   // The deck itself, outside the asar archive, exactly as the npm package
   // ships it: the app runs bin/agent-dag.js with its own binary as Node, and
   // the deck reads its files from disk relative to itself. Build the web

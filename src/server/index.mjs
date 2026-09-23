@@ -432,6 +432,67 @@ function notifyTrays(title, body, { chime = null, who = null } = {}) {
   return true;
 }
 
+// The desktop app's updater lives in Electron, while the window is a page
+// served by this deck. Keep only the small piece of state the page needs. A
+// report is accepted only with the deck token; a browser may request an
+// install, but Electron verifies the exact ready version again before acting.
+const DESKTOP_UPDATE_STATUSES = new Set(["idle", "checking", "current", "downloading", "ready", "error"]);
+let desktopUpdateState = { status: "idle", version: null };
+
+function cleanDesktopUpdate(value) {
+  if (!value || typeof value !== "object" || !DESKTOP_UPDATE_STATUSES.has(value.status)) return null;
+  const version = typeof value.version === "string" && value.version.trim()
+    ? value.version.trim().slice(0, 80)
+    : null;
+  if (value.status === "ready" && !version) return null;
+  return { status: value.status, version };
+}
+
+function broadcastDesktopUpdate() {
+  const frame = `event: desktop-update\ndata: ${JSON.stringify(desktopUpdateState)}\n\n`;
+  for (const client of sseClients) {
+    if (!trayClients.has(client)) writeSse(client, frame);
+  }
+}
+
+function handleDesktopUpdateRead(_req, res) {
+  send(res, 200, desktopUpdateState);
+}
+
+async function handleDesktopUpdateReport(req, res) {
+  // Same-origin pages pass the generic mutation gate, but only the native app
+  // may claim what its updater has verified.
+  if (!presentsDeckToken(req.headers ?? {})) {
+    return send(res, 401, { ok: false, reason: "app_token_required" });
+  }
+  const body = await readBody(req, res).catch(() => null);
+  let value = null;
+  try { value = cleanDesktopUpdate(JSON.parse(body ?? "")); } catch { /* bad JSON */ }
+  if (!value) return send(res, 400, { ok: false, reason: "bad_update_state" });
+  desktopUpdateState = value;
+  broadcastDesktopUpdate();
+  send(res, 200, { ok: true });
+}
+
+// The window's two messages about that update, relayed to the app as frames
+// on its tray stream: apply it (`desktop-update-restart`), or it has been shown
+// (`desktop-update-seen`, so the app's own ready notice stands down, #1182).
+// Both behind the same gates as /api/restart, and neither decides anything:
+// this refuses only what cannot be current, and Electron checks the exact
+// ready version again before acting on either.
+async function handleDesktopUpdateRequest(req, res, event) {
+  const body = await readBody(req, res).catch(() => null);
+  let version = "";
+  try { version = String(JSON.parse(body ?? "")?.version ?? "").trim(); } catch { /* bad JSON */ }
+  if (!version || desktopUpdateState.status !== "ready" || desktopUpdateState.version !== version) {
+    return send(res, 409, { ok: false, reason: "update_not_ready" });
+  }
+  if (trayClients.size === 0) return send(res, 409, { ok: false, reason: "app_disconnected" });
+  const frame = `event: ${event}\ndata: ${JSON.stringify({ version })}\n\n`;
+  for (const client of trayClients) writeSse(client, frame);
+  send(res, 202, { ok: true });
+}
+
 let persistPath = null;             // absolute path to events.jsonl, or null
 
 // ─── Which deck records which session ─────────────────────────────────────
@@ -5875,6 +5936,31 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+/**
+ * A custom station's YouTube link, resolved to the channel and video the
+ * embed plays (#1208). fm-station.mjs rebuilds the request from the parsed
+ * link rather than fetching it as given, and caches the answer.
+ *
+ * AGENTS_DECK_NO_MUSIC is the promise that this deck never contacts YouTube,
+ * and a station somebody added is not an exception to it: the answer is the
+ * same plain no /api/claude-fm gives, and the canvas draws nothing for it.
+ */
+async function handleFmStation(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: false, off: true });
+  }
+  const url = new URL(req.url, "http://localhost");
+  const stationUrl = url.searchParams.get("url") ?? "";
+  const { parseYouTubeStationUrl, resolveYouTubeStation } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/fm-station.mjs")).href
+  );
+  if (!parseYouTubeStationUrl(stationUrl)) {
+    return send(res, 400, { ok: false, error: "unsupported_url" });
+  }
+  const answer = await resolveYouTubeStation(stationUrl);
+  send(res, answer.ok ? 200 : 404, answer);
+}
+
 async function handleLofiGirl(req, res) {
   if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
     return send(res, 200, { ok: true, live: false, off: true });
@@ -6279,6 +6365,7 @@ const PINNED_MODULES = [
   "browser-watch.mjs",
   "browser-watch-store.mjs",
   "claude-fm.mjs",
+  "fm-station.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",
@@ -7244,6 +7331,13 @@ const GUARDED_READS = new Set([
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.
   "/api/account-projects",
+  // Not a secret, and here for the other reason a read can be dangerous: it is
+  // the one route where the caller names what the deck goes and fetches
+  // (#1208). fm-station.mjs holds that to YouTube, but a page on another site
+  // still had a way to make this process download pages on demand, and the
+  // only caller that needs it is the deck's own canvas, which sends
+  // Sec-Fetch-Site: same-origin on every fetch.
+  "/api/fm-station",
 ]);
 
 function isAuthorizedMutation(req) {
@@ -7554,6 +7648,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/hook-challenge") return handleHookChallenge(req, res, url);
     if (req.method === "GET"  && url.pathname === "/events")     return handleSse(req, res);
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/desktop-update") return handleDesktopUpdateRead(req, res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update") return guard(handleDesktopUpdateReport(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/restart") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-restart"), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/seen") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-seen"), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
@@ -7613,6 +7711,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);

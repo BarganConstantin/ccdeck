@@ -22,6 +22,7 @@ import { navigationFor } from "./nav.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
+import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -188,10 +189,30 @@ function attach(found) {
   stream = openTrayStream(deck, {
     connected: () => { model.reset(); model.setConnected(true); scheduleRedraw(); },
     hook: env => { model.apply(env); scheduleRedraw(); },
-    live: () => { refreshPrefs(); },
+    live: () => { refreshPrefs(); publishUpdateState(); },
     notify: n => showNotification(n),
+    restartUpdate: request => {
+      const version = request?.version;
+      if (restartReadyUpdate(updater, version)) trace(`window requested verified update ${version}`);
+      else trace(`ignored window update request ${version ?? "without a version"}`);
+    },
+    // The window's dialog has put this version's Update and restart in front
+    // of the person, which is the one notice a version gets (#1182). Without
+    // this the native sheet still owed its own, and arrived on top of the
+    // window's offer, or after the person had already closed it, to ask the
+    // same question a second time.
+    updateSeen: request => {
+      if (matchesReadyUpdate(updater, request?.version)) rememberUpdateNotice(updater.state.version);
+    },
     lost: () => { model.setConnected(false); scheduleRedraw(); discoverSoon(); },
   });
+}
+
+function publishUpdateState() {
+  if (!deck || !updater) return;
+  const { status, version = null } = updater.state;
+  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })
+    .catch(err => trace(`could not publish update state: ${err?.message ?? err}`));
 }
 
 /**
@@ -504,6 +525,24 @@ async function ask(options) {
 }
 
 /**
+ * This version has had its one notice, from whichever surface gave it first:
+ * the native sheet below, or the window's own version dialog, which offers
+ * the same Update and restart (#1187). One memory for both, kept on disk, so
+ * "Later" in either place survives a relaunch and neither asks again. The
+ * version chip and the tray line stay, as the places to find it afterwards.
+ */
+function rememberUpdateNotice(version) {
+  if (updateNoticeVersion === version) return;
+  updateNoticeVersion = version;
+  try {
+    const state = readState();
+    writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
+  } catch (err) {
+    trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
+  }
+}
+
+/**
  * Say that a verified update is ready while the person is already looking at
  * ccdeck. The updater never opens or raises a window for this notice: if the
  * window is closed, unfocused, or the deck is active, the next focus/redraw
@@ -543,13 +582,7 @@ async function offerReadyUpdate() {
     });
 
     // The sheet was actually shown, so this version has had its one notice.
-    updateNoticeVersion = version;
-    try {
-      const state = readState();
-      writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
-    } catch (err) {
-      trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
-    }
+    rememberUpdateNotice(version);
 
     // A newer update may have replaced this one while the sheet was open.
     // Only restart for the exact verified version the person accepted.
@@ -637,6 +670,7 @@ app.whenReady().then(async () => {
     onChange: s => {
       trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`);
       scheduleRedraw();
+      publishUpdateState();
       offerReadyUpdate();
       // An update that lands while the app is already quiet does not wait for
       // the next tick to be noticed.
