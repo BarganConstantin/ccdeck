@@ -54,15 +54,15 @@
 // deadline worth waiting for and the case could not be produced at all. A
 // bigger payload buys one platform and costs the other.
 //
-// So the preload below plays back what was MEASURED rather than waiting for a
-// kernel to volunteer it, the way liveness's EACCES is injected in
-// hook-handshake.test.ts and a stalled filesystem is in hook-budget.test.ts: it
-// holds the body in this process, fires the deadline on schedule, and then
-// emits 'finish' before the error — the three lines of the trace quoted above,
-// in that order. Everything the assertions read is the hook's: what a timeout
-// means, what the verdict is, whether the log is handed on, and which deck is
-// asked next. Only the writer's POST is touched; its challenge is answered and
-// proved for real.
+// So the preload below plays back only the measured stalled-send state rather
+// than waiting for a kernel to volunteer it, the way liveness's EACCES is
+// injected in hook-handshake.test.ts and a stalled filesystem is in
+// hook-budget.test.ts. It holds the body in this process; post()'s own send
+// deadline must now detect that stall. Destroy then emits 'finish' before the
+// error, preserving the measured ordering. Everything the assertions read is
+// the hook's: when its real deadline fires, what verdict it produces, whether
+// the log is handed on, and which deck is asked next. Only the writer's POST is
+// touched; its challenge is answered and proved for real.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -109,16 +109,16 @@ const DECLARED_MS = (() => {
  * answered and proved. For those POSTs: the headers go out on their own — the
  * writer must be ASKED, or nothing under test happened — and the body is then
  * handed to a socket that writes nothing more, so the request is ended with its
- * body still pending and post()'s `sent` is false. The deadline follows on
- * schedule, and 'finish' after it, which is what destroying such a request
- * does.
+ * body still pending and post()'s `sent` is false. The hook's own send deadline
+ * is left untouched; when it destroys the request, 'finish' follows before the
+ * error, which is what a real wedged request does.
  *
  * The body has to be held back until after the headers are on the wire:
  * _flushOutput corks the socket, writes every queued entry and uncorks, so a
  * body written before the socket exists — which is when post() writes it —
  * leaves WITH the headers and cannot be separated from them there.
  */
-const wedgeWriter = (port: number, ms: number) => `
+const wedgeWriter = (port: number) => `
 const http = require("http");
 const request = http.request;
 http.request = function (options, ...rest) {
@@ -143,7 +143,6 @@ http.request = function (options, ...rest) {
     if (s._writev) s._writev = () => {};
     write(body);
     end();
-    setTimeout(() => req.emit("timeout"), ${ms}).unref();
   })));
   return req;
 };
@@ -249,7 +248,7 @@ describe("an elected writer that stops reading before the body is all out", () =
     // to beat a kernel, and both listeners are stubs because a real deck
     // refuses a body past 5MB outright (#1014), which is a 413 and a different
     // ending altogether.
-    const run = await fireHook(home, wedgeWriter(writer.port, 400), {
+    const run = await fireHook(home, wedgeWriter(writer.port), {
       cwd: home, session_id: "s1", hook_event_name: "PreToolUse",
       tool_name: "Write", tool_use_id: "t1", tool_input: { content: "x".repeat(256 * 1024) },
     });
