@@ -1242,11 +1242,17 @@ button:focus-visible { outline-offset: 1px; }
   line-height: 18px;
 }
 .appearance-source-picker { position: relative; min-width: 0; }
+/* A station name is whatever somebody typed, up to 80 characters with no space
+   in them. A button sizes to its content, so that name made the trigger 532px
+   in a 323px dialog and the whole dialog scrolled sideways. Capped at its
+   column here, the label gives way with an ellipsis — the list below shows
+   the full name. */
 .appearance-source-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  max-width: 100%;
   min-height: 30px;
   padding: 5px 8px;
   color: var(--text);
@@ -1258,6 +1264,12 @@ button:focus-visible { outline-offset: 1px; }
   text-align: left;
   cursor: pointer;
   transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+}
+.appearance-source-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .appearance-source-trigger:hover,
 .appearance-source-picker.is-open .appearance-source-trigger {
@@ -1285,8 +1297,15 @@ button:focus-visible { outline-offset: 1px; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  /* The deck's popover shadow (.anchored-popover): a tight line for sitting on
+     something over --shadow-2 for its height. Its own black 0.22 stayed black
+     on the white page, the thing #876 took off the menus beside it; the wide
+     layer is themed already, so only the tight line is said twice. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
   scrollbar-color: var(--muted) transparent;
+}
+:root[data-theme="light"] .appearance-source-list {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 .appearance-source-group {
   padding: 6px 8px 3px;
@@ -1312,16 +1331,29 @@ button:focus-visible { outline-offset: 1px; }
   cursor: pointer;
   transition: transform 120ms ease-out;
 }
-.appearance-source-option:hover,
-.appearance-source-option[data-highlighted="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* The name wraps rather than widening the list; `anywhere` rather than
+   `break-word`, because only `anywhere` lowers the min-content width a flex
+   row is sized from. The tick keeps its own width beside it. */
+.appearance-source-option > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.appearance-source-option > span + span { flex: none; }
+.appearance-source-option:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .appearance-source-option[aria-selected="true"] {
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
-.appearance-source-option[aria-disabled="true"] {
-  color: var(--text-dim);
-  cursor: not-allowed;
+/* THE KEYBOARD'S PLACE IN THE LIST IS A RING, not a tint. Focus stays on the
+   trigger (aria-activedescendant), so this is the only focus indicator the
+   arrows have — and as the hover tint it measured 1.28:1 dark and 1.19:1
+   light against the list, and about 1.1:1 against the selected row's tint.
+   The focus ring's own 2px --accent, drawn inside so the list's clip keeps
+   it; the tint stays the selected row's. */
+.appearance-source-option[data-highlighted="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
+/* Still a choice — picking it retries it — but dimmed, beside the word that
+   says why. */
+.appearance-source-option[data-unavailable] { color: var(--text-dim); }
 .appearance-source-trigger:active,
 .appearance-source-option:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
@@ -1339,10 +1371,28 @@ button:focus-visible { outline-offset: 1px; }
 .appearance-station-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  /* The buttons sit on the fields' line, not level with their labels. */
+  align-items: end;
   gap: 8px;
 }
-.appearance-station-form input:first-child { grid-column: 1 / -1; }
-.appearance-station-form.is-rename input:first-child { grid-column: 1; }
+/* A field and the words over it that name it, in the Station label's own
+   type: named on screen rather than by a placeholder that typing erases. */
+.appearance-station-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* On the words and not the <label>: the field sets `font: inherit`, and would
+   have taken the label's weight with it. */
+.appearance-station-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-station-form .appearance-station-field:first-child { grid-column: 1 / -1; }
+.appearance-station-form.is-rename .appearance-station-field:first-child { grid-column: 1; }
 .appearance-station-form.is-rename { grid-template-columns: minmax(0, 1fr) auto auto; }
 .appearance-station-error {
   grid-column: 1 / -1;
@@ -1715,10 +1765,12 @@ button.btn.sm-hear {
 .sm-select:hover { border-color: var(--text); }
 
 /* Custom sounds and voices (#1207), under the tones they can stand in for.
-   Built from this menu's own parts wherever one fits — the heading is a tone's
-   caption, every field is `.sm-select`, every button a plain `.btn` — so the
-   section reads as more of the menu rather than a form dropped into it, and
-   the edge, focus and height sweeps already know every control in it. */
+   Built from parts that already exist wherever one fits — the heading is a
+   tone's caption, the voice picker is `.sm-select`, the text and number fields
+   are the deck's `.ap-manage-input` (as the appearance menu's station fields
+   are), every button a plain `.btn` — so the section reads as more of the menu
+   rather than a form dropped into it, and the edge, focus and height sweeps
+   already know every control in it. */
 .sm-custom {
   display: flex;
   flex-direction: column;
@@ -1727,7 +1779,14 @@ button.btn.sm-hear {
   border-top: 1px solid var(--line);
 }
 .sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head span { font-size: 10px; color: var(--muted); }
+.sm-custom-head span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* At the ceiling the controls that add a sound stay in the tab order and say
+   aria-disabled, never `disabled` — two of them hold focus at the moment the
+   library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
+   looks like every other control that cannot act, and a press that does
+   nothing does not give under the finger either. */
+.sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
 /* A caption over its control rather than beside it: at 268px neither the file
    picker nor "Record with microphone" leaves room for a label on its left. */
 .sm-file,
@@ -1749,6 +1808,7 @@ button.btn.sm-hear {
 .sm-voice summary { color: var(--text); }
 .sm-voice-fields { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
 .sm-voice-fields label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.sm-voice-fields .ap-manage-input { flex: 1; }
 .sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sm-voice-pair label { display: grid; grid-template-columns: auto 1fr; }
 /* Trimmed like `.sm-hear` and exactly as tall as every other button: the
@@ -1763,6 +1823,9 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size
 }
 .sm-custom-item > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 button.btn.sm-custom-icon { padding: 0 6px; font-size: 10px; }
+/* Armed is the second press of the one act here nothing can undo, and it
+   takes the error colour for the four seconds it waits — the LAN unpair's. */
+button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
@@ -3261,6 +3324,15 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 .ver-banner.done .ver-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
 
+/* A note about something the reader just did, not a warning. Remove from board
+   is undoable, so its row keeps the banner's shape and drops the amber the
+   restart rows use: the dot goes quiet and Undo is an ordinary control. */
+.ver-banner.note {
+  background: var(--bg-soft);
+  border-bottom-color: var(--line);
+}
+.ver-banner.note .ver-dot { background: var(--muted); box-shadow: none; }
+
 /* The one action in the row. Filled, because everything else here is text. */
 .ver-banner .ver-act {
   padding: 3px 12px;
@@ -3294,6 +3366,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
    alone did not. */
 .ver-banner .ver-act:active:not(:disabled) { transform: scale(0.97); }
+.ver-banner.note .ver-act { border-color: var(--ctl-edge); background: transparent; }
+.ver-banner.note .ver-act:hover:not(:disabled) { border-color: var(--text); background: var(--panel); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
 /* A failed install is not a warning, it is a failure, and the command beside it
    is now the only way forward — so it reads in the error colour. */
@@ -5394,7 +5468,12 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    status class lands and the sub therefore has to wait out its own spawn. The
    list does not restart — see .tool-burst.status-done — so that sum was 680ms
    of pure lateness, measured, and it is what made a sub's glow trail its
-   primary's by 220ms on a tool that finished once. */
+   primary's by 220ms on a tool that finished once.
+
+   The 140px is what SUB_LABEL_MAX in ToolBursts.tsx is counted against: the
+   word is cut there, to the thirteen characters this pill shows, so this
+   max-width only catches a glyph wider than that count assumed. Raise one and
+   the other has to follow — and the lane has 2px left for it (#978). */
 .tool-burst.sub {
   max-width: 140px;
   font-size: 10px;
@@ -5717,6 +5796,22 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   flex: 1;
   width: 100%;
 }
+/* A session "Remove from board" took off the canvas. Still listed, because the
+   row is the way back; muted, because what it points at is not on the board. */
+.session-list .sl-row.removed .sl-label { color: var(--muted); }
+.session-list .sl-removed {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Pinned under the rows by the list's own flex: 1, so it stays at the panel's
+   foot however few sessions there are. */
+.session-list .sl-foot {
+  padding: 8px var(--panel-inset) 12px;
+  border-top: 1px solid var(--line);
+}
+.session-list .sl-bring-back { width: 100%; }
 .session-list .sl-empty {
   padding: 16px 12px;
   color: var(--muted);
@@ -8194,10 +8289,16 @@ button.qb-pace::after {
   position: relative;
   z-index: 1;
 }
-/* Titled text must be hit-testable above the row's overlay button. Otherwise
-   the button intercepts hover, hiding full clipped identities and usage ages.
-   The rest of the row remains the disclosure target. (#1115) */
-.ap-account :is(.ap-alias, .ap-email, .ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+/* The small titled labels sit above the door so their own tooltips answer the
+   pointer — each one says what the age or the trade means (#1115). They are a
+   few words wide, so the door keeps the row.
+
+   The alias and the email are NOT raised. The email is `flex: 1` and spans
+   about 152px of the 272px head, so raising it took most of the row away from
+   the door while the hover tint still promised the row would open. The door
+   carries the whole identity itself instead, in its title and its
+   description, so a clipped name is recoverable from anywhere on the row. */
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
   position: relative;
   z-index: 1;
 }
@@ -14424,16 +14525,20 @@ input, textarea { caret-color: var(--accent); }
 
 .ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
 
-/* Phone: the track column is the first thing to go; keep name + numbers. */
+/* Phone: the track column is the first thing to go; keep name + numbers.
+   An Other member is two rows: name, cost, tokens and Copy across the first,
+   the location under them. The first row needs a column for each of its four
+   — with three, Copy took the tokens' cell and the tokens fell onto a third
+   row by themselves. */
 @media (max-width: 520px) {
   .ap-proj-head { flex-wrap: wrap; }
   .ap-proj-sub { max-width: 100%; }
   .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content 24px; }
   .ap-proj-track { display: none; }
   .ap-proj-details { grid-column: 2 / -1; }
-  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content; }
+  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content max-content; }
   .ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }
-  .ap-proj-other-member .ap-proj-copy { grid-column: 3; grid-row: 1; }
+  .ap-proj-other-member .ap-proj-copy { grid-column: 4; grid-row: 1; }
 }
 
 /* Per-day chart in the Projects report: a stacked column per day, coloured by

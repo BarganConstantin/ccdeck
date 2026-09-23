@@ -56,7 +56,7 @@ import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
-import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, visibleBoard } from "./remove-node";
+import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -157,8 +157,8 @@ import {
 import {
   CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
   getCustomNotificationAsset, importCustomAudio, libraryFullReason, listCustomNotificationAssets,
-  readCustomSelections, saveCustomNotificationAsset,
-  type CustomNotificationAsset, type CustomSelections,
+  readCustomSelections, renameCustomNotificationAsset, saveCustomNotificationAsset, summarizeCustomAsset,
+  type CustomAssetSummary, type CustomSelections,
 } from "./notification-audio";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
@@ -660,6 +660,15 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
     readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
+  /** The last card taken off the board, for the Undo row. Not persisted: Undo
+   *  answers the press just made, and a reload has the session list for the
+   *  rest. */
+  const [lastRemoval, setLastRemoval] = useState<{
+    id: string;
+    label: string;
+    pin?: { x: number; y: number };
+    position?: { x: number; y: number };
+  } | null>(null);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   /** Right detail panel visibility — persisted across refresh. Declared ahead
@@ -923,7 +932,9 @@ function Inner() {
   const [customSelections, setCustomSelections] = useState<CustomSelections>(() => readCustomSelections(readStored));
   const customSelectionsRef = useRef(customSelections);
   customSelectionsRef.current = customSelections;
-  const [customAssets, setCustomAssets] = useState<CustomNotificationAsset[]>([]);
+  // The listing only — names, kinds and lengths. A clip's bytes stay in the
+  // store until the player asks for the one it is about to play (loadCustom).
+  const [customAssets, setCustomAssets] = useState<CustomAssetSummary[]>([]);
 
   const clearCustomOnly = useCallback((chime: Chime) => {
     setCustomSelections(prev => {
@@ -1037,7 +1048,10 @@ function Inner() {
     try {
       const asset = await importCustomAudio(file, bytes => decoder.decodeAudioData(bytes));
       await saveCustomNotificationAsset(asset);
-      setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
+      // The row, not the clip: keeping the bytes here would be the boot load
+      // this state stopped holding, one import at a time.
+      const row = summarizeCustomAsset(asset);
+      setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
     } finally {
       void decoder.close?.();
     }
@@ -1050,16 +1064,17 @@ function Inner() {
     if (full) throw new Error(full);
     const asset = createCustomVoice(input);
     await saveCustomNotificationAsset(asset);
-    setCustomAssets(prev => [...prev.filter(item => item.id !== asset.id), asset]);
+    const row = summarizeCustomAsset(asset);
+    setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
   }, [customAssets.length]);
 
   const renameCustomAsset = useCallback(async (id: string, name: string) => {
     const current = customAssets.find(asset => asset.id === id);
     const nextName = name.trim().slice(0, 80);
     if (!current || !nextName || nextName === current.name) return;
-    const next = { ...current, name: nextName } as CustomNotificationAsset;
-    await saveCustomNotificationAsset(next);
-    setCustomAssets(prev => prev.map(asset => asset.id === id ? next : asset));
+    // By id, not by writing this row back: the row has no bytes to write.
+    await renameCustomNotificationAsset(id, nextName);
+    setCustomAssets(prev => prev.map(asset => asset.id === id ? { ...asset, name: nextName } : asset));
   }, [customAssets]);
 
   const deleteCustomAsset = useCallback(async (id: string) => {
@@ -2097,11 +2112,21 @@ function Inner() {
 
   // A pick of the station already playing changes nothing, as it did before
   // custom stations: counting it would restart the stream under the person.
+  // A station marked unavailable is the exception, because picking it is the
+  // retry — the mark comes off and the counter moves, so ClaudeFm asks again,
+  // whether it is the station already set or one somebody came back to.
   const pickFmSource = useCallback((next: FmSelection) => {
-    if (next === fmSource) return;
+    const retryId = customFmId(next);
+    const retry = retryId !== null && unavailableFmStations.has(retryId);
+    if (next === fmSource && !retry) return;
+    if (retry) {
+      setUnavailableFmStations(current => {
+        const rest = new Set(current); rest.delete(retryId); return rest;
+      });
+    }
     setFmSource(next);
     setFmPlayRequest(count => count + 1);
-  }, [fmSource]);
+  }, [fmSource, unavailableFmStations]);
 
   const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
     const id = customFmId(selection);
@@ -3284,23 +3309,64 @@ function Inner() {
     lastLayoutSigRef.current = "";
     clearStoredLayout();
     setRemovedNodes(new Set());
+    setLastRemoval(null);
     try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
     clearSelection();
     rerender();
   }, [rerender, clearSelection]);
 
   const removeSelectedNode = useCallback(() => {
-    if (!primarySelectedId || !stateRef.current.agents.has(primarySelectedId)) return;
+    const id = primarySelectedId;
+    const agent = id ? stateRef.current.agents.get(id) : undefined;
+    if (!id || !agent) return;
     setRemovedNodes(previous => {
       const next = new Set(previous);
-      next.add(primarySelectedId);
+      next.add(id);
       saveRemovedNodes(window.localStorage, next);
       return next;
     });
-    pinnedRef.current.delete(primarySelectedId);
-    positionsRef.current.delete(primarySelectedId);
+    // Kept for Undo, so the card comes back to the place it was dragged to
+    // rather than wherever the layout finds room for a newcomer.
+    setLastRemoval({ id, label: agent.label, pin: pinnedRef.current.get(id), position: positionsRef.current.get(id) });
+    pinnedRef.current.delete(id);
+    positionsRef.current.delete(id);
     clearSelection();
   }, [primarySelectedId, clearSelection]);
+
+  // The Undo row, for as long as there is a removal to undo: a session that
+  // came back through the session list or by starting to wait leaves nothing
+  // for Undo to do, and the row goes with it.
+  const removalNotice = lastRemoval && removedNodes.has(lastRemoval.id) ? lastRemoval : null;
+  // Focus follows the press to its Undo. The button that was pressed sat in the
+  // detail panel, which unmounts with the selection, so focus would otherwise
+  // fall to <body> and a keyboard user would start again from the top. The
+  // canvas when a dropped connection holds the row's place: <main> takes focus
+  // without taking the single-key shortcuts (#367).
+  const undoRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (lastRemoval) (undoRef.current ?? canvasRef.current)?.focus();
+  }, [lastRemoval]);
+
+  const bringBack = useCallback((ids: Iterable<string>) => {
+    const list = [...ids];
+    setRemovedNodes(previous => {
+      const next = withoutRemovals(previous, list);
+      if (next !== previous) saveRemovedNodes(window.localStorage, next);
+      return next;
+    });
+  }, []);
+
+  const undoRemoval = useCallback(() => {
+    if (!lastRemoval) return;
+    const { id, pin, position } = lastRemoval;
+    bringBack([id]);
+    if (pin) pinnedRef.current.set(id, pin);
+    if (position) positionsRef.current.set(id, position);
+    setLastRemoval(null);
+    // Back to where the press was made: the card selected and its panel open,
+    // which is also where focus goes — the Undo button leaves with its row.
+    if (stateRef.current.agents.has(id)) selectAgent(id, false);
+  }, [lastRemoval, bringBack, selectAgent]);
 
   // The keydown listener below is registered once and must stay that way, so
   // the gate reads what is on screen through refs rather than closing over it.
@@ -3450,6 +3516,10 @@ function Inner() {
   }, []);
   const primarySelectedIdRef = useRef(primarySelectedId);
   primarySelectedIdRef.current = primarySelectedId;
+  // Delete reaches the removal through a ref for the same reason: the handler
+  // below is registered once, and the callback moves with the selection.
+  const removeSelectedRef = useRef(removeSelectedNode);
+  removeSelectedRef.current = removeSelectedNode;
 
   /** Step through visible agents in render order. `direction` is +1 for
    *  next (j) or -1 for previous (k). Selecting moves the canvas to keep
@@ -3500,6 +3570,13 @@ function Inner() {
       try { focusAgent(sessionId); } catch {}
     }, 60);
   }, [selectAgent, focusAgent]);
+
+  // A session list row for a removed session brings it back as it focuses it:
+  // selecting a card that is not drawn would open a panel for nothing.
+  const openSession = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    focusSession(sessionId);
+  }, [removedAgentIds, bringBack, focusSession]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851; the rule is ownsKeystroke's).
@@ -3642,6 +3719,11 @@ function Inner() {
       if (e.key === "z" || e.key === "Z") {
         if (primarySelectedIdRef.current) focusAgent(primarySelectedIdRef.current);
       }
+      // The detail panel's "Remove from board", one key from a selection — a
+      // plain click on a card shuts that panel, so the button alone would sit
+      // two gestures away. Delete and not Backspace: Backspace is the key a
+      // stray press in the wrong place sends, and Undo is the only net.
+      if (e.key === "Delete") removeSelectedRef.current();
       // The only way in, now that the topbar's ☰ is gone — and a genuine
       // toggle, so the same key that opened the sidebar closes it again. The
       // panel's own ‹ is the second way out and calls the same setter; Escape
@@ -3757,6 +3839,12 @@ function Inner() {
     () => blockedSessions(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
   );
+  // Brought back rather than filtered out: see sessionsCalledBack. Filtering
+  // would leave the alarm counting one fewer than the sessions actually stuck.
+  useEffect(() => {
+    const back = sessionsCalledBack(waitingSessions, removedAgentIds);
+    if (back.length > 0) bringBack(back);
+  }, [waitingSessions, removedAgentIds, bringBack]);
   const runningSessions = useMemo(
     () => runningSessionCount(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
@@ -4544,12 +4632,6 @@ function Inner() {
             </button>
           );
         })()}
-        {selected && (
-          <button type="button" className="btn danger" onClick={removeSelectedNode}
-            title={`Remove ${selected.label} from this board`} aria-label={`Remove ${selected.label} from the board`}>
-            Remove node
-          </button>
-        )}
         <div className="actions">
           {/* Three runs, 4px inside and 12px between, and the settings run a
               further 12px out, so it stands at the 24px that separates this
@@ -4915,6 +4997,12 @@ function Inner() {
         </div>
       </header>
 
+      {/* Mounted whether or not anything was removed, for the reason the
+          topbar's alarm region is (#372): words that arrive with their region
+          are the ones screen readers drop. */}
+      <div className="vis-hidden" role="status" aria-atomic="true">
+        {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
+      </div>
       {restartedTo ? (
         // Outranks both: it is the shortest-lived of the three and it answers
         // the question the other two just raised.
@@ -4955,6 +5043,24 @@ function Inner() {
                   </>
                 );
               })()}
+        </div>
+      ) : removalNotice ? (
+        // Ahead of the version notices: it answers the press just made, and its
+        // Undo only means anything now. No role="status" of its own — the
+        // sentence is said by the region mounted above, which is there before
+        // the words arrive, and focus lands on the Undo inside this row.
+        <div className="ver-banner note">
+          <span className="ver-dot" />
+          <strong>{removalNotice.label} is off the board.</strong>
+          <span className="ver-sub">The session list (L) brings it back.</span>
+          <button
+            ref={undoRef}
+            type="button"
+            className="ver-act"
+            aria-label={`Undo removing ${removalNotice.label}`}
+            onClick={undoRemoval}
+          >Undo</button>
+          <button type="button" aria-label="Dismiss" className="ver-close" onClick={() => setLastRemoval(null)}>×</button>
         </div>
       ) : noticeOpen && notice ? (
         // Both banners want grid row 2, and a dead connection is the more
@@ -5169,8 +5275,10 @@ function Inner() {
           state={stateRef.current}
           now={now}
           selectedIds={selectedIds}
-          onSelect={focusSession}
+          onSelect={openSession}
           onClose={() => setSessionListOpen(false)}
+          removedIds={removedAgentIds}
+          onBringBackAll={() => { bringBack([...removedNodes]); setLastRemoval(null); }}
         />
       )}
       {/* <main>, because the canvas is what this page is: everything else on
@@ -5816,6 +5924,7 @@ function Inner() {
                 onOpenTool={setOpenedToolId}
                 onShowSummary={setSummaryFor}
                 onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
+                onRemove={removeSelectedNode}
               />
         </aside>
       ) : null}
@@ -6092,12 +6201,14 @@ function Detail({
   onOpenTool,
   onShowSummary,
   onExportSession,
+  onRemove,
 }: {
   agent: AgentNodeData;
   now: number;
   onOpenTool: (toolId: string) => void;
   onShowSummary?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  onRemove?: () => void;
 }) {
   // The panel and the card it was opened from are on screen together, so this
   // is the card's clock rather than a second one written out here (#374). The
@@ -6193,6 +6304,21 @@ function Detail({
               onClick={() => onExportSession(agent.sessionId)}
               title="Download this session as JSON"
             >Export JSON</button>
+          )}
+          {/* Here and not in the topbar, where it was (#1210): beside "zoom to
+              agent" it was one stray click from taking a session off the board,
+              and at 1440px it wrapped the bar onto a second line. In the panel
+              it sits with the other verbs about this one card. Not a danger
+              button either — it is undoable, and the red stays with Clear. */}
+          {onRemove && (
+            <button
+              type="button"
+              className="btn hero-action-btn"
+              onClick={onRemove}
+              title={agent.kind === "root"
+                ? "Take this session's cards off the board (Delete). The session carries on; Undo or the session list (L) brings it back"
+                : "Take this card and the ones under it off the board (Delete). Undo or the session list (L) brings it back"}
+            >Remove from board</button>
           )}
         </div>
       </header>

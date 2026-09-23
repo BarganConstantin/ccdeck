@@ -38,7 +38,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts, cutLabel } from "../components/ToolBursts";
+import { collectBursts, cutLabel, cutSubLabel } from "../components/ToolBursts";
 import { categoryFor, CODEX_TOOL_EMOJI, TOOL_CATEGORY, type ToolCategory } from "../tool-taxonomy";
 import { agentLabel } from "../provider-copy";
 import {
@@ -169,7 +169,8 @@ describe("the sub-bubble tables, on the same names", () => {
     it(`gives a command called ${name} the generic gear`, () => {
       const { sub } = bubbles("Bash", { command: name });
       expect.soft(sub?.emoji).toBe("⚙️");
-      expect.soft(sub?.name).toBe(cutLabel(name));
+      // A sub is cut to what ITS pill shows, which is shorter than a primary's.
+      expect.soft(sub?.name).toBe(cutSubLabel(name, "shell"));
     });
   }
 

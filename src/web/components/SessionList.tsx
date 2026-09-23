@@ -117,9 +117,16 @@ interface Props {
   selectedIds: Set<string>;
   onSelect: (sessionId: string) => void;
   onClose: () => void;
+  /** Agents "Remove from board" has taken off the canvas. A removed session
+   *  keeps its row — the session is still running or still on disk — and the
+   *  row is how it comes back: `onSelect` restores it as it focuses it. */
+  removedIds?: ReadonlySet<string>;
+  /** Brings back everything removed, subagent cards included, which have no
+   *  row of their own to be brought back from. */
+  onBringBackAll?: () => void;
 }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll }: Props) {
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
   // list is the whole of what decides whether this rebuilds. `lastSeq` moves
@@ -167,14 +174,15 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
         {rows.length === 0 && <li className="sl-empty">No sessions yet.</li>}
         {rows.map(r => {
           const isSelected = selectedIds.has(r.sessionId);
+          const removed = removedIds?.has(r.sessionId) ?? false;
           return (
             <li key={r.sessionId} className="sl-row-item">
               <button
                 type="button"
-                className={`sl-row state-${r.state}${isSelected ? " selected" : ""}`}
+                className={`sl-row state-${r.state}${isSelected ? " selected" : ""}${removed ? " removed" : ""}`}
                 aria-current={isSelected ? "true" : undefined}
                 onClick={() => onSelect(r.sessionId)}
-                title={`Focus ${r.label}`}
+                title={removed ? `Bring ${r.label} back to the board` : `Focus ${r.label}`}
               >
               {/* The dot stays hidden and the word beside it is new (#373).
                   A row's accessible name is its contents, so this joins it in
@@ -199,6 +207,10 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
               <div className="sl-row-body">
                 <div className="sl-row-head">
                   <span className="sl-label">{r.label}</span>
+                  {/* Words, in the row's name, rather than the dimming alone:
+                      the press on this row does something different, and a
+                      reader has to hear that before making it. */}
+                  {removed && <span className="sl-removed">off the board</span>}
                   {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={r.modelId}>{shortModel(r.modelId)}</span>}
                 </div>
                 <div className="sl-row-meta">
@@ -251,6 +263,29 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
           );
         })}
       </ul>
+      {(() => {
+        // Counted from what is off the board now, not from the stored ids: a
+        // removed session the deck has since forgotten is nothing to bring back.
+        const count = removedIds?.size ?? 0;
+        if (count === 0 || !onBringBackAll) return null;
+        return (
+          <div className="sl-foot">
+            <button
+              type="button"
+              className="btn sl-bring-back"
+              onClick={e => {
+                const panel = e.currentTarget.closest(".session-list");
+                onBringBackAll();
+                // The button leaves with the last removal; the list it was the
+                // foot of is where focus belongs next.
+                requestAnimationFrame(() => panel?.querySelector<HTMLButtonElement>(".sl-row")?.focus());
+              }}
+            >
+              Bring back {count} removed {count === 1 ? "card" : "cards"}
+            </button>
+          </div>
+        );
+      })()}
     </aside>
   );
 }

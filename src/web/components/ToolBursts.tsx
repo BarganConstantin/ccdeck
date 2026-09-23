@@ -559,6 +559,41 @@ export function cutLabel(label: string): string {
   return cp.length <= LABEL_MAX ? label : cp.slice(0, LABEL_MAX - 1).join("") + "…";
 }
 
+/** The longest a SUB-bubble's word may be, ellipsis included.
+ *
+ *  A sub-bubble is smaller type in a smaller pill: `.tool-burst.sub` is 140px
+ *  at 10px monospace, about 6.1px a character, and once the edge, padding,
+ *  glyph, gaps and status mark are paid for the name has roughly 80px — room
+ *  for thirteen characters, not LABEL_MAX's eighteen. Cut at eighteen, the
+ *  sheet cut it a second time around thirteen, with its own ellipsis and at the
+ *  end, so `package-lock.json` drew as `package-lock.…` — the extension, the
+ *  one part that says what kind of file it is, was the part that went. The cut
+ *  happens here now, at what the pill can show, and the sheet's max-width stays
+ *  only as the backstop for a glyph wider than the arithmetic assumed. The 140
+ *  cannot grow instead: 60 + 190 + 28 + 140 is already 418 of the 420px lane
+ *  (#978). */
+const SUB_LABEL_MAX = 13;
+
+/** A file name keeps an extension up to this long, dot included — `.json`,
+ *  `.tsx`, `.scss`. Past it the "extension" is more likely a word
+ *  (`Dockerfile.production`) and the name is cut at the end like any other. */
+const EXT_KEEP_MAX = 6;
+
+/** A sub-bubble's word, cut to what the pill shows. A file name is cut in the
+ *  middle so its extension survives (`package….json`); anything else — a
+ *  command, an MCP method, a glob — at the end, the way cutLabel cuts. On code
+ *  points, for the same reason cutLabel gives. */
+export function cutSubLabel(label: string, category: ToolCategory): string {
+  const cp = [...label];
+  if (cp.length <= SUB_LABEL_MAX) return label;
+  const dot = cp.lastIndexOf(".");
+  const ext = dot > 0 ? cp.slice(dot) : [];
+  if (category === "file" && ext.length > 1 && ext.length <= EXT_KEEP_MAX) {
+    return cp.slice(0, SUB_LABEL_MAX - 1 - ext.length).join("") + "…" + ext.join("");
+  }
+  return cp.slice(0, SUB_LABEL_MAX - 1).join("") + "…";
+}
+
 export function primaryDisplayFor(toolName: string): PrimaryDisplay {
   const mcp = parseMcpName(toolName);
   if (mcp) {
@@ -653,8 +688,12 @@ interface Burst {
   agentId: string;
   /** Original tool name (e.g. "Bash"). Always present; goes into the tooltip. */
   toolName: string;
-  /** Display label. */
+  /** Display label — cut to what the pill can show. */
   name: string;
+  /** A sub-bubble's word before it was cut, for the tooltip: a tooltip that
+   *  repeats the cut label recovers nothing. A primary's tooltip leads with
+   *  the raw tool name instead, so it has no need of one. */
+  fullName?: string;
   /** Display emoji. */
   emoji: string;
   /** True for shell sub-bubbles. Lets us style them slightly differently. */
@@ -792,7 +831,8 @@ export function collectBursts(
           toolId: t.id,
           agentId: a.id,
           toolName: t.name,
-          name: cutLabel(skin.label),
+          name: cutSubLabel(skin.label, skin.category),
+          fullName: skin.label,
           emoji: skin.emoji,
           isSub: true,
           status,
@@ -952,7 +992,7 @@ function sameBubble(p: BubbleProps, q: BubbleProps): boolean {
     && a.id === c.id && a.toolId === c.toolId && a.worldX === c.worldX && a.worldY === c.worldY
     && a.spawnDx === c.spawnDx && a.spawnDy === c.spawnDy && a.status === c.status && a.fading === c.fading
     && a.category === c.category && a.mcpHue === c.mcpHue && a.isSub === c.isSub && a.emoji === c.emoji
-    && a.name === c.name && a.toolName === c.toolName && a.inputPreview === c.inputPreview;
+    && a.name === c.name && a.fullName === c.fullName && a.toolName === c.toolName && a.inputPreview === c.inputPreview;
 }
 
 /** One bubble, memoised on what it draws (#873). On an idle board the clock
@@ -971,7 +1011,9 @@ const Bubble = memo(function Bubble({ b, x, y, zoom, dim, onOpenTool }: BubblePr
         };
         // Tooltip always shows the underlying tool (Bash/PowerShell/…) so
         // the transport is never hidden, plus the input preview when present.
-        const titleHead = b.isSub ? `${b.toolName} · ${b.name}` : b.toolName;
+        // A sub's word is the uncut one: the tooltip is where a cut name is
+        // read in full.
+        const titleHead = b.isSub ? `${b.toolName} · ${b.fullName ?? b.name}` : b.toolName;
         const title = b.inputPreview ? `${titleHead} · ${b.inputPreview}` : titleHead;
         const clickable = onOpenTool != null;
         // For unknown MCP servers we hand the sheet the hashed hue and let

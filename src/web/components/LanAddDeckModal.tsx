@@ -414,11 +414,17 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
               <div className="ap-lan-invite">
                 <div className="ap-lan-invite-head">
                   <span className="ap-lan-invite-title">Send this to them</span>
-                  <span className="ap-lan-invite-left">{leftLabel(live.expiresAt, now)} left</span>
+                  <span className="ap-lan-invite-left" id="lan-invite-left">{leftLabel(live.expiresAt, now)} left</span>
                 </div>
                 <code className="ap-lan-token">{live.token}</code>
                 <div className="ap-lan-acts">
+                  {/* Focus lands here once an invite is made, so this is the
+                      first thing a screen reader says about it: a bare "copy"
+                      named nothing. It is named for what it copies and
+                      described by how long the invite has left. */}
                   <button type="button" className="ap-manage-btn" ref={copyRef} {...pressProps("copy:invite")}
+                    aria-label={copied === "invite" ? "Invite copied" : "Copy invite"}
+                    aria-describedby="lan-invite-left"
                     onClick={() => void copyText(live.token, "invite")}
                     title="Copy it, and send it however you already talk to them">
                     {copied === "invite" ? "copied" : "copy"}

@@ -1,7 +1,10 @@
 // Reserve enough width for the visible primary label across tool families so
 // a chained sub-bubble does not overlap it. Bound long labels to fit the lane.
 import { describe, it, expect } from "vitest";
-import { primaryBubbleWidth, primaryDisplayFor } from "../components/ToolBursts";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import type { AgentNodeData, ToolCall } from "../types";
+import { collectBursts, cutSubLabel, primaryBubbleWidth, primaryDisplayFor } from "../components/ToolBursts";
 
 /** Same constants the layout uses: the fixed floor and the sub-bubble gap. */
 const ESTIMATED_BUBBLE_W = 96;
@@ -88,5 +91,70 @@ describe("a bubble's word is bounded before it is measured", () => {
     const subWidth = 140;
     expect([...primary.label].length).toBeLessThanOrEqual(18);
     expect(60 + primaryWidth + SUB_GAP + subWidth).toBeLessThanOrEqual(420);
+  });
+});
+
+// ── the sub-bubble's word, cut once ─────────────────────────────────────────
+//
+// A sub is 140px at 10px monospace — about thirteen characters of name once its
+// chrome is paid. It used to be cut at the primary's eighteen and then cut
+// AGAIN by the sheet's ellipsis, at the end, so `package-lock.json` drew as
+// `package-lock.…`: the extension went, and the tooltip repeated the cut word.
+const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+
+function subFor(name: string, input: unknown) {
+  const now = 1_000_000;
+  const tool: ToolCall = { id: "t1", name, inputPreview: "", input, startedAt: now - 100 };
+  const agent: AgentNodeData = {
+    id: "a1", sessionId: "s1", label: "a1", kind: "root", state: "active",
+    startedAt: now - 1000, tools: [tool], prompts: [], toolCount: 1, childCount: 0,
+    usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 },
+  };
+  const all = collectBursts(new Map([[agent.id, agent]]), new Set([agent.id]),
+    new Map([[agent.id, { x: 0, y: 0 }]]), new Map(), new Map([[agent.id, { width: 260, height: 130 }]]), now);
+  return all.find(b => b.isSub);
+}
+
+describe("a sub-bubble's word is cut to what its pill shows", () => {
+  it("keeps a file's extension, cutting the middle", () => {
+    expect(cutSubLabel("package-lock.json", "file")).toBe("package….json");
+    expect(cutSubLabel("AccountProjectsModal.tsx", "file")).toBe("AccountP….tsx");
+    // Thirteen code points, the ellipsis counted — the whole of what the pill shows.
+    expect([...cutSubLabel("AccountProjectsModal.tsx", "file")]).toHaveLength(13);
+  });
+
+  it("leaves a name that fits, and cuts anything else at the end", () => {
+    expect(cutSubLabel("styles.css", "file")).toBe("styles.css");
+    expect(cutSubLabel("thirteen-char", "file")).toBe("thirteen-char");
+    // Not a file: a command or a method is cut the way every label is.
+    expect(cutSubLabel("create_pull_request", "mcp")).toBe("create_pull_…");
+    // An "extension" too long to be one is part of the name.
+    expect(cutSubLabel("Dockerfile.production", "file")).toBe("Dockerfile.p…");
+    // A dotfile's leading dot is not an extension.
+    expect(cutSubLabel(".eslintrc-with-a-long-name", "file")).toBe(".eslintrc-wi…");
+  });
+
+  it("draws the cut word on the pill and the whole one in its tooltip", () => {
+    const sub = subFor("Read", { file_path: "/repo/package-lock.json" });
+    expect(sub?.name).toBe("package….json");
+    expect(sub?.fullName).toBe("package-lock.json");
+    const bursts = read("../components/ToolBursts.tsx");
+    expect(bursts).toMatch(/const titleHead = b\.isSub \? `\$\{b\.toolName\} · \$\{b\.fullName \?\? b\.name\}` : b\.toolName;/);
+    // The memo compares it, or a new full name would never reach the title.
+    expect(bursts).toMatch(/a\.fullName === c\.fullName/);
+  });
+
+  it("counts against the same 140px the sheet caps the pill at, which the lane cannot grow", () => {
+    const css = read("../styles.css");
+    const sub = /\.tool-burst\.sub \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(sub).toMatch(/max-width: 140px;/);
+    // The longest word the cut lets through, at 10px monospace (~6.1px each,
+    // letter-spacing included), plus the pill's chrome: 2px edge, 18px padding,
+    // a 12px emoji at ~15px, two 6px gaps and a ~12px status mark.
+    const longest = [...cutSubLabel("x".repeat(40), "shell")].length;
+    expect(longest * 6.1 + 2 + 18 + 15 + 6 + 6 + 12).toBeLessThanOrEqual(140);
+    // Widest primary + gap + this sub, from the agent's 60px offset: the lane
+    // has no room for a wider sub.
+    expect(60 + 190 + SUB_GAP + 140).toBeLessThanOrEqual(420);
   });
 });

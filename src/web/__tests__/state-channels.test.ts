@@ -462,7 +462,9 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // still means the first literal `>` is not a safe opening-tag boundary.
     const row = /<li key=\{r\.sessionId\}[\s\S]*?<button[\s\S]*?<span/.exec(sessionList)![0];
     expect(row).not.toMatch(/aria-label/);
-    expect(row).toMatch(/title=\{`Focus \$\{r\.label\}`\}/);
+    // Pointed at what the press does, which for a row "Remove from board"
+    // took off the canvas is bringing it back rather than focusing it.
+    expect(row).toMatch(/title=\{removed \? `Bring \$\{r\.label\} back to the board` : `Focus \$\{r\.label\}`\}/);
     const toolRow = /<button className="tool clickable"[^>]*>/.exec(app)![0];
     expect(toolRow).not.toMatch(/aria-label/);
   });
