@@ -245,17 +245,21 @@ describe("every control that moves the viewport reaches that rule", () => {
 });
 
 describe("the fits the deck asks for stay marked as its own", () => {
-  it("stamps the fit-time ref beside every fitView the deck calls", () => {
-    // stepAgent, focusSession and the selected ribbon. Under onMoveStart these
-    // were safe by accident — a programmatic fit carries no source event and
-    // never reached it. onMove does see them, so the stamp is now what stands
-    // between an auto-fit deck and an auto-fit deck that switches itself off
-    // the first time anyone clicks a session in the list.
+  it("stamps the fit-time ref beside every fit and focus the deck makes", () => {
+    // stepAgent, focusSession and the selected ribbon, which called fitView
+    // over one node until the adaptive graph routed all three — with a
+    // cluster's name, a double-click and Z — through focusAgent. Under
+    // onMoveStart these were safe by accident — a programmatic fit carries no
+    // source event and never reached it. onMove does see them, so the stamp is
+    // now what stands between an auto-fit deck and an auto-fit deck that
+    // switches itself off the first time anyone clicks a session in the list.
+    // A focus turns auto-fit off on purpose (see focusAgent); it still stamps,
+    // so its move is never ALSO read as a drag.
     const lines = appCode.split("\n");
     const calls = lines
       .map((line, i) => ({ line, i }))
-      .filter(({ line }) => /\brf\.fitView\(/.test(line));
-    expect(calls.length).toBeGreaterThanOrEqual(3);
+      .filter(({ line }) => /\brf\.fitView\(|\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
+    expect(calls.length).toBeGreaterThanOrEqual(2);
     for (const { i } of calls) {
       expect(lines.slice(i, i + 4).join("\n")).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
     }

@@ -15,12 +15,15 @@
 // and its EventSource both send, on every browser new enough to run this
 // bundle, and no non-browser client sends it by accident.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { request } from "node:http";
-import type { Server } from "node:http";
+import type { IncomingHttpHeaders, Server } from "node:http";
+import { fileURLToPath } from "node:url";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
+import { GROUPS as STRIP_GROUPS } from "../components/MachineStrip";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-guarded-reads-"));
 process.env.HOME = DIR;
@@ -52,14 +55,40 @@ const get = (path: string, headers: Record<string, string> = {}) =>
     });
     req.on("error", reject);
     // SSE never ends on its own; the status line is all this asks for.
-    req.setTimeout(4000, () => { req.destroy(); resolve_(0); });
+    //
+    // FIFTEEN SECONDS, AND IT IS NOT A HAPPY-PATH WAIT: the status line comes
+    // back as soon as the route answers, so this number is only what a hung
+    // request costs. Four was one of them on a Windows runner — reading
+    // /api/claude-accounts spawns claude-swap, and a cold spawn there is
+    // slower than a whole answer here — and a timeout that fires resolves 0,
+    // which reads as "the deck refused the page" rather than as "this test
+    // gave up". It failed that way twice on green branches.
+    req.setTimeout(15_000, () => { req.destroy(); resolve_(0); });
     req.end();
   });
 
 const uiHeaders = (p = port) => ({ host: `127.0.0.1:${p}`, "sec-fetch-site": "same-origin" });
 
+/** The whole answer, for the cases that care what came back and not only that
+ *  something did. Never pointed at /events, which does not end. */
+const getJson = (path: string, headers: Record<string, string> = {}) =>
+  new Promise<{ status: number; body: any; raw: string; headers: IncomingHttpHeaders }>((resolve_, reject) => {
+    const req = request({ host: "127.0.0.1", port, path, method: "GET", headers }, res => {
+      let raw = "";
+      res.setEncoding("utf8");
+      res.on("data", c => { raw += c; });
+      res.on("end", () => {
+        let body: any = null;
+        try { body = JSON.parse(raw); } catch { /* not JSON; `raw` has it */ }
+        resolve_({ status: res.statusCode ?? 0, body, raw, headers: res.headers });
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+
 describe("what a plain loopback client can read", () => {
-  for (const path of ["/api/events", "/api/claude-accounts", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
+  for (const path of ["/api/events", "/api/claude-accounts", "/api/claude-accounts/login", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`refuses ${path} with no browser headers and no token`, async () => {
       expect(await get(path)).toBe(401);
     });
@@ -71,16 +100,31 @@ describe("what a plain loopback client can read", () => {
 });
 
 describe("what the deck's own page can read", () => {
-  for (const path of ["/api/events", "/api/claude-accounts", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
+  // Exactly 200, not merely "not 401". A gate change that answered the deck's
+  // own page with 403 — or a route that fell over behind the gate — would pass
+  // a test that only asks whether the refusal it is looking for came back, and
+  // the panel it locks out would find out first (#1168).
+  for (const path of ["/api/events", "/api/claude-accounts", "/api/claude-accounts/login", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`allows ${path} for a same-origin request addressed to loopback`, async () => {
-      expect(await get(path, uiHeaders())).not.toBe(401);
-    });
+      expect(await get(path, uiHeaders())).toBe(200);
+      // Above the suite's 20s default, because the accounts routes spawn
+      // claude-swap and a first spawn on a loaded Windows runner is slow.
+    }, 30_000);
   }
+
+  it("answers the sign-in route with the dialog's own state, which is idle until somebody signs in", async () => {
+    // The one guarded read whose answer can carry a live OAuth authorize URL and
+    // the account being added. Nobody has started a sign-in here, so what the
+    // page reads is the idle state — and it reads it rather than a refusal.
+    const r = await getJson("/api/claude-accounts/login", uiHeaders());
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, state: "idle" });
+  });
 
   it("allows the token instead, for a client that is not a browser", async () => {
     const token = mod.hookToken();
     expect(typeof token).toBe("string");
-    expect(await get("/api/events", { "x-ccdeck-token": token })).not.toBe(401);
+    expect(await get("/api/events", { "x-ccdeck-token": token })).toBe(200);
   });
 
   it("refuses a rebound page, which also reports same-origin", async () => {
@@ -105,8 +149,31 @@ describe("a browser that sends no fetch metadata", () => {
   // cannot act on. Referer is what they do send, on a page's own fetches and on
   // its EventSource.
   it("is recognised by a Referer naming this very origin", async () => {
-    expect(await get("/api/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port}/` })).not.toBe(401);
-    expect(await get("/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port}/` })).not.toBe(401);
+    expect(await get("/api/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port}/` })).toBe(200);
+    expect(await get("/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port}/` })).toBe(200);
+  });
+
+  // A REBOUND page on that same browser, which is the case the fallback above
+  // has to get right and had no test. Its Referer and its Host agree, on the
+  // attacker's name, so `originMatchesHost(referer, host)` says yes — and before
+  // #1168 the one thing standing between it and the ring was the loopback test
+  // at the top of isAuthorizedDataRead. It is turned away a step earlier now, by
+  // the rebinding gate, which counts a Referer as the mark of a page; 403 says
+  // which gate did it, as it does for the same-origin rebound shape above.
+  for (const path of ["/api/events", "/events", "/api/claude-accounts", "/api/claude-accounts/login", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
+    it(`refuses ${path} to a rebound page whose Referer agrees with its Host`, async () => {
+      expect(await get(path, {
+        host: `attacker.example:${port}`,
+        referer: `http://attacker.example:${port}/`,
+      })).toBe(403);
+    });
+  }
+
+  it("refuses a client that names another host and presents nothing", async () => {
+    // Not a page, so the rebinding gate lets it by — hook.js reaches the deck
+    // under whatever name it used — but naming the deck by another name earns
+    // no more than naming it by its own: the token is still the way in.
+    expect(await get("/api/events", { host: `deck.local:${port}` })).toBe(401);
   });
 
   it("is refused when the Referer names somebody else", async () => {
@@ -198,5 +265,168 @@ describe("what stays open, and why", () => {
     // These are about the machine, not about what the user is doing on it, and
     // nothing in them names a session, a path or a prompt.
     expect(await get("/api/system")).toBe(200);
+  });
+
+  // The route glue in front of historySnapshot, which is tested on its own and
+  // was never asked through the socket (#1168). The allowlist is the part with
+  // two ways to go wrong: drift from the names the UI sends and a chart opens
+  // empty or on an error; drop it and a group that does not exist answers as a
+  // machine with nothing to report. So the names are read from the two places
+  // that send them rather than typed a third time here.
+  it("answers every history section the machine panel and the strip ask for", async () => {
+    const panel = readFileSync(fileURLToPath(new URL("../components/MachinePanel.tsx", import.meta.url)), "utf8");
+    const asked = new Set<string>([
+      ...[...panel.matchAll(/<OpensHistory\s+group="(\w+)"/g)].map(m => m[1]),
+      ...STRIP_GROUPS,
+    ]);
+    // Five, so a reading of the panel that found nothing cannot pass for one
+    // that found everything.
+    expect([...asked].sort()).toEqual(["cores", "load", "memory", "network", "thermal"]);
+    for (const group of asked) {
+      const r = await getJson(`/api/system/history?group=${group}`);
+      expect(r.status, group).toBe(200);
+      expect(Array.isArray(r.body?.series), `${group} has no series`).toBe(true);
+    }
+  });
+
+  it("refuses a history section that does not exist rather than drawing it empty", async () => {
+    for (const query of ["?group=bogus", "?group=", "", "?group=CORES"]) {
+      const r = await getJson(`/api/system/history${query}`);
+      expect(r.status, query || "(no group)").toBe(400);
+      expect(r.body).toEqual({ ok: false, error: "unknown_group" });
+    }
+  });
+
+  it("answers the process list, and reads the argument vector only for the modal that asks", async () => {
+    // Plain first: a detailed reading is cached for a poll and serves a plain
+    // caller too, so the other order would read the modal's answer twice.
+    const plain = await getJson("/api/system/processes");
+    expect(plain.status).toBe(200);
+    expect(plain.body.ok).toBe(true);
+    expect(typeof plain.body.total).toBe("number");
+    expect(Array.isArray(plain.body.procs)).toBe(true);
+    // The command tail is the one field that has ever been near an argv, and
+    // it is `detail=1` that asks for it — a panel that never opens the modal
+    // never reads one.
+    expect(plain.body.procs.some((p: Record<string, unknown>) => "cmd" in p)).toBe(false);
+
+    const detailed = await getJson("/api/system/processes?detail=1");
+    expect(detailed.status).toBe(200);
+    expect(detailed.body.ok).toBe(true);
+    // On POSIX the plain rows carry no thread count and the detailed ones do,
+    // which is the flag reaching readProcesses. Windows reads Threads on its one
+    // Get-Process call either way, and that call sits on its own six-second
+    // deadline, so there the rows prove nothing about the flag.
+    if (process.platform !== "win32") {
+      expect(plain.body.procs.length).toBeGreaterThan(0);
+      expect(plain.body.procs.some((p: Record<string, unknown>) => "threads" in p)).toBe(false);
+      expect(detailed.body.procs.some((p: { threads?: number }) => Number.isInteger(p.threads) && p.threads! > 0)).toBe(true);
+    }
+  }, 30_000);
+});
+
+// THE STATIC HANDLER, THROUGH THE SOCKET (#1168). cacheControlFor and
+// pickEncoding are unit-tested in static-cache's own suite, and what nobody
+// checked is that serveStatic still hands its answer to them: both could stay
+// right while the handler stopped using either. A lost no-cache on index.html
+// sends a tab reloaded after a self-update back to the old hashed bundle; a
+// Content-Encoding that does not match the bytes is a blank page. The build is
+// what is served, so this needs it — the register in skip-gates.mjs is what
+// notices a leg where it is missing.
+const dist = fileURLToPath(new URL("../../../dist/web/index.html", import.meta.url));
+
+describe.skipIf(!existsSync(dist))("the deck's own files, as a browser is served them", () => {
+  /** Bytes as they came off the wire: node:http does not decompress, which is
+   *  what lets the encoding be checked against the file rather than trusted. */
+  const fetchRaw = (path: string, headers: Record<string, string> = {}, method = "GET") =>
+    new Promise<{ status: number; headers: IncomingHttpHeaders; body: Buffer }>((resolve_, reject) => {
+      const req = request({ host: "127.0.0.1", port, path, method, headers }, res => {
+        const chunks: Buffer[] = [];
+        res.on("data", c => chunks.push(c));
+        res.on("end", () => resolve_({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+
+  const webRoot = dirname(dist);
+  const index = () => readFileSync(dist);
+  /** The bundle index.html names — a hashed file, so the immutable half. */
+  const bundle = () => {
+    const src = /src="\/(assets\/[^"]+\.js)"/.exec(index().toString("utf8"))?.[1];
+    if (!src) throw new Error("index.html names no bundle");
+    return src;
+  };
+
+  it("serves the page itself uncached, so a tab reloaded after an update asks again", async () => {
+    const r = await fetchRaw("/");
+    expect(r.status).toBe(200);
+    expect(r.headers["content-type"]).toMatch(/^text\/html\b/);
+    expect(r.headers["cache-control"]).toBe("no-cache");
+    expect(r.headers.vary).toBe("Accept-Encoding");
+    // Nothing was offered, so nothing is encoded, and the bytes are the file's.
+    expect(r.headers["content-encoding"]).toBeUndefined();
+    expect(r.body.equals(index())).toBe(true);
+  });
+
+  it("serves a hashed bundle for good, in the encoding the browser takes", async () => {
+    const rel = bundle();
+    const file = readFileSync(join(webRoot, rel));
+
+    const br = await fetchRaw(`/${rel}`, { "accept-encoding": "br" });
+    expect(br.status).toBe(200);
+    expect(br.headers["content-encoding"]).toBe("br");
+    expect(br.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+    expect(br.headers["content-type"]).toMatch(/javascript/);
+    expect(Number(br.headers["content-length"])).toBe(br.body.length);
+    // The label and the bytes agree — a mismatch here is a blank page.
+    expect(brotliDecompressSync(br.body).equals(file)).toBe(true);
+
+    const gz = await fetchRaw(`/${rel}`, { "accept-encoding": "gzip" });
+    expect(gz.headers["content-encoding"]).toBe("gzip");
+    expect(gunzipSync(gz.body).equals(file)).toBe(true);
+
+    const plain = await fetchRaw(`/${rel}`, { "accept-encoding": "identity" });
+    expect(plain.headers["content-encoding"]).toBeUndefined();
+    expect(plain.body.equals(file)).toBe(true);
+  });
+
+  it("answers a deep link with the page, uncached like the page", async () => {
+    // The SPA fallback. It used to omit the no-cache the normal path sends, and
+    // it is index.html either way — the file that names the bundle.
+    const r = await fetchRaw("/deep/link");
+    expect(r.status).toBe(200);
+    expect(r.headers["content-type"]).toMatch(/^text\/html\b/);
+    expect(r.headers["cache-control"]).toBe("no-cache");
+    expect(r.body.equals(index())).toBe(true);
+  });
+
+  it("answers a directory with a 404 rather than a listing or the page", async () => {
+    const r = await fetchRaw("/assets");
+    expect(r.status).toBe(404);
+    expect(JSON.parse(r.body.toString("utf8"))).toEqual({ error: "not found" });
+  });
+
+  it("never serves a file from outside the web root, however the path is spelled", async () => {
+    // The dot segments are resolved by the URL parser before the handler sees
+    // them, and an encoded slash is never decoded, so none of these can name a
+    // file above dist/web. package.json two levels up is the file they reach
+    // for; what comes back must not be it.
+    for (const path of [
+      "/../../package.json",
+      "/%2e%2e/%2e%2e/package.json",
+      "/..%2f..%2fpackage.json",
+      "/..%5c..%5cpackage.json",
+      "/assets/../../../package.json",
+    ]) {
+      const r = await fetchRaw(path);
+      expect(r.body.toString("utf8"), path).not.toContain('"name": "ccdeck"');
+    }
+  });
+
+  it("answers anything but a GET with 405, the token notwithstanding", async () => {
+    const r = await fetchRaw("/", { "x-ccdeck-token": mod.hookToken() }, "POST");
+    expect(r.status).toBe(405);
+    expect(JSON.parse(r.body.toString("utf8"))).toEqual({ error: "method not allowed" });
   });
 });

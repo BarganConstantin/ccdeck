@@ -30,20 +30,26 @@ describe("cluster labels stay readable at any zoom (#846)", () => {
   });
 });
 
-describe("a card's title is drawn big enough to read at the far tier (#846)", () => {
-  const far = /\.canvas-wrap\[data-detail="far"\] \.agent-node \.title\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+describe("what a card keeps at a distance is drawn at a size that reads (#846)", () => {
+  // The far tier kept the title row at the canvas's scale and scaled it back up
+  // by 0.9 / zoom — a state pill and one character of a name. The distances
+  // below the full card draw a face in its place instead, laid out in screen
+  // pixels (AgentNode's NodeFace); adaptive-graph.test.ts holds the rest of it.
+  const face = /\.canvas-wrap\[data-lod="compact"\] \.lod-face,\s*\.canvas-wrap\[data-lod="overview"\] \.lod-face\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
 
-  it("scales the title row up by 0.9 / zoom and widens it by the inverse", () => {
-    expect(far).toMatch(/transform:\s*scale\(calc\(0\.9 \/ var\(--zoom, 1\)\)\)/);
-    expect(far).toMatch(/width:\s*calc\(100% \* var\(--zoom, 1\) \/ 0\.9\)/);
-    expect(far).toMatch(/transform-origin:\s*left top/);
+  it("sizes the face to the card's box times the zoom and scales it back by the inverse", () => {
+    expect(face).toMatch(/width:\s*calc\(\(100% \+ 2px\) \* var\(--zoom, 1\)\)/);
+    expect(face).toMatch(/height:\s*calc\(\(100% \+ 2px\) \* var\(--zoom, 1\)\)/);
+    expect(face).toMatch(/transform:\s*scale\(calc\(1 \/ var\(--zoom, 1\)\)\)/);
+    expect(face).toMatch(/transform-origin:\s*left top/);
   });
 
-  it("uses a transform, not a font size, so no card's measured height changes", () => {
-    expect(far).not.toMatch(/font-size/);
+  it("is positioned over the card, so no card's measured size changes", () => {
+    expect(face).toMatch(/position:\s*absolute/);
+    expect(css).not.toMatch(/data-lod="(compact|overview)"\][^{]*\.agent-node\s*\{[^}]*(?:^|[;\s])(?:height|width|padding|font-size):/m);
   });
 
-  it("gets its zoom from the canvas, written where the detail tier is", () => {
+  it("gets its zoom from the canvas, written where the mode is", () => {
     expect(app).toMatch(/style\.setProperty\("--zoom", String\(vp\.zoom\)\)/);
   });
 });

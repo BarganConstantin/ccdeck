@@ -121,11 +121,17 @@ describe("the shape on disk", () => {
     expect(normalise({}).lan).toEqual({
       enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
       autoAsk: true, autoAccept: true, aliases: {}, shareActive: true,
+      // Tailscale discovery is off until somebody turns it on; its own two
+      // permissions ship on, and answer only for the owner's own machines.
+      tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
     });
     // Absent is the default; only a real boolean overrides it, because a
     // truthy string from a hand-edited file is not an answer.
     expect(normalise({ lan: { autoAccept: false } }).lan.autoAccept).toBe(false);
     expect(normalise({ lan: { autoAsk: "yes" } }).lan.autoAsk).toBe(true);
+    expect(normalise({ lan: { tailscale: true } }).lan.tailscale).toBe(true);
+    expect(normalise({ lan: { tailscale: "yes" } }).lan.tailscale).toBe(false);
+    expect(normalise({ lan: { tailscaleAccept: false } }).lan.tailscaleAccept).toBe(false);
   });
 
   it("does not lose the private key when a page toggles the switch", async () => {
@@ -144,6 +150,7 @@ describe("the shape on disk", () => {
     expect(saved.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
       autoAsk: true, autoAccept: true, aliases: {}, shareActive: true,
+      tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
     });
   });
 

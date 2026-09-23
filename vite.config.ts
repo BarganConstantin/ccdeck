@@ -24,8 +24,28 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      "/api": "http://127.0.0.1:4317",
-      "/events": "http://127.0.0.1:4317",
+      // READS WORKED HERE AND WRITES DID NOT, which is the worst shape a dev
+      // server can have: the panel polls, fills with real accounts and looks
+      // alive, and every press comes back refused.
+      //
+      // index.mjs guards mutations by comparing the request's Origin against
+      // its Host — a page may only change the deck it was served by. Through
+      // this proxy the page is served by :5174 and the request arrives at
+      // :4317, so the two never match and every POST is a 403 the UI could
+      // only report as `command failed`.
+      //
+      // `changeOrigin` rewrites Host to the target; the hook rewrites Origin to
+      // match it, and together they make a forwarded request look like what it
+      // is — the deck's own UI talking to the deck. THE DEV SERVER ONLY: it is
+      // not in the build, it binds loopback, and it already forwards reads of
+      // everything the writes would change.
+      ...Object.fromEntries(["/api", "/events"].map(path => [path, {
+        target: "http://127.0.0.1:4317",
+        changeOrigin: true,
+        configure: (proxy: { on: (e: string, fn: (req: { setHeader: (k: string, v: string) => void }) => void) => void }) => {
+          proxy.on("proxyReq", req => req.setHeader("origin", "http://127.0.0.1:4317"));
+        },
+      }])),
     },
   },
   // #499. There was no `test` block here at all, which meant every budget in

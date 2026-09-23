@@ -132,8 +132,16 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // 0px at 128 — where the 2px gaps consume the whole 250px content box and
     // the strip renders blank. After: 19px, 3.03px over two rows, 3.03px over
     // three. A 64-core workstation is inside this deck's audience.
-    expect(decl(".sd-cores", "display")).toBe("flex");
-    expect(decl(".sd-cores", "flex-wrap")).toBe("wrap");
+    //
+    // A grid rather than the wrapped flex row that first fixed this: flex
+    // distributes each LINE's own leftover, so 64 threads came out as fifty
+    // 3px columns above fourteen 14px ones — one reading drawn in two widths.
+    // Grid tracks are shared by every row, `minmax(3px, 1fr)` is the same
+    // floor, and `auto-fit` is what lets a 16-thread machine collapse the
+    // tracks it does not use and keep the full width.
+    expect(decl(".sd-cores", "display")).toBe("grid");
+    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fit, minmax(3px, 1fr))");
+    expect(decl(".sd-cores", "flex-wrap")).toBeNull();
     expect(decl(".sd-cores .sd-core", "min-width")).toBe("3px");
     expect(decl(".sd-cores .sd-core", "height")).toBe("26px");
   });

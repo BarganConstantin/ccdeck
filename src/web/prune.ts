@@ -5,6 +5,11 @@
 /** Anything that can answer "how many agents do I know about, and is this one
  *  of them" — a Map of agents keyed by id, or a plain Set of ids. */
 import { recapNoteId } from "./recap-note";
+import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "./board-limits";
+import {
+  pruneDoneSessions, pruneOldAgents, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools,
+  type ForgetSession, type GraphState,
+} from "./reducer";
 
 type LiveIds = { readonly size: number; has(id: string): boolean };
 
@@ -106,4 +111,55 @@ export function liveNodeIds(agents: Iterable<{ id: string; kind?: string }>): Se
     if (a.kind === "root") ids.add(recapNoteId(a.id));
   }
   return ids;
+}
+
+// ── the tick's whole sweep, in one place (#1175) ────────────────────────────
+
+/**
+ * What one 250 ms tick evicts from the board.
+ *
+ * `changed` is whether anything moved, which is what tells the page to render.
+ * `forgotten` is the whole-session ids the two pruners dropped, in the order
+ * they dropped them — the list the page POSTs to `/api/forget`.
+ */
+export interface SweepResult {
+  changed: boolean;
+  forgotten: string[];
+}
+
+/**
+ * The four sweeps the tick runs, on the shipped constants, with the ids they
+ * evicted collected.
+ *
+ * ORDER AND CONSTANTS ARE THE POINT, so they are here rather than written out
+ * inside a React effect where nothing can run them. Both staleness sweeps ask
+ * the same question — is this session still there? — about two things that die
+ * together, so they share STALE_SESSION_MS (#436): asking it on two clocks
+ * failed a session's tool calls an hour and a half before the deck was willing
+ * to call that session gone, and stamped a red × on every `Bash` slower than a
+ * minute and a half.
+ *
+ * AND THE SERVER IS TOLD WHAT LEFT (#1024). Both pruners drop whole sessions,
+ * and the server keeps two caches that gate an emit on "has this changed" — a
+ * session's name and each subagent's model. Nothing told them the page had
+ * forgotten a session, so a session evicted while idle and then resumed never
+ * got a `SessionNamed` again and showed as unnamed in the sidebar and on the
+ * card for the rest of the day, recoverable only by reloading the tab. #445's
+ * own measurement: 7 of 20 evicted sessions went on to emit more events.
+ *
+ * One list for the whole tick rather than one per pruner, because the two run
+ * back to back and a cap coming down by six is six ids, not six requests. An
+ * empty list is the caller's signal to send nothing at all.
+ */
+export function sweepTick(state: GraphState, t: number): SweepResult {
+  let changed = sweepStaleTools(state, t, STALE_SESSION_MS);
+  if (sweepStaleSessions(state, t, STALE_SESSION_MS)) changed = true;
+  const forgotten: string[] = [];
+  const forget: ForgetSession = sid => { forgotten.push(sid); };
+  // Prune long-finished agents so memory does not grow over multi-day sessions.
+  if (pruneOldAgents(state, t, AGENT_CAP, AGENT_GRACE_MS, forget)) changed = true;
+  // And keep the canvas to the last few finished sessions, so a long day of
+  // work does not bury the running ones under everything already done.
+  if (pruneDoneSessions(state, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS, forget)) changed = true;
+  return { changed, forgotten };
 }

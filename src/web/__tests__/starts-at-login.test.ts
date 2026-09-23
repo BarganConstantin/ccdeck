@@ -12,8 +12,11 @@
 // policies over one process is how `--stop` becomes a suggestion the machine
 // overrules a second later.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rmTempDir } from "./rm-temp-dir";
 
 // @ts-expect-error — plain .mjs module, no types
 const svc = await import("../../server/login-service.mjs");
@@ -21,7 +24,7 @@ const svc = await import("../../server/login-service.mjs");
 const globalInstall = await import("../../server/global-install.mjs");
 const {
   SERVICE_LABEL, SERVICE_RECORD, installService, plistFor, readServiceRecord, registerCommand,
-  servicePath, shouldOfferService, taskXmlFor, unitFor, unregisterCommand, xmlEscape,
+  servicePath, shouldOfferService, taskXmlFor, unitFor, unregisterCommand, writeServiceRecord, xmlEscape,
 } = svc as Record<string, any>;
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -371,6 +374,52 @@ describe("offering it exactly once", () => {
     expect(readServiceRecord("/x", { fs: { readFileSync: () => '{"installed":"1"}' } }))
       .toEqual({ installed: "1" });
     expect(SERVICE_RECORD).toBe("service.json");
+  });
+
+  // Every case above hands shouldOfferService a record literal, or reads one
+  // through a fake fs. None writes one the way bin/deck.js does and reads it
+  // back the way the next boot does — and that round trip IS the promise: after
+  // `--uninstall-service`, every later start must find the record and leave the
+  // login item gone. A writer and a reader that drift apart — a different name,
+  // a different join, a shape the reader rejects — put the LaunchAgent, the
+  // systemd unit or the scheduled task back on the very next start.
+  it("reads back what it wrote, so the next start does not undo an uninstall", () => {
+    const root = mkdtempSync(join(tmpdir(), "ccdeck-service-record-"));
+    try {
+      // Nested and not yet created, because on the machine the first
+      // `--uninstall-service` is typed on the data directory may never have
+      // existed.
+      const dir = join(root, "nested", "data");
+      const records = [
+        { removed: "2026-09-21T00:00:00.000Z", version: "9.9.9" },
+        { installed: "9.9.9", at: "2026-09-21T00:00:00.000Z", path: "/Users/x/Library/LaunchAgents/dev.ccdeck.plist" },
+        { failed: "EPERM", at: "2026-09-21T00:00:00.000Z", version: "9.9.9" },
+      ];
+      for (const rec of records) {
+        expect(writeServiceRecord(dir, rec)).toBe(true);
+        expect(JSON.parse(readFileSync(join(dir, SERVICE_RECORD), "utf8"))).toEqual(rec);
+        expect(readServiceRecord(dir)).toEqual(rec);
+        // Whatever this tool last did, it did it once, and the offer is spent.
+        expect(shouldOfferService({ record: readServiceRecord(dir), env: {} })).toBe(false);
+      }
+      // Private, like everything else the deck keeps: the record names the
+      // login item's path and what this account did with it.
+      if (process.platform !== "win32") expect(statSync(dir).mode & 0o777).toBe(0o700);
+    } finally {
+      rmTempDir(root);
+    }
+  });
+
+  it("answers false rather than throwing when the record cannot be kept", () => {
+    // A read-only or full home must not turn a successful `--install-service`
+    // into a crash. The cost of losing the record is one more offer on this
+    // machine, which is far smaller than a deck that will not start.
+    const readOnly = {
+      mkdirSync() { /* already there */ },
+      writeFileSync() { throw Object.assign(new Error("read-only file system"), { code: "EROFS" }); },
+    };
+    expect(() => writeServiceRecord("/x", { removed: "now" }, { fs: readOnly })).not.toThrow();
+    expect(writeServiceRecord("/x", { removed: "now" }, { fs: readOnly })).toBe(false);
   });
 });
 

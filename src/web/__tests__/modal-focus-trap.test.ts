@@ -271,7 +271,7 @@ describe("the deck's ten overlays", () => {
     // The sixteenth is the guide — the two picture tours share one dialog —
     // and the seventeenth is a deck's own dialog, opened from its row in
     // Local network.
-    expect(MODALS.length).toBe(17);
+    expect(MODALS.length).toBe(18);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -306,6 +306,10 @@ describe("the deck's ten overlays", () => {
     // first control. What none of them may do any more is nothing.
     const named = MODALS.filter(f => /useModalDismiss\([^)]*focusRef/s.test(read(f)));
     expect(named.sort()).toEqual([
+      // The projects report names its ×, for the reason the usage modal does:
+      // its header opens with a range strip, and a greeting of "7d" reads as a
+      // setting to change rather than a thing to read or leave.
+      "AccountProjectsModal.tsx",
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
       // A guide names Next, because it is read forwards: a reader who opened
       // it with Enter can keep pressing Enter to the end, and the × is still

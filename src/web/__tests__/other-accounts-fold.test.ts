@@ -26,18 +26,20 @@ const dead = (name: string) =>
   peer(name, 96, { ready: false, why: "Login expired", warn: true });
 /** Nothing is switching by itself, and the live account has room. */
 const BY_HAND = { strained: false, armed: false };
+/** Armed at the stored threshold, which is what the tail then says. */
+const ARMED = { strained: false, armed: true, threshold: "90" };
 
 describe("what the row says", () => {
   it("counts the ones a switch would reach, out of how many there are", () => {
-    expect(restLine([peer("a", 10), peer("b", 20)], BY_HAND)).toMatchObject({ text: "2 ready", tone: "ok" });
-    expect(restLine([peer("a", 10), dead("b")], BY_HAND)).toMatchObject({ text: "1 of 2 ready", tone: "ok" });
-    expect(restLine([dead("a"), dead("b")], BY_HAND)).toMatchObject({ text: "none of 2 ready", tone: "idle" });
+    expect(restLine([peer("a", 10), peer("b", 20)], BY_HAND)).toMatchObject({ text: "2 ready · auto off", tone: "ok" });
+    expect(restLine([peer("a", 10), dead("b")], BY_HAND)).toMatchObject({ text: "1 of 2 ready · auto off", tone: "ok" });
+    expect(restLine([dead("a"), dead("b")], BY_HAND)).toMatchObject({ text: "none of 2 ready · auto off", tone: "idle" });
   });
 
   it("says a set of one as a state, not as arithmetic", () => {
     // `none of 1 ready` is a sum over a set the reader can see the whole of.
-    expect(restLine([dead("a")], BY_HAND).text).toBe("not ready");
-    expect(restLine([peer("a", 4)], BY_HAND).text).toBe("1 ready");
+    expect(restLine([dead("a")], BY_HAND).text).toBe("not ready · auto off");
+    expect(restLine([peer("a", 4)], BY_HAND).text).toBe("1 ready · auto off");
   });
 
   it("counts no faults beside the count, because an account that cannot be reached is already missing from it", () => {
@@ -51,18 +53,18 @@ describe("what the row says", () => {
 
   it("prints the freest number only while the live account is past the threshold", () => {
     const peers = [peer("a", 40), peer("b", 96)];
-    expect(restLine(peers, BY_HAND).text).toBe("2 ready");
+    expect(restLine(peers, BY_HAND).text).toBe("2 ready · auto off");
     expect(restLine(peers, { strained: true, armed: false }))
-      .toMatchObject({ text: "2 ready · 96% free", free: 96 });
+      .toMatchObject({ text: "2 ready · 96% free · auto off", free: 96 });
   });
 
   it("looks for that number among the ones it could actually switch to", () => {
     // The emptiest account in the store is no answer at all when its login is
     // dead: the row would be sending the reader somewhere the switch refuses.
     const strained = { strained: true, armed: false };
-    expect(restLine([peer("a", 40), dead("b")], strained).text).toBe("1 of 2 ready · 40% free");
+    expect(restLine([peer("a", 40), dead("b")], strained).text).toBe("1 of 2 ready · 40% free · auto off");
     // And it says nothing rather than guessing when nothing has been read.
-    expect(restLine([peer("a", null)], strained)).toMatchObject({ text: "1 ready", free: null });
+    expect(restLine([peer("a", null)], strained)).toMatchObject({ text: "1 ready · auto off", free: null });
     expect(restLine([dead("a")], strained).free).toBe(null);
   });
 });
@@ -73,32 +75,61 @@ describe("what the row says once something else is doing the switching", () => {
     // a candidate beside a policy that will choose its own is a second opinion
     // nobody asked for, and the account it names may not be the one taken.
     const peers = [peer("a", 40), peer("b", 96)];
-    expect(restLine(peers, { strained: true, armed: true }))
-      .toMatchObject({ text: "2 ready", free: null });
+    expect(restLine(peers, { strained: true, armed: true, threshold: "90" }))
+      .toMatchObject({ text: "2 ready · auto 90%", free: null });
+  });
+
+  it("says whether the policy is on, and at what, because the toggle is behind this row now", () => {
+    // A control nobody can see is a control nobody can tell the state of, and
+    // `off` has to be as sayable as `on`: a row that only spoke while armed
+    // would leave a reader unable to tell a deck that will not switch from a
+    // row that does not mention switching.
+    expect(restLine([peer("a", 4)], ARMED).text).toBe("1 ready · auto 90%");
+    expect(restLine([peer("a", 4)], BY_HAND).text).toBe("1 ready · auto off");
+    // The threshold rides with `on` because it is the whole of what on means.
+    expect(restLine([peer("a", 4)], { ...ARMED, threshold: "85" }).text).toBe("1 ready · auto 85%");
+    // And a panel that has not read the setting yet says on without a number,
+    // rather than a number it does not have.
+    expect(restLine([peer("a", 4)], { strained: false, armed: true }).text).toBe("1 ready · auto on");
+  });
+
+  it("fits its widest line in the column, which is every clause at once", () => {
+    // `10 of 12 ready · 91% free · auto off` measured 247px against 247px of
+    // room at 11px — the glyph coming off this row is what paid for it.
+    const wide = restLine(
+      [...Array.from({ length: 10 }, (_, i) => peer(`a${i}`, 91 - i)), dead("x"), dead("y")],
+      { strained: true, armed: false },
+    );
+    expect(wide.text).toBe("10 of 12 ready · 91% free · auto off");
+    expect(wide.text.length).toBeLessThanOrEqual(40);
   });
 
   it("never names which one is next, because this side of the wire does not know", () => {
     // A tick shells out to `cswap auto --once` and claude-swap picks the
     // target; the deck only learns what happened afterwards. See cswap-auto.mjs.
-    const armed = { strained: true, armed: true };
-    expect(restLine([peer("a", 40), peer("b", 96)], armed).text).not.toMatch(/next|will|→/);
+    expect(restLine([peer("a", 40), peer("b", 96)], { ...ARMED, strained: true }).text)
+      .not.toMatch(/next|will|→/);
   });
 
   it("raises the one alarm neither the bars nor the toggle can show: armed, with nowhere to go", () => {
     // Auto-switch reads as on, the live bar fills, and at the threshold nothing
     // happens — every other account is held out or its login is dead. The
     // control it names is the next row down.
-    expect(restLine([dead("a"), dead("b")], { strained: false, armed: true }))
+    expect(restLine([dead("a"), dead("b")], ARMED))
       .toEqual({ text: "Auto-switch has nowhere to go", tone: "bad", free: null });
+    // It replaces the tail rather than standing beside it: the sentence already
+    // names the policy, and `… · auto 90%` after it would say the thing is on
+    // twice in one line.
+    expect(restLine([dead("a"), dead("b")], ARMED).text).not.toMatch(/auto 90%/);
     // Not gated on strain: signing an account back in takes minutes, and a
     // warning that waits for the wall arrives with the wall.
-    expect(restLine([dead("a")], { strained: false, armed: true }).tone).toBe("bad");
+    expect(restLine([dead("a")], ARMED).tone).toBe("bad");
     // Nothing armed, nothing to say beyond the count — the reader can see the
     // same absence and there is no promise being broken.
     expect(restLine([dead("a"), dead("b")], BY_HAND).tone).toBe("idle");
     // And one account that can still be reached is not a policy with nowhere
     // to go, however full it is.
-    expect(restLine([peer("a", 2), dead("b")], { strained: true, armed: true }).tone).toBe("ok");
+    expect(restLine([peer("a", 2), dead("b")], { ...ARMED, strained: true }).tone).toBe("ok");
   });
 
   it("is armed by a terminal loop too, not only by the deck's own toggle", () => {
@@ -185,23 +216,26 @@ describe("the row, in Local network's idiom and with its timings", () => {
 
   it("says which way it goes, to a screen reader and to an eye", () => {
     expect(fold).toMatch(/aria-expanded=\{open\}/);
-    expect(fold).toMatch(/aria-controls=\{open \? "ap-rest-list" : undefined\}/);
+    expect(fold).toMatch(/aria-controls=\{open \? "ap-rest-panel" : undefined\}/);
     expect(fold).toMatch(/aria-describedby=\{peek \? "ap-rest-peek" : undefined\}/);
     // A chevron that turns is the one thing that tells this row from Local
     // network's before either is pressed: that one leads away, this one opens
     // here. The turn beats the hover nudge — a `translateX` on a rotated box
     // would send it downward.
     expect(css).toMatch(/\.ap-nav\[aria-expanded="true"\] \.ap-nav-chev,\s*\n\.ap-nav\[aria-expanded="true"\]:hover \.ap-nav-chev \{ transform: rotate\(90deg\); \}/);
+    // The box it names is everything the press reveals, not just the list.
+    expect(fold).toMatch(/aria-controls=\{open \? "ap-rest-panel" : undefined\}/);
   });
 
   it("drops the freest number once the list is open, where every row says its own", () => {
-    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed \}\);/);
+    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}\);/);
   });
 
   it("is not hover-only: every name on the card is in the list the row opens", () => {
     // The card is a shortcut past a press, never the only route to anything.
     expect(fold).toMatch(/\{peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers=\{peers\}/);
-    expect(panel).toMatch(/\{rest\.length > 0 && restOpen && \(\s*<ul className="ap-list ap-others" id="ap-rest-list">/);
+    expect(panel).toMatch(/\{rest\.length > 0 && restOpen && \(\s*<div className="ap-rest-panel" id="ap-rest-panel">/);
+    expect(panel).toMatch(/<ul className="ap-list ap-others" id="ap-rest-list">/);
   });
 });
 
@@ -276,15 +310,34 @@ describe("what the column folds, and when it does not", () => {
     expect(Number(over)).toBeGreaterThan(Number(under));
   });
 
-  it("puts the policy under the accounts it moves you between, and drops the rule over it", () => {
+  it("puts the policy inside the fold, and leaves it reachable when there is no fold", () => {
+    // The user asked for it behind the disclosure. What pays for that is the
+    // tail of the row's own line, which says `auto 90%` or `auto off` whether
+    // the fold is open or shut — and the one store that has nothing to fold
+    // keeps the policy in the open, or the setting would be unreachable.
+    expect(panel).toMatch(/<div className="ap-rest-panel" id="ap-rest-panel">[\s\S]{0,400}\{policyBlock\}/);
+    expect(panel).toMatch(/\{rest\.length === 0 && policyBlock\}/);
+    // The refusal did NOT follow it in: one that a collapse could hide is one
+    // the reader can lose.
+    expect(panel.indexOf("{failure && failure.row == null && (")).toBeGreaterThan(panel.indexOf("{rest.length === 0 && policyBlock}"));
+    // The box gives, so the list inside it can scroll and the policy cannot be
+    // pushed off the bottom.
+    const box = /\n\.ap-rest-panel \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(box).toMatch(/flex: 0 1 auto/);
+    expect(box).toMatch(/min-height: 0/);
+    expect(css).toMatch(/\.ap-rest-panel > \.ap-policy-block \{ flex: none; \}/);
+  });
+
+  it("keeps the policy's own spacing and draws no rule of its own", () => {
     // It was a pinned `.ap-foot` with a hairline, and both of those were about
     // standing apart from a roster it could not fit beside. It sits with the
-    // roster now: same inset, space instead of a rule, and after the list the
-    // fold opens so the block reads "…and do this automatically".
+    // roster now: same inset, space instead of a rule.
     expect(css).toMatch(/\.ap-policy-block \{ padding: 2px var\(--panel-inset\) 14px; \}/);
-    expect(panel.indexOf('className="ap-policy-block"')).toBeGreaterThan(panel.indexOf("{rest.map(accountRow)}"));
-    // And it is inside the scroll, which is the whole of the move.
-    expect(panel.indexOf('className="ap-policy-block"')).toBeLessThan(panel.indexOf("<LanSyncSection"));
+    // The hairline it does get is the fold's, and it belongs to the list above
+    // it rather than to the policy itself — see the rule below.
+    expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
+    // Drawn in the column, never back in the pinned foot.
+    expect(panel.indexOf("{policyBlock}")).toBeLessThan(panel.indexOf("<LanSyncSection"));
     expect(panel).not.toMatch(/<div className="ap-foot">/);
   });
 

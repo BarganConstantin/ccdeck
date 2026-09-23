@@ -28,8 +28,10 @@ export type PanelPhase = "gone" | "entering" | "here" | "leaving";
  * timeout that only ever fires would produce. `leaving` + `open` therefore
  * lands on `here` and not on `entering`: the panel never went anywhere, so
  * replaying its entrance would animate a movement that did not happen.
+ *
+ * Exported for panel-exit.test.ts, which holds the whole table (#1174).
  */
-function nextPhase(open: boolean, phase: PanelPhase): PanelPhase {
+export function nextPhase(open: boolean, phase: PanelPhase): PanelPhase {
   if (open) return phase === "gone" ? "entering" : phase === "leaving" ? "here" : phase;
   return phase === "gone" ? "gone" : "leaving";
 }

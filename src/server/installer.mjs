@@ -5,6 +5,7 @@
 // sessions reach the same server through the rollout watcher instead, so one
 // running server still sees both CLIs. Re-runs are safe; entries are tagged
 // with __agent-dag and de-duped.
+import { hookRuntime } from "./app-host.mjs";
 import { readFile, mkdir, unlink, rename, open, stat, chmod, realpath, readlink, utimes } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
@@ -402,15 +403,37 @@ async function writeFileAtomic(rawTarget, text) {
  * identical content skips the write and the file is not replaced at all.
  */
 async function installScript(src, dst) {
-  const text = await readFile(src, "utf8");
+  return installText(await readFile(src, "utf8"), dst);
+}
+
+async function installText(text, dst) {
   const current = await readFile(dst, "utf8").catch(() => null);
   if (current === text) return false;
   await writeFileAtomic(dst, text);
   return true;
 }
 
+/**
+ * What makes the installed hook.js a CommonJS file wherever the config dir is.
+ *
+ * Node decides whether a `.js` file is CommonJS or an ES module from the nearest
+ * package.json above it, and hook.js is CommonJS. With none in agent-dag/, that
+ * nearest one is whatever the user has further up: a `"type": "module"` in
+ * ~/package.json, or in the repo a relocated CLAUDE_CONFIG_DIR lives in, loads
+ * the hook as an ES module, and it dies on its first `require` before main()
+ * has installed a single handler. Exit 1 and `require is not defined in ES
+ * module scope` on every tool call, and no deck receives anything (#1172). One
+ * file here answers the question before Node looks any further.
+ *
+ * Written before the hook, so a first install never has a hook.js without it,
+ * and through the same atomic write, because a half-written package.json is a
+ * load error of its own for every hook that starts while it is being written.
+ */
+const HOOK_PACKAGE_JSON = '{ "type": "commonjs" }\n';
+
 async function installHookScript(installDir) {
   await ensureDir(installDir);
+  await installText(HOOK_PACKAGE_JSON, join(installDir, "package.json"));
   const src = join(PKG_ROOT, "hook", "hook.js");
   const dst = join(installDir, "hook.js");
   await installScript(src, dst);
@@ -464,7 +487,9 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
   const { settings: current, raw: before } = await readSettingsForWrite(cfg.settingsPath);
 
   const hookPath = await installHookScript(cfg.hookInstallDir);
-  const command = hookCommand(hookPath, provider);
+  // Through the desktop app's launcher when it started this deck — its own
+  // binary opens the app rather than running a script (app-host.mjs).
+  const command = hookCommand(hookPath, provider, hookRuntime());
   await ensureDir(cfg.ensureDir);
   // Discovery dir is shared across providers — always make sure it exists.
   await ensureDir(AGENT_DAG_DIR);

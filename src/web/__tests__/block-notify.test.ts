@@ -19,7 +19,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   blockNotice,
   createBlockNotifier,
-  isBlockingPrompt,
+  isChimeEvent,
   QUIET_MS,
   shouldNotify,
 } from "../../server/block-notify.mjs";
@@ -47,29 +47,29 @@ const ASKED = {
  *  notifier is supposed to speak. Every test below changes one thing. */
 const ALONE = { clients: 0, replay: false, lastAt: undefined, now: 10_000_000 };
 
-describe("which events are a stopped session", () => {
+describe("which events are worth a notification", () => {
   it("takes a permission prompt", () => {
-    expect(isBlockingPrompt(PROMPT)).toBe(true);
+    expect(isChimeEvent(PROMPT)).toBe(true);
   });
 
   it("takes an agent that asked a question and stopped", () => {
-    // The gap this gate had. Measured on one real log: 1683 events, every one
-    // of them under `bypassPermissions`, five of these and a single permission
-    // prompt in the whole history — so on that machine the notifier had nothing
-    // to fire on and the feature was dead without ever failing.
-    expect(isBlockingPrompt(ASKED)).toBe(true);
+    // On a `bypassPermissions` machine Claude Code never asks to run anything,
+    // so without this — and without the finished turn below — the notifier had
+    // nothing to fire on and the feature was dead without ever failing.
+    expect(isChimeEvent(ASKED)).toBe(true);
   });
 
-  it("leaves an idle prompt alone", () => {
-    // #348 measured 16 idle to 5 permission on a real log. An idle prompt is a
-    // turn that ended, not a session that cannot continue, and three quarters
-    // noise is how this channel gets switched off.
-    expect(isBlockingPrompt(IDLE)).toBe(false);
+  it("takes an idle prompt now, because the open deck plays a tone for it", () => {
+    // #348 took idle off the ALARMS and that stands. This channel is not an
+    // alarm any more: it is what a closed deck says instead of the sounds an
+    // open one plays, and the tab chimes for every Notification. The noise
+    // #348 measured is held back by the memo — notify-mirror.test.ts.
+    expect(isChimeEvent(IDLE)).toBe(true);
   });
 
   it("ignores every other hook event", () => {
-    expect(isBlockingPrompt({ hook_event_name: "PreToolUse", tool_name: "Bash" })).toBe(false);
-    expect(isBlockingPrompt(null)).toBe(false);
+    expect(isChimeEvent({ hook_event_name: "PreToolUse", tool_name: "Bash" })).toBe(false);
+    expect(isChimeEvent(null)).toBe(false);
   });
 });
 

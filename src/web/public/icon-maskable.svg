@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ccdeck">
+  <!-- The same mark, drawn for a platform that is going to cut it.
+
+       A maskable icon is composited into a shape the icon does not get to
+       choose — a circle, a squircle, a rounded square, a teardrop — so the
+       ground runs edge to edge and every part that must survive sits inside the
+       safe zone: a centred circle of 409 on 512, which is 80%.
+
+       r=136 with a 54 stroke puts the ring's outer edge at 163, against a safe
+       radius of 204.5. That is 40 points of clearance, and it is deliberate
+       rather than timid: the ring is a shape whose whole meaning is that it is
+       closed, and a mask that clips one side of it turns the mark into a letter.
+
+       NEVER THE SAME FILE AS icon.svg with two purposes declared on it. A
+       rounded square inside a circular mask loses its corners and an icon drawn
+       for `any` at 80% loses a third of its ring; the spec allows one file to
+       claim both and every platform that honours it makes one of the two
+       wrong. -->
+  <rect width="512" height="512" fill="#0b0c10"/>
+  <circle cx="256" cy="256" r="136" fill="none" stroke="#7dd3fc" stroke-width="54"/>
+</svg>

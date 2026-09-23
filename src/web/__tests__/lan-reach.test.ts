@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import {
-  PROBE_PS, fixSteps, lanNet, profileFor, readProbe, reachability, ruleCovers, workaround,
+  PROBE_PS, fixSteps, lanNet, localAliases, profileFor, readProbe, reachability, ruleCovers, workaround,
 } from "../../server/lan-reach.mjs";
 
 /** What the probe printed on the machine this was written against: wifi set to
@@ -205,6 +205,142 @@ describe("the verdict", () => {
     const v = reachability({ platform: "win32", probe, aliases: ["WiFi"], exePath });
     expect(v.text).toContain("hear");
   });
+
+  // THE ORDINARY HOME MACHINE, WHICH NOTHING DROVE (#1171). Every case above
+  // is an unusual one — a Public wifi, a firewall switched off, a rule already
+  // in hand, a domain-managed box that will not say. The commonest Windows
+  // deck of all is a Private network with the firewall on and no rule yet, and
+  // that verdict — the sentence AND the one command it hands over — had never
+  // been asked for. It is the one most people will read.
+  const PRIVATE_NO_RULE = JSON.stringify({
+    nets: [{ alias: "Ethernet", category: "Private", v4: "Internet" }],
+    profiles: [{ name: "Private", enabled: true }],
+    rules: [],
+  });
+
+  it("tells a Private network with no rule what is wrong and hands it one line", () => {
+    const v = reachability({ platform: "win32", probe: readProbe(PRIVATE_NO_RULE), aliases: ["Ethernet"], exePath });
+    expect(v).toMatchObject({ blocked: true, why: "no inbound rule", category: "Private", shell: "powershell" });
+    // Not the Public sentence and not the Domain one: three verdicts share
+    // this shape and the wrong one sends somebody to change a setting that is
+    // already right.
+    expect(v.text.startsWith("Windows has no inbound rule for this deck")).toBe(true);
+    // ONE step, because there is nothing to fix about a Private network but the
+    // missing rule — the category line belongs to Public alone, and a second
+    // line here would be a change asked for with no reason behind it.
+    expect(v.steps).toHaveLength(1);
+    expect(v.steps[0]).toMatch(/^New-NetFirewallRule .* -Profile Private$/);
+    expect(v.steps[0]).toContain(exePath);
+  });
+
+  it("clears a Windows deck that another machine has already reached, whatever the rules say", () => {
+    // MEASURED BEATS READ, the rule Linux and macOS have cases for and Windows
+    // did not. A connection from another deck has arrived on this one's
+    // listener, so the path is open — telling that machine it is blocked, and
+    // handing it PowerShell to paste, would be a confident wrong answer about
+    // something already disproved.
+    for (const [what, json] of [["Private, no rule", PRIVATE_NO_RULE], ["Public wifi", REAL]] as Array<[string, string]>) {
+      const v = reachability({
+        platform: "win32", probe: readProbe(json),
+        aliases: ["Ethernet", "WiFi"], exePath, inbound: Date.now(),
+      });
+      expect(v, what).toMatchObject({ blocked: false, why: "inbound seen" });
+      // And it still names the interface it is talking about, because the
+      // panel's line says which network was judged.
+      expect(v.alias, what).toBe(json === REAL ? "WiFi" : "Ethernet");
+    }
+  });
+
+  it("has no opinion about a platform it was never written for", () => {
+    // Not merely "not Windows": the three named platforms are the three this
+    // module measured, and anything else — a BSD, an unknown string — gets
+    // silence rather than the Windows read applied to a machine with no
+    // Windows firewall on it.
+    expect(reachability({ platform: "freebsd", probe, exePath })).toBeNull();
+    expect(reachability({ platform: "aix", probe, aliases: ["WiFi"], exePath })).toBeNull();
+  });
+});
+
+// WHICH INTERFACES THE VERDICT IS ALLOWED TO BE ABOUT (#1171).
+//
+// `reachability` matches the probe's networks against this list, in order, and
+// index.mjs is the only caller — it hands over `localAliases(networkInterfaces())`
+// and nothing else. So a mistake here does not show up as an error: it shows up
+// as the verdict being read off the WRONG adapter, which on the machine this
+// was written against means Tailscale's Private rather than the wifi's Public,
+// and a blocked deck told it is fine.
+describe("the interfaces this machine actually holds an address on", () => {
+  it("names the ones a beacon could leave by, and only those", () => {
+    expect(localAliases({
+      // A real address on a real adapter: the answer.
+      en0: [{ family: "IPv4", address: "192.168.1.5", internal: false }],
+      // Loopback is where nothing arrives from another machine.
+      lo0: [{ family: "IPv4", address: "127.0.0.1", internal: true }],
+      // Node has reported `family` as the number 4 as well as the string; both
+      // spellings are the same adapter and dropping one would empty the list on
+      // whichever runtime spells it the other way.
+      "Wi-Fi": [{ family: 4, address: "10.0.0.2" }],
+      // 169.254 is what an adapter takes when DHCP failed. Nothing is reachable
+      // over it, and it is exactly the adapter a stalled machine has.
+      dhcpfail: [{ family: "IPv4", address: "169.254.1.1" }],
+      // v6 only: the deck's beacon is v4, so this adapter cannot carry it.
+      v6only: [{ family: "IPv6", address: "fe80::1" }],
+    })).toEqual(["en0", "Wi-Fi"]);
+  });
+
+  it("answers an empty list rather than throwing when there is nothing to read", () => {
+    // `networkInterfaces()` is a syscall away and the verdict is drawn in a
+    // status route: a throw here would take the whole panel line with it, and
+    // an empty list is what `reachability` already falls back from.
+    expect(localAliases(undefined)).toEqual([]);
+    expect(localAliases({})).toEqual([]);
+    expect(localAliases({ down: [] })).toEqual([]);
+  });
+});
+
+describe("when Windows will not say what rules it has", () => {
+  // Measured on a domain-managed box: Get-NetFirewallApplicationFilter throws
+  // "Access is denied" for the deck's own (ordinary) user, so the rule list
+  // comes back empty even though a rule is there. Empty read as "no rule" told
+  // the machine it had none and handed it a command that added one more each
+  // time — which is exactly what happened, three duplicate Private-only rules.
+  const exePath = "C:\\Users\\me\\AppData\\Local\\Programs\\ccdeck-desktop\\ccdeck.exe";
+  const denied = (over = {}) => readProbe(JSON.stringify({
+    nets: [{ alias: "Ethernet", category: "DomainAuthenticated", v4: "Internet" }],
+    profiles: [{ name: "Domain", enabled: true }, { name: "Private", enabled: true }, { name: "Public", enabled: true }],
+    rules: [],
+    rulesReadable: false,
+    bcast: "Ethernet",
+    ...over,
+  }));
+
+  it("carries whether the rules could be read, defaulting to yes for an older probe", () => {
+    expect(denied().rulesReadable).toBe(false);
+    expect(readProbe(JSON.stringify({ nets: [], profiles: [], rules: [] })).rulesReadable).toBe(true);
+  });
+
+  it("says nothing rather than claim a rule is missing it could not look for", () => {
+    // The honest fallback: refreshReach turns a null into the measured verdict.
+    expect(reachability({ platform: "win32", probe: denied(), aliases: [], exePath })).toBeNull();
+  });
+
+  it("still trusts a measured inbound over the unreadable rules", () => {
+    const v = reachability({ platform: "win32", probe: denied(), aliases: [], exePath, inbound: Date.now() });
+    expect(v).toMatchObject({ blocked: false, why: "inbound seen" });
+  });
+
+  it("still flags a Public network, whose category was read reliably", () => {
+    const pub = denied({ nets: [{ alias: "WiFi", category: "Public", v4: "Internet" }], bcast: "WiFi" });
+    const v = reachability({ platform: "win32", probe: pub, aliases: [], exePath });
+    expect(v).toMatchObject({ blocked: true });
+    expect(v.text).toContain("Public");
+  });
+
+  it("still names a genuinely missing rule when the rules WERE readable", () => {
+    const readable = denied({ rulesReadable: true });
+    const v = reachability({ platform: "win32", probe: readable, aliases: [], exePath });
+    expect(v).toMatchObject({ blocked: true, why: "no inbound rule", category: "DomainAuthenticated" });
+  });
 });
 
 describe("the command somebody is asked to paste", () => {
@@ -231,6 +367,42 @@ describe("the command somebody is asked to paste", () => {
     const [rule] = fixSteps({ category: "Private", alias: "WiFi", exePath });
     expect(rule).toContain("-Direction Inbound");
     expect(rule).toContain("-Action Allow");
+  });
+
+  // Measured on a Windows box whose Ethernet is DomainAuthenticated: the rule
+  // the panel offered was scoped to Private, so it never applied, the panel
+  // kept asking, and a second paste made a second rule that did nothing.
+  it("scopes the rule to Domain too on a company network", () => {
+    const [rule] = fixSteps({ category: "DomainAuthenticated", alias: "Ethernet", exePath });
+    expect(rule).toContain("-Profile Domain,Private");
+    expect(fixSteps({ category: "Private", alias: "WiFi", exePath })[0]).toMatch(/-Profile Private$/);
+    // Public is never widened into: that network gets the category line.
+    expect(fixSteps({ category: "Public", alias: "WiFi", exePath }).join("\n")).not.toContain("Domain");
+  });
+
+  it("widens the rule that is already there instead of adding another", () => {
+    const privateOnly = [{ direction: "Inbound", action: "Allow", enabled: true, profile: "Private" }];
+    const steps = fixSteps({ category: "DomainAuthenticated", alias: "Ethernet", exePath, rules: privateOnly });
+    expect(steps).toEqual([
+      `Get-NetFirewallApplicationFilter -Program "${exePath}" | Get-NetFirewallRule | Set-NetFirewallRule -Profile Domain,Private`,
+    ]);
+    expect(steps[0]).not.toContain("New-NetFirewallRule");
+  });
+
+  it("says a Private-only rule is why a company network still drops them", () => {
+    const probe = {
+      bcast: "Ethernet",
+      nets: [{ alias: "Ethernet", category: "DomainAuthenticated", v4: "Internet" }, { alias: "Tailscale", category: "Private", v4: "Internet" }],
+      profiles: [{ name: "Domain", enabled: true }, { name: "Private", enabled: true }, { name: "Public", enabled: true }],
+      rules: [{ direction: "Inbound", action: "Allow", enabled: true, profile: "Private" }],
+    };
+    const v = reachability({ platform: "win32", probe, aliases: [], exePath });
+    expect(v).toMatchObject({ blocked: true, why: "no inbound rule", category: "DomainAuthenticated" });
+    expect(v.text).toMatch(/Private networks only, and this one is a company \(Domain\) network/);
+    expect(v.steps[0]).toContain("Set-NetFirewallRule -Profile Domain,Private");
+    // And once it covers Domain, the panel stops asking.
+    const fixed = { ...probe, rules: [{ ...probe.rules[0], profile: "Domain, Private" }] };
+    expect(reachability({ platform: "win32", probe: fixed, aliases: [], exePath })).toMatchObject({ blocked: false, why: "rule present" });
   });
 });
 

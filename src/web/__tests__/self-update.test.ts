@@ -36,8 +36,11 @@ type FakeChild = {
   emit: (event: string, ...args: unknown[]) => void;
   signals: (string | undefined)[];
 };
-const { spawns } = vi.hoisted(() => ({
+const { spawns, spawnFailure } = vi.hoisted(() => ({
   spawns: [] as { cmd: string; args: string[]; opts: Record<string, unknown>; child: FakeChild }[],
+  // A spawn that throws where it is called, as Node's does for an argument it
+  // refuses outright. One shot: the next spawn after it works again.
+  spawnFailure: { next: null as Error | null },
 }));
 vi.mock("node:child_process", async () => {
   const { EventEmitter } = await import("node:events");
@@ -51,6 +54,7 @@ vi.mock("node:child_process", async () => {
   }
   return {
     spawn: (cmd: string, args: string[] = [], opts = {}) => {
+      if (spawnFailure.next) { const e = spawnFailure.next; spawnFailure.next = null; throw e; }
       const child = new Fake();
       spawns.push({ cmd, args, opts, child: child as unknown as FakeChild });
       return child;
@@ -777,6 +781,81 @@ describe("an install that runs past its deadline", () => {
     child.emit("close", 1);
     expect(upgradeStatus()).toMatchObject({ state: "failed" });
     expect(upgradeStatus().error).toContain("permission denied");
+  });
+
+  // ONE `npm i -g` AT A TIME. A second press — another tab, a double click, the
+  // away tick landing while somebody's press is still installing — must be told
+  // the install it asked for is already under way, and must not start another.
+  // Two npm processes writing one global node_modules race each other into
+  // ENOTEMPTY and EEXIST, and the loser can leave the `ccdeck` shim removed or
+  // the package half-written: a broken install on the user's machine, reported
+  // by whichever of the two finished last.
+  //
+  // Every other case in this file closes its child before the next call
+  // precisely so that it never meets this answer, which is how the guard went
+  // without a case of its own.
+  it("answers a second press with the install already running, and starts no second npm", () => {
+    const child = start("linux");
+    const first = upgradeStatus().command;
+    expect(first).toContain("ccdeck@latest");
+
+    // The command the FIRST press started, so both tabs show the same line.
+    expect(startUpgrade({ pkgRoot, name: "ccdeck" })).toEqual({ ok: true, already: true, command: first });
+    expect(spawns).toHaveLength(1);
+    expect(upgradeStatus().state).toBe("running");
+
+    child.emit("close", 0);
+    expect(upgradeStatus().state).toBe("done");
+  });
+
+  it("takes the next press once the install has finished", () => {
+    // The guard is about an npm that is still writing, not about having
+    // installed once: after `done` a later release is a new install.
+    start("linux").emit("close", 0);
+
+    const next = startUpgrade({ pkgRoot, name: "ccdeck" });
+    expect(next.ok).toBe(true);
+    expect(next.already).toBeUndefined();
+    expect(spawns).toHaveLength(2);
+    expect(upgradeStatus().state).toBe("running");
+
+    spawns[1].child.emit("close", 0);
+  });
+
+  it("takes a retry once the deadline has written the install off", () => {
+    // Keyed on `running` alone: a timed-out install reads `failed`, and a guard
+    // that also refused that would leave the button refusing every retry — the
+    // spinner this file's deadline exists to end, back by another route.
+    start("linux");
+    vi.advanceTimersByTime(INSTALL_TIMEOUT_MS);
+    expect(upgradeStatus().state).toBe("failed");
+
+    const retry = startUpgrade({ pkgRoot, name: "ccdeck" });
+    expect(retry.ok).toBe(true);
+    expect(retry.already).toBeUndefined();
+    expect(spawns).toHaveLength(2);
+
+    spawns[1].child.emit("close", 0);
+  });
+
+  it("does not stay `running` over an npm that never started", () => {
+    // The state is set to `running` before the spawn, so a spawn that throws
+    // has to put it back — or the guard above would refuse every retry for
+    // the life of the process, over an install that does not exist.
+    Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+    spawnFailure.next = new Error("spawn npm EACCES");
+
+    const out = startUpgrade({ pkgRoot, name: "ccdeck" });
+    expect(out).toMatchObject({ ok: false, reason: "spawn_failed" });
+    expect(out.command).toContain("ccdeck@latest");
+    expect(upgradeStatus()).toMatchObject({ state: "failed", error: "spawn npm EACCES" });
+    expect(spawns).toHaveLength(0);
+
+    const retry = startUpgrade({ pkgRoot, name: "ccdeck" });
+    expect(retry.ok).toBe(true);
+    expect(retry.already).toBeUndefined();
+    expect(spawns).toHaveLength(1);
+    spawns[0].child.emit("close", 0);
   });
 });
 

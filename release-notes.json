@@ -39,7 +39,79 @@
     "the release whose version is in neither place. Any key opening with // is a",
     "note to the author and never a release."
   ],
-  "//nothing-to-say": ["3.23.1", "3.23.2", "3.23.3", "3.23.4"],
+  "//nothing-to-say": [
+    "3.23.1",
+    "3.23.2",
+    "3.23.3",
+    "3.23.4",
+    "3.26.0",
+    "3.26.1",
+    "3.26.3",
+    "3.26.4",
+    "3.26.5"
+  ],
+  "3.27.0": [
+    {
+      "title": "📊 Projects: where each account spent its work",
+      "body": "Each account card's ⋯ menu now breaks its cost down by project, over 7d / 30d / all."
+    }
+  ],
+  "3.27.1": [
+    {
+      "title": "🎨 Make Appearance easier to tune",
+      "body": "The Appearance dialog now has clearer sections, stronger selection states, and a calmer layout for choosing a theme and configuring music. Your existing settings and keyboard shortcuts continue to work."
+    }
+  ],
+  "3.27.2": [
+    {
+      "title": "💰 Project costs now match Usage",
+      "body": "Project cost totals no longer count the same Claude request once for every content block. Existing project history is rebuilt automatically so the totals align with the Usage panel."
+    }
+  ],
+  "3.25.0": [
+    {
+      "title": "🖱️ A click goes to the session, a double-click opens the details",
+      "body": "Clicking a card frames it with the rest of its session and leaves the detail panel shut. Double-click a card to open its details; `j`/`k`, the session list, Enter and `D` still open them too."
+    },
+    {
+      "title": "🔭 Cards stay readable when you zoom out",
+      "body": "At every zoom a card shows its name, its state and anything waiting on you, instead of shrinking to a coloured pill. Hover or focus a card to see it whole. Recap notes read at a distance too, and show the full recap on hover."
+    },
+    {
+      "title": "🌐 The Machine panel shows your network",
+      "body": "A new Network section shows download, upload and the round trip to Claude's API, and names the route when traffic goes through a VPN or a Tailscale exit node. Those checks run only while the panel is open. The panel is regrouped into CPU, Memory, Network and Thermal, with a flag at the top when something needs attention."
+    },
+    {
+      "title": "🎨 See each theme before you pick it",
+      "body": "The Appearance menu shows a small preview of the deck in Light and in Dark. Claude FM also keeps its volume when a notification chime plays, instead of dipping under it."
+    }
+  ],
+  "3.24.1": [
+    {
+      "title": "🎛️ Appearance is one small menu now",
+      "body": "The topbar's appearance control opens a compact menu where you can choose Light or Dark and show or hide the character. The character stays on by default, and your choice is remembered."
+    }
+  ],
+  "3.24.0": [
+    {
+      "title": "🎧 Claude FM plays from the minimap",
+      "body": "A small character stands on the minimap's top edge. Press it and the Claude channel's live stream plays; press it again and it stops. It only turns up when the channel is actually broadcasting, so a deck with no network never shows it at all."
+    },
+    {
+      "title": "🤠 And it gets on with its day",
+      "body": "It walks that edge, tidies up what it finds, kicks a ball along it, sits with its legs over the side, and watches the board through a scope. Now and then it drops onto the canvas and ropes its way back up. Headphones on while the music plays, a hat when it does not."
+    }
+  ],
+  "3.23.5": [
+    {
+      "title": "🧭 The accounts panel opens on the account you are on",
+      "body": "Its windows, its resets and how old the numbers are — whole, at the top of the column. Every other account stands behind one row that says how many of them a switch could actually reach; press it to see them, or rest on it to be shown their names and how much room each has left."
+    },
+    {
+      "title": "⚙️ Auto-switch moved in there with them",
+      "body": "It is behind that same row now, after the accounts it switches between, rather than at the foot of the panel. The row says `auto 90%` or `auto off` so you can tell what the policy is doing without opening it — and says so in amber when it is armed with nowhere left to go."
+    }
+  ],
   "3.23.0": [
     {
       "title": "🧭 The accounts column leads with accounts",

@@ -51,7 +51,11 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, type GraphState } from "../reducer";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+
+import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, STALE_SESSION_MS, type GraphState } from "../reducer";
+import { sweepTick } from "../prune";
 import type { HookEnvelope, HookPayload } from "../types";
 
 // Temp home, set before the dynamic import: the server resolves its config
@@ -289,5 +293,159 @@ describe("what the pruners report", () => {
     ]);
     expect(() => pruneDoneSessions(state, 3_000_000, 0, 0)).not.toThrow();
     expect(state.agents.size).toBe(0);
+  });
+});
+
+// #1175. The two halves above — the route and the pruners' callback — were each
+// tested alone, and the wiring between them was not: the page's tick is what
+// passes `forget` and what POSTs the result, and App.tsx is at 0%. The callback
+// is optional (the case above says so), so dropping the argument compiles,
+// keeps every test here green, and silently brings #1024 back.
+//
+// So the tick's sweeps are `sweepTick` now, with the shipped constants in it,
+// and the page calls that.
+describe("the sweep one tick runs", () => {
+  /** Well past AGENT_GRACE_MS and DONE_SESSION_GRACE_MS, which is the tick that
+   *  actually evicts anything. */
+  const LATER = 5_000_000;
+  const finishedSessions = (count: number, from = 1) => {
+    const events: Array<[Partial<HookPayload>, number]> = [];
+    for (let i = 0; i < count; i++) {
+      const sid = `s${from + i}`;
+      const at = 1000 + i * 1000;
+      events.push([{ hook_event_name: "SessionStart", session_id: sid, cwd: `/p/${sid}` }, at]);
+      events.push([{ hook_event_name: "Stop", session_id: sid, cwd: `/p/${sid}` }, at + 100]);
+    }
+    return events;
+  };
+
+  it("names exactly the sessions the cap spent, and says something moved", () => {
+    // Eight finished sessions against a cap of six: the two that finished
+    // longest ago go, and those two are what the server is told about.
+    const state = boardWith(finishedSessions(8));
+    const { changed, forgotten } = sweepTick(state, LATER);
+    expect(changed).toBe(true);
+    expect(forgotten).toEqual(["s1", "s2"]);
+    expect([...state.agents.keys()].sort()).toEqual(["s3", "s4", "s5", "s6", "s7", "s8"]);
+  });
+
+  it("names nothing on a board with nothing to spend, so no request is made", () => {
+    // `forgotten.length > 0` is the whole of the page's send condition, so an
+    // empty list here is what keeps a quiet deck from POSTing four times a
+    // second.
+    const state = boardWith([
+      [{ hook_event_name: "SessionStart", session_id: "live", cwd: "/p" }, 1000],
+    ]);
+    expect(sweepTick(state, LATER)).toEqual({ changed: false, forgotten: [] });
+  });
+
+  it("reaps an abandoned tool call, and reports that as a change with nothing forgotten", () => {
+    // `changed` is about rendering and `forgotten` is about the server, and
+    // they answer different questions. Both staleness sweeps are in the tick
+    // and each answers a case the other does not, so they are driven apart:
+    // here the session already ended and left a call in flight behind it, which
+    // the session sweep has nothing left to settle and the tool sweep does.
+    const state = boardWith([
+      [{ hook_event_name: "SessionStart", session_id: "live", cwd: "/p" }, 1000],
+      [{ hook_event_name: "SubagentStart", session_id: "live", cwd: "/p", parent_tool_use_id: "tu1", subagent_type: "worker" }, 1100],
+      [{ hook_event_name: "PreToolUse", session_id: "live", cwd: "/p", tool_name: "Bash", tool_use_id: "t1", parent_tool_use_id: "tu1" }, 1200],
+      [{ hook_event_name: "Stop", session_id: "live", cwd: "/p" }, 1300],
+    ]);
+    const sub = [...state.agents.values()].find(a => a.kind === "subagent")!;
+    expect(sub.tools[0]?.ok).toBeUndefined();
+    const { changed, forgotten } = sweepTick(state, 1300 + STALE_SESSION_MS + 1);
+    expect(changed).toBe(true);
+    expect(forgotten).toEqual([]);
+    expect(sub.tools[0]?.ok).toBe(false);
+  });
+
+  it("settles a session nobody has heard from, with no tool of its own to reap", () => {
+    // The other sweep alone: a terminal killed while a permission prompt was up
+    // sends no final event, so its root stays `active` and its waiting block
+    // stays lit on the tab title and the favicon.
+    const state = boardWith([
+      [{ hook_event_name: "SessionStart", session_id: "gone", cwd: "/p" }, 1000],
+    ]);
+    const { changed, forgotten } = sweepTick(state, 1000 + STALE_SESSION_MS + 1);
+    expect(changed).toBe(true);
+    expect(forgotten).toEqual([]);
+    expect(state.agents.get("gone")?.state).toBe("done");
+  });
+
+  it("lets the agent cap name a session the session cap could not have reached", () => {
+    // The two pruners are not interchangeable, and this is the case that says
+    // so: six sessions, which is exactly the session cap, so that sweep evicts
+    // nothing at all — and 206 agents, which is over AGENT_CAP, so the agent
+    // sweep spends the oldest thing on the board. That oldest thing is a whole
+    // session, and it is the agent cap alone that names it.
+    const events: Array<[Partial<HookPayload>, number]> = [
+      [{ hook_event_name: "SessionStart", session_id: "first", cwd: "/p/first" }, 1000],
+      [{ hook_event_name: "Stop", session_id: "first", cwd: "/p/first" }, 1100],
+    ];
+    for (let s = 0; s < 5; s++) {
+      const sid = `fat${s}`;
+      const base = 10_000 + s * 10_000;
+      events.push([{ hook_event_name: "SessionStart", session_id: sid, cwd: `/p/${sid}` }, base]);
+      for (let k = 0; k < 40; k++) {
+        const tu = `tu${s}-${k}`;
+        events.push([{ hook_event_name: "SubagentStart", session_id: sid, cwd: `/p/${sid}`, parent_tool_use_id: tu, subagent_type: "worker" }, base + k * 2 + 1]);
+        events.push([{ hook_event_name: "SubagentStop", session_id: sid, cwd: `/p/${sid}`, parent_tool_use_id: tu }, base + k * 2 + 2]);
+      }
+      events.push([{ hook_event_name: "Stop", session_id: sid, cwd: `/p/${sid}` }, base + 200]);
+    }
+    const state = boardWith(events);
+    expect(state.agents.size).toBe(1 + 5 * 41);
+    const { changed, forgotten } = sweepTick(state, LATER);
+    expect(changed).toBe(true);
+    expect(forgotten).toEqual(["first"]);
+    // The five fat sessions are all still here, so nothing the session cap does
+    // could have produced that id.
+    expect(new Set([...state.agents.values()].map(a => a.sessionId)).size).toBe(5);
+  });
+
+  it("puts both pruners' ids in one array, the agent cap's first", () => {
+    // The reason the tick collects instead of POSTing per pruner: the two run
+    // back to back, and a cap coming down by two hundred sessions is one
+    // request. 201 finished roots — one over AGENT_CAP, so the agent sweep
+    // spends the oldest, and the session sweep then cuts the rest to six.
+    const state = boardWith(finishedSessions(201));
+    const { changed, forgotten } = sweepTick(state, LATER);
+    expect(changed).toBe(true);
+    expect(forgotten[0]).toBe("s1");
+    expect(forgotten).toHaveLength(201 - 6);
+    // One id per session, however many passes touched it.
+    expect(new Set(forgotten).size).toBe(forgotten.length);
+    expect(state.agents.size).toBe(6);
+    expect([...state.agents.keys()].sort()).toEqual(["s196", "s197", "s198", "s199", "s200", "s201"]);
+  });
+
+  it("leaves a session with a subagent still running alone, and does not name it", () => {
+    // Both pruners refuse it — the agent sweep evicts only what is `done`, and
+    // a session counts as finished only when everything in it is. Naming it
+    // would have the server drop the caches for a session that is still on
+    // screen and still being described.
+    const state = boardWith([
+      ...finishedSessions(8),
+      [{ hook_event_name: "SessionStart", session_id: "busy", cwd: "/p/busy" }, 500],
+      [{ hook_event_name: "Stop", session_id: "busy", cwd: "/p/busy" }, 600],
+      [{ hook_event_name: "SubagentStart", session_id: "busy", cwd: "/p/busy", parent_tool_use_id: "tu1", subagent_type: "worker" }, 700],
+    ]);
+    const { forgotten } = sweepTick(state, LATER);
+    expect(forgotten).not.toContain("busy");
+    expect([...state.agents.values()].filter(a => a.sessionId === "busy")).toHaveLength(2);
+  });
+});
+
+describe("the page's tick runs that sweep and posts what it named", () => {
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+
+  it("calls sweepTick and POSTs the ids only when there are some", () => {
+    expect(app).toMatch(/const \{ changed, forgotten \} = sweepTick\(stateRef\.current, t\);/);
+    expect(app).toMatch(
+      /if \(forgotten\.length > 0\) \{[\s\S]{0,600}?fetch\("\/api\/forget", \{[\s\S]{0,200}?body: JSON\.stringify\(\{ ids: forgotten \}\),/);
+    // And the sweeps are not also written out here, which is how the constants
+    // and the collection drifted out of reach of a test in the first place.
+    expect(app).not.toMatch(/pruneDoneSessions\(/);
+    expect(app).not.toMatch(/pruneOldAgents\(/);
   });
 });

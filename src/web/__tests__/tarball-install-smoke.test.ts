@@ -243,6 +243,12 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     // running out of a temp HOME — the exact litter this release is about. The
     // shim's own `--stop` is the way out, and pointed at the port because this
     // deck was started with shaping flags and does not have the default shape.
+    //
+    // The LAST CASE in this file now runs that same command and asserts what it
+    // said, so this is what is left over: the run that is needed when the file
+    // never got that far — a failed beforeAll, a case that threw before it.
+    // Idempotent, because a `--stop` with nothing to stop is a no-op that exits
+    // 0.
     if (deck) {
       spawnSync(shimPath, ["--stop", "--port", String(port)], {
         cwd: APP, stdio: "ignore", shell: process.platform === "win32", env: deckEnv,
@@ -423,4 +429,51 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     // always really watching for.
     expect(deck!.exitCode, "the launcher did not hand the terminal back cleanly").toBe(0);
   });
+
+  // ── the off switch ────────────────────────────────────────────────────────
+  //
+  // LAST, because it ends the deck every case above reads from — and it is the
+  // only place in the suite where `--stop` is asked to stop a deck that is
+  // really running. The teardown ran this command before and threw the answer
+  // away with `stdio: "ignore"`, so a `--stop` that had stopped answering, or
+  // that had started reaching for SIGKILL every time, would have been invisible
+  // here and the killTree below it would have tidied the evidence away.
+  //
+  // HOW it goes out is the assertion. `stopDeck` POSTs /api/shutdown and then
+  // polls the pid for three seconds; only a deck still there at the deadline is
+  // signalled. A deck that gets SIGTERM'd mid-drain loses its queued event
+  // appends and says no goodbye on the LAN — and the only sign of it on the
+  // terminal is the "(signalled …)" or "(killed …)" that this case refuses.
+  it("stops a running deck by asking it, and says so without reaching for a signal", async () => {
+    // The token and the port both come off the discovery record this install
+    // wrote into its own sandboxed home, which is the half a unit test cannot
+    // reach: a mismatch between what the deck registered and what `--stop`
+    // posts degrades exactly into the signal ladder below.
+    const stop = spawnSync(shimPath, ["--stop", "--port", String(port)], {
+      cwd: APP, encoding: "utf8", shell: process.platform === "win32", env: deckEnv,
+    });
+    expect(stop.status, `--stop said:\n${stop.stdout}${stop.stderr}`).toBe(0);
+    expect(stop.stdout).toMatch(new RegExp(`stopped\\b.*\\bport ${port}\\b`));
+    expect(stop.stdout, "the deck had to be signalled to go").not.toContain("(signalled");
+    expect(stop.stdout, "the deck had to be killed to go").not.toContain("(killed");
+
+    // And it really is gone: the port that served every case above no longer
+    // answers. WHICH errno is not the assertion — a connection made right after
+    // a listener closes comes back ECONNRESET as readily as ECONNREFUSED, and
+    // on Windows more readily still — so what is pinned is that nothing there
+    // serves the deck's own route any more.
+    const err = await get(port, "/api/health").then(
+      r => { throw new Error(`the deck answered ${r.status} on ${port} after --stop said it had stopped`); },
+      (e: NodeJS.ErrnoException) => e,
+    );
+    expect(err.code, `connecting to ${port} gave ${err.code}`).toMatch(/^ECONN(REFUSED|RESET|ABORTED)$/);
+
+    // A second `--stop` has nothing left to end, which is what the teardown
+    // relies on and what a user running it twice sees.
+    const again = spawnSync(shimPath, ["--stop", "--port", String(port)], {
+      cwd: APP, encoding: "utf8", shell: process.platform === "win32", env: deckEnv,
+    });
+    expect(again.status).toBe(0);
+    expect(again.stdout).toContain("no deck is");
+  }, 60_000);
 });

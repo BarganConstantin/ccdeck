@@ -170,6 +170,8 @@ async function runHook(opts: {
   cwd?: string;
   preload?: string;
   limitMs?: number;
+  /** Written to stdin in place of the event, which is then never closed. */
+  openStdin?: string;
 }): Promise<Run> {
   const home = mkdtempSync(join(ROOT, "home-"));
   const dir = join(home, "agent-dag");
@@ -193,7 +195,11 @@ async function runHook(opts: {
   let stderr = "";
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", c => { stderr += c; });
-  child.stdin.end(JSON.stringify({
+  // A hook that ends while its stdin is still open leaves this end of the pipe
+  // with nobody reading it.
+  child.stdin.on("error", () => {});
+  if (opts.openStdin !== undefined) child.stdin.write(opts.openStdin);
+  else child.stdin.end(JSON.stringify({
     hook_event_name: "PreToolUse", session_id: "s1", cwd: opts.cwd ?? home,
     tool_name: "Bash", tool_use_id: "t1",
   }));
@@ -202,6 +208,7 @@ async function runHook(opts: {
     const kill = setTimeout(() => child.kill("SIGKILL"), opts.limitMs ?? 8_000);
     child.on("exit", (code, signal) => {
       clearTimeout(kill);
+      child.stdin.destroy();
       done({ code, signal, wallMs: Date.now() - t0, stderr });
     });
   });
@@ -309,6 +316,48 @@ describe("the budget the host CLI is asked to allow for", () => {
       expect(deck.seen, "it still did the work — a hook that exits early proves nothing")
         .toContain("/api/event");
       expect(run.wallMs, `startup + cap must fit under the declared ${declaredMs}ms`)
+        .toBeLessThan(declaredMs);
+    } finally {
+      await deck.close();
+    }
+  }, 30_000);
+});
+
+describe("the exit timer, on the two runs that lean on it hardest", () => {
+  it("ends the hook when the host never closes stdin, because it is armed before the read", async () => {
+    // Every other case in the suite ends stdin at once, so nothing said WHEN the
+    // timer is armed relative to the read. It is armed first. Armed in the
+    // `end` handler instead, a host that writes part of an event and never
+    // closes the pipe holds the hook until the host's own kill — the full
+    // declared timeout — and on a PreToolUse the tool call waits all of it.
+    const { declaredMs } = declaredBudget();
+    const run = await runHook({ records: {}, openStdin: '{"cwd":', limitMs: 12_000 });
+    expect(run.signal, "the hook waited on an open stdin past its own cap").toBe(null);
+    expect(run.code, run.stderr.split("\n")[0]).toBe(0);
+    expect(run.wallMs, `an open stdin must still end under the declared ${declaredMs}ms`)
+      .toBeLessThan(declaredMs);
+  }, 30_000);
+
+  it("still posts when the interpreter took longer than the whole cap to start", async () => {
+    // The floor, which the 1800ms case above cannot see: that one leaves the
+    // cap about 100ms, which is still positive, and a loopback delivery fits in
+    // it with or without a floor. Here startup alone runs past CAP_MS, so
+    // `CAP_MS - uptime` is negative and only `Math.max(200, …)` keeps the timer
+    // from firing before a socket is open. That is the machine under real load
+    // — the one a deck is most worth posting to — and exiting there would drop
+    // the event to save nothing.
+    const { capMs, declaredMs } = declaredBudget();
+    const deck = await deckListener();
+    try {
+      const run = await runHook({
+        records: { [`${process.pid}.json`]: { pid: process.pid, port: deck.port, workspace: "" } },
+        preload: slowStart(capMs + 400),
+        limitMs: 12_000,
+      });
+      expect(run.signal).toBe(null);
+      expect(run.code, run.stderr.split("\n")[0]).toBe(0);
+      expect(deck.seen, "the timer fired before the event went out").toContain("/api/event");
+      expect(run.wallMs, `startup + floor must fit under the declared ${declaredMs}ms`)
         .toBeLessThan(declaredMs);
     } finally {
       await deck.close();

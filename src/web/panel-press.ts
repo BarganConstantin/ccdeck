@@ -138,6 +138,41 @@ export function selfPressAccepted(inflight: boolean): boolean {
   return pressAccepted(inflight ? SELF : null);
 }
 
+// ── the press that is its own confirmation (#1175) ──────────────────────────
+//
+// Removing an account and unpairing a deck cannot be undone from the deck, and
+// neither asks in a dialog: the control arms on the first press, stands down on
+// its own after a few seconds, and only a second press inside that window acts.
+// A second press sooner than a gap after the first is ignored, because a
+// double-click lands its second press before anybody could have read `Confirm`,
+// and one gesture must never be both the arm and the answer.
+//
+// That rule was written out by hand four times — the account menu's Remove,
+// the LAN row's unpair, and both unpairs in the paired-deck dialog — and the
+// one on Remove, the only press here that deletes stored credentials, was the
+// one no test so much as mentioned. Deleting its gap line let a double-click
+// remove an account with the suite green. Now all four ask this.
+
+/** What one press on an arm-then-confirm control does. */
+export type ArmedPress = "arm" | "ignore" | "fire";
+
+/**
+ * `armedFor` is which target the control is armed for right now, or null;
+ * `target` is the one this press is on. Pressing a different target arms that
+ * one instead — an open menu lies over the next account's `⋯`, so a press
+ * aimed there can land on another row's Remove, and it must only ever arm.
+ * `armedAt` is when the arm happened and `gapMs` the shortest interval that
+ * counts as two decisions.
+ */
+export function armedPress<T>(
+  { armedFor, target, armedAt, now, gapMs }:
+  { armedFor: T | null; target: T; armedAt: number; now: number; gapMs: number },
+): ArmedPress {
+  if (armedFor !== target) return "arm";
+  if (now - armedAt < gapMs) return "ignore";
+  return "fire";
+}
+
 /**
  * Where focus goes when the press took its own control away, most local first.
  *

@@ -253,6 +253,80 @@ export function sessionRows(
   return rows.sort((a, b) => b.cost - a.cost || b.tokens - a.tokens);
 }
 
+/** What the BY SESSION list adds up to, against the figure above it. */
+export interface SessionListScale {
+  /** EVERY session row ccusage sent for this range — not the twelve the panel
+   *  draws. A cut list always sums to less than the whole, so measuring the
+   *  drawn rows would answer a question nobody asked. */
+  sum: number;
+  /** The period's own cost, which is the number the list sits under. */
+  total: number;
+  /** The rows add up to visibly more than that. */
+  over: boolean;
+}
+
+/**
+ * Whether the session list out-sums the period above it — MEASURED, not
+ * asserted, and that is the whole point of the function.
+ *
+ * The panel used to state the reason in a tooltip: a session row carries the
+ * session's LIFETIME, so a session that began last week brings all of it into
+ * today's list. That was true, measured against ccusage 20.0.20 — session
+ * 07ac7b2b reported the same $376.88 for "today" as for "all time".
+ *
+ * ccusage 20.0.21 scopes a session's totals to the window (measured on the same
+ * machine the same way: one session fell from $26.13 to $24.81 when the range
+ * became today alone, and reported $24.81 against $25.01 for all time). The
+ * deck installs `ccusage@latest` and refreshes it daily, so both generations
+ * are on real machines right now and a sentence naming either one is wrong on
+ * half of them.
+ *
+ * The rows can still out-sum the total on 20.0.21 — 23 rows summing to $672.73
+ * under a day ccusage itself put at $474.93, because `daily` and `session` do
+ * not date the same usage the same way. So the panel stops explaining WHY and
+ * says only what this reading shows: the arithmetic the reader can see either
+ * fails or it does not, and only then is there anything to say about it.
+ *
+ * The margin keeps rounding out of it. A cent and one per cent are both small
+ * against any range worth a session list, and either alone is not enough: a
+ * $0.004 overhang on a $500 day is rounding, and so is a $0.002 overhang on a
+ * $0.05 day.
+ */
+export function sessionListScale(
+  range: UsageRange | null | undefined,
+  totalCost = rangeTotals(range).cost,
+): SessionListScale {
+  const raw = Array.isArray(range?.sessions) ? (range.sessions as RawSession[]) : [];
+  const sum = raw.reduce((n, s) => n + num(s?.totalCost), 0);
+  const margin = Math.max(0.01, totalCost * 0.01);
+  return { sum, total: totalCost, over: sum > totalCost + margin };
+}
+
+/**
+ * What the BY SESSION heading says it is showing.
+ *
+ * Two sentences at most, and the second one only exists when the reader can
+ * catch the panel out without it — see sessionListScale. Neither sentence says
+ * what a row's figure is SCOPED to, because that is the fact that differs
+ * between two ccusage versions the deck cannot choose between; both say what is
+ * true of any of them.
+ *
+ * `money` is passed in rather than imported so this stays free of the pricing
+ * module's rate table — the panel hands over the same `fmtCost` it prints every
+ * other figure with, so the numbers in the sentence read like the ones above
+ * it.
+ */
+export function sessionListNote(
+  noun: string,
+  scale: SessionListScale,
+  money: (usd: number) => string,
+): string {
+  const first = `Sessions with activity ${noun}, and what ccusage puts against each one.`;
+  if (!scale.over) return first;
+  return `${first}\nThey add up to ${money(scale.sum)}, more than the ${money(scale.total)} above: `
+    + "what a session cost and what a day cost are two different measurements, and they need not agree.";
+}
+
 /**
  * The headline figures.
  *

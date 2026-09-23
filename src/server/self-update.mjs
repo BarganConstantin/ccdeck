@@ -22,6 +22,7 @@
 // it by name and only where it can actually work: a global install, on a
 // directory we can write, outside a git checkout and outside an npx cache.
 // Everywhere else this stays what it has always been — a printed command.
+import { inApp } from "./app-host.mjs";
 import { accessSync, constants as FS, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
@@ -1134,7 +1135,9 @@ export function upgradeBlock(pkgRoot) {
     // npm -g rewrites the package directory and its parent (the global
     // node_modules), so both have to be ours to write.
     writable: dirWritable(target) && dirWritable(resolve(target, "..")),
-    optedOut: process.env.AGENTS_DECK_NO_INSTALL === "1",
+    // Inside the desktop app the app updates itself; an `npm i -g` here would
+    // install a copy it never runs (app-host.mjs).
+    optedOut: process.env.AGENTS_DECK_NO_INSTALL === "1" || inApp(),
     // Whether the package that write would fetch is still a deck. Kept out of
     // the pure rule above, like every other input here, so the policy stays one
     // readable expression and this file owns the filesystem half of it.
@@ -1510,7 +1513,8 @@ export async function versionReport({ running, pkgRoot, name = PUBLISHED_NAME, n
   // isOlder decides that, not this.
   const skipRegistry =
     process.env.AGENTS_DECK_NO_UPDATE_CHECK === "1" ||
-    process.env.AGENTS_DECK_NO_INSTALL === "1";
+    process.env.AGENTS_DECK_NO_INSTALL === "1" ||
+    inApp();
   const latest = skipRegistry ? null : await latestOnNpm(asked, now, force);
   const marker = skipRegistry ? null : readMarker(asked);
   const blocked = upgradeBlock(pkgRoot);

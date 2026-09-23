@@ -47,7 +47,7 @@ describe("every dialog composes the one .modal shell (#874)", () => {
   });
 
   it("names no dialog but .modal in the reduced-motion answer", () => {
-    const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?\.sound-menu \{ animation: fadeIn 140ms ease-out; \}/.exec(css)?.[0] ?? "";
+    const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?\.appearance-menu \{ animation: fadeIn 140ms ease-out; \}/.exec(css)?.[0] ?? "";
     expect(reduced, "the dialog block of the reduced-motion answer is missing").not.toBe("");
     expect(reduced).toMatch(/\.modal,/);
     expect(reduced).not.toMatch(/\.ctx-modal\b|\.uh-modal\b/);

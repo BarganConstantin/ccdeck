@@ -19,7 +19,7 @@ import { explainFailure } from "../admin-failure";
 import { PRODUCT } from "../brand";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { type NamedAccount, pickerRows, shareCountLine, shareExpiry } from "../share-bundle";
+import { type NamedAccount, pickedAccounts, pickerRows, shareCountLine, shareExpiry, shareRequest, toggleUnpicked } from "../share-bundle";
 
 /** One account the bundle could not carry, and why. */
 interface Refused { num: string; email: string; detail?: string }
@@ -91,24 +91,24 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
 
   const rows = pickerRows(accounts);
   // Derived, so it can never disagree with the list on screen.
-  const picked = accounts.filter(a => !unpicked.includes(a.num)).map(a => a.num);
+  const picked = pickedAccounts(accounts, unpicked);
   const allPicked = picked.length === accounts.length;
-  const toggle = (num: number) =>
-    setUnpicked(u => (u.includes(num) ? u.filter(n => n !== num) : [...u, num]));
+  const toggle = (num: number) => setUnpicked(u => toggleUnpicked(u, num));
 
   const make = useCallback(async () => {
     // The other half of #620: the control stays pressable while its own
     // request is out, so the handler is what refuses the second press. Read off
     // the ref, because the state a handler closed over is a render old and the
     // second press happens before the next one.
-    if (!selfPressAccepted(busyRef.current) || !picked.length) return;
+    const request = shareRequest(picked);
+    if (!selfPressAccepted(busyRef.current) || !request) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
     setCopied(false);
     // Already in the order the panel draws them, so the bundle's own list reads
     // the way the picker did.
-    const out = await admin({ action: "share", accounts: picked }).catch(() => null);
+    const out = await admin(request).catch(() => null);
     busyRef.current = false;
     setBusy(false);
     if (!out?.ok) { setError(explainFailure(out, "the share could not be made")); return; }

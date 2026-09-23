@@ -62,6 +62,8 @@ import { costForUsage, fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
+/** The shipped constants — the same module App.tsx reads. The point is the deck as it runs. */
+import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "../board-limits";
 
 // Sandboxed before anything can read a real one, the way api-events-streaming
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
@@ -78,11 +80,6 @@ process.env.CODEX_HOME = join(SANDBOX, "codex");
 
 // ── the board, as the deck really builds and prunes one ─────────────────────
 
-/** The shipped constants, from App.tsx. The point is the deck as it runs. */
-const DONE_SESSION_CAP = 6;
-const DONE_SESSION_GRACE_MS = 2 * 60_000;
-const AGENT_CAP = 200;
-const AGENT_GRACE_MS = 5 * 60_000;
 
 const TEN_MIN = 10 * 60_000;
 

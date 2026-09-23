@@ -322,6 +322,11 @@ describe("every row the tables already had answers exactly what it answered", ()
     expect(agentLabel("openclaw")).toBe("OpenClaw");
     expect(agentLabel("copilot")).toBe("GitHub Copilot");
     expect(agentLabel("pi")).toBe("pi-agent");
+    // ccusage 20.0.21's adapter, and the reason it is on the map: the fallback
+    // would print "Zcode". Antigravity arrived in the same release and is
+    // deliberately not on it, because the fallback already spells it right.
+    expect(agentLabel("zcode")).toBe("ZCode");
+    expect(agentLabel("antigravity")).toBe("Antigravity");
     expect(agentLabel("AMP")).toBe("Amp");
     expect(agentLabel("")).toBe("");
   });

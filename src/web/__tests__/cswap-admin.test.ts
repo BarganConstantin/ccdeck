@@ -643,39 +643,42 @@ describe("a startLogin that gives up after a newer one took over", () => {
 // frame made the text differ from the one already counted. A login the CLI was
 // busy completing came back as "that code was not accepted" — with the account
 // never registered and the live credentials left on it.
-describe("submitLoginCode and the second prompt", () => {
-  /** An empty store and CLIs that are not there, so no test can switch the
-   *  account of the machine running it. Returns the teardown. */
-  function sandbox(name: string) {
-    const claude = process.env.AGENTS_DECK_CLAUDE;
-    const cswap = process.env.AGENTS_DECK_CSWAP;
-    const backup = process.env.CLAUDE_SWAP_BACKUP;
-    const dir = mkdtempSync(join(tmpdir(), name));
-    process.env.CLAUDE_SWAP_BACKUP = dir;
-    process.env.AGENTS_DECK_CLAUDE = join(dir, "no-such-claude");
-    process.env.AGENTS_DECK_CSWAP = join(dir, "no-such-cswap");
-    return async () => {
-      await cancelLogin();
-      for (const c of fakeLogin.children) c.end({ ok: false, killed: true });
-      if (claude === undefined) delete process.env.AGENTS_DECK_CLAUDE;
-      else process.env.AGENTS_DECK_CLAUDE = claude;
-      if (cswap === undefined) delete process.env.AGENTS_DECK_CSWAP;
-      else process.env.AGENTS_DECK_CSWAP = cswap;
-      if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
-      else process.env.CLAUDE_SWAP_BACKUP = backup;
-      rmTempDir(dir);
-    };
-  }
+/** An empty store and CLIs that are not there, so no test can switch the
+ *  account of the machine running it. Returns the teardown. */
+function loginSandbox(name: string) {
+  const claude = process.env.AGENTS_DECK_CLAUDE;
+  const cswap = process.env.AGENTS_DECK_CSWAP;
+  const backup = process.env.CLAUDE_SWAP_BACKUP;
+  const dir = mkdtempSync(join(tmpdir(), name));
+  process.env.CLAUDE_SWAP_BACKUP = dir;
+  process.env.AGENTS_DECK_CLAUDE = join(dir, "no-such-claude");
+  process.env.AGENTS_DECK_CSWAP = join(dir, "no-such-cswap");
+  return async () => {
+    await cancelLogin();
+    for (const c of fakeLogin.children) c.end({ ok: false, killed: true });
+    if (claude === undefined) delete process.env.AGENTS_DECK_CLAUDE;
+    else process.env.AGENTS_DECK_CLAUDE = claude;
+    if (cswap === undefined) delete process.env.AGENTS_DECK_CSWAP;
+    else process.env.AGENTS_DECK_CSWAP = cswap;
+    if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
+    else process.env.CLAUDE_SWAP_BACKUP = backup;
+    rmTempDir(dir);
+  };
+}
 
-  /** A login that has printed its link and is sitting on the prompt. */
-  async function waiting() {
-    const nth = fakeLogin.children.length;
-    const start = startLogin();
-    const child = await fakeLogin.child(nth);
-    child.out(`If the browser didn't open, visit: ${AUTHORIZE}\nPaste code here if prompted > `);
-    expect(await start).toMatchObject({ ok: true, state: "awaiting_code" });
-    return child;
-  }
+/** A login that has printed its link and is sitting on the prompt. */
+async function loginWaitingForACode() {
+  const nth = fakeLogin.children.length;
+  const start = startLogin();
+  const child = await fakeLogin.child(nth);
+  child.out(`If the browser didn't open, visit: ${AUTHORIZE}\nPaste code here if prompted > `);
+  expect(await start).toMatchObject({ ok: true, state: "awaiting_code" });
+  return child;
+}
+
+describe("submitLoginCode and the second prompt", () => {
+  const sandbox = loginSandbox;
+  const waiting = loginWaitingForACode;
 
   it("does not read progress on the prompt's own line as a rejection", async () => {
     const teardown = sandbox("ccdeck-accepted-");
@@ -718,6 +721,48 @@ describe("submitLoginCode and the second prompt", () => {
       // And the flow stays usable, so the user can retype instead of starting
       // the whole sign-in over.
       expect(loginState().url).toBe(AUTHORIZE);
+    } finally {
+      await teardown();
+    }
+  }, 10_000);
+});
+
+// A page reload lands mid-registration, which is where `cswap add` is writing
+// the store (#1169).
+//
+// startLogin yields to a new request in every other state — a flow merely
+// waiting for a code is most often the one the reload just abandoned — but not
+// in this one: cancelling here would leave an account half-recorded, and
+// starting a SECOND `claude auth login` beside it can change who is signed in
+// while the first add is still deciding what to record. So the request is
+// refused, and the flow already running is left alone to finish.
+//
+// `already_running` had never been produced by the server: the only tests
+// naming it hand the string to the client's explainFailure.
+describe("startLogin while a sign-in is registering", () => {
+  it("refuses rather than starting a second `claude auth login` over the add", async () => {
+    const teardown = loginSandbox("ccdeck-registering-");
+    try {
+      const child = await loginWaitingForACode();
+      const spawnedBefore = fakeLogin.children.length;
+
+      // Not awaited: submitLoginCode claims `registering` before its first
+      // await and then sits in the verdict race for as long as the CLI takes,
+      // which is exactly the window a reload arrives in.
+      const verdict = submitLoginCode("ABC-123");
+      expect(loginState().state).toBe("registering");
+
+      expect(await startLogin()).toMatchObject({ ok: false, reason: "already_running", state: "registering" });
+      expect(fakeLogin.children, "a second sign-in was spawned over the one registering")
+        .toHaveLength(spawnedBefore);
+      expect(child.killed, "the flow that was writing the store was cancelled").toBe(false);
+
+      // And the refusal cost the first flow nothing: it still reaches its own
+      // verdict. The fake claude cannot answer the identity check that follows
+      // the code, which is where it stops — the same place the accepted-code
+      // case above stops, and for the same reason.
+      child.end({ ok: true, code: 0, killed: false, timedOut: false, stdout: "", stderr: "" });
+      expect(await verdict).toMatchObject({ ok: false, reason: "no_identity" });
     } finally {
       await teardown();
     }

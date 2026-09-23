@@ -894,13 +894,26 @@ export function pairable(strangers, now, { presentMs = PRESENT_MS, limit = 8, mi
  * `changed` is returned rather than inferred by the caller so a beacon that
  * says nothing new — which is most of them, one every thirty seconds per peer
  * forever — costs no render and no write.
+ *
+ * `via` is the route the packet came by: "lan", or "tailscale" for one sent to
+ * this machine's tailnet address — see routeOf in tailscale.mjs.
  */
-export function notePeer(peers, beacon, addr, now) {
+export function notePeer(peers, beacon, addr, now, via = "lan") {
   const prev = peers.get(beacon.fp);
+  // ONE MACHINE, TWO ROUTES, AND THE LOCAL ONE WINS WHILE IT ANSWERS. A laptop
+  // in the office is heard on the Wi-Fi and over Tailscale in the same half
+  // minute, and taking whichever packet came last flipped its address every
+  // beacon — each flip a `changed`, and a round dialling a different route each
+  // minute. The tailnet address is used only once the local one has gone quiet
+  // for as long as presence lasts, which is the laptop having left the building.
+  const lanAt = via === "lan" ? now : prev && prev.via !== "tailscale" ? prev.lanAt ?? prev.lastSeen : prev?.lanAt;
+  const keepLan = via === "tailscale" && prev && prev.via !== "tailscale" && lanAt != null && now - lanAt < PRESENT_MS;
   const next = {
     fp: beacon.fp,
     name: beacon.name,
-    addr,
+    addr: keepLan ? prev.addr : addr,
+    via: keepLan ? prev.via ?? "lan" : via,
+    lanAt: lanAt ?? null,
     port: beacon.port,
     instance: beacon.instance,
     host: beacon.host,

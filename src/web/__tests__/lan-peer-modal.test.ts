@@ -278,7 +278,9 @@ describe("the row is the door", () => {
     // Laid over the row on the tone's own box, so the keyboard's ring is the
     // row's shape rather than a ring round one word of it.
     expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: 4px;/);
-    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\{p\.name\}<\/span>/);
+    // The name, and beside it the route when that is the tailnet — both hidden
+    // from a screen reader, which the button tells once.
+    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
   });
 
   it("answers the pointer with a tone the size of the row, and nothing more", () => {
@@ -322,9 +324,11 @@ describe("the row is the door", () => {
     // Arming records when. A second press sooner than CONFIRM_GAP_MS lands
     // before anybody could have read `sure?`, so it confirms nothing — on the
     // row, and in the dialog.
-    expect(MODAL).toMatch(/if \(!armed\) \{ setArmed\(true\); armedAt\.current = Date\.now\(\); return; \}/);
+    // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
+    expect(MODAL).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); armedAt\.current = now; return; \}/);
     for (const src of [MODAL, SECTION]) {
-      expect(src).toMatch(/if \(Date\.now\(\) - armedAt\.current < CONFIRM_GAP_MS\) return;/);
+      expect(src).toMatch(/if \(press === "ignore"\) return;/);
     }
     expect(SECTION).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
   });

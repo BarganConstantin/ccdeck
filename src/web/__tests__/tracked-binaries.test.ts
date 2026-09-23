@@ -119,18 +119,34 @@ describe("what a clone has to download", () => {
 });
 
 describe("the one sentence in .gitattributes a reader can check", () => {
-  it("still finds exactly the two PNGs it names, and nothing else", () => {
+  it("still finds exactly the PNGs it names, and nothing else", () => {
     // The paragraph says `git ls-files --eol` reports `i/lf` for every tracked
-    // file except the two PNGs under assets/. It is the only checkable claim in
-    // that file, and its job is to tell a contributor that a stray binary in
-    // the tree is a mistake rather than a policy. A third entry makes the
-    // paragraph a lie in the one place it was trying hardest not to be.
-    expect(binaries(), "the set of tracked binaries has changed, and .gitattributes still says it is the two PNGs")
-      .toEqual(["assets/canvas.png", "assets/social-preview.png"]);
+    // file except the PNGs — the screenshots and the application icons. It is
+    // the only checkable claim in that file, and its job is to tell a
+    // contributor that a stray binary in the tree is a mistake rather than a
+    // policy. An entry that is not one of these makes the paragraph a lie in
+    // the one place it was trying hardest not to be.
+    //
+    // THE SET IS PINNED WHOLE rather than described by a rule like "every
+    // binary is a .png under one of two directories", and the icons are why
+    // that is still right: they are a POLICY — the deck is installable, so it
+    // ships icons a manifest can name, and PNG is what Chrome's installability
+    // check accepts (SVG support across platforms is not there). A rule would
+    // have let the next accident in as long as it were a .png in the right
+    // folder, and the whole subject of this file is the 890 KB one that got in
+    // while nothing was looking.
+    expect(binaries(), "the set of tracked binaries has changed, and .gitattributes still names the old one")
+      .toEqual([
+        "assets/canvas.png",
+        "assets/social-preview.png",
+        "src/web/public/icon-192.png",
+        "src/web/public/icon-512.png",
+        "src/web/public/icon-maskable-512.png",
+      ]);
     // Pinned together: the wording and the fact. Changing either alone is the
-    // failure mode, and the paragraph was rewritten once already for exactly
-    // that (item 5 of #779).
+    // failure mode, and the paragraph has been rewritten twice for exactly
+    // that — item 5 of #779, and again when the deck became installable.
     expect(read(".gitattributes"), ".gitattributes no longer makes the claim this case checks")
-      .toContain("tracked file except the two PNGs under assets/");
+      .toContain("the screenshots under assets/ and the\n# application icons under src/web/public/");
   });
 });
