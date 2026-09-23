@@ -63,6 +63,21 @@ const SOURCE_LABEL: Record<FmSource, string> = {
   "lofi-vibe": "Lofi Girl vibe/chill",
   "lofi-sleep": "Lofi Girl sleep/chill",
   "radio-mix": "Radio Mix Live",
+  "best-of-nostalgia": "Best of Nostalgia Live",
+  "good-life-radio": "The Good Life Radio Live",
+  "cafe-music-bgm": "Cafe Music BGM Live",
+};
+
+const LIVE_ENDPOINT: Record<FmSource, string | null> = {
+  "claude-fm": null,
+  "lofi-relax": null,
+  "lofi-game": null,
+  "lofi-vibe": null,
+  "lofi-sleep": null,
+  "radio-mix": "/api/live-radio-mix",
+  "best-of-nostalgia": "/api/best-of-nostalgia",
+  "good-life-radio": "/api/good-life-radio",
+  "cafe-music-bgm": "/api/cafe-music-bgm",
 };
 
 /** What each grid cell is drawn as. A map here rather than a chain of
@@ -230,8 +245,9 @@ export default memo(
       setDead(false);
       setArmed(sourceChanged);
       setPlaying(sourceChanged);
-      if (source === "radio-mix") {
-        get("/api/live-radio-mix")
+      const liveEndpoint = LIVE_ENDPOINT[source];
+      if (liveEndpoint) {
+        get(liveEndpoint)
           .then(r => r.ok ? r.json() : null)
           .then(a => {
             if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });

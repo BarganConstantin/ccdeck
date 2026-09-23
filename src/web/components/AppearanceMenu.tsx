@@ -1,4 +1,5 @@
-import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { type CSSProperties, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -49,26 +50,12 @@ interface Props {
   fmSource: FmSource;
   onFmSource: (source: FmSource) => void;
   onClose: () => void;
-  openerRef: RefObject<HTMLElement | null>;
 }
 
 export default function AppearanceMenu({
-  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose, openerRef,
+  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose,
 }: Props) {
-  // A popover: the canvas stays in view around it, so its letters stay live.
-  const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-
-  useEffect(() => {
-    const onDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target || dialogRef.current?.contains(target) || openerRef.current?.contains(target)) return;
-      closeRef.current();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    return () => window.removeEventListener("pointerdown", onDown, true);
-  }, [dialogRef, openerRef]);
+  const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
@@ -101,20 +88,28 @@ export default function AppearanceMenu({
     }
   };
 
-  return (
-    <div
-      ref={dialogRef}
-      id="appearance-menu"
-      className="appearance-menu"
-      role="dialog"
-      aria-labelledby="appearance-title"
-      onKeyDown={onMenuKey}
-    >
-      {/* Built like the deck's own panels — Usage, This machine: a title over a
-          hairline, then sections under uppercase captions — so it reads as part
-          of this app rather than a settings form any app could have. */}
+  return createPortal(
+    (
+    <div className="modal-backdrop appearance-backdrop" onClick={onClose} role="presentation">
+      <div
+        ref={dialogRef}
+        id="appearance-menu"
+        className="modal appearance-menu appearance-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="appearance-title"
+        onClick={event => event.stopPropagation()}
+        onKeyDown={onMenuKey}
+      >
       <div className="appearance-head">
         <h2 id="appearance-title" className="appearance-title">Appearance</h2>
+        <button
+          type="button"
+          className="glyph-btn appearance-close"
+          onClick={onClose}
+          aria-label="Close appearance settings"
+          title="Close (Esc)"
+        >×</button>
       </div>
 
       <section className="appearance-section" aria-labelledby="appearance-theme-caption">
@@ -161,23 +156,39 @@ export default function AppearanceMenu({
         <div className="appearance-caption">
           <h3 id="appearance-fm-caption">Music source</h3>
         </div>
-        <div className="sm-row">
-          <label htmlFor="appearance-fm-source">Play from</label>
+        <div className="appearance-source-row">
+          <label htmlFor="appearance-fm-source">Station</label>
           <select
             id="appearance-fm-source"
             className="sm-select"
             value={fmSource}
+            aria-describedby="appearance-fm-source-note"
             onChange={event => onFmSource(resolveFmSource(event.target.value))}
           >
-            <option value="claude-fm">Claude FM</option>
-            <option value="lofi-relax">Lofi Girl — relax/study</option>
-            <option value="lofi-game">Lofi Girl — chill/game</option>
-            <option value="lofi-vibe">Lofi Girl — vibe/chill</option>
-            <option value="lofi-sleep">Lofi Girl — sleep/chill</option>
-            <option value="radio-mix">Radio Mix — Live</option>
+            <option value="claude-fm">🎧 Claude FM</option>
+            <optgroup label="📻 Lofi Girl">
+              <option value="lofi-relax">📚 Relax / study</option>
+              <option value="lofi-game">🎮 Chill / game</option>
+              <option value="lofi-vibe">🌅 Vibe / chill</option>
+              <option value="lofi-sleep">💤 Sleep / chill</option>
+            </optgroup>
+            <optgroup label="📻 Radio Mix">
+              <option value="radio-mix">📡 Live radio mix</option>
+            </optgroup>
+            <optgroup label="📻 Best of Nostalgia">
+              <option value="best-of-nostalgia">📼 Best of nostalgia live</option>
+            </optgroup>
+            <optgroup label="📻 The Good Life Radio">
+              <option value="good-life-radio">🌴 The Good Life Radio</option>
+            </optgroup>
+            <optgroup label="☕ Cafe Music BGM">
+              <option value="cafe-music-bgm">☕ Cafe music BGM</option>
+            </optgroup>
           </select>
         </div>
-        <p className="appearance-row-note">Choose which live YouTube channel plays from the minimap character.</p>
+        <span id="appearance-fm-source-note" className="vis-hidden">
+          Changing station starts live playback automatically.
+        </span>
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —
@@ -197,7 +208,9 @@ export default function AppearanceMenu({
           >
             <span className="switch-knob" />
           </button>
-          <span className="appearance-row-note" id="appearance-character-note">Press it to play the live stream</span>
+          <span id="appearance-character-note" className="vis-hidden">
+            Shows the animated minimap character and enables music playback.
+          </span>
         </label>
         {/* The sound menu's own slider row, borrowed rather than respelled:
             .sm-row and .sm-read are already the sheet's shape for "a level
@@ -214,16 +227,21 @@ export default function AppearanceMenu({
             max={LEVEL_MAX}
             step={LEVEL_STEP}
             value={fmVolume}
-            onChange={e => onFmVolume(Number(e.target.value))}
             aria-describedby="appearance-fm-volume-note"
+            onChange={e => onFmVolume(Number(e.target.value))}
             /* The filled half, read off the same render that sets `value` —
                the pattern SoundMenu.tsx's slider comments spell out. */
             style={{ "--sm-level": `${((fmVolume - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
           />
           <span className="sm-read">{fmVolume}%</span>
         </div>
-        <p className="appearance-row-note" id="appearance-fm-volume-note">Applies to the live stream as it plays.</p>
+        <span id="appearance-fm-volume-note" className="vis-hidden">
+          Controls live music volume.
+        </span>
       </section>
+      </div>
     </div>
+    ),
+    document.body,
   );
 }

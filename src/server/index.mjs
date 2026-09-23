@@ -313,11 +313,33 @@ async function handleLiveRadioMix(req, res) {
   if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
     return send(res, 200, { ok: true, live: false, off: true });
   }
+
   const { fetchLiveRadioMix } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/live-radio-mix.mjs")).href
   );
   const answer = await fetchLiveRadioMix();
   send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Radio Mix is not live" });
+}
+
+async function handleBestOfNostalgia(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
+  const { fetchBestOfNostalgia } = await import(pathToFileURL(join(PKG_ROOT, "src/server/best-of-nostalgia.mjs")).href);
+  const answer = await fetchBestOfNostalgia();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Best of Nostalgia is not live" });
+}
+
+async function handleGoodLifeRadio(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
+  const { fetchGoodLifeRadio } = await import(pathToFileURL(join(PKG_ROOT, "src/server/good-life-radio.mjs")).href);
+  const answer = await fetchGoodLifeRadio();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "The Good Life Radio is not live" });
+}
+
+async function handleCafeMusicBgm(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
+  const { fetchCafeMusicBgm } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cafe-music-bgm.mjs")).href);
+  const answer = await fetchCafeMusicBgm();
+  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Cafe Music BGM is not live" });
 }
 
 // Where the charge rides. A Symbol key rather than an ordinary field, because
@@ -6245,6 +6267,9 @@ const PINNED_MODULES = [
   "claude-fm.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
+  "best-of-nostalgia.mjs",
+  "good-life-radio.mjs",
+  "cafe-music-bgm.mjs",
   // system-metrics.mjs's two, on the platforms that have them, and the one
   // installer.mjs reaches for while it rewrites the hooks.
   "macmon.mjs",
@@ -7571,6 +7596,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/good-life-radio") return guard(handleGoodLifeRadio(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/cafe-music-bgm") return guard(handleCafeMusicBgm(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
