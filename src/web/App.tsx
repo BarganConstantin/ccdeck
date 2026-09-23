@@ -1097,12 +1097,12 @@ function Inner() {
           if (!response.ok) throw new Error("desktop tour preferences unavailable");
           const data = await response.json();
           if (!data?.ok) throw new Error("desktop tour preferences unavailable");
-          const persisted = data.prefs?.desktopTourSeen === true;
+          const persisted = data.prefs?.tourSeen === true;
           if (tourSeen && !persisted) {
             void fetch("/api/prefs", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ desktopTourSeen: true }),
+              body: JSON.stringify({ tourSeen: true }),
               keepalive: true,
             }).catch(() => {});
           }
@@ -5473,7 +5473,7 @@ function Inner() {
             void fetch("/api/prefs", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ desktopTourSeen: true }),
+              body: JSON.stringify({ tourSeen: true }),
               keepalive: true,
             }).catch(() => {});
           }

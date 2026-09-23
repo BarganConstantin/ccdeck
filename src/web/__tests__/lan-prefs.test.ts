@@ -111,9 +111,9 @@ describe("what a page is allowed to see", () => {
 
 describe("desktop onboarding survives a change of localhost origin (#1212)", () => {
   it("defaults to unseen and accepts only an explicit boolean true", () => {
-    expect(normalise({}).desktopTourSeen).toBe(false);
-    expect(normalise({ desktopTourSeen: "true" }).desktopTourSeen).toBe(false);
-    expect(normalise({ desktopTourSeen: true }).desktopTourSeen).toBe(true);
+    expect(normalise({}).tourSeen).toBe(false);
+    expect(normalise({ tourSeen: "true" }).tourSeen).toBe(false);
+    expect(normalise({ tourSeen: true }).tourSeen).toBe(true);
   });
 
   it("persists the marker in the shared deck preferences, independent of the browser origin", async () => {
@@ -129,10 +129,10 @@ describe("desktop onboarding survives a change of localhost origin (#1212)", () 
       chmod: async () => {},
       rename: async () => { onDisk = writes.at(-1)!.body; },
     };
-    await writePrefs({ desktopTourSeen: true }, "/tmp/tour-prefs-test", deps);
-    expect(publicPrefs(normalise(JSON.parse(onDisk!))).desktopTourSeen).toBe(true);
+    await writePrefs({ tourSeen: true }, "/tmp/tour-prefs-test", deps);
+    expect(publicPrefs(normalise(JSON.parse(onDisk!))).tourSeen).toBe(true);
     await writePrefs({ notifications: true }, "/tmp/tour-prefs-test", deps);
-    expect(publicPrefs(normalise(JSON.parse(onDisk!))).desktopTourSeen).toBe(true);
+    expect(publicPrefs(normalise(JSON.parse(onDisk!))).tourSeen).toBe(true);
   });
 });
 
