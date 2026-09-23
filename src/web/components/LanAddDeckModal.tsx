@@ -79,8 +79,11 @@ export function faultLine(
  *  reader who is not looking at the top of the dialog. */
 type Failure = { text: string; field?: "addr" | "join" };
 
-export default function LanAddDeckModal({ status, manual, onClose, onChanged }: {
+export default function LanAddDeckModal({ status, manual, startWith, onClose, onChanged }: {
   status: LanStatus;
+  /** Opened from a nearby deck's `invite`, which already said what it wants:
+   *  the invite is made on arrival and focus waits on its copy word. */
+  startWith?: "invite";
   /** The addresses this deck dials, from prefs. A write replaces the list
    *  wholesale, so adding one means sending all of them. */
   manual: string[];
@@ -90,6 +93,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
 }) {
   const addrRef = useRef<HTMLInputElement>(null);
   const joinRef = useRef<HTMLInputElement>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
   const inviteOnly = status.pairingMode === "invite";
   // The address field takes focus rather than the dialog's first control: the
   // reader pressed `+ add a deck` and the deck they mean is either an address
@@ -225,6 +229,23 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
   }, []);
 
   const live = status.invite && status.invite.expiresAt > now ? status.invite : null;
+  // THE DOOR FROM A NEARBY ROW'S INVITE. That press already asked for one, so
+  // it is made on arrival rather than behind a second press here — once, and
+  // only when none is live, so a live invite is shown rather than replaced.
+  const madeOnArrival = useRef(false);
+  useEffect(() => {
+    if (startWith !== "invite" || madeOnArrival.current || live) return;
+    madeOnArrival.current = true;
+    void invite("make");
+  }, [startWith, live, invite]);
+  // And focus waits on its copy word once it is there: copying it and sending
+  // it is the only thing left for the reader to do.
+  const focusedCopy = useRef(false);
+  useEffect(() => {
+    if (startWith !== "invite" || focusedCopy.current || !live) return;
+    focusedCopy.current = true;
+    copyRef.current?.focus();
+  }, [startWith, live]);
   // Every address this machine can be dialled at, with the one port that
   // answers on all of them. More than one is ordinary and none of them is
   // preferable from here — a peer on Tailscale cannot use the wifi address and
@@ -270,6 +291,14 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
               the same question answered two ways: does anybody have to say yes.
               Nothing else about the network is here — a reader choosing between
               two ways in cannot use a subnet. */}
+          {/* One of the two ways in is closed while this deck pairs only by
+              invite, and a door that just is not there any more reads as a bug
+              — so the place it was says why, in the panel's quiet ink. */}
+          {inviteOnly && (
+            <div className="modal-section">
+              <p className="lan-note">Adding by address is off while this deck pairs only by invite.</p>
+            </div>
+          )}
           {!inviteOnly && <div className="modal-section">
             <h3 className="lan-h">By address</h3>
             <div className="ap-lan-row">
@@ -389,7 +418,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                 </div>
                 <code className="ap-lan-token">{live.token}</code>
                 <div className="ap-lan-acts">
-                  <button type="button" className="ap-manage-btn" {...pressProps("copy:invite")}
+                  <button type="button" className="ap-manage-btn" ref={copyRef} {...pressProps("copy:invite")}
                     onClick={() => void copyText(live.token, "invite")}
                     title="Copy it, and send it however you already talk to them">
                     {copied === "invite" ? "copied" : "copy"}

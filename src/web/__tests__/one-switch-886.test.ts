@@ -29,8 +29,9 @@ describe("every switch is the one switch (#886)", () => {
   it("draws each role=switch as .switch with a knob inside it", () => {
     const switches = count(/role="switch"/g);
     // Thirteen since discovery over Tailscale added its own switch and the two
-    // permissions under it.
-    expect(switches, "the thirteen switches in the app").toBe(13);
+    // permissions under it; fourteen since invite-only pairing (#1236), which
+    // was two native radios before it was made one of these.
+    expect(switches, "the fourteen switches in the app").toBe(14);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });
