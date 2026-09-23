@@ -1,7 +1,39 @@
 import { fmtCost } from "./pricing";
 import { rangeTotals, sinceFor, type UsageRange } from "./usage-from-ccusage";
 
-export const MONTHLY_USAGE_POLL_MS = 60_000;
+/** How often the topbar phrase asks ccusage again: five minutes. A month's
+ *  total moves by a sliver an hour, and every read walks the whole log tree, so
+ *  the Usage panel's once a minute bought a number that had not visibly moved
+ *  four reads out of five. */
+export const MONTHLY_USAGE_POLL_MS = 5 * 60_000;
+
+/** How often the page ASKS whether a read is due — a comparison, not a fetch.
+ *  Kept apart from the cadence above so a read is never more than a minute
+ *  late, without a timer that fires on the very millisecond a read comes due
+ *  and loses the race to it. */
+export const MONTHLY_USAGE_CHECK_MS = 60_000;
+
+/**
+ * Whether the topbar should ask ccusage for the month now.
+ *
+ * Only while the phrase is actually drawn. Under the width where it gives way
+ * (see `.month-usage` in styles.css) it is `display: none`, and a figure read
+ * for a phrase nobody can see is a ccusage run spent on nothing. The same goes
+ * for a tab in the background. Otherwise a read is due when none has started in
+ * the last MONTHLY_USAGE_POLL_MS, and at once when none has started at all —
+ * which is what a phrase that has been hidden since the page loaded, and has
+ * just been given the room to show, wants.
+ */
+export function monthlyReadDue({ shown, tabVisible, lastReadAt, now }: {
+  shown: boolean;
+  tabVisible: boolean;
+  /** When the last read started, or null before the first. */
+  lastReadAt: number | null;
+  now: number;
+}): boolean {
+  if (!shown || !tabVisible) return false;
+  return lastReadAt === null || now - lastReadAt >= MONTHLY_USAGE_POLL_MS;
+}
 
 export interface MonthlyUsage {
   cost: number;

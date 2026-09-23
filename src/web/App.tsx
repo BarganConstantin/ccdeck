@@ -107,7 +107,8 @@ import {
   fmtMonthlyCost,
   monthlyUsageFrom,
   monthlyUsageSince,
-  MONTHLY_USAGE_POLL_MS,
+  monthlyReadDue,
+  MONTHLY_USAGE_CHECK_MS,
   type MonthlyUsage,
 } from "./monthly-usage";
 import { inDesktopApp } from "./in-app";
@@ -729,10 +730,12 @@ function Inner() {
    *  from the figure when their cards are pruned. */
   const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
   const [monthlyUsageUnavailable, setMonthlyUsageUnavailable] = useState(false);
+  /** The phrase itself, so the poll can ask whether it is on screen. */
+  const monthUsageRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     let alive = true;
     let inFlight = false;
-    let lastGoodRead = 0;
+    let lastReadAt: number | null = null;
     // The month the figure on screen was read for. A failed read leaves the
     // last good figure standing, as the Usage panel does, but only inside the
     // month it belongs to: once the 1st comes round, last month's total under
@@ -748,13 +751,13 @@ function Inner() {
     const read = () => {
       if (inFlight) return;
       inFlight = true;
+      lastReadAt = Date.now();
       const since = monthlyUsageSince();
       fetch(`/api/ccusage?since=${since}`)
         .then(r => (r.ok ? r.json() : null))
         .then(data => {
           if (!alive) return;
           if (!data?.ok) { failed(since); return; }
-          lastGoodRead = Date.now();
           goodSince = since;
           setMonthlyUsage(monthlyUsageFrom(data));
           setMonthlyUsageUnavailable(false);
@@ -763,20 +766,38 @@ function Inner() {
         .finally(() => { inFlight = false; });
     };
 
-    read();
-    const beat = () => {
-      if (document.visibilityState === "visible") read();
+    // Whether the phrase is drawn, asked of the phrase rather than of a copy of
+    // the breakpoints it gives way at: a box inside `display: none` has no
+    // client rects, and that stays true whatever the stylesheet later decides
+    // hides it. Clipped by the readout still counts as drawn.
+    const poll = () => {
+      const phrase = monthUsageRef.current;
+      if (monthlyReadDue({
+        shown: !!phrase && phrase.getClientRects().length > 0,
+        tabVisible: document.visibilityState === "visible",
+        lastReadAt,
+        now: Date.now(),
+      })) read();
     };
-    const timer = window.setInterval(beat, MONTHLY_USAGE_POLL_MS);
-    const wake = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastGoodRead >= MONTHLY_USAGE_POLL_MS) read();
-    };
-    document.addEventListener("visibilitychange", wake);
+
+    poll();
+    // Three ways back to a read, all through the one rule: the minute check,
+    // the tab coming to the front, and the phrase itself coming back on
+    // screen. The observer is the last of those — a box going to or from
+    // `display: none` changes its size, so it reports the moment the window
+    // is wide enough again rather than up to a minute later.
+    const timer = window.setInterval(poll, MONTHLY_USAGE_CHECK_MS);
+    document.addEventListener("visibilitychange", poll);
+    let seen: ResizeObserver | null = null;
+    if (monthUsageRef.current && typeof ResizeObserver !== "undefined") {
+      seen = new ResizeObserver(poll);
+      seen.observe(monthUsageRef.current);
+    }
     return () => {
       alive = false;
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", wake);
+      document.removeEventListener("visibilitychange", poll);
+      seen?.disconnect();
     };
   }, []);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
@@ -4319,6 +4340,7 @@ function Inner() {
                 is alive. That is a fact about right now, which is the only
                 tense a topbar can keep. */}
             <span
+              ref={monthUsageRef}
               className="month-usage"
               title={monthlyUsage
                 ? `${monthlyUsage.tokens.toLocaleString()} tokens · ${fmtMonthlyCost(monthlyUsage.cost)} spent since the 1st of this local calendar month`
