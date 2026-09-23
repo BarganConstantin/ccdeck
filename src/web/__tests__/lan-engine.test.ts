@@ -1596,6 +1596,24 @@ describe("a deck this one heard rather than reached for", () => {
 // since moved to somebody else's machine is an ordinary thing to find in one.
 // One of those winning the race won the whole token, and being trusted is the
 // whole inbound gate.
+describe("invite-only pairing mode", () => {
+  it("requires an invite for new peers and retains existing trust", async () => {
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite", autoAsk: true, autoAccept: true });
+    const b = await deck(store([]), "Other", []);
+    expect(a.e.status().pairingMode).toBe("invite");
+    b.e.addPeer("127.0.0.1", a.port);
+    await b.e.round();
+    expect(a.e.status().trusted).toHaveLength(0);
+    expect(a.e.accept(b.id.fp)).toBeNull();
+    const offered = a.e.invite();
+    expect((await b.e.join(offered.token)).ok).toBe(true);
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    await a.e.apply({ pairingMode: "invite" });
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+  }, 20_000);
+});
+
 describe("the invite, and the half of it that was never checked", () => {
   it("pairs with the deck that minted the token", async () => {
     const a = await deck(store([]), "Minter", []);

@@ -4117,6 +4117,7 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     shared: Array.isArray(lan.shared) ? lan.shared : [],
     autoAsk: lan.autoAsk !== false,
     autoAccept: lan.autoAccept !== false,
+    pairingMode: lan.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on.
     shareActive: lan.shareActive !== false,
     // Discovery over Tailscale, off unless somebody turned it on, and the two

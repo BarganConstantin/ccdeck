@@ -154,6 +154,7 @@ export interface LanStatus {
    *  arrives is answered here or answered for you. */
   autoAsk?: boolean;
   autoAccept?: boolean;
+  pairingMode?: "automatic" | "invite";
   /** Whether paired decks are told which shared account this one is on.
    *  Absent is on, which is what the engine does with a missing setting. */
   shareActive?: boolean;

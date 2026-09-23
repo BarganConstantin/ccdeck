@@ -325,13 +325,19 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
 
           <div className="modal-section">
             <h3 className="lan-h">Pairing</h3>
+            <div className="lan-switches" role="group" aria-label="Pairing mode">
+              <label className="lan-switch"><span className="lan-switch-what">Automatic pairing (current behavior)</span><input type="radio" name="pairing-mode" checked={status.pairingMode !== "invite"} disabled={busy !== null} onChange={() => void write({ pairingMode: "automatic" }, "enable automatic pairing", "mode")} /></label>
+              <label className="lan-switch"><span className="lan-switch-what">Pair by invite code only</span><input type="radio" name="pairing-mode" checked={status.pairingMode === "invite"} disabled={busy !== null} onChange={() => void write({ pairingMode: "invite" }, "require an invite code", "mode")} /></label>
+            </div>
+            {status.pairingMode === "invite" && <p>New devices need an invite code to pair. Already paired devices stay connected. Tailscale discovery does not bypass this setting.</p>}
+
             {/* Two rows and one shape, because they are the two halves of one
                 question: who reaches whom without anybody pressing anything.
                 A TRACK AND A KNOB, which is what every switch in this app wears
                 now — see `.switch` (#886). It was a pill with a dot and the
                 word `on` in it, which reports a state well and asks for one
                 badly. */}
-            <div className="lan-switches">
+            {status.pairingMode !== "invite" && <div className="lan-switches">
               <div className="lan-switch">
                 <span className="lan-switch-what">Ask every deck this one finds</span>
                 <button
@@ -379,7 +385,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   <span className="switch-knob" />
                 </button>
               </div>
-            </div>
+            </div>}
             {/* AND NO PARAGRAPH UNDER THEM. There was one: it changed with the
                 switches and went yellow while saying yes was on. Once that
                 setting ships ON, the yellow is the resting state of the dialog —
