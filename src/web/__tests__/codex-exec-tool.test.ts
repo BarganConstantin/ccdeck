@@ -267,12 +267,13 @@ describe("the bubble a Codex exec call draws", () => {
   });
 
   it("scales the primary width so a long command's bubble clears it", () => {
-    // #84's overlap, which every Codex tool name is exposed to. "Shell" is
-    // short enough to stay on the fixed estimate; the point is that `exec` is
-    // now inside the set that scales at all.
+    // #84's overlap, which every tool family is exposed to now (#978): the
+    // estimate scales off the label itself, so "Shell" stays on the fixed
+    // floor for being short, and a long label widens the reservation whether
+    // the tool is Codex's or Claude's own.
     expect(primaryBubbleWidth("exec", "Shell")).toBe(ESTIMATED_BUBBLE_W);
     expect(primaryBubbleWidth("exec", "a-very-long-label")).toBeGreaterThan(ESTIMATED_BUBBLE_W);
-    expect(primaryBubbleWidth("Bash", "a-very-long-label")).toBe(ESTIMATED_BUBBLE_W);
+    expect(primaryBubbleWidth("Bash", "a-very-long-label")).toBeGreaterThan(ESTIMATED_BUBBLE_W);
   });
 });
 
