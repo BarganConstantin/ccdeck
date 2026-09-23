@@ -108,6 +108,33 @@ describe("what a page is allowed to see", () => {
   });
 });
 
+describe("desktop onboarding survives a change of localhost origin (#1212)", () => {
+  it("defaults to unseen and accepts only an explicit boolean true", () => {
+    expect(normalise({}).desktopTourSeen).toBe(false);
+    expect(normalise({ desktopTourSeen: "true" }).desktopTourSeen).toBe(false);
+    expect(normalise({ desktopTourSeen: true }).desktopTourSeen).toBe(true);
+  });
+
+  it("persists the marker in the shared deck preferences, independent of the browser origin", async () => {
+    let onDisk: string | null = null;
+    const writes: Staged[] = [];
+    const deps = {
+      readFile: async () => {
+        if (onDisk === null) throw fsError("ENOENT");
+        return onDisk;
+      },
+      mkdir: async () => {},
+      createTemp: recordingTemp(writes),
+      chmod: async () => {},
+      rename: async () => { onDisk = writes.at(-1)!.body; },
+    };
+    await writePrefs({ desktopTourSeen: true }, "/tmp/tour-prefs-test", deps);
+    expect(publicPrefs(normalise(JSON.parse(onDisk!))).desktopTourSeen).toBe(true);
+    await writePrefs({ notifications: true }, "/tmp/tour-prefs-test", deps);
+    expect(publicPrefs(normalise(JSON.parse(onDisk!))).desktopTourSeen).toBe(true);
+  });
+});
+
 describe("the shape on disk", () => {
   it("is on, and pairs only when the other machine says yes", () => {
     expect(DEFAULTS.lan.enabled).toBe(true);

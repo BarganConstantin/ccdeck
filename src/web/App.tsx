@@ -98,6 +98,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
+import { inDesktopApp } from "./in-app";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -1081,16 +1082,48 @@ function Inner() {
     // welcome left for the tour, so a changelog opened here is always about an
     // upgrade. The welcome sentence in releaseNotesIntro stays for the day a
     // caller wants it back.
-    const plan = decideWelcome({ tourSeen: readTourSeen(store), decision });
-    const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
-    // Opened here, and marked seen only when a person CLOSES it — see the
-    // tour's onClose. Marking it on open was the defect: the deck reloads its
-    // own tab when the bundle changes, and updates itself while nobody is
-    // looking, so the tour opened in tabs nobody was watching, was recorded
-    // as seen, and the people it was for never saw it.
-    if (plan.tour) setTourOpen(true);
-    if (plan.notes === "now") setReleaseNotes(notes);
-    else if (plan.notes === "after") notesAfterTour.current = notes;
+    let alive = true;
+    const showWelcome = async () => {
+      let tourSeen = readTourSeen(store);
+      if (inDesktopApp()) {
+        // The desktop window's localhost port changes across restarts. The
+        // deck prefs file survives that change; localStorage belongs to the
+        // current port only. Carry an existing marker into prefs once.
+        try {
+          const response = await fetch("/api/prefs");
+          if (!response.ok) throw new Error("desktop tour preferences unavailable");
+          const data = await response.json();
+          if (!data?.ok) throw new Error("desktop tour preferences unavailable");
+          const persisted = data.prefs?.desktopTourSeen === true;
+          if (tourSeen && !persisted) {
+            void fetch("/api/prefs", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ desktopTourSeen: true }),
+              keepalive: true,
+            }).catch(() => {});
+          }
+          tourSeen = tourSeen || persisted;
+        } catch {
+          // If the durable marker cannot be read, do not show a tour that
+          // could repeat after every restart. Release notes still work.
+          tourSeen = true;
+        }
+      }
+      if (!alive) return;
+      const plan = decideWelcome({ tourSeen, decision });
+      const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
+      // Opened here, and marked seen only when a person CLOSES it — see the
+      // tour's onClose. Marking it on open was the defect: the deck reloads its
+      // own tab when the bundle changes, and updates itself while nobody is
+      // looking, so the tour opened in tabs nobody was watching, was recorded
+      // as seen, and the people it was for never saw it.
+      if (plan.tour) setTourOpen(true);
+      if (plan.notes === "now") setReleaseNotes(notes);
+      else if (plan.notes === "after") notesAfterTour.current = notes;
+    };
+    void showWelcome();
+    return () => { alive = false; };
   }, [version?.running]);
   // Everything this build has to say, for the version chip — which is the way
   // back after the dialog is dismissed, and the only recovery for a profile
@@ -5412,6 +5445,14 @@ function Inner() {
           // Seen means a person closed it — Done, ×, Escape or the scrim. A tab
           // that reloaded with it open never got here, so it opens again.
           writeTourSeen(seenStore());
+          if (inDesktopApp()) {
+            void fetch("/api/prefs", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ desktopTourSeen: true }),
+              keepalive: true,
+            }).catch(() => {});
+          }
           // The changelog an upgrade was holding back, now that the pictures
           // have been seen. Taken out of the ref first, so a tour opened by
           // hand later never replays it.
