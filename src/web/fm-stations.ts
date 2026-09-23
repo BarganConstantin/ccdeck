@@ -23,6 +23,10 @@ const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const AUDIO_EXT = /\.(mp3|aac|ogg)$/i;
 const HLS_EXT = /\.m3u8$/i;
+/** Longer than any stream link a radio portal hands out, and short enough that
+ *  the stored list cannot grow into a meaningful share of localStorage. */
+export const STATION_URL_MAX = 2048;
+export const STATION_NAME_MAX = 80;
 
 export function customFmSelection(id: string): FmSelection {
   return `${CUSTOM_FM_PREFIX}${id}`;
@@ -35,14 +39,23 @@ export function customFmId(selection: string): string | null {
 }
 
 export function parseFmStationUrl(value: string): ParsedFmStationUrl | null {
+  const text = value.trim();
+  if (text.length > STATION_URL_MAX) return null;
   let parsed: URL;
-  try { parsed = new URL(value.trim()); } catch { return null; }
+  try { parsed = new URL(text); } catch { return null; }
   if (parsed.protocol !== "https:") return null;
+  // A login in the link would be stored in plain text on this machine, and a
+  // browser refuses to send one on a media request anyway, so a station built
+  // on it could only ever show as unavailable.
+  if (parsed.username || parsed.password) return null;
 
   const url = parsed.toString();
   const host = parsed.hostname.toLowerCase();
   const youtube = host === "youtube.com" || host === "www.youtube.com" || host === "m.youtube.com";
   if (youtube) {
+    // The same rule the server's resolver keeps (src/server/fm-station.mjs): a
+    // port on a YouTube link is not something anybody copied out of YouTube.
+    if (parsed.port) return null;
     const channel = /^\/channel\/([^/]+)(?:\/live)?\/?$/.exec(parsed.pathname)?.[1];
     if (channel && CHANNEL_ID.test(channel)) return { kind: "youtube-channel", url, channel };
 
@@ -79,7 +92,7 @@ export function resolveCustomFmStations(stored: string | null | undefined): Cust
     const name = typeof (item as { name?: unknown }).name === "string" ? (item as { name: string }).name.trim() : "";
     const url = typeof (item as { url?: unknown }).url === "string" ? (item as { url: string }).url.trim() : "";
     const parsed = parseFmStationUrl(url);
-    if (!ID.test(id) || seen.has(id) || !name || name.length > 80 || !parsed) continue;
+    if (!ID.test(id) || seen.has(id) || !name || name.length > STATION_NAME_MAX || !parsed) continue;
     seen.add(id);
     stations.push({ id, name, url: parsed.url });
   }
@@ -103,6 +116,6 @@ export function selectionAfterRemovingStation(selection: FmSelection, removedId:
 export function newCustomFmStation(name: string, url: string, id = crypto.randomUUID()): CustomFmStation | null {
   const cleanName = name.trim();
   const parsed = parseFmStationUrl(url);
-  if (!cleanName || cleanName.length > 80 || !ID.test(id) || !parsed) return null;
+  if (!cleanName || cleanName.length > STATION_NAME_MAX || !ID.test(id) || !parsed) return null;
   return { id, name: cleanName, url: parsed.url };
 }

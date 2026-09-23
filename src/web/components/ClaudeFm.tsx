@@ -41,7 +41,8 @@ import {
   memo, useCallback, useEffect, useRef, useState,
   type CSSProperties,
 } from "react";
-import Hls from "hls.js";
+// Type only: the library itself is imported on demand, in startDirect.
+import type Hls from "hls.js";
 import {
   command, embedSrc, FATAL_ERRORS, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
@@ -139,14 +140,23 @@ const PROP_PIXELS = {
   scope: pixels(PROP_ART.scope, "scope"),
 };
 
+/** A direct stream's host, which is what the play control names as the place
+ *  the sound comes from — the way it names YouTube for everything else. */
+function streamHost(url: string): string {
+  try { return new URL(url).host; } catch { return "the station's server"; }
+}
+
 export default memo(
   function ClaudeFm({
-    fetchImpl, volume, muted = false, source = "claude-fm", customStation, onAvailabilityChange,
+    fetchImpl, volume, muted = false, source = "claude-fm", playRequest = 0, customStation, onAvailabilityChange,
   }: {
     fetchImpl?: typeof fetch;
     volume: number;
     muted?: boolean;
     source?: FmSelection;
+    /** Bumped by App each time somebody PICKS a station. A change of `source`
+     *  alone is not a request for sound — see the probe effect. */
+    playRequest?: number;
     customStation?: CustomFmStation;
     onAvailabilityChange?: (source: FmSelection, unavailable: boolean) => void;
   }) {
@@ -156,7 +166,7 @@ export default memo(
     /** Buffering keeps the iframe mounted; an explicit stop releases it. */
     const [armed, setArmed] = useState(false);
     const [playing, setPlaying] = useState(false);
-    const sourceRef = useRef(source);
+    const playRequestRef = useRef(playRequest);
     const audio = useRef<HTMLAudioElement | null>(null);
     const hls = useRef<Hls | null>(null);
 
@@ -251,6 +261,77 @@ export default memo(
      *  before the player answered would be silently reverted on ready. */
     const volumeRef = useRef(volume);
     volumeRef.current = volume;
+    const mutedRef = useRef(muted);
+    mutedRef.current = muted;
+
+    /**
+     * A direct stream (#1208), started. Reached from the press on the character
+     * and from a station pick, and both are the gesture that asked for sound.
+     *
+     * EVERY CALLBACK ASKS WHETHER ITS PLAYER IS STILL THE CURRENT ONE FIRST.
+     * Stopping a stream, or switching station, while it is still connecting
+     * rejects its pending play() with an AbortError. That is the person's own
+     * press, not the stream failing, and the first version answered it as a
+     * failure: the station it stopped was marked unavailable, and `dead` landed
+     * on whichever station had just replaced it, so the character vanished.
+     */
+    const startDirect = useCallback((url: string, isHls: boolean, selection: FmSelection) => {
+      stopDirect();
+      const player = new Audio();
+      player.preload = "none";
+      player.volume = volumeRef.current / 100;
+      player.muted = mutedRef.current;
+      audio.current = player;
+      setArmed(true);
+      setPlaying(true);
+
+      const current = () => audio.current === player;
+      const released = () => {
+        stopDirect();
+        setArmed(false);
+        setPlaying(false);
+      };
+      const failed = () => {
+        if (!current()) return;
+        released();
+        setDead(true);
+        onAvailabilityChange?.(selection, true);
+      };
+      // A refused autoplay is the browser wanting a press of its own, not a
+      // broken station: the control stays, idle, and pressing it plays.
+      const refused = (error: unknown) => {
+        if (!current()) return;
+        if (error instanceof DOMException && error.name === "NotAllowedError") { released(); return; }
+        failed();
+      };
+      player.addEventListener("playing", () => {
+        if (!current()) return;
+        setPlaying(true);
+        onAvailabilityChange?.(selection, false);
+      });
+      player.addEventListener("ended", () => { if (current()) released(); });
+      player.addEventListener("error", failed, { once: true });
+
+      if (isHls && !player.canPlayType("application/vnd.apple.mpegurl")) {
+        // hls.js is fetched here and nowhere else. It is a third of the size of
+        // the whole deck again, and only somebody playing an HLS station in a
+        // browser without native HLS ever needs it, so it is its own chunk
+        // rather than part of every page load.
+        import("hls.js").then(({ default: HlsPlayer }) => {
+          if (!current()) return;
+          if (!HlsPlayer.isSupported()) { failed(); return; }
+          const stream = new HlsPlayer();
+          hls.current = stream;
+          stream.on(HlsPlayer.Events.ERROR, (_event, data) => { if (data.fatal) failed(); });
+          stream.on(HlsPlayer.Events.MEDIA_ATTACHED, () => stream.loadSource(url));
+          stream.on(HlsPlayer.Events.MANIFEST_PARSED, () => { void player.play().catch(refused); });
+          stream.attachMedia(player);
+        }, failed);
+      } else {
+        player.src = url;
+        void player.play().catch(refused);
+      }
+    }, [onAvailabilityChange, stopDirect]);
 
     // HOW LOUD, WHILE IT PLAYS. `setVolume` is a plain command: the player
     // accepts it and reports nothing, so there is nothing to listen for here —
@@ -274,14 +355,24 @@ export default memo(
     // WHETHER THERE IS ANYTHING TO PLAY. One request, on mount, and the answer
     // is cached by the server for everyone else. A failure is indistinguishable
     // from "not live" on purpose: both mean nothing renders.
+    //
+    // AND WHETHER TO START IT. Picking a station plays it — the pick is the
+    // click that asked for sound, which is what "start the newly selected
+    // stream immediately" meant when the station list first shipped. It is the
+    // PICK that counts, not the source changing: the source also changes when
+    // a reload restores it and when removing the active custom station falls
+    // back to Claude FM, and neither of those is anybody asking for music. So
+    // this compares App's pick counter, which only a pick moves, and a mount
+    // takes the counter as it finds it.
     useEffect(() => {
       let alive = true;
       const get = fetchImpl ?? fetch;
-      sourceRef.current = source;
+      const asked = playRequestRef.current !== playRequest;
+      playRequestRef.current = playRequest;
       setProbe(null);
       setDead(false);
-      setArmed(false);
-      setPlaying(false);
+      setArmed(asked);
+      setPlaying(asked);
       stopDirect();
 
       const custom = customStation && customFmSelection(customStation.id) === source
@@ -291,6 +382,7 @@ export default memo(
         if (custom.kind === "direct-audio") {
           setProbe({ live: true, channel: "", audio: custom.url, hls: custom.format === "hls" });
           onAvailabilityChange?.(source, false);
+          if (asked) startDirect(custom.url, custom.format === "hls", source);
           return () => { alive = false; };
         }
         if (custom.kind === "youtube-channel") {
@@ -348,7 +440,7 @@ export default memo(
           .catch(() => { /* no music today */ });
       }
       return () => { alive = false; };
-    }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, source, stopDirect]);
+    }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
 
     useEffect(() => () => stopDirect(), [stopDirect]);
 
@@ -670,45 +762,7 @@ export default memo(
           setPlaying(false);
           return;
         }
-
-        const player = new Audio();
-        player.preload = "none";
-        player.volume = volume / 100;
-        player.muted = muted;
-        audio.current = player;
-        setArmed(true);
-        setPlaying(true);
-
-        const failed = () => {
-          stopDirect();
-          setArmed(false);
-          setPlaying(false);
-          setDead(true);
-          onAvailabilityChange?.(source, true);
-        };
-        player.addEventListener("playing", () => {
-          setPlaying(true);
-          onAvailabilityChange?.(source, false);
-        });
-        player.addEventListener("ended", () => {
-          stopDirect();
-          setArmed(false);
-          setPlaying(false);
-        });
-        player.addEventListener("error", failed, { once: true });
-
-        if (probe.hls && !player.canPlayType("application/vnd.apple.mpegurl")) {
-          if (!Hls.isSupported()) { failed(); return; }
-          const stream = new Hls();
-          hls.current = stream;
-          stream.on(Hls.Events.ERROR, (_event, data) => { if (data.fatal) failed(); });
-          stream.on(Hls.Events.MEDIA_ATTACHED, () => stream.loadSource(probe.audio!));
-          stream.on(Hls.Events.MANIFEST_PARSED, () => { void player.play().catch(failed); });
-          stream.attachMedia(player);
-        } else {
-          player.src = probe.audio;
-          void player.play().catch(failed);
-        }
+        startDirect(probe.audio, probe.hls === true, source);
         return;
       }
 
@@ -723,6 +777,7 @@ export default memo(
     };
 
     const label = sourceLabel(source, customStation);
+    const from = probe.audio ? streamHost(probe.audio) : "YouTube";
 
     return (
       <div
@@ -822,7 +877,7 @@ export default memo(
           data-dance={playing ? dance ?? DANCES[0] : undefined}
           aria-pressed={playing}
           onClick={press}
-          title={playing ? `Stop ${label}` : `Play ${label}`}
+          title={playing ? `Stop ${label}` : `Play ${label} — streams from ${from}`}
           aria-label={playing ? `Stop ${label}` : `Play ${label}`}
         >
           <svg viewBox={`0 0 ${SPRITE_W} ${SPRITE_H}`} shapeRendering="crispEdges" aria-hidden>

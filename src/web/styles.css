@@ -1297,57 +1297,28 @@ button:focus-visible { outline-offset: 1px; }
   .appearance-source-trigger:active,
   .appearance-source-option:active { transform: none; }
 }
+/* The custom-station controls (#1208). Layout only: the buttons are
+   `button.btn` and the fields `.ap-manage-input`, so their edges, focus ring
+   and press are the ones already swept rather than a third copy of each. */
 .appearance-station-manage {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-.appearance-station-button {
-  min-height: 28px;
-  padding: 4px 9px;
-  color: var(--text);
-  background: var(--sm-fill);
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out, transform 120ms ease-out;
-}
-.appearance-station-button:hover { border-color: var(--text); }
-.appearance-station-button.is-primary {
-  color: var(--accent-contrast);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.appearance-station-button:active { transform: scale(0.97); }
 .appearance-station-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px;
-}
-.appearance-station-form input {
-  min-width: 0;
-  min-height: 30px;
-  padding: 5px 8px;
-  color: var(--text);
-  background: var(--sm-fill);
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  font: inherit;
-  font-size: 12px;
+  gap: 8px;
 }
 .appearance-station-form input:first-child { grid-column: 1 / -1; }
 .appearance-station-form.is-rename input:first-child { grid-column: 1; }
+.appearance-station-form.is-rename { grid-template-columns: minmax(0, 1fr) auto auto; }
 .appearance-station-error {
   grid-column: 1 / -1;
   margin: 0;
-  color: var(--danger, var(--text));
+  color: var(--err);
   font-size: 11px;
   line-height: 16px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .appearance-station-button:active { transform: none; }
 }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says

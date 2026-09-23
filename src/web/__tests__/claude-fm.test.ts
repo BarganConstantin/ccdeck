@@ -1562,6 +1562,11 @@ describe("the character", () => {
     expect(component).toContain("aria-label={playing ? `Stop ${label}` : `Play ${label}`}");
     // The active station's real name is also carried by the hidden YouTube frame.
     expect(component).toContain("title={label}");
+    // And says where the sound comes from before anybody presses it: YouTube
+    // for every station the embed plays, the stream's own host for a direct
+    // one (#1208) — the press is what makes the browser call either.
+    expect(component).toContain("`Play ${label} — streams from ${from}`");
+    expect(component).toContain('const from = probe.audio ? streamHost(probe.audio) : "YouTube";');
   });
 });
 

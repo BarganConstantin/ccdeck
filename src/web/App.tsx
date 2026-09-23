@@ -46,7 +46,7 @@ import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, resolveFmSource, storedCharacterEnabled, storedFmVolume } from "./appearance";
 import {
-  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, customFmId, customFmSelection,
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_NAME_MAX, customFmId, customFmSelection,
   resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation,
   type CustomFmStation, type FmSelection,
 } from "./fm-stations";
@@ -1704,6 +1704,9 @@ function Inner() {
     resolveFmSelection(readStored(FM_SOURCE_KEY), customFmStations, resolveFmSource)
   );
   const [unavailableFmStations, setUnavailableFmStations] = useState<Set<string>>(() => new Set());
+  /** How many times somebody has picked a station. ClaudeFm starts the station
+   *  when this moves and not when `fmSource` does — see its probe effect. */
+  const [fmPlayRequest, setFmPlayRequest] = useState(0);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -1777,7 +1780,7 @@ function Inner() {
 
   const renameFmStation = useCallback((id: string, name: string) => {
     const clean = name.trim();
-    if (!clean || clean.length > 80) return;
+    if (!clean || clean.length > STATION_NAME_MAX) return;
     setCustomFmStations(current => current.map(station => station.id === id ? { ...station, name: clean } : station));
   }, []);
 
@@ -1789,6 +1792,14 @@ function Inner() {
       const next = new Set(current); next.delete(id); return next;
     });
   }, []);
+
+  // A pick of the station already playing changes nothing, as it did before
+  // custom stations: counting it would restart the stream under the person.
+  const pickFmSource = useCallback((next: FmSelection) => {
+    if (next === fmSource) return;
+    setFmSource(next);
+    setFmPlayRequest(count => count + 1);
+  }, [fmSource]);
 
   const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
     const id = customFmId(selection);
@@ -4537,7 +4548,7 @@ function Inner() {
                   fmMuted={fmMuted}
                   onFmMuted={() => setFmMuted(muted => !muted)}
                   fmSource={fmSource}
-                  onFmSource={setFmSource}
+                  onFmSource={pickFmSource}
                   customFmStations={customFmStations}
                   unavailableFmStations={unavailableFmStations}
                   onAddFmStation={addFmStation}
@@ -5382,6 +5393,7 @@ function Inner() {
               volume={fmVolume}
               muted={fmMuted}
               source={fmSource}
+              playRequest={fmPlayRequest}
               customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
               onAvailabilityChange={markFmStationAvailability}
             />

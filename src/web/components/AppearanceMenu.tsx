@@ -5,14 +5,16 @@ import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { FM_SOURCE_OPTIONS } from "../appearance";
 import {
-  customFmId, customFmSelection, newCustomFmStation,
+  STATION_NAME_MAX, STATION_URL_MAX, customFmId, customFmSelection, newCustomFmStation,
   type CustomFmStation, type FmSelection,
 } from "../fm-stations";
 import { isEscapeKey } from "../modal-dismiss";
+import { isTypingTarget } from "../shortcuts";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
 const FM_SOURCES = FM_SOURCE_OPTIONS;
+const NAME_MISSING = "Give the station a name.";
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -152,11 +154,22 @@ export default function AppearanceMenu({
     });
   };
 
+  // FOCUS GOES BACK TO THE STATION PICKER after every step that takes the
+  // focused control away — the form's own submit button on Add, Remove on
+  // Remove, Save and Cancel on a rename. Left alone, focus fell to <body>
+  // behind the modal, and the picker is where the result of each step reads:
+  // the station just added, the name just saved, Claude FM after a removal.
+  const backToPicker = () => sourceTriggerRef.current?.focus();
+
   const addStation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!stationName.trim()) {
+      setStationError(NAME_MISSING);
+      return;
+    }
     const station = newCustomFmStation(stationName, stationUrl);
     if (!station) {
-      setStationError("Use a name and an https YouTube live/channel link or .mp3, .aac, .ogg, or .m3u8 stream.");
+      setStationError("Use an https YouTube live or channel link, or a .mp3, .aac, .ogg or .m3u8 stream.");
       return;
     }
     onAddFmStation(station);
@@ -165,6 +178,7 @@ export default function AppearanceMenu({
     setStationUrl("");
     setStationError("");
     setAddingStation(false);
+    backToPicker();
   };
 
   const saveRename = (event: FormEvent<HTMLFormElement>) => {
@@ -172,6 +186,7 @@ export default function AppearanceMenu({
     if (!activeCustomId || !renameValue.trim()) return;
     onRenameFmStation(activeCustomId, renameValue);
     setRenamingStation(false);
+    backToPicker();
   };
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -193,8 +208,12 @@ export default function AppearanceMenu({
   // holds the shortcuts — so the hint would have named a dead key in the one
   // place it is shown. Stopped after, so a pointer-focused control that hands
   // letters back to App (#851) cannot switch it twice.
+  // A field somebody is typing into keeps every letter, T included: the
+  // station form made this the first menu with text in it, and without this
+  // typing "https://" switched the theme twice and left "hps://" in the box.
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === " ") { event.stopPropagation(); return; }
+    if (isTypingTarget(event.target as HTMLElement)) return;
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
@@ -327,32 +346,60 @@ export default function AppearanceMenu({
             </div>
           </div>
           <span id="appearance-fm-source-note" className="vis-hidden">
-            Choose a station, then press the minimap character to play it.
+            Changing station starts live playback automatically.
           </span>
+          {/* Custom stations are rows in the list above, not a second picker:
+              these only add one, and rename or remove the one that is chosen.
+              The deck's own buttons and the accounts panel's text field, both
+              already swept for edge contrast, focus ring and press. */}
           <div className="appearance-station-manage">
-            <button type="button" className="appearance-station-button" onClick={() => { setAddingStation(open => !open); setStationError(""); }}>
+            <button type="button" className="btn" aria-expanded={addingStation} onClick={() => { setAddingStation(open => !open); setStationError(""); }}>
               {addingStation ? "Cancel add" : "Add station"}
             </button>
             {activeCustomStation && !renamingStation && (
               <>
-                <button type="button" className="appearance-station-button" onClick={() => { setRenameValue(activeCustomStation.name); setRenamingStation(true); }}>Rename</button>
-                <button type="button" className="appearance-station-button" onClick={() => onRemoveFmStation(activeCustomStation.id)}>Remove</button>
+                <button type="button" className="btn" onClick={() => { setRenameValue(activeCustomStation.name); setRenamingStation(true); }}>Rename</button>
+                <button type="button" className="btn danger" onClick={() => { onRemoveFmStation(activeCustomStation.id); backToPicker(); }}>Remove</button>
               </>
             )}
           </div>
           {addingStation && (
-            <form className="appearance-station-form" onSubmit={addStation}>
-              <input value={stationName} onChange={event => setStationName(event.target.value)} placeholder="Station name" aria-label="Station name" maxLength={80} />
-              <input value={stationUrl} onChange={event => setStationUrl(event.target.value)} placeholder="https://…" aria-label="Station URL" inputMode="url" />
-              {stationError && <p className="appearance-station-error" role="alert">{stationError}</p>}
-              <button type="submit" className="appearance-station-button is-primary">Add</button>
+            <form className="appearance-station-form" onSubmit={addStation} noValidate>
+              <input
+                className="ap-manage-input"
+                value={stationName}
+                onChange={event => setStationName(event.target.value)}
+                placeholder="Station name"
+                aria-label="Station name"
+                aria-invalid={stationError === NAME_MISSING || undefined}
+                aria-describedby={stationError === NAME_MISSING ? "appearance-station-error" : undefined}
+                maxLength={STATION_NAME_MAX}
+                autoFocus
+              />
+              <input
+                className="ap-manage-input"
+                value={stationUrl}
+                onChange={event => setStationUrl(event.target.value)}
+                placeholder="https://…"
+                aria-label="Station link"
+                aria-invalid={(stationError !== "" && stationError !== NAME_MISSING) || undefined}
+                aria-describedby={stationError && stationError !== NAME_MISSING ? "appearance-station-error" : undefined}
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={STATION_URL_MAX}
+              />
+              <button type="submit" className="btn primary">Add</button>
+              {/* After the button, so the grid keeps Add beside the link and the
+                  message takes a row of its own under both. */}
+              {stationError && <p id="appearance-station-error" className="appearance-station-error" role="alert">{stationError}</p>}
             </form>
           )}
           {activeCustomStation && renamingStation && (
             <form className="appearance-station-form is-rename" onSubmit={saveRename}>
-              <input value={renameValue} onChange={event => setRenameValue(event.target.value)} aria-label="Rename station" maxLength={80} autoFocus />
-              <button type="submit" className="appearance-station-button is-primary">Save</button>
-              <button type="button" className="appearance-station-button" onClick={() => setRenamingStation(false)}>Cancel</button>
+              <input className="ap-manage-input" value={renameValue} onChange={event => setRenameValue(event.target.value)} aria-label="Station name" maxLength={STATION_NAME_MAX} autoFocus />
+              <button type="submit" className="btn primary">Save</button>
+              <button type="button" className="btn" onClick={() => { setRenamingStation(false); backToPicker(); }}>Cancel</button>
             </form>
           )}
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
