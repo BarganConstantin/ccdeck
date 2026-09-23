@@ -316,6 +316,8 @@ const PRESSES: Press[] = [
   // 30px track, and six percent of that reads as the knob slipping.
   [".switch:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
+  [".appearance-source-trigger:active", "0.97", "transform"],
+  [".appearance-source-option:active", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],

@@ -7,6 +7,24 @@ export const FM_SOURCE_KEY = "agent-dag.fm-source";
 
 export type FmSource = "claude-fm" | "lofi-relax" | "lofi-game" | "lofi-vibe" | "lofi-sleep" | "radio-mix" | "best-of-nostalgia" | "good-life-radio" | "cafe-music-bgm";
 
+export interface FmSourceOption {
+  group?: string;
+  value: FmSource;
+  label: string;
+}
+
+export const FM_SOURCE_OPTIONS: FmSourceOption[] = [
+  { value: "claude-fm", label: "🎧 Claude FM" },
+  { group: "📻 Lofi Girl", value: "lofi-relax", label: "📚 Relax / study" },
+  { group: "📻 Lofi Girl", value: "lofi-game", label: "🎮 Chill / game" },
+  { group: "📻 Lofi Girl", value: "lofi-vibe", label: "🌅 Vibe / chill" },
+  { group: "📻 Lofi Girl", value: "lofi-sleep", label: "💤 Sleep / chill" },
+  { group: "📻 Radio Mix", value: "radio-mix", label: "📡 Live radio mix" },
+  { group: "📻 Best of Nostalgia", value: "best-of-nostalgia", label: "📼 Best of nostalgia live" },
+  { group: "📻 The Good Life Radio", value: "good-life-radio", label: "🌴 The Good Life Radio" },
+  { group: "☕ Cafe Music BGM", value: "cafe-music-bgm", label: "☕ Cafe music BGM" },
+];
+
 export function resolveFmSource(stored: string | null | undefined): FmSource {
   return stored === "lofi-relax" || stored === "lofi-game" || stored === "lofi-vibe" || stored === "lofi-sleep" || stored === "radio-mix" || stored === "best-of-nostalgia" || stored === "good-life-radio" || stored === "cafe-music-bgm"
     ? stored
