@@ -111,7 +111,7 @@ function buildMenu() {
       click: item => app.setLoginItemSettings({ openAtLogin: item.checked }),
     },
     { type: "separator" },
-    { label: `ccdeck ${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck ${deck.version}` : ""}`, enabled: false },
+    { label: `ccdeck v${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck v${deck.version}` : ""}`, enabled: false },
     updateItem(),
     // #1163: the deck restarted from the tray, the way the page's version
     // dialog does it, rather than Quit and a trip to the Start menu.
@@ -122,11 +122,15 @@ function buildMenu() {
 }
 
 /** The update line of the menu, which says where the update is rather than
- *  offering a button that does nothing while one is already on its way. */
+ *  offering a button that does nothing while one is already on its way.
+ *  "Restart to update" and "v1.64.0" are the words the native sheet and the
+ *  window's dialog use for the same action — one verb and one spelling of the
+ *  version on all three surfaces, so a person told to find this line by the
+ *  window can recognise it. */
 function updateItem() {
   const u = updater?.state ?? { status: "idle" };
-  if (u.status === "ready") return { label: `Restart to update to ${u.version}`, click: () => updater.restartNow() };
-  if (u.status === "downloading") return { label: `Downloading ccdeck ${u.version}…`, enabled: false };
+  if (u.status === "ready") return { label: `Restart to update to v${u.version}`, click: () => updater.restartNow() };
+  if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
   if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
   return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => updater?.check() };
 }
@@ -196,7 +200,7 @@ function attach(found) {
       if (restartReadyUpdate(updater, version)) trace(`window requested verified update ${version}`);
       else trace(`ignored window update request ${version ?? "without a version"}`);
     },
-    // The window's dialog has put this version's Update and restart in front
+    // The window's dialog has put this version's Restart to update in front
     // of the person, which is the one notice a version gets (#1182). Without
     // this the native sheet still owed its own, and arrived on top of the
     // window's offer, or after the person had already closed it, to ask the
@@ -527,7 +531,7 @@ async function ask(options) {
 /**
  * This version has had its one notice, from whichever surface gave it first:
  * the native sheet below, or the window's own version dialog, which offers
- * the same Update and restart (#1187). One memory for both, kept on disk, so
+ * the same Restart to update (#1187). One memory for both, kept on disk, so
  * "Later" in either place survives a relaunch and neither asks again. The
  * version chip and the tray line stay, as the places to find it afterwards.
  */
@@ -574,9 +578,11 @@ async function offerReadyUpdate() {
   try {
     const { response } = await dialog.showMessageBox(target, {
       type: "info",
-      message: `ccdeck ${version} is ready`,
-      detail: "The update has been downloaded and verified. Restart ccdeck to use the new version.",
-      buttons: ["Restart now", "Later"],
+      message: `ccdeck v${version} is ready`,
+      // The tray's own words for where it lives, the ones the window's dialog
+      // uses when a restart from there fails (trayMenuName in desktop-update.ts).
+      detail: `It has been downloaded and verified. To do it later, use Restart to update in ${process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu"}.`,
+      buttons: ["Restart to update", "Later"],
       defaultId: 0,
       cancelId: 1,
     });

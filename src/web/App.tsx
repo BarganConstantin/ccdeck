@@ -107,11 +107,22 @@ import {
   fmtMonthlyCost,
   monthlyUsageFrom,
   monthlyUsageSince,
-  MONTHLY_USAGE_POLL_MS,
+  monthlyReadDue,
+  MONTHLY_USAGE_CHECK_MS,
   type MonthlyUsage,
 } from "./monthly-usage";
 import { inDesktopApp } from "./in-app";
-import { desktopAppVersion, readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
+import {
+  desktopAppVersion,
+  readDesktopUpdate,
+  readyChipCopy,
+  readyDesktopUpdate,
+  UPDATE_RESTART_WAIT_MS,
+  updateRestartFailureText,
+  updateRestartRefusal,
+  type DesktopUpdateState,
+  type UpdateRestartFailure,
+} from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -738,10 +749,12 @@ function Inner() {
    *  from the figure when their cards are pruned. */
   const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
   const [monthlyUsageUnavailable, setMonthlyUsageUnavailable] = useState(false);
+  /** The phrase itself, so the poll can ask whether it is on screen. */
+  const monthUsageRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     let alive = true;
     let inFlight = false;
-    let lastGoodRead = 0;
+    let lastReadAt: number | null = null;
     // The month the figure on screen was read for. A failed read leaves the
     // last good figure standing, as the Usage panel does, but only inside the
     // month it belongs to: once the 1st comes round, last month's total under
@@ -757,13 +770,13 @@ function Inner() {
     const read = () => {
       if (inFlight) return;
       inFlight = true;
+      lastReadAt = Date.now();
       const since = monthlyUsageSince();
       fetch(`/api/ccusage?since=${since}`)
         .then(r => (r.ok ? r.json() : null))
         .then(data => {
           if (!alive) return;
           if (!data?.ok) { failed(since); return; }
-          lastGoodRead = Date.now();
           goodSince = since;
           setMonthlyUsage(monthlyUsageFrom(data));
           setMonthlyUsageUnavailable(false);
@@ -772,20 +785,38 @@ function Inner() {
         .finally(() => { inFlight = false; });
     };
 
-    read();
-    const beat = () => {
-      if (document.visibilityState === "visible") read();
+    // Whether the phrase is drawn, asked of the phrase rather than of a copy of
+    // the breakpoints it gives way at: a box inside `display: none` has no
+    // client rects, and that stays true whatever the stylesheet later decides
+    // hides it. Clipped by the readout still counts as drawn.
+    const poll = () => {
+      const phrase = monthUsageRef.current;
+      if (monthlyReadDue({
+        shown: !!phrase && phrase.getClientRects().length > 0,
+        tabVisible: document.visibilityState === "visible",
+        lastReadAt,
+        now: Date.now(),
+      })) read();
     };
-    const timer = window.setInterval(beat, MONTHLY_USAGE_POLL_MS);
-    const wake = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastGoodRead >= MONTHLY_USAGE_POLL_MS) read();
-    };
-    document.addEventListener("visibilitychange", wake);
+
+    poll();
+    // Three ways back to a read, all through the one rule: the minute check,
+    // the tab coming to the front, and the phrase itself coming back on
+    // screen. The observer is the last of those — a box going to or from
+    // `display: none` changes its size, so it reports the moment the window
+    // is wide enough again rather than up to a minute later.
+    const timer = window.setInterval(poll, MONTHLY_USAGE_CHECK_MS);
+    document.addEventListener("visibilitychange", poll);
+    let seen: ResizeObserver | null = null;
+    if (monthUsageRef.current && typeof ResizeObserver !== "undefined") {
+      seen = new ResizeObserver(poll);
+      seen.observe(monthUsageRef.current);
+    }
     return () => {
       alive = false;
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", wake);
+      document.removeEventListener("visibilitychange", poll);
+      seen?.disconnect();
     };
   }, []);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
@@ -1139,6 +1170,11 @@ function Inner() {
   const [version, setVersion] = useState<VersionInfo | null>(null);
   const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateState | null>(null);
   const [desktopUpdateRestarting, setDesktopUpdateRestarting] = useState(false);
+  /** Why the last press of Restart to update did not end in a restart, and for
+   *  which version. Null until one fails, and again from the next press. */
+  const [desktopUpdateFailure, setDesktopUpdateFailure] = useState<
+    { failure: UpdateRestartFailure; version: string } | null
+  >(null);
   const [versionDismissed, setVersionDismissed] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
@@ -1224,23 +1260,54 @@ function Inner() {
   // and this ref is what a second Enter meets. Handed back after a while, as
   // askRestart does, because the answer to a restart that worked is the
   // window closing — one still here after half a minute did not happen.
+  // HANDED BACK WITH A REASON. It used to be handed back and nothing else: a
+  // 409 from the deck, or the half minute running out, turned "Restarting…"
+  // back into the button it had been, which looks exactly like a press that
+  // never registered, so the only thing left to try was the same press again.
+  // Each way it can fail now leaves a sentence in the dialog saying which, and
+  // naming the tray's line as the way out — that one talks to the updater
+  // directly and works in every case here, including a deck that has lost the
+  // app altogether.
+  // ONE PRESS AT A TIME, and only that one handed back. The half-minute clock
+  // used to be a bare setTimeout that checked the shared "asked" flag, so a
+  // press the stream had already released (the update stopped being ready),
+  // followed by a press for the next version, gave the old clock a flag that
+  // was true again: it fired "has not restarted after 30 seconds" into the new
+  // press seconds after it began. The same was true of a slow answer to the old
+  // request. So the clock's id is kept to be cleared — by a new press, by every
+  // hand-back and by the stream's release — and each press carries a number,
+  // and a hand-back for any number but the latest is about a press that is
+  // already over.
   const desktopUpdateAskedRef = useRef(false);
+  const desktopUpdateTimerRef = useRef(0);
+  const desktopUpdatePressRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(desktopUpdateTimerRef.current), []);
   const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
     if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;
+    const press = ++desktopUpdatePressRef.current;
+    window.clearTimeout(desktopUpdateTimerRef.current);
     desktopUpdateAskedRef.current = true;
     setDesktopUpdateRestarting(true);
-    const handBack = () => { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); };
+    setDesktopUpdateFailure(null);
+    const handBack = (failure: UpdateRestartFailure) => {
+      if (press !== desktopUpdatePressRef.current) return;
+      window.clearTimeout(desktopUpdateTimerRef.current);
+      desktopUpdateAskedRef.current = false;
+      setDesktopUpdateRestarting(false);
+      setDesktopUpdateFailure({ failure, version: updateVersion });
+    };
     try {
       const response = await fetch("/api/desktop-update/restart", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ version: updateVersion }),
       });
-      if (!response.ok) return handBack();
+      if (!response.ok) return handBack(updateRestartRefusal(await response.json().catch(() => null)));
     } catch {
-      return handBack();
+      return handBack("unreachable");
     }
-    window.setTimeout(() => { if (desktopUpdateAskedRef.current) handBack(); }, 30_000);
+    if (press !== desktopUpdatePressRef.current) return;
+    desktopUpdateTimerRef.current = window.setTimeout(() => handBack("timeout"), UPDATE_RESTART_WAIT_MS);
   }, []);
 
   // ── who is looking ────────────────────────────────────────────────────────
@@ -2290,7 +2357,14 @@ function Inner() {
         if (next) {
           desktopUpdateFramesRef.current++;
           setDesktopUpdate(next);
-          if (next.status !== "ready") { desktopUpdateAskedRef.current = false; setDesktopUpdateRestarting(false); }
+          if (next.status !== "ready") {
+            // The press that was out is over, and so are its clock and any
+            // answer still on its way (see askDesktopUpdateRestart).
+            desktopUpdatePressRef.current++;
+            window.clearTimeout(desktopUpdateTimerRef.current);
+            desktopUpdateAskedRef.current = false;
+            setDesktopUpdateRestarting(false);
+          }
         }
       } catch { /* ignore */ }
     });
@@ -4238,19 +4312,26 @@ function Inner() {
                 behind stays behind until somebody upgrades it, and while this
                 branch is the one on screen it is the ONLY way back into a
                 dismissed dialog. */}
-            {readyAppUpdate ? (
-              <button
-                type="button"
-                className="v stale"
-                onClick={openReleaseNotes}
-                aria-haspopup="dialog"
-                aria-label={`ccdeck v${readyAppUpdate.version} is ready to update and restart`}
-                title={`ccdeck v${readyAppUpdate.version} is downloaded and verified · click to update and restart`}
-              >
-                v{desktopAppVersion() ?? chipVersion} → v{readyAppUpdate.version}
-                <span className="v-dot" aria-hidden />
-              </button>
-            ) : notice ? (
+            {readyAppUpdate ? (() => {
+              // Good news, so not the stale chip's amber: that colour is this
+              // bar's warning, and an update the app has already downloaded
+              // and verified is the opposite of something being wrong. It
+              // wears the accent instead — see .v.ready.
+              const copy = readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version);
+              return (
+                <button
+                  type="button"
+                  className="v ready"
+                  onClick={openReleaseNotes}
+                  aria-haspopup="dialog"
+                  aria-label={copy.label}
+                  title={copy.title}
+                >
+                  {copy.text}
+                  <span className="v-dot" aria-hidden />
+                </button>
+              );
+            })() : notice ? (
               <button
                 type="button"
                 className="v stale"
@@ -4407,6 +4488,7 @@ function Inner() {
                 is alive. That is a fact about right now, which is the only
                 tense a topbar can keep. */}
             <span
+              ref={monthUsageRef}
               className="month-usage"
               title={monthlyUsage
                 ? `${monthlyUsage.tokens.toLocaleString()} tokens · ${fmtMonthlyCost(monthlyUsage.cost)} spent since the 1st of this local calendar month`
@@ -4551,7 +4633,11 @@ function Inner() {
             <button
               type="button"
               className="selected-ribbon"
-              title={`Zoom to ${selected.label} and its session (Z)`}
+              /* The cost rides in the title as well as in the chip, because the
+                 chip drops it where the bar is short (see WHERE THE MONTH GIVES
+                 WAY in styles.css) and a hover should still find it there. */
+              title={`Zoom to ${selected.label} and its session (Z)${
+                c.total > 0 ? `\n${fmtCost(c.total)} spent${rate ? ` · ${rate}` : ""}` : ""}`}
               onClick={() => { try { focusAgent(selected.id); } catch {} }}
             >
               <span className={`state-pill state-${selected.state}`}>
@@ -5888,6 +5974,13 @@ function Inner() {
         <BrowserWatchModal
           onClose={() => setBrowserWatchOpen(false)}
           onSeen={ms => {
+            // The reader has just looked, so the count falling to nothing is
+            // their own doing and not news: the region goes back to the silence
+            // it starts in rather than telling them "no unread findings" about
+            // the list they were reading. Only the reducer's all-clear is
+            // skipped — the next finding still speaks, because "" is the state
+            // a first announcement is made from.
+            setWatchSaid("");
             setWatchSeenMs(ms);
             try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
           }}
@@ -5938,6 +6031,13 @@ function Inner() {
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
           updateVersion={readyAppUpdate?.version}
           updateBusy={desktopUpdateRestarting}
+          /* Said until the next press. A failure for a version the app has
+             since replaced is about nothing that is on offer any more, so it
+             goes when a different one is ready. */
+          updateFailure={desktopUpdateFailure
+            && (!readyAppUpdate || readyAppUpdate.version === desktopUpdateFailure.version)
+            ? updateRestartFailureText(desktopUpdateFailure.failure, desktopUpdateFailure.version)
+            : undefined}
           onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
           /* Only where the server would do it: an unsupervised deck answers
              501 and one without a writable log 409, and the button is not

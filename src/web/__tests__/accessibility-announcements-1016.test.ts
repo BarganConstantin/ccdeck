@@ -23,10 +23,27 @@ describe("the deck announces state that is already visible (#1016)", () => {
     expect(app).toContain('<div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>');
   });
 
+  it("does not announce an all-clear the reader caused by reading Browser Watch", () => {
+    // Closing the dialog stamps every finding seen, which takes the count to
+    // nothing — and the reducer would then say "no unread findings" about the
+    // list the reader had just finished. Reading it puts the region back to the
+    // silence it starts in; a clear from anywhere else still speaks.
+    const app = strip(read("../App.tsx"));
+    expect(app).toMatch(/onSeen=\{ms => \{\s*setWatchSaid\(""\);\s*setWatchSeenMs\(ms\);/);
+    expect(app.match(/setWatchSaid\(""\)/g)).toHaveLength(1);
+  });
+
   it("puts the context number in the button name and hides the decorative svg", () => {
     const context = strip(read("../components/ContextModal.tsx"));
     expect(context).toContain('aria-label={`Context ${Math.round(pct * 100)}% of ${window.toLocaleString()} tokens — show breakdown`}');
     expect(context).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  it("names the context window's progressbar", () => {
+    // 4.1.2: a progressbar needs a name of its own; the percentage beside it
+    // is a sibling, not a label.
+    const modal = strip(read("../components/ContextModal.tsx"));
+    expect(modal).toMatch(/role="progressbar" aria-label="Context window used"/);
   });
 
   it("resets native list chrome without changing row width", () => {

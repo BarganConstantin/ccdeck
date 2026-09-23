@@ -771,11 +771,11 @@ button:focus-visible { outline-offset: 1px; }
    it does not read as part of the name. The hairline it had made it a pill;
    the pointer still finds the control, because the fill and the foreground
    come up under it exactly as they do on the toolbar. */
-.topbar .brand button.v:not(.stale) {
+.topbar .brand button.v:not(.stale):not(.ready) {
   color: var(--muted);
   font-weight: 400;
 }
-.topbar .brand button.v:not(.stale):hover {
+.topbar .brand button.v:not(.stale):not(.ready):hover {
   color: var(--text);
   background: var(--ctl-fill);
 }
@@ -799,6 +799,30 @@ button:focus-visible { outline-offset: 1px; }
 .topbar .brand button.v.stale:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+/* THE APP'S UPDATE IS READY (#1187), and that is good news, which is why it no
+   longer wears the stale chip's amber. Amber is this bar's warning — the deck
+   running superseded code, a session blocked on you — and a download the app
+   has already verified is the opposite of something being wrong. So it is
+   drawn in the accent, the deck's own colour for "here, this is for you",
+   in the stale chip's proportions so the two read as one family: a full-
+   strength edge (the accent clears 3:1 on both ends of the bar in both themes
+   without being mixed down, where --warn needed 85%), a tenth of it for the
+   bed, and a little more under the pointer. Its dot holds still: a pulse is
+   how this bar says something needs you, and nothing here does until you
+   choose it. */
+.topbar .brand button.v.ready {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.topbar .brand button.v.ready:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.topbar .brand button.v.ready .v-dot {
+  background: var(--accent);
+  box-shadow: none;
+  animation: none;
 }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
@@ -883,7 +907,8 @@ button:focus-visible { outline-offset: 1px; }
      Here the bar spends its readout on the alarm: the wordmark leaves the
      screen but not the outline (it is the page's <h1>, so it is hidden the way
      .vis-hidden hides, never with display), an up-to-date version chip leaves
-     (a stale one stays, it is a warning), and the chip says its number without
+     (a stale one stays, it is a warning, and so does the app's ready update,
+     the one way into it from the window), and the chip says its number without
      the word, which its accessible name still carries in full. */
   .topbar .readout { gap: 12px; }
   .topbar .brand h1 {
@@ -894,7 +919,7 @@ button:focus-visible { outline-offset: 1px; }
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .topbar .brand button.v:not(.stale),
+  .topbar .brand button.v:not(.stale):not(.ready),
   .topbar .waiting-stat .ws-word { display: none; }
   .topbar .waiting-stat { padding: 3px 8px; }
 }
@@ -2024,33 +2049,58 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    other role boundary in it is 24. */
 .topbar .status:empty { display: none; }
 /* WHERE THE MONTH GIVES WAY (#737). The readout clips from the left when the
-   bar is short, and the monthly phrase is ~180px of a bar whose 1440px budget
-   (see .tb-word) had 11px to spare. Measured in Chromium with a node selected,
-   it clipped 111px off the left at 1440: the wordmark and most of the version
-   chip. With a blocked session as well it clipped 175px there, 12 of them out
-   of "this month" itself; and with only a blocked session, at 400px, the
-   first 143px of the phrase went — the period and the token count both. A
-   figure without its period is the one thing #737 said must not ship, and the
-   version chip is a control, which this bar never gives up for a readout.
-   So the phrase leaves whole, in the two places it does not fit. Under 920px,
-   which covers the phone bar (spending its readout on the alarm) and the band
-   above it where the wordmark comes back: a blocked session and a paused pill
-   fit beside the phrase from about 880. And while a node is selected under
-   1760px, where the ribbon and its Remove button have spent the room: every
-   member on the bar fits from 1720. Each bound carries 40px of headroom for
-   faces wider than the one measured. The Usage panel is one keystroke away (U)
-   and says the same number with more beside it.
-   The strip goes with it when the pill is not there either, for the reason the
-   :empty rule above gives: an empty flex item still takes both gaps. After the
-   base rules, and not in the 640 block at the top of the topbar section, where
-   `.month-usage`'s own `display` would win on source order. */
-@media (max-width: 919px) {
+   bar is short, and the monthly phrase is ~180px of it. A figure without its
+   period is the one thing #737 said must not ship, and the version chip is a
+   control, which this bar never gives up for a readout.
+   BY WIDTH ALONE. The phrase used to leave as soon as a node was selected
+   under 1760px, and it sits AHEAD of the blocked-session chip in this
+   left-packed group, so one click on a card slid the alarm 204px left at 1440
+   and 1600 — the one light on the bar that is meant to be an anchor, moving
+   because of something done on the canvas. Nothing a click on the canvas puts
+   on the bar may change what the readout holds.
+   AND THE RIBBON PAYS FOR IT, not the phrase. 1440 is the app's default
+   window, so hiding the phrase wherever a selection might not fit beside it
+   hid "this month" from most people most of the time. The selected-node ribbon
+   is the one member of the bar that can say less and still be itself — a
+   state, a name cut with an ellipsis, a ×; the cost is on the card and in the
+   detail panel, and in the ribbon's own title — so where the room is short it
+   is the ribbon's cap that comes down.
+   The budget is a blocked session, the phrase with a nine-digit month, and a
+   selected node whose name is long enough to fill any cap. Measured in
+   Chromium (dark and light alike; Remove node left the bar in #1242),
+   everything but the ribbon comes to W - 827 of room for it on glyphs and
+   W - 1213 once the words (#836) arrive at 1440. Less 40px of headroom for
+   faces wider than the one measured, those are the two caps below; each meets
+   the ribbon's usual min(380px, 24vw) where the room runs out — 1140 and 1633
+   — so the ribbon never grows back past what fits. Where it is held under its
+   usual cap it drops its cost and rate first, so what it has left goes to the
+   name, which keeps about ten characters at the 1040 floor and twelve at 1440.
+   Under 1040 even that ribbon leaves no room, and the phrase leaves whole —
+   which also covers the phone bar, where the readout is spent on the alarm.
+   A paused pill or the app's ready-update chip on top of the budget is outside
+   it, the way .tb-word leaves a paused deck outside its own, and there the
+   readout gives up the logo and the wordmark from the left, never the alarm.
+   The Usage panel is one keystroke away (U) and says the same number with more
+   beside it.
+   The strip goes with the phrase when the pill is not there either, for the
+   reason the :empty rule above gives: an empty flex item still takes both
+   gaps. All of this after the base rules, and not in the 640 block at the top
+   of the topbar section, where `.month-usage`'s own `display` and the ribbon's
+   own cap would win on source order. The page's ccusage poll asks the phrase
+   whether it is drawn rather than repeating these numbers, so a bound moved
+   here moves the poll with it. */
+@media (max-width: 1039px) {
   .topbar .status .month-usage,
   .topbar .status:not(:has(.pill)) { display: none; }
 }
-@media (max-width: 1759px) {
-  .topbar:has(.selected-ribbon) .status .month-usage,
-  .topbar:has(.selected-ribbon) .status:not(:has(.pill)) { display: none; }
+@media (min-width: 1040px) and (max-width: 1439px) {
+  .selected-ribbon { max-width: min(24vw, calc(100vw - 867px)); }
+}
+@media (min-width: 1440px) {
+  .selected-ribbon { max-width: min(380px, calc(100vw - 1253px)); }
+}
+@media (min-width: 1040px) and (max-width: 1139px), (min-width: 1440px) and (max-width: 1632px) {
+  .selected-ribbon .selected-cost { display: none; }
 }
 /* ---------------- machine detail ----------------
    Docked in the right rail, in the same slot family as the usage panel, rather
@@ -6570,6 +6620,21 @@ button.tool.clickable:last-child { border-bottom: none; }
    comfortable to read at. Wider than the shortcuts sheet's 560 because that
    sheet is a two-column table and this is sentences. */
 .modal.release-notes { width: min(620px, 92vw); }
+/* The app's verified update and what became of the last press of its button
+   (#1187), held as ONE item of the body's column, so the body's 16px gap does
+   not open between a button and the sentence about it — or open at all while
+   that sentence is empty, which it is until a press fails. The line stays on
+   the page while empty because it is a live region; only its margin goes, the
+   way .ap-lan-status's does. Amber because it reports that nothing happened,
+   which is a warning about the press and not an error in the deck. */
+.release-notes .rn-update { display: flow-root; }
+.release-notes .rn-update-said {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.release-notes .rn-update-said:empty { margin: 0; }
 /* The release a run of notes belongs to. Monospace and quiet: it is a label on
    the group, not a heading competing with the note titles under it, and the
    version chip it echoes in the topbar is set the same way. */
@@ -13351,7 +13416,8 @@ input, textarea { caret-color: var(--accent); }
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .topbar .brand button.v .v-dot,
+  .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
   /* An open toolbar button keeps a boundary in the theme's own highlight, so
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */

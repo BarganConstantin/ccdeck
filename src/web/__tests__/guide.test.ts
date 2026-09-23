@@ -137,10 +137,15 @@ describe("where the guides open from", () => {
     const notes = bare(read("components/ReleaseNotesModal.tsx"));
     const keys = bare(read("components/KeyboardHelp.tsx"));
     for (const src of [notes, keys]) {
-      expect(src).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
+      // The release notes hold it back while the app's update is ready: the
+      // chip opens that dialog for the update then, and a second door competes
+      // with the one it came for (#1187). Every other time it is there.
+      expect(src).toMatch(/\{onTour (?:&& !updateVersion )?&& \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
       // Inside the body, after the header — the × stays the first stop.
       expect(src.indexOf("guide-door")).toBeGreaterThan(src.indexOf('aria-label="Close (Esc)"'));
     }
+    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">/);
+    expect(notes).toMatch(/\{onTour && !updateVersion && \(\s*<div className="guide-door">/);
     expect(app).toMatch(/onTour=\{\(\) => \{ setReleaseNotes\(null\); setTourOpen\(true\); \}\}/);
     expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); setTourOpen\(true\); \}\}/);
   });

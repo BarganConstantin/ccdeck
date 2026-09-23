@@ -174,13 +174,31 @@ describe("the bar keeps amber for the alarm", () => {
     expect(body(".selected-ribbon")).toMatch(/max-width: min\(380px, 24vw\);/);
   });
 
+  it("draws the app's ready update in the accent, not the alarm's amber", () => {
+    // A download the app has verified is good news; amber is this bar's
+    // warning (#1187). Same proportions as the stale chip, other colour, and a
+    // dot that holds still, since nothing here needs you until you choose it.
+    const ready = body(".topbar .brand button.v.ready");
+    expect(ready).toMatch(/color: var\(--accent\);/);
+    expect(ready).toMatch(/border-color: var\(--accent\);/);
+    expect(ready).not.toMatch(/--warn/);
+    expect(body(".topbar .brand button.v.ready:hover")).not.toMatch(/--warn/);
+    const dot = body(".topbar .brand button.v.ready .v-dot");
+    expect(dot).toMatch(/background: var\(--accent\);/);
+    expect(dot).toMatch(/animation: none;/);
+    // And the up-to-date chip's quiet look does not reach it.
+    expect(css).toContain(".topbar .brand button.v:not(.stale):not(.ready) {");
+    expect(css).not.toMatch(/button\.v:not\(\.stale\)(?!:not\(\.ready\))/);
+  });
+
   it("gives the waiting chip the readout on a narrow screen", () => {
     const narrow = media("max-width: 640px");
     // The wordmark leaves the screen but stays the page's <h1>.
     expect(narrow).toMatch(/\.topbar \.brand h1 \{[^}]*clip-path: inset\(50%\);/);
     expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*display: none/);
-    // An up-to-date version chip goes; a stale one is a warning and stays.
-    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\),/);
+    // An up-to-date version chip goes; a stale one is a warning and stays, and
+    // so does the app's ready update, the one way into it from the window.
+    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\):not\(\.ready\),/);
     // The chip keeps its number, and its name keeps the whole sentence.
     expect(narrow).toMatch(/\.topbar \.waiting-stat \.ws-word \{ display: none; \}/);
     expect(app).toMatch(/<b>\{waitingSessions\.length\}<\/b> <span className="ws-word">waiting<\/span>/);
