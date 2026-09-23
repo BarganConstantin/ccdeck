@@ -65,6 +65,14 @@ describe("character appearance preference", () => {
 
   it("keeps the whole Claude FM row one control, and Space and T working inside the menu", () => {
     const menu = read("components/AppearanceMenu.tsx");
+    const styles = read("styles.css");
+    expect(menu).toContain('aria-haspopup="listbox"');
+    expect(menu).toContain('role="listbox"');
+    expect(menu).toContain('role="option"');
+    expect(styles).toContain(".appearance-source-list");
+    expect(styles).toContain("max-height: min(196px, 28vh)");
+    expect(styles).toContain("overflow-y: auto");
+    expect(styles).toContain("overscroll-behavior: contain");
     // The row is a <label> round the switch: a press anywhere in it reaches the
     // switch once, and there is still one tab stop.
     expect(menu).toMatch(/<label className="appearance-row">[\s\S]*?role="switch"[\s\S]*?<\/label>/);

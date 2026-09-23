@@ -1,12 +1,23 @@
-import { type CSSProperties, type KeyboardEvent } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { resolveFmSource, type FmSource } from "../appearance";
+import { type FmSource } from "../appearance";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
+const FM_SOURCES: Array<{ group?: string; value: FmSource; label: string }> = [
+  { value: "claude-fm", label: "🎧 Claude FM" },
+  { group: "📻 Lofi Girl", value: "lofi-relax", label: "📚 Relax / study" },
+  { group: "📻 Lofi Girl", value: "lofi-game", label: "🎮 Chill / game" },
+  { group: "📻 Lofi Girl", value: "lofi-vibe", label: "🌅 Vibe / chill" },
+  { group: "📻 Lofi Girl", value: "lofi-sleep", label: "💤 Sleep / chill" },
+  { group: "📻 Radio Mix", value: "radio-mix", label: "📡 Live radio mix" },
+  { group: "📻 Best of Nostalgia", value: "best-of-nostalgia", label: "📼 Best of nostalgia live" },
+  { group: "📻 The Good Life Radio", value: "good-life-radio", label: "🌴 The Good Life Radio" },
+  { group: "☕ Cafe Music BGM", value: "cafe-music-bgm", label: "☕ Cafe music BGM" },
+];
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -56,6 +67,58 @@ export default function AppearanceMenu({
   theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [highlightedSource, setHighlightedSource] = useState(() => Math.max(0, FM_SOURCES.findIndex(source => source.value === fmSource)));
+  const sourceTriggerRef = useRef<HTMLButtonElement>(null);
+  const sourceListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const selectedIndex = FM_SOURCES.findIndex(source => source.value === fmSource);
+    setHighlightedSource(selectedIndex < 0 ? 0 : selectedIndex);
+  }, [fmSource]);
+
+  useEffect(() => {
+    if (!sourceOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!sourceTriggerRef.current?.contains(target) && !sourceListRef.current?.contains(target)) {
+        setSourceOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [sourceOpen]);
+
+  const chooseSource = (index: number) => {
+    const source = FM_SOURCES[index];
+    if (!source) return;
+    setHighlightedSource(index);
+    onFmSource(source.value);
+    setSourceOpen(false);
+    sourceTriggerRef.current?.focus();
+  };
+
+  const moveSource = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSourceOpen(false);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (sourceOpen) chooseSource(highlightedSource);
+      else setSourceOpen(true);
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    setSourceOpen(true);
+    setHighlightedSource(current => {
+      if (event.key === "Home") return 0;
+      if (event.key === "End") return FM_SOURCES.length - 1;
+      return Math.min(FM_SOURCES.length - 1, Math.max(0, current + (event.key === "ArrowDown" ? 1 : -1)));
+    });
+  };
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
@@ -165,33 +228,46 @@ export default function AppearanceMenu({
         <div className="appearance-controls">
           <div className="appearance-source-row">
             <label htmlFor="appearance-fm-source">Station</label>
-            <select
+            <div className={`appearance-source-picker${sourceOpen ? " is-open" : ""}`}>
+            <button
+              ref={sourceTriggerRef}
+              type="button"
               id="appearance-fm-source"
-              className="sm-select"
-              value={fmSource}
+              className="appearance-source-trigger"
+              aria-haspopup="listbox"
+              aria-expanded={sourceOpen}
+              aria-controls="appearance-fm-source-list"
               aria-describedby="appearance-fm-source-note"
-              onChange={event => onFmSource(resolveFmSource(event.target.value))}
+              onClick={() => setSourceOpen(open => !open)}
+              onKeyDown={moveSource}
             >
-              <option value="claude-fm">🎧 Claude FM</option>
-              <optgroup label="📻 Lofi Girl">
-                <option value="lofi-relax">📚 Relax / study</option>
-                <option value="lofi-game">🎮 Chill / game</option>
-                <option value="lofi-vibe">🌅 Vibe / chill</option>
-                <option value="lofi-sleep">💤 Sleep / chill</option>
-              </optgroup>
-              <optgroup label="📻 Radio Mix">
-                <option value="radio-mix">📡 Live radio mix</option>
-              </optgroup>
-              <optgroup label="📻 Best of Nostalgia">
-                <option value="best-of-nostalgia">📼 Best of nostalgia live</option>
-              </optgroup>
-              <optgroup label="📻 The Good Life Radio">
-                <option value="good-life-radio">🌴 The Good Life Radio</option>
-              </optgroup>
-              <optgroup label="☕ Cafe Music BGM">
-                <option value="cafe-music-bgm">☕ Cafe music BGM</option>
-              </optgroup>
-            </select>
+              <span>{FM_SOURCES.find(source => source.value === fmSource)?.label ?? FM_SOURCES[0].label}</span>
+              <svg viewBox="0 0 12 12" aria-hidden focusable="false"><path d="m2.5 4.5 3.5 3 3.5-3" /></svg>
+            </button>
+            {sourceOpen && (
+              <div ref={sourceListRef} id="appearance-fm-source-list" className="appearance-source-list" role="listbox" aria-label="Music stations">
+                {FM_SOURCES.map((source, index) => (
+                  <div key={source.value}>
+                    {source.group && (index === 0 || FM_SOURCES[index - 1].group !== source.group) && (
+                      <div className="appearance-source-group" role="presentation">{source.group}</div>
+                    )}
+                    <button
+                      type="button"
+                      className="appearance-source-option"
+                      role="option"
+                      aria-selected={fmSource === source.value}
+                      data-highlighted={highlightedSource === index || undefined}
+                      onMouseEnter={() => setHighlightedSource(index)}
+                      onClick={() => chooseSource(index)}
+                    >
+                      <span>{source.label}</span>
+                      {fmSource === source.value && <span aria-hidden>✓</span>}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            </div>
           </div>
           <span id="appearance-fm-source-note" className="vis-hidden">
             Changing station starts live playback automatically.
