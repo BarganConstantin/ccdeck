@@ -194,12 +194,32 @@ export function icoFile(sizes = [16, 24, 32, 48, 64, 128, 256]) {
   return Buffer.concat([header, ...entries, ...images.map(i => i.png)]);
 }
 
+/**
+ * The sizes the Linux set is drawn at.
+ *
+ * Every one of them is declared by the hicolor theme, and that is the whole
+ * point. Left to make the set itself from icon.png, electron-builder wrote a
+ * single file — hicolor/1024x1024 — and hicolor's index.theme stops at 512, so
+ * GTK never looked in that directory: the app had no icon anywhere on Linux,
+ * in the dock, the switcher or the menu, while macOS and Windows were fine
+ * because each takes ONE file that carries every size inside it (.icns, .ico).
+ * A png in an undeclared directory is not a small icon, it is no icon.
+ */
+export const LINUX_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
+
 /** Write every image into `outDir`. */
 export function writeIcons(outDir) {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "icon.png"), appIconPng(1024));
   writeFileSync(join(outDir, "icon.ico"), icoFile());
   if (process.platform === "darwin") writeIcns(outDir);
+  // Named the way electron-builder reads an icon directory: the size is in the
+  // filename, and it installs each one under the hicolor size that matches.
+  const linux = join(outDir, "linux");
+  mkdirSync(linux, { recursive: true });
+  for (const size of LINUX_ICON_SIZES) {
+    writeFileSync(join(linux, `${size}x${size}.png`), appIconPng(size));
+  }
   for (const state of STATES) {
     // macOS menu bar: 16pt, with the @2x the Retina bar asks for. The
     // "Template" suffix is what makes Electron mark the image as a template.

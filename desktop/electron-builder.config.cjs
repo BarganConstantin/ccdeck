@@ -6,6 +6,13 @@
 module.exports = {
   appId: "dev.ccdeck.app",
   productName: "ccdeck",
+  // The AppImage runtime. Left unset, electron-builder still packs the 2020
+  // AppImageKit runtime, which dlopens libfuse.so.2 at startup — and Ubuntu
+  // 24.04 and up, Fedora 40 and up and Arch no longer ship libfuse2. On those
+  // the download does not start and says only "AppImages require FUSE to run",
+  // which for most people reads as nothing happening at all. The 1.x toolset
+  // links libfuse3 statically, so the runtime needs nothing from the system.
+  toolsets: { appimage: "1.0.3" },
   directories: {
     output: "dist/app",
     // icon.png (1024) lives here; electron-builder makes .icns and .ico from it.
@@ -68,6 +75,19 @@ module.exports = {
     target: ["AppImage", "deb"],
     category: "Development",
     maintainer: "ccdeck <https://ccdeck.dev>",
+    // The size set scripts/icons.mjs draws, not icon.png. From that one file
+    // electron-builder installed one icon, at 1024 — a size hicolor does not
+    // declare — so Linux showed no icon at all. Named <size>x<size>.png, which
+    // is how electron-builder reads an icon directory.
+    icon: "dist/icons/linux",
+    // Electron's Wayland app_id is the packaged package.json name,
+    // ccdeck-desktop. The entry file is already named for it, but its
+    // StartupWMClass said "ccdeck" — the product name — so the hint a desktop
+    // matches a running window against named a class no window of ours has.
+    // desktopName in package.json makes the filename, the WM class and the
+    // app_id one string. Nothing is renamed by this: the name it syncs to is
+    // the one the file already had, so no installed entry is orphaned.
+    syncDesktopName: true,
   },
   deb: {
     // electron-builder's own list, plus the ALSA library it leaves out: Ubuntu

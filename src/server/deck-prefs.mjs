@@ -253,7 +253,7 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: typeof src.notifications === "boolean" ? src.notifications : DEFAULTS.notifications,
-    tourSeen: src.tourSeen === true,
+    tourSeen: typeof src.tourSeen === "boolean" ? src.tourSeen : DEFAULTS.tourSeen,
     autoUpdate: typeof src.autoUpdate === "boolean" ? src.autoUpdate : DEFAULTS.autoUpdate,
     lan: normaliseLan(src.lan),
   };

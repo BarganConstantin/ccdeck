@@ -431,12 +431,57 @@ function readState() {
   try { return JSON.parse(readFileSync(statePath(), "utf8")); } catch { return {}; }
 }
 
+/** How long a question waits for the window to reach the screen before it is
+ *  asked app-modally instead. Longer than a deck's page takes to paint, short
+ *  enough that a window which never comes does not hold the question forever. */
+const ON_SCREEN_WAIT_MS = 5_000;
+
+/**
+ * The window once it is actually on screen, or null.
+ *
+ * A dialog attached to a window that has not been shown yet ENDS THE APP on
+ * Wayland: the compositor has given that window's surface no role, and
+ * exporting a roleless surface to parent the dialog is a protocol error
+ * (zxdg_exporter_v2: "exported surface had an invalid role"), which kills the
+ * process rather than the dialog. Windows are created hidden and shown on
+ * ready-to-show, so first run — the one moment these questions are asked — is
+ * exactly when the surface is still roleless. macOS and Windows attach to a
+ * hidden window happily, which is why this was only ever a Linux crash, and on
+ * first run only: the one launch a new person makes.
+ */
+function windowOnScreen(within) {
+  const here = win;
+  if (!here || here.isDestroyed()) return Promise.resolve(null);
+  if (here.isVisible()) return Promise.resolve(here);
+  return new Promise(resolve => {
+    const settle = () => {
+      clearTimeout(timer);
+      here.off("show", settle);
+      resolve(here.isDestroyed() || !here.isVisible() ? null : here);
+    };
+    const timer = setTimeout(settle, within);
+    here.on("show", settle);
+  });
+}
+
+/** A question for the person, attached to the window when one is on screen —
+ *  a sheet moves with it — and app-modal only when none arrives, which on
+ *  macOS floats above every other app until it is answered. */
+async function ask(options) {
+  const parent = await windowOnScreen(ON_SCREEN_WAIT_MS);
+  return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+}
+
 /**
  * Say that a verified update is ready while the person is already looking at
  * ccdeck. The updater never opens or raises a window for this notice: if the
  * window is closed, unfocused, or the deck is active, the next focus/redraw
  * gets another chance. Dismissing it remembers the version across launches so
  * "Later" really means later rather than every six-hour update check.
+ *
+ * Not routed through `ask()`: `shouldOfferReadyUpdate` already requires
+ * `windowVisible` before this ever runs, so `target` is never the unshown,
+ * roleless-surface window `ask()` exists to wait out.
  */
 async function offerReadyUpdate() {
   const u = updater?.state ?? { status: "idle" };
@@ -490,20 +535,14 @@ async function offerReadyUpdate() {
 async function firstRun() {
   const state = readState();
   if (state.askedLogin) return;
-  // Attached to the window when there is one — a sheet moves with it — rather
-  // than an app-modal alert, which macOS floats above every other app until
-  // it is answered.
-  const options = {
+  const { checkboxChecked } = await ask({
     type: "question",
     message: "ccdeck lives in the menu bar",
     detail: "It tells you when a session needs you, even with the window closed.",
     checkboxLabel: "Start ccdeck when I log in",
     checkboxChecked: true,
     buttons: ["OK"],
-  };
-  const { checkboxChecked } = win && !win.isDestroyed()
-    ? await dialog.showMessageBox(win, options)
-    : await dialog.showMessageBox(options);
+  });
   app.setLoginItemSettings({ openAtLogin: checkboxChecked });
   writeFileSync(statePath(), JSON.stringify({ ...state, askedLogin: true }, null, 2));
 }
@@ -535,17 +574,14 @@ async function offerToReplaceLoginItem() {
   }
   writeFileSync(statePath(), JSON.stringify({ ...readState(), askedReplaceService: true }, null, 2));
   if (!present) return;
-  const options = {
+  const { response } = await ask({
     type: "question",
     message: "Another ccdeck starts when you log in",
     detail: "It was set up by the npm version (npx ccdeck or npm i -g) and starts an older deck of its own. The app starts the deck itself, so that login item is no longer needed.",
     buttons: ["Replace it with the app", "Keep it"],
     defaultId: 0,
     cancelId: 1,
-  };
-  const { response } = win && !win.isDestroyed()
-    ? await dialog.showMessageBox(win, options)
-    : await dialog.showMessageBox(options);
+  });
   if (response !== 0) return;
   const out = svc.uninstallService();
   svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: app.getVersion(), by: "ccdeck desktop" });
