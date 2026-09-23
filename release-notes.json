@@ -68,6 +68,12 @@
       "body": "Project cost totals no longer count the same Claude request once for every content block. Existing project history is rebuilt automatically so the totals align with the Usage panel."
     }
   ],
+  "3.27.3": [
+    {
+      "title": "🎵 Station selection works in the desktop app",
+      "body": "The music station picker now opens inside ccdeck instead of relying on the operating system popup, so choosing a station works reliably in the Electron app."
+    }
+  ],
   "3.25.0": [
     {
       "title": "🖱️ A click goes to the session, a double-click opens the details",

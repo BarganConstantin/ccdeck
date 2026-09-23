@@ -1,4 +1,4 @@
-import { type CSSProperties, type KeyboardEvent } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
@@ -7,6 +7,17 @@ import { resolveFmSource, type FmSource } from "../appearance";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
+const FM_OPTIONS: Array<{ value: FmSource; label: string; group?: string }> = [
+  { value: "claude-fm", label: "🎧 Claude FM" },
+  { value: "lofi-relax", label: "📚 Relax / study", group: "📻 Lofi Girl" },
+  { value: "lofi-game", label: "🎮 Chill / game", group: "📻 Lofi Girl" },
+  { value: "lofi-vibe", label: "🌅 Vibe / chill", group: "📻 Lofi Girl" },
+  { value: "lofi-sleep", label: "💤 Sleep / chill", group: "📻 Lofi Girl" },
+  { value: "radio-mix", label: "📡 Live radio mix", group: "📻 Radio Mix" },
+  { value: "best-of-nostalgia", label: "📼 Best of nostalgia live", group: "📻 Best of Nostalgia" },
+  { value: "good-life-radio", label: "🌴 The Good Life Radio", group: "📻 The Good Life Radio" },
+  { value: "cafe-music-bgm", label: "☕ Cafe music BGM", group: "☕ Cafe Music BGM" },
+];
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -56,6 +67,18 @@ export default function AppearanceMenu({
   theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const sourceRef = useRef<HTMLDivElement>(null);
+  const selectedSource = FM_OPTIONS.find(option => option.value === fmSource) ?? FM_OPTIONS[0];
+
+  useEffect(() => {
+    if (!sourceOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!sourceRef.current?.contains(event.target as Node)) setSourceOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [sourceOpen]);
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
@@ -78,6 +101,11 @@ export default function AppearanceMenu({
   // letters back to App (#851) cannot switch it twice.
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === " ") { event.stopPropagation(); return; }
+    if (event.key === "Escape" && sourceOpen) {
+      event.stopPropagation();
+      setSourceOpen(false);
+      return;
+    }
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
@@ -165,33 +193,40 @@ export default function AppearanceMenu({
         <div className="appearance-controls">
           <div className="appearance-source-row">
             <label htmlFor="appearance-fm-source">Station</label>
-            <select
-              id="appearance-fm-source"
-              className="sm-select"
-              value={fmSource}
-              aria-describedby="appearance-fm-source-note"
-              onChange={event => onFmSource(resolveFmSource(event.target.value))}
-            >
-              <option value="claude-fm">🎧 Claude FM</option>
-              <optgroup label="📻 Lofi Girl">
-                <option value="lofi-relax">📚 Relax / study</option>
-                <option value="lofi-game">🎮 Chill / game</option>
-                <option value="lofi-vibe">🌅 Vibe / chill</option>
-                <option value="lofi-sleep">💤 Sleep / chill</option>
-              </optgroup>
-              <optgroup label="📻 Radio Mix">
-                <option value="radio-mix">📡 Live radio mix</option>
-              </optgroup>
-              <optgroup label="📻 Best of Nostalgia">
-                <option value="best-of-nostalgia">📼 Best of nostalgia live</option>
-              </optgroup>
-              <optgroup label="📻 The Good Life Radio">
-                <option value="good-life-radio">🌴 The Good Life Radio</option>
-              </optgroup>
-              <optgroup label="☕ Cafe Music BGM">
-                <option value="cafe-music-bgm">☕ Cafe music BGM</option>
-              </optgroup>
-            </select>
+            <div ref={sourceRef} className="appearance-source-picker">
+              <button
+                id="appearance-fm-source"
+                type="button"
+                className="sm-select appearance-source-trigger"
+                aria-haspopup="listbox"
+                aria-expanded={sourceOpen}
+                aria-describedby="appearance-fm-source-note"
+                onClick={() => setSourceOpen(open => !open)}
+              >
+                <span>{selectedSource.label}</span>
+                <span className="appearance-source-chevron" aria-hidden>⌄</span>
+              </button>
+              {sourceOpen && (
+                <div className="appearance-source-list" role="listbox" aria-label="Music station">
+                  {FM_OPTIONS.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={option.value === fmSource}
+                      className="appearance-source-option"
+                      onClick={() => {
+                        onFmSource(resolveFmSource(option.value));
+                        setSourceOpen(false);
+                      }}
+                    >
+                      <span>{option.label}</span>
+                      {option.value === fmSource && <span aria-hidden>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <span id="appearance-fm-source-note" className="vis-hidden">
             Changing station starts live playback automatically.

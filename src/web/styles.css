@@ -1218,6 +1218,53 @@ button:focus-visible { outline-offset: 1px; }
 .appearance-source-row .sm-select:hover {
   background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
 }
+.appearance-source-picker { position: relative; min-width: 0; }
+.appearance-source-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+.appearance-source-chevron {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 12px;
+}
+.appearance-source-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 2;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--shadow-2);
+}
+.appearance-source-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.appearance-source-option:hover,
+.appearance-source-option[aria-selected="true"] { background: var(--ctl-fill); }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
    so now that the boxes are gone. */
