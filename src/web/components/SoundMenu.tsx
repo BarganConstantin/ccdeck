@@ -47,7 +47,12 @@ import {
 import { useModalDismiss } from "./use-modal-dismiss";
 import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 import { inDesktopApp } from "../in-app";
+import { armedPress, focusDropped } from "../panel-press";
+import { CONFIRM_GAP_MS } from "./LanSyncSection";
 import {
+  MAX_CUSTOM_ASSETS,
+  deleteFocusTarget,
+  libraryFullReason,
   sameCustomSelection,
   type CustomAssetSummary,
   type CustomSelections,
@@ -147,6 +152,32 @@ export default function SoundMenu({
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sharedCustomId = sameCustomSelection(customSelections);
   const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
+  // The ceiling, said where sounds are added and before any work is done. It
+  // used to arrive as an error after the fact — after a 4.4-second recording,
+  // or a voice form filled in — which is the person doing the work for the
+  // refusal. The controls that add stay focusable and say aria-disabled rather
+  // than `disabled`: the import field and Stop & save both hold focus at the
+  // moment the 24th sound lands, and a control disabled under focus drops it to
+  // <body> (#518).
+  const customCount = customAssets.length;
+  const fullReason = libraryFullReason(customCount);
+  const full = fullReason !== null;
+  const fullProps = full ? { "aria-disabled": true, "aria-describedby": "sm-custom-full" } : {};
+  /** Which sound's Delete is armed, by id. Nothing brings a deleted sound back,
+   *  so it costs two presses — the LAN unpair's rule (#1175), one row at a time. */
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  /** When it was armed, so a double-click cannot be its own confirmation. */
+  const deleteArmedAt = useRef(0);
+  /** Each row's Delete, and the import field, for where focus goes once a row
+   *  is gone (deleteFocusTarget). */
+  const deleteRefs = useRef(new Map<string, HTMLButtonElement>());
+  const importRef = useRef<HTMLInputElement>(null);
+  // An armed delete stands down on its own, the way the unpairs do.
+  useEffect(() => {
+    if (!armedDelete) return;
+    const t = window.setTimeout(() => setArmedDelete(null), 4_000);
+    return () => window.clearTimeout(t);
+  }, [armedDelete]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -166,6 +197,27 @@ export default function SoundMenu({
     catch (error) { setCustomError(error instanceof Error ? error.message : "Custom audio could not be saved."); }
   };
 
+  const pressDelete = (id: string, pressed: HTMLButtonElement) => {
+    const now = Date.now();
+    const press = armedPress({
+      armedFor: armedDelete, target: id, armedAt: deleteArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
+    });
+    if (press === "arm") { setArmedDelete(id); deleteArmedAt.current = now; return; }
+    // A double-click is one decision, not two.
+    if (press === "ignore") return;
+    setArmedDelete(null);
+    // Chosen before the row goes, from the list as it stands at the press.
+    const next = deleteFocusTarget(customAssets.map(asset => asset.id), id);
+    void runCustom(async () => {
+      await onDeleteCustom(id);
+      // Only when focus is still on the pressed Delete or has already fallen
+      // to <body>: somebody who tabbed on meanwhile is left where they went.
+      const active = document.activeElement;
+      if (active !== pressed && !focusDropped(active?.tagName ?? null)) return;
+      (next ? deleteRefs.current.get(next) : importRef.current)?.focus();
+    });
+  };
+
   const stopRecording = () => {
     if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
     recordingTimerRef.current = null;
@@ -173,6 +225,7 @@ export default function SoundMenu({
   };
 
   const startRecording = async () => {
+    if (full) return;
     setCustomError("");
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setCustomError("Microphone recording is unavailable in this browser.");
@@ -497,17 +550,23 @@ export default function SoundMenu({
       <section className="sm-custom" aria-labelledby="sm-custom-title">
         <div className="sm-custom-head">
           <h3 className="sm-tone-name" id="sm-custom-title">Custom sounds</h3>
-          <span>Kept on this machine</span>
+          <span>{customCount} of {MAX_CUSTOM_ASSETS}, kept on this machine</span>
         </div>
+        {full && <p className="sm-note" id="sm-custom-full">{fullReason}</p>}
         <label className="sm-file">
           <span>Import WAV, MP3 or OGG</span>
           <input
+            ref={importRef}
             type="file"
             accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
+            {...fullProps}
+            // A click that would open the picker, from the field or its
+            // caption, opens nothing while the library is full.
+            onClick={e => { if (full) e.preventDefault(); }}
             onChange={e => {
               const file = e.target.files?.[0];
               e.currentTarget.value = "";
-              if (file) void runCustom(() => onImportCustom(file));
+              if (file && !full) void runCustom(() => onImportCustom(file));
             }}
           />
         </label>
@@ -517,15 +576,27 @@ export default function SoundMenu({
           {recording ? (
             <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
           ) : (
-            <button type="button" className="btn sm-custom-action" onClick={() => void startRecording()}>Record with microphone</button>
+            <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record with microphone</button>
           )}
         </div>
 
         <details className="sm-voice">
-          <summary>Add spoken voice</summary>
+          <summary
+            {...fullProps}
+            // Held shut while full, so nobody fills in a form that cannot be
+            // saved. One already open can still be closed.
+            onClick={e => {
+              const details = e.currentTarget.parentElement as HTMLDetailsElement | null;
+              if (full && details && !details.open) e.preventDefault();
+            }}
+          >
+            Add spoken voice
+          </summary>
           <div className="sm-voice-fields">
-            <label>Name<input className="sm-select" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
-            <label>Text<input className="sm-select" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
+            {/* The deck's text field, as the appearance menu's station fields
+                are: `.sm-select` is a select's class, and these are not. */}
+            <label>Name<input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
+            <label>Text<input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
             <label>Voice
               <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
                 <option value="">System default</option>
@@ -533,18 +604,22 @@ export default function SoundMenu({
               </select>
             </label>
             <div className="sm-voice-pair">
-              <label>Rate<input className="sm-select" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
-              <label>Pitch<input className="sm-select" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
+              <label>Rate<input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
+              <label>Pitch<input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
             </div>
             <button
               type="button"
               className="btn sm-custom-action"
-              onClick={() => void runCustom(async () => {
-                // parseFloat, so an empty field is NaN and createCustomVoice's
-                // default rather than Number("")'s 0.
-                await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
-                setVoiceText("Your turn");
-              })}
+              {...fullProps}
+              onClick={() => {
+                if (full) return;
+                void runCustom(async () => {
+                  // parseFloat, so an empty field is NaN and createCustomVoice's
+                  // default rather than Number("")'s 0.
+                  await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
+                  setVoiceText("Your turn");
+                });
+              }}
             >
               Add voice
             </button>
@@ -556,7 +631,7 @@ export default function SoundMenu({
             {customAssets.map(asset => (
               <div className="sm-custom-item" key={asset.id}>
                 <input
-                  className="sm-select"
+                  className="ap-manage-input"
                   aria-label={`Rename ${asset.name}`}
                   defaultValue={asset.name}
                   maxLength={80}
@@ -573,7 +648,22 @@ export default function SoundMenu({
                     rows read aloud as "Play, Delete, Play, Delete" says
                     nothing about which one a press would act on. */}
                 <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
-                <button type="button" className="btn sm-custom-icon" aria-label={`Delete ${asset.name}`} onClick={() => void runCustom(() => onDeleteCustom(asset.id))}>Delete</button>
+                {/* Two presses, because nothing brings a deleted sound back:
+                    the first arms, a second inside four seconds deletes. And
+                    it hands focus on, since the row it sat in goes with it. */}
+                <button
+                  type="button"
+                  ref={el => { if (el) deleteRefs.current.set(asset.id, el); else deleteRefs.current.delete(asset.id); }}
+                  className={`btn sm-custom-icon${armedDelete === asset.id ? " armed" : ""}`}
+                  // A held key repeats at about half a second, past the gap,
+                  // while the finger has never come up: one decision.
+                  onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                  onClick={e => pressDelete(asset.id, e.currentTarget)}
+                  aria-label={armedDelete === asset.id ? `Confirm deleting ${asset.name}` : `Delete ${asset.name}`}
+                  title={armedDelete === asset.id ? "Press again to delete this sound. It cannot be brought back." : "Delete this sound"}
+                >
+                  {armedDelete === asset.id ? "Confirm" : "Delete"}
+                </button>
               </div>
             ))}
           </div>

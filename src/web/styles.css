@@ -1690,10 +1690,12 @@ button.btn.sm-hear {
 .sm-select:hover { border-color: var(--text); }
 
 /* Custom sounds and voices (#1207), under the tones they can stand in for.
-   Built from this menu's own parts wherever one fits — the heading is a tone's
-   caption, every field is `.sm-select`, every button a plain `.btn` — so the
-   section reads as more of the menu rather than a form dropped into it, and
-   the edge, focus and height sweeps already know every control in it. */
+   Built from parts that already exist wherever one fits — the heading is a
+   tone's caption, the voice picker is `.sm-select`, the text and number fields
+   are the deck's `.ap-manage-input` (as the appearance menu's station fields
+   are), every button a plain `.btn` — so the section reads as more of the menu
+   rather than a form dropped into it, and the edge, focus and height sweeps
+   already know every control in it. */
 .sm-custom {
   display: flex;
   flex-direction: column;
@@ -1702,7 +1704,14 @@ button.btn.sm-hear {
   border-top: 1px solid var(--line);
 }
 .sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head span { font-size: 10px; color: var(--muted); }
+.sm-custom-head span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* At the ceiling the controls that add a sound stay in the tab order and say
+   aria-disabled, never `disabled` — two of them hold focus at the moment the
+   library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
+   looks like every other control that cannot act, and a press that does
+   nothing does not give under the finger either. */
+.sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
 /* A caption over its control rather than beside it: at 268px neither the file
    picker nor "Record with microphone" leaves room for a label on its left. */
 .sm-file,
@@ -1724,6 +1733,7 @@ button.btn.sm-hear {
 .sm-voice summary { color: var(--text); }
 .sm-voice-fields { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
 .sm-voice-fields label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.sm-voice-fields .ap-manage-input { flex: 1; }
 .sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sm-voice-pair label { display: grid; grid-template-columns: auto 1fr; }
 /* Trimmed like `.sm-hear` and exactly as tall as every other button: the
@@ -1738,6 +1748,9 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size
 }
 .sm-custom-item > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 button.btn.sm-custom-icon { padding: 0 6px; font-size: 10px; }
+/* Armed is the second press of the one act here nothing can undo, and it
+   takes the error colour for the four seconds it waits — the LAN unpair's. */
+button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no

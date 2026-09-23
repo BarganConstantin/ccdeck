@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   CUSTOM_AUDIO_KEYS, MAX_CUSTOM_ASSETS, MAX_CUSTOM_AUDIO_BYTES, clearCustomAssetSelections,
-  createCustomVoice, deleteCustomNotificationAsset, getCustomNotificationAsset,
+  createCustomVoice, deleteCustomNotificationAsset, deleteFocusTarget, getCustomNotificationAsset,
   importCustomAudio, libraryFullReason, listCustomNotificationAssets, newAssetId, normalizationGain,
   readCustomSelections, renameCustomNotificationAsset, sameCustomSelection, saveCustomNotificationAsset,
   summarizeCustomAsset, validateAudioImport,
@@ -322,5 +322,57 @@ describe("the listing carries no bytes (#1207)", () => {
     expect(await listCustomNotificationAssets()).toEqual([{ ...clipRow, name: "Renamed" }]);
     await renameCustomNotificationAsset("gone", "Ghost");
     expect(put).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("where focus goes when a sound is deleted (2.4.3)", () => {
+  it("lands on the next row's Delete, the previous one after the last row, and the import field after the only one", () => {
+    const ids = ["a", "b", "c"];
+    expect(deleteFocusTarget(ids, "a")).toBe("b");
+    expect(deleteFocusTarget(ids, "b")).toBe("c");
+    expect(deleteFocusTarget(ids, "c")).toBe("b");
+    expect(deleteFocusTarget(["a"], "a")).toBeNull();
+    expect(deleteFocusTarget(ids, "missing")).toBeNull();
+  });
+});
+
+describe("the custom section of the sound menu (#1207)", () => {
+  const css = source("styles.css");
+
+  it("says how full the library is where sounds are added, before any work is done", () => {
+    expect(menu).toMatch(/\{customCount\} of \{MAX_CUSTOM_ASSETS\}/);
+    expect(menu).toMatch(/\{full && <p className="sm-note" id="sm-custom-full">\{fullReason\}<\/p>\}/);
+    // The recording refuses before the microphone is asked for, and the voice
+    // form stays shut rather than being filled in for nothing.
+    expect(menu).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
+    expect(menu).toMatch(/onClick=\{e => \{ if \(full\) e\.preventDefault\(\); \}\}/);
+    expect(menu).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
+    // Four controls carry the refusal: import, record, the form, Add voice.
+    expect([...menu.matchAll(/\{\.\.\.fullProps\}/g)]).toHaveLength(4);
+  });
+
+  it("refuses at the ceiling with aria-disabled, never by disabling a control that may hold focus (#518)", () => {
+    expect(menu).toMatch(/const fullProps = full \? \{ "aria-disabled": true, "aria-describedby": "sm-custom-full" \} : \{\};/);
+    expect(menu).not.toMatch(/\bdisabled=\{/);
+    expect(css).toMatch(/\.sm-custom \[aria-disabled="true"\] \{ opacity: var\(--dim-off\); cursor: default; \}/);
+  });
+
+  it("hands focus on from a deleted row, unless the person has already moved it", () => {
+    expect(menu).toMatch(/const next = deleteFocusTarget\(customAssets\.map\(asset => asset\.id\), id\);/);
+    expect(menu).toMatch(/await onDeleteCustom\(id\);\s*const active = document\.activeElement;\s*if \(active !== pressed && !focusDropped\(active\?\.tagName \?\? null\)\) return;\s*\(next \? deleteRefs\.current\.get\(next\) : importRef\.current\)\?\.focus\(\);/);
+    expect(menu).toMatch(/<input\s+ref=\{importRef\}\s+type="file"/);
+  });
+
+  it("asks twice before deleting, and says which sound the second press is for", () => {
+    expect(menu).toMatch(/aria-label=\{armedDelete === asset\.id \? `Confirm deleting \$\{asset\.name\}` : `Delete \$\{asset\.name\}`\}/);
+    expect(menu).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
+    expect(menu).toMatch(/window\.setTimeout\(\(\) => setArmedDelete\(null\), 4_000\)/);
+  });
+
+  it("gives text and number fields a text field's class, and keeps .sm-select for the selects", () => {
+    const inputs = [...menu.matchAll(/<input\b[^>]*?className="([^"]+)"/g)].map(m => m[1]);
+    expect(inputs).toEqual(["ap-manage-input", "ap-manage-input", "ap-manage-input", "ap-manage-input", "ap-manage-input"]);
+    const selects = [...menu.matchAll(/<select\b[\s\S]*?className="([^"]+)"/g)].map(m => m[1]);
+    expect(selects).toEqual(["sm-select", "sm-select"]);
   });
 });

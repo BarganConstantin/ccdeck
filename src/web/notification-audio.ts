@@ -131,6 +131,20 @@ export function libraryFullReason(count: number): string | null {
   return count >= MAX_CUSTOM_ASSETS ? `There are already ${MAX_CUSTOM_ASSETS} custom sounds. Delete one first.` : null;
 }
 
+/**
+ * Which row's Delete takes focus once `id`'s row is gone, or null for the
+ * import control. The row that held focus is removed by the press, and a
+ * keyboard user left on `<body>` starts again from the top of the document
+ * (2.4.3). The next row first, so repeated deleting walks down the list the way
+ * the eye does; the previous one when the last row went; the control that adds
+ * a sound when there is no row left to land on.
+ */
+export function deleteFocusTarget(ids: readonly string[], id: string): string | null {
+  const at = ids.indexOf(id);
+  if (at < 0) return null;
+  return ids[at + 1] ?? ids[at - 1] ?? null;
+}
+
 export function normalizationGain(channels: readonly Float32Array[]): number {
   let peak = 0;
   for (const samples of channels) {
