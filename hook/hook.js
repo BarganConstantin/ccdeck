@@ -688,7 +688,13 @@ function forgetIfAbandoned(d, done) {
  */
 function post(d, body, persists, done) {
   let settled = false;
-  const finish = (ok, why = null) => { if (settled) return; settled = true; done(ok, why); };
+  let sendDeadline = null;
+  const finish = (ok, why = null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(sendDeadline);
+    done(ok, why);
+  };
   // Whether the kernel has taken the whole body, and whether it was this
   // process's deadline rather than the writer that ended the exchange — the
   // two facts the last paragraph above sorts an error by.
@@ -707,7 +713,6 @@ function post(d, body, persists, done) {
     res.resume();
     finish(res.statusCode >= 200 && res.statusCode < 300);
   });
-  req.on("finish", () => { sent = true; });
   // `destroy()` on a timeout makes 'error' fire with ECONNRESET — the status
   // line has not arrived, or it would have settled this already — so `timedOut`
   // is what tells this process giving up apart from the writer hanging up.
@@ -730,9 +735,29 @@ function post(d, body, persists, done) {
   // written the line — was never asked. The snapshot is the rule that paragraph
   // states, taken at the only moment it is still true.
   let sentByDeadline = false;
+  const expire = () => {
+    if (settled) return;
+    timedOut = true;
+    sentByDeadline = sent;
+    req.destroy();
+  };
   req.on("error", () => finish(false, timedOut && sentByDeadline ? "deadline" : null));
-  req.on("timeout", () => { timedOut = true; sentByDeadline = sent; req.destroy(); });
+  req.on("timeout", expire);
+  req.on("finish", () => {
+    sent = true;
+    clearTimeout(sendDeadline);
+    sendDeadline = null;
+  });
   req.write(body);
+  // `http.request`'s timeout is an idle-socket timeout. While a large body is
+  // still being accepted into kernel buffers, those writes keep resetting it
+  // even if the peer application stopped reading. Bound the send phase itself
+  // so that a wedged writer can still hand the log to the next deck inside the
+  // hook's process cap. Once `finish` says the kernel took the whole body, this
+  // timer is cleared and the existing idle timeout remains the only deadline
+  // on a slow answer, preserving #1133's no-duplicate rule. (#1195)
+  sendDeadline = setTimeout(expire, POST_TIMEOUT_MS);
+  sendDeadline.unref?.();
   req.end();
 }
 
@@ -899,6 +924,32 @@ function discoverTargets(cwd, cb) {
   normPathAsync(cwd, scan);
 }
 
+// JSON.parse can accept nesting that older supported Node releases cannot
+// stringify again. Count structural nesting directly in the original text so
+// the hook never depends on a runtime-specific recursion limit. Strings are
+// skipped with their escapes, so braces inside tool output do not count.
+function exceedsJsonDepth(text, limit = 1000) {
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') quoted = false;
+      continue;
+    }
+    if (c === '"') { quoted = true; continue; }
+    if (c === "{" || c === "[") {
+      if (++depth > limit) return true;
+    } else if (c === "}" || c === "]") {
+      depth--;
+    }
+  }
+  return false;
+}
+
 function main() {
   // Hard cap so a stuck server can never wedge the host CLI: this process ends
   // itself rather than being killed. CAP_MS says what the budget is; this line
@@ -958,6 +1009,7 @@ function main() {
   process.stdin.on("end", () => {
     let parsed;
     try { parsed = JSON.parse(input); } catch { return process.exit(0); }
+    const tooDeepToSerialize = exceedsJsonDepth(input);
     const cwd = parsed && parsed.cwd;
     if (!cwd) return process.exit(0);
 
@@ -1008,7 +1060,26 @@ function main() {
       // Read or a Grep result arrives whole in `tool_response` and is routinely
       // megabytes.
       if (parsed && typeof parsed === "object") parsed.cwd = resolvedCwd;
-      const taggedInput = JSON.stringify(parsed);
+      let taggedInput;
+      try {
+        if (tooDeepToSerialize) throw new RangeError("JSON nesting exceeds safe serialization depth");
+        taggedInput = JSON.stringify(parsed);
+      } catch {
+        // JSON.parse accepts nesting much deeper than JSON.stringify can write
+        // back out. Keep the event instead of losing it silently: all scalar
+        // top-level metadata is safe to copy without walking the deep value,
+        // which preserves the event/session/tool identity, canonical cwd and
+        // provider while making the loss explicit to the deck. (#1180)
+        const shallow = {};
+        for (const [key, value] of Object.entries(parsed)) {
+          if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+            shallow[key] = value;
+          }
+        }
+        shallow.ccdeck_truncated = true;
+        shallow.ccdeck_truncation_reason = "serialization-depth";
+        taggedInput = JSON.stringify(shallow);
+      }
 
       // See proveTargets for what the other order cost. A record whose pid is
       // merely alive has established nothing: it may be a deck that died and had

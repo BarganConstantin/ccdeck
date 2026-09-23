@@ -457,10 +457,10 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // it and kept in step forever. A title is not a substitute either: for an
     // element with contents it is only the fallback the name computation never
     // reaches, and this row already has one pointed at something else.
-    // The opening tag, taken as everything from `<button` to the first child
-    // rather than to the first `>`: an arrow function in an onClick puts a `>`
-    // inside the attribute list.
-    const row = /<button\s+type="button"\s+key=\{r\.sessionId\}[\s\S]*?<span/.exec(sessionList)![0];
+    // The key now belongs to the semantic list item around the button. Take the
+    // row from that item through the button's first child; the onClick arrow
+    // still means the first literal `>` is not a safe opening-tag boundary.
+    const row = /<li key=\{r\.sessionId\}[\s\S]*?<button[\s\S]*?<span/.exec(sessionList)![0];
     expect(row).not.toMatch(/aria-label/);
     expect(row).toMatch(/title=\{`Focus \$\{r\.label\}`\}/);
     const toolRow = /<button className="tool clickable"[^>]*>/.exec(app)![0];

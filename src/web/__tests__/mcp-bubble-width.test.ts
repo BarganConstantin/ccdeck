@@ -1,9 +1,5 @@
-// The MCP primary bubble is labelled with the server segment, and an
-// unrecognised server keeps its raw name — often a long uuid. While the width
-// estimate was pinned at 96px for every non-Codex tool, the chained method
-// sub-bubble was placed inside the primary and the two drew on top of each
-// other. These assert the estimate now tracks the label for MCP calls, and
-// that short/known labels still land on the original fixed estimate.
+// Reserve enough width for the visible primary label across tool families so
+// a chained sub-bubble does not overlap it. Bound long labels to fit the lane.
 import { describe, it, expect } from "vitest";
 import { primaryBubbleWidth, primaryDisplayFor } from "../components/ToolBursts";
 
@@ -19,8 +15,8 @@ describe("primaryBubbleWidth", () => {
   it("widens for a long unknown MCP server so the method bubble clears it", () => {
     const w = primaryBubbleWidth("mcp__supabase-local__query", "supabase-local");
     expect(w).toBeGreaterThan(ESTIMATED_BUBBLE_W);
-    // 34px of emoji + padding, then ~7.5px per character.
-    expect(w).toBeCloseTo(34 + "supabase-local".length * 7.5);
+    // Emoji, gap and padding, then approximately 6.8px per visible character.
+    expect(w).toBeCloseTo(61 + "supabase-local".length * 6.8);
   });
 
   it("keeps a uuid-named MCP server's sub-bubble outside the primary", () => {
@@ -32,16 +28,17 @@ describe("primaryBubbleWidth", () => {
       .toBeGreaterThan(ESTIMATED_BUBBLE_W + SUB_GAP);
   });
 
-  it("leaves known MCP servers on the fixed estimate — their names are short", () => {
-    expect(primaryBubbleWidth("mcp__github__create_pr", "GitHub")).toBe(ESTIMATED_BUBBLE_W);
-    expect(primaryBubbleWidth("mcp__linear__list_issues", "Linear")).toBe(ESTIMATED_BUBBLE_W);
+  it("reserves space for the displayed label of known MCP servers", () => {
+    expect(primaryBubbleWidth("mcp__github__create_pr", "GitHub")).toBeCloseTo(61 + 6 * 6.8);
+    expect(primaryBubbleWidth("mcp__linear__list_issues", "Linear")).toBeCloseTo(61 + 6 * 6.8);
   });
 
-  it("still scales Codex tools and leaves Claude tools untouched", () => {
+  it("reserves width for long Claude labels as well as Codex labels", () => {
     expect(primaryBubbleWidth("exec_command", "Shell")).toBe(ESTIMATED_BUBBLE_W);
     expect(primaryBubbleWidth("shell_command", "a-very-long-label")).toBeGreaterThan(ESTIMATED_BUBBLE_W);
     expect(primaryBubbleWidth("Bash", "Bash")).toBe(ESTIMATED_BUBBLE_W);
-    expect(primaryBubbleWidth("NotebookEdit", "NotebookEdit")).toBe(ESTIMATED_BUBBLE_W);
+    expect(primaryBubbleWidth("NotebookEdit", "NotebookEdit")).toBeGreaterThan(ESTIMATED_BUBBLE_W);
+    expect(subOffset("NotebookEdit", "NotebookEdit")).toBeGreaterThan(ESTIMATED_BUBBLE_W + SUB_GAP);
   });
 });
 
@@ -82,5 +79,14 @@ describe("a bubble's word is bounded before it is measured", () => {
     const { label } = primaryDisplayFor(`mcp__${wide}__run`);
     expect([...label].length).toBeLessThanOrEqual(18);
     expect(label).not.toContain("�");
+  });
+
+  it("bounds both halves of a long MCP call within the 420px trail lane", () => {
+    const tool = `mcp__${"server-".repeat(12)}__${"very_long_method_".repeat(12)}`;
+    const primary = primaryDisplayFor(tool);
+    const primaryWidth = Math.min(190, primaryBubbleWidth(tool, primary.label));
+    const subWidth = 140;
+    expect([...primary.label].length).toBeLessThanOrEqual(18);
+    expect(60 + primaryWidth + SUB_GAP + subWidth).toBeLessThanOrEqual(420);
   });
 });

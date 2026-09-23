@@ -118,6 +118,14 @@ describe("the quietness", () => {
     expect(nextAnnouncement("", "")).toBe("");
   });
 
+  it("lets another polite alarm reuse the reducer with its own all-clear", () => {
+    const finding = "Browser watch has 2 unread findings.";
+    const clear = "Browser watch has no unread findings.";
+    expect(nextAnnouncement("", "", clear)).toBe("");
+    expect(nextAnnouncement("", finding, clear)).toBe(finding);
+    expect(nextAnnouncement(finding, "", clear)).toBe(clear);
+  });
+
   it("speaks a block that has just begun", () => {
     expect(nextAnnouncement("", "api is waiting for your permission."))
       .toBe("api is waiting for your permission.");

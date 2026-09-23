@@ -114,6 +114,7 @@ export function createDismissStack(): DismissStack {
  *  are siblings scattered across the tree with no common provider, and Escape
  *  arrives on window rather than through any of them. */
 export const modalStack = createDismissStack();
+export const isEscapeKey = (key: string): boolean => key === "Escape";
 
 export interface EscapeContext {
   /** An overlay is mounted, so the key is spoken for. */

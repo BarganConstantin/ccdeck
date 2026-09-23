@@ -1210,78 +1210,89 @@ button:focus-visible { outline-offset: 1px; }
   font-weight: 500;
   line-height: 18px;
 }
-.appearance-source-row .sm-select {
-  min-height: 30px;
-  padding-right: 8px;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
-}
-.appearance-source-row .sm-select:hover {
-  background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
-}
 .appearance-source-picker { position: relative; min-width: 0; }
 .appearance-source-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 36px;
-  padding: 0 10px;
-  cursor: pointer;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--sm-fill);
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  font: inherit;
+  font-size: 12px;
   text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
 }
-.appearance-source-chevron {
-  margin-left: 8px;
+.appearance-source-trigger:hover,
+.appearance-source-picker.is-open .appearance-source-trigger {
+  background: var(--sm-fill);
+  border-color: var(--text);
+}
+.appearance-source-trigger svg {
+  flex: none;
   width: 12px;
-  height: 8px;
-  color: var(--muted);
+  height: 12px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
-  transition: transform 140ms ease-out, color 140ms ease-out;
+  transition: transform 120ms ease-out;
 }
-.appearance-source-trigger[aria-expanded="true"] .appearance-source-chevron { transform: rotate(180deg); color: var(--accent); }
+.appearance-source-picker.is-open .appearance-source-trigger svg { transform: rotate(180deg); }
 .appearance-source-list {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  left: 0;
-  z-index: 2;
-  max-height: 240px;
+  max-height: min(196px, 24vh);
+  margin-top: 5px;
+  padding: 4px;
   overflow-y: auto;
-  padding: 6px;
+  overscroll-behavior: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
-  box-shadow: var(--shadow-2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  scrollbar-color: var(--muted) transparent;
+}
+.appearance-source-group {
+  padding: 6px 8px 3px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 .appearance-source-option {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  min-height: 32px;
-  padding: 6px 8px;
+  min-height: 30px;
+  padding: 5px 8px;
   color: var(--text);
   background: transparent;
   border: 0;
   border-radius: 4px;
-  cursor: pointer;
   font: inherit;
   font-size: 12px;
   text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease-out;
+}
+.appearance-source-option:hover,
+.appearance-source-option[data-highlighted="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.appearance-source-option[aria-selected="true"] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .appearance-source-trigger:active,
 .appearance-source-option:active { transform: scale(0.97); }
-.appearance-source-trigger,
-.appearance-source-option { transition: transform 100ms ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .appearance-source-trigger,
-  .appearance-source-option { transition: none; }
   .appearance-source-trigger:active,
   .appearance-source-option:active { transform: none; }
 }
-.appearance-source-option:hover,
-.appearance-source-option[aria-selected="true"] { background: var(--ctl-fill); }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
    so now that the boxes are gone. */
@@ -5019,6 +5030,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 .tool-burst {
   display: inline-flex;
+  max-width: 190px;
   align-items: center;
   gap: 6px;
   padding: 5px 12px 5px 10px;
@@ -5054,7 +5066,13 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   display: inline-block;
   /* tiny continuous wobble while inflight — see .status-inflight rule */
 }
-.tool-burst .tb-name { font-weight: 600; letter-spacing: 0.01em; }
+.tool-burst .tb-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tool-burst .tb-spin {
   width: 8px; height: 8px;
   border-radius: 50%;
@@ -5219,6 +5237,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    of pure lateness, measured, and it is what made a sub's glow trail its
    primary's by 220ms on a tool that finished once. */
 .tool-burst.sub {
+  max-width: 140px;
   font-size: 10px;
   padding: 4px 10px 4px 8px;
   opacity: 0.94;
@@ -5524,10 +5543,20 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   --sl-card-gutter: 4px;
   --sl-card-edge: 1px;
   flex: 1;
+  margin: 0;
   padding: 6px var(--sl-card-gutter);
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.session-list .sl-row-item {
+  display: flex;
+  min-width: 0;
+}
+.session-list .sl-row-item > .sl-row {
+  flex: 1;
+  width: 100%;
 }
 .session-list .sl-empty {
   padding: 16px 12px;
@@ -7988,6 +8017,13 @@ button.qb-pace::after {
 /* The row's own controls, over the door: a press on one does what it says and
    does not also open the row. */
 .ap-account :is(.ap-switch, .ap-more, .ap-issue, .ap-failure, .ap-switched) {
+  position: relative;
+  z-index: 1;
+}
+/* Titled text must be hit-testable above the row's overlay button. Otherwise
+   the button intercepts hover, hiding full clipped identities and usage ages.
+   The rest of the row remains the disclosure target. (#1115) */
+.ap-account :is(.ap-alias, .ap-email, .ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
   position: relative;
   z-index: 1;
 }
@@ -14134,7 +14170,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-proj-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .ap-proj-row {
   display: grid;
-  grid-template-columns: 10px minmax(80px, 1fr) minmax(64px, 2fr) max-content max-content;
+  grid-template-columns: 10px minmax(80px, 1fr) minmax(64px, 2fr) max-content max-content 24px;
   align-items: center;
   gap: 10px;
   padding: 6px 2px;
@@ -14147,6 +14183,34 @@ input, textarea { caret-color: var(--accent); }
   font-size: 13px; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.ap-proj-parent { color: var(--muted); font-size: 12px; font-style: normal; }
+.ap-proj-info { width: 24px; height: 24px; font-size: 13px; justify-self: end; }
+.ap-proj-details {
+  grid-column: 2 / -1;
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 2px 0 4px;
+}
+.ap-proj-path {
+  flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere;
+  color: var(--muted); font-size: 11px; line-height: 1.45;
+}
+.ap-proj-copy {
+  border: 1px solid var(--ctl-edge); border-radius: 6px; background: var(--sm-fill); color: var(--muted);
+  font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-proj-copy:hover { color: var(--text); }
+.ap-proj-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ap-proj-copy:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .ap-proj-copy:active { transform: none; }
+}
+.ap-proj-other-members { display: block; padding-top: 0; }
+.ap-proj-other-member {
+  display: grid; grid-template-columns: minmax(100px, 1fr) minmax(140px, 2fr) max-content max-content max-content;
+  align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line-soft);
+}
+.ap-proj-other-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text); }
 .ap-proj-track {
   height: 6px; border-radius: 3px;
   background: var(--panel-inset);
@@ -14180,8 +14244,12 @@ input, textarea { caret-color: var(--accent); }
 @media (max-width: 520px) {
   .ap-proj-head { flex-wrap: wrap; }
   .ap-proj-sub { max-width: 100%; }
-  .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content; }
+  .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content 24px; }
   .ap-proj-track { display: none; }
+  .ap-proj-details { grid-column: 2 / -1; }
+  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content; }
+  .ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }
+  .ap-proj-other-member .ap-proj-copy { grid-column: 3; grid-row: 1; }
 }
 
 /* Per-day chart in the Projects report: a stacked column per day, coloured by

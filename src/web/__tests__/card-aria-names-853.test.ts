@@ -40,6 +40,11 @@ describe("a card's spoken name (#853)", () => {
     expect(agentAriaLabel(card({ toolCount: 1 }))).toContain("1 tool");
   });
 
+  it("announces selection in the focused card's existing name", () => {
+    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, live, 0 tools, selected");
+    expect(agentAriaLabel(card(), 0, false)).not.toContain("selected");
+  });
+
   it("stays short — a name, not the card read out", () => {
     const busy = card({ toolCount: 250, tools: Array.from({ length: 21 }, () => ({ ok: false })) as AgentNodeData["tools"] });
     expect(agentAriaLabel(busy).length).toBeLessThan(90);
@@ -58,7 +63,7 @@ describe("the canvas wiring (#853)", () => {
   it("gives every agent node its composed name", () => {
     // The node is built in canvas-flow.ts since #1175; App registers the
     // renderer and this is what it is handed.
-    expect(flowCode).toMatch(/type: "agent",[\s\S]{0,200}?ariaLabel: agentAriaLabel\(a, now\),/);
+    expect(flowCode).toMatch(/type: "agent",[\s\S]{0,240}?ariaLabel: agentAriaLabel\(a, now, selectedIds\.has\(a\.id\)\),/);
   });
 
   it("drops React Flow's false keyboard instructions and its delete key", () => {

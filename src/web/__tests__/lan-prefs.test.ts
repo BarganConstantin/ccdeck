@@ -90,6 +90,7 @@ describe("what a page is allowed to see", () => {
     const out = JSON.stringify(publicPrefs(withSecret));
     expect(out).not.toContain("AAAAsecret-private-keyAAAA");
     expect(publicPrefs(withSecret).lan).not.toHaveProperty("secret");
+    expect(publicPrefs(withSecret).lan).not.toHaveProperty("unpaired");
   });
 
   it("sends a paired deck as a name and a fingerprint, not as a key", () => {
@@ -108,6 +109,33 @@ describe("what a page is allowed to see", () => {
   });
 });
 
+describe("desktop onboarding survives a change of localhost origin (#1212)", () => {
+  it("defaults to unseen and accepts only an explicit boolean true", () => {
+    expect(normalise({}).tourSeen).toBe(false);
+    expect(normalise({ tourSeen: "true" }).tourSeen).toBe(false);
+    expect(normalise({ tourSeen: true }).tourSeen).toBe(true);
+  });
+
+  it("persists the marker in the shared deck preferences, independent of the browser origin", async () => {
+    let onDisk: string | null = null;
+    const writes: Staged[] = [];
+    const deps = {
+      readFile: async () => {
+        if (onDisk === null) throw fsError("ENOENT");
+        return onDisk;
+      },
+      mkdir: async () => {},
+      createTemp: recordingTemp(writes),
+      chmod: async () => {},
+      rename: async () => { onDisk = writes.at(-1)!.body; },
+    };
+    await writePrefs({ tourSeen: true }, "/tmp/tour-prefs-test", deps);
+    expect(publicPrefs(normalise(JSON.parse(onDisk!))).tourSeen).toBe(true);
+    await writePrefs({ notifications: true }, "/tmp/tour-prefs-test", deps);
+    expect(publicPrefs(normalise(JSON.parse(onDisk!))).tourSeen).toBe(true);
+  });
+});
+
 describe("the shape on disk", () => {
   it("is on, and pairs only when the other machine says yes", () => {
     expect(DEFAULTS.lan.enabled).toBe(true);
@@ -119,7 +147,7 @@ describe("the shape on disk", () => {
     // next field and not this one: `shared` is empty, so a deck that pairs is
     // offered nothing until a person ticks a login here.
     expect(normalise({}).lan).toEqual({
-      enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
+      enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, aliases: {}, shareActive: true,
       // Tailscale discovery is off until somebody turns it on; its own two
       // permissions ship on, and answer only for the owner's own machines.
@@ -148,7 +176,7 @@ describe("the shape on disk", () => {
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
     const saved = JSON.parse(staged[0].body) as Record<string, unknown>;
     expect(saved.lan).toEqual({
-      enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
+      enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, aliases: {}, shareActive: true,
       tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
     });
@@ -176,11 +204,14 @@ describe("the shape on disk", () => {
   });
 
   it("refuses anything in the lists that is not a string", () => {
-    // Both are compared against account keys and dialled as addresses, and they
-    // arrive from a page.
-    const p = normalise({ lan: { shared: ["a@@1", 5, null, { x: 1 }], manual: ["1.2.3.4:5", 9] } });
+    const p = normalise({ lan: {
+      shared: ["a@@1", 5, null, { x: 1 }],
+      manual: ["1.2.3.4:5", 9],
+      unpaired: ["fp-1", 7],
+    } });
     expect(p.lan.shared).toEqual(["a@@1"]);
     expect(p.lan.manual).toEqual(["1.2.3.4:5"]);
+    expect(p.lan.unpaired).toEqual(["fp-1"]);
   });
 
   it("survives a file written by a build that had never heard of LAN sync", () => {

@@ -158,4 +158,34 @@ describe("a port that is not a deck", () => {
     expect(await challenge()).toBe(false);
     expect(Date.now() - started).toBeLessThan(2_000);
   });
+
+  it("is given up on when it trickles bytes often enough to avoid the idle timeout", async () => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const closed = new Promise<void>(done => {
+      handler = (_req, res) => {
+        res.statusCode = 200;
+        res.write("{");
+        timer = setInterval(() => res.write(" "), 100);
+        res.on("close", () => { if (timer) clearInterval(timer); done(); });
+      };
+    });
+    const started = Date.now();
+    expect(await challenge()).toBe(false);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    await closed;
+  });
+
+  it("is given up on when a 200 response starts and then stalls mid-body", async () => {
+    const closed = new Promise<void>(done => {
+      handler = (_req, res) => {
+        res.statusCode = 200;
+        res.write('{"proof":"partial');
+        res.on("close", done);
+      };
+    });
+    const started = Date.now();
+    expect(await challenge()).toBe(false);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    await closed;
+  });
 });

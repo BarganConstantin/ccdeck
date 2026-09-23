@@ -3,21 +3,12 @@ import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { resolveFmSource, type FmSource } from "../appearance";
+import { FM_SOURCE_OPTIONS, type FmSource } from "../appearance";
+import { isEscapeKey } from "../modal-dismiss";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
-const FM_OPTIONS: Array<{ value: FmSource; label: string; group?: string }> = [
-  { value: "claude-fm", label: "🎧 Claude FM" },
-  { value: "lofi-relax", label: "📚 Relax / study", group: "📻 Lofi Girl" },
-  { value: "lofi-game", label: "🎮 Chill / game", group: "📻 Lofi Girl" },
-  { value: "lofi-vibe", label: "🌅 Vibe / chill", group: "📻 Lofi Girl" },
-  { value: "lofi-sleep", label: "💤 Sleep / chill", group: "📻 Lofi Girl" },
-  { value: "radio-mix", label: "📡 Live radio mix", group: "📻 Radio Mix" },
-  { value: "best-of-nostalgia", label: "📼 Best of nostalgia live", group: "📻 Best of Nostalgia" },
-  { value: "good-life-radio", label: "🌴 The Good Life Radio", group: "📻 The Good Life Radio" },
-  { value: "cafe-music-bgm", label: "☕ Cafe music BGM", group: "☕ Cafe Music BGM" },
-];
+const FM_SOURCES = FM_SOURCE_OPTIONS;
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -68,17 +59,63 @@ export default function AppearanceMenu({
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
   const [sourceOpen, setSourceOpen] = useState(false);
-  const sourceRef = useRef<HTMLDivElement>(null);
-  const selectedSource = FM_OPTIONS.find(option => option.value === fmSource) ?? FM_OPTIONS[0];
+  const [highlightedSource, setHighlightedSource] = useState(() => Math.max(0, FM_SOURCES.findIndex(source => source.value === fmSource)));
+  const sourceTriggerRef = useRef<HTMLButtonElement>(null);
+  const sourceListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const selectedIndex = FM_SOURCES.findIndex(source => source.value === fmSource);
+    setHighlightedSource(selectedIndex < 0 ? 0 : selectedIndex);
+  }, [fmSource]);
+
+  useEffect(() => {
+    if (!sourceOpen) return;
+    document.getElementById(`appearance-fm-option-${highlightedSource}`)?.scrollIntoView({ block: "nearest" });
+  }, [highlightedSource, sourceOpen]);
 
   useEffect(() => {
     if (!sourceOpen) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!sourceRef.current?.contains(event.target as Node)) setSourceOpen(false);
+      const target = event.target as Node;
+      if (!sourceTriggerRef.current?.contains(target) && !sourceListRef.current?.contains(target)) {
+        setSourceOpen(false);
+      }
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [sourceOpen]);
+
+  const chooseSource = (index: number) => {
+    const source = FM_SOURCES[index];
+    if (!source) return;
+    setHighlightedSource(index);
+    onFmSource(source.value);
+    setSourceOpen(false);
+    sourceTriggerRef.current?.focus();
+  };
+
+  const moveSource = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (isEscapeKey(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSourceOpen(false);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (sourceOpen) chooseSource(highlightedSource);
+      else setSourceOpen(true);
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    setSourceOpen(true);
+    setHighlightedSource(current => {
+      if (event.key === "Home") return 0;
+      if (event.key === "End") return FM_SOURCES.length - 1;
+      return Math.min(FM_SOURCES.length - 1, Math.max(0, current + (event.key === "ArrowDown" ? 1 : -1)));
+    });
+  };
 
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
@@ -188,41 +225,47 @@ export default function AppearanceMenu({
         <div className="appearance-controls">
           <div className="appearance-source-row">
             <label htmlFor="appearance-fm-source">Station</label>
-            <div ref={sourceRef} className="appearance-source-picker">
-              <button
-                id="appearance-fm-source"
-                type="button"
-                className="sm-select appearance-source-trigger"
-                aria-haspopup="listbox"
-                aria-expanded={sourceOpen}
-                aria-describedby="appearance-fm-source-note"
-                onClick={() => setSourceOpen(open => !open)}
-              >
-                <span>{selectedSource.label}</span>
-                <svg className="appearance-source-chevron" viewBox="0 0 12 8" aria-hidden focusable="false">
-                  <path d="m1 1.5 5 5 5-5" />
-                </svg>
-              </button>
-              {sourceOpen && (
-                <div className="appearance-source-list" role="listbox" aria-label="Music station">
-                  {FM_OPTIONS.map(option => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="option"
-                      aria-selected={option.value === fmSource}
+            <div className={`appearance-source-picker${sourceOpen ? " is-open" : ""}`}>
+            <button
+              ref={sourceTriggerRef}
+              type="button"
+              id="appearance-fm-source"
+              className="appearance-source-trigger"
+              role="combobox"
+              aria-haspopup="listbox"
+              aria-expanded={sourceOpen}
+              aria-controls="appearance-fm-source-list"
+              aria-activedescendant={sourceOpen ? `appearance-fm-option-${highlightedSource}` : undefined}
+              aria-describedby="appearance-fm-source-note"
+              onClick={() => setSourceOpen(open => !open)}
+              onKeyDown={moveSource}
+            >
+              <span>{FM_SOURCES.find(source => source.value === fmSource)?.label ?? FM_SOURCES[0].label}</span>
+              <svg viewBox="0 0 12 12" aria-hidden focusable="false"><path d="m2.5 4.5 3.5 3 3.5-3" /></svg>
+            </button>
+            {sourceOpen && (
+              <div ref={sourceListRef} id="appearance-fm-source-list" className="appearance-source-list" role="listbox" aria-label="Music stations">
+                {FM_SOURCES.map((source, index) => (
+                  <div key={source.value}>
+                    {source.group && (index === 0 || FM_SOURCES[index - 1].group !== source.group) && (
+                      <div className="appearance-source-group" role="presentation">{source.group}</div>
+                    )}
+                    <div
                       className="appearance-source-option"
-                      onClick={() => {
-                        onFmSource(resolveFmSource(option.value));
-                        setSourceOpen(false);
-                      }}
+                      role="option"
+                      id={`appearance-fm-option-${index}`}
+                      aria-selected={fmSource === source.value}
+                      data-highlighted={highlightedSource === index || undefined}
+                      onMouseEnter={() => setHighlightedSource(index)}
+                      onClick={() => chooseSource(index)}
                     >
-                      <span>{option.label}</span>
-                      {option.value === fmSource && <span aria-hidden>✓</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
+                      <span>{source.label}</span>
+                      {fmSource === source.value && <span aria-hidden>✓</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             </div>
           </div>
           <span id="appearance-fm-source-note" className="vis-hidden">

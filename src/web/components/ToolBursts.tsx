@@ -16,7 +16,6 @@ import {
   CODEX_SHELL_TOOLS,
   CODEX_TOOL_EMOJI,
   CODEX_TOOL_LABEL,
-  CODEX_TOOL_NAMES,
   type ToolCategory,
 } from "../tool-taxonomy";
 
@@ -35,9 +34,7 @@ const BUBBLE_TOP_INSET = 6;
  *  it stops bubbles from being computed flush with a wrong-tiny width and
  *  then visually overlapping the card once measurement settles. */
 const AGENT_W_MIN = 220;
-/** Approximate width of a bubble — used to position chained sub-bubbles
- *  before we know their measured width. ~96 fits "📖 Read" through
- *  "🎬 Workflow"; anything longer wraps naturally. */
+/** Minimum reserved width of a bubble before it is measured. */
 const ESTIMATED_BUBBLE_W = 96;
 const SUB_GAP = 28;
 
@@ -264,23 +261,11 @@ function commandStringOf(input: unknown): string | null {
 // the user actually noticed, because the sub-bubble is what shows WHAT RAN.
 const SHELL_TOOLS = new Set(["Bash", "PowerShell", ...CODEX_SHELL_TOOLS]);
 
-// Codex tool names are much longer than CC's ("exec_command"/"shell_command"
-// vs "Bash"), so the fixed ESTIMATED_BUBBLE_W under-shoots the primary
-// bubble's real width and the chained sub-bubble lands on top of it with no
-// gap. For these tools only we widen the primary estimate from the label
-// length; floored at ESTIMATED_BUBBLE_W so Claude bubbles are unchanged.
-const CODEX_TOOLS = CODEX_TOOL_NAMES;
-
-/** Estimated primary-bubble width in px. Codex tools and MCP calls both chain
- *  a sub-bubble behind a primary whose label can run long — an unrecognised
- *  MCP server keeps its raw segment (often a uuid) as the label — so for those
- *  the estimate scales with the label; everything else keeps the original
- *  fixed estimate, leaving Claude rendering intact. Exported for tests. */
-export function primaryBubbleWidth(toolName: string, label: string): number {
-  const scales = CODEX_TOOLS.has(toolName) || toolName.startsWith("mcp__");
-  if (!scales) return ESTIMATED_BUBBLE_W;
-  // emoji + paddings ≈ 34px, then ~7.5px per character.
-  return Math.max(ESTIMATED_BUBBLE_W, 34 + label.length * 7.5);
+/** Reserve space for the same visible label for every tool family. The CSS
+ *  caps the primary at 190px, leaving at least 22px of the 28px chain gap
+ *  even when a wide glyph makes the rendered label wider than this estimate. */
+export function primaryBubbleWidth(_toolName: string, label: string): number {
+  return Math.max(ESTIMATED_BUBBLE_W, 61 + [...label].length * 6.8);
 }
 
 function skinForShellCall(toolName: string, input: unknown): CommandSkin | null {
@@ -560,15 +545,16 @@ const CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL;
  *  `white-space: nowrap` with no max-width, so the pill simply ran, pushing its
  *  own sub-bubble out of the 420px lane the layout budgets for the whole trail.
  *
- *  The cap is on the LABEL rather than on the width, so the space reserved and
- *  the pill drawn are computed from the same bounded string and cannot drift
- *  apart. Eighteen is the widest that still leaves the primary narrower than
- *  the card it hangs off. What was cut stays in the tooltip. */
+ *  The label cap applies to every tool family and chained sub-bubble. CSS
+ *  also bounds each pill, so a wide glyph cannot push the trail into the next
+ *  session's lane. The full tool name and input remain in the tooltip. */
 const LABEL_MAX = 18;
 
 /** Cut on code points, so a surrogate pair is never split in half — the same
- *  rule the cluster header's own truncation follows. */
-function cutLabel(label: string): string {
+ *  rule the cluster header's own truncation follows. Exported so a test
+ *  asserting a drawn label derives the cut from here rather than hand-computing
+ *  it, and cannot drift from LABEL_MAX the way a literal would. */
+export function cutLabel(label: string): string {
   const cp = [...label];
   return cp.length <= LABEL_MAX ? label : cp.slice(0, LABEL_MAX - 1).join("") + "…";
 }
@@ -577,7 +563,7 @@ export function primaryDisplayFor(toolName: string): PrimaryDisplay {
   const mcp = parseMcpName(toolName);
   if (mcp) {
     const known = knownMcpServer(mcp.server);
-    if (known) return { emoji: known.emoji, label: known.name };
+    if (known) return { emoji: known.emoji, label: cutLabel(known.name) };
     // Unknown server — keep the literal segment, tint by hash. The hue is
     // hashed from the WHOLE segment and the label is what is drawn, so two
     // servers that share their first characters still get different colours.
@@ -587,11 +573,8 @@ export function primaryDisplayFor(toolName: string): PrimaryDisplay {
   // is truthy, so `CODEX_PRIMARY_LABEL["toString"]` would put a function on the
   // bubble where the tool's own name belongs.
   const codexLabel = Object.hasOwn(CODEX_PRIMARY_LABEL, toolName) ? CODEX_PRIMARY_LABEL[toolName] : "";
-  if (codexLabel) return { emoji: emojiFor(toolName), label: codexLabel };
-  // NOT cut. A tool name comes from the provider's own vocabulary and is
-  // bounded by it; only the MCP server segment above is arbitrary text that can
-  // arrive as a uuid. Cutting here truncated names the API actually publishes.
-  return { emoji: emojiFor(toolName), label: toolName };
+  if (codexLabel) return { emoji: emojiFor(toolName), label: cutLabel(codexLabel) };
+  return { emoji: emojiFor(toolName), label: cutLabel(toolName) };
 }
 
 /**
@@ -809,7 +792,7 @@ export function collectBursts(
           toolId: t.id,
           agentId: a.id,
           toolName: t.name,
-          name: skin.label,
+          name: cutLabel(skin.label),
           emoji: skin.emoji,
           isSub: true,
           status,

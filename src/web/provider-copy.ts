@@ -61,6 +61,11 @@ const AGENT_NAMES: Record<string, string> = {
   openclaw: "OpenClaw",
   copilot: "GitHub Copilot",
   pi: "pi-agent",
+  // ccusage 20.0.21's new adapter. Title-case would print "Zcode", and the
+  // product is ZCode — the same internal capital that put OpenCode and OpenClaw
+  // on this list. Its stablemate in that release, Antigravity, is NOT here:
+  // title-case already spells it the way the product does.
+  zcode: "ZCode",
 };
 
 /** One of ccusage's agent ids, as a name to print. Unknown ids are title-cased

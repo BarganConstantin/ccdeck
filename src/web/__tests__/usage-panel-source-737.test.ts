@@ -306,14 +306,19 @@ describe("the join to the canvas", () => {
     expect(css).toContain(".up-dot-past { visibility: hidden; }");
   });
 
-  it("says on the heading that a ccusage session row is a lifetime total", () => {
-    // ccusage's `--since` chooses WHICH sessions are listed and does not cut
-    // their figures to the window: session 07ac7b2b spans three days and
-    // reports the same $376.88 for "today" as for "all time", so today's rows
-    // summed to $4,391 under a headline of $839. The reader can see that
-    // arithmetic fail, so the scope goes on the heading and not in a tooltip.
+  it("measures the session list against the period rather than asserting a scope", () => {
+    // The heading used to state WHY the rows can out-sum the figure above them:
+    // a ccusage session row carried the session's lifetime, so a session that
+    // began on Tuesday brought all of Tuesday into today's list. True through
+    // ccusage 20.0.20 and not true of 20.0.21, which scopes a row to the
+    // window — and the deck installs `ccusage@latest` and refreshes it daily,
+    // so it cannot know which one answered.
+    // What survives every version is the arithmetic on screen, so the panel
+    // sums the rows and compares. `sessionListScale` is given the WHOLE range
+    // rather than `rangeSessionRows`, which is cut at twelve.
     expect(panel).toContain(">active {periodNoun}</span>");
-    expect(panel).toMatch(/title=\{`Sessions with activity \$\{periodNoun\}/);
+    expect(panel).toContain("sessionListScale(range, rangeSum.cost)");
+    expect(panel).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
   });
 
   it("says why the session list is empty rather than dropping the section", () => {

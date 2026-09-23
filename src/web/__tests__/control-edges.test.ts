@@ -555,6 +555,7 @@ const CONTROLS: Control[] = [
   // choice is a borderless button; the frame is its boundary, and choosing it
   // redraws the frame in --text.
   { at: ".appearance-preview", states: ['.appearance-theme[aria-checked="true"] .appearance-preview'], beds: ["--panel"] },
+  { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
@@ -570,6 +571,7 @@ const CONTROLS: Control[] = [
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
   { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
+  { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
     states: [".ap-manage-btn.danger:hover:not(:disabled)", ".ap-manage-btn.danger.armed"], beds: ACCOUNTS },
@@ -736,6 +738,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ap-field select:focus-visible",
       ".ap-lan-word:focus-visible",
       ".ap-manage-input:focus-visible",
+      ".ap-proj-copy:focus-visible",
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
@@ -1066,6 +1069,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // it, and the state is also said by the triangle and, for a screen
       // reader, in words. A state indicator on a decorative rim, not a boundary.
       ".cluster-label[data-alarm]",
+      ".appearance-source-option",
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {

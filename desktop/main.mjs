@@ -21,6 +21,7 @@ import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
 import { navigationFor } from "./nav.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
+import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -56,6 +57,8 @@ let starting = null;          // the start in flight, so two clicks start one de
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
 let updater = null;           // updater.mjs, created once the app is ready
 let quietSince = null;        // since when nothing is running, waiting or open (#1187)
+let updateNoticeVersion = null; // last version whose ready notice was shown (#1182)
+let updateNoticePrompting = false;
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -134,6 +137,7 @@ function scheduleRedraw() {
   redraw = setTimeout(() => {
     redraw = null;
     if (model) snapshot = model.snapshot();
+    offerReadyUpdate();
     if (!tray) return;
     tray.setImage(trayImage(snapshot.icon));
     // macOS draws text beside a menu-bar icon; nowhere else can.
@@ -350,15 +354,23 @@ function trace(line) {
   } catch { /* a log that cannot be written is not worth failing over */ }
 }
 
-function openWindow() {
+/** @param {boolean} steal Whether to pull OS-level activation to this app on
+ *  top of showing the window — only for a person's own gesture (a tray click,
+ *  a Dock reactivation, a second launch, a notification). The one caller that
+ *  is not that is startup's own `if (deck) openWindow()`: an app relaunching
+ *  itself after a quiet auto-update, or restored at login, opens with nobody
+ *  having asked for it, and had no business pulling a person out of a
+ *  fullscreen browser Space to do it (#1214). */
+function openWindow(steal = true) {
   if (!deck) {
-    ensureDeck().then(found => { if (found) openWindow(); });
+    ensureDeck().then(found => { if (found) openWindow(steal); });
     return;
   }
   if (win && !win.isDestroyed()) {
     if (win.isMinimized()) win.restore();
     win.show();
     win.focus();
+    offerReadyUpdate();
     return;
   }
   const origin = `http://127.0.0.1:${deck.port}`;
@@ -394,9 +406,13 @@ function openWindow() {
   });
   win.once("ready-to-show", () => {
     win?.show();
-    app.focus({ steal: true });
+    if (steal) app.focus({ steal: true });
+    offerReadyUpdate();
   });
-  win.on("focus", () => trace(`focus onTop=${win?.isAlwaysOnTop()}`));
+  win.on("focus", () => {
+    trace(`focus onTop=${win?.isAlwaysOnTop()}`);
+    offerReadyUpdate();
+  });
   win.on("blur", () => trace(`blur onTop=${win?.isAlwaysOnTop()} visible=${win?.isVisible()}`));
   win.on("closed", () => {
     win = null;
@@ -454,6 +470,66 @@ function windowOnScreen(within) {
 async function ask(options) {
   const parent = await windowOnScreen(ON_SCREEN_WAIT_MS);
   return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+}
+
+/**
+ * Say that a verified update is ready while the person is already looking at
+ * ccdeck. The updater never opens or raises a window for this notice: if the
+ * window is closed, unfocused, or the deck is active, the next focus/redraw
+ * gets another chance. Dismissing it remembers the version across launches so
+ * "Later" really means later rather than every six-hour update check.
+ *
+ * Not routed through `ask()`: `shouldOfferReadyUpdate` already requires
+ * `windowVisible` before this ever runs, so `target` is never the unshown,
+ * roleless-surface window `ask()` exists to wait out.
+ */
+async function offerReadyUpdate() {
+  const u = updater?.state ?? { status: "idle" };
+  const target = win;
+  const windowOpen = !!target && !target.isDestroyed();
+  if (!shouldOfferReadyUpdate({
+    status: u.status,
+    version: u.version,
+    shownVersion: updateNoticeVersion,
+    windowOpen,
+    windowVisible: windowOpen && target.isVisible(),
+    windowFocused: windowOpen && target.isFocused(),
+    running: snapshot.running,
+    waiting: snapshot.waiting,
+    prompting: updateNoticePrompting,
+  })) return;
+
+  const version = u.version;
+  updateNoticePrompting = true;
+  try {
+    const { response } = await dialog.showMessageBox(target, {
+      type: "info",
+      message: `ccdeck ${version} is ready`,
+      detail: "The update has been downloaded and verified. Restart ccdeck to use the new version.",
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+
+    // The sheet was actually shown, so this version has had its one notice.
+    updateNoticeVersion = version;
+    try {
+      const state = readState();
+      writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
+    } catch (err) {
+      trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
+    }
+
+    // A newer update may have replaced this one while the sheet was open.
+    // Only restart for the exact verified version the person accepted.
+    if (response === 0 && updater?.state.status === "ready" && updater.state.version === version) {
+      updater.restartNow();
+    }
+  } catch (err) {
+    trace(`update ready notice failed: ${err?.message ?? err}`);
+  } finally {
+    updateNoticePrompting = false;
+  }
 }
 
 async function firstRun() {
@@ -517,6 +593,7 @@ async function offerToReplaceLoginItem() {
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   setRegular(false);
+  updateNoticeVersion = readState().readyUpdateNoticeVersion ?? null;
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
@@ -528,6 +605,7 @@ app.whenReady().then(async () => {
     onChange: s => {
       trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`);
       scheduleRedraw();
+      offerReadyUpdate();
       // An update that lands while the app is already quiet does not wait for
       // the next tick to be noticed.
       updateWhenQuiet();
@@ -547,7 +625,8 @@ app.whenReady().then(async () => {
   // that came up while none was running.
   setInterval(() => { model?.tick(); scheduleRedraw(); updateWhenQuiet(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
-  if (deck) openWindow();
+  // Nobody asked for this one — see openWindow's own doc on `steal`.
+  if (deck) openWindow(false);
   await firstRun();
   await offerToReplaceLoginItem().catch(err => trace(`login item check failed: ${err?.message ?? err}`));
 });

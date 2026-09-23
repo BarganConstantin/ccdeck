@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { CHARACTER_ENABLED_KEY, resolveCharacterEnabled } from "../appearance";
+import { CHARACTER_ENABLED_KEY, FM_SOURCE_OPTIONS, resolveCharacterEnabled } from "../appearance";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -17,6 +17,13 @@ describe("character appearance preference", () => {
 
   it("uses a stable, namespaced preference key", () => {
     expect(CHARACTER_ENABLED_KEY).toBe("agent-dag.character-enabled");
+  });
+
+  it("keeps the station labels in the shared appearance metadata", () => {
+    expect(FM_SOURCE_OPTIONS.map(source => source.value)).toEqual([
+      "claude-fm", "lofi-relax", "lofi-game", "lofi-vibe", "lofi-sleep",
+      "radio-mix", "best-of-nostalgia", "good-life-radio", "cafe-music-bgm",
+    ]);
   });
 
   it("gates the character at its App mount and persists the chosen state", () => {
@@ -68,6 +75,17 @@ describe("character appearance preference", () => {
 
   it("keeps the whole Claude FM row one control, and Space and T working inside the menu", () => {
     const menu = read("components/AppearanceMenu.tsx");
+    const styles = read("styles.css");
+    expect(menu).toContain('aria-haspopup="listbox"');
+    expect(menu).toContain("aria-activedescendant");
+    expect(menu).toContain('role="listbox"');
+    expect(menu).toContain('role="option"');
+    expect(menu).toContain('role="combobox"');
+    expect(menu).toContain("scrollIntoView");
+    expect(styles).toContain(".appearance-source-list");
+    expect(styles).toContain("max-height: min(196px, 24vh)");
+    expect(styles).toContain("overflow-y: auto");
+    expect(styles).toContain("overscroll-behavior: auto");
     // The row is a <label> round the switch: a press anywhere in it reaches the
     // switch once, and there is still one tab stop.
     expect(menu).toMatch(/<label className="appearance-row">[\s\S]*?role="switch"[\s\S]*?<\/label>/);

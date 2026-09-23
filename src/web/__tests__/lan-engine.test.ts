@@ -89,10 +89,12 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
   // every engine gets its own, made once, rather than a fresh one per apply.
   const id = identityFrom("");
   const trusted: Array<{ fp: string; pub: string; name: string }> = [];
+  const unpaired = [...(((on as { unpaired?: string[] }).unpaired) ?? [])];
   // Everything else the engine hands index.mjs to write into prefs.json, kept
   // as it arrives: what survives a restart is only what went through one of
   // these, so a case about persistence reads them rather than the engine.
   const trustWrites: string[][] = [];
+  const unpairedWrites: string[][] = [];
   const dials: string[] = [];
   const ports: number[] = [];
   const identities: string[] = [];
@@ -107,6 +109,10 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
       trusted.splice(0, trusted.length, ...list);
       trustWrites.push(list.map(t => t.fp));
     },
+    onUnpaired: (list: string[]) => {
+      unpaired.splice(0, unpaired.length, ...list);
+      unpairedWrites.push([...list]);
+    },
     onDial: (entry: string) => dials.push(entry),
     onPort: (port: number) => ports.push(port),
     onIdentity: (secret: string) => identities.push(secret),
@@ -118,10 +124,10 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
   // a PRESS does. The automatic path has its own describe, where it is the
   // subject rather than the weather.
   await e.apply({
-    enabled: true, name, secret: id.secret, shared, trusted,
+    enabled: true, name, secret: id.secret, shared, trusted, unpaired,
     autoAsk: false, autoAccept: false, ...on,
   });
-  return { e, errors, id, trusted, trustWrites, dials, ports, identities, sock, port: e.status().port as number };
+  return { e, errors, id, trusted, trustWrites, unpaired, unpairedWrites, dials, ports, identities, sock, port: e.status().port as number };
 }
 
 /**
@@ -781,12 +787,6 @@ describe("saying no, and meaning it", () => {
 // holds today: the other deck, which still trusts this one and still dials it,
 // is a request again when it calls, and is given nothing.
 //
-// WHAT IS LEFT OUT, AND WHY. This deck's OWN next round pins the unpaired deck
-// again, silently, when it reaches it through a row somebody typed, accepted or
-// joined by invite — and with `autoAccept` on, the other deck's next call is
-// accepted again. Both undo the unpair within a minute. Which of the two ways
-// of stopping that is right is the owner's decision (#1181), and a case that
-// asserted today's behaviour would pin the bug.
 describe("unpairing", () => {
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
     const a = await deck(store([]), "Deck-A", []);
@@ -800,6 +800,8 @@ describe("unpairing", () => {
     // What index.mjs writes to prefs.json, and so what the next start reads.
     expect(a.trusted, "the pin would come back at the next restart").toEqual([]);
     expect(a.trustWrites.at(-1)).toEqual([]);
+    expect(a.unpaired).toEqual([b.id.fp]);
+    expect(a.unpairedWrites.at(-1)).toEqual([b.id.fp]);
 
     // A second press, or a fingerprint nobody paired, is not a change: the
     // route answers `ok: false`, and nothing is written for it.
@@ -829,6 +831,38 @@ describe("unpairing", () => {
     expect(a.e.status().trusted).toEqual([]);
     expect(a.e.status().pending).toMatchObject([{ fp: b.id.fp, name: "Deck-B" }]);
     expect(peerRow(b, a.id.fp)?.last?.error).toBe("waiting for the other deck to accept this one");
+  }, 20_000);
+
+  it("does not silently re-pin an explicitly unpaired deck through a typed dial row", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+
+    expect(a.e.unpair(b.id.fp)).toBe(true);
+    const trustWrites = a.trustWrites.length;
+    await a.e.round();
+
+    expect(a.e.status().trusted).toEqual([]);
+    expect(a.trustWrites).toHaveLength(trustWrites);
+    expect(a.e.status().pending).toMatchObject([{ fp: b.id.fp, name: "Deck-B" }]);
+  }, 20_000);
+
+  it("keeps an unpaired deck pending after restart even with autoAccept on, until a person accepts it", async () => {
+    const b = await deck(store([]), "Deck-B", []);
+    const a = await deck(store([]), "Deck-A", [], {}, { autoAccept: true, unpaired: [b.id.fp] });
+
+    expect(b.e.addPeer("127.0.0.1", a.port)).toBe(true);
+    await b.e.round();
+
+    expect(a.e.status().trusted).toEqual([]);
+    expect(a.e.status().pending).toMatchObject([{ fp: b.id.fp, name: "Deck-B" }]);
+
+    expect(a.e.accept(b.id.fp)).toMatchObject({ fp: b.id.fp, name: "Deck-B" });
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+    expect(a.unpaired).toEqual([]);
+    expect(a.unpairedWrites.at(-1)).toEqual([]);
   }, 20_000);
 });
 

@@ -354,6 +354,18 @@ export interface Step {
   prop: Prop | null;
   act: Act;
   ms: number;
+  /** Where along the floor this step was aimed, as a fraction of it — set only
+   *  on the steps whose `x` was DRAWN from the floor's width, and left off
+   *  every step aimed at something that is somewhere regardless of how wide the
+   *  canvas is. The ledge corner is the one that matters: a rope is thrown at
+   *  it, so it has to stay the corner and not a proportion of the floor.
+   *
+   *  A trip is planned in one go and walked over the better part of ten
+   *  seconds. This is what lets the window change in the middle of one: a step
+   *  that says "two thirds of the way along" can be put back where it belongs
+   *  against the floor that exists when it is walked, where a step that only
+   *  remembers a pixel cannot. */
+  floorFrac?: number;
 }
 
 /** What it might do, and how often. Walking is still most of it: the others are
@@ -433,6 +445,13 @@ export function propSpot(from: number, rand: () => number, span = WALK_SPAN_PX):
 /** How long it takes to walk a given distance, at the pace the stroll uses. */
 export const walkMsFor = (from: number, to: number) =>
   Math.round(Math.abs(to - from) * WALK_MS_PER_PX);
+
+/** The shortest a walk is ever held for. A walk re-aimed at a floor that has
+ *  just been narrowed to almost nothing can end up with no ground left to
+ *  cover, and a step of no duration chains the whole rest of the plan through
+ *  in a single frame. This is the floor under that: long enough to be a beat
+ *  somebody could see, short enough never to read as standing still. */
+export const WALK_MIN_MS = 120;
 
 /** The bin is the right-hand end of the ledge — the corner it starts at, and
  *  the one spot on the minimap's edge nothing else is ever standing on. */
@@ -663,17 +682,24 @@ export function leaveLedgeSteps(
   const fall = fallMsFor(opts.ledgeH);
   const climb = climbMsFor(opts.ledgeH);
 
-  // Two wanders down there, so the trip is worth having taken.
-  const first = -Math.round(rand() * opts.floorSpan);
-  const second = -Math.round(rand() * opts.floorSpan);
+  // Two wanders down there, so the trip is worth having taken. Kept as the
+  // fractions they were drawn as and not only as the pixels those came out to:
+  // the floor is whatever the window is today, and the window is allowed to
+  // change while the character is down there walking it.
+  const firstFrac = rand();
+  const secondFrac = rand();
+  const first = -Math.round(firstFrac * opts.floorSpan);
+  const second = -Math.round(secondFrac * opts.floorSpan);
 
   return [
     { x: edge,   act: "walk",  prop: null, ms: walkMsFor(from, edge) },
     { x: edge,   act: "peer",  prop: null, ms: PEER_MS },
     { x: edge,   act: "fall",  prop: null, ms: fall,  place: "floor" },
     { x: edge,   act: "land",  prop: null, ms: LAND_MS, place: "floor" },
-    { x: first,  act: "walk",  prop: null, ms: walkMsFor(edge, first),   place: "floor" },
-    { x: second, act: "walk",  prop: null, ms: walkMsFor(first, second), place: "floor" },
+    { x: first,  act: "walk",  prop: null, ms: walkMsFor(edge, first),   place: "floor",
+      floorFrac: firstFrac },
+    { x: second, act: "walk",  prop: null, ms: walkMsFor(first, second), place: "floor",
+      floorFrac: secondFrac },
     { x: edge,   act: "walk",  prop: null, ms: walkMsFor(second, edge),  place: "floor" },
     { x: edge,   act: "lasso", prop: null, ms: LASSO_MS, place: "floor" },
     { x: edge,   act: "rope-throw", prop: null, ms: ROPE_THROW_MS, place: "floor" },

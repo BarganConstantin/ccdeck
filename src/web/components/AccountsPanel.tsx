@@ -23,6 +23,7 @@ import { armedPress, focusDropped, pressAccepted, pressState, rescueSelectors } 
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
+import { activeSwitchNote } from "../active-switch-note";
 import {
   type Failure,
   RELOAD_SLOW,
@@ -678,6 +679,16 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     timerRef.current = window.setInterval(() => load(false), POLL_MS);
     return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
   }, [load]);
+
+  // A switch from the panel can be superseded by auto-switch or by a command
+  // outside the panel. Clear its confirmation when a fresh roster says that
+  // account is no longer active, so it cannot reappear if it becomes active
+  // again later. This runs on roster changes rather than on `switched` changes:
+  // the previous roster may still describe the account before our POST lands.
+  useEffect(() => {
+    if (!data?.ok || !data.accounts) return;
+    setSwitched(previous => activeSwitchNote(previous, data.accounts));
+  }, [data]);
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
   useEffect(() => {

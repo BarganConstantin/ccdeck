@@ -114,11 +114,6 @@ export const CODEX_TOOL_EMOJI: Record<string, string> =
 export const CODEX_TOOL_LABEL: Record<string, string> =
   Object.fromEntries(Object.entries(CODEX_TOOL_SPECS).map(([name, s]) => [name, s.label]));
 
-/** Every Codex tool name, whatever its family. Used for the primary-bubble
- *  width estimate, which has to scale for these because Codex labels can run
- *  longer than the fixed estimate Claude's short names were sized for (#84). */
-export const CODEX_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(CODEX_TOOL_SPECS));
-
 /** The Codex tools whose input carries a command, i.e. the ones that earn a
  *  chained sub-bubble showing what actually ran. */
 export const CODEX_SHELL_TOOLS: ReadonlySet<string> =

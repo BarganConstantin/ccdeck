@@ -34,7 +34,7 @@ jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
   #
-  #   ubuntu-latest   the 19 sites gated `skipIf(process.platform === "win32")`
+  #   ubuntu-latest   the 23 sites gated `skipIf(process.platform === "win32")`
   #                   run here, plus the `runIf(posix)` family — the widest
   #                   coverage of the three. That number is not something a
   #                   reader has to take on trust: skip-gate-inventory.test.ts
@@ -44,7 +44,7 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 42 skipped cases in all — together with the
+  #                   here — 46 skipped cases in all — together with the
   #                   `runIf(posix)` family and the two read-only-directory
   #                   cases (sound-hook-park's and the macOS swap script's),
   #                   whose probe cannot block a write on Windows. Windows is
@@ -452,10 +452,35 @@ jobs:
       #
       # Idempotent — it skips a version already on the registry — so the job is
       # safe to re-run after a token or registry problem.
+      #
+      # WHICH DIST-TAG, AND WHY THE STEP HAS TO DECIDE (#976). This ran a bare
+      # `npm publish`, and a bare `npm publish` moves `latest`. Nothing upstream
+      # of it distinguishes a release candidate from a release: the tag trigger
+      # is the glob `v*.*.*`, which matches `v3.23.0-rc.1`; `Verify tag matches
+      # package.json` compares two strings and they agree. So cutting a tag to
+      # get a build to one tester would have pointed `latest` at the candidate,
+      # and `autoUpdate` defaults ON — every deck on its hourly registry check
+      # would have installed it and restarted into it, unattended, within the
+      # hour.
+      #
+      # `case` on a `-`, because that is exactly what a semver prerelease is: an
+      # identifier after the patch. Build metadata is a `+` and is deliberately
+      # NOT matched — `3.23.0+build.7` is the release, and belongs on `latest`.
+      #
+      # This is one half of the fix and the smaller half. It stops the fleet
+      # being moved onto a prerelease; it cannot bring back a deck a tester
+      # installed one on by hand, which is `isOlder`'s prerelease rule in
+      # self-update.mjs.
       - name: Publish to npm (ccdeck)
         id: publish_ccdeck
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          case "$VERSION" in
+            *-*) DIST_TAG=next ;;
+            *)   DIST_TAG=latest ;;
+          esac
+          echo "version:  $VERSION"
+          echo "dist-tag: $DIST_TAG"
           # npm view prints the version string if published, empty otherwise
           # (and exits 0 either way for an existing package) — so test the
           # OUTPUT, not the exit code.
@@ -463,7 +488,7 @@ jobs:
           if [ -n "$EXISTING" ]; then
             echo "ccdeck@$VERSION already published — skipping."
           else
-            npm publish --provenance --access public
+            npm publish --provenance --access public --tag "$DIST_TAG"
           fi
       # NO TOKEN HERE ANY MORE, DELIBERATELY. This job authenticates by OIDC:
       # npm is configured to trust this repository and this workflow file, and
@@ -497,10 +522,23 @@ jobs:
           CCDECK: ${{ steps.publish_ccdeck.outcome }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          case "$VERSION" in
+            *-*) DIST_TAG=next ;;
+            *)   DIST_TAG=latest ;;
+          esac
           if [ "$CCDECK" = "success" ]; then
             echo "### Published v$VERSION :rocket:" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- https://www.npmjs.com/package/ccdeck/v/$VERSION" >> $GITHUB_STEP_SUMMARY
+            # Which dist-tag it went to, because "Published" alone is what a
+            # maintainer reads as "the fleet has it" — and for a prerelease
+            # that is precisely what did NOT happen (#976). Said on both
+            # branches so the release case is not the silent one.
+            if [ "$DIST_TAG" = "latest" ]; then
+              echo "- dist-tag \`latest\` — decks on auto-update will take this" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- dist-tag \`next\` — a prerelease: \`latest\` was NOT moved, and no deck will auto-install it. Install with \`npm i -g ccdeck@$VERSION\`." >> $GITHUB_STEP_SUMMARY
+            fi
           else
             # Failed, or skipped because the job never reached it — named as
             # what it was rather than linked to a page that does not exist.

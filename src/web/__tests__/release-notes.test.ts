@@ -106,10 +106,22 @@ describe("comparing two versions", () => {
     expect(compareVersions("1.45.0", "1.45.0")).toBe(0);
   });
 
-  it("treats a prerelease as its release, the way the server's copy does", () => {
-    // Not an opinion about semver: it is what self-update.mjs has always done,
-    // and it is right here — a prerelease of 1.46.0 carries 1.46.0's notes.
+  it("treats a prerelease as its release, which the server's copy no longer does", () => {
+    // This said "the way the server's copy does", and that stopped being true
+    // with #976: `isOlder` needs semver's rule, because a deck stranded on
+    // 3.23.0-rc.1 that reads 3.23.0 as older produces no upgrade notice and
+    // cannot be brought back off the candidate from inside the product.
+    //
+    // THIS side keeps the old answer, and it is not inertia. The question here
+    // is "which notes has this user already read", and a prerelease of 1.46.0
+    // carries 1.46.0's notes — there are no separate rc notes to show and no
+    // second copy to withhold. Answering -1 instead would replay 1.46.0's notes
+    // at somebody who had just read them on the candidate.
+    //
+    // Two comparators that genuinely differ on one rule is the thing the sweep
+    // below now pins, rather than an equality that has quietly stopped holding.
     expect(compareVersions("1.46.0-rc1", "1.46.0")).toBe(0);
+    expect(isOlder("1.46.0-rc1", "1.46.0")).toBe(true);
     expect(compareVersions("1.46.0-rc.2", "1.46.0-rc.1")).toBeGreaterThan(0);
     // A build tag whose parts are numbers reads as extra segments and therefore
     // as NEWER. Pinned as the inherited behaviour rather than as a design: this
@@ -118,16 +130,38 @@ describe("comparing two versions", () => {
     expect(compareVersions("1.46.0+build.7", "1.46.0")).toBeGreaterThan(0);
   });
 
-  it("answers the same as the server's isOlder on every pair it can be asked", () => {
+  it("answers the same as the server's isOlder on every pair that carries no prerelease", () => {
+    // The sweep is what keeps two comparators from drifting apart by accident,
+    // and it still has to run — it is the only thing standing between this file
+    // and the "1.10.0 sorts before 1.9.0" class of bug in either copy. What
+    // changed with #976 is that ONE rule is now deliberately different, so the
+    // sweep is asked the question it can still answer honestly: everything
+    // without a prerelease in it must agree, exactly.
     const parts = ["0", "1", "2", "9", "10", "30", "99", "100"];
     const versions: string[] = [];
     for (const a of parts) for (const b of parts) for (const c of parts) versions.push(`${a}.${b}.${c}`);
-    versions.push("1.30", "1.9", "2", "0.1.2-beta.1", "1.0.0+build.7", "1.0.0-rc1", "", "0.9.11", "0.10.0");
+    versions.push("1.30", "1.9", "2", "1.0.0+build.7", "", "0.9.11", "0.10.0");
     const moved: Array<[string, string]> = [];
     for (const a of versions) for (const b of versions) {
       if ((compareVersions(a, b) < 0) !== isOlder(a, b)) moved.push([a, b]);
     }
     expect(moved).toEqual([]);
+  });
+
+  it("differs from isOlder on prerelease pairs, and only in the direction #976 wanted", () => {
+    // The named exception, so that "they disagree" can never be the silent
+    // state. Every pair below is one the old shared body got backwards; each is
+    // now semver-correct on the server and release-notes-correct here.
+    const versions = ["0.1.2", "0.1.2-beta.1", "1.0.0", "1.0.0-rc1", "1.30", "2"];
+    const moved: Array<string> = [];
+    for (const a of versions) for (const b of versions) {
+      if ((compareVersions(a, b) < 0) !== isOlder(a, b)) moved.push(`${a} vs ${b}`);
+    }
+    expect(moved.sort()).toEqual([
+      "0.1.2 vs 0.1.2-beta.1",
+      "0.1.2-beta.1 vs 0.1.2",
+      "1.0.0-rc1 vs 1.0.0",
+    ]);
   });
 
   it("is written here rather than imported, and the file says why", () => {
@@ -862,7 +896,8 @@ describe("how App.tsx wires it up", () => {
     // itself is decideWelcome's, pinned as a pure function below; what the
     // effect owes is to ask it and to obey every one of its three answers.
     const effect = /const decision = decideReleaseNotes\(([\s\S]*?)\}, \[version\?\.running\]\);/.exec(app)?.[0] ?? "";
-    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen: readTourSeen\(store\), decision \}\);/);
+    expect(effect).toMatch(/let tourSeen = readTourSeen\(store\);/);
+    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen, decision \}\);/);
     expect(effect).toMatch(/if \(plan\.tour\) setTourOpen\(true\);/);
     // NOT marked on open. The deck reloads its own tab when the bundle
     // changes and updates itself while nobody is looking, so a tour marked on

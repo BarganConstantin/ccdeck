@@ -52,6 +52,7 @@ import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
+import { REMOVED_NODES_KEY, readRemovedNodes, saveRemovedNodes, visibleBoard } from "./remove-node";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -98,6 +99,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
+import { inDesktopApp } from "./in-app";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -627,6 +629,8 @@ function Inner() {
   // ref stays.
   const initialGraph = useState(initialState)[0];
   const stateRef = useRef(initialGraph);
+  const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
+    readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   /** Right detail panel visibility — persisted across refresh. Declared ahead
@@ -1046,19 +1050,8 @@ function Inner() {
   // would come back on every /api/version poll for as long as the tab is open.
   // A deck that cannot remember must show the notes at most once, not forever.
   const releaseNotesDecidedRef = useRef(false);
-  // Keep this marker with the deck rather than the page origin. Electron can
-  // change its loopback port between launches, which gives localStorage a new
-  // origin and makes a completed tour look unseen.
-  const [serverTourSeen, setServerTourSeen] = useState<boolean | null>(null);
-  useEffect(() => {
-    fetch("/api/prefs")
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setServerTourSeen(typeof d?.prefs?.tourSeen === "boolean" ? d.prefs.tourSeen : false))
-      .catch(() => setServerTourSeen(false));
-  }, []);
   useEffect(() => {
     if (releaseNotesDecidedRef.current) return;
-    if (serverTourSeen === null) return;
     const store = seenStore();
     const stored = readSeen(store);
     // The server's running version, never the bundle's __APP_VERSION__: an
@@ -1092,22 +1085,49 @@ function Inner() {
     // welcome left for the tour, so a changelog opened here is always about an
     // upgrade. The welcome sentence in releaseNotesIntro stays for the day a
     // caller wants it back.
-    // Migrate the stable deck marker into the current origin so the existing
-    // pure decision path and browser-only fallback remain unchanged.
-    if (serverTourSeen) {
-      try { store?.setItem("agent-dag.tourSeen", "1"); } catch { /* local fallback */ }
-    }
-    const plan = decideWelcome({ tourSeen: readTourSeen(store), decision });
-    const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
-    // Opened here, and marked seen only when a person CLOSES it — see the
-    // tour's onClose. Marking it on open was the defect: the deck reloads its
-    // own tab when the bundle changes, and updates itself while nobody is
-    // looking, so the tour opened in tabs nobody was watching, was recorded
-    // as seen, and the people it was for never saw it.
-    if (plan.tour) setTourOpen(true);
-    if (plan.notes === "now") setReleaseNotes(notes);
-    else if (plan.notes === "after") notesAfterTour.current = notes;
-  }, [serverTourSeen, version?.running]);
+    let alive = true;
+    const showWelcome = async () => {
+      let tourSeen = readTourSeen(store);
+      if (inDesktopApp()) {
+        // The desktop window's localhost port changes across restarts. The
+        // deck prefs file survives that change; localStorage belongs to the
+        // current port only. Carry an existing marker into prefs once.
+        try {
+          const response = await fetch("/api/prefs");
+          if (!response.ok) throw new Error("desktop tour preferences unavailable");
+          const data = await response.json();
+          if (!data?.ok) throw new Error("desktop tour preferences unavailable");
+          const persisted = data.prefs?.tourSeen === true;
+          if (tourSeen && !persisted) {
+            void fetch("/api/prefs", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ tourSeen: true }),
+              keepalive: true,
+            }).catch(() => {});
+          }
+          tourSeen = tourSeen || persisted;
+        } catch {
+          // If the durable marker cannot be read, do not show a tour that
+          // could repeat after every restart. Release notes still work.
+          tourSeen = true;
+        }
+      }
+      if (!alive) return;
+      const plan = decideWelcome({ tourSeen, decision });
+      const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
+      // Opened here, and marked seen only when a person CLOSES it — see the
+      // tour's onClose. Marking it on open was the defect: the deck reloads its
+      // own tab when the bundle changes, and updates itself while nobody is
+      // looking, so the tour opened in tabs nobody was watching, was recorded
+      // as seen, and the people it was for never saw it.
+      if (plan.tour) setTourOpen(true);
+      if (plan.notes === "now") setReleaseNotes(notes);
+      else if (plan.notes === "after") notesAfterTour.current = notes;
+    };
+    void showWelcome();
+    return () => { alive = false; };
+  }, [version?.running]);
   // Everything this build has to say, for the version chip — which is the way
   // back after the dialog is dismissed, and the only recovery for a profile
   // whose site data was cleared along with the marker above. The bundle's
@@ -1727,6 +1747,34 @@ function Inner() {
   useEffect(() => {
     try { window.localStorage.setItem(FM_SOURCE_KEY, fmSource); } catch { /* private mode */ }
   }, [fmSource]);
+
+  /**
+   * The window's own title bar, which only an INSTALLED deck has.
+   *
+   * A standalone window tints its chrome from `<meta name="theme-color">`, so a
+   * deck left on the manifest's single value shows a near-black bar above a
+   * white page for every light-theme user who installed it.
+   *
+   * WRITTEN HERE RATHER THAN AS A MEDIA-QUERIED PAIR IN THE HEAD, which is the
+   * whole reason it is worth an effect: `prefers-color-scheme` is the OS, and
+   * this deck's theme is a STORED CHOICE allowed to disagree with it — see the
+   * bootstrap in index.html. A pair in the head would be right for everyone who
+   * never pressed T and wrong for exactly the people who did.
+   *
+   * FROM THE PALETTE, NOT FROM cssVar. The palette is already this deck's one
+   * snapshot of the theme's colours and it already holds `--panel`; calling
+   * cssVar again would be a second `getComputedStyle` for a value that has just
+   * been read, and render-path-cost-612-613.test.ts pins the mention count for
+   * that reason. Keyed on the palette rather than on the theme so it runs after
+   * the effect above has replaced it, never on the frame still holding the old
+   * one. `--panel` because the top of this page is the topbar, and the topbar's
+   * gradient starts there.
+   */
+  useEffect(() => {
+    const bar = document.querySelector('meta[name="theme-color"]');
+    const panel = palette["--panel"];
+    if (bar && panel) bar.setAttribute("content", panel);
+  }, [palette]);
 
   /**
    * Put the pane where the deck wants it — and make sure it gets there.
@@ -2604,9 +2652,9 @@ function Inner() {
       positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
       selectedIds, spotlightSet, visibleAgentIds, openContext,
       );
-      return flow;
+      return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion],
+    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes],
   );
 
   // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
@@ -2845,9 +2893,24 @@ function Inner() {
     positionsRef.current.clear();
     lastLayoutSigRef.current = "";
     clearStoredLayout();
+    setRemovedNodes(new Set());
+    try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
     clearSelection();
     rerender();
   }, [rerender, clearSelection]);
+
+  const removeSelectedNode = useCallback(() => {
+    if (!primarySelectedId || !stateRef.current.agents.has(primarySelectedId)) return;
+    setRemovedNodes(previous => {
+      const next = new Set(previous);
+      next.add(primarySelectedId);
+      saveRemovedNodes(window.localStorage, next);
+      return next;
+    });
+    pinnedRef.current.delete(primarySelectedId);
+    positionsRef.current.delete(primarySelectedId);
+    clearSelection();
+  }, [primarySelectedId, clearSelection]);
 
   // The keydown listener below is registered once and must stay that way, so
   // the gate reads what is on screen through refs rather than closing over it.
@@ -3373,6 +3436,14 @@ function Inner() {
   useEffect(() => {
     setBlockedSaid(said => nextAnnouncement(said, blockedNow));
   }, [blockedNow]);
+
+  const [watchSaid, setWatchSaid] = useState("");
+  const watchNow = watchUnseen > 0
+    ? `Browser watch has ${watchUnseen} unread ${watchUnseen === 1 ? "finding" : "findings"}.`
+    : "";
+  useEffect(() => {
+    setWatchSaid(said => nextAnnouncement(said, watchNow, "Browser watch has no unread findings."));
+  }, [watchNow]);
 
   // The fifth surface, and the only one that leaves the page.
   //
@@ -3934,6 +4005,7 @@ function Inner() {
               partial reading of it is exactly the failure the strip above was
               guilty of. */}
           <div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>
+          <div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>
           {/* Outside the .status strip and inside .readout, which are two
               separate placements and only one of them still has the reason it
               was given.
@@ -4051,6 +4123,12 @@ function Inner() {
             </button>
           );
         })()}
+        {selected && (
+          <button type="button" className="btn danger" onClick={removeSelectedNode}
+            title={`Remove ${selected.label} from this board`} aria-label={`Remove ${selected.label} from the board`}>
+            Remove node
+          </button>
+        )}
         <div className="actions">
           {/* Three runs, 4px inside and 12px between, and the settings run a
               further 12px out, so it stands at the 24px that separates this
@@ -5400,11 +5478,14 @@ function Inner() {
           // Seen means a person closed it — Done, ×, Escape or the scrim. A tab
           // that reloaded with it open never got here, so it opens again.
           writeTourSeen(seenStore());
-          fetch("/api/prefs", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ tourSeen: true }),
-          }).catch(() => {});
+          if (inDesktopApp()) {
+            void fetch("/api/prefs", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ tourSeen: true }),
+              keepalive: true,
+            }).catch(() => {});
+          }
           // The changelog an upgrade was holding back, now that the pictures
           // have been seen. Taken out of the ref first, so a tour opened by
           // hand later never replays it.

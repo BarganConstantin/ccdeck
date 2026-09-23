@@ -38,7 +38,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts } from "../components/ToolBursts";
+import { collectBursts, cutLabel } from "../components/ToolBursts";
 import { categoryFor, CODEX_TOOL_EMOJI, TOOL_CATEGORY, type ToolCategory } from "../tool-taxonomy";
 import { agentLabel } from "../provider-copy";
 import {
@@ -152,8 +152,9 @@ describe("the bubble the canvas draws for such a tool name", () => {
       // TOOL_EMOJI — a node React can render, not a function.
       expect.soft(primary.emoji).toBe("✨");
       expect.soft(typeof primary.emoji).toBe("string");
-      // CODEX_PRIMARY_LABEL — the raw name, because no Codex tool is called this.
-      expect.soft(primary.name).toBe(name);
+      // CODEX_PRIMARY_LABEL — the raw name, because no Codex tool is called
+      // this; cut to LABEL_MAX the same as every other drawn label (#978).
+      expect.soft(primary.name).toBe(cutLabel(name));
       expect.soft(typeof primary.name).toBe("string");
       // TOOL_CATEGORY, through the burst the layer actually renders.
       expect.soft(primary.category).toBe("other");
@@ -168,7 +169,7 @@ describe("the sub-bubble tables, on the same names", () => {
     it(`gives a command called ${name} the generic gear`, () => {
       const { sub } = bubbles("Bash", { command: name });
       expect.soft(sub?.emoji).toBe("⚙️");
-      expect.soft(sub?.name).toBe(name);
+      expect.soft(sub?.name).toBe(cutLabel(name));
     });
   }
 
@@ -322,6 +323,11 @@ describe("every row the tables already had answers exactly what it answered", ()
     expect(agentLabel("openclaw")).toBe("OpenClaw");
     expect(agentLabel("copilot")).toBe("GitHub Copilot");
     expect(agentLabel("pi")).toBe("pi-agent");
+    // ccusage 20.0.21's adapter, and the reason it is on the map: the fallback
+    // would print "Zcode". Antigravity arrived in the same release and is
+    // deliberately not on it, because the fallback already spells it right.
+    expect(agentLabel("zcode")).toBe("ZCode");
+    expect(agentLabel("antigravity")).toBe("Antigravity");
     expect(agentLabel("AMP")).toBe("Amp");
     expect(agentLabel("")).toBe("");
   });
