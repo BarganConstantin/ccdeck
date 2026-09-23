@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type RefObje
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { resolveFmSource, type FmSource } from "../appearance";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
@@ -45,12 +46,14 @@ interface Props {
   /** The stream's loudness, as the slider's own 0–100 level. */
   fmVolume: number;
   onFmVolume: (level: number) => void;
+  fmSource: FmSource;
+  onFmSource: (source: FmSource) => void;
   onClose: () => void;
   openerRef: RefObject<HTMLElement | null>;
 }
 
 export default function AppearanceMenu({
-  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, onClose, openerRef,
+  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmSource, onFmSource, onClose, openerRef,
 }: Props) {
   // A popover: the canvas stays in view around it, so its letters stay live.
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
@@ -156,8 +159,25 @@ export default function AppearanceMenu({
 
       <section className="appearance-section" aria-labelledby="appearance-fm-caption">
         <div className="appearance-caption">
-          <h3 id="appearance-fm-caption">Claude FM</h3>
+          <h3 id="appearance-fm-caption">Music source</h3>
         </div>
+        <div className="sm-row">
+          <label htmlFor="appearance-fm-source">Play from</label>
+          <select
+            id="appearance-fm-source"
+            className="sm-select"
+            value={fmSource}
+            onChange={event => onFmSource(resolveFmSource(event.target.value))}
+          >
+            <option value="claude-fm">Claude FM</option>
+            <option value="lofi-relax">Lofi Girl — relax/study</option>
+            <option value="lofi-game">Lofi Girl — chill/game</option>
+            <option value="lofi-vibe">Lofi Girl — vibe/chill</option>
+            <option value="lofi-sleep">Lofi Girl — sleep/chill</option>
+            <option value="radio-mix">Radio Mix — Live</option>
+          </select>
+        </div>
+        <p className="appearance-row-note">Choose which live YouTube channel plays from the minimap character.</p>
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —

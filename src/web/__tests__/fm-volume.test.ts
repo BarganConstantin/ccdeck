@@ -47,7 +47,7 @@ describe("the Claude FM volume preference", () => {
     expect(app).toContain("localStorage.setItem(FM_VOLUME_KEY, String(fmVolume))");
     expect(app).toContain("fmVolume={fmVolume}");
     expect(app).toContain("onFmVolume={setFmVolume}");
-    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} />}");
+    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
   });
 
   it("reuses the sound menu's slider row rather than inventing a second shape", () => {

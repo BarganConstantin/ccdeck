@@ -52,8 +52,18 @@ import {
   type Prop, type Step,
 } from "../claude-fm";
 import { createSceneTimer } from "../claude-fm-runtime";
+import type { FmSource } from "../appearance";
 
-interface Probe { live: boolean; channel: string }
+interface Probe { live: boolean; channel: string; video?: string }
+
+const SOURCE_LABEL: Record<FmSource, string> = {
+  "claude-fm": "Claude FM",
+  "lofi-relax": "Lofi Girl relax/study",
+  "lofi-game": "Lofi Girl chill/game",
+  "lofi-vibe": "Lofi Girl vibe/chill",
+  "lofi-sleep": "Lofi Girl sleep/chill",
+  "radio-mix": "Radio Mix Live",
+};
 
 /** What each grid cell is drawn as. A map here rather than a chain of
  *  comparisons in the markup below, because unstyled-class.test.ts reads every
@@ -104,13 +114,14 @@ const PROP_PIXELS = {
 };
 
 export default memo(
-  function ClaudeFm({ fetchImpl, volume }: { fetchImpl?: typeof fetch; volume: number }) {
+  function ClaudeFm({ fetchImpl, volume, source = "claude-fm" }: { fetchImpl?: typeof fetch; volume: number; source?: FmSource }) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
     /** Buffering keeps the iframe mounted; an explicit stop releases it. */
     const [armed, setArmed] = useState(false);
     const [playing, setPlaying] = useState(false);
+    const sourceRef = useRef(source);
 
     /** Where along the minimap's top edge it is standing, in pixels left of
      *  the right-hand end. Zero is where it starts. */
@@ -213,12 +224,35 @@ export default memo(
     useEffect(() => {
       let alive = true;
       const get = fetchImpl ?? fetch;
-      get("/api/claude-fm")
-        .then(r => r.ok ? r.json() : null)
-        .then(a => { if (alive && a?.live && a?.channel) setProbe({ live: true, channel: a.channel }); })
-        .catch(() => { /* no music today */ });
+      const sourceChanged = sourceRef.current !== source;
+      sourceRef.current = source;
+      setProbe(null);
+      setDead(false);
+      setArmed(sourceChanged);
+      setPlaying(sourceChanged);
+      if (source === "radio-mix") {
+        get("/api/live-radio-mix")
+          .then(r => r.ok ? r.json() : null)
+          .then(a => {
+            if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
+          })
+          .catch(() => { /* no music today */ });
+      } else if (source !== "claude-fm") {
+        const station = source.replace("lofi-", "");
+        get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(a => {
+            if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
+          })
+          .catch(() => { /* no music today */ });
+      } else {
+        get("/api/claude-fm")
+          .then(r => r.ok ? r.json() : null)
+          .then(a => { if (alive && a?.live && a?.channel) setProbe({ live: true, channel: a.channel }); })
+          .catch(() => { /* no music today */ });
+      }
       return () => { alive = false; };
-    }, [fetchImpl]);
+    }, [fetchImpl, source]);
 
     // WHAT THE PLAYER SAYS BACK, once the iframe's onLoad below has opened the
     // conversation. The origin check is the whole security of this listener:
@@ -572,8 +606,8 @@ export default memo(
           data-dance={playing ? dance ?? DANCES[0] : undefined}
           aria-pressed={playing}
           onClick={press}
-          title={playing ? "Stop Claude FM" : "Play Claude FM — streams from YouTube"}
-          aria-label={playing ? "Stop Claude FM" : "Play Claude FM"}
+          title={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]} — streams from YouTube`}
+          aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}
         >
           <svg viewBox={`0 0 ${SPRITE_W} ${SPRITE_H}`} shapeRendering="crispEdges" aria-hidden>
             {/* Two groups so the body can bob while the cups hold still — a
@@ -685,12 +719,12 @@ export default memo(
           </svg>
         </button>
         </div>
-        {armed && probe.channel && (
+        {armed && (probe.channel || probe.video) && (
           <iframe
             ref={frame}
             className="fm-frame"
-            title="Claude FM"
-            src={embedSrc(probe.channel, window.location.origin)}
+            title={SOURCE_LABEL[source]}
+            src={embedSrc(probe.channel, window.location.origin, probe.video)}
             // THE HANDSHAKE GOES HERE AND NOWHERE ELSE, and the first build had
             // it the wrong way round: it waited for `onReady` and answered that
             // with `listening`. `onReady` is not something the player
