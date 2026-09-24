@@ -624,6 +624,55 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("closes an outbound socket that finishes binding after the beacon stopped", async () => {
+    let finishBind!: () => void;
+    let binding!: () => void;
+    const bindingStarted = new Promise<void>(resolve => { binding = resolve; });
+    let closed = 0;
+    const listening = fakeSocket();
+    const outgoing = {
+      ...fakeSocket(),
+      bind(_port: number, _host: string, cb: () => void) { finishBind = cb; binding(); },
+      close() { closed++; },
+    };
+    let sockets = 0;
+    const { b } = beaconOn(listening, {
+      createSocket: () => ++sockets === 1 ? listening : outgoing,
+    });
+    const starting = b.start();
+    await bindingStarted;
+    b.stop();
+    finishBind();
+    await starting;
+    expect(closed).toBe(1);
+    expect(outgoing.sent).toEqual([]);
+  });
+
+  it("discards a delayed outbound bind from an older start after restarting", async () => {
+    let finishOldBind!: () => void;
+    let oldBinding!: () => void;
+    const oldBindingStarted = new Promise<void>(resolve => { oldBinding = resolve; });
+    let oldClosed = 0;
+    const oldOutgoing = {
+      ...fakeSocket(),
+      bind(_port: number, _host: string, cb: () => void) { finishOldBind = cb; oldBinding(); },
+      close() { oldClosed++; },
+    };
+    const currentOutgoing = fakeSocket();
+    const sockets = [fakeSocket(), oldOutgoing, fakeSocket(), currentOutgoing];
+    const { b } = beaconOn(sockets[0], { createSocket: () => sockets.shift() });
+    const previous = b.start();
+    await oldBindingStarted;
+    b.stop();
+    await b.start();
+    finishOldBind();
+    await previous;
+    expect(oldClosed).toBe(1);
+    expect(oldOutgoing.sent).toEqual([]);
+    expect(currentOutgoing.sent).toHaveLength(1);
+    b.stop();
+  });
+
   it("announces the moment it starts, not on the next interval", async () => {
     // A deck that just came up should appear now rather than up to thirty
     // seconds later — which is the difference between "it works" and "it seems
@@ -931,4 +980,3 @@ describe("the name a peer sends over the handshake", () => {
     expect(src).not.toContain("peerName: msg.name,");
   });
 });
-

@@ -583,6 +583,30 @@ describe("the switch, and what turning it off means", () => {
   }, 20_000);
 });
 
+describe("a Tailscale refresh finishing after its discovery switch changed", () => {
+  it("does not broadcast a late announcement after Tailscale discovery is turned off", async () => {
+    let finishRefresh!: () => void;
+    const refreshing = new Promise<void>(resolve => { finishRefresh = resolve; });
+    const sent: string[] = [];
+    const sock = deafSocket();
+    sock.send = (_msg, _port, addr, cb) => { sent.push(addr); cb?.(null); };
+    const e = createEngine({
+      ...store([]).deps(),
+      createSocket: () => sock,
+      tailnet: { refresh: () => refreshing, freshen: () => Promise.resolve(), snapshot: () => null },
+    });
+    running.push(e);
+    await e.apply({ enabled: true, tailscale: false });
+    const before = sent.length;
+    await e.apply({ tailscale: true });
+    await e.apply({ tailscale: false });
+    finishRefresh();
+    await refreshing;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(sent).toHaveLength(before);
+  });
+});
+
 describe("how a deck names itself", () => {
   it("uses the machine's own name, which is the word already in use for it", () => {
     expect(defaultName()).toBeTruthy();
@@ -986,6 +1010,32 @@ describe("unpairing", () => {
     release();
     await transfer;
     expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
+  it("leaves no stale error on a peer when LAN is switched off and on mid-round", async () => {
+    const key = K("kept@x", "o");
+    let armed = false;
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const senderStore = store([{ num: 7, email: "kept@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(store([]), "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (armed) { started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    armed = true;
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ enabled: false });
+    await receiver.e.apply({ enabled: true });
+    release();
+    expect(await transfer).toEqual([]);
+    expect(peerRow(receiver, sender.id.fp)?.last?.error).not.toBe("peer no longer paired");
   }, 20_000);
 
   it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {

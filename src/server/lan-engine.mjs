@@ -413,6 +413,8 @@ export function createEngine({
 
   /** The tailnet read's own timer, running only while the switch is on. */
   let tailTimer = null;
+  // An in-flight refresh may finish after discovery is disabled or restarted.
+  let tailRefreshGeneration = 0;
 
   /** Who held the discovery port the last time it was asked, for as long as
    *  this deck cannot hear: the answer does not change between two tries half a
@@ -466,10 +468,17 @@ export function createEngine({
   const syncTailnet = () => {
     const want = !!(beacon && tailnet && cfg.enabled && cfg.tailscale);
     if (want && !tailTimer) {
-      void tailnet.refresh().then(() => beacon?.announce(), () => {});
+      const startedIn = ++tailRefreshGeneration;
+      const currentBeacon = beacon;
+      void tailnet.refresh().then(() => {
+        if (startedIn === tailRefreshGeneration && beacon === currentBeacon && cfg.enabled && cfg.tailscale) {
+          currentBeacon.announce();
+        }
+      }, () => {});
       tailTimer = setInterval(() => { void tailnet.refresh(); }, TAILNET_MS);
       tailTimer.unref?.();
     } else if (!want && tailTimer) {
+      tailRefreshGeneration++;
       clearInterval(tailTimer);
       tailTimer = null;
     }
@@ -937,6 +946,10 @@ export function createEngine({
         }
         done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
       }
+      // A ROUND FROM A SESSION THAT ENDED SAYS NOTHING. LAN was switched off
+      // under it, and possibly on again: a cut-short list is not "all logins
+      // fine", and it is not this session's to report.
+      if (session !== startedIn) return done;
       // WHAT ARRIVED, CHECKED ONCE, AFTER THE LAST QUESTION. An import that
       // exited cleanly can still have left a login this process cannot read (a
       // Mac's Keychain, from SSH or a LaunchAgent). Such a row stays `ok` — it
@@ -954,6 +967,10 @@ export function createEngine({
       if (done.length) onChange?.();
       return done;
     } catch (err) {
+      // Nor does its failure: "peer no longer paired" from a round that LAN
+      // being switched off ended is about the old session, and would stand on
+      // a row that is paired and fine until the next round replaced it.
+      if (session !== startedIn) return [];
       lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message });
       // A DIAL-BACK THAT NEVER ANSWERED IS TAKEN AWAY AGAIN. The address came
       // from a paired deck's inbound call, and this round was the test of
@@ -1754,6 +1771,7 @@ export function createEngine({
     stop(restarting = false) {
       generation++;
       if (!restarting) session++;
+      tailRefreshGeneration++;
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;
