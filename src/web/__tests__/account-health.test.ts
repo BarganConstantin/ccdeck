@@ -24,6 +24,13 @@ describe("account health for LAN sync", () => {
     expect(storedCopyAlive(true, null)).toBe(true);
   });
 
+  it("refuses the active account without a fresh verdict, because its export is the live login", () => {
+    expect(cachedExportReadable(null, { active: true })).toBe(false);
+    expect(cachedExportReadable(undefined, { active: true })).toBe(false);
+    expect(cachedExportReadable("ok", { active: true })).toBe(true);
+    expect(cachedExportReadable(null, { active: false })).toBe(true);
+  });
+
   it("never attaches a slot's old verdict to its replacement or another organization", () => {
     const cache = { at: 1_000, byNum: { 5: "ok" }, identities: { 5: "old@example.test@@org-1" } };
     expect(cachedVerdictFor(cache, 5, 1_001, "old@example.test", "org-1")).toBe("ok");

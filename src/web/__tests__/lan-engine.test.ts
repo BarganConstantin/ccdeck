@@ -353,6 +353,29 @@ describe("the account that is dead here and alive there", () => {
     expect(mine.imported, verdict).toEqual([]);
   }, 20_000);
 
+  it("does not export the active account while its verdict is missing, since that export is the live login", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("still exports an inactive account without a verdict, since that export is the stored copy", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: false, collector: null }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
   it.each(["keychain_unavailable", "token_expired"])("does not repeatedly heal a local copy during %s", async verdict => {
     const key = K("s@x", "org");
     const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false, collector: verdict }]);

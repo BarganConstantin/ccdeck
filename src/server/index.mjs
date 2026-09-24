@@ -3954,6 +3954,17 @@ const tailnet = createTailnet();
 // When it does, the import skips its own detached collection — see importAccount.
 const CHECKS_IMPORTS = process.platform === "darwin";
 
+const ACTIVE_VERDICT_RETRY_MS = 60_000;
+let activeVerdictAskedAt = 0;
+function refreshActiveVerdict() {
+  if (Date.now() - activeVerdictAskedAt < ACTIVE_VERDICT_RETRY_MS) return;
+  activeVerdictAskedAt = Date.now();
+  void import("./claude-accounts.mjs")
+    .then(({ verdictsNow, invalidateClaudeAccountsCache }) =>
+      verdictsNow().then(() => invalidateClaudeAccountsCache()))
+    .catch(() => {});
+}
+
 const lanEngine = createEngine({
   tailnet,
   // Who holds the discovery port when it is taken, so the panel can say.
@@ -3973,6 +3984,10 @@ const lanEngine = createEngine({
     // elsewhere is an unreadable .enc file, and the sentence the peer prints
     // talks about a Keychain.
     if (!got || !Array.isArray(got.accounts)) return got;
+    // The active slot is withheld from peers until it has a fresh verdict — see
+    // cachedExportReadable — so ask for one now rather than waiting on the
+    // collector's own schedule.
+    if (got.accounts.some(a => a.active === true && a.collector == null)) refreshActiveVerdict();
     const { markUnreadable } = await import("./cswap-admin.mjs");
     return { ...got, accounts: markUnreadable(got.accounts) };
   },

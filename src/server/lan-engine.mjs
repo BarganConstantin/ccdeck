@@ -502,7 +502,7 @@ export function createEngine({
       // False only for a login the wiring knows this process cannot read (a
       // Mac whose Keychain will not open from here). Absent means readable,
       // which is every deck that does not say.
-      readable: a.readable !== false && cachedExportReadable(a.collector),
+      readable: a.readable !== false && cachedExportReadable(a.collector, { active: a.active === true }),
       unreadableWhy: a.readable === false || a.collector === "keychain_unavailable"
         ? SENDER_UNREADABLE : "export failed",
       num: a.num,

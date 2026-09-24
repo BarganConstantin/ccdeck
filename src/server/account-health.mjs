@@ -17,11 +17,14 @@ export function exportVerdictOk(verdict) {
   return verdict === "ok";
 }
 
-/** Cached preflight for the LAN hot path. Older decks and stale caches may have
- * no verdict, so absence is allowed to reach the bounded export itself. A
- * KNOWN bad or unknown verdict is refused before spawning it. The exported
- * blob is identity-checked, and a failed macOS export refreshes verdicts in the
- * background for the next round. */
-export function cachedExportReadable(verdict) {
-  return verdict == null || exportVerdictOk(verdict);
+/** Cached preflight for the LAN hot path. A KNOWN bad or unknown verdict is
+ * refused before spawning an export. An inactive slot with no verdict may reach
+ * the bounded export itself: it exports the stored copy, which carries the
+ * slot's own identity. The ACTIVE slot may not, because its export is the live
+ * CLI login, which can belong to another account or be expired while the
+ * blob's labels still name the slot, so the identity check cannot catch it.
+ * Its verdict is refreshed in the background and the next round shares it. */
+export function cachedExportReadable(verdict, { active = false } = {}) {
+  if (verdict == null) return !active;
+  return exportVerdictOk(verdict);
 }
