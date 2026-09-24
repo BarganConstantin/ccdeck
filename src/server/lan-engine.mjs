@@ -273,6 +273,9 @@ export function createEngine({
     // person's own Tailscale account — see routeOf.
     tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
   };
+  // A stopped round cannot resume after LAN is switched back on with the
+  // same peer and settings while its old export was still pending.
+  let generation = 0;
   let identity = null;
   let beacon = null;
   let server = null;
@@ -574,6 +577,12 @@ export function createEngine({
         });
       }
       if (msg.t === "want") {
+        // A listener may have authenticated this socket before its owner
+        // unpaired the caller or switched sharing off. Recheck at the moment
+        // a credential is requested and again after every asynchronous read.
+        const maySend = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx.peerFp)
+          && cfg.shared.includes(msg.key);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A SECOND PROOF, for the one operation that moves a credential. The
         // session says who connected; this says they are asking for this
         // account, now. A long-lived connection authenticated an hour ago is
@@ -587,11 +596,12 @@ export function createEngine({
         // Only what the user ticked, checked again here rather than trusted
         // from the manifest we sent: the list can change between the two, and
         // the answer that matters is the one at the moment of sending.
-        if (!cfg.shared.includes(msg.key)) return ctx.send({ t: "no", why: "not shared" });
         const accounts = await localAccounts();
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         const mine = accounts.find(a => a.key === msg.key);
         if (!mine || !mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
         const blob = await exportAccount(mine.num);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A macOS Keychain failure is recoverable on the sending machine, but
         // a raw CLI error may contain a token. Only send the fixed code.
         if (typeof blob !== "string" || !blob) return ctx.send({
@@ -661,6 +671,7 @@ export function createEngine({
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
     let conn = null;
+    const startedIn = generation;
     try {
       conn = await connectToPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
@@ -825,7 +836,11 @@ export function createEngine({
       const wanted = plan(mine, list)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
       const done = [];
+      const mayImport = step => generation === startedIn && cfg.enabled && !!beacon
+        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub
+        && (step.action !== "heal" || cfg.shared.includes(step.key));
       for (const step of wanted) {
+        if (!mayImport(step)) break;
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
           t: "want", key: step.key, nonce,
@@ -836,6 +851,9 @@ export function createEngine({
         if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: reply?.why ?? "refused" }); continue; }
         const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
+        // Unpairing, disabling LAN, or unticking a heal while export was in
+        // progress takes effect before the received credential touches disk.
+        if (!mayImport(step)) break;
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
@@ -1659,6 +1677,7 @@ export function createEngine({
       };
     },
     stop() {
+      generation++;
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;

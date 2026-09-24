@@ -825,6 +825,50 @@ describe("saying no, and meaning it", () => {
 // is a request again when it calls, and is given nothing.
 //
 describe("unpairing", () => {
+  it.each(["unpair", "unshare"] as const)("refuses an in-flight export after the sender chooses to %s", async choice => {
+    const key = K("revoked@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const senderStore = store([{ num: 7, email: "revoked@x", orgUuid: "o", alive: true }]);
+    const receiverStore = store([]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:revoked"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    if (choice === "unpair") expect(sender.e.unpair(receiver.id.fp)).toBe(true);
+    else await sender.e.apply({ shared: [] });
+    release();
+    await transfer;
+    expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
+  it.each(["unpair", "disable"] as const)("cancels an in-flight import after the receiver chooses to %s", async choice => {
+    const key = K("incoming@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([]);
+    const senderStore = store([{ num: 7, email: "incoming@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:incoming"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    if (choice === "unpair") expect(receiver.e.unpair(sender.id.fp)).toBe(true);
+    else await receiver.e.apply({ enabled: false });
+    release();
+    await transfer;
+    expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
     const a = await deck(store([]), "Deck-A", []);
     const b = await deck(store([]), "Deck-B", []);
