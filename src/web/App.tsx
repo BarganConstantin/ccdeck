@@ -57,7 +57,7 @@ import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
 import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
-import { pointInRect } from "./trash-zone";
+import { clientPointOf, trashProximity, type TrashProximity } from "./trash-zone";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -2961,13 +2961,18 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
-  const [trashDragNodeId, setTrashDragNodeId] = useState<string | null>(null);
-  const [trashHovered, setTrashHovered] = useState(false);
+  const [trashDragging, setTrashDragging] = useState(false);
+  const [trashLabel, setTrashLabel] = useState("");
+  const [trashState, setTrashState] = useState<TrashProximity>("far");
   const trashZoneRef = useRef<HTMLDivElement>(null);
-  const trashPhase = usePanelPresence(trashDragNodeId != null, 140);
-  const pointerOverTrash = useCallback((point: { clientX: number; clientY: number }) => {
+  // Where the card sat before the drag, so a card dropped on the trash comes
+  // back there on Undo rather than at the bottom of the screen.
+  const trashOriginRef = useRef<{ id: string; pin?: { x: number; y: number }; position?: { x: number; y: number } } | null>(null);
+  const trashPhase = usePanelPresence(trashDragging, 140);
+  const trashProximityOf = useCallback((event: Parameters<typeof clientPointOf>[0]): TrashProximity => {
     const rect = trashZoneRef.current?.getBoundingClientRect();
-    return rect ? pointInRect(point, rect) : false;
+    const point = clientPointOf(event);
+    return rect && point ? trashProximity(point, rect) : "far";
   }, []);
   /** WHICH CARD IS DRAWN AT THIS DISTANCE — detail, compact or overview.
    *
@@ -5342,7 +5347,7 @@ function Inner() {
       <main
         id="canvas"
         tabIndex={-1}
-        className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashHovered ? " trash-hover" : ""}`}
+        className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
         data-lod={lod}
         ref={canvasRef}
         onMouseDownCapture={releasePointerFocus}
@@ -5595,8 +5600,16 @@ function Inner() {
             draggingRef.current = true;
             dragPatchRef.current = new Map();
             setDragging(true);
-            setTrashDragNodeId(n.type === "agent" ? n.id : null);
-            setTrashHovered(false);
+            if (n.type === "agent") {
+              trashOriginRef.current = {
+                id: n.id,
+                pin: pinnedRef.current.get(n.id),
+                position: positionsRef.current.get(n.id) ?? { x: n.position.x, y: n.position.y },
+              };
+              setTrashLabel(stateRef.current.agents.get(n.id)?.label ?? "");
+              setTrashDragging(true);
+            }
+            setTrashState("far");
             markInteract();
             disableAutoFit();
             if (n.type === "sessionGroup") {
@@ -5617,7 +5630,7 @@ function Inner() {
           }}
           onNodeDrag={(event, n) => {
             markInteract();
-            if (n.type === "agent") setTrashHovered(pointerOverTrash(event));
+            if (n.type === "agent") setTrashState(trashProximityOf(event));
             if (n.type === "sessionGroup") {
               const g = groupDragRef.current;
               if (!g) return;
@@ -5651,12 +5664,13 @@ function Inner() {
           }}
           onNodeDragStop={(event, n) => {
             markInteract();
-            const droppedOnTrash = n.type === "agent" && pointerOverTrash(event);
+            const droppedOnTrash = n.type === "agent" && trashProximityOf(event) === "over";
+            const origin = trashOriginRef.current;
+            trashOriginRef.current = null;
             draggingRef.current = false;
             dragPatchRef.current = null;
             setDragging(false);
-            setTrashDragNodeId(null);
-            setTrashHovered(false);
+            setTrashDragging(false);
             setDragTick(t => t + 1);   // one rebuild, from the refs, at the end
             if (n.type === "sessionGroup") {
               const g = groupDragRef.current;
@@ -5677,6 +5691,11 @@ function Inner() {
             pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
             positionsRef.current.set(n.id, { x: n.position.x, y: n.position.y });
             if (droppedOnTrash) {
+              if (origin?.id === n.id) {
+                if (origin.pin) pinnedRef.current.set(n.id, origin.pin);
+                else pinnedRef.current.delete(n.id);
+                if (origin.position) positionsRef.current.set(n.id, origin.position);
+              }
               removeNode(n.id);
               return;
             }
@@ -5914,14 +5933,22 @@ function Inner() {
         {isMounted(trashPhase) && (
           <div
             ref={trashZoneRef}
-            className={`drag-trash-zone${trashHovered ? " over" : ""}${trashPhase === "leaving" ? " leaving" : ""}`}
+            className={`drag-trash-zone ${trashState}${trashPhase === "leaving" ? " leaving" : ""}`}
             role="status"
-            aria-label="Drop node here to remove it from the board"
           >
             <svg className="drag-trash-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 7V5.8C8 4.8 8.8 4 9.8 4h4.4c1 0 1.8.8 1.8 1.8V7m-10 0h12M8 10v8m4-8v8m4-8v8M7 7l.7 13h8.6L17 7" />
             </svg>
-            <span>{trashHovered ? "Release to remove" : "Drop to remove"}</span>
+            <span className="drag-trash-copy">
+              <span className="drag-trash-text">
+                {trashState === "over"
+                  ? <>Release to remove <strong className="drag-trash-name">{trashLabel || "this card"}</strong></>
+                  : "Drop here to remove from the board"}
+              </span>
+              <span className="drag-trash-hint">
+                {trashState === "over" ? "Undo brings it back" : "The session keeps running"}
+              </span>
+            </span>
           </div>
         )}
         <SessionPeek

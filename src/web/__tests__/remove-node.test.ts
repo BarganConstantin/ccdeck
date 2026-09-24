@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { collectBursts } from "../components/ToolBursts";
 import type { AgentNodeData } from "../types";
 import { readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
-import { pointInRect } from "../trash-zone";
+import { clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -158,6 +158,25 @@ describe("drag-to-trash hit testing", () => {
   it("counts the visible edge as part of the generous target", () => {
     expect(pointInRect({ clientX: 400, clientY: 700 }, target)).toBe(true);
     expect(pointInRect({ clientX: 620, clientY: 758 }, target)).toBe(true);
+  });
+
+  it("reaches a little past the visible edge, so a release just outside still removes", () => {
+    expect(pointInRect({ clientX: 400 - TRASH_HIT_SLOP_PX, clientY: 729 }, target, TRASH_HIT_SLOP_PX)).toBe(true);
+    expect(pointInRect({ clientX: 400 - TRASH_HIT_SLOP_PX - 1, clientY: 729 }, target, TRASH_HIT_SLOP_PX)).toBe(false);
+  });
+
+  it("says far, near or over from the pointer's distance to the target", () => {
+    expect(trashProximity({ clientX: 510, clientY: 729 }, target)).toBe("over");
+    expect(trashProximity({ clientX: 510, clientY: 700 - TRASH_HIT_SLOP_PX }, target)).toBe("over");
+    expect(trashProximity({ clientX: 510, clientY: 700 - TRASH_NEAR_PX }, target)).toBe("near");
+    expect(trashProximity({ clientX: 510, clientY: 700 - TRASH_NEAR_PX - 1 }, target)).toBe("far");
+    expect(distanceToRect({ clientX: 397, clientY: 696 }, target)).toBe(5);
+  });
+
+  it("reads the release point of a touch drag from changedTouches", () => {
+    expect(clientPointOf({ clientX: 3, clientY: 4 })).toEqual({ clientX: 3, clientY: 4 });
+    expect(clientPointOf({ changedTouches: [{ clientX: 7, clientY: 8 }] })).toEqual({ clientX: 7, clientY: 8 });
+    expect(clientPointOf({})).toBeNull();
   });
 });
 
