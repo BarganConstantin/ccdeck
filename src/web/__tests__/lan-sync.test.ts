@@ -448,6 +448,17 @@ describe("whose copy of an account wins", () => {
     const both = [{ key: "a@@1", email: "a@x", alive: true }];
     expect(plan(both, both)).toEqual([]);
   });
+
+  it("plans from this deck's working copy when it holds the login twice", () => {
+    // Slot 2 live, slot 7 expired, same login. The manifest says this deck has
+    // a working copy, so the plan must not heal it every round — in either
+    // order, since a Map built from the rows would keep whichever came last.
+    const live = { key: "a@@1", email: "a@x", alive: true, num: 2 };
+    const dead = { key: "a@@1", email: "a@x", alive: false, num: 7 };
+    const remote = [{ key: "a@@1", email: "a@x", alive: true }];
+    expect(plan([live, dead], remote)).toEqual([]);
+    expect(plan([dead, live], remote)).toEqual([]);
+  });
 });
 
 describe("which account is which", () => {
@@ -496,6 +507,16 @@ describe("what the group is told about my accounts", () => {
     const [a] = manifestFor(accounts, ["a@@1"]);
     expect(Object.keys(a).sort()).toEqual(["alive", "email", "key"]);
     expect(manifestFor(accounts, ["b@@1"])[0].alive).toBe(false);
+  });
+
+  it("lists an identity held in two slots once, as its working copy", () => {
+    // Two rows under one key were two imports of the same login on the deck
+    // reading them, in one round.
+    const twice = [
+      { key: "a@@1", email: "a@x", alive: false },
+      { key: "a@@1", email: "a@x", alive: true },
+    ];
+    expect(manifestFor(twice, ["a@@1"])).toEqual([{ key: "a@@1", email: "a@x", alive: true }]);
   });
 
   it("carries nothing about the credential itself", () => {

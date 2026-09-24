@@ -1419,13 +1419,44 @@ export function syncAction(mine, theirs) {
  * different half each time.
  */
 export function plan(local, remote) {
-  const mine = new Map(local.map(a => [a.key, a]));
+  // Through onePerKey, not array order: a Map built straight from the rows
+  // keeps the LAST one for a key, so an expired second slot hid a live first
+  // one and every round "healed" a login that works here.
+  const mine = new Map(onePerKey(local).map(a => [a.key, a]));
   const out = [];
   for (const theirs of remote) {
     const action = syncAction(mine.get(theirs.key), theirs);
     if (action) out.push({ key: theirs.key, email: theirs.email, action });
   }
   return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/**
+ * One row per identity, and THE rule for which one when claude-swap holds two
+ * slots for the same login: a live copy beats an expired one, then one this
+ * process can read beats one it cannot, then the earlier slot.
+ *
+ * ONE RULE, FOUR PLACES. The manifest this deck sends, the peer manifest it
+ * reads, the export it answers a `want` with, and plan's view of this deck's
+ * own copy all pick through this, so the slot a peer was told about is the
+ * slot it is then handed, and the copy this deck advertises as working is the
+ * one it plans from. Each used to take array order on its own and agreed only
+ * by coincidence — and two slots for one identity became two imports of it in
+ * a single round.
+ */
+export function onePerKey(rows) {
+  const rank = a => (a.alive ? 2 : 0) + (a.readable === false ? 0 : 1);
+  const best = new Map();
+  for (const a of rows) {
+    const had = best.get(a.key);
+    if (!had || rank(a) > rank(had)) best.set(a.key, a);
+  }
+  return [...best.values()];
+}
+
+/** This deck's own slot for one identity, by onePerKey's rule, or null. */
+export function slotFor(accounts, key) {
+  return onePerKey(accounts.filter(a => a.key === key))[0] ?? null;
 }
 
 /**
@@ -1458,8 +1489,7 @@ export function plan(local, remote) {
  */
 export function manifestFor(accounts, shared) {
   const want = new Set(shared);
-  return accounts
-    .filter(a => want.has(a.key))
+  return onePerKey(accounts.filter(a => want.has(a.key)))
     .map(a => ({ key: a.key, email: a.email, alive: !!a.alive }))
     .sort((a, b) => a.key.localeCompare(b.key));
 }

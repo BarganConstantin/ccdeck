@@ -27,7 +27,7 @@
 // something in it, which is when an account is actually broken. A deck whose
 // accounts all work talks to its peers every minute and never asks for
 // anything.
-import { accountKey, currentFor, manifestFor, open, peerWhy, plan, seal, SENDER_UNREADABLE, stillListed, transferChallenge } from "./lan-sync.mjs";
+import { accountKey, currentFor, manifestFor, onePerKey, open, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
@@ -156,9 +156,8 @@ function flatten(v, max) {
 }
 
 export function offered(list) {
-  return (Array.isArray(list) ? list : [])
+  return onePerKey((Array.isArray(list) ? list : [])
     .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
-    .slice(0, 50)
     // Character-filtered, not merely cut. These two are drawn beside the
     // fingerprint at the moment the operator picks which of a peer's logins to
     // import (LanPeerModal.tsx:497), and a bare slice let a format character
@@ -168,7 +167,12 @@ export function offered(list) {
       email: flatten(a.email, 254),
       alive: a.alive === true,
     }))
-    .filter(a => a.key && a.email);
+    .filter(a => a.key && a.email))
+    // Fifty IDENTITIES, so the cap is spent after onePerKey rather than before
+    // it: a peer with duplicate slots could otherwise push a live copy past
+    // row fifty and out of the list while offering far fewer than fifty
+    // logins. The raw array is already bounded by MAX_FRAME_BYTES.
+    .slice(0, 50);
 }
 
 /**
@@ -624,8 +628,11 @@ export function createEngine({
         // the answer that matters is the one at the moment of sending.
         const accounts = await localAccounts();
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        const mine = accounts.find(a => a.key === msg.key);
-        if (!mine || !mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
+        // The slot manifestFor told the peer about, by the same rule: with two
+        // slots for one identity, an expired one listed first must not hide a
+        // live one behind it.
+        const mine = slotFor(accounts, msg.key);
+        if (!mine?.alive) return ctx.send({ t: "no", why: "not mine to give" });
         // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
         // a failed export: no subprocess, and nothing the CLI printed. The
         // asking deck prints it under the account, so the person learns which
@@ -967,7 +974,7 @@ export function createEngine({
         try { found = await checkArrivals(arrived); } catch { /* unasked is not a failure of the round */ }
         arrived.forEach((d, i) => { if (typeof found?.[i] === "string") d.why = found[i]; });
       }
-      lastRound.set(peer.fp, { at: now(), name: peer.name, offered: theirs.accounts.length, done });
+      lastRound.set(peer.fp, { at: now(), name: peer.name, offered: list.length, done });
       if (done.length) onChange?.();
       return done;
     } catch (err) {
