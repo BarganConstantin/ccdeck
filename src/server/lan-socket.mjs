@@ -1057,7 +1057,15 @@ export function createSyncServer({
       };
       // A close before the listening callback otherwise leaves start() pending
       // forever. Null tells the engine that this startup was cancelled.
-      const cancel = () => finish(resolve, null);
+      let cancelled = false;
+      const cancel = () => { cancelled = true; finish(resolve, null); };
+      // A bind that lands after the cancel is closed by its own callback. With
+      // a host, `listen` binds after a dns.lookup that current Node drops on
+      // close(); a runtime that still binds would leave a listener nobody owns.
+      const bound = () => {
+        if (cancelled) { try { listener.close(); } catch { /* already closed */ } return; }
+        finish(resolve, listener.address()?.port ?? null);
+      };
       cancelStart = cancel;
       listener.on("error", err => {
         // A listener can also fail after its initial bind succeeded. Continue
@@ -1071,13 +1079,13 @@ export function createSyncServer({
           // unrelated. The pin is not worth failing to start over.
           retried = true;
           onError?.("listen", err);
-          try { listener.listen(0, host, () => finish(resolve, listener.address()?.port ?? null)); } catch { finish(reject, err); }
+          try { listener.listen(0, host, bound); } catch { finish(reject, err); }
           return;
         }
         onError?.("listen", err);
         finish(reject, err);
       });
-      try { listener.listen(wanted, host, () => finish(resolve, listener.address()?.port ?? null)); }
+      try { listener.listen(wanted, host, bound); }
       catch (err) { finish(reject, err); }
     }),
     port: () => server?.address()?.port ?? null,
