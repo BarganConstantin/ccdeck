@@ -89,6 +89,65 @@ describe("custom FM YouTube resolver (#1208)", () => {
       .resolves.toEqual({ ok: false, error: "unresolved" });
   });
 
+  it("blocks an off-site redirect before requesting its destination", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      status: 302, ok: false, url: "https://www.youtube.com/@lofigirl/live",
+      headers: new Headers({ location: "https://127.0.0.1/internal" }), body: null,
+    }) as Response);
+    await expect(resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }))
+      .resolves.toEqual({ ok: false, error: "unresolved" });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
+  });
+
+  it("follows allowed YouTube redirects and resolves the live station", async () => {
+    const fetchImpl = vi.fn(async (url: string) => url.endsWith("/live")
+      ? ({ status: 302, ok: false, url, headers: new Headers({ location: `/watch?v=${VIDEO}` }), body: null } as Response)
+      : response(page(), url));
+    await expect(resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }))
+      .resolves.toEqual({ ok: true, channel: CHANNEL, video: VIDEO });
+    expect(fetchImpl.mock.calls.map(call => call[0])).toEqual([
+      "https://www.youtube.com/@lofigirl/live", `https://www.youtube.com/watch?v=${VIDEO}`,
+    ]);
+  });
+
+  it("rejects unsafe redirect schemes, credentials, ports and malformed destinations", async () => {
+    for (const location of [
+      "http://www.youtube.com/watch?v=jfKfPfyJRdk",
+      "https://user@www.youtube.com/watch?v=jfKfPfyJRdk",
+      "https://www.youtube.com:8443/watch?v=jfKfPfyJRdk",
+      "https://youtube.com.evil.example/watch?v=jfKfPfyJRdk",
+      "https://[invalid",
+      "",
+    ]) {
+      forgetFmStations();
+      const fetchImpl = vi.fn(async () => ({
+        status: 302, ok: false, headers: new Headers({ location }), body: null,
+      }) as Response);
+      await expect(resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }))
+        .resolves.toEqual({ ok: false, error: "unresolved" });
+      expect(fetchImpl, location).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("stops after five allowed redirects and cancels every redirect body", async () => {
+    const cancels: ReturnType<typeof vi.fn>[] = [];
+    const fetchImpl = vi.fn(async () => {
+      const cancel = vi.fn(async () => {});
+      cancels.push(cancel);
+      return {
+        status: 302, ok: false,
+        headers: new Headers({ location: `/watch?v=${VIDEO}` }),
+        body: { cancel },
+      } as unknown as Response;
+    });
+    await expect(resolveYouTubeStation("https://youtube.com/@lofigirl/live", { fetchImpl }))
+      .resolves.toEqual({ ok: false, error: "unresolved" });
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(cancels).toHaveLength(6);
+    for (const cancel of cancels) expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("tells the page that the lookup failed, not how", async () => {
     // The error text is the operator's: a DNS message names the resolver and a
     // proxy's names the proxy, and neither is the page's business.
