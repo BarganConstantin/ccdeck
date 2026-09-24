@@ -1135,6 +1135,7 @@ export function createEngine({
       if (!restart) { syncTailnet(); return; }
       this.stop(cfg.enabled);
       if (!cfg.enabled) return;
+      const startedIn = generation;
       identity = identityFrom(cfg.secret);
       // Hand the caller a key to keep when there was none, so the next start is
       // the same deck rather than a stranger to everybody who paired with it.
@@ -1146,7 +1147,7 @@ export function createEngine({
       // still works after this deck restarts. createSyncServer falls through to
       // an OS-chosen one when it is taken, and the caller stores whatever came
       // back — so the pin drifts to a free port rather than failing.
-      server = createSyncServer({
+      const startingServer = createSyncServer({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
         name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames, ephemeral,
         // See inboundAt. Every connection passes here, including one that goes
@@ -1192,21 +1193,26 @@ export function createEngine({
         // see askToAccept.
         onPending: askToAccept,
       });
+      server = startingServer;
       let port;
       try {
-        port = await server.start();
+        port = await startingServer.start();
       } catch (err) {
+        if (startedIn !== generation || server !== startingServer || !cfg.enabled) return;
         // Kept, so the panel can say it. Rethrown, because the caller's own
         // catch is what leaves the engine stopped rather than half-started.
         stalled = err?.message ?? String(err);
         throw err;
       }
+      // An immediately cancelled start must not resurrect its listener or
+      // beacon after stop(), or overwrite a newer start's server.
+      if (startedIn !== generation || server !== startingServer || !cfg.enabled || port == null) return;
       stalled = null;
       // From here the socket is accepting, so this is the moment the silence
       // starts being about the network rather than about a deck still starting.
       listeningSince = now();
       if (port !== cfg.port) onPort?.(port);
-      beacon = createBeacon({
+      const startingBeacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
         trusted: () => cfg.trusted,
         // The owner's own machines on the tailnet, while the switch is on.
@@ -1266,7 +1272,9 @@ export function createEngine({
         onError, now,
         ...(createSocket ? { createSocket } : {}),
       });
-      await beacon.start();
+      beacon = startingBeacon;
+      await startingBeacon.start();
+      if (startedIn !== generation || beacon !== startingBeacon || !cfg.enabled) return;
       // One read of the tailnet whatever the switch says, so a packet from a
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
@@ -1275,7 +1283,7 @@ export function createEngine({
       // between rounds is not one number: see ASKING_MS.
       const tick = async () => {
         try { await round(); } catch { /* a round reports itself, per peer */ }
-        if (!beacon) return;
+        if (startedIn !== generation || beacon !== startingBeacon || !cfg.enabled) return;
         timer = setTimeout(() => { void tick(); }, waitingOnSomebody() ? ASKING_MS : SYNC_MS);
         timer.unref?.();
       };

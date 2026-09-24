@@ -664,6 +664,7 @@ export function createSyncServer({
   ephemeral = true,
 } = {}) {
   let server = null;
+  let cancelStart = null;
   const live = new Set();
 
   /** Which host a socket came from, in one spelling. Node reports an IPv4 peer
@@ -1037,23 +1038,38 @@ export function createSyncServer({
     start: () => new Promise((resolve, reject) => {
       const wanted = Number.isInteger(prefer) && prefer > 0 && prefer < 65_536 ? prefer : 0;
       let retried = wanted === 0;
-      server = net.createServer(onConnection);
-      server.on("error", err => {
+      const listener = net.createServer(onConnection);
+      server = listener;
+      let pending = true;
+      const finish = (done, result) => {
+        if (!pending) return;
+        pending = false;
+        if (cancelStart === cancel) cancelStart = null;
+        done(result);
+      };
+      // A close before the listening callback otherwise leaves start() pending
+      // forever. Null tells the engine that this startup was cancelled.
+      const cancel = () => finish(resolve, null);
+      cancelStart = cancel;
+      listener.on("error", err => {
+        if (!pending) return;
         if (!retried) {
           // Somebody else has it — another deck on this machine, or something
           // unrelated. The pin is not worth failing to start over.
           retried = true;
           onError?.("listen", err);
-          try { server.listen(0, host, () => resolve(server.address().port)); } catch { reject(err); }
+          try { listener.listen(0, host, () => finish(resolve, listener.address()?.port ?? null)); } catch { finish(reject, err); }
           return;
         }
         onError?.("listen", err);
-        reject(err);
+        finish(reject, err);
       });
-      server.listen(wanted, host, () => resolve(server.address().port));
+      try { listener.listen(wanted, host, () => finish(resolve, listener.address()?.port ?? null)); }
+      catch (err) { finish(reject, err); }
     }),
     port: () => server?.address()?.port ?? null,
     stop() {
+      cancelStart?.();
       for (const s of live) s.destroy();
       live.clear();
       try { server?.close(); } catch { /* not listening */ }
