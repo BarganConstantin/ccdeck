@@ -892,7 +892,10 @@ export function createEngine({
         // add for one; and a tailnet reaches further than the person's own
         // machines, which is a decision they make for themselves rather than
         // one an arrival makes for them.
-        if (ok && ticksOnArrival(step, viaOf(peer))) {
+        // The store can finish an import after the owner disabled LAN or
+        // revoked this peer. Keep the imported slot, but do not turn it into
+        // a newly shared credential on behalf of an obsolete transfer.
+        if (ok && mayImport(step) && ticksOnArrival(step, viaOf(peer))) {
           try { await onShared?.(step.key); }
           catch { /* the account is here; the tick is retried the next time one arrives */ }
         }
