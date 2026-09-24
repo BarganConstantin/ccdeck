@@ -134,7 +134,7 @@ export const COMMAND_REASONS: Record<string, string> = {
 // "claude-swap refused the switch" is true, useless, and unfixable. Same test
 // as cswap-admin.mjs's addFailureText, and inert off macOS, where the word
 // never appears.
-const KEYCHAIN =
+export const KEYCHAIN =
   `claude-swap could not read the login keychain — start ${PRODUCT} from a Terminal window rather than a background service`;
 
 /**

@@ -12,34 +12,70 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
-import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, macKeychainFailure, verifyImportedOnMac, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
 import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
 
-describe("macOS Keychain access", () => {
-  it("distinguishes a locked or denied Keychain from authentication expiry and other platforms", () => {
-    expect(macKeychainFailure("SecKeychainCopySettings: User interaction is not allowed", "darwin")).toBe(true);
-    expect(macKeychainFailure("keychain unavailable — locked or in use", "darwin")).toBe(true);
-    expect(macKeychainFailure("errSecInteractionNotAllowed -25308", "darwin")).toBe(true);
-    expect(macKeychainFailure("invalid_grant: expired", "darwin")).toBe(false);
-    expect(macKeychainFailure("Keychain unavailable", "linux")).toBe(false);
-    expect(macKeychainFailure("Keychain unavailable", "win32")).toBe(false);
+describe("whether this process can read what claude-swap holds", () => {
+  // claude-swap's own `cswap list --json` rows, as verdictsNow hands them on.
+  const row = (email: string, status: string | null, org = "o") => ({ email, org, status });
+  const answering = (rows: unknown[] | null) => {
+    const asked: number[] = [];
+    return { asked, verdicts: async () => { asked.push(1); return rows; } };
+  };
+
+  it("names a Keychain failure only when claude-swap says every failed account is one", async () => {
+    // From the verdict, never from export's stderr, which on a locked Keychain
+    // says only "no backup credentials found" — the same words as an account
+    // with no stored login.
+    const store = { orgs: { 1: "o", 2: "o" } };
+    const failed = [{ num: "1", email: "A@x" }, { num: "2", email: "b@x" }];
+    const both = answering([row("a@x", "keychain_unavailable"), row("b@x", "keychain_unavailable")]);
+    expect(await exportFailure(failed, store, { platform: "darwin", verdicts: both.verdicts })).toBe("keychain_unavailable");
+    expect(both.asked, "one list for every failed account").toHaveLength(1);
+    // One of two is something else: the reason must be true of the whole
+    // failure, since the detail beside it is failed[0]'s.
+    const one = answering([row("a@x", "keychain_unavailable"), row("b@x", "no_credentials")]);
+    expect(await exportFailure(failed, store, { platform: "darwin", verdicts: one.verdicts })).toBe("export_failed");
+    // Unanswerable, and off a Mac, where the same verdict is an unreadable
+    // .enc file and never asked for at all.
+    expect(await exportFailure(failed, store, { platform: "darwin", verdicts: answering(null).verdicts })).toBe("export_failed");
+    for (const platform of ["linux", "win32"]) {
+      const off = answering([row("a@x", "keychain_unavailable"), row("b@x", "keychain_unavailable")]);
+      expect(await exportFailure(failed, store, { platform, verdicts: off.verdicts }), platform).toBe("export_failed");
+      expect(off.asked, platform).toEqual([]);
+    }
   });
-  it("checks the imported account on Mac and reports an unreadable login until access returns", async () => {
-    const check = async (status: string | null) => verifyImportedOnMac("a@b.c", "org", {
-      platform: "darwin", verdict: async (email: string, org: string) => {
-        expect([email, org]).toEqual(["a@b.c", "org"]);
-        return status;
-      },
-    });
-    expect(await check("keychain_unavailable")).toEqual({ ok: false, why: "keychain_unavailable" });
-    expect(await check("no_credentials")).toEqual({ ok: false, why: "no_credentials" });
-    expect(await check("relogin_required")).toEqual({ ok: false, why: "relogin_required" });
-    expect(await check("ok")).toEqual({ ok: true });
-    expect(await check(null)).toEqual({ ok: true });
-    expect(await verifyImportedOnMac("a@b.c", "org", { platform: "linux", verdict: async () => { throw new Error("should not run"); } })).toEqual({ ok: true });
+
+  it("checks every login a round imported with one ask, and an unanswered one is not a yes", async () => {
+    const ids = [
+      { email: "k@x", org: "o" }, { email: "n@x", org: "o" }, { email: "r@x", org: "o" },
+      { email: "ok@x", org: "o" }, { email: "busy@x", org: "o" }, { email: "gone@x", org: "o" },
+      { email: "k@x", org: "other-org" },
+    ];
+    const list = answering([
+      row("k@x", "keychain_unavailable"), row("n@x", "no_credentials"), row("r@x", "relogin_required"),
+      row("ok@x", "ok"),
+      // Right after an import the usage fetch can be throttled or still in
+      // backoff; the login is there and readable, which is all that is asked.
+      row("busy@x", "unavailable"),
+    ]);
+    expect(await checkImports(ids, { platform: "darwin", verdicts: list.verdicts })).toEqual([
+      "unreadable_here", "no_credentials_here", "relogin_required_here",
+      null, null,
+      // Not in the list, and the same email under another org is another account.
+      "unverified_here", "unverified_here",
+    ]);
+    expect(list.asked).toHaveLength(1);
+    expect(await checkImports(ids.slice(0, 1), { platform: "darwin", verdicts: answering(null).verdicts }))
+      .toEqual(["unverified_here"]);
+    for (const platform of ["linux", "win32"]) {
+      const off = answering([row("k@x", "keychain_unavailable")]);
+      expect(await checkImports(ids.slice(0, 1), { platform, verdicts: off.verdicts }), platform).toEqual([null]);
+      expect(off.asked, platform).toEqual([]);
+    }
   });
 });
 

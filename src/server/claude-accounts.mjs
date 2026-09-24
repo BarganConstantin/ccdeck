@@ -374,6 +374,20 @@ let _verdictInFlight = false;
 export async function verdictNow(email, org, { runner = run, bin = cswapBin } = {}) {
   const want = String(email ?? "").trim().toLowerCase();
   if (!want) return null;
+  const all = await verdictsNow({ runner, bin });
+  return all?.find(a => a.email === want && a.org === (org ?? ""))?.status ?? null;
+}
+
+/**
+ * Every account's verdict from ONE `cswap list --json`, as `{ email, org,
+ * status }` rows (email lower-cased, status null when claude-swap gave none),
+ * or null when the question could not be asked at all.
+ *
+ * For a caller holding several identities at once — a round that imported
+ * three logins asks once, not three times, since each ask is a full usage
+ * collection that can take a minute on a cold network.
+ */
+export async function verdictsNow({ runner = run, bin = cswapBin } = {}) {
   try {
     const out = await runner(await bin(), ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS });
     if (!out?.ok) return null;
@@ -382,12 +396,11 @@ export async function verdictNow(email, org, { runner = run, bin = cswapBin } = 
     // it cost a subprocess either way.
     const byNum = readVerdicts(out.stdout);
     if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
-    for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
-      if (String(a?.email ?? "").trim().toLowerCase() !== want) continue;
-      if ((a?.organizationUuid ?? "") !== (org ?? "")) continue;
-      return typeof a?.usageStatus === "string" ? a.usageStatus : null;
-    }
-    return null;
+    return (Array.isArray(d?.accounts) ? d.accounts : []).map(a => ({
+      email: String(a?.email ?? "").trim().toLowerCase(),
+      org: a?.organizationUuid ?? "",
+      status: typeof a?.usageStatus === "string" ? a.usageStatus : null,
+    }));
   } catch { return null; }
 }
 

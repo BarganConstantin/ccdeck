@@ -37,6 +37,7 @@
 // every machine at once.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { KEYCHAIN } from "../admin-failure";
 import { armedPress, pressAccepted, pressState } from "../panel-press";
 import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
@@ -75,6 +76,8 @@ export interface Peer {
    *  said yes, so it calls and we answer. */
   waiting?: boolean;
   lastSeen?: number;
+  /** `why` on a row that did not arrive says why; on one that did, it is a
+   *  problem this deck found with it after — see roundWhy. */
   last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean; why?: string | null }> } | null;
   /** What it said about itself. Null until it has, and forever for a deck
    *  older than the one that started saying. */
@@ -230,8 +233,41 @@ export function seenLabel(lastSeen: number | undefined, now: number): string {
 }
 
 /** What the last round with one peer did: the sentence, and which of the three
- *  things it is. */
-export interface RoundLine { text: string; tone: "bad" | "idle" | "ok" }
+ *  things it is — and, when a login came with a problem, what to do about it,
+ *  which is too long for the row and goes where the whole sentence goes. */
+export interface RoundLine { text: string; tone: "bad" | "idle" | "ok"; hint?: string }
+
+type DoneRow = NonNullable<NonNullable<Peer["last"]>["done"]>[number];
+
+/**
+ * The reasons a round names, keyed by the codes lan-sync.mjs defines: a few
+ * words for the row and the sentence with the remedy for the dialog. Looked up
+ * with Object.hasOwn, so a code this build does not know names nothing rather
+ * than something from the prototype.
+ *
+ * WHICH MACHINE is the whole point of the Keychain pair. The fix is on the Mac
+ * that cannot read its own Keychain, and "blocked by Keychain" without saying
+ * which sent people to the one that was fine.
+ */
+const ROUND_WHY: Record<string, { short: string; long: string }> = {
+  // From the sending deck, on the wire. Nothing to do here: once that Mac
+  // opens its Keychain the next round asks again and brings it.
+  keychain_unavailable: {
+    short: "Keychain locked on the other Mac",
+    long: `the other Mac could not export it. On that Mac: ${KEYCHAIN}. The next round brings it.`,
+  },
+  // The rest are this deck's own findings. The login ARRIVED for all but the
+  // first, which can also be fillEmptySlot refusing to write at all.
+  unreadable_here: { short: "Keychain locked on this Mac", long: `${KEYCHAIN}.` },
+  no_credentials_here: { short: "no stored login here", long: "it arrived, and claude-swap still holds no login for it here." },
+  relogin_required_here: { short: "login expired", long: "it arrived with a login that was rejected — sign in again on a deck where it still works." },
+  unverified_here: { short: "not checked", long: "it arrived, and claude-swap could not be asked whether this Mac can read it." },
+};
+
+/** What a round has to say about one login beyond arrived / did not, or null. */
+export function roundWhy(d: DoneRow): { short: string; long: string } | null {
+  return d.why && Object.hasOwn(ROUND_WHY, d.why) ? ROUND_WHY[d.why] : null;
+}
 
 /**
  * The two refusals that are ANSWERS rather than faults.
@@ -338,23 +374,26 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   // and the sentence says so.
   if (!done.length) return { text: `all logins fine · ${seenLabel(last.at, now)}`, tone: "idle" };
   const ok = done.filter(d => d.ok);
-  // The remedy is on the machine that cannot read its own Keychain. A sender
-  // can tell its peer this fixed error code without sending CLI diagnostics or
-  // credential material; the receiver distinguishes its own failure locally.
-  const keychain = done.find(d => !d.ok && (d.why === "keychain_unavailable" || d.why === "keychain_unavailable_local"));
-  if (keychain) return {
-    text: `${keychain.email}: ${keychain.why === "keychain_unavailable_local" ? "import on this Mac" : "export on paired Mac"} blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry`,
-    tone: "bad",
-  };
   const verb = ok.length === 1 ? "login" : "logins";
+  // THE COUNT STAYS, AND EVERY PROBLEM IS NAMED AFTER IT. A round with one
+  // Keychain failure among three arrivals is still three arrivals, and a second
+  // failure on the other machine is a second thing to fix; a line that showed
+  // only the first sent somebody to fix one, retry, and meet the next. The
+  // names go BEFORE the clock, because the list cuts everything after the
+  // first " · " — see deckRows.
+  const said = done.map(d => ({ d, why: roundWhy(d) })).filter(x => x.why);
+  const names = [...new Set(said.map(x => x.why!.short))];
+  const what = names.length ? `, ${names.join(", ")}` : "";
+  const hint = said.length ? said.map(x => `${x.d.email}: ${x.why!.long}`).join(" ") : undefined;
+  const at = seenLabel(last.at, now);
   return ok.length === done.length
     // "arrived", because a round only ever pulls: roundWith dials, reads the
     // other deck's manifest and imports. Nothing leaves this deck on a round it
     // started, and "took 2 accounts" left which way it went to the reader.
-    ? { text: `${ok.length} ${verb} arrived · ${seenLabel(last.at, now)}`, tone: "ok" }
+    ? { text: `${ok.length} ${verb} arrived${what} · ${at}`, tone: said.length ? "bad" : "ok", ...(hint ? { hint } : {}) }
     // Some moved and some did not, which is neither a clean round nor a failure
     // to reach the deck. It reads as the partial thing it is.
-    : { text: `${ok.length} of ${done.length} logins arrived · ${seenLabel(last.at, now)}`, tone: "bad" };
+    : { text: `${ok.length} of ${done.length} logins arrived${what} · ${at}`, tone: "bad", ...(hint ? { hint } : {}) };
 }
 
 /** How recently a beacon has to have arrived for this panel to speak about that
@@ -949,7 +988,7 @@ export function deckRows(
         // The whole sentence, verbatim, including the address and the code the
         // row is too narrow to carry. This is where somebody looks when the
         // short form is not enough.
-        : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}`,
+        : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
     });
   }
   rows.push(...oneRowPerMachine(paired).sort(byName), ...dialling.sort(byName));
