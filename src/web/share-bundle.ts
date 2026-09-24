@@ -7,6 +7,7 @@
 // that says "imported" about an account that was already present, is a lie the
 // user acts on — they close the tab believing a machine is configured. Plain
 // data in, plain data out, tested without a DOM.
+import { arrivalCheck } from "./admin-failure";
 
 /** What the accounts panel knows about an account, narrowed to the naming. */
 export interface NamedAccount {
@@ -214,5 +215,6 @@ export function importSummary(results: ImportResult[]): string {
   if (present) parts.push(`${present} already here`);
   const failed = count("failed");
   if (failed) parts.push(`${failed} did not arrive`);
-  return `${parts.join(", ")}.`;
+  const warnings = [...new Set(results.map(r => arrivalCheck(r.check)?.short).filter((s): s is string => !!s))];
+  return `${parts.join(", ")}${warnings.length ? `, ${warnings.join(", ")}` : ""}.`;
 }

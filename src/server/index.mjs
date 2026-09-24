@@ -3972,8 +3972,9 @@ const lanEngine = createEngine({
     // export that can only fail. Mac only: claude-swap's `keychain_unavailable`
     // elsewhere is an unreadable .enc file, and the sentence the peer prints
     // talks about a Keychain.
-    if (process.platform !== "darwin" || !Array.isArray(got?.accounts)) return got;
-    return { ...got, accounts: got.accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a) };
+    if (!got || !Array.isArray(got.accounts)) return got;
+    const { markUnreadable } = await import("./cswap-admin.mjs");
+    return { ...got, accounts: markUnreadable(got.accounts) };
   },
   exportAccount: async num => {
     const { shareAccounts } = await import("./cswap-admin.mjs");

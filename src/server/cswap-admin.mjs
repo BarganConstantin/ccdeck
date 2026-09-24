@@ -106,6 +106,12 @@ const AFTER_IMPORT = {
  * login says nothing about the import and reads as unverified. A Keychain it
  * cannot open still counts: it is the same Keychain, from the same session.
  */
+/** A Mac's locally unreadable login cannot be offered to a paired deck. */
+export function markUnreadable(accounts, platform = process.platform) {
+  if (platform !== "darwin" || !Array.isArray(accounts)) return accounts;
+  return accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a);
+}
+
 export async function checkImports(ids, { platform = process.platform, verdicts = verdictsNow } = {}) {
   if (platform !== "darwin" || !ids.length) return ids.map(() => null);
   const got = await rowsNow(ids, verdicts);

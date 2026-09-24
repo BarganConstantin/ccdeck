@@ -492,12 +492,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
             )
           ) : imported ? (() => {
             const arrived = imported.filter(r => r.state === "imported").length;
+            const needsAttention = imported.some(r => arrivalCheck(r.check));
             return (
             <div className="aa-done">
-              <SuccessMark ref={markRef} />
+              {!needsAttention && <SuccessMark ref={markRef} />}
               {/* Only when something actually arrived: celebrating a no-op is
                   how a celebration stops meaning anything. */}
-              {arrived > 0 && <Confetti anchor={markRef} />}
+              {arrived > 0 && !needsAttention && <Confetti anchor={markRef} />}
               {/* The count, not a verdict. "Done" over a paste of five is what
                   makes somebody run it again and then wonder whether they
                   doubled something; this is the sentence they need before they

@@ -12,7 +12,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
-import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, checkImportResults, importOutcomes, landed, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, checkImportResults, markUnreadable, importOutcomes, landed, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+
+describe("sender readiness mapping", () => {
+  it("marks a Mac Keychain verdict unreadable before the LAN engine offers it", () => {
+    const accounts = [{ collector: "keychain_unavailable", readable: true }, { collector: "ok", readable: true }];
+    expect(markUnreadable(accounts, "darwin")).toEqual([{ collector: "keychain_unavailable", readable: false }, accounts[1]]);
+    expect(markUnreadable(accounts, "linux")).toBe(accounts);
+    expect(markUnreadable(accounts, "win32")).toBe(accounts);
+  });
+});
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
