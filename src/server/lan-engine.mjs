@@ -27,7 +27,7 @@
 // something in it, which is when an account is actually broken. A deck whose
 // accounts all work talks to its peers every minute and never asks for
 // anything.
-import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
+import { accountKey, currentFor, manifestFor, open, peerWhy, plan, seal, SENDER_UNREADABLE, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
@@ -212,7 +212,7 @@ export function ticksOnArrival(step, via) {
 }
 
 export function createEngine({
-  readAccounts, exportAccount, importAccount,
+  readAccounts, exportAccount, importAccount, checkArrivals,
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
@@ -475,6 +475,10 @@ export function createEngine({
       key: accountKey(a.email, a.orgUuid),
       email: a.email,
       alive: a.alive === true,
+      // False only for a login the wiring knows this process cannot read (a
+      // Mac whose Keychain will not open from here). Absent means readable,
+      // which is every deck that does not say.
+      readable: a.readable !== false,
       num: a.num,
       // The one this deck is on — claude-swap's own answer, one at most.
       active: a.active === true,
@@ -591,7 +595,15 @@ export function createEngine({
         const accounts = await localAccounts();
         const mine = accounts.find(a => a.key === msg.key);
         if (!mine || !mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
+        // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
+        // a failed export: no subprocess, and nothing the CLI printed. The
+        // asking deck prints it under the account, so the person learns which
+        // machine to unlock instead of reading "export failed".
+        if (!mine.readable) return ctx.send({ t: "no", why: SENDER_UNREADABLE });
         const blob = await exportAccount(mine.num);
+        // A Mac's failed export refreshes the verdict behind `readable` in the
+        // background, so when the Keychain was why, the next ask is answered by
+        // the line above.
         if (!blob) return ctx.send({ t: "no", why: "export failed" });
         const aad = `${identity.fp}->${ctx.peerFp}|${msg.key}`;
         return ctx.send({ t: "have", key: msg.key, sealed: seal(ctx.key, blob, aad) });
@@ -829,13 +841,15 @@ export function createEngine({
             nonce, accountKey: step.key, fromFp: identity.fp, toFp: conn.peerFp,
           }),
         });
-        if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: reply?.why ?? "refused" }); continue; }
+        if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: peerWhy(reply?.why) }); continue; }
         const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
-        // accepted: the suite drives this with one.
+        // accepted: the suite drives this with one. `ok` here means the login
+        // LANDED; whether this deck can then use it is checked after the loop
+        // and rides on the same row as a warning.
         // The step goes down with the blob: the wiring has to know WHICH account
         // it is placing before it may treat a decline as an empty slot rather
         // than as a healthy one.
@@ -858,6 +872,19 @@ export function createEngine({
           catch { /* the account is here; the tick is retried the next time one arrives */ }
         }
         done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
+      }
+      // WHAT ARRIVED, CHECKED ONCE, AFTER THE LAST QUESTION. An import that
+      // exited cleanly can still have left a login this process cannot read (a
+      // Mac's Keychain, from SSH or a LaunchAgent). Such a row stays `ok` — it
+      // DID arrive, and was ticked onward above — and carries the reason as a
+      // warning. After the loop because the check is a usage collection that
+      // can outlast the peer's thirty-second idle timer, and one ask covers
+      // every login the round brought.
+      const arrived = done.filter(d => d.ok);
+      if (arrived.length && checkArrivals) {
+        let found = null;
+        try { found = await checkArrivals(arrived); } catch { /* unasked is not a failure of the round */ }
+        arrived.forEach((d, i) => { if (typeof found?.[i] === "string") d.why = found[i]; });
       }
       lastRound.set(peer.fp, { at: now(), name: peer.name, offered: theirs.accounts.length, done });
       if (done.length) onChange?.();

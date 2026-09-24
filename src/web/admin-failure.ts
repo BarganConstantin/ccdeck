@@ -134,8 +134,27 @@ export const COMMAND_REASONS: Record<string, string> = {
 // "claude-swap refused the switch" is true, useless, and unfixable. Same test
 // as cswap-admin.mjs's addFailureText, and inert off macOS, where the word
 // never appears.
-const KEYCHAIN =
+export const KEYCHAIN =
   `claude-swap could not read the login keychain — start ${PRODUCT} from a Terminal window rather than a background service`;
+
+/**
+ * What this deck found wrong with a login that had just landed — the HERE codes
+ * lan-sync.mjs defines, said once for both places that report an arrival: a LAN
+ * round and the Add Account dialog. A few words for a row, the sentence with
+ * the remedy for wherever there is room.
+ */
+const ARRIVAL_CHECK: Record<string, { short: string; long: string }> = {
+  unreadable_here: { short: "Keychain locked on this Mac", long: `${KEYCHAIN}.` },
+  no_credentials_here: { short: "no stored login here", long: "claude-swap still holds no login for it here." },
+  relogin_required_here: { short: "login expired", long: "the imported login was rejected — sign in again on a deck where it still works." },
+  unverified_here: { short: "not checked", long: "claude-swap could not confirm whether this Mac can read it." },
+};
+
+/** The words for one arrival check, or null for none — or for a code this
+ *  build does not know, prototype keys included. */
+export function arrivalCheck(code: string | null | undefined): { short: string; long: string } | null {
+  return code && Object.hasOwn(ARRIVAL_CHECK, code) ? ARRIVAL_CHECK[code] : null;
+}
 
 /**
  * THE TWO REFUSALS THAT HAPPEN BEFORE ANY COMMAND RUNS.
