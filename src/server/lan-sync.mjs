@@ -1405,7 +1405,7 @@ export const HERE = Object.freeze({
  * nothing here ever asks for that.
  */
 export function syncAction(mine, theirs) {
-  if (!theirs || !theirs.alive) return null;
+  if (!theirs || !theirs.alive || theirs.shareable === false) return null;
   if (!mine) return "add";
   return mine.alive ? null : "heal";
 }
@@ -1463,10 +1463,11 @@ export function slotFor(accounts, key) {
  * What this deck publishes about its own accounts — to the group, and only to
  * the group.
  *
- * Three fields, and `alive` is the only one that is a judgement: it is
- * claude-swap's own verdict on this machine's copy, not a guess. An account
- * this deck cannot use is worth nothing to a peer, so saying so plainly is what
- * stops a peer asking for it.
+ * `alive` says whether the stored copy is still valid. `shareable: false` is
+ * the separate, temporary condition where this process cannot read that valid
+ * copy (for example a locked macOS Keychain). Keeping those facts separate is
+ * what stops another deck treating a healthy-but-inaccessible copy as expired
+ * and repeatedly trying to heal it.
  *
  * Emails are in it, and the manifest is sealed on its way. This said "in the
  * clear inside the encrypted channel" until #810, and there was no such
@@ -1490,7 +1491,12 @@ export function slotFor(accounts, key) {
 export function manifestFor(accounts, shared) {
   const want = new Set(shared);
   return onePerKey(accounts.filter(a => want.has(a.key)))
-    .map(a => ({ key: a.key, email: a.email, alive: !!a.alive }))
+    .map(a => ({
+      key: a.key,
+      email: a.email,
+      alive: !!a.alive,
+      ...(a.readable === false ? { shareable: false } : {}),
+    }))
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 

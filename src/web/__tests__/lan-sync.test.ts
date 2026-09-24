@@ -408,6 +408,13 @@ describe("whose copy of an account wins", () => {
     expect(syncAction(null, dead)).toBeNull();
   });
 
+  it("does not request a valid copy that the peer cannot currently read", () => {
+    const unavailable = { ...live, shareable: false };
+    expect(syncAction(null, unavailable)).toBeNull();
+    expect(syncAction(dead, unavailable)).toBeNull();
+    expect(plan([dead], [unavailable])).toEqual([]);
+  });
+
   it("asks for nothing when the peer offers nothing", () => {
     expect(syncAction(dead, null)).toBeNull();
     expect(syncAction(null, undefined)).toBeNull();
@@ -502,11 +509,29 @@ describe("what the group is told about my accounts", () => {
   });
 
   it("says whether this machine can actually use each one", () => {
-    // An account this deck cannot use is worth nothing to a peer, and saying so
-    // plainly is what stops a peer asking for it.
+    // A valid stored copy stays alive even when this process cannot currently
+    // read it; shareability is the separate fact that stops a peer asking.
     const [a] = manifestFor(accounts, ["a@@1"]);
     expect(Object.keys(a).sort()).toEqual(["alive", "email", "key"]);
     expect(manifestFor(accounts, ["b@@1"])[0].alive).toBe(false);
+
+    const [locked] = manifestFor(
+      [{ key: "d@@1", email: "d@x", alive: true, readable: false }],
+      ["d@@1"],
+    );
+    expect(locked).toEqual({ key: "d@@1", email: "d@x", alive: true, shareable: false });
+    expect(syncAction(null, locked)).toBeNull();
+  });
+
+  it("prefers a readable copy of a login held twice, and marks it unshareable only when none is", () => {
+    // The two rules meet here: onePerKey picks the slot, and `shareable`
+    // describes the slot it picked — never a sibling that happened to be
+    // listed first.
+    const locked = { key: "e@@1", email: "e@x", alive: true, readable: false };
+    const open = { key: "e@@1", email: "e@x", alive: true };
+    expect(manifestFor([locked, open], ["e@@1"])).toEqual([{ key: "e@@1", email: "e@x", alive: true }]);
+    expect(manifestFor([locked, { ...locked }], ["e@@1"]))
+      .toEqual([{ key: "e@@1", email: "e@x", alive: true, shareable: false }]);
   });
 
   it("lists an identity held in two slots once, as its working copy", () => {
@@ -774,4 +799,3 @@ describe("what a peer may put in a name", () => {
     expect(cleanName(undefined as never)).toBe("unnamed deck");
   });
 });
-

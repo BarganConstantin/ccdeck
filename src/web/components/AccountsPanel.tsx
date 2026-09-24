@@ -1889,6 +1889,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
             key: `${String(a.email ?? "").trim().toLowerCase()}@@${a.orgUuid ?? ""}`,
             email: a.email ?? "",
             alive: a.alive === true,
+            // A valid stored copy can still be unavailable for LAN export
+            // (locked Keychain, deferred refresh, or an unknown CLI verdict).
+            // The active slot needs a verdict, as on the server: its export is
+            // the live login — see cachedExportReadable.
+            shareable: a.collector === "ok" || (a.collector == null && !a.active),
           }))}
           onChanged={() => load(true)}
           view={view === "lan"}

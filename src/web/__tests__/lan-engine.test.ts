@@ -35,7 +35,7 @@ import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "../../server/l
 
 const K = (email: string, org: string) => accountKey(email, org);
 
-interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean }
+interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean; collector?: string | null; readable?: boolean }
 
 /** A store, and a record of everything the engine asked it to do. */
 function store(rows: Row[]) {
@@ -340,6 +340,68 @@ describe("the account that is dead here and alive there", () => {
     expect(await a.e.round()).toEqual([]);
     expect(mine.imported).toEqual([]);
   }, 20_000);
+
+  it.each(["keychain_unavailable", "no_credentials", "relogin_required", "foreign_credential", "token_expired", "unknown_status"])("does not request a peer's stale healthy copy with collector verdict %s", async verdict => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, collector: verdict }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    expect(await a.e.round(), verdict).toEqual([]);
+    expect(theirs.exported, verdict).toEqual([]);
+    expect(mine.imported, verdict).toEqual([]);
+  }, 20_000);
+
+  it("does not export the active account while its verdict is missing, since that export is the live login", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("prefers a verified inactive copy over the active slot that has no verdict", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([
+      { num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null },
+      { num: 7, email: "s@x", orgUuid: "org", alive: true, active: false, collector: "ok" },
+    ]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([7]);
+  }, 20_000);
+
+  it("still exports an inactive account without a verdict, since that export is the stored copy", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: false, collector: null }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it.each(["keychain_unavailable", "token_expired"])("does not repeatedly heal a local copy during %s", async verdict => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false, collector: verdict }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([]);
+    expect(await a.e.round()).toEqual([]);
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
 });
 
 describe("what a peer is refused", () => {
@@ -460,6 +522,68 @@ describe("what the holder checks when a credential is asked for", () => {
     }
   }, 20_000);
 
+  it("refuses the active login when its verdict lapsed after the manifest", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const row = { num: 5, email: "s@x", orgUuid: "o", alive: true, active: true };
+    const theirs = store([{ ...row, collector: "ok" }]);
+    let reads = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: [{ ...row, collector: ++reads === 1 ? "ok" : null }] }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses the active login when the CLI is signed in as somebody else", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses the active login when the CLI cannot say who is signed in", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("gives the active login when the CLI is signed in as that account", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it("never asks the CLI who is signed in for an inactive login", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: false, collector: "ok" }]);
+    let asked = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => { asked++; return null; } });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(asked).toBe(0);
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
   it("says so when claude-swap exported nothing, rather than sealing nothing", async () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
@@ -472,19 +596,42 @@ describe("what the holder checks when a credential is asked for", () => {
     expect(mine.imported).toEqual([]);
   }, 20_000);
 
-  it("says a login it cannot read is unreadable, from state, without spawning an export", async () => {
+  it("says a login that becomes unreadable after its manifest cannot be exported", async () => {
     // The Keychain answer comes from claude-swap's verdict, which the wiring
     // folds into `readable` — never from the export's words, which never
     // mention the Keychain and whose stdout is the credential.
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
-    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, readable: false } as Row]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
     const a = await deck(mine, "Deck-A", [S]);
-    const b = await deck(theirs, "Deck-B", [S]);
+    let reads = 0;
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: theirs.rows.map(row => ({
+        ...row, readable: ++reads < 2,
+      })) }),
+    });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable" },
     ]);
     expect(theirs.exported, "an export that could only fail was spawned").toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("explains a Keychain lock reported by the collector after the manifest", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    let reads = 0;
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: theirs.rows.map(row => ({
+        ...row, collector: ++reads < 2 ? "ok" : "keychain_unavailable",
+      })) }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable" },
+    ]);
+    expect(theirs.exported).toEqual([]);
     expect(mine.imported).toEqual([]);
   }, 20_000);
 
@@ -1592,6 +1739,24 @@ describe("what a paired deck says about itself", () => {
       { key: K("shared@x.md", "o1"), email: "shared@x.md", alive: true },
     ]);
     expect(offers?.at).toBeTypeOf("number");
+  }, 20_000);
+
+  it("keeps a valid remote login unavailable when that deck cannot read its Keychain", async () => {
+    const key = K("locked@x.md", "o1");
+    const theirs = store([
+      { num: 5, email: "locked@x.md", orgUuid: "o1", alive: true, readable: false },
+    ]);
+    const mine = store([]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+
+    expect(await a.e.round()).toEqual([]);
+    expect(peerRow(a, b.id.fp)?.offers?.accounts).toEqual([
+      { key, email: "locked@x.md", alive: true, shareable: false },
+    ]);
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
   }, 20_000);
 
   it("remembers when somebody said yes, on both sides", async () => {

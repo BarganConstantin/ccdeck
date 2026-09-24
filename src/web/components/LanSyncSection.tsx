@@ -54,7 +54,7 @@ export interface DeckAbout { version: string | null; os: string | null; arch: st
 
 /** One account a paired deck offers, as its last manifest listed it. `alive`
  *  is that deck's verdict on its own copy, not this one's. */
-export interface OfferedAccount { key: string; email: string; alive: boolean }
+export interface OfferedAccount { key: string; email: string; alive: boolean; shareable?: boolean }
 
 /** One deck this one dials, as the status route reports it. */
 export interface Peer {
@@ -217,7 +217,7 @@ export interface LanReach {
 }
 
 /** The accounts this deck holds, in the shape the panel already has them. */
-export interface LanAccount { key: string; email: string; alive: boolean }
+export interface LanAccount { key: string; email: string; alive: boolean; shareable?: boolean }
 
 /** How long ago, in the panel's own vocabulary. Seconds are not printed: a
  *  beacon lands every thirty of them, so "12s ago" would be a number that
@@ -1159,7 +1159,15 @@ export function offerLine(
   mine: LanAccount | null,
   sharedHere: boolean,
 ): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
-  const here = !mine ? "not on this deck" : mine.alive ? "works here" : "expired here";
+  const here = !mine ? "not on this deck" : mine.alive
+    ? mine.shareable === false ? "cannot share here" : "works here"
+    : "expired here";
+  // A valid copy behind an unavailable Keychain is not broken and cannot be
+  // pulled. Say exactly that, without promising a transfer or telling the user
+  // to sign in again.
+  if (theirs.alive && theirs.shareable === false) {
+    return { there: "cannot share there", here, note: null, tone: "idle" };
+  }
   if (!theirs.alive) {
     // BOTH COPIES GONE is the one state with no repair anywhere, and it used
     // to wear the same warning ink as the state that is fixed with one tick.
@@ -1172,7 +1180,7 @@ export function offerLine(
   // `arrives here next round` in the state slot, which left a reader unable to
   // tell the present from the promise.
   if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
-  if (mine.alive) return { there: "works there", here, note: null, tone: "ok" };
+  if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false ? "idle" : "ok" };
   return sharedHere
     ? { there: "works there", here, note: "repairs next round", tone: "wait" }
     : { there: "works there", here, note: "share it to repair", tone: "bad" };
@@ -1203,9 +1211,9 @@ export interface Lane {
   key: string;
   email: string;
   /** This deck's copy. */
-  here: "works" | "expired" | "missing";
+  here: "works" | "expired" | "missing" | "unavailable";
   /** That deck's, as its last list said — `unknown` when it does not offer it. */
-  there: "works" | "broken" | "unknown";
+  there: "works" | "broken" | "unavailable" | "unknown";
   /** From that deck to this one; null when that deck does not offer it. */
   in: LaneFlow | null;
   /** From this deck to every paired deck; null when this deck does not offer it. */
@@ -1240,19 +1248,24 @@ export function exchangeLanes(
     const mine = byKey.get(theirs.key) ?? null;
     const giving = sharedHere.has(theirs.key);
     const said = offerLine(theirs, mine, giving);
-    const here = !mine ? "missing" : mine.alive ? "works" : "expired";
+    const here = !mine ? "missing" : !mine.alive ? "expired"
+      : mine.shareable === false ? "unavailable" : "works";
     // Both copies gone is the one note that already names both ends.
     const caption = !theirs.alive && mine && !mine.alive
       ? said.note
-      : [here === "works" ? null : said.here, theirs.alive ? null : said.there, said.note]
+      : [here === "works" ? null : said.here,
+          theirs.alive && theirs.shareable !== false ? null : said.there,
+          said.note]
           .filter(Boolean).join(" · ") || null;
     lanes.push({
       key: theirs.key,
       email: theirs.email,
       here,
-      there: theirs.alive ? "works" : "broken",
-      in: !theirs.alive ? "cut" : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
-      out: giving && mine ? (mine.alive ? "live" : "cut") : null,
+      there: !theirs.alive ? "broken" : theirs.shareable === false ? "unavailable" : "works",
+      in: !theirs.alive || theirs.shareable === false
+        ? "cut"
+        : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
+      out: giving && mine ? (mine.alive && mine.shareable !== false ? "live" : "cut") : null,
       caption,
       tone: said.tone,
       usedThere: current === theirs.key,
@@ -1266,12 +1279,12 @@ export function exchangeLanes(
     lanes.push({
       key,
       email: mine.email,
-      here: mine.alive ? "works" : "expired",
+      here: !mine.alive ? "expired" : mine.shareable === false ? "unavailable" : "works",
       there: "unknown",
       in: null,
-      out: mine.alive ? "live" : "cut",
-      caption: mine.alive ? null : "expired here",
-      tone: mine.alive ? "ok" : "bad",
+      out: mine.alive && mine.shareable !== false ? "live" : "cut",
+      caption: !mine.alive ? "expired here" : mine.shareable === false ? "cannot share here" : null,
+      tone: mine.alive ? mine.shareable === false ? "idle" : "ok" : "bad",
       // That deck does not offer it, so it is never named as the one it is on.
       usedThere: false,
     });

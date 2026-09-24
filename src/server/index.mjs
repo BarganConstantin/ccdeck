@@ -3954,6 +3954,27 @@ const tailnet = createTailnet();
 // When it does, the import skips its own detached collection — see importAccount.
 const CHECKS_IMPORTS = process.platform === "darwin";
 
+const ACTIVE_VERDICT_FIRST_RETRY_MS = 60_000;
+const ACTIVE_VERDICT_MAX_RETRY_MS = 30 * 60_000;
+const LIVE_LOGIN_TIMEOUT_MS = 5_000;
+let activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
+let activeVerdictNextAt = 0;
+// A claude-swap that never reports a verdict for the active slot would
+// otherwise cost a usage collection every minute for as long as LAN is on.
+function refreshActiveVerdict() {
+  if (Date.now() < activeVerdictNextAt) return;
+  activeVerdictNextAt = Date.now() + activeVerdictRetryMs;
+  activeVerdictRetryMs = Math.min(activeVerdictRetryMs * 2, ACTIVE_VERDICT_MAX_RETRY_MS);
+  void import("./claude-accounts.mjs")
+    .then(({ verdictsNow, invalidateClaudeAccountsCache }) =>
+      verdictsNow().then(got => { if (got) invalidateClaudeAccountsCache(); }))
+    .catch(() => {});
+}
+function activeVerdictArrived() {
+  activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
+  activeVerdictNextAt = 0;
+}
+
 const lanEngine = createEngine({
   tailnet,
   // Who holds the discovery port when it is taken, so the panel can say.
@@ -3973,18 +3994,45 @@ const lanEngine = createEngine({
     // elsewhere is an unreadable .enc file, and the sentence the peer prints
     // talks about a Keychain.
     if (!got || !Array.isArray(got.accounts)) return got;
+    // The active slot is withheld from peers until it has a fresh verdict — see
+    // cachedExportReadable — so ask for one now rather than waiting on the
+    // collector's own schedule.
+    if (got.accounts.some(a => a.active === true && a.collector == null)) refreshActiveVerdict();
+    else activeVerdictArrived();
     const { markUnreadable } = await import("./cswap-admin.mjs");
     return { ...got, accounts: markUnreadable(got.accounts) };
   },
-  exportAccount: async num => {
-    const { shareAccounts } = await import("./cswap-admin.mjs");
+  // Bounded well inside a round, since a want waits on it.
+  liveLogin: async () => {
+    const { currentIdentity } = await import("./cswap-admin.mjs");
+    const late = new Promise(resolve => setTimeout(resolve, LIVE_LOGIN_TIMEOUT_MS, null).unref?.());
+    return Promise.race([currentIdentity().catch(() => null), late]);
+  },
+  exportAccount: async (num, expectedKey) => {
+    const { accountKey } = await import("./lan-sync.mjs");
+    const { shareAccounts, unwrapShare } = await import("./cswap-admin.mjs");
+    // Do not collect live verdicts here. A LAN want has a ten-second round
+    // budget, while a verdict collection may wait up to ninety seconds (or
+    // queue behind another one). The want handler already re-reads this deck's
+    // cached account state immediately before export and refuses known
+    // unreadable/dead copies. The share itself is therefore the only bounded
+    // operation left on the hot path.
+    //
     // Without the explanation, which would outlast the asking peer's patience;
     // see shareAccounts.
     const out = await shareAccounts([String(num)], { explain: false });
     // The blob or nothing. WHY it failed is never carried out of here: the
     // engine decides what a peer is told from this deck's state — see
     // `readable` in readAccounts below.
-    return out?.ok ? out.blob : null;
+    if (!out?.ok) return null;
+    const opened = unwrapShare(out.blob);
+    if (!opened.ok) return null;
+    let accounts;
+    try { accounts = JSON.parse(opened.payload)?.accounts; } catch { return null; }
+    if (!Array.isArray(accounts) || accounts.length !== 1) return null;
+    // Slot numbers are local. Verify the payload identity after export so a
+    // moved/reused slot can never satisfy a want for another account.
+    return accountKey(accounts[0]?.email, accounts[0]?.organizationUuid) === expectedKey ? out.blob : null;
   },
   // The logins a round just imported, checked once after it — see checkImports.
   checkArrivals: async steps => {
@@ -6392,6 +6440,7 @@ function cswapAutoModule() {
 const PINNED_MODULES = [
   "self-update.mjs",
   "claude-accounts.mjs",
+  "account-health.mjs",
   "cswap-admin.mjs",
   "cswap-auto.mjs",
   "quota.mjs",

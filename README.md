@@ -215,6 +215,8 @@ The deck installs that package itself, so it installs it **bounded**: `claude-sw
 
 **`↗`** in the panel header does the same for a set of them, which is what moving your accounts from home to work actually is. Tick the ones to send — all of them to start — and one blob carries the set. The dialog counts sign-in tokens rather than rows, and an account that cannot be exported is named rather than quietly dropped, so the number on the copy button is always the number in the blob.
 
+**On macOS, the login itself lives in the Keychain.** If ccdeck is running from SSH, a LaunchAgent, or another session that cannot open that Keychain, the account may still be valid while this process cannot read or share it. ccdeck shows that state as **cannot share here** instead of calling the login expired, refuses clipboard and LAN exports from it, and tells you to start ccdeck from a Terminal window on the Mac itself. Once claude-swap can read the Keychain again, the account becomes shareable normally.
+
 An import adds what is missing and leaves a working account exactly as it is. The one it does rewrite unasked is a slot claude-swap has itself quarantined as refresh-token-dead, which is what heals a machine whose login stopped working. The result names every account in the paste — imported, already here, healed, or refused — and an account it skipped can be overwritten one at a time with **update anyway**.
 
 > [!WARNING]
@@ -252,6 +254,8 @@ Four pictures, which are also the guide the section opens from `See how it works
 **When they do not find each other** — a VPN, a guest network, two subnets — `+` at the top of the section reaches a deck by address, or with an invite the other deck minted. An invite is the route when the machine that cannot be seen is this one.
 
 **What is shared, and with whom.** Nothing until you tick a login, and then only that login, and only with decks somebody at this machine accepted — the deck asks the machines it finds, and a machine that is asked waits for somebody there to press `accept` — unless its `Say yes to every deck that asks` switch, in the same dialog, is on. A paired deck can fill an *expired* slot of this deck's and nothing else: it cannot overwrite a login that still works here. What crosses the wire is the same live credential a share carries, sealed to the deck it is addressed to, so treat the pairing decision as the moment that matters. Unpairing stops future rounds; a login already copied stays where it went.
+
+On a Mac, **cannot share here** is different from **expired here**. It means this ccdeck process cannot read the Keychain copy, so that machine is not used as a credential source and another deck does not keep trying to “repair” the same healthy slot every minute. A LAN import is checked after it lands too; if the receiving Mac still cannot read the Keychain, the round reports that problem instead of claiming the login was repaired.
 
 ## Options
 

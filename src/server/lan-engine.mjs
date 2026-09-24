@@ -28,6 +28,7 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import { accountKey, currentFor, manifestFor, onePerKey, open, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge } from "./lan-sync.mjs";
+import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
@@ -165,7 +166,9 @@ export function offered(list) {
     .map(a => ({
       key: flatten(a.key, 320),
       email: flatten(a.email, 254),
-      alive: a.alive === true,
+      alive: storedCopyAlive(a.alive, a.collector),
+      // Additive wire field: an older peer omitted it, which means shareable.
+      ...(a.shareable === false ? { shareable: false } : {}),
     }))
     .filter(a => a.key && a.email))
     // Fifty IDENTITIES, so the cap is spent after onePerKey rather than before
@@ -216,7 +219,7 @@ export function ticksOnArrival(step, via) {
 }
 
 export function createEngine({
-  readAccounts, exportAccount, importAccount, checkArrivals,
+  readAccounts, exportAccount, importAccount, checkArrivals, liveLogin,
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
@@ -495,11 +498,14 @@ export function createEngine({
     return (got?.accounts ?? []).map(a => ({
       key: accountKey(a.email, a.orgUuid),
       email: a.email,
-      alive: a.alive === true,
+      org: a.orgUuid,
+      alive: storedCopyAlive(a.alive, a.collector),
       // False only for a login the wiring knows this process cannot read (a
       // Mac whose Keychain will not open from here). Absent means readable,
       // which is every deck that does not say.
-      readable: a.readable !== false,
+      readable: a.readable !== false && cachedExportReadable(a.collector, { active: a.active === true }),
+      unreadableWhy: a.readable === false || a.collector === "keychain_unavailable"
+        ? SENDER_UNREADABLE : "export failed",
       num: a.num,
       // The one this deck is on — claude-swap's own answer, one at most.
       active: a.active === true,
@@ -632,13 +638,20 @@ export function createEngine({
         // slots for one identity, an expired one listed first must not hide a
         // live one behind it.
         const mine = slotFor(accounts, msg.key);
-        if (!mine?.alive) return ctx.send({ t: "no", why: "not mine to give" });
+        if (!mine) return ctx.send({ t: "no", why: "not mine to give" });
         // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
         // a failed export: no subprocess, and nothing the CLI printed. The
         // asking deck prints it under the account, so the person learns which
         // machine to unlock instead of reading "export failed".
-        if (!mine.readable) return ctx.send({ t: "no", why: SENDER_UNREADABLE });
-        const blob = await exportAccount(mine.num);
+        if (!mine.readable) return ctx.send({ t: "no", why: mine.unreadableWhy });
+        if (!mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
+        // The active slot exports the live CLI login, and its verdict can
+        // predate a `/login` as somebody else, so ask the CLI who it is now.
+        if (mine.active && liveLogin && !liveLoginIs(await liveLogin(), mine.email, mine.org)) {
+          return ctx.send({ t: "no", why: "export failed" });
+        }
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
+        const blob = await exportAccount(mine.num, msg.key);
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A Mac's failed export refreshes the verdict behind `readable` in the
         // background, so when the Keychain was why, the next ask is answered by
