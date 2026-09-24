@@ -431,7 +431,7 @@ export function createBeacon({
 
   /** One try at the discovery port: the listening socket, or the error that
    *  kept it. A bind that fails never calls back; it arrives as an error. */
-  const listen = () => new Promise(resolve => {
+  const listen = (startedIn) => new Promise(resolve => {
     let s;
     try { s = createSocket({ type: "udp4", reuseAddr: true }); } catch (err) { resolve({ err }); return; }
     let bound = false;
@@ -440,7 +440,12 @@ export function createBeacon({
       try { s.close(); } catch { /* never opened */ }
       resolve({ err });
     });
-    s.on("message", onMessage);
+    // close() can leave a message callback queued. After restart, stopped is
+    // false again, so the socket's own generation must also be checked.
+    s.on("message", (msg, rinfo) => {
+      if (startedIn !== startGeneration) return;
+      onMessage(msg, rinfo);
+    });
     s.bind(DISCOVERY_PORT, "0.0.0.0", () => {
       bound = true;
       try { s.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
@@ -450,7 +455,7 @@ export function createBeacon({
 
   const tryListen = async (startedIn) => {
     if (stopped || startedIn !== startGeneration) return;
-    const got = await listen();
+    const got = await listen(startedIn);
     if (stopped || startedIn !== startGeneration) { try { got.sock?.close(); } catch { /* gone */ } return; }
     if (got.sock) {
       sock = got.sock;

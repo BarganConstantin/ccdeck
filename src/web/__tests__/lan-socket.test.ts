@@ -644,6 +644,31 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("rejects datagrams queued by the previous socket after discovery restarts", async () => {
+    const oldSocket = fakeSocket();
+    const currentSocket = fakeSocket();
+    const sockets = [oldSocket, fakeSocket(), currentSocket, fakeSocket()];
+    const peer = beaconOn(fakeSocket());
+    const { b, seen } = beaconOn(oldSocket, {
+      trustedFps: [peer.fp], createSocket: () => sockets.shift(),
+    });
+    await b.start();
+    b.stop();
+    await b.start();
+    const packet = Buffer.from(JSON.stringify({
+      m: "CCDK", v: PROTOCOL, n: "Trusted", f: peer.fp, p: 4319, i: "0badc0de",
+    }));
+
+    oldSocket.deliver(packet, "192.168.1.42");
+    expect(seen).toEqual([]);
+    expect(b.peers.size).toBe(0);
+
+    currentSocket.deliver(packet, "192.168.1.43");
+    expect(seen).toHaveLength(1);
+    expect(b.peers.get(peer.fp).addr).toBe("192.168.1.43");
+    b.stop();
+  });
+
   it("ignores queued peer and stranger datagrams after discovery is stopped", async () => {
     const sock = fakeSocket();
     const peer = beaconOn(fakeSocket());
