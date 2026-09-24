@@ -352,9 +352,26 @@ let _verdicts = { at: 0, byNum: {} };
  *  verdict: "no credentials" under an account somebody has since signed into is
  *  a sentence that sends them to fix what is already fixed. */
 const VERDICT_TTL_MS = 10 * 60_000;
-/** One `cswap list --json` at a time. A collection can take a while on a cold
- *  network, and a nudge landing inside one must not start a second. */
-let _verdictInFlight = null;
+/** Run one `cswap list --json` at a time. A post-write question must start
+ * after any older collection has finished; routine readers can share the
+ * latest pending answer without starting another slow collection. */
+export function createVerdictQueue(collect) {
+  let pending = null;
+  return {
+    ask({ fresh = false } = {}) {
+      if (pending && !fresh) return pending;
+      const previous = pending;
+      const next = previous ? previous.then(collect, collect) : Promise.resolve().then(collect);
+      pending = next;
+      void next.then(
+        () => { if (pending === next) pending = null; },
+        () => { if (pending === next) pending = null; },
+      );
+      return next;
+    },
+    busy() { return pending !== null; },
+  };
+}
 
 /**
  * Ask claude-swap about one account RIGHT NOW, rather than reading the cache.
@@ -374,7 +391,7 @@ let _verdictInFlight = null;
 export async function verdictNow(email, org, { runner = run, bin = cswapBin } = {}) {
   const want = String(email ?? "").trim().toLowerCase();
   if (!want) return null;
-  const all = await verdictsNow({ runner, bin });
+  const all = await verdictsNow({ runner, bin, fresh: true });
   return all?.find(a => a.email === want && a.org === (org ?? ""))?.status ?? null;
 }
 
@@ -408,15 +425,14 @@ async function collectVerdicts({ runner, bin }) {
   } catch { return null; }
 }
 
-/** Failed exports, import checks and routine collection share the same live
- * question. Starting a second process can both waste 90 seconds and replace a
- * newer verdict with the result of an older collection that finished later. */
-export function verdictsNow({ runner = run, bin = cswapBin } = {}) {
+const verdictQueue = createVerdictQueue(() => collectVerdicts({ runner: run, bin: cswapBin }));
+
+/** Routine readers share a collection; post-write callers wait for any older
+ * collection and start a new one, so they never inspect the pre-write store. */
+export function verdictsNow({ runner = run, bin = cswapBin, fresh = false } = {}) {
   // Tests and callers supplying their own runner must receive their own answer.
   if (runner !== run || bin !== cswapBin) return collectVerdicts({ runner, bin });
-  if (_verdictInFlight) return _verdictInFlight;
-  _verdictInFlight = collectVerdicts({ runner, bin }).finally(() => { _verdictInFlight = null; });
-  return _verdictInFlight;
+  return verdictQueue.ask({ fresh });
 }
 
 /** claude-swap's verdict for a slot, or null when there is none fresh enough. */
@@ -467,7 +483,7 @@ function nudgeCollector(rows, slots, now, activeNum) {
     cswapBin().then(bin => runDetached(bin, ["auto", "--once", "--dry-run", "--json"])).catch(() => {});
     return;
   }
-  if (_verdictInFlight) return;
+  if (verdictQueue.busy()) return;
   // Fire-and-forget: this function is deliberately synchronous so callers never
   // wait on it, and resolving the binary is the only async part. `run` rather
   // than `runDetached` only so the output can be read; the caller is no more

@@ -18,6 +18,14 @@ const SECTION = code("../components/LanSyncSection.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
+describe("peer dialog connection hints", () => {
+  it("keeps the one-way pairing explanation beside a Keychain round remedy", () => {
+    expect(MODAL).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
+    expect(MODAL).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
+    expect(MODAL).not.toContain("line?.hint ?? row.hint");
+  });
+});
+
 const paired = (over: Record<string, unknown> = {}) => ({
   fp: "aaa-aaa-aaa-aaa", peerFp: "aaa-aaa-aaa-aaa", name: "Dorin Marketing", paired: true,
   addr: "192.168.1.44", port: 52011, lastSeen: NOW, last: { at: NOW, done: [] }, ...over,

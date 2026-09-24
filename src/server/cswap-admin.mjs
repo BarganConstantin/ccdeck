@@ -53,7 +53,7 @@ const CSWAP_TIMEOUT_MS = 60_000;
 /** Fresh verdict rows for several identities from one `cswap list --json`, in
  *  the order asked; null for any claude-swap would not answer for. */
 async function rowsNow(ids, verdicts) {
-  const all = await verdicts();
+  const all = await verdicts({ fresh: true });
   return ids.map(({ email, org }) => {
     const want = String(email ?? "").trim().toLowerCase();
     return all?.find(a => a.email === want && a.org === (org ?? "")) ?? null;
@@ -87,6 +87,12 @@ const AFTER_IMPORT = {
   relogin_required: HERE.expired,
 };
 
+/** A Mac's locally unreadable login cannot be offered to a paired deck. */
+export function markUnreadable(accounts, platform = process.platform) {
+  if (platform !== "darwin" || !Array.isArray(accounts)) return accounts;
+  return accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a);
+}
+
 /**
  * The logins a round just imported, checked once from inside this process.
  *
@@ -106,12 +112,6 @@ const AFTER_IMPORT = {
  * login says nothing about the import and reads as unverified. A Keychain it
  * cannot open still counts: it is the same Keychain, from the same session.
  */
-/** A Mac's locally unreadable login cannot be offered to a paired deck. */
-export function markUnreadable(accounts, platform = process.platform) {
-  if (platform !== "darwin" || !Array.isArray(accounts)) return accounts;
-  return accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a);
-}
-
 export async function checkImports(ids, { platform = process.platform, verdicts = verdictsNow } = {}) {
   if (platform !== "darwin" || !ids.length) return ids.map(() => null);
   const got = await rowsNow(ids, verdicts);

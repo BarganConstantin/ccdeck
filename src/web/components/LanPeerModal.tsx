@@ -507,7 +507,8 @@ export default function LanPeerModal({
               {silence && <p className="lan-note lan-link-note">{silence}</p>}
               {/* The one-way case in full — the sentence the row's tooltip used
                   to carry, which is the only place it is ever explained. */}
-              {(peer?.waiting || line?.hint) && <p className="lan-note lan-link-note">{line?.hint ?? row.hint}</p>}
+              {peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>}
+              {line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>}
             </div>
 
             {lanes.length > 0 && (

@@ -13,6 +13,34 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, checkImportResults, markUnreadable, importOutcomes, landed, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+// @ts-expect-error — plain JS module, no types
+import { createVerdictQueue } from "../../server/claude-accounts.mjs";
+
+describe("fresh import verdicts", () => {
+  it("waits for a running pre-import collection and asks again after the write", async () => {
+    const oldRows = [{ email: "new@x", org: "o", status: "relogin_required" }];
+    const newRows = [{ email: "new@x", org: "o", status: "ok" }];
+    let releaseOld!: (rows: typeof oldRows) => void;
+    const older = new Promise<typeof oldRows>(resolve => { releaseOld = resolve; });
+    let calls = 0;
+    const queue = createVerdictQueue(() => ++calls === 1 ? older : Promise.resolve(newRows));
+    const routine = queue.ask();
+    await Promise.resolve(); // the routine collector has already read the old store
+    expect(calls).toBe(1);
+
+    const afterImport = checkImports([{ email: "new@x", org: "o" }], {
+      platform: "darwin", verdicts: queue.ask,
+    });
+    expect(queue.ask()).toBe(queue.ask()); // routine readers join the pending fresh result
+    expect(calls).toBe(1); // a fresh result cannot start ahead of the old collector
+    releaseOld(oldRows);
+
+    expect(await routine).toEqual(oldRows);
+    expect(await afterImport).toEqual([null]); // the new healthy login, not the old expired one
+    expect(calls).toBe(2);
+    expect(queue.busy()).toBe(false);
+  });
+});
 
 describe("sender readiness mapping", () => {
   it("marks a Mac Keychain verdict unreadable before the LAN engine offers it", () => {
