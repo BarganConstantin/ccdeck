@@ -711,7 +711,10 @@ export function createEngine({
           fn(arg);
         };
         const onClose = () => give(reject, new Error("peer closed the connection"));
-        const onError = () => give(reject, new Error("peer connection failed"));
+        // The errno rides along in the sentence, because faultText reads it
+        // there: ECONNRESET is "it hung up" on the row, and a bare "peer
+        // connection failed" was the one fault the panel could only repeat.
+        const onError = err => give(reject, new Error(`peer connection failed${err?.code ? ` (${err.code})` : ""}`));
         const onData = chunk => {
           buf += chunk;
           if (buf.length > MAX_FRAME_BYTES) {
@@ -741,12 +744,12 @@ export function createEngine({
         conn.sock.on("close", onClose);
         conn.sock.on("error", onError);
         // And out through its own writer, which seals whenever the reader opens.
-        try {
-          if (conn.sock.destroyed) return onClose();
-          conn.send(frame);
-        } catch {
-          give(reject, new Error("peer connection failed"));
-        }
+        // A dead socket cannot throw here — sendFrame swallows a failed write,
+        // and `close`/`error` above are what report it. What CAN throw is the
+        // seal running out of counter, which is this deck's limit and not a
+        // network drop, so it is rejected under its own name.
+        if (conn.sock.destroyed) return onClose();
+        try { conn.send(frame); } catch (err) { give(reject, err); }
       });
 
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`

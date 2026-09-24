@@ -19,14 +19,14 @@
 // comes back to every socket on the sending host. That was measured before any
 // of this was written and it is the same fact that makes self-recognition a
 // fingerprint question rather than an address question.
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
 import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
-import { parseAddress } from "../components/LanSyncSection";
+import { faultText, parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -182,6 +182,40 @@ describe("the account that is dead here and alive there", () => {
     expect(a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last?.error)
       .toBe("peer closed the connection");
     expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("names a reset mid-request the way the panel can say it", async () => {
+    // Every socket the decks accept, so the sender can RESET its end — an RST,
+    // not a FIN — which is what the requester sees as ECONNRESET.
+    const accepted: net.Socket[] = [];
+    const real = net.createServer.bind(net);
+    const spy = vi.spyOn(net, "createServer").mockImplementation(((onConn: (s: net.Socket) => void) =>
+      real(s => { accepted.push(s); onConn(s); })) as typeof net.createServer);
+    try {
+      const email = "reset@example.com";
+      const key = K(email, "org-reset");
+      const mine = store([]);
+      const theirs = store([{ num: 5, email, orgUuid: "org-reset", alive: true }]);
+      const a = await deck(mine, "Receiver", [key]);
+      let b: Awaited<ReturnType<typeof deck>>;
+      b = await deck(theirs, "Sender", [key], {
+        exportAccount: async () => {
+          for (const s of accepted) if (s.localPort === b.port && !s.destroyed) s.resetAndDestroy();
+          return "ccdeck2:slot-5";
+        },
+      });
+      await point(a, b, b.port);
+
+      const started = Date.now();
+      expect(await a.e.round()).toEqual([]);
+      expect(Date.now() - started).toBeLessThan(2_000);
+      const error = a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last?.error;
+      expect(error).toBe("peer connection failed (ECONNRESET)");
+      expect(faultText(error)).toBe("it hung up");
+      expect(mine.imported).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
   }, 20_000);
 
   it("is healed, which is the whole feature", async () => {
