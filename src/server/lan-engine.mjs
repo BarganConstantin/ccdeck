@@ -844,11 +844,16 @@ export function createEngine({
       const wanted = plan(mine, list)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
       const done = [];
-      const mayImport = step => generation === startedIn && cfg.enabled && !!beacon
-        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub
-        && (step.action !== "heal" || cfg.shared.includes(step.key));
+      // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
+      // a stop, LAN switched off, the peer unpaired — ends the round. A heal
+      // unticked mid-round ends only that heal: the adds behind it need no
+      // tick, and the skipped row says why rather than vanishing.
+      const stillPaired = () => generation === startedIn && cfg.enabled && !!beacon
+        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
+      const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
       for (const step of wanted) {
-        if (!mayImport(step)) break;
+        if (!stillPaired()) break;
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
           t: "want", key: step.key, nonce,
@@ -861,7 +866,8 @@ export function createEngine({
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
         // Unpairing, disabling LAN, or unticking a heal while export was in
         // progress takes effect before the received credential touches disk.
-        if (!mayImport(step)) break;
+        if (!stillPaired()) break;
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still

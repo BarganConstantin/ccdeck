@@ -879,6 +879,37 @@ describe("unpairing", () => {
     expect(receiverStore.imported).toEqual([]);
   }, 20_000);
 
+  it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
+    const A = K("a-heal@x", "o");
+    const B = K("b-add@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([{ num: 1, email: "a-heal@x", orgUuid: "o", alive: false }]);
+    const senderStore = store([
+      { num: 5, email: "a-heal@x", orgUuid: "o", alive: true },
+      { num: 6, email: "b-add@x", orgUuid: "o", alive: true },
+    ]);
+    const receiver = await deck(receiverStore, "Receiver", [A]);
+    const sender = await deck(senderStore, "Sender", [A, B], {
+      exportAccount: async (num: number) => {
+        if (num === 5) { started(); await gate; }
+        return `ccdeck2:slot-${num}`;
+      },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ shared: [] });
+    release();
+    expect(await transfer).toEqual([
+      { key: A, email: "a-heal@x", action: "heal", ok: false, why: "not shared" },
+      { key: B, email: "b-add@x", action: "add", ok: true, why: null },
+    ]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-6"]);
+  }, 20_000);
+
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
     const a = await deck(store([]), "Deck-A", []);
     const b = await deck(store([]), "Deck-B", []);
