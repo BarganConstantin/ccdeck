@@ -33,6 +33,7 @@ interface Report {
 
 /** The windows, and their chip labels. 0 = everything tracked. */
 const WINDOWS: Array<{ days: number; label: string }> = [
+  { days: 1, label: "Today" },
   { days: 7, label: "7d" },
   { days: 30, label: "30d" },
   { days: 0, label: "All" },
@@ -100,7 +101,7 @@ function niceDate(ms: number | null): string {
 }
 
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(1);
   const [report, setReport] = useState<Report | null>(null);
   // The raw ccusage range for the window — the dollar authority. Null while
   // loading or when ccusage could not be reached (then pricing.ts stands in).
@@ -263,7 +264,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const trackedNote = report?.trackedSince
     ? `Tracked since ${niceDate(report.trackedSince)}`
     : "Tracking starts with this version";
-  const windowWord = days === 0 ? "all time" : `the last ${days} days`;
+  const windowWord = days === 0 ? "all time" : days === 1 ? "today" : `the last ${days} days`;
 
   // Portalled to <body>: the report is opened from inside AccountsPanel, and a
   // dialog left in the panel's subtree is laid out by it (panel-modal-portal).
