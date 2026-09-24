@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { collectBursts } from "../components/ToolBursts";
 import type { AgentNodeData } from "../types";
 import { readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
+import { pointInRect } from "../trash-zone";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -142,6 +143,21 @@ describe("bringing removed cards back", () => {
     expect(sessionsCalledBack([{ id: "s1" }, { id: "s2" }], hidden)).toEqual(["s1"]);
     expect(sessionsCalledBack([{ id: "s2" }], hidden)).toEqual([]);
     expect(sessionsCalledBack([{ id: "s1" }], new Set())).toEqual([]);
+  });
+});
+
+describe("drag-to-trash hit testing", () => {
+  const target = { left: 400, right: 620, top: 700, bottom: 758 };
+
+  it("removes only when the pointer release lands inside the target", () => {
+    expect(pointInRect({ clientX: 510, clientY: 729 }, target)).toBe(true);
+    expect(pointInRect({ clientX: 399, clientY: 729 }, target)).toBe(false);
+    expect(pointInRect({ clientX: 510, clientY: 699 }, target)).toBe(false);
+  });
+
+  it("counts the visible edge as part of the generous target", () => {
+    expect(pointInRect({ clientX: 400, clientY: 700 }, target)).toBe(true);
+    expect(pointInRect({ clientX: 620, clientY: 758 }, target)).toBe(true);
   });
 });
 

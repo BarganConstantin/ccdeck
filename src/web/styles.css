@@ -3487,6 +3487,72 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   overflow: hidden;
 }
 
+/* A viewport target for the gesture in #1264. It is deliberately compact in
+   width but generous in height: reaching the bottom centre is intentional,
+   while an ordinary move near either lower corner cannot accidentally remove
+   a card. Pointer events stay with React Flow; App hit-tests the release against
+   this box so the drag gesture is never interrupted by the target itself. */
+.drag-trash-zone {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 12;
+  min-width: 220px;
+  min-height: 58px;
+  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--err) 65%, transparent);
+  border-radius: var(--r-panel);
+  background: color-mix(in srgb, var(--panel) 94%, var(--err) 6%);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-1);
+  font-size: 12px;
+  font-weight: 650;
+  pointer-events: none;
+  animation: dragTrashIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+.drag-trash-zone.over {
+  border-color: var(--err);
+  background: color-mix(in srgb, var(--panel) 84%, var(--err) 16%);
+  color: var(--err);
+}
+.drag-trash-zone.leaving { animation: dragTrashOut 140ms ease both; }
+.drag-trash-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.drag-trash-zone.over .drag-trash-icon { transform: scale(1.16); }
+.react-flow__node.dragging .agent-node {
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.canvas-wrap.trash-hover .react-flow__node.dragging { opacity: 0.48; }
+.canvas-wrap.trash-hover .react-flow__node.dragging .agent-node { transform: scale(0.94); }
+@keyframes dragTrashIn {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes dragTrashOut {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to { opacity: 0; transform: translate(-50%, 12px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-trash-zone,
+  .drag-trash-zone.leaving { animation: none; transform: translateX(-50%); }
+  .drag-trash-zone,
+  .drag-trash-icon,
+  .react-flow__node.dragging .agent-node { transition: none; }
+}
+
 /* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
    filter bar above and the controls and minimap in the corners. A status and
    an action in one small strip, on the surface and edge the canvas's other
