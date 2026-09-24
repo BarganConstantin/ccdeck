@@ -15,6 +15,7 @@ import { reconcile, type Counters, type CcCell } from "../account-projects-recon
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { emptyWindowSentence, showsDayChart, widerWindow, windowPhrase } from "../account-projects-window";
 
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
 interface DailyEntry {
@@ -33,6 +34,7 @@ interface Report {
 
 /** The windows, and their chip labels. 0 = everything tracked. */
 const WINDOWS: Array<{ days: number; label: string }> = [
+  { days: 1, label: "Today" },
   { days: 7, label: "7d" },
   { days: 30, label: "30d" },
   { days: 0, label: "All" },
@@ -100,8 +102,12 @@ function niceDate(ms: number | null): string {
 }
 
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(1);
   const [report, setReport] = useState<Report | null>(null);
+  // The window the report on screen belongs to. While another window loads,
+  // the last report stays up, dimmed, rather than the modal collapsing to a
+  // Loading line and jumping back open.
+  const [shownDays, setShownDays] = useState(days);
   // The raw ccusage range for the window — the dollar authority. Null while
   // loading or when ccusage could not be reached (then pricing.ts stands in).
   // Per-model and per-day-per-model costs are derived from it in the memo.
@@ -144,11 +150,12 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
       .then(([j, u]: [Report, unknown]) => {
         if (id !== reqId.current) return;
         setReport(j);
+        setShownDays(days);
         const range = u as { ok?: unknown } | null;
         setCcRange(range && range.ok !== false ? range : null);
         setLoading(false);
       })
-      .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setLoading(false); } });
+      .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setReport(null); setLoading(false); } });
   }, [num, days]);
 
   // One reconciliation, per day, aggregated — so period, project, day and
@@ -263,7 +270,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const trackedNote = report?.trackedSince
     ? `Tracked since ${niceDate(report.trackedSince)}`
     : "Tracking starts with this version";
-  const windowWord = days === 0 ? "all time" : `the last ${days} days`;
+  const windowWord = windowPhrase(shownDays);
+  const wider = widerWindow(shownDays);
+  const refreshing = loading && !!report;
 
   // Portalled to <body>: the report is opened from inside AccountsPanel, and a
   // dialog left in the panel's subtree is laid out by it (panel-modal-portal).
@@ -287,15 +296,22 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
           <button ref={closeRef} className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 
-        <div className="ap-proj-body">
-          {loading && <div className="ap-proj-state">Loading…</div>}
+        <div className={`ap-proj-body${refreshing ? " refreshing" : ""}`} aria-busy={loading}>
+          {loading && !report && <div className="ap-proj-state">Loading…</div>}
           {!loading && error && <div className="ap-proj-state ap-proj-error">Couldn’t load this report: {error}</div>}
 
-          {!loading && !error && view && (
+          {!error && view && (
             <>
               {view.rows.length === 0 ? (
                 <div className="ap-proj-state">
-                  No work attributed to this account in {windowWord}.
+                  {emptyWindowSentence(shownDays)}
+                  {wider != null && (
+                    <div className="ap-proj-widen-wrap">
+                      <button type="button" className="ap-proj-copy" onClick={() => setDays(wider)}>
+                        Show {windowPhrase(wider)}
+                      </button>
+                    </div>
+                  )}
                   <div className="ap-proj-note">{trackedNote}. Only work from this version onward can be tied to an account.</div>
                 </div>
               ) : (
@@ -319,7 +335,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     <span className="ap-proj-total-win">· {windowWord}</span>
                   </div>
 
-                  {view.chart.length > 0 && (
+                  {showsDayChart(shownDays, view.chart.length) && (
                     <div className="ap-proj-days">
                       <div className="ap-proj-days-cap">By day{view.chart.length > 1 ? " · click a bar" : ""}</div>
                       <div className="ap-proj-days-plot" role="img"

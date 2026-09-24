@@ -6317,14 +6317,14 @@ function getProjectRollup() {
  * The "Projects" report for one account: how many tokens it spent per project
  * over a window. The server tallies only tokens (per model); the web side
  * prices them with its own table, so cost never lives in two places. `num` is
- * the account's slot, resolved to its `(email, org)` key here; `days` is 7, 30,
- * or 0 for all tracked.
+ * the account's slot, resolved to its `(email, org)` key here; `days` is 1, 7,
+ * 30, or 0 for all tracked.
  */
 async function handleAccountProjects(req, res) {
   const url = new URL(req.url, "http://localhost");
   const num = Number(url.searchParams.get("num"));
   const d = Number(url.searchParams.get("days"));
-  const days = d === 30 ? 30 : d === 0 ? 0 : 7;
+  const days = d === 1 ? 1 : d === 30 ? 30 : d === 0 ? 0 : 7;
   if (!Number.isInteger(num) || num <= 0) return send(res, 400, { ok: false, reason: "bad_account" });
   const { identityForSlot } = await import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href);
   const id = await identityForSlot(num);

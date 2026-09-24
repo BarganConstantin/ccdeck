@@ -14554,6 +14554,15 @@ input, textarea { caret-color: var(--accent); }
 
 .ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
 .ap-proj-error { color: var(--text); }
+/* Switching windows keeps the last report up, dimmed, until the next lands. */
+.ap-proj-body > * { transition: opacity 140ms ease; }
+.ap-proj-body.refreshing > * { opacity: 0.55; }
+/* The way out of an empty window: the next wider one, one press away, drawn
+   as the report's own Copy control. */
+.ap-proj-widen-wrap { margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .ap-proj-body > * { transition: none; }
+}
 .ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
 
 /* The one-glance stacked bar: 100% of this account's spend on the window. */
