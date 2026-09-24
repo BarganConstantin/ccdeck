@@ -204,6 +204,26 @@ describe("the port it listens on", () => {
     expect(got).not.toBe(port);
   });
 
+  it("does not leave a listener behind when stopped before its bind finished", async () => {
+    // With a host, `listen` binds only after a dns.lookup, and a close before
+    // that has no handle to close. The bind then lands with nobody owning it.
+    const probe = net.createServer();
+    const free = await new Promise<number>(resolve => probe.listen(0, "127.0.0.1", () => resolve((probe.address() as net.AddressInfo).port)));
+    await new Promise(r => probe.close(r));
+    const { s } = server({ prefer: free });
+    const starting = s.start();
+    s.stop();
+    expect(await starting).toBeNull();
+    await new Promise(r => setTimeout(r, 120));
+    const again = net.createServer();
+    const bound = await new Promise<boolean>(resolve => {
+      again.once("error", () => resolve(false));
+      again.listen(free, "127.0.0.1", () => resolve(true));
+    });
+    await new Promise(r => again.close(r));
+    expect(bound, "the cancelled start still holds the port").toBe(true);
+  });
+
   it("still asks the OS when it has no port to remember", async () => {
     const { s } = server({ prefer: 0 });
     expect(await s.start()).toBeGreaterThan(0);
@@ -624,6 +644,27 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("ignores queued peer and stranger datagrams after discovery is stopped", async () => {
+    const sock = fakeSocket();
+    const peer = beaconOn(fakeSocket());
+    const stranger = beaconOn(fakeSocket());
+    const { b, seen, strangers } = beaconOn(sock, { trustedFps: [peer.fp] });
+    await b.start();
+    const sentBeforeStop = sock.sent.length;
+    b.stop();
+
+    for (const [name, fp] of [["Trusted", peer.fp], ["Stranger", stranger.fp]]) {
+      sock.deliver(Buffer.from(JSON.stringify({
+        m: "CCDK", v: PROTOCOL, n: name, f: fp, p: 4319, i: "0badc0de",
+      })), "192.168.1.42");
+    }
+
+    expect(seen).toEqual([]);
+    expect(strangers).toEqual([]);
+    expect(b.peers.size).toBe(0);
+    expect(sock.sent).toHaveLength(sentBeforeStop);
+  });
+
   it("closes an outbound socket that finishes binding after the beacon stopped", async () => {
     let finishBind!: () => void;
     let binding!: () => void;

@@ -536,6 +536,33 @@ describe("what the holder checks when a credential is asked for", () => {
 });
 
 describe("the switch, and what turning it off means", () => {
+  it("finishes an in-flight startup when LAN is immediately switched off", async () => {
+    const e = createEngine({ ...store([]).deps(), createSocket: () => deafSocket() });
+    running.push(e);
+    const starting = e.apply({ enabled: true });
+    await e.apply({ enabled: false });
+    const result = await Promise.race([
+      starting.then(() => "finished", () => "failed"),
+      new Promise<string>(resolve => setTimeout(() => resolve("stuck"), 200)),
+    ]);
+    expect(result).toBe("finished");
+    expect(e.status().running).toBe(false);
+    expect(e.status().enabled).toBe(false);
+  });
+
+  it("does not let an aborted startup replace a new listener", async () => {
+    const e = createEngine({ ...store([]).deps(), createSocket: () => deafSocket() });
+    running.push(e);
+    const previous = e.apply({ enabled: true });
+    await e.apply({ enabled: false });
+    const current = e.apply({ enabled: true });
+    await Promise.all([previous, current]);
+    expect(e.status().running).toBe(true);
+    expect(e.status().port).toBeGreaterThan(0);
+    await e.apply({ enabled: false });
+    expect(e.status().running).toBe(false);
+  });
+
   it("is off until it is turned on, and shouts nothing until then", async () => {
     const s = store([]);
     const e = createEngine({ ...s.deps(), createSocket: () => deafSocket() });
@@ -1036,6 +1063,56 @@ describe("unpairing", () => {
     release();
     expect(await transfer).toEqual([]);
     expect(peerRow(receiver, sender.id.fp)?.last?.error).not.toBe("peer no longer paired");
+  }, 20_000);
+
+  it("starts a fresh round after LAN is switched off and on, rather than joining the old one", async () => {
+    const key = K("fresh@x", "o");
+    let armed = false;
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([]);
+    const senderStore = store([{ num: 7, email: "fresh@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (armed) { armed = false; started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    armed = true;
+    const stale = receiver.e.round();
+    await began;
+    await receiver.e.apply({ enabled: false });
+    await receiver.e.apply({ enabled: true });
+    const fresh = receiver.e.round();
+    release();
+    expect(await stale).toEqual([]);
+    expect(await fresh).toMatchObject([{ key, action: "add", ok: true }]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-7"]);
+  }, 20_000);
+
+  it("reports a round cut short by unpairing as that, not as a clean one", async () => {
+    const key = K("cut@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiver = await deck(store([]), "Receiver", [key]);
+    const sender = await deck(store([{ num: 7, email: "cut@x", orgUuid: "o", alive: true }]), "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:cut"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    expect(receiver.e.unpair(sender.id.fp)).toBe(true);
+    release();
+    await transfer;
+    const last = (receiver.e.status().peers as Array<Record<string, any>>)
+      .find(p => (p.peerFp ?? p.fp) === sender.id.fp)?.last;
+    expect(last?.error).toBe("peer no longer paired");
   }, 20_000);
 
   it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
