@@ -363,6 +363,16 @@ const WIRE_FAULTS: Record<string, string> = {
  */
 export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   if (!last) return null;
+  // A ROUND CUT OFF PART-WAY STILL SAYS WHAT IT DID. Logins that arrived before
+  // the socket died are on this machine now, and a Keychain problem found on
+  // the way is still the thing to fix — so the line is the finished part's own,
+  // with the interruption added after its problems and, like them, before the
+  // clock, where the deck list keeps it.
+  if (last.error && last.done?.length) {
+    const finished = roundLabel({ ...last, error: undefined }, now)!;
+    const at = ` · ${seenLabel(last.at, now)}`;
+    return { ...finished, text: `${finished.text.slice(0, -at.length)}, then ${faultText(last.error)}${at}`, tone: "bad" };
+  }
   if (last.error) return WIRE_ANSWERS[last.error] ?? { text: faultText(last.error), tone: "bad" };
   const done = last.done ?? [];
   // NOT "nothing to do", which reads two ways and one of them is alarming: a

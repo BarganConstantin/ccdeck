@@ -170,6 +170,26 @@ describe("a round says which of the three things it was", () => {
     expect(line?.hint).not.toContain("x@y.z");
   });
 
+  it("keeps what a round had done when the connection died part-way through", () => {
+    // Everything that arrived is still counted, every problem is still named,
+    // and the interruption sits before the clock with them — so the deck list,
+    // which keeps only what precedes the first " · ", shows all of it.
+    const line = roundLabel({ at: NOW, error: "peer went quiet", done: [
+      { email: "a@b.c", action: "add", ok: true, why: null },
+      { email: "s@b.c", action: "heal", ok: false, why: "keychain_unavailable" },
+    ] }, NOW + 120_000);
+    expect(line?.text).toBe("1 of 2 logins arrived, Keychain locked on the other Mac, then it stopped mid-sentence · 2m ago");
+    expect(line?.tone).toBe("bad");
+    expect(line?.hint).toContain("s@b.c: the other Mac could not export it.");
+    // A clean start does not make an interrupted round a clean one.
+    expect(roundLabel({ at: NOW, error: "peer went quiet", done: [
+      { email: "a@b.c", action: "add", ok: true, why: null },
+    ] }, NOW)).toEqual({ text: "1 login arrived, then it stopped mid-sentence · now", tone: "bad" });
+    // With nothing done, the fault alone is the whole story, as before.
+    expect(roundLabel({ at: NOW, error: "peer went quiet", done: [] }, NOW))
+      .toEqual({ text: "it stopped mid-sentence", tone: "bad" });
+  });
+
   it("carries the problem into the deck list, and the remedy into the row's tooltip", () => {
     const [row] = deckRows({
       peers: [{
