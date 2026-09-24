@@ -1200,6 +1200,36 @@ describe("unpairing", () => {
     expect(last?.error).toBe("peer no longer paired");
   }, 20_000);
 
+  it("still checks the logins that arrived before a round was cut short", async () => {
+    const first = K("first@x", "o");
+    const second = K("second@x", "o");
+    const checks: string[][] = [];
+    let sender!: Awaited<ReturnType<typeof deck>>;
+    const receiverStore = store([]);
+    const receiver = await deck(receiverStore, "Receiver", [first, second], {
+      importAccount: async (blob: string) => {
+        receiverStore.imported.push(blob);
+        receiver.e.unpair(sender.id.fp);
+        return true;
+      },
+      checkArrivals: async (steps: Array<{ key: string }>) => {
+        checks.push(steps.map(x => x.key));
+        return steps.map(() => "unreadable_here");
+      },
+    });
+    sender = await deck(store([
+      { num: 7, email: "first@x", orgUuid: "o", alive: true },
+      { num: 8, email: "second@x", orgUuid: "o", alive: true },
+    ]), "Sender", [first, second]);
+    await point(receiver, sender, sender.port);
+    await receiver.e.round();
+    const last = (receiver.e.status().peers as Array<Record<string, any>>)
+      .find(p => (p.peerFp ?? p.fp) === sender.id.fp)?.last;
+    expect(last?.error).toBe("peer no longer paired");
+    expect(checks).toEqual([[first]]);
+    expect(last?.done).toMatchObject([{ key: first, ok: true, why: "unreadable_here" }]);
+  }, 20_000);
+
   it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
     const A = K("a-heal@x", "o");
     const B = K("b-add@x", "o");

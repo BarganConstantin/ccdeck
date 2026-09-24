@@ -705,6 +705,16 @@ export function createEngine({
    *  read from the routing table, the way the peer list reads it. */
   const viaOf = peer => peer.via ?? (routeTo(peer.addr) ? "tailscale" : "lan");
 
+  /** Checks the logins a round brought, once, and records any reason one is
+   *  unusable here on its row. An unanswered check is not a failure. */
+  const markArrivals = async done => {
+    const arrived = done.filter(d => d.ok);
+    if (!arrived.length || !checkArrivals) return;
+    let found = null;
+    try { found = await checkArrivals(arrived); } catch { /* unasked is not a failure of the round */ }
+    arrived.forEach((d, i) => { if (typeof found?.[i] === "string") d.why = found[i]; });
+  };
+
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
     let conn = null;
@@ -978,12 +988,7 @@ export function createEngine({
       // warning. After the loop because the check is a usage collection that
       // can outlast the peer's thirty-second idle timer, and one ask covers
       // every login the round brought.
-      const arrived = done.filter(d => d.ok);
-      if (arrived.length && checkArrivals) {
-        let found = null;
-        try { found = await checkArrivals(arrived); } catch { /* unasked is not a failure of the round */ }
-        arrived.forEach((d, i) => { if (typeof found?.[i] === "string") d.why = found[i]; });
-      }
+      await markArrivals(done);
       lastRound.set(peer.fp, { at: now(), name: peer.name, offered: list.length, done });
       if (done.length) onChange?.();
       return done;
@@ -991,6 +996,10 @@ export function createEngine({
       // Nor does its failure: "peer no longer paired" from a round that LAN
       // being switched off ended is about the old session, and would stand on
       // a row that is paired and fine until the next round replaced it.
+      if (session !== startedIn) return [];
+      // A round cut short still reports what arrived, so the logins it did
+      // bring are checked the same way a finished round's are.
+      await markArrivals(done);
       if (session !== startedIn) return [];
       lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message, done });
       if (done.length) onChange?.();
