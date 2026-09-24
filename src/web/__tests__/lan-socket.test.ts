@@ -624,6 +624,27 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("ignores queued peer and stranger datagrams after discovery is stopped", async () => {
+    const sock = fakeSocket();
+    const peer = beaconOn(fakeSocket());
+    const stranger = beaconOn(fakeSocket());
+    const { b, seen, strangers } = beaconOn(sock, { trustedFps: [peer.fp] });
+    await b.start();
+    const sentBeforeStop = sock.sent.length;
+    b.stop();
+
+    for (const [name, fp] of [["Trusted", peer.fp], ["Stranger", stranger.fp]]) {
+      sock.deliver(Buffer.from(JSON.stringify({
+        m: "CCDK", v: PROTOCOL, n: name, f: fp, p: 4319, i: "0badc0de",
+      })), "192.168.1.42");
+    }
+
+    expect(seen).toEqual([]);
+    expect(strangers).toEqual([]);
+    expect(b.peers.size).toBe(0);
+    expect(sock.sent).toHaveLength(sentBeforeStop);
+  });
+
   it("closes an outbound socket that finishes binding after the beacon stopped", async () => {
     let finishBind!: () => void;
     let binding!: () => void;
