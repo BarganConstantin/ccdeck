@@ -9444,6 +9444,7 @@ button.qb-pace::after {
   overflow-wrap: anywhere;
 }
 .ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
+.ap-lan-who[data-tone="warn"] .ap-lan-who-when { color: var(--warn); }
 /* The route, beside the name of a row reached over the tailnet: a fact about
    the path rather than about the machine, so it is set in the quiet ink. */
 .ap-lan-via { color: var(--muted); }
@@ -9462,6 +9463,8 @@ button.qb-pace::after {
 .ap-lan-who .ap-pulse { color: var(--ok); opacity: 1; }
 .ap-lan-who[data-tone="bad"] .ap-pulse,
 .ap-lan-who[data-tone="bad"] .ap-dot { color: var(--warn); opacity: 1; }
+.ap-lan-who[data-tone="warn"] .ap-pulse,
+.ap-lan-who[data-tone="warn"] .ap-dot { color: var(--warn); opacity: 1; }
 .ap-lan-who[data-tone="wait"] .ap-pulse { color: var(--accent); }
 
 /* THE INVITE, WHICH IS THE WHOLE ACT WHILE NOBODY IS PAIRED. It gets a card
@@ -12300,6 +12303,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer-head > .ap-pulse { color: var(--ok); }
 .lan-peer-head > .ap-dot { color: var(--muted); }
 .lan-peer[data-tone="bad"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
+.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
 .lan-peer[data-tone="wait"] .lan-peer-head > .ap-pulse { color: var(--accent); }
 .lan-peer-id { flex: 1 1 auto; min-width: 0; }
 /* Baseline, not centre: a name that has wrapped to two lines would otherwise
@@ -12347,6 +12351,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer-restore { margin-left: 8px; padding: 0; min-height: 0; }
 .lan-peer[data-tone="ok"] .lan-peer-state { color: var(--ok); }
 .lan-peer[data-tone="bad"] .lan-peer-state { color: var(--warn); }
+.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }
 .lan-peer[data-tone="wait"] .lan-peer-state { color: var(--accent); }
 
 .lan-peer-body { gap: 20px; }
@@ -12464,6 +12469,7 @@ input, textarea { caret-color: var(--accent); }
 }
 .lan-link > .lan-done { align-items: center; }
 .lan-round[data-tone="bad"] { color: var(--warn); }
+.lan-round[data-tone="warn"] { color: var(--warn); }
 .lan-link-sub .lan-fact-raw { margin-top: 2px; }
 
 /* THE RAILS. Each row draws its own stretch — from under the machine on the

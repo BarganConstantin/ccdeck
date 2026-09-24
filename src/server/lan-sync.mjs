@@ -1332,6 +1332,47 @@ export function accountKey(email, orgUuid) {
   return `${String(email ?? "").trim().toLowerCase()}@@${String(orgUuid ?? "")}`;
 }
 
+// ── why a login did not move ────────────────────────────────────────────────
+
+/**
+ * The reason a sending deck gives for a login it holds and cannot read: on a
+ * Mac, claude-swap could not open the Keychain from the session this deck runs
+ * in. A fixed code, never the CLI's words — export's stdout IS the credential,
+ * and nothing it printed is any business of the deck asking.
+ */
+export const SENDER_UNREADABLE = "keychain_unavailable";
+
+/** Every reason `serve` answers a `want` with. */
+const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]);
+
+/**
+ * A peer's refusal, as this deck records it. The panel prints these, so a peer
+ * must not be able to put words in its mouth — least of all one of the HERE
+ * codes, which are sentences about this machine. Anything outside the closed
+ * set is "refused", which is all it ever proved.
+ */
+export function peerWhy(why) {
+  return typeof why === "string" && WIRE_REFUSALS.has(why) ? why : "refused";
+}
+
+/**
+ * What this deck found wrong with a login it received. Produced by the local
+ * adapters only and never read off a frame — see peerWhy — so a code here is
+ * always about THIS machine, and on an arrived row it is a warning rather than
+ * a failure: the credential landed and something about this machine stops it
+ * being used.
+ */
+export const HERE = Object.freeze({
+  // claude-swap cannot open this Mac's Keychain from the deck's session.
+  unreadable: "unreadable_here",
+  // It landed, and claude-swap still holds no login for it.
+  noLogin: "no_credentials_here",
+  // It landed, and the login it carried was rejected.
+  expired: "relogin_required_here",
+  // It landed, and claude-swap could not be asked whether it is readable.
+  unverified: "unverified_here",
+});
+
 /**
  * What to do about one account, given what I have and what a peer has.
  *

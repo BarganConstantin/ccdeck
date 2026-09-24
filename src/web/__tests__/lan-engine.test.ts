@@ -358,41 +358,51 @@ describe("what the holder checks when a credential is asked for", () => {
     expect(mine.imported).toEqual([]);
   }, 20_000);
 
-  it("reports a sender's Mac Keychain failure without sending its CLI diagnostic or a credential", async () => {
+  it("says a login it cannot read is unreadable, from state, without spawning an export", async () => {
+    // The Keychain answer comes from claude-swap's verdict, which the wiring
+    // folds into `readable` — never from the export's words, which never
+    // mention the Keychain and whose stdout is the credential.
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
-    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, readable: false } as Row]);
     const a = await deck(mine, "Deck-A", [S]);
-    const b = await deck(theirs, "Deck-B", [S], {
-      exportAccount: async () => ({ ok: false, why: "keychain_unavailable", detail: "secret credential text" }),
-    });
+    const b = await deck(theirs, "Deck-B", [S]);
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable" },
     ]);
+    expect(theirs.exported, "an export that could only fail was spawned").toEqual([]);
     expect(mine.imported).toEqual([]);
   }, 20_000);
 
-  it("identifies the destination Mac's import failure and allows a retry once access returns", async () => {
-    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
-    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
-    let accessible = false;
-    const a = await deck(mine, "Deck-A", [S], {
-      importAccount: async (blob: string) => {
-        if (!accessible) return { ok: false, why: "keychain_unavailable" };
-        mine.imported.push(blob);
-        return { ok: true };
+  it("checks what arrived once, after the round, and keeps a problem with it as a warning", async () => {
+    // Two logins land. One cannot be read here. Both ARRIVED — the credential
+    // is in the store — so both stay `ok`, and the one with the problem says
+    // it; the check runs once for the two, after the last ask.
+    const A = K("a@x", "o");
+    const mine = store([
+      { num: 1, email: "a@x", orgUuid: "o", alive: false },
+      { num: 2, email: "s@x", orgUuid: "o", alive: false },
+    ]);
+    const theirs = store([
+      { num: 5, email: "a@x", orgUuid: "o", alive: true },
+      { num: 6, email: "s@x", orgUuid: "o", alive: true },
+    ]);
+    const checks: string[][] = [];
+    const a = await deck(mine, "Deck-A", [A, S], {
+      checkArrivals: async (steps: Array<{ key: string }>) => {
+        checks.push(steps.map(x => x.key));
+        // Called after both imports, not between them.
+        expect(mine.imported).toHaveLength(2);
+        return steps.map(x => x.key === S ? "unreadable_here" : null);
       },
     });
-    const b = await deck(theirs, "Deck-B", [S]);
+    const b = await deck(theirs, "Deck-B", [A, S]);
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
-      { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable_local" },
+      { key: A, email: "a@x", action: "heal", ok: true, why: null },
+      { key: S, email: "s@x", action: "heal", ok: true, why: "unreadable_here" },
     ]);
-    accessible = true;
-    expect(await a.e.round()).toEqual([
-      { key: S, email: "s@x", action: "heal", ok: true, why: null },
-    ]);
-    expect(mine.imported).toHaveLength(1);
+    expect(checks).toEqual([[A, S]]);
   }, 20_000);
 
   it("answers a store that threw with a refusal, and keeps what threw", async () => {
@@ -972,6 +982,63 @@ describe("unpairing", () => {
     expect(receiverStore.imported).toEqual([]);
   }, 20_000);
 
+  it("leaves no stale error on a peer when LAN is switched off and on mid-round", async () => {
+    const key = K("kept@x", "o");
+    let armed = false;
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const senderStore = store([{ num: 7, email: "kept@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(store([]), "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (armed) { started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    armed = true;
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ enabled: false });
+    await receiver.e.apply({ enabled: true });
+    release();
+    expect(await transfer).toEqual([]);
+    expect(peerRow(receiver, sender.id.fp)?.last?.error).not.toBe("peer no longer paired");
+  }, 20_000);
+
+  it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
+    const A = K("a-heal@x", "o");
+    const B = K("b-add@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([{ num: 1, email: "a-heal@x", orgUuid: "o", alive: false }]);
+    const senderStore = store([
+      { num: 5, email: "a-heal@x", orgUuid: "o", alive: true },
+      { num: 6, email: "b-add@x", orgUuid: "o", alive: true },
+    ]);
+    const receiver = await deck(receiverStore, "Receiver", [A]);
+    const sender = await deck(senderStore, "Sender", [A, B], {
+      exportAccount: async (num: number) => {
+        if (num === 5) { started(); await gate; }
+        return `ccdeck2:slot-${num}`;
+      },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ shared: [] });
+    release();
+    expect(await transfer).toEqual([
+      { key: A, email: "a-heal@x", action: "heal", ok: false, why: "not shared" },
+      { key: B, email: "b-add@x", action: "add", ok: true, why: null },
+    ]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-6"]);
+  }, 20_000);
+
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
     const a = await deck(store([]), "Deck-A", []);
     const b = await deck(store([]), "Deck-B", []);
@@ -1180,7 +1247,7 @@ describe("a heal that healed nothing", () => {
   it("requires the account to have actually arrived", () => {
     // `ok` alone is no longer the whole answer, on either path.
     expect(src).not.toContain("return !!out?.ok;");
-    expect(src).toContain("if (landed(out.results)) return verifyMacImport();");
+    expect(src).toContain("if (landed(out.results)) return { ok: true };");
     expect(fillEmptySlot).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
@@ -1222,7 +1289,7 @@ describe("a heal that healed nothing", () => {
     // listed — and `syncAction` answers "add" for anything this deck lacks,
     // without the owner's tick. Every one of them landed. `only` narrows
     // without implying `force`, so the no-force promise is unchanged.
-    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });');
+    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" }, collect: !CHECKS_IMPORTS });');
     expect(src).not.toContain("const out = await importAccount(blob);");
   });
 
@@ -1231,8 +1298,8 @@ describe("a heal that healed nothing", () => {
     // touch: claude-swap replaces a slot "iff its usage row is quarantined as
     // refresh-token-dead" and is "never triggered by the live store's
     // `no credentials` state".
-    expect(fillEmptySlot).toContain('if (now !== "no_credentials") return { ok: false,');
-    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });');
+    expect(fillEmptySlot).toContain('if (now !== "no_credentials") {\n      return { ok: false,');
+    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" }, collect });');
     // ASKED NOW rather than read from the ten-minute cache: somebody who signed
     // in two minutes ago still reads as `no_credentials` there, and acting on
     // that would replace the login they had just created.
@@ -1304,10 +1371,9 @@ describe("a heal that healed nothing", () => {
     // second call here, whatever options it carries.
     expect(route, "the route's importAccount is gone or renamed").not.toBe("");
     expect(route.match(/\bimportAccount\(/g) ?? [], "the route imports more than once").toHaveLength(1);
-    const decline = route.indexOf("if (landed(out.results)) return verifyMacImport();");
+    const decline = route.indexOf("if (landed(out.results)) return { ok: true };");
     expect(decline, "the decline is no longer told apart from a heal").toBeGreaterThan(-1);
-    expect(route.slice(decline)).toMatch(/const filled = await fillEmptySlot\(blob, /);
-    expect(route.slice(decline)).toContain("return filled?.ok ? verifyMacImport() : filled;");
+    expect(route.slice(decline)).toMatch(/return fillEmptySlot\(blob, /);
     expect(route).not.toMatch(/\bforce\b/);
   });
 });
@@ -1553,17 +1619,34 @@ describe("the sync round keeps the caps the rest of the protocol keeps", () => {
     const a = await deck(store([]), "Deck-A", []);
     const peer = await hostile(a, (msg, ctx) => {
       if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: rows });
-      if (msg.t === "want") { wants += 1; ctx.send({ t: "no", why: "busy" }); }
+      if (msg.t === "want") { wants += 1; ctx.send({ t: "no", why: "not shared" }); }
     });
     const done = await a.e.round() as Array<{ key: string; action: string; ok: boolean; why: string }>;
     expect(done).toHaveLength(50);
     expect(wants).toBe(50);
     // Every step carries the far side's own reason for saying no.
-    expect(done.every(d => d.action === "add" && d.ok === false && d.why === "busy")).toBe(true);
+    expect(done.every(d => d.action === "add" && d.ok === false && d.why === "not shared")).toBe(true);
     // And what was asked for is exactly what the panel was shown: one list.
     const shown = peerRow(a, peer.id.fp)?.offers?.accounts as Array<{ key: string }>;
     expect(shown).toHaveLength(50);
     expect(done.map(d => d.key).sort()).toEqual(shown.map(x => x.key).sort());
+  }, 20_000);
+
+  it("does not let a peer's refusal speak about this machine", async () => {
+    // The panel prints `why`, and the HERE codes are sentences about THIS
+    // deck. A peer answering with one — or with anything outside the closed set
+    // serve uses — is recorded as the refusal it is.
+    for (const said of ["unreadable_here", "keychain_unavailable_local", "busy", 42]) {
+      const key = K("new@x", "o");
+      const a = await deck(store([]), "Deck-A", []);
+      await hostile(a, (msg, ctx) => {
+        if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: [{ key, email: "new@x", alive: true }] });
+        if (msg.t === "want") ctx.send({ t: "no", why: said });
+      });
+      expect(await a.e.round(), String(said)).toEqual([
+        { key, email: "new@x", action: "add", ok: false, why: "refused" },
+      ]);
+    }
   }, 20_000);
 
   it("counts a login that arrives sealed under some other key as a failure, not a login", async () => {
@@ -2348,6 +2431,23 @@ describe("an account that arrives over the network", () => {
     return { ...d, ticked, shared };
   }
 
+  it("is still ticked when this Mac cannot read it yet, because it did arrive", async () => {
+    // A landed login with a problem found after it is a warning, not a failure:
+    // the credential is in the store, so the onward tick (#1188) is not lost,
+    // and the row says what is wrong with it rather than that it never came.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")], {
+      checkArrivals: async (steps: unknown[]) => steps.map(() => "unreadable_here"),
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: NEW, email: "new@sapec.md", action: "add", ok: true, why: "unreadable_here" },
+    ]);
+    expect(a.ticked).toEqual([NEW]);
+  }, 20_000);
+
   it("is ticked for sharing here, so this deck can heal the next one", async () => {
     const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
     const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
@@ -2376,7 +2476,7 @@ describe("an account that arrives over the network", () => {
     expect(a.ticked).toEqual([]);
   }, 20_000);
 
-  it.each(["unpair", "disable"] as const)("does not auto-share an account whose import finishes after %s", async choice => {
+  it.each(["unpair", "disable", "disable and re-enable"] as const)("does not auto-share an account whose import finishes after %s", async choice => {
     let started!: () => void;
     let release!: () => void;
     const importing = new Promise<void>(resolve => { started = resolve; });
@@ -2397,11 +2497,39 @@ describe("an account that arrives over the network", () => {
     await importing;
     if (choice === "unpair") expect(a.e.unpair(b.id.fp)).toBe(true);
     else await a.e.apply({ enabled: false });
+    if (choice === "disable and re-enable") await a.e.apply({ enabled: true });
     release();
     await transfer;
     expect(mine.imported).toEqual(["ccdeck2:slot-4"]);
     expect(a.ticked).toEqual([]);
     expect(a.e.status().shared).toEqual([]);
+  }, 20_000);
+
+  it("still auto-shares an import that finishes after the deck is renamed", async () => {
+    // A rename restarts the listener and revokes nothing: the peer is still
+    // paired and LAN still on, so the arrival is ticked as it would have been.
+    let started!: () => void;
+    let release!: () => void;
+    const importing = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const mine = store([]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [], {
+      importAccount: async (blob: string) => {
+        started();
+        await gate;
+        mine.imported.push(blob);
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    const transfer = a.e.round();
+    await importing;
+    await a.e.apply({ name: "Deck-A renamed" });
+    release();
+    expect(await transfer).toMatchObject([{ key: NEW, action: "add", ok: true }]);
+    expect(a.ticked).toEqual([NEW]);
   }, 20_000);
 
   it("keeps the person's untick: the tick happens on arrival and never again", async () => {
