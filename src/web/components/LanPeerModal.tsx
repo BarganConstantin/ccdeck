@@ -124,8 +124,8 @@ function Chevron({ dir, gate = false }: { dir: "in" | "out"; gate?: boolean }) {
 
 /** What the two marks at the ends of a lane stand for, for a reader who cannot
  *  see them. The caption beside them only says what is not working. */
-const HERE_SAID = { works: "works here", expired: "expired here", missing: "not on this deck" } as const;
-const THERE_SAID = { works: "works there", broken: "broken there", unknown: "not offered by that deck" } as const;
+const HERE_SAID = { works: "works here", expired: "expired here", missing: "not on this deck", unavailable: "cannot share here" } as const;
+const THERE_SAID = { works: "works there", broken: "broken there", unavailable: "cannot share there", unknown: "not offered by that deck" } as const;
 function laneSaid(l: Lane): string {
   const ways = l.in && l.out ? "offered both ways" : l.in ? "offered by that deck" : "offered by this deck";
   // The accent and the ring say this to the eye; these words say it aloud.

@@ -3976,15 +3976,31 @@ const lanEngine = createEngine({
     const { markUnreadable } = await import("./cswap-admin.mjs");
     return { ...got, accounts: markUnreadable(got.accounts) };
   },
-  exportAccount: async num => {
-    const { shareAccounts } = await import("./cswap-admin.mjs");
+  exportAccount: async (num, expectedKey) => {
+    const { accountKey } = await import("./lan-sync.mjs");
+    const { shareAccounts, unwrapShare } = await import("./cswap-admin.mjs");
+    // Do not collect live verdicts here. A LAN want has a ten-second round
+    // budget, while a verdict collection may wait up to ninety seconds (or
+    // queue behind another one). The want handler already re-reads this deck's
+    // cached account state immediately before export and refuses known
+    // unreadable/dead copies. The share itself is therefore the only bounded
+    // operation left on the hot path.
+    //
     // Without the explanation, which would outlast the asking peer's patience;
     // see shareAccounts.
     const out = await shareAccounts([String(num)], { explain: false });
     // The blob or nothing. WHY it failed is never carried out of here: the
     // engine decides what a peer is told from this deck's state — see
     // `readable` in readAccounts below.
-    return out?.ok ? out.blob : null;
+    if (!out?.ok) return null;
+    const opened = unwrapShare(out.blob);
+    if (!opened.ok) return null;
+    let accounts;
+    try { accounts = JSON.parse(opened.payload)?.accounts; } catch { return null; }
+    if (!Array.isArray(accounts) || accounts.length !== 1) return null;
+    // Slot numbers are local. Verify the payload identity after export so a
+    // moved/reused slot can never satisfy a want for another account.
+    return accountKey(accounts[0]?.email, accounts[0]?.organizationUuid) === expectedKey ? out.blob : null;
   },
   // The logins a round just imported, checked once after it — see checkImports.
   checkArrivals: async steps => {
@@ -6392,6 +6408,7 @@ function cswapAutoModule() {
 const PINNED_MODULES = [
   "self-update.mjs",
   "claude-accounts.mjs",
+  "account-health.mjs",
   "cswap-admin.mjs",
   "cswap-auto.mjs",
   "quota.mjs",

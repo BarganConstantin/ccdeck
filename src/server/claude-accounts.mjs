@@ -16,6 +16,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cswapBin, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
+import { storedCopyAlive } from "./account-health.mjs";
 // The CLI identity oracle, already written and already trusted by the account
 // admin routes. #721 needs the same answer, so it reuses the same function
 // rather than shelling out a second way to ask one question.
@@ -347,7 +348,7 @@ export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
  * for `--json` and keeps the verdicts. Still not awaited by anyone — the nudge
  * stays synchronous for its callers — and still one child at a time.
  */
-let _verdicts = { at: 0, byNum: {} };
+let _verdicts = { at: 0, byNum: {}, identities: {} };
 /** Stale after this, because a verdict that outlives its cause is worse than no
  *  verdict: "no credentials" under an account somebody has since signed into is
  *  a sentence that sends them to fix what is already fixed. */
@@ -420,8 +421,15 @@ async function collectVerdicts({ runner, bin }) {
     // The same freshly-read answer feeds the cache the panel draws from, since
     // it cost a subprocess either way.
     const byNum = readVerdicts(out.stdout);
-    if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
+    const identities = {};
+    for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
+      if (Number.isInteger(a?.number) && typeof a?.email === "string" && a.email.trim()) {
+        identities[String(a.number)] = `${a.email.trim().toLowerCase()}@@${a.organizationUuid ?? ""}`;
+      }
+    }
+    _verdicts = { at: Date.now(), byNum, identities };
     return (Array.isArray(d?.accounts) ? d.accounts : []).map(a => ({
+      number: a?.number,
       email: String(a?.email ?? "").trim().toLowerCase(),
       org: a?.organizationUuid ?? "",
       status: typeof a?.usageStatus === "string" ? a.usageStatus : null,
@@ -444,9 +452,16 @@ export function verdictsNow({ runner = run, bin = cswapBin, fresh = false } = {}
 }
 
 /** claude-swap's verdict for a slot, or null when there is none fresh enough. */
-function verdictFor(num, now) {
-  if (now - _verdicts.at > VERDICT_TTL_MS) return null;
-  const v = _verdicts.byNum[String(num)];
+function verdictFor(num, now, email, org) {
+  return cachedVerdictFor(_verdicts, num, now, email, org);
+}
+
+/** Only attach a cached slot verdict to the identity it was collected for. */
+export function cachedVerdictFor(cache, num, now, email, org) {
+  if (now - cache.at > VERDICT_TTL_MS) return null;
+  const identity = `${String(email ?? "").trim().toLowerCase()}@@${org ?? ""}`;
+  if (cache.identities[String(num)] !== identity) return null;
+  const v = cache.byNum[String(num)];
   return typeof v === "string" && v !== "" ? v : null;
 }
 
@@ -679,6 +694,7 @@ async function readRoster(now, gen) {
         .filter(Boolean),
     ].filter(Boolean);
 
+    const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
     accounts.push({
       num:      Number(num),
       email:    acct.email ?? null,
@@ -696,7 +712,7 @@ async function readRoster(now, gen) {
       // `stale-copy` row means the live session is fine while the copy in the
       // store is dead, and the copy is what a share would carry and what a
       // peer's copy would heal. So both kinds of trouble read as not alive.
-      alive:    trouble == null,
+      alive:    storedCopyAlive(trouble == null, collector),
       active:   String(seq.activeAccountNumber) === num,
       disabled: acct.disabled === true,
       lanes,
@@ -736,7 +752,7 @@ async function readRoster(now, gen) {
       // "no_credentials", "relogin_required", "keychain_unavailable", … It is
       // what turns "not collecting" into a sentence with a next step in it, and
       // it is null on every machine where the collector has not been asked yet.
-      collector: verdictFor(num, now),
+      collector,
     });
   }
 
