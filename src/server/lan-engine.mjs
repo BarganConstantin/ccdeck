@@ -545,6 +545,10 @@ export function createEngine({
   };
 
   const serve = async (msg, ctx) => {
+    // Authentication happened at connection setup; a previously trusted deck
+    // may have been unpaired while this socket remained open.
+    const mayAnswer = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx?.peerFp);
+    if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
     if (ctx?.peerFp) {
@@ -570,6 +574,10 @@ export function createEngine({
           offersBy.set(ctx.peerFp, { at: now(), accounts: list, current: heardCurrent(msg.current, list) });
         }
         const accounts = await localAccounts();
+        // Reading the store can take long enough for the owner to unpair this
+        // deck. Do not disclose account identities or the active account from
+        // a manifest assembled before that decision.
+        if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
         return ctx.send({
           t: "manifest", accounts: manifestFor(accounts, cfg.shared),
           ...currentFor(accounts, cfg.shared, cfg.shareActive),

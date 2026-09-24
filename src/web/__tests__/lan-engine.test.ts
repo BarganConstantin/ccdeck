@@ -825,6 +825,31 @@ describe("saying no, and meaning it", () => {
 // is a request again when it calls, and is given nothing.
 //
 describe("unpairing", () => {
+  it("does not reveal account identities in a manifest after the sender unpairs mid-read", async () => {
+    const key = K("private@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    let hold = false;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiver = await deck(store([]), "Receiver", []);
+    const senderStore = store([{ num: 7, email: "private@x", orgUuid: "o", alive: true }]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (hold) { started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    hold = true;
+    const transfer = receiver.e.round();
+    await began;
+    expect(sender.e.unpair(receiver.id.fp)).toBe(true);
+    release();
+    await transfer;
+    expect(peerRow(receiver, sender.id.fp)?.offers?.accounts ?? []).toEqual([]);
+  }, 20_000);
+
   it.each(["unpair", "unshare"] as const)("refuses an in-flight export after the sender chooses to %s", async choice => {
     const key = K("revoked@x", "o");
     let release!: () => void;
