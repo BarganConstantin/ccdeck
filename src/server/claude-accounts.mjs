@@ -361,7 +361,15 @@ export function createVerdictQueue(collect) {
     ask({ fresh = false } = {}) {
       if (pending && !fresh) return pending;
       const previous = pending;
-      const next = previous ? previous.then(collect, collect) : Promise.resolve().then(collect);
+      // Start the first poll immediately: requestCollection promises the UI that
+      // its refresh has started before it returns. Only subsequent fresh polls
+      // wait for the earlier snapshot to finish.
+      let next;
+      if (previous) next = previous.then(collect, collect);
+      else {
+        try { next = Promise.resolve(collect()); }
+        catch (error) { next = Promise.reject(error); }
+      }
       pending = next;
       void next.then(
         () => { if (pending === next) pending = null; },

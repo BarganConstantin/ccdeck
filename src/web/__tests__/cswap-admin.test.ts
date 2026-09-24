@@ -17,6 +17,18 @@ import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare,
 import { createVerdictQueue } from "../../server/claude-accounts.mjs";
 
 describe("fresh import verdicts", () => {
+  it("starts idle collection synchronously and recovers after a start error", async () => {
+    const collect = vi.fn()
+      .mockImplementationOnce(() => { throw new Error("collector failed to start"); })
+      .mockResolvedValueOnce([{ status: "ok" }]);
+    const queue = createVerdictQueue(collect);
+    const failed = queue.ask();
+    expect(collect).toHaveBeenCalledTimes(1);
+    await expect(failed).rejects.toThrow("collector failed to start");
+    expect(await queue.ask()).toEqual([{ status: "ok" }]);
+    expect(collect).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for a running pre-import collection and asks again after the write", async () => {
     const oldRows = [{ email: "new@x", org: "o", status: "relogin_required" }];
     const newRows = [{ email: "new@x", org: "o", status: "ok" }];
