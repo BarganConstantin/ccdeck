@@ -812,12 +812,21 @@ export function createEngine({
       // on — so the deck being asked knows both without dialling back, which a
       // deck with no address for this one never could. An older deck reads the
       // question's `t` and card and nothing else, so it answers as it always did.
+      const mayExchange = () => generation === startedIn && cfg.enabled && !!beacon
+        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
+      if (!mayExchange()) throw new Error("peer no longer paired");
       const mine = await localAccounts();
+      // The owner can revoke trust or disable sync while the store is read.
+      // Never send this deck's account identities on that old connection.
+      if (!mayExchange()) throw new Error("peer no longer paired");
       const theirs = await ask({
         t: "manifest", accounts: manifestFor(mine, cfg.shared),
         ...currentFor(mine, cfg.shared, cfg.shareActive),
         ...cardFor(conn.key, conn.peerFp),
       });
+      // A response from a round that was stopped or unpaired is stale even
+      // when the peer had already sent it before the setting changed.
+      if (!mayExchange()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const card = openAbout(conn.key, theirs.about, conn.peerFp, identity.fp);
       if (card) aboutBy.set(conn.peerFp, { ...card, at: now() });

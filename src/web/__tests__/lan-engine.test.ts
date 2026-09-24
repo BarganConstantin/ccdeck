@@ -825,6 +825,33 @@ describe("saying no, and meaning it", () => {
 // is a request again when it calls, and is given nothing.
 //
 describe("unpairing", () => {
+  it("does not send an outbound manifest when the caller unpairs during its account read", async () => {
+    const key = K("outbound-private@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    let hold = false;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const callerStore = store([{ num: 7, email: "outbound-private@x", orgUuid: "o", alive: true }]);
+    const caller = await deck(callerStore, "Caller", [], {
+      readAccounts: async () => {
+        if (hold) { started(); await gate; }
+        return { accounts: callerStore.rows };
+      },
+    });
+    const holder = await deck(store([]), "Holder", []);
+    await point(caller, holder, holder.port);
+    await caller.e.round();
+    await caller.e.apply({ shared: [key] });
+    hold = true;
+    const transfer = caller.e.round();
+    await began;
+    expect(caller.e.unpair(holder.id.fp)).toBe(true);
+    release();
+    await transfer;
+    expect(peerRow(holder, caller.id.fp)?.offers?.accounts ?? []).toEqual([]);
+  }, 20_000);
+
   it("does not reveal account identities in a manifest after the sender unpairs mid-read", async () => {
     const key = K("private@x", "o");
     let release!: () => void;
