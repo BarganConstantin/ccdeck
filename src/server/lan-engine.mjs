@@ -273,6 +273,9 @@ export function createEngine({
     // person's own Tailscale account — see routeOf.
     tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
   };
+  // A stopped round cannot resume after LAN is switched back on with the
+  // same peer and settings while its old export was still pending.
+  let generation = 0;
   let identity = null;
   let beacon = null;
   let server = null;
@@ -546,6 +549,10 @@ export function createEngine({
   };
 
   const serve = async (msg, ctx) => {
+    // Authentication happened at connection setup; a previously trusted deck
+    // may have been unpaired while this socket remained open.
+    const mayAnswer = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx?.peerFp);
+    if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
     if (ctx?.peerFp) {
@@ -571,6 +578,10 @@ export function createEngine({
           offersBy.set(ctx.peerFp, { at: now(), accounts: list, current: heardCurrent(msg.current, list) });
         }
         const accounts = await localAccounts();
+        // Reading the store can take long enough for the owner to unpair this
+        // deck. Do not disclose account identities or the active account from
+        // a manifest assembled before that decision.
+        if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
         return ctx.send({
           t: "manifest", accounts: manifestFor(accounts, cfg.shared),
           ...currentFor(accounts, cfg.shared, cfg.shareActive),
@@ -578,6 +589,12 @@ export function createEngine({
         });
       }
       if (msg.t === "want") {
+        // A listener may have authenticated this socket before its owner
+        // unpaired the caller or switched sharing off. Recheck at the moment
+        // a credential is requested and again after every asynchronous read.
+        const maySend = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx.peerFp)
+          && cfg.shared.includes(msg.key);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A SECOND PROOF, for the one operation that moves a credential. The
         // session says who connected; this says they are asking for this
         // account, now. A long-lived connection authenticated an hour ago is
@@ -591,8 +608,8 @@ export function createEngine({
         // Only what the user ticked, checked again here rather than trusted
         // from the manifest we sent: the list can change between the two, and
         // the answer that matters is the one at the moment of sending.
-        if (!cfg.shared.includes(msg.key)) return ctx.send({ t: "no", why: "not shared" });
         const accounts = await localAccounts();
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         const mine = accounts.find(a => a.key === msg.key);
         if (!mine || !mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
         // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
@@ -601,6 +618,7 @@ export function createEngine({
         // machine to unlock instead of reading "export failed".
         if (!mine.readable) return ctx.send({ t: "no", why: SENDER_UNREADABLE });
         const blob = await exportAccount(mine.num);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A Mac's failed export refreshes the verdict behind `readable` in the
         // background, so when the Keychain was why, the next ask is answered by
         // the line above.
@@ -669,6 +687,7 @@ export function createEngine({
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
     let conn = null;
+    const startedIn = generation;
     try {
       conn = await connectToPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
@@ -850,7 +869,16 @@ export function createEngine({
       const wanted = plan(mine, list)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
       const done = [];
+      // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
+      // a stop, LAN switched off, the peer unpaired — ends the round. A heal
+      // unticked mid-round ends only that heal: the adds behind it need no
+      // tick, and the skipped row says why rather than vanishing.
+      const stillPaired = () => generation === startedIn && cfg.enabled && !!beacon
+        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
+      const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
       for (const step of wanted) {
+        if (!stillPaired()) break;
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
           t: "want", key: step.key, nonce,
@@ -861,6 +889,10 @@ export function createEngine({
         if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: peerWhy(reply?.why) }); continue; }
         const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
+        // Unpairing, disabling LAN, or unticking a heal while export was in
+        // progress takes effect before the received credential touches disk.
+        if (!stillPaired()) break;
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
@@ -1699,6 +1731,7 @@ export function createEngine({
       };
     },
     stop() {
+      generation++;
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;

@@ -892,6 +892,106 @@ describe("saying no, and meaning it", () => {
 // is a request again when it calls, and is given nothing.
 //
 describe("unpairing", () => {
+  it("does not reveal account identities in a manifest after the sender unpairs mid-read", async () => {
+    const key = K("private@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    let hold = false;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiver = await deck(store([]), "Receiver", []);
+    const senderStore = store([{ num: 7, email: "private@x", orgUuid: "o", alive: true }]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (hold) { started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    hold = true;
+    const transfer = receiver.e.round();
+    await began;
+    expect(sender.e.unpair(receiver.id.fp)).toBe(true);
+    release();
+    await transfer;
+    expect(peerRow(receiver, sender.id.fp)?.offers?.accounts ?? []).toEqual([]);
+  }, 20_000);
+
+  it.each(["unpair", "unshare"] as const)("refuses an in-flight export after the sender chooses to %s", async choice => {
+    const key = K("revoked@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const senderStore = store([{ num: 7, email: "revoked@x", orgUuid: "o", alive: true }]);
+    const receiverStore = store([]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:revoked"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    if (choice === "unpair") expect(sender.e.unpair(receiver.id.fp)).toBe(true);
+    else await sender.e.apply({ shared: [] });
+    release();
+    await transfer;
+    expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
+  it.each(["unpair", "disable"] as const)("cancels an in-flight import after the receiver chooses to %s", async choice => {
+    const key = K("incoming@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([]);
+    const senderStore = store([{ num: 7, email: "incoming@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:incoming"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    if (choice === "unpair") expect(receiver.e.unpair(sender.id.fp)).toBe(true);
+    else await receiver.e.apply({ enabled: false });
+    release();
+    await transfer;
+    expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
+  it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
+    const A = K("a-heal@x", "o");
+    const B = K("b-add@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([{ num: 1, email: "a-heal@x", orgUuid: "o", alive: false }]);
+    const senderStore = store([
+      { num: 5, email: "a-heal@x", orgUuid: "o", alive: true },
+      { num: 6, email: "b-add@x", orgUuid: "o", alive: true },
+    ]);
+    const receiver = await deck(receiverStore, "Receiver", [A]);
+    const sender = await deck(senderStore, "Sender", [A, B], {
+      exportAccount: async (num: number) => {
+        if (num === 5) { started(); await gate; }
+        return `ccdeck2:slot-${num}`;
+      },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ shared: [] });
+    release();
+    expect(await transfer).toEqual([
+      { key: A, email: "a-heal@x", action: "heal", ok: false, why: "not shared" },
+      { key: B, email: "b-add@x", action: "add", ok: true, why: null },
+    ]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-6"]);
+  }, 20_000);
+
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
     const a = await deck(store([]), "Deck-A", []);
     const b = await deck(store([]), "Deck-B", []);
