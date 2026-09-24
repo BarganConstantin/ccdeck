@@ -21,6 +21,18 @@ import { looksMissing } from "../../server/exec.mjs";
 import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
 
 describe("post-write verdicts", () => {
+  it("starts idle collection synchronously and recovers after a start error", async () => {
+    const collect = vi.fn()
+      .mockImplementationOnce(() => { throw new Error("collector failed to start"); })
+      .mockResolvedValueOnce([{ status: "ok" }]);
+    const queue = createVerdictQueue(collect);
+    const failed = queue.ask();
+    expect(collect).toHaveBeenCalledTimes(1);
+    await expect(failed).rejects.toThrow("collector failed to start");
+    expect(await queue.ask()).toEqual([{ status: "ok" }]);
+    expect(collect).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for an earlier poll, then checks the imported account against a new snapshot", async () => {
     let finishOld!: (rows: unknown[]) => void;
     const old = new Promise<unknown[]>(resolve => { finishOld = resolve; });
