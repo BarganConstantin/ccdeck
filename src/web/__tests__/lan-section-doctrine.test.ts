@@ -163,6 +163,15 @@ describe("a round says which of the three things it was", () => {
     });
   });
 
+  it("reports a Mac verification failure without claiming the Keychain is locked", () => {
+    expect(roundLabel({ at: NOW, done: [
+      { email: "a@b.c", action: "heal", ok: false, why: "verification_unavailable" },
+    ] }, NOW)).toEqual({
+      text: "a@b.c: cannot verify the imported login on this Mac · check claude-swap access here, then retry",
+      tone: "bad",
+    });
+  });
+
   it("says nothing at all about a deck it has not had a round with yet", () => {
     expect(roundLabel(null, NOW)).toBeNull();
     expect(roundLabel(undefined, NOW)).toBeNull();

@@ -45,11 +45,17 @@ export function macKeychainFailure(stderr, platform = process.platform) {
  * Recheck through claude-swap in the same security session as the server. */
 export async function verifyImportedOnMac(email, org, { platform = process.platform, verdict = verdictNow } = {}) {
   if (platform !== "darwin") return { ok: true };
-  const status = await verdict(email, org);
+  // A missing or failed `cswap list` is inconclusive, not evidence that this
+  // headless process can read the imported credential from the Keychain.
+  let status;
+  try { status = await verdict(email, org); }
+  catch { return { ok: false, why: "verification_unavailable" }; }
   if (["keychain_unavailable", "no_credentials", "relogin_required"].includes(status)) {
     return { ok: false, why: status };
   }
-  return { ok: true };
+  return status === "ok"
+    ? { ok: true }
+    : { ok: false, why: "verification_unavailable" };
 }
 // How long to wait for the CLI's verdict on a pasted code before saying so.
 // Exchanging a code is one HTTPS round trip; a minute is generous.

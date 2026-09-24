@@ -3972,9 +3972,7 @@ const lanEngine = createEngine({
     return out?.ok ? out.blob : { ok: false, why: out?.reason === "keychain_unavailable" ? "keychain_unavailable" : "export failed" };
   },
   importAccount: async (blob, step) => {
-    // `landed` is not needed out here any more: the only call that read it was
-    // the forced import, which fillEmptySlot now owns along with it.
-    const { importAccount, fillEmptySlot, verifyImportedOnMac } = await import("./cswap-admin.mjs");
+    const { importAccount, fillEmptySlot, verifyImportedOnMac, landed } = await import("./cswap-admin.mjs");
     const [want, wantOrg] = String(step?.key ?? "").split("@@");
     const verifyMacImport = () => verifyImportedOnMac(want, wantOrg ?? "");
     // NO `force`, ever, and this is the line where that promise is kept. A
@@ -4011,7 +4009,9 @@ const lanEngine = createEngine({
     // `no credentials` state". So an account whose login expired heals over the
     // network, and one that has NO stored login does not — which is a true
     // sentence the panel can now print instead of a false one.
-    if (out.added === true) return verifyMacImport();
+    // A successful auto-heal rewrites the existing expired slot; it does not
+    // increase `added`. Treat imported, healed and updated as real arrivals.
+    if (landed(out.results)) return verifyMacImport();
 
     // THE DECLINE, AND WHY IT MATTERS WHICH ONE IT IS.
     //

@@ -346,6 +346,11 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
     text: `${keychain.email}: ${keychain.why === "keychain_unavailable_local" ? "import on this Mac" : "export on paired Mac"} blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry`,
     tone: "bad",
   };
+  const unverified = done.find(d => !d.ok && d.why === "verification_unavailable");
+  if (unverified) return {
+    text: `${unverified.email}: cannot verify the imported login on this Mac · check claude-swap access here, then retry`,
+    tone: "bad",
+  };
   const verb = ok.length === 1 ? "login" : "logins";
   return ok.length === done.length
     // "arrived", because a round only ever pulls: roundWith dials, reads the

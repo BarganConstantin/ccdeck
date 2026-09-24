@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
-import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, macKeychainFailure, verifyImportedOnMac, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, importOutcomes, landed, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, macKeychainFailure, verifyImportedOnMac, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -38,9 +38,20 @@ describe("macOS Keychain access", () => {
     expect(await check("no_credentials")).toEqual({ ok: false, why: "no_credentials" });
     expect(await check("relogin_required")).toEqual({ ok: false, why: "relogin_required" });
     expect(await check("ok")).toEqual({ ok: true });
-    expect(await check(null)).toEqual({ ok: true });
+    expect(await check(null)).toEqual({ ok: false, why: "verification_unavailable" });
+    expect(await check("unknown_status")).toEqual({ ok: false, why: "verification_unavailable" });
+    expect(await verifyImportedOnMac("a@b.c", "org", { platform: "darwin", verdict: async () => { throw new Error("cswap list failed"); } })).toEqual({ ok: false, why: "verification_unavailable" });
     expect(await verifyImportedOnMac("a@b.c", "org", { platform: "linux", verdict: async () => { throw new Error("should not run"); } })).toEqual({ ok: true });
   });
+});
+
+it("recognizes a successful repair of an existing slot, but not an unchanged slot", () => {
+  const store = { slots: [3], emails: { 3: "example@test.invalid" }, orgs: { 3: "org" } };
+  const account = [{ email: "example@test.invalid", org: "org" }];
+  const healed = importOutcomes(store, store, account, "Replaced example@test.invalid");
+  expect(healed).toMatchObject([{ state: "healed", num: 3 }]);
+  expect(landed(healed)).toBe(true);
+  expect(landed(importOutcomes(store, store, account))).toBe(false);
 });
 
 // A stand-in for `claude auth login`, because the login tests need a child that

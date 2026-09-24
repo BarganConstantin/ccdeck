@@ -1033,7 +1033,7 @@ describe("a heal that healed nothing", () => {
   it("requires the account to have actually arrived", () => {
     // `ok` alone is no longer the whole answer, on either path.
     expect(src).not.toContain("return !!out?.ok;");
-    expect(src).toContain("if (out.added === true) return verifyMacImport();");
+    expect(src).toContain("if (landed(out.results)) return verifyMacImport();");
     expect(fillEmptySlot).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
@@ -1157,7 +1157,7 @@ describe("a heal that healed nothing", () => {
     // second call here, whatever options it carries.
     expect(route, "the route's importAccount is gone or renamed").not.toBe("");
     expect(route.match(/\bimportAccount\(/g) ?? [], "the route imports more than once").toHaveLength(1);
-    const decline = route.indexOf("if (out.added === true) return verifyMacImport();");
+    const decline = route.indexOf("if (landed(out.results)) return verifyMacImport();");
     expect(decline, "the decline is no longer told apart from a heal").toBeGreaterThan(-1);
     expect(route.slice(decline)).toMatch(/const filled = await fillEmptySlot\(blob, /);
     expect(route.slice(decline)).toContain("return filled?.ok ? verifyMacImport() : filled;");
