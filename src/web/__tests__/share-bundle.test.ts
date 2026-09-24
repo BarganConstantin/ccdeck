@@ -81,6 +81,13 @@ describe("importSummary", () => {
   const rows = (states: string[]) =>
     states.map((state, i) => ({ email: `a${i}@x.com`, num: String(i), state } as never));
 
+  it("names unreadable and unverified arrivals in the headline", () => {
+    expect(importSummary([{ ...rows(["imported"])[0], check: "unreadable_here" }]))
+      .toContain("Keychain locked on this Mac");
+    expect(importSummary([{ ...rows(["imported"])[0], check: "unverified_here" }]))
+      .toContain("not checked");
+  });
+
   it("says how many of how many, which is the whole point of the sentence", () => {
     expect(importSummary(rows(["imported", "imported", "imported", "present", "present"])))
       .toBe("3 of 5 imported, 2 already here.");

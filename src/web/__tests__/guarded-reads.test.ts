@@ -50,8 +50,12 @@ afterAll(async () => {
 const get = (path: string, headers: Record<string, string> = {}) =>
   new Promise<number>((resolve_, reject) => {
     const req = request({ host: "127.0.0.1", port, path, method: "GET", headers }, res => {
-      res.resume();
-      resolve_(res.statusCode ?? 0);
+      const status = res.statusCode ?? 0;
+      // SSE never ends on its own; this helper only checks its status.
+      // Close that client so afterAll can shut down the test server.
+      if (path === "/events") res.destroy();
+      else res.resume();
+      resolve_(status);
     });
     req.on("error", reject);
     // SSE never ends on its own; the status line is all this asks for.
