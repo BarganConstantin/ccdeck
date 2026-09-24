@@ -3962,19 +3962,36 @@ const lanEngine = createEngine({
   about: aboutThisDeck({ version: RUNNING_VERSION }),
   readAccounts: async () => {
     const { fetchClaudeAccounts } = await import("./claude-accounts.mjs");
-    return fetchClaudeAccounts();
+    const got = await fetchClaudeAccounts();
+    // A login this Mac's Keychain will not open from the deck's session. The
+    // engine refuses to export it with a fixed code rather than spawning an
+    // export that can only fail. Mac only: claude-swap's `keychain_unavailable`
+    // elsewhere is an unreadable .enc file, and the sentence the peer prints
+    // talks about a Keychain.
+    if (process.platform !== "darwin" || !Array.isArray(got?.accounts)) return got;
+    return { ...got, accounts: got.accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a) };
   },
   exportAccount: async num => {
     const { shareAccounts } = await import("./cswap-admin.mjs");
-    const out = await shareAccounts([String(num)]);
-    // Only this fixed failure code is safe to disclose to a paired deck. Never
-    // forward the export command's stdout/stderr or a local account filename.
-    return out?.ok ? out.blob : { ok: false, why: out?.reason === "keychain_unavailable" ? "keychain_unavailable" : "export failed" };
+    // Without the explanation, which would outlast the asking peer's patience;
+    // see shareAccounts.
+    const out = await shareAccounts([String(num)], { explain: false });
+    // The blob or nothing. WHY it failed is never carried out of here: the
+    // engine decides what a peer is told from this deck's state — see
+    // `readable` in readAccounts below.
+    return out?.ok ? out.blob : null;
+  },
+  // The logins a round just imported, checked once after it — see checkImports.
+  checkArrivals: async steps => {
+    const { checkImports } = await import("./cswap-admin.mjs");
+    return checkImports(steps.map(step => {
+      const [email, org] = String(step?.key ?? "").split("@@");
+      return { email, org: org ?? "" };
+    }));
   },
   importAccount: async (blob, step) => {
-    const { importAccount, fillEmptySlot, verifyImportedOnMac, landed } = await import("./cswap-admin.mjs");
+    const { importAccount, fillEmptySlot, landed } = await import("./cswap-admin.mjs");
     const [want, wantOrg] = String(step?.key ?? "").split("@@");
-    const verifyMacImport = () => verifyImportedOnMac(want, wantOrg ?? "");
     // NO `force`, ever, and this is the line where that promise is kept. A
     // plain import adds an account that is missing and replaces exactly one
     // claude-swap has quarantined; it SKIPS one that is present and healthy.
@@ -3997,11 +4014,16 @@ const lanEngine = createEngine({
     const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });
     if (!out?.ok) return { ok: false, why: out?.reason ?? "import refused" };
     // A SKIP IS NOT A HEAL, and reading `ok` alone said it was. `cswap import`
-    // exits ZERO when it declines an account it already holds — importAccount's
-    // own comment says so and reports it as `added: false` — so a round that
+    // exits ZERO when it declines an account it already holds, so a round that
     // changed nothing was counted as a successful repair and the panel said the
     // account had been fixed. Whoever read that then waited for numbers that
     // were never going to move.
+    //
+    // `landed`, NOT `added`: `added` counts new slots only, and a plain import
+    // that replaces a quarantined slot is `healed` — the one repair this path
+    // exists for. Reading `added` reported every such heal as a failure and
+    // then sent it on to fillEmptySlot, which declined it. A slot that stayed
+    // `present` is the decline.
     //
     // The decline is narrow and documented on claude-swap's side: a plain
     // import replaces a slot only when its usage row is quarantined as
@@ -4009,9 +4031,7 @@ const lanEngine = createEngine({
     // `no credentials` state". So an account whose login expired heals over the
     // network, and one that has NO stored login does not — which is a true
     // sentence the panel can now print instead of a false one.
-    // A successful auto-heal rewrites the existing expired slot; it does not
-    // increase `added`. Treat imported, healed and updated as real arrivals.
-    if (landed(out.results)) return verifyMacImport();
+    if (landed(out.results)) return { ok: true };
 
     // THE DECLINE, AND WHY IT MATTERS WHICH ONE IT IS.
     //
@@ -4050,8 +4070,7 @@ const lanEngine = createEngine({
     // verdict taken before any of it began. fillEmptySlot re-reads the verdict
     // as its first statement INSIDE the lock, so the promise holds by
     // construction rather than by how long the queue happened to be.
-    const filled = await fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
-    return filled?.ok ? verifyMacImport() : filled;
+    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the

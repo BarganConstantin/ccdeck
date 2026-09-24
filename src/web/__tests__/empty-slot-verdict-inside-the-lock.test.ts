@@ -187,6 +187,24 @@ describe("filling an empty slot from a peer", () => {
     expect(forcedImports(), "a peer's blob was written over a fresh login").toEqual([]);
   });
 
+  it("never forces over a slot this Mac's Keychain will not open, and says which refusal it was", async () => {
+    // An unreadable Keychain is an UNKNOWN, not an empty slot. The refusal
+    // itself is the `!== "no_credentials"` line; the name only changes on a
+    // Mac, because elsewhere claude-swap's `keychain_unavailable` is an .enc
+    // file it cannot open and the Keychain sentence would be about nothing.
+    for (const [platform, why] of [
+      ["darwin", "unreadable_here"],
+      ["linux", "claude-swap kept the slot it already has"],
+      ["win32", "claude-swap kept the slot it already has"],
+    ]) {
+      proc.calls.length = 0;
+      proc.verdict = "keychain_unavailable";
+      expect(await admin.fillEmptySlot(BLOB, { email: EMAIL, org: ORG, platform }), platform)
+        .toEqual({ ok: false, why });
+      expect(forcedImports(), `${platform}: forced over an unreadable slot`).toEqual([]);
+    }
+  });
+
   it("still fills a slot that is genuinely empty, which is the feature", async () => {
     // The other half, and the reason this cannot simply be made timid: an
     // account with no stored login is the one case pairing exists for, and the
@@ -264,7 +282,9 @@ describe("the wiring that reaches it", () => {
     // the flag is absent, and a test that failed on its own explanation would
     // be worse than no test.
     const code = fn.split("\n").filter(l => !l.trim().startsWith("//")).join("\n");
-    const first = code.slice(0, code.indexOf("if (out.added === true)"));
+    const end = code.indexOf("if (landed(out.results))");
+    expect(end, "the ordinary path's arrival check moved; this slice would cover the whole route").toBeGreaterThan(-1);
+    const first = code.slice(0, end);
     expect(first, "the ordinary import must not force").not.toMatch(/force/);
   });
 });

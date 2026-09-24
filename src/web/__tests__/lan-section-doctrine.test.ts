@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { PRODUCT } from "../brand";
 import {
   askedLabel, checkedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel,
   nextShared, rosterSplit, sameKeys, sectionState, settlePending, writeFailure, ONLINE_MS,
@@ -148,28 +149,51 @@ describe("a round says which of the three things it was", () => {
     }, NOW)).toEqual({ text: "1 of 2 logins arrived · now", tone: "bad" });
   });
 
-  it("locates a macOS Keychain problem at the account, machine and transfer stage", () => {
-    expect(roundLabel({ at: NOW, done: [
-      { email: "a@b.c", action: "heal", ok: false, why: "keychain_unavailable" },
-    ] }, NOW)).toEqual({
-      text: "a@b.c: export on paired Mac blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry",
-      tone: "bad",
-    });
-    expect(roundLabel({ at: NOW, done: [
-      { email: "d@e.f", action: "add", ok: false, why: "keychain_unavailable_local" },
-    ] }, NOW)).toEqual({
-      text: "d@e.f: import on this Mac blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry",
-      tone: "bad",
-    });
+  it("names which Mac's Keychain is locked, and keeps the count and every other problem", () => {
+    // Sender and receiver in one round, beside an arrival and a plain failure:
+    // the count stays, both machines are named, and the names come BEFORE the
+    // clock, because the list keeps only what precedes the first " · ".
+    const line = roundLabel({ at: NOW, done: [
+      { email: "a@b.c", action: "heal", ok: true, why: null },
+      { email: "s@b.c", action: "heal", ok: false, why: "keychain_unavailable" },
+      { email: "d@e.f", action: "add", ok: true, why: "unreadable_here" },
+      { email: "x@y.z", action: "heal", ok: false, why: "refused" },
+    ] }, NOW);
+    expect(line?.text).toBe("2 of 4 logins arrived, Keychain locked on the other Mac, Keychain locked on this Mac · now");
+    expect(line?.tone).toBe("bad");
+    expect(line?.text.replace(/ · .*$/, "")).toContain("Keychain locked on the other Mac");
+    // The remedy, per account, for the tooltip and the dialog — with the
+    // product's name from the brand module rather than typed in.
+    expect(line?.hint).toContain("s@b.c: the other Mac could not export it. On that Mac:");
+    expect(line?.hint).toContain(`start ${PRODUCT} from a Terminal window`);
+    expect(line?.hint).toContain("d@e.f: claude-swap could not read the login keychain");
+    expect(line?.hint).not.toContain("x@y.z");
   });
 
-  it("reports a Mac verification failure without claiming the Keychain is locked", () => {
-    expect(roundLabel({ at: NOW, done: [
-      { email: "a@b.c", action: "heal", ok: false, why: "verification_unavailable" },
-    ] }, NOW)).toEqual({
-      text: "a@b.c: cannot verify the imported login on this Mac · check claude-swap access here, then retry",
-      tone: "bad",
-    });
+  it("carries the problem into the deck list, and the remedy into the row's tooltip", () => {
+    const [row] = deckRows({
+      peers: [{
+        fp: "cdf-de5-f8c-263", peerFp: "cdf-de5-f8c-263", name: "Mac", paired: true,
+        addr: "192.168.1.153", port: 57051, lastSeen: NOW,
+        last: { at: NOW, done: [{ email: "s@b.c", action: "heal", ok: false, why: "keychain_unavailable" }] },
+      }] as never,
+    }, NOW);
+    expect(row.state).toBe("online · 0 of 1 logins arrived, Keychain locked on the other Mac");
+    expect(row.hint).toContain("s@b.c: the other Mac could not export it.");
+  });
+
+  it("says what was found wrong with a login that did arrive, and does not call the round clean", () => {
+    for (const [why, said] of [
+      ["no_credentials_here", "no stored login here"],
+      ["relogin_required_here", "login expired"],
+      ["unverified_here", "not checked"],
+    ]) {
+      expect(roundLabel({ at: NOW, done: [{ email: "a@b.c", action: "add", ok: true, why }] }, NOW), why)
+        .toMatchObject({ text: `1 login arrived, ${said} · now`, tone: "bad" });
+    }
+    // A code this build has never heard of names nothing, prototype keys included.
+    expect(roundLabel({ at: NOW, done: [{ email: "a@b.c", action: "add", ok: false, why: "constructor" }] }, NOW))
+      .toEqual({ text: "0 of 1 logins arrived · now", tone: "bad" });
   });
 
   it("says nothing at all about a deck it has not had a round with yet", () => {

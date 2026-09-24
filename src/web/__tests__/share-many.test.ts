@@ -74,6 +74,9 @@ vi.mock("../../server/cswap-install.mjs", () => ({
 vi.mock("../../server/claude-accounts.mjs", () => ({
   backupRoot: () => store.dir,
   invalidateClaudeAccountsCache: () => {},
+  // Asked only on a Mac, after an export fails — see exportFailure.
+  verdictNow: async () => null,
+  verdictsNow: async () => null,
 }));
 
 const admin = await import("../../server/cswap-admin.mjs") as any;
