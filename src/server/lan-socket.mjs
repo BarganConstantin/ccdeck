@@ -309,6 +309,7 @@ export function createBeacon({
 
   const announce = (also = []) => {
     if (!sock && !out) return;
+    const announcedIn = startGeneration;
     // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
     //
     // This used to send only to 255.255.255.255, on the argument that the
@@ -342,6 +343,9 @@ export function createBeacon({
     const failed = [];
     for (const to of targets) {
       from.send(payload(), DISCOVERY_PORT, to, err => {
+        // A send may finish after this socket has closed and a new LAN
+        // session has started. Its result says nothing about the new session.
+        if (stopped || announcedIn !== startGeneration) return;
         if (err) failed.push(`${to} (${err.code ?? err.message})`);
         // REPORTED ONLY WHEN EVERY ONE FAILED. One address being unreachable is
         // the ordinary state of a machine with a VPN up, and a panel that said

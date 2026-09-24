@@ -645,6 +645,34 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("ignores a delayed broadcast failure from an earlier discovery session", async () => {
+    const oldCallbacks: Array<(err: Error | null) => void> = [];
+    const currentCallbacks: Array<(err: Error | null) => void> = [];
+    const delayedSocket = (callbacks: Array<(err: Error | null) => void>) => ({
+      ...fakeSocket(),
+      send(_msg: Buffer, _port: number, _addr: string, cb?: (err: Error | null) => void) {
+        if (cb) callbacks.push(cb);
+      },
+    });
+    const sockets = [fakeSocket(), delayedSocket(oldCallbacks), fakeSocket(), delayedSocket(currentCallbacks)];
+    const errors: string[] = [];
+    const { b } = beaconOn(sockets[0], {
+      createSocket: () => sockets.shift(),
+      onError: (what: string) => errors.push(what),
+    });
+    await b.start();
+    expect(oldCallbacks).toHaveLength(1);
+    b.stop();
+    await b.start();
+    expect(currentCallbacks).toHaveLength(1);
+
+    oldCallbacks[0](new Error("previous network disconnected"));
+    expect(errors).toEqual([]);
+    currentCallbacks[0](new Error("current network disconnected"));
+    expect(errors).toEqual(["announce"]);
+    b.stop();
+  });
+
   it("does not report errors from a closed listener after discovery restarts", async () => {
     const oldSocket = fakeSocket();
     const currentSocket = fakeSocket();
