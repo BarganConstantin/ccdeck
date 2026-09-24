@@ -50,13 +50,13 @@ const CSWAP_TIMEOUT_MS = 60_000;
 // as well, for an .enc file it cannot open, and every sentence these feed talks
 // about a Mac's Keychain and a Terminal window.
 
-/** Fresh verdicts for several identities from one `cswap list --json`, in the
- *  order asked; null for any claude-swap would not answer for. */
-async function statusesNow(ids, verdicts) {
+/** Fresh verdict rows for several identities from one `cswap list --json`, in
+ *  the order asked; null for any claude-swap would not answer for. */
+async function rowsNow(ids, verdicts) {
   const all = await verdicts();
   return ids.map(({ email, org }) => {
     const want = String(email ?? "").trim().toLowerCase();
-    return all?.find(a => a.email === want && a.org === (org ?? ""))?.status ?? null;
+    return all?.find(a => a.email === want && a.org === (org ?? "")) ?? null;
   });
 }
 
@@ -68,14 +68,14 @@ async function statusesNow(ids, verdicts) {
  */
 export async function exportFailure(failed, store, { platform = process.platform, verdicts = verdictsNow } = {}) {
   if (platform !== "darwin" || !failed.length) return "export_failed";
-  const got = await statusesNow(
+  const got = await rowsNow(
     failed.map(f => ({ email: f.email, org: store?.orgs?.[f.num] ?? "" })),
     verdicts,
   );
   // The panel's own copy of the verdicts was just replaced; its cached account
   // list must not go on drawing the old ones.
   invalidateClaudeAccountsCache();
-  return got.every(s => s === "keychain_unavailable") ? "keychain_unavailable" : "export_failed";
+  return got.every(r => r?.status === "keychain_unavailable") ? "keychain_unavailable" : "export_failed";
 }
 
 /** What claude-swap's verdict on a login that just landed means for it here.
@@ -100,11 +100,37 @@ const AFTER_IMPORT = {
  * One `cswap list --json` for the whole round, after it, rather than one per
  * login inside it: each is a usage collection that can take a minute, and the
  * peer hangs up on a connection left idle for thirty seconds.
+ *
+ * THE SIGNED-IN ACCOUNT IS READ LIVE. For it, claude-swap's verdict is about the
+ * live login rather than the copy just written, so an expired or missing live
+ * login says nothing about the import and reads as unverified. A Keychain it
+ * cannot open still counts: it is the same Keychain, from the same session.
  */
 export async function checkImports(ids, { platform = process.platform, verdicts = verdictsNow } = {}) {
   if (platform !== "darwin" || !ids.length) return ids.map(() => null);
-  const got = await statusesNow(ids, verdicts);
-  return got.map(s => s == null ? HERE.unverified : Object.hasOwn(AFTER_IMPORT, s) ? AFTER_IMPORT[s] : null);
+  const got = await rowsNow(ids, verdicts);
+  return got.map(r => {
+    if (r?.status == null) return HERE.unverified;
+    if (!Object.hasOwn(AFTER_IMPORT, r.status)) return null;
+    return r.active && r.status !== "keychain_unavailable" ? HERE.unverified : AFTER_IMPORT[r.status];
+  });
+}
+
+/**
+ * An import's per-account results, each landed one carrying `check` — its
+ * checkImports code — when this Mac found something wrong with it. For the
+ * Add Account route, which says "imported" per account and was as blind to an
+ * unreadable login as the LAN round was.
+ */
+export async function checkImportResults(results, opts) {
+  const list = Array.isArray(results) ? results : [];
+  const came = list.filter(r => landed([r]));
+  if (!came.length) return list;
+  const codes = await checkImports(came.map(r => ({ email: r.email, org: r.org ?? "" })), opts);
+  return list.map(r => {
+    const code = codes[came.indexOf(r)];
+    return typeof code === "string" ? { ...r, check: code } : r;
+  });
 }
 
 // How long to wait for the CLI's verdict on a pasted code before saying so.
@@ -1193,7 +1219,7 @@ export function importOutcomes(before, after, wanted, stderr = "") {
  * from here - the fix is a re-login. Requiring the pair is what makes the
  * clobber something a person chose while looking at the address.
  */
-export async function importAccount(blob, { force = false, only = null } = {}) {
+export async function importAccount(blob, { force = false, only = null, collect = true } = {}) {
   const un = unwrapShare(blob);
   if (!un.ok) return { ok: false, reason: un.reason };
 
@@ -1240,7 +1266,10 @@ export async function importAccount(blob, { force = false, only = null } = {}) {
         })();
 
     const arrived = results.filter(x => x.state === "imported");
-    if (arrived.length) runDetached(await cswapBin(), ["list"]);
+    // `collect: false` when a checkImports follows: its `cswap list --json` is
+    // the same collection, and two at once race for one slot's claim, so the
+    // loser reads a fresh slot as `unavailable`.
+    if (arrived.length && collect) runDetached(await cswapBin(), ["list"]);
     return {
       ok: true,
       results,
@@ -1291,7 +1320,7 @@ export async function importAccount(blob, { force = false, only = null } = {}) {
  * would rewrite every matching credential on this machine, and a fresh token
  * replaced by a stale one is not recoverable from here.
  */
-export async function fillEmptySlot(blob, { email, org, platform = process.platform } = {}) {
+export async function fillEmptySlot(blob, { email, org, platform = process.platform, collect = true } = {}) {
   return withStoreLock(async () => {
     // FIRST STATEMENT INSIDE THE LOCK. Anything awaited before this re-opens
     // the window it exists to close.
@@ -1304,7 +1333,7 @@ export async function fillEmptySlot(blob, { email, org, platform = process.platf
       return { ok: false, why: platform === "darwin" && now === "keychain_unavailable" ? HERE.unreadable : "claude-swap kept the slot it already has" };
     }
 
-    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });
+    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" }, collect });
     if (!forced?.ok) return { ok: false, why: forced?.reason ?? "import refused" };
     // `added` counts `imported` alone, and a forced replace is `healed` — see
     // landed, which is the difference between a repair and a repair reported as

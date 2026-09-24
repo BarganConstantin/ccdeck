@@ -380,7 +380,7 @@ export async function verdictNow(email, org, { runner = run, bin = cswapBin } = 
 
 /**
  * Every account's verdict from ONE `cswap list --json`, as `{ email, org,
- * status }` rows (email lower-cased, status null when claude-swap gave none),
+ * status, active }` rows (email lower-cased, status null when claude-swap gave none),
  * or null when the question could not be asked at all.
  *
  * For a caller holding several identities at once — a round that imported
@@ -400,6 +400,10 @@ export async function verdictsNow({ runner = run, bin = cswapBin } = {}) {
       email: String(a?.email ?? "").trim().toLowerCase(),
       org: a?.organizationUuid ?? "",
       status: typeof a?.usageStatus === "string" ? a.usageStatus : null,
+      // For the account Claude Code is signed in as, claude-swap reads the
+      // LIVE credential, not the stored copy — so its verdict there is about
+      // the live login. See checkImports.
+      active: a?.active === true,
     }));
   } catch { return null; }
 }

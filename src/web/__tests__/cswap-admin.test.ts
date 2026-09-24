@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
-import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, checkImportResults, importOutcomes, landed, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -20,7 +20,7 @@ import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.m
 
 describe("whether this process can read what claude-swap holds", () => {
   // claude-swap's own `cswap list --json` rows, as verdictsNow hands them on.
-  const row = (email: string, status: string | null, org = "o") => ({ email, org, status });
+  const row = (email: string, status: string | null, org = "o", active = false) => ({ email, org, status, active });
   const answering = (rows: unknown[] | null) => {
     const asked: number[] = [];
     return { asked, verdicts: async () => { asked.push(1); return rows; } };
@@ -77,6 +77,60 @@ describe("whether this process can read what claude-swap holds", () => {
       expect(off.asked, platform).toEqual([]);
     }
   });
+});
+
+describe("the Add Account import, checked like a LAN arrival", () => {
+  const row = (email: string, status: string | null, active = false) => ({ email, org: "o", status, active });
+
+  it("reads the signed-in account's verdict as the live login's, except for the Keychain", async () => {
+    // claude-swap reads the active slot's LIVE credential, so an expired or
+    // missing live login says nothing about the copy just written. A Keychain
+    // it cannot open is the same Keychain either way.
+    const ids = [{ email: "k@x", org: "o" }, { email: "r@x", org: "o" }, { email: "n@x", org: "o" }, { email: "ok@x", org: "o" }];
+    const verdicts = async () => [
+      row("k@x", "keychain_unavailable", true), row("r@x", "relogin_required", true),
+      row("n@x", "no_credentials", true), row("ok@x", "ok", true),
+    ];
+    expect(await checkImports(ids, { platform: "darwin", verdicts }))
+      .toEqual(["unreadable_here", "unverified_here", "unverified_here", null]);
+  });
+
+  it("checks only what landed, once, and marks only what it found wrong", async () => {
+    const results = [
+      { email: "new@x", org: "o", num: "3", state: "imported" },
+      { email: "healed@x", org: "o", num: "4", state: "healed" },
+      { email: "fine@x", org: "o", num: "5", state: "imported" },
+      { email: "kept@x", org: "o", num: "6", state: "present" },
+      { email: "lost@x", org: "o", num: null, state: "failed" },
+    ];
+    const asked: unknown[] = [];
+    const verdicts = async () => {
+      asked.push(1);
+      return [row("new@x", "keychain_unavailable"), row("healed@x", "relogin_required"), row("fine@x", "ok"), row("kept@x", "keychain_unavailable")];
+    };
+    expect(await checkImportResults(results, { platform: "darwin", verdicts })).toEqual([
+      { ...results[0], check: "unreadable_here" },
+      { ...results[1], check: "relogin_required_here" },
+      results[2],
+      // Not touched by this import, so not this import's to report on.
+      results[3],
+      results[4],
+    ]);
+    expect(asked).toHaveLength(1);
+    // Nothing landed: nothing asked. Off a Mac: nothing asked either.
+    expect(await checkImportResults(results.slice(3), { platform: "darwin", verdicts })).toEqual(results.slice(3));
+    expect(await checkImportResults(results, { platform: "linux", verdicts })).toEqual(results);
+    expect(asked).toHaveLength(1);
+  });
+});
+
+it("recognizes a successful repair of an existing slot, but not an unchanged slot", () => {
+  const store = { slots: [3], emails: { 3: "example@test.invalid" }, orgs: { 3: "org" } };
+  const account = [{ email: "example@test.invalid", org: "org" }];
+  const healed = importOutcomes(store, store, account, "Replaced example@test.invalid");
+  expect(healed).toMatchObject([{ state: "healed", num: 3 }]);
+  expect(landed(healed)).toBe(true);
+  expect(landed(importOutcomes(store, store, account))).toBe(false);
 });
 
 // A stand-in for `claude auth login`, because the login tests need a child that

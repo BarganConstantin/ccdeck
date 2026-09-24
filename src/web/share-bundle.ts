@@ -143,6 +143,9 @@ export interface ImportResult {
   org?: string;
   num: string | null;
   state: ImportState;
+  /** Set when the account landed and this Mac found something wrong with it
+   *  after — see arrivalCheck. */
+  check?: string;
 }
 
 /** What a result row is known by. The address alone is not enough: one

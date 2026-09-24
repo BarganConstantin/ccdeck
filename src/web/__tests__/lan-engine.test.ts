@@ -1085,7 +1085,7 @@ describe("a heal that healed nothing", () => {
     // listed — and `syncAction` answers "add" for anything this deck lacks,
     // without the owner's tick. Every one of them landed. `only` narrows
     // without implying `force`, so the no-force promise is unchanged.
-    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });');
+    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" }, collect: !CHECKS_IMPORTS });');
     expect(src).not.toContain("const out = await importAccount(blob);");
   });
 
@@ -1095,7 +1095,7 @@ describe("a heal that healed nothing", () => {
     // refresh-token-dead" and is "never triggered by the live store's
     // `no credentials` state".
     expect(fillEmptySlot).toContain('if (now !== "no_credentials") {\n      return { ok: false,');
-    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });');
+    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" }, collect });');
     // ASKED NOW rather than read from the ten-minute cache: somebody who signed
     // in two minutes ago still reads as `no_credentials` there, and acting on
     // that would replace the login they had just created.

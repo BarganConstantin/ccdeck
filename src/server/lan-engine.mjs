@@ -847,7 +847,9 @@ export function createEngine({
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
-        // accepted: the suite drives this with one.
+        // accepted: the suite drives this with one. `ok` here means the login
+        // LANDED; whether this deck can then use it is checked after the loop
+        // and rides on the same row as a warning.
         // The step goes down with the blob: the wiring has to know WHICH account
         // it is placing before it may treat a decline as an empty slot rather
         // than as a healthy one.
