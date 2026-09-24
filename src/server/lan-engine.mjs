@@ -28,7 +28,7 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import { accountKey, currentFor, manifestFor, onePerKey, open, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge } from "./lan-sync.mjs";
-import { storedCopyAlive, cachedExportReadable } from "./account-health.mjs";
+import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
@@ -219,7 +219,7 @@ export function ticksOnArrival(step, via) {
 }
 
 export function createEngine({
-  readAccounts, exportAccount, importAccount, checkArrivals,
+  readAccounts, exportAccount, importAccount, checkArrivals, liveLogin,
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
@@ -498,6 +498,7 @@ export function createEngine({
     return (got?.accounts ?? []).map(a => ({
       key: accountKey(a.email, a.orgUuid),
       email: a.email,
+      org: a.orgUuid,
       alive: storedCopyAlive(a.alive, a.collector),
       // False only for a login the wiring knows this process cannot read (a
       // Mac whose Keychain will not open from here). Absent means readable,
@@ -644,6 +645,12 @@ export function createEngine({
         // machine to unlock instead of reading "export failed".
         if (!mine.readable) return ctx.send({ t: "no", why: mine.unreadableWhy });
         if (!mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
+        // The active slot exports the live CLI login, and its verdict can
+        // predate a `/login` as somebody else, so ask the CLI who it is now.
+        if (mine.active && liveLogin && !liveLoginIs(await liveLogin(), mine.email, mine.org)) {
+          return ctx.send({ t: "no", why: "export failed" });
+        }
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         const blob = await exportAccount(mine.num, msg.key);
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A Mac's failed export refreshes the verdict behind `readable` in the

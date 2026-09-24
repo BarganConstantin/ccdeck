@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
-import { cachedExportReadable, exportVerdictOk, storedCopyAlive } from "../../server/account-health.mjs";
+import { cachedExportReadable, exportVerdictOk, liveLoginIs, storedCopyAlive } from "../../server/account-health.mjs";
 // @ts-expect-error plain JS module
 import { cachedVerdictFor } from "../../server/claude-accounts.mjs";
 
@@ -37,5 +37,15 @@ describe("account health for LAN sync", () => {
     expect(cachedVerdictFor(cache, 5, 1_001, "new@example.test", "org-1")).toBeNull();
     expect(cachedVerdictFor(cache, 5, 1_001, "old@example.test", "org-2")).toBeNull();
     expect(cachedVerdictFor(cache, 5, 1_000 + 11 * 60_000, "old@example.test", "org-1")).toBeNull();
+  });
+
+  it("matches the live CLI login to a slot by email, and by organization when both sides name one", () => {
+    expect(liveLoginIs({ email: "S@x", orgId: "o" }, "s@x", "o")).toBe(true);
+    expect(liveLoginIs({ email: "s@x", orgId: "" }, "s@x", "o")).toBe(true);
+    expect(liveLoginIs({ email: "s@x", orgId: "o" }, "s@x", "")).toBe(true);
+    expect(liveLoginIs({ email: "s@x", orgId: "p" }, "s@x", "o")).toBe(false);
+    expect(liveLoginIs({ email: "t@x", orgId: "o" }, "s@x", "o")).toBe(false);
+    expect(liveLoginIs(null, "s@x", "o")).toBe(false);
+    expect(liveLoginIs({ email: "" }, "", "")).toBe(false);
   });
 });

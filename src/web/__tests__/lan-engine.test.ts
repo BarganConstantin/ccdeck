@@ -365,6 +365,20 @@ describe("the account that is dead here and alive there", () => {
     expect(mine.imported).toEqual([]);
   }, 20_000);
 
+  it("prefers a verified inactive copy over the active slot that has no verdict", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([
+      { num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null },
+      { num: 7, email: "s@x", orgUuid: "org", alive: true, active: false, collector: "ok" },
+    ]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([7]);
+  }, 20_000);
+
   it("still exports an inactive account without a verdict, since that export is the stored copy", async () => {
     const key = K("s@x", "org");
     const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
@@ -506,6 +520,68 @@ describe("what the holder checks when a credential is asked for", () => {
       ]);
       expect(theirs.exported, what).toEqual([]);
     }
+  }, 20_000);
+
+  it("refuses the active login when its verdict lapsed after the manifest", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const row = { num: 5, email: "s@x", orgUuid: "o", alive: true, active: true };
+    const theirs = store([{ ...row, collector: "ok" }]);
+    let reads = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: [{ ...row, collector: ++reads === 1 ? "ok" : null }] }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses the active login when the CLI is signed in as somebody else", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses the active login when the CLI cannot say who is signed in", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("gives the active login when the CLI is signed in as that account", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it("never asks the CLI who is signed in for an inactive login", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: false, collector: "ok" }]);
+    let asked = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => { asked++; return null; } });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(asked).toBe(0);
+    expect(theirs.exported).toEqual([5]);
   }, 20_000);
 
   it("says so when claude-swap exported nothing, rather than sealing nothing", async () => {

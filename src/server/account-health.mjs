@@ -28,3 +28,11 @@ export function cachedExportReadable(verdict, { active = false } = {}) {
   if (verdict == null) return !active;
   return exportVerdictOk(verdict);
 }
+
+/** Is the live CLI login the account this slot names? The active slot exports
+ * the live login, and a verdict can predate a `/login` as somebody else. */
+export function liveLoginIs(identity, email, org) {
+  const live = String(identity?.email ?? "").trim().toLowerCase();
+  if (!live || live !== String(email ?? "").trim().toLowerCase()) return false;
+  return !identity.orgId || !org || identity.orgId === org;
+}

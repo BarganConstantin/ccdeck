@@ -3954,15 +3954,25 @@ const tailnet = createTailnet();
 // When it does, the import skips its own detached collection — see importAccount.
 const CHECKS_IMPORTS = process.platform === "darwin";
 
-const ACTIVE_VERDICT_RETRY_MS = 60_000;
-let activeVerdictAskedAt = 0;
+const ACTIVE_VERDICT_FIRST_RETRY_MS = 60_000;
+const ACTIVE_VERDICT_MAX_RETRY_MS = 30 * 60_000;
+const LIVE_LOGIN_TIMEOUT_MS = 5_000;
+let activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
+let activeVerdictNextAt = 0;
+// A claude-swap that never reports a verdict for the active slot would
+// otherwise cost a usage collection every minute for as long as LAN is on.
 function refreshActiveVerdict() {
-  if (Date.now() - activeVerdictAskedAt < ACTIVE_VERDICT_RETRY_MS) return;
-  activeVerdictAskedAt = Date.now();
+  if (Date.now() < activeVerdictNextAt) return;
+  activeVerdictNextAt = Date.now() + activeVerdictRetryMs;
+  activeVerdictRetryMs = Math.min(activeVerdictRetryMs * 2, ACTIVE_VERDICT_MAX_RETRY_MS);
   void import("./claude-accounts.mjs")
     .then(({ verdictsNow, invalidateClaudeAccountsCache }) =>
-      verdictsNow().then(() => invalidateClaudeAccountsCache()))
+      verdictsNow().then(got => { if (got) invalidateClaudeAccountsCache(); }))
     .catch(() => {});
+}
+function activeVerdictArrived() {
+  activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
+  activeVerdictNextAt = 0;
 }
 
 const lanEngine = createEngine({
@@ -3988,8 +3998,15 @@ const lanEngine = createEngine({
     // cachedExportReadable — so ask for one now rather than waiting on the
     // collector's own schedule.
     if (got.accounts.some(a => a.active === true && a.collector == null)) refreshActiveVerdict();
+    else activeVerdictArrived();
     const { markUnreadable } = await import("./cswap-admin.mjs");
     return { ...got, accounts: markUnreadable(got.accounts) };
+  },
+  // Bounded well inside a round, since a want waits on it.
+  liveLogin: async () => {
+    const { currentIdentity } = await import("./cswap-admin.mjs");
+    const late = new Promise(resolve => setTimeout(resolve, LIVE_LOGIN_TIMEOUT_MS, null).unref?.());
+    return Promise.race([currentIdentity().catch(() => null), late]);
   },
   exportAccount: async (num, expectedKey) => {
     const { accountKey } = await import("./lan-sync.mjs");
