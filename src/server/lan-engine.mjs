@@ -1282,8 +1282,11 @@ export function createEngine({
       if (!inv) return { ok: false, reason: "not_an_invite" };
       if (inv.expired) return { ok: false, reason: "expired" };
       if (!identity || !server) return { ok: false, reason: "not_running" };
+      const startedIn = generation;
+      const stillJoining = () => generation === startedIn && cfg.enabled && !!server;
       const tried = [];
       for (const at of inv.addrs) {
+        if (!stillJoining()) return { ok: false, reason: "not_running", tried };
         let conn = null;
         try {
           conn = await connectToPeer({
@@ -1300,6 +1303,9 @@ export function createEngine({
             inviteProvesBack: inv.provesBack,
             sealFrames, ephemeral,
           });
+          // The handshake can complete after LAN was switched off (or the
+          // identity was restarted). Never persist a pin from that old join.
+          if (!stillJoining()) return { ok: false, reason: "not_running", tried };
           const { list } = addTrusted(cfg.trusted, {
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),
           });

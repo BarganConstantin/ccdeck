@@ -1842,6 +1842,18 @@ describe("invite-only pairing mode", () => {
 });
 
 describe("the invite, and the half of it that was never checked", () => {
+  it("does not persist a pairing if LAN was disabled while joining an invite", async () => {
+    const minter = await deck(store([]), "Minter", []);
+    const joiner = await deck(store([]), "Joiner", []);
+    const invite = minter.e.invite();
+    const joining = joiner.e.join(invite.token);
+    await joiner.e.apply({ enabled: false });
+    const result = await joining;
+    expect(result.ok).toBe(false);
+    expect(joiner.trusted).toEqual([]);
+    expect(joiner.dials).toEqual([]);
+  }, 20_000);
+
   it("pairs with the deck that minted the token", async () => {
     const a = await deck(store([]), "Minter", []);
     const b = await deck(store([]), "Joiner", []);
