@@ -920,6 +920,10 @@ export function createEngine({
         }
         done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
       }
+      // A ROUND FROM A SESSION THAT ENDED SAYS NOTHING. LAN was switched off
+      // under it, and possibly on again: a cut-short list is not "all logins
+      // fine", and it is not this session's to report.
+      if (session !== startedIn) return done;
       // WHAT ARRIVED, CHECKED ONCE, AFTER THE LAST QUESTION. An import that
       // exited cleanly can still have left a login this process cannot read (a
       // Mac's Keychain, from SSH or a LaunchAgent). Such a row stays `ok` — it
@@ -937,6 +941,10 @@ export function createEngine({
       if (done.length) onChange?.();
       return done;
     } catch (err) {
+      // Nor does its failure: "peer no longer paired" from a round that LAN
+      // being switched off ended is about the old session, and would stand on
+      // a row that is paired and fine until the next round replaced it.
+      if (session !== startedIn) return [];
       lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message });
       // A DIAL-BACK THAT NEVER ANSWERED IS TAKEN AWAY AGAIN. The address came
       // from a paired deck's inbound call, and this round was the test of
