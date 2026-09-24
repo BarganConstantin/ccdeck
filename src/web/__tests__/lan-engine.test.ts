@@ -275,6 +275,34 @@ describe("the account that is dead here and alive there", () => {
     expect(mine.imported).toEqual(["ccdeck2:slot-6"]);
   }, 20_000);
 
+  it("keeps earlier arrivals and continues with other accounts when one import throws", async () => {
+    const emails = ["alpha@example.com", "middle@example.com", "zeta@example.com"];
+    const theirs = store(emails.map((email, i) => ({ num: i + 5, email, orgUuid: `org-${i}`, alive: true })));
+    const mine = store([]);
+    const shared = emails.map((email, i) => K(email, `org-${i}`));
+    const a = await deck(mine, "Receiver", shared, {
+      importAccount: async (blob: string) => {
+        if (blob === "ccdeck2:slot-6") throw new Error("private credential-store diagnostics");
+        mine.imported.push(blob);
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Sender", shared);
+    await point(a, b, b.port);
+
+    const done = await a.e.round() as Array<{ email: string; ok: boolean; why: string | null }>;
+    expect(done.map(({ email, ok, why }) => ({ email, ok, why }))).toEqual([
+      { email: emails[0], ok: true, why: null },
+      { email: emails[1], ok: false, why: "import failed" },
+      { email: emails[2], ok: true, why: null },
+    ]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5", "ccdeck2:slot-7"]);
+    expect(theirs.exported).toEqual([5, 6, 7]);
+    const last = a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last;
+    expect(last?.done).toEqual(done);
+    expect(JSON.stringify(last)).not.toContain("private credential-store diagnostics");
+  }, 20_000);
+
   it("is healed, which is the whole feature", async () => {
     // The owner's own case, in a fixture: claude2 is quarantined on this
     // machine and works on the other one.

@@ -709,6 +709,9 @@ export function createEngine({
   const roundWith = async peer => {
     let conn = null;
     const startedIn = session;
+    // Out here, so a round that dies after some logins arrived still reports
+    // them — see the catch below.
+    const done = [];
     try {
       conn = await connectToPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
@@ -898,7 +901,6 @@ export function createEngine({
       // importAccount untyped, which `offered`'s filter would have caught.
       const wanted = plan(mine, list)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
-      const done = [];
       // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
       // LAN switched off, the peer unpaired (`stillPaired`, above) — ends the
       // round. A heal unticked mid-round ends only that heal: the adds behind
@@ -931,7 +933,15 @@ export function createEngine({
         // The step goes down with the blob: the wiring has to know WHICH account
         // it is placing before it may treat a decline as an empty slot rather
         // than as a healthy one.
-        const got = await importAccount(blob, step);
+        let got;
+        try { got = await importAccount(blob, step); }
+        catch {
+          // One local store failure must not erase earlier arrivals or stop
+          // independent logins from being received. Store diagnostics can
+          // contain credential material, so only a fixed verdict leaves here.
+          done.push({ ...step, ok: false, why: "import failed" });
+          continue;
+        }
         const ok = got === true || got?.ok === true;
         // AN ACCOUNT THAT ARRIVED HERE IS SHARED ONWARD (#1188). People forget
         // to tick it, and a group where one machine can heal the others and the
@@ -982,7 +992,8 @@ export function createEngine({
       // being switched off ended is about the old session, and would stand on
       // a row that is paired and fine until the next round replaced it.
       if (session !== startedIn) return [];
-      lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message });
+      lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message, done });
+      if (done.length) onChange?.();
       // A DIAL-BACK THAT NEVER ANSWERED IS TAKEN AWAY AGAIN. The address came
       // from a paired deck's inbound call, and this round was the test of
       // whether the call can be returned. It could not — a strict NAT, a
@@ -997,7 +1008,7 @@ export function createEngine({
         lastRound.delete(peer.fp);
         onChange?.();
       }
-      return [];
+      return done;
     } finally {
       conn?.sock?.destroy();
     }
