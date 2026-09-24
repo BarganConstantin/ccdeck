@@ -1052,7 +1052,12 @@ export function createSyncServer({
       const cancel = () => finish(resolve, null);
       cancelStart = cancel;
       listener.on("error", err => {
-        if (!pending) return;
+        // A listener can also fail after its initial bind succeeded. Continue
+        // reporting those errors while it is the active server.
+        if (!pending) {
+          if (server === listener) onError?.("listen", err);
+          return;
+        }
         if (!retried) {
           // Somebody else has it — another deck on this machine, or something
           // unrelated. The pin is not worth failing to start over.
