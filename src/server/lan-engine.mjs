@@ -880,8 +880,9 @@ export function createEngine({
       // round. A heal unticked mid-round ends only that heal: the adds behind
       // it need no tick, and the skipped row says why rather than vanishing.
       const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
+      let cut = false;
       for (const step of wanted) {
-        if (!stillPaired()) break;
+        if (!stillPaired()) { cut = true; break; }
         if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
@@ -895,7 +896,7 @@ export function createEngine({
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
         // Unpairing, disabling LAN, or unticking a heal while export was in
         // progress takes effect before the received credential touches disk.
-        if (!stillPaired()) break;
+        if (!stillPaired()) { cut = true; break; }
         if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
@@ -933,6 +934,9 @@ export function createEngine({
       // under it, and possibly on again: a cut-short list is not "all logins
       // fine", and it is not this session's to report.
       if (session !== startedIn) return done;
+      // Unpaired mid-round: said as such, not as the short list that reads
+      // "all logins fine".
+      if (cut) throw new Error("peer no longer paired");
       // WHAT ARRIVED, CHECKED ONCE, AFTER THE LAST QUESTION. An import that
       // exited cleanly can still have left a login this process cannot read (a
       // Mac's Keychain, from SSH or a LaunchAgent). Such a row stays `ok` — it
@@ -1002,6 +1006,7 @@ export function createEngine({
 
   const oneRound = async () => {
     if (!beacon) return [];
+    const startedIn = session;
     const all = [];
     // Heard first, typed second, and a typed one is skipped when the beacon
     // already found that address: otherwise a deck that is both would be dialled
@@ -1032,8 +1037,13 @@ export function createEngine({
       // time anyway (the mutex in store-lock.mjs), and two peers healing the
       // same account at once would race for a slot number claude-swap assigns
       // as max+1 without a lock of its own.
+      //
+      // And given up when LAN is switched off under it: the rest of the list
+      // belongs to no session, and dialling it only delays the next round.
+      if (session !== startedIn) return all;
       all.push(...await roundWith(peer));
     }
+    if (session !== startedIn) return all;
     roundAt = now();
     return all;
   };
@@ -1063,6 +1073,8 @@ export function createEngine({
 
   /** The whole round in flight or waiting its turn, or null. See `round` below. */
   let _round = null;
+  /** The session `_round` was asked for in. */
+  let _roundIn = -1;
 
   /**
    * One round at a time, and the one already running is the answer (#1040).
@@ -1090,7 +1102,18 @@ export function createEngine({
    * never a check: joining a check would answer "ask every deck" with one
    * deck's work and leave the rest waiting another minute.
    */
-  const round = () => (_round ??= inTurn(oneRound).finally(() => { _round = null; }));
+  //
+  // NEVER A ROUND FROM A SESSION THAT ENDED. LAN switched off and on again
+  // while one ran: that round stops at its next peer and reports nothing, so
+  // joining it would answer the new session's first tick with nothing and
+  // leave every deck unasked for a whole SYNC_MS. The new one queues behind it.
+  const round = () => {
+    if (_round && _roundIn === session) return _round;
+    _roundIn = session;
+    const mine = inTurn(oneRound).finally(() => { if (_round === mine) _round = null; });
+    _round = mine;
+    return mine;
+  };
 
   return {
     async apply(next) {
