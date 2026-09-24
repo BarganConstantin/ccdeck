@@ -145,9 +145,9 @@ export const KEYCHAIN =
  */
 const ARRIVAL_CHECK: Record<string, { short: string; long: string }> = {
   unreadable_here: { short: "Keychain locked on this Mac", long: `${KEYCHAIN}.` },
-  no_credentials_here: { short: "no stored login here", long: "it arrived, and claude-swap still holds no login for it here." },
-  relogin_required_here: { short: "login expired", long: "it arrived with a login that was rejected — sign in again on a deck where it still works." },
-  unverified_here: { short: "not checked", long: "it arrived, and claude-swap could not be asked whether this Mac can read it." },
+  no_credentials_here: { short: "no stored login here", long: "claude-swap still holds no login for it here." },
+  relogin_required_here: { short: "login expired", long: "the imported login was rejected — sign in again on a deck where it still works." },
+  unverified_here: { short: "not checked", long: "claude-swap could not confirm whether this Mac can read it." },
 };
 
 /** The words for one arrival check, or null for none — or for a code this

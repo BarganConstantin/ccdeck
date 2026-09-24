@@ -354,7 +354,7 @@ let _verdicts = { at: 0, byNum: {} };
 const VERDICT_TTL_MS = 10 * 60_000;
 /** One `cswap list --json` at a time. A collection can take a while on a cold
  *  network, and a nudge landing inside one must not start a second. */
-let _verdictInFlight = false;
+let _verdictInFlight = null;
 
 /**
  * Ask claude-swap about one account RIGHT NOW, rather than reading the cache.
@@ -387,7 +387,7 @@ export async function verdictNow(email, org, { runner = run, bin = cswapBin } = 
  * three logins asks once, not three times, since each ask is a full usage
  * collection that can take a minute on a cold network.
  */
-export async function verdictsNow({ runner = run, bin = cswapBin } = {}) {
+async function collectVerdicts({ runner, bin }) {
   try {
     const out = await runner(await bin(), ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS });
     if (!out?.ok) return null;
@@ -406,6 +406,17 @@ export async function verdictsNow({ runner = run, bin = cswapBin } = {}) {
       active: a?.active === true,
     }));
   } catch { return null; }
+}
+
+/** Failed exports, import checks and routine collection share the same live
+ * question. Starting a second process can both waste 90 seconds and replace a
+ * newer verdict with the result of an older collection that finished later. */
+export function verdictsNow({ runner = run, bin = cswapBin } = {}) {
+  // Tests and callers supplying their own runner must receive their own answer.
+  if (runner !== run || bin !== cswapBin) return collectVerdicts({ runner, bin });
+  if (_verdictInFlight) return _verdictInFlight;
+  _verdictInFlight = collectVerdicts({ runner, bin }).finally(() => { _verdictInFlight = null; });
+  return _verdictInFlight;
 }
 
 /** claude-swap's verdict for a slot, or null when there is none fresh enough. */
@@ -457,21 +468,11 @@ function nudgeCollector(rows, slots, now, activeNum) {
     return;
   }
   if (_verdictInFlight) return;
-  _verdictInFlight = true;
   // Fire-and-forget: this function is deliberately synchronous so callers never
   // wait on it, and resolving the binary is the only async part. `run` rather
   // than `runDetached` only so the output can be read; the caller is no more
   // aware of it than before.
-  cswapBin()
-    .then(bin => run(bin, ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS }))
-    .then(out => {
-      const byNum = out?.ok ? readVerdicts(out.stdout) : {};
-      // Replaced whole rather than merged. A slot that has gone away must not
-      // keep the verdict it had when it was last seen.
-      if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
-    })
-    .catch(() => {})
-    .finally(() => { _verdictInFlight = false; });
+  void verdictsNow();
 }
 
 /** Long enough for a cold collection over a slow network, short enough that a

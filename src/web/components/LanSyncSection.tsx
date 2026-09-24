@@ -235,7 +235,7 @@ export function seenLabel(lastSeen: number | undefined, now: number): string {
 /** What the last round with one peer did: the sentence, and which of the three
  *  things it is — and, when a login came with a problem, what to do about it,
  *  which is too long for the row and goes where the whole sentence goes. */
-export interface RoundLine { text: string; tone: "bad" | "idle" | "ok"; hint?: string }
+export interface RoundLine { text: string; tone: "bad" | "warn" | "idle" | "ok"; hint?: string }
 
 type DoneRow = NonNullable<NonNullable<Peer["last"]>["done"]>[number];
 
@@ -387,7 +387,7 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
     // "arrived", because a round only ever pulls: roundWith dials, reads the
     // other deck's manifest and imports. Nothing leaves this deck on a round it
     // started, and "took 2 accounts" left which way it went to the reader.
-    ? { text: `${ok.length} ${verb} arrived${what} · ${at}`, tone: said.length ? "bad" : "ok", ...(hint ? { hint } : {}) }
+    ? { text: `${ok.length} ${verb} arrived${what} · ${at}`, tone: said.length ? "warn" : "ok", ...(hint ? { hint } : {}) }
     // Some moved and some did not, which is neither a clean round nor a failure
     // to reach the deck. It reads as the partial thing it is.
     : { text: `${ok.length} of ${done.length} logins arrived${what} · ${at}`, tone: "bad", ...(hint ? { hint } : {}) };

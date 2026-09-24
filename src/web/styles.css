@@ -9462,6 +9462,8 @@ button.qb-pace::after {
 .ap-lan-who .ap-pulse { color: var(--ok); opacity: 1; }
 .ap-lan-who[data-tone="bad"] .ap-pulse,
 .ap-lan-who[data-tone="bad"] .ap-dot { color: var(--warn); opacity: 1; }
+.ap-lan-who[data-tone="warn"] .ap-pulse,
+.ap-lan-who[data-tone="warn"] .ap-dot { color: var(--warn); opacity: 1; }
 .ap-lan-who[data-tone="wait"] .ap-pulse { color: var(--accent); }
 
 /* THE INVITE, WHICH IS THE WHOLE ACT WHILE NOBODY IS PAIRED. It gets a card
@@ -12347,6 +12349,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer-restore { margin-left: 8px; padding: 0; min-height: 0; }
 .lan-peer[data-tone="ok"] .lan-peer-state { color: var(--ok); }
 .lan-peer[data-tone="bad"] .lan-peer-state { color: var(--warn); }
+.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--text); }
 .lan-peer[data-tone="wait"] .lan-peer-state { color: var(--accent); }
 
 .lan-peer-body { gap: 20px; }

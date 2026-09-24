@@ -189,7 +189,7 @@ describe("a round says which of the three things it was", () => {
       ["unverified_here", "not checked"],
     ]) {
       expect(roundLabel({ at: NOW, done: [{ email: "a@b.c", action: "add", ok: true, why }] }, NOW), why)
-        .toMatchObject({ text: `1 login arrived, ${said} · now`, tone: "bad" });
+        .toMatchObject({ text: `1 login arrived, ${said} · now`, tone: "warn" });
     }
     // A code this build has never heard of names nothing, prototype keys included.
     expect(roundLabel({ at: NOW, done: [{ email: "a@b.c", action: "add", ok: false, why: "constructor" }] }, NOW))
