@@ -436,7 +436,10 @@ export function createBeacon({
     try { s = createSocket({ type: "udp4", reuseAddr: true }); } catch (err) { resolve({ err }); return; }
     let bound = false;
     s.on("error", err => {
-      if (bound) { onError?.("socket", err); return; }
+      if (bound) {
+        if (!stopped && startedIn === startGeneration) onError?.("socket", err);
+        return;
+      }
       try { s.close(); } catch { /* never opened */ }
       resolve({ err });
     });
