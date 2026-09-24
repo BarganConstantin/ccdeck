@@ -24,7 +24,8 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { looksMissing, pathLookup, run, runDetached, runInteractive } from "./exec.mjs";
-import { backupRoot, invalidateClaudeAccountsCache, verdictNow } from "./claude-accounts.mjs";
+import { backupRoot, invalidateClaudeAccountsCache, verdictNow, verdictsNow } from "./claude-accounts.mjs";
+import { HERE } from "./lan-sync.mjs";
 import { withStoreLock } from "./store-lock.mjs";
 import { adminClaudeBin, currentIdentity } from "./claude-identity.mjs";
 import { claudeCliCandidates } from "./claude-dir.mjs";
@@ -35,28 +36,109 @@ import { PRODUCT } from "./brand.mjs";
 // open longer than a user would plausibly take to fetch one.
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
 const CSWAP_TIMEOUT_MS = 60_000;
-// Only a fixed code crosses the LAN. In particular, cswap export's stdout is
-// credential data and must never become a diagnostic, even after a failed run.
-export function macKeychainFailure(stderr, platform = process.platform) {
-  return platform === "darwin" && /(?:keychain|SecKeychain|errSecInteractionNotAllowed|user interaction is not allowed|security session)/i.test(stderr ?? "");
+// ── whether this process can read what claude-swap holds ────────────────────
+//
+// ASKED OF CLAUDE-SWAP, NEVER READ OFF ITS WORDS. A Keychain it cannot open is
+// logged to its own log file and nowhere else: `cswap export` then says only
+// "no backup credentials found for account N", which is also what an account
+// with no stored login says, and `cswap import` falls back to its .enc file and
+// exits 0. Nothing on stderr tells a locked Keychain apart, so nothing here
+// looks. `cswap list --json` does tell it apart — a per-account `usageStatus`
+// of `keychain_unavailable` — and that is the one signal these read.
+//
+// MACOS ONLY. claude-swap reports `keychain_unavailable` on Linux and Windows
+// as well, for an .enc file it cannot open, and every sentence these feed talks
+// about a Mac's Keychain and a Terminal window.
+
+/** Fresh verdict rows for several identities from one `cswap list --json`, in
+ *  the order asked; null for any claude-swap would not answer for. */
+async function rowsNow(ids, verdicts) {
+  const all = await verdicts({ fresh: true });
+  return ids.map(({ email, org }) => {
+    const want = String(email ?? "").trim().toLowerCase();
+    return all?.find(a => a.email === want && a.org === (org ?? "")) ?? null;
+  });
 }
 
-/** A successful import can still be unreadable by a headless macOS process.
- * Recheck through claude-swap in the same security session as the server. */
-export async function verifyImportedOnMac(email, org, { platform = process.platform, verdict = verdictNow } = {}) {
-  if (platform !== "darwin") return { ok: true };
-  // A missing or failed `cswap list` is inconclusive, not evidence that this
-  // headless process can read the imported credential from the Keychain.
-  let status;
-  try { status = await verdict(email, org); }
-  catch { return { ok: false, why: "verification_unavailable" }; }
-  if (["keychain_unavailable", "no_credentials", "relogin_required"].includes(status)) {
-    return { ok: false, why: status };
-  }
-  return status === "ok"
-    ? { ok: true }
-    : { ok: false, why: "verification_unavailable" };
+/**
+ * Why a share came out empty: `keychain_unavailable` when claude-swap says
+ * EVERY account that failed is one this Mac's Keychain will not open, and
+ * `export_failed` otherwise — the reason has to be true of the whole failure,
+ * because the detail printed beside it is.
+ */
+export async function exportFailure(failed, store, { platform = process.platform, verdicts = verdictsNow } = {}) {
+  if (platform !== "darwin" || !failed.length) return "export_failed";
+  const got = await rowsNow(
+    failed.map(f => ({ email: f.email, org: store?.orgs?.[f.num] ?? "" })),
+    verdicts,
+  );
+  // The panel's own copy of the verdicts was just replaced; its cached account
+  // list must not go on drawing the old ones.
+  invalidateClaudeAccountsCache();
+  return got.every(r => r?.status === "keychain_unavailable") ? "keychain_unavailable" : "export_failed";
 }
+
+/** What claude-swap's verdict on a login that just landed means for it here.
+ *  Everything else — `ok`, a transient `unavailable`, an api-key account — is a
+ *  login that arrived and can be read, which is all this is asked. */
+const AFTER_IMPORT = {
+  keychain_unavailable: HERE.unreadable,
+  no_credentials: HERE.noLogin,
+  relogin_required: HERE.expired,
+};
+
+/** A Mac's locally unreadable login cannot be offered to a paired deck. */
+export function markUnreadable(accounts, platform = process.platform) {
+  if (platform !== "darwin" || !Array.isArray(accounts)) return accounts;
+  return accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a);
+}
+
+/**
+ * The logins a round just imported, checked once from inside this process.
+ *
+ * `cswap import` exiting 0 is not proof: on a Mac it falls back quietly when
+ * the Keychain will not take the write, and a deck started from SSH or a
+ * LaunchAgent may then be unable to read what it holds. One HERE code per
+ * identity (see lan-sync.mjs), or null for one that is fine — and
+ * `HERE.unverified` when claude-swap could not be asked at all, because an
+ * unanswered question is not a yes.
+ *
+ * One `cswap list --json` for the whole round, after it, rather than one per
+ * login inside it: each is a usage collection that can take a minute, and the
+ * peer hangs up on a connection left idle for thirty seconds.
+ *
+ * THE SIGNED-IN ACCOUNT IS READ LIVE. For it, claude-swap's verdict is about the
+ * live login rather than the copy just written, so an expired or missing live
+ * login says nothing about the import and reads as unverified. A Keychain it
+ * cannot open still counts: it is the same Keychain, from the same session.
+ */
+export async function checkImports(ids, { platform = process.platform, verdicts = verdictsNow } = {}) {
+  if (platform !== "darwin" || !ids.length) return ids.map(() => null);
+  const got = await rowsNow(ids, verdicts);
+  return got.map(r => {
+    if (r?.status == null) return HERE.unverified;
+    if (!Object.hasOwn(AFTER_IMPORT, r.status)) return null;
+    return r.active && r.status !== "keychain_unavailable" ? HERE.unverified : AFTER_IMPORT[r.status];
+  });
+}
+
+/**
+ * An import's per-account results, each landed one carrying `check` — its
+ * checkImports code — when this Mac found something wrong with it. For the
+ * Add Account route, which says "imported" per account and was as blind to an
+ * unreadable login as the LAN round was.
+ */
+export async function checkImportResults(results, opts) {
+  const list = Array.isArray(results) ? results : [];
+  const came = list.filter(r => landed([r]));
+  if (!came.length) return list;
+  const codes = await checkImports(came.map(r => ({ email: r.email, org: r.org ?? "" })), opts);
+  return list.map(r => {
+    const code = codes[came.indexOf(r)];
+    return typeof code === "string" ? { ...r, check: code } : r;
+  });
+}
+
 // How long to wait for the CLI's verdict on a pasted code before saying so.
 // Exchanging a code is one HTTPS round trip; a minute is generous.
 const CODE_VERDICT_MS = 60_000;
@@ -911,8 +993,13 @@ export function mergeExports(texts) {
  *
  * The default export shape is used deliberately, never --full, which would
  * embed the entire ~/.claude.json including every project and MCP server.
+ *
+ * `explain: false` skips asking claude-swap why an empty export failed. The
+ * LAN answers a peer that gives up after ten seconds, and that question is a
+ * usage collection that can take a minute; it refreshes the verdict in the
+ * background instead, so the next round's refusal can name the Keychain.
  */
-export async function shareAccounts(nums) {
+export async function shareAccounts(nums, { explain = true } = {}) {
   const asked = Array.isArray(nums) ? nums : [nums];
   // One spawn per account, so the length of this list is a length of time the
   // request holds. A store never has fifty accounts; a caller that sends nine
@@ -933,11 +1020,9 @@ export async function shareAccounts(nums) {
   const store = await readStore();
   const texts = [];
   const failed = [];
-  let keychainUnavailable = false;
   for (const n of wanted) {
     const r = await run(await cswapBin(), ["export", "-", "--account", String(n)], { timeout: CSWAP_TIMEOUT_MS });
     if (!r.ok || !r.stdout.trim()) {
-      keychainUnavailable ||= macKeychainFailure(r.stderr);
       // The failure sentence is built from stderr ALONE for this one command,
       // because its stdout is the credential. `failureText` concatenates
       // `${stderr}\n${stdout}` and `firstUseful` takes the LAST non-empty line -
@@ -963,7 +1048,17 @@ export async function shareAccounts(nums) {
   // Nothing came out at all. There is no partial bundle to hand over, so this
   // is the plain failure the single-account share has always reported.
   if (!texts.length) {
-    return { ok: false, reason: keychainUnavailable ? "keychain_unavailable" : "export_failed", detail: failed[0]?.detail ?? "", failed };
+    if (!explain) {
+      if (process.platform === "darwin") void verdictsNow().then(() => invalidateClaudeAccountsCache(), () => {});
+      return { ok: false, reason: "export_failed", detail: failed[0]?.detail ?? "", failed };
+    }
+    const reason = await exportFailure(failed, store);
+    // failed[0]'s own line would read "no backup credentials found", which
+    // sends somebody to sign in again over a login that is perfectly fine.
+    const detail = reason === "keychain_unavailable"
+      ? `claude-swap could not open this Mac's Keychain — start ${PRODUCT} from a Terminal window on the Mac itself, not over SSH or as a background service`
+      : failed[0]?.detail ?? "";
+    return { ok: false, reason, detail, failed };
   }
 
   const merged = mergeExports(texts);
@@ -1130,7 +1225,7 @@ export function importOutcomes(before, after, wanted, stderr = "") {
  * from here - the fix is a re-login. Requiring the pair is what makes the
  * clobber something a person chose while looking at the address.
  */
-export async function importAccount(blob, { force = false, only = null } = {}) {
+export async function importAccount(blob, { force = false, only = null, collect = true } = {}) {
   const un = unwrapShare(blob);
   if (!un.ok) return { ok: false, reason: un.reason };
 
@@ -1160,11 +1255,7 @@ export async function importAccount(blob, { force = false, only = null } = {}) {
     child.end();
 
     const r = await child.done;
-    if (!r.ok) return {
-      ok: false,
-      reason: macKeychainFailure(r.stderr) ? "keychain_unavailable" : "import_failed",
-      detail: failureText(r, "cswap import"),
-    };
+    if (!r.ok) return { ok: false, reason: "import_failed", detail: failureText(r, "cswap import") };
 
     const after = await readStore();
     invalidateClaudeAccountsCache();
@@ -1181,7 +1272,10 @@ export async function importAccount(blob, { force = false, only = null } = {}) {
         })();
 
     const arrived = results.filter(x => x.state === "imported");
-    if (arrived.length) runDetached(await cswapBin(), ["list"]);
+    // `collect: false` when a checkImports follows: its `cswap list --json` is
+    // the same collection, and two at once race for one slot's claim, so the
+    // loser reads a fresh slot as `unavailable`.
+    if (arrived.length && collect) runDetached(await cswapBin(), ["list"]);
     return {
       ok: true,
       results,
@@ -1232,17 +1326,20 @@ export async function importAccount(blob, { force = false, only = null } = {}) {
  * would rewrite every matching credential on this machine, and a fresh token
  * replaced by a stale one is not recoverable from here.
  */
-export async function fillEmptySlot(blob, { email, org } = {}) {
+export async function fillEmptySlot(blob, { email, org, platform = process.platform, collect = true } = {}) {
   return withStoreLock(async () => {
     // FIRST STATEMENT INSIDE THE LOCK. Anything awaited before this re-opens
     // the window it exists to close.
     const now = await verdictNow(email, org ?? "");
-    // An inaccessible Keychain is UNKNOWN, not an empty slot. Never turn an
-    // OS access failure into permission to replace a credential with --force.
-    if (now === "keychain_unavailable") return { ok: false, why: "keychain_unavailable" };
-    if (now !== "no_credentials") return { ok: false, why: "claude-swap kept the slot it already has" };
+    // THIS LINE IS THE PROTECTION: anything but `no_credentials` — an
+    // unreadable Keychain included, which is an unknown and not an empty slot —
+    // refuses the forced write. The ternary only names which refusal it was,
+    // since "kept the slot it already has" sends nobody to unlock the Mac.
+    if (now !== "no_credentials") {
+      return { ok: false, why: platform === "darwin" && now === "keychain_unavailable" ? HERE.unreadable : "claude-swap kept the slot it already has" };
+    }
 
-    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });
+    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" }, collect });
     if (!forced?.ok) return { ok: false, why: forced?.reason ?? "import refused" };
     // `added` counts `imported` alone, and a forced replace is `healed` — see
     // landed, which is the difference between a repair and a repair reported as
