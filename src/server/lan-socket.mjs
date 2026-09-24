@@ -365,6 +365,9 @@ export function createBeacon({
   };
 
   const onMessage = (msg, rinfo) => {
+    // A queued UDP callback can run after close(). It belongs to the stopped
+    // discovery session and must not repopulate peers or invite strangers.
+    if (stopped) return;
     // Everything about whether to care lives in lan-sync.mjs. This hands it
     // the bytes and the address and does what it is told.
     if (msg.length > MAX_BEACON_BYTES) return;
