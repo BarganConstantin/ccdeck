@@ -408,6 +408,8 @@ export function createEngine({
 
   /** The tailnet read's own timer, running only while the switch is on. */
   let tailTimer = null;
+  // An in-flight refresh may finish after discovery is disabled or restarted.
+  let tailRefreshGeneration = 0;
 
   /** Who held the discovery port the last time it was asked, for as long as
    *  this deck cannot hear: the answer does not change between two tries half a
@@ -461,10 +463,17 @@ export function createEngine({
   const syncTailnet = () => {
     const want = !!(beacon && tailnet && cfg.enabled && cfg.tailscale);
     if (want && !tailTimer) {
-      void tailnet.refresh().then(() => beacon?.announce(), () => {});
+      const startedIn = ++tailRefreshGeneration;
+      const currentBeacon = beacon;
+      void tailnet.refresh().then(() => {
+        if (startedIn === tailRefreshGeneration && beacon === currentBeacon && cfg.enabled && cfg.tailscale) {
+          currentBeacon.announce();
+        }
+      }, () => {});
       tailTimer = setInterval(() => { void tailnet.refresh(); }, TAILNET_MS);
       tailTimer.unref?.();
     } else if (!want && tailTimer) {
+      tailRefreshGeneration++;
       clearInterval(tailTimer);
       tailTimer = null;
     }
@@ -1704,6 +1713,7 @@ export function createEngine({
     },
     stop() {
       generation++;
+      tailRefreshGeneration++;
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;

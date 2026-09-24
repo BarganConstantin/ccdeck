@@ -516,6 +516,30 @@ describe("the switch, and what turning it off means", () => {
   }, 20_000);
 });
 
+describe("a Tailscale refresh finishing after its discovery switch changed", () => {
+  it("does not broadcast a late announcement after Tailscale discovery is turned off", async () => {
+    let finishRefresh!: () => void;
+    const refreshing = new Promise<void>(resolve => { finishRefresh = resolve; });
+    const sent: string[] = [];
+    const sock = deafSocket();
+    sock.send = (_msg, _port, addr, cb) => { sent.push(addr); cb?.(null); };
+    const e = createEngine({
+      ...store([]).deps(),
+      createSocket: () => sock,
+      tailnet: { refresh: () => refreshing, freshen: () => Promise.resolve(), snapshot: () => null },
+    });
+    running.push(e);
+    await e.apply({ enabled: true, tailscale: false });
+    const before = sent.length;
+    await e.apply({ tailscale: true });
+    await e.apply({ tailscale: false });
+    finishRefresh();
+    await refreshing;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(sent).toHaveLength(before);
+  });
+});
+
 describe("how a deck names itself", () => {
   it("uses the machine's own name, which is the word already in use for it", () => {
     expect(defaultName()).toBeTruthy();
