@@ -27,7 +27,7 @@ import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
 import { exitRequest, isLoginOver, loginEndNotice, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
-import { explainFailure } from "../admin-failure";
+import { arrivalCheck, explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
@@ -492,12 +492,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
             )
           ) : imported ? (() => {
             const arrived = imported.filter(r => r.state === "imported").length;
+            const needsAttention = imported.some(r => arrivalCheck(r.check));
             return (
             <div className="aa-done">
-              <SuccessMark ref={markRef} />
+              {!needsAttention && <SuccessMark ref={markRef} />}
               {/* Only when something actually arrived: celebrating a no-op is
                   how a celebration stops meaning anything. */}
-              {arrived > 0 && <Confetti anchor={markRef} />}
+              {arrived > 0 && !needsAttention && <Confetti anchor={markRef} />}
               {/* The count, not a verdict. "Done" over a paste of five is what
                   makes somebody run it again and then wonder whether they
                   doubled something; this is the sentence they need before they
@@ -507,6 +508,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                 <ul className="aa-results">
                   {imported.map(r => {
                     const key = importRowKey(r);
+                    const check = arrivalCheck(r.check);
                     return (
                       <li key={key} className={`aa-result ${r.state}`}>
                         <span className="aa-result-who">{r.email || (r.num ? `slot ${r.num}` : "an account")}</span>
@@ -524,6 +526,9 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                             {forcing === key ? "updating…" : "update anyway"}
                           </button>
                         )}
+                        {/* It landed, and this Mac cannot use it yet — the
+                            one thing "imported" alone would hide (#1244). */}
+                        {check && <span className="aa-result-err">{check.long}</span>}
                         {rowError?.key === key && <span className="aa-result-err">{rowError.text}</span>}
                       </li>
                     );
