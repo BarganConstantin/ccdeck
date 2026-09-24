@@ -587,6 +587,7 @@ function fakeSocket() {
     sent,
     get broadcast() { return broadcast; },
     deliver(msg: Buffer, address: string) { handlers.get("message")?.(msg, { address }); },
+    emitError(err: Error) { handlers.get("error")?.(err); },
     on(ev: string, fn: (...args: unknown[]) => void) { handlers.set(ev, fn); },
     bind(_port: number, _host: string, cb: () => void) { cb(); },
     setBroadcast(v: boolean) { broadcast = v; },
@@ -624,6 +625,27 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("does not report errors from a closed listener after discovery restarts", async () => {
+    const oldSocket = fakeSocket();
+    const currentSocket = fakeSocket();
+    const sockets = [oldSocket, fakeSocket(), currentSocket, fakeSocket()];
+    const errors: string[] = [];
+    const { b } = beaconOn(oldSocket, {
+      createSocket: () => sockets.shift(),
+      onError: (what: string) => errors.push(what),
+    });
+    await b.start();
+    b.stop();
+    await b.start();
+
+    oldSocket.emitError(new Error("closed socket error"));
+    expect(errors).toEqual([]);
+
+    currentSocket.emitError(new Error("active socket error"));
+    expect(errors).toEqual(["socket"]);
+    b.stop();
+  });
+
   it("rejects datagrams queued by the previous socket after discovery restarts", async () => {
     const oldSocket = fakeSocket();
     const currentSocket = fakeSocket();
