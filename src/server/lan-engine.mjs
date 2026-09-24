@@ -691,14 +691,19 @@ export function createEngine({
       // reject path also never removed the listener; only roundWith's
       // `finally { conn?.sock?.destroy(); }` stopped it.
       const ask = frame => new Promise((resolve, reject) => {
-        const bell = setTimeout(() => reject(new Error("peer went quiet")), ROUND_MS);
-        bell.unref?.();
         let buf = "";
+        let settled = false;
         const give = (fn, arg) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(bell);
           conn.sock.off("data", onData);
+          conn.sock.off("close", onClose);
+          conn.sock.off("error", onError);
           fn(arg);
         };
+        const onClose = () => give(reject, new Error("peer closed the connection"));
+        const onError = () => give(reject, new Error("peer connection failed"));
         const onData = chunk => {
           buf += chunk;
           if (buf.length > MAX_FRAME_BYTES) {
@@ -722,9 +727,18 @@ export function createEngine({
           }
           give(resolve, got);
         };
+        const bell = setTimeout(() => give(reject, new Error("peer went quiet")), ROUND_MS);
+        bell.unref?.();
         conn.sock.on("data", onData);
+        conn.sock.on("close", onClose);
+        conn.sock.on("error", onError);
         // And out through its own writer, which seals whenever the reader opens.
-        conn.send(frame);
+        try {
+          if (conn.sock.destroyed) return onClose();
+          conn.send(frame);
+        } catch {
+          give(reject, new Error("peer connection failed"));
+        }
       });
 
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`

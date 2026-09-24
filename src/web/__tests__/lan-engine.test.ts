@@ -161,6 +161,29 @@ async function point(
 }
 
 describe("the account that is dead here and alive there", () => {
+  it("ends a sync promptly when the remote deck disconnects during a credential request", async () => {
+    const email = "offline@example.com";
+    const key = K(email, "org-offline");
+    const mine = store([]);
+    const theirs = store([{ num: 5, email, orgUuid: "org-offline", alive: true }]);
+    const a = await deck(mine, "Receiver", [key]);
+    let b: Awaited<ReturnType<typeof deck>>;
+    b = await deck(theirs, "Sender", [key], {
+      exportAccount: async () => {
+        b.e.stop(); // A successful handshake, then the remote process goes away mid-request.
+        return "ccdeck2:slot-5";
+      },
+    });
+    await point(a, b, b.port);
+
+    const started = Date.now();
+    expect(await a.e.round()).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last?.error)
+      .toBe("peer closed the connection");
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
   it("is healed, which is the whole feature", async () => {
     // The owner's own case, in a fixture: claude2 is quarantined on this
     // machine and works on the other one.
