@@ -30,7 +30,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { armedPress, pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
+import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, roundWhy, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
 import type { DeckAbout, DeckRow, Lane, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
 
 interface Props {
@@ -280,7 +280,7 @@ export default function LanPeerModal({
     : overTailnet ? "asked this deck to pair, over Tailscale" : "asked this deck to pair";
 
   // THE NETWORK, drawn the way the row's mark is coloured: whole and lit while
-  // it answers, broken in the warning ink when the last round failed, and a
+  // it answers, broken only when the link itself failed, and a
   // dotted line for every other state — not paired yet, or not heard lately.
   const link = row.tone === "bad" ? "bad" : !paired ? "loose" : row.here ? "up" : "down";
   const asking = busy === `check:${row.fp}`;
@@ -492,11 +492,14 @@ export default function LanPeerModal({
               )}
               {unplaced.length > 0 && (
                 <ul className="lan-done">
-                  {unplaced.map(d => (
-                    <li key={`${d.email}:${d.action}`} data-ok={d.ok}>
-                      {d.email} <span className="lan-done-what">{d.ok ? "arrived" : "did not arrive"}</span>
-                    </li>
-                  ))}
+                  {unplaced.map(d => {
+                    const why = roundWhy(d);
+                    return (
+                      <li key={`${d.email}:${d.action}`} data-ok={d.ok && !why}>
+                        {d.email} <span className="lan-done-what">{d.ok ? "arrived" : "did not arrive"}{why && ` — ${why.long}`}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {/* Why the silence, when this deck holds evidence the socket did
@@ -505,12 +508,15 @@ export default function LanPeerModal({
               {/* The one-way case in full — the sentence the row's tooltip used
                   to carry, which is the only place it is ever explained. */}
               {peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>}
+              {line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>}
             </div>
 
             {lanes.length > 0 && (
               <ul key={drawn} className="lan-lanes" role="list" aria-label={`Logins between this deck and ${row.name}`}>
                 {lanes.map((l, i) => {
                   const d = told.get(l.email);
+                  // An arrival with a problem is not drawn as a clean one.
+                  const why = d ? roundWhy(d) : null;
                   const flows = l.out === "live" || (l.in != null && l.in !== "cut");
                   return (
                     <li key={l.key} role="listitem" className="lan-lane" data-tone={l.tone}
@@ -534,8 +540,8 @@ export default function LanPeerModal({
                           {l.caption}
                           {l.caption && d && " · "}
                           {d && (
-                            <span className="lan-lane-done" data-ok={d.ok}>
-                              {d.ok ? "arrived last round" : "did not arrive last round"}
+                            <span className="lan-lane-done" data-ok={d.ok && !why}>
+                              {d.ok ? "arrived last round" : "did not arrive last round"}{why && ` — ${why.long}`}
                             </span>
                           )}
                         </span>

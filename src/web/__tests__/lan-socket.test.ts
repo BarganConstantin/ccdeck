@@ -204,6 +204,26 @@ describe("the port it listens on", () => {
     expect(got).not.toBe(port);
   });
 
+  it("does not leave a listener behind when stopped before its bind finished", async () => {
+    // With a host, `listen` binds only after a dns.lookup, and a close before
+    // that has no handle to close. The bind then lands with nobody owning it.
+    const probe = net.createServer();
+    const free = await new Promise<number>(resolve => probe.listen(0, "127.0.0.1", () => resolve((probe.address() as net.AddressInfo).port)));
+    await new Promise(r => probe.close(r));
+    const { s } = server({ prefer: free });
+    const starting = s.start();
+    s.stop();
+    expect(await starting).toBeNull();
+    await new Promise(r => setTimeout(r, 120));
+    const again = net.createServer();
+    const bound = await new Promise<boolean>(resolve => {
+      again.once("error", () => resolve(false));
+      again.listen(free, "127.0.0.1", () => resolve(true));
+    });
+    await new Promise(r => again.close(r));
+    expect(bound, "the cancelled start still holds the port").toBe(true);
+  });
+
   it("still asks the OS when it has no port to remember", async () => {
     const { s } = server({ prefer: 0 });
     expect(await s.start()).toBeGreaterThan(0);
