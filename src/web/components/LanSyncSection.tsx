@@ -75,7 +75,7 @@ export interface Peer {
    *  said yes, so it calls and we answer. */
   waiting?: boolean;
   lastSeen?: number;
-  last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean }> } | null;
+  last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean; why?: string | null }> } | null;
   /** What it said about itself. Null until it has, and forever for a deck
    *  older than the one that started saying. */
   about?: DeckAbout | null;
@@ -338,6 +338,14 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   // and the sentence says so.
   if (!done.length) return { text: `all logins fine · ${seenLabel(last.at, now)}`, tone: "idle" };
   const ok = done.filter(d => d.ok);
+  // The remedy is on the machine that cannot read its own Keychain. A sender
+  // can tell its peer this fixed error code without sending CLI diagnostics or
+  // credential material; the receiver distinguishes its own failure locally.
+  const keychain = done.find(d => !d.ok && (d.why === "keychain_unavailable" || d.why === "keychain_unavailable_local"));
+  if (keychain) return {
+    text: `${keychain.email}: ${keychain.why === "keychain_unavailable_local" ? "import on this Mac" : "export on paired Mac"} blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry`,
+    tone: "bad",
+  };
   const verb = ok.length === 1 ? "login" : "logins";
   return ok.length === done.length
     // "arrived", because a round only ever pulls: roundWith dials, reads the

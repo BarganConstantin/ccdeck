@@ -358,6 +358,43 @@ describe("what the holder checks when a credential is asked for", () => {
     expect(mine.imported).toEqual([]);
   }, 20_000);
 
+  it("reports a sender's Mac Keychain failure without sending its CLI diagnostic or a credential", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], {
+      exportAccount: async () => ({ ok: false, why: "keychain_unavailable", detail: "secret credential text" }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable" },
+    ]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("identifies the destination Mac's import failure and allows a retry once access returns", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    let accessible = false;
+    const a = await deck(mine, "Deck-A", [S], {
+      importAccount: async (blob: string) => {
+        if (!accessible) return { ok: false, why: "keychain_unavailable" };
+        mine.imported.push(blob);
+        return { ok: true };
+      },
+    });
+    const b = await deck(theirs, "Deck-B", [S]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable_local" },
+    ]);
+    accessible = true;
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: true, why: null },
+    ]);
+    expect(mine.imported).toHaveLength(1);
+  }, 20_000);
+
   it("answers a store that threw with a refusal, and keeps what threw", async () => {
     // A throw inside `serve` would otherwise leave the asking deck waiting out
     // its ten-second bell for a reply that never comes.
@@ -996,7 +1033,7 @@ describe("a heal that healed nothing", () => {
   it("requires the account to have actually arrived", () => {
     // `ok` alone is no longer the whole answer, on either path.
     expect(src).not.toContain("return !!out?.ok;");
-    expect(src).toContain("if (out.added === true) return { ok: true };");
+    expect(src).toContain("if (out.added === true) return verifyMacImport();");
     expect(fillEmptySlot).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
@@ -1120,9 +1157,10 @@ describe("a heal that healed nothing", () => {
     // second call here, whatever options it carries.
     expect(route, "the route's importAccount is gone or renamed").not.toBe("");
     expect(route.match(/\bimportAccount\(/g) ?? [], "the route imports more than once").toHaveLength(1);
-    const decline = route.indexOf("if (out.added === true) return { ok: true };");
+    const decline = route.indexOf("if (out.added === true) return verifyMacImport();");
     expect(decline, "the decline is no longer told apart from a heal").toBeGreaterThan(-1);
-    expect(route.slice(decline)).toMatch(/return fillEmptySlot\(blob, /);
+    expect(route.slice(decline)).toMatch(/const filled = await fillEmptySlot\(blob, /);
+    expect(route.slice(decline)).toContain("return filled?.ok ? verifyMacImport() : filled;");
     expect(route).not.toMatch(/\bforce\b/);
   });
 });

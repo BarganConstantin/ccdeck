@@ -12,11 +12,36 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
-import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, macKeychainFailure, verifyImportedOnMac, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
 import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
+
+describe("macOS Keychain access", () => {
+  it("distinguishes a locked or denied Keychain from authentication expiry and other platforms", () => {
+    expect(macKeychainFailure("SecKeychainCopySettings: User interaction is not allowed", "darwin")).toBe(true);
+    expect(macKeychainFailure("keychain unavailable — locked or in use", "darwin")).toBe(true);
+    expect(macKeychainFailure("errSecInteractionNotAllowed -25308", "darwin")).toBe(true);
+    expect(macKeychainFailure("invalid_grant: expired", "darwin")).toBe(false);
+    expect(macKeychainFailure("Keychain unavailable", "linux")).toBe(false);
+    expect(macKeychainFailure("Keychain unavailable", "win32")).toBe(false);
+  });
+  it("checks the imported account on Mac and reports an unreadable login until access returns", async () => {
+    const check = async (status: string | null) => verifyImportedOnMac("a@b.c", "org", {
+      platform: "darwin", verdict: async (email: string, org: string) => {
+        expect([email, org]).toEqual(["a@b.c", "org"]);
+        return status;
+      },
+    });
+    expect(await check("keychain_unavailable")).toEqual({ ok: false, why: "keychain_unavailable" });
+    expect(await check("no_credentials")).toEqual({ ok: false, why: "no_credentials" });
+    expect(await check("relogin_required")).toEqual({ ok: false, why: "relogin_required" });
+    expect(await check("ok")).toEqual({ ok: true });
+    expect(await check(null)).toEqual({ ok: true });
+    expect(await verifyImportedOnMac("a@b.c", "org", { platform: "linux", verdict: async () => { throw new Error("should not run"); } })).toEqual({ ok: true });
+  });
+});
 
 // A stand-in for `claude auth login`, because the login tests need a child that
 // prints its link on cue and then stays alive — a real one cannot be scripted

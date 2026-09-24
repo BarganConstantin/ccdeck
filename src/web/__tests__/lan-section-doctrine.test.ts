@@ -148,6 +148,21 @@ describe("a round says which of the three things it was", () => {
     }, NOW)).toEqual({ text: "1 of 2 logins arrived · now", tone: "bad" });
   });
 
+  it("locates a macOS Keychain problem at the account, machine and transfer stage", () => {
+    expect(roundLabel({ at: NOW, done: [
+      { email: "a@b.c", action: "heal", ok: false, why: "keychain_unavailable" },
+    ] }, NOW)).toEqual({
+      text: "a@b.c: export on paired Mac blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry",
+      tone: "bad",
+    });
+    expect(roundLabel({ at: NOW, done: [
+      { email: "d@e.f", action: "add", ok: false, why: "keychain_unavailable_local" },
+    ] }, NOW)).toEqual({
+      text: "d@e.f: import on this Mac blocked by Keychain · unlock that Mac, restart ccdeck from its desktop Terminal, then retry",
+      tone: "bad",
+    });
+  });
+
   it("says nothing at all about a deck it has not had a round with yet", () => {
     expect(roundLabel(null, NOW)).toBeNull();
     expect(roundLabel(undefined, NOW)).toBeNull();

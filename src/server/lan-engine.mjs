@@ -592,7 +592,11 @@ export function createEngine({
         const mine = accounts.find(a => a.key === msg.key);
         if (!mine || !mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
         const blob = await exportAccount(mine.num);
-        if (!blob) return ctx.send({ t: "no", why: "export failed" });
+        // A macOS Keychain failure is recoverable on the sending machine, but
+        // a raw CLI error may contain a token. Only send the fixed code.
+        if (typeof blob !== "string" || !blob) return ctx.send({
+          t: "no", why: blob?.why === "keychain_unavailable" ? "keychain_unavailable" : "export failed",
+        });
         const aad = `${identity.fp}->${ctx.peerFp}|${msg.key}`;
         return ctx.send({ t: "have", key: msg.key, sealed: seal(ctx.key, blob, aad) });
       }
@@ -857,7 +861,7 @@ export function createEngine({
           try { await onShared?.(step.key); }
           catch { /* the account is here; the tick is retried the next time one arrives */ }
         }
-        done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
+        done.push({ ...step, ok, why: ok ? null : (got?.why === "keychain_unavailable" ? "keychain_unavailable_local" : (got?.why ?? "import failed")) });
       }
       lastRound.set(peer.fp, { at: now(), name: peer.name, offered: theirs.accounts.length, done });
       if (done.length) onChange?.();

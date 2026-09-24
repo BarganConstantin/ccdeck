@@ -3967,13 +3967,16 @@ const lanEngine = createEngine({
   exportAccount: async num => {
     const { shareAccounts } = await import("./cswap-admin.mjs");
     const out = await shareAccounts([String(num)]);
-    return out?.ok ? out.blob : null;
+    // Only this fixed failure code is safe to disclose to a paired deck. Never
+    // forward the export command's stdout/stderr or a local account filename.
+    return out?.ok ? out.blob : { ok: false, why: out?.reason === "keychain_unavailable" ? "keychain_unavailable" : "export failed" };
   },
   importAccount: async (blob, step) => {
     // `landed` is not needed out here any more: the only call that read it was
     // the forced import, which fillEmptySlot now owns along with it.
-    const { importAccount, fillEmptySlot } = await import("./cswap-admin.mjs");
+    const { importAccount, fillEmptySlot, verifyImportedOnMac } = await import("./cswap-admin.mjs");
     const [want, wantOrg] = String(step?.key ?? "").split("@@");
+    const verifyMacImport = () => verifyImportedOnMac(want, wantOrg ?? "");
     // NO `force`, ever, and this is the line where that promise is kept. A
     // plain import adds an account that is missing and replaces exactly one
     // claude-swap has quarantined; it SKIPS one that is present and healthy.
@@ -4008,7 +4011,7 @@ const lanEngine = createEngine({
     // `no credentials` state". So an account whose login expired heals over the
     // network, and one that has NO stored login does not — which is a true
     // sentence the panel can now print instead of a false one.
-    if (out.added === true) return { ok: true };
+    if (out.added === true) return verifyMacImport();
 
     // THE DECLINE, AND WHY IT MATTERS WHICH ONE IT IS.
     //
@@ -4047,7 +4050,8 @@ const lanEngine = createEngine({
     // verdict taken before any of it began. fillEmptySlot re-reads the verdict
     // as its first statement INSIDE the lock, so the promise holds by
     // construction rather than by how long the queue happened to be.
-    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
+    const filled = await fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
+    return filled?.ok ? verifyMacImport() : filled;
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the
