@@ -24,7 +24,7 @@ describe("LAN warning visibility", () => {
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }');
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }');
     expect(CSS).toContain('.lan-round[data-tone="warn"] { color: var(--warn); }');
-    expect(MODAL).toMatch(/row\.tone === "bad" \|\| row\.tone === "warn" \? "bad"/);
+    expect(MODAL).toMatch(/row\.tone === "bad" \? "bad"/);
   });
 });
 

@@ -280,9 +280,9 @@ export default function LanPeerModal({
     : overTailnet ? "asked this deck to pair, over Tailscale" : "asked this deck to pair";
 
   // THE NETWORK, drawn the way the row's mark is coloured: whole and lit while
-  // it answers, broken in the warning ink when the last round failed, and a
+  // it answers, broken only when the link itself failed, and a
   // dotted line for every other state — not paired yet, or not heard lately.
-  const link = row.tone === "bad" || row.tone === "warn" ? "bad" : !paired ? "loose" : row.here ? "up" : "down";
+  const link = row.tone === "bad" ? "bad" : !paired ? "loose" : row.here ? "up" : "down";
   const asking = busy === `check:${row.fp}`;
 
   const offers = peer?.offers ?? null;
