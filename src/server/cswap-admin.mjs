@@ -53,7 +53,7 @@ const CSWAP_TIMEOUT_MS = 60_000;
 /** Fresh verdicts for several identities from one `cswap list --json`, in the
  *  order asked; null for any claude-swap would not answer for. */
 async function statusesNow(ids, verdicts) {
-  const all = await verdicts();
+  const all = await verdicts({ fresh: true });
   return ids.map(({ email, org }) => {
     const want = String(email ?? "").trim().toLowerCase();
     return all?.find(a => a.email === want && a.org === (org ?? ""))?.status ?? null;

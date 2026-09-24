@@ -14,9 +14,47 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
+import { createVerdictQueue } from "../../server/claude-accounts.mjs";
+// @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
 import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
+
+describe("post-write verdicts", () => {
+  it("waits for an earlier poll, then checks the imported account against a new snapshot", async () => {
+    let finishOld!: (rows: unknown[]) => void;
+    const old = new Promise<unknown[]>(resolve => { finishOld = resolve; });
+    const newRows = [{ email: "a@x", org: "o", status: "ok" }];
+    let collects = 0;
+    const queue = createVerdictQueue(() => ++collects === 1 ? old : Promise.resolve(newRows));
+    const routine = queue.ask();
+    await Promise.resolve();
+    const imported = checkImports([{ email: "a@x", org: "o" }], {
+      platform: "darwin", verdicts: queue.ask,
+    });
+    expect(collects).toBe(1);
+    finishOld([{ email: "a@x", org: "o", status: "no_credentials" }]);
+    expect(await routine).toMatchObject([{ status: "no_credentials" }]);
+    expect(await imported).toEqual([null]);
+    expect(collects).toBe(2);
+    expect(queue.busy()).toBe(false);
+  });
+
+  it("uses a fresh verdict for a credential-write decision and recovers after a failed poll", async () => {
+    let rejectOld!: (reason: Error) => void;
+    const old = new Promise<unknown[]>((_, reject) => { rejectOld = reject; });
+    let collects = 0;
+    const queue = createVerdictQueue(() => ++collects === 1 ? old : [{ email: "a@x", org: "o", status: "ok" }]);
+    const routine = queue.ask();
+    await Promise.resolve();
+    const fresh = queue.ask({ fresh: true });
+    expect(collects).toBe(1);
+    rejectOld(new Error("prior poll failed"));
+    await expect(routine).rejects.toThrow("prior poll failed");
+    expect(await fresh).toMatchObject([{ status: "ok" }]);
+    expect(collects).toBe(2);
+  });
+});
 
 describe("whether this process can read what claude-swap holds", () => {
   // claude-swap's own `cswap list --json` rows, as verdictsNow hands them on.
