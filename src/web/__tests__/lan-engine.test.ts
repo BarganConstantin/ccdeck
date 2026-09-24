@@ -25,7 +25,7 @@ import { readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, offered, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
 import { faultText, parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
@@ -216,6 +216,63 @@ describe("the account that is dead here and alive there", () => {
     } finally {
       spy.mockRestore();
     }
+  }, 20_000);
+
+  it("imports a shared account once when the sender has two slots for its identity", async () => {
+    const email = "duplicate@example.com";
+    const key = K(email, "org-duplicate");
+    const mine = store([]);
+    const theirs = store([
+      { num: 5, email, orgUuid: "org-duplicate", alive: true },
+      { num: 6, email, orgUuid: "org-duplicate", alive: true },
+    ]);
+    const a = await deck(mine, "Receiver", [key]);
+    const b = await deck(theirs, "Sender", [key]);
+    await point(a, b, b.port);
+
+    const done = await a.e.round() as Array<{ key: string; ok: boolean }>;
+    expect(done).toHaveLength(1);
+    expect(done[0]).toMatchObject({ key, ok: true });
+    expect(theirs.exported).toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+
+  it("reads a peer's duplicate rows as one login each, kept by its working copy", () => {
+    // A deck from before manifestFor listed one row per slot, and the receiver
+    // must not take its word that they are different logins.
+    const row = (key: string, alive: boolean) => ({ key, email: `${key}@x`, alive });
+    expect(offered([row("a", false), row("b", true), row("a", true)]))
+      .toEqual([row("a", true), row("b", true)]);
+  });
+
+  it("caps a peer's list at fifty logins, not fifty rows", () => {
+    // Ten logins, six slots each, and each one's only working copy last: a
+    // cap spent on raw rows dropped the working copies past row fifty.
+    const rows = Array.from({ length: 60 }, (_, i) => ({
+      key: `k${i % 10}`, email: `k${i % 10}@x`, alive: i >= 50,
+    }));
+    const got = offered(rows);
+    expect(got).toHaveLength(10);
+    expect(got.every(a => a.alive)).toBe(true);
+    const many = Array.from({ length: 60 }, (_, i) => ({ key: `k${i}`, email: `k${i}@x`, alive: true }));
+    expect(offered(many)).toHaveLength(50);
+  });
+
+  it("uses the working slot when an expired duplicate comes first", async () => {
+    const email = "duplicated-expired@example.com";
+    const key = K(email, "org-duplicate");
+    const mine = store([]);
+    const theirs = store([
+      { num: 5, email, orgUuid: "org-duplicate", alive: false },
+      { num: 6, email, orgUuid: "org-duplicate", alive: true },
+    ]);
+    const a = await deck(mine, "Receiver", [key]);
+    const b = await deck(theirs, "Sender", [key]);
+    await point(a, b, b.port);
+
+    expect(await a.e.round()).toEqual([{ key, email, action: "add", ok: true, why: null }]);
+    expect(theirs.exported).toEqual([6]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-6"]);
   }, 20_000);
 
   it("is healed, which is the whole feature", async () => {

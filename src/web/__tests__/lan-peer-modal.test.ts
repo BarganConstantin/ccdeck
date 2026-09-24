@@ -232,6 +232,11 @@ describe("one login between two decks", () => {
     expect(lanes[2]).toMatchObject({ there: "unknown", in: null, out: "live", caption: null });
   });
 
+  it("reads this deck's end from its working slot when it holds the login twice", () => {
+    expect(exchangeLanes([acct("a", true)], [acct("a", true), acct("a", false)], ["a"])[0])
+      .toMatchObject({ here: "works", out: "live", caption: null });
+  });
+
   it("draws this deck's half alone when what that deck offers is not known", () => {
     expect(exchangeLanes(null, [acct("a", true)], ["a"]).map(l => [l.in, l.out])).toEqual([[null, "live"]]);
   });

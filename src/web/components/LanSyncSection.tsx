@@ -1226,7 +1226,11 @@ export function exchangeLanes(
    *  is in the same list, so it can only ever land on a lane it offers. */
   current: string | null = null,
 ): Lane[] {
-  const byKey = new Map(accounts.map(a => [a.key, a]));
+  // Two slots for one login read as the live one, as the engine's onePerKey
+  // picks it (lan-sync.mjs): an expired duplicate after it must not paint this
+  // end "expired" while the deck is offering a working copy.
+  const byKey = new Map<string, LanAccount>();
+  for (const a of accounts) if (!byKey.get(a.key)?.alive) byKey.set(a.key, a);
   const sharedHere = new Set(shared);
   const lanes: Lane[] = [];
   const seen = new Set<string>();
