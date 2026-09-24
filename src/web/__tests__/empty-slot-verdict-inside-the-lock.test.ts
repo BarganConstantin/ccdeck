@@ -258,7 +258,7 @@ describe("the wiring that reaches it", () => {
     // The pair is what the defect WAS. Keeping the verdict on this side of the
     // call — however fresh, however close to the import — puts the check back
     // outside the lock the write takes, which is the entire bug.
-    expect(fn).toMatch(/fillEmptySlot\(blob, \{ email: want, org: wantOrg \?\? "" \}\)/);
+    expect(fn).toMatch(/fillEmptySlot\(blob, \{ email: want, org: wantOrg \?\? "", collect: !CHECKS_IMPORTS \}\)/);
     expect(fn, "the verdict belongs inside the lock, not in the route").not.toMatch(/verdictNow/);
     expect(fn, "a forced import out here is the unlocked write again").not.toMatch(/force: true/);
   });
@@ -277,7 +277,7 @@ describe("the wiring that reaches it", () => {
     // B, C and D under A's AAD and every one of them would land as an "add".
     // `only` narrows without implying `force` — `overwrite` is
     // `force === true && narrowing` — so both promises hold at once.
-    expect(fn).toMatch(/const out = await importAccount\(blob, \{ only: \{ email: want, org: wantOrg \?\? "" \} \}\);/);
+    expect(fn).toMatch(/const out = await importAccount\(blob, \{ only: \{ email: want, org: wantOrg \?\? "" \}, collect: !CHECKS_IMPORTS \}\);/);
     // Comments dropped first: the prose above the call explains at length why
     // the flag is absent, and a test that failed on its own explanation would
     // be worse than no test.

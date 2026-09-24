@@ -3950,6 +3950,10 @@ async function handlePresence(req, res) {
  *  Tailscale is here at all before anybody can turn discovery on. */
 const tailnet = createTailnet();
 
+// Whether every import is followed by checkImports, which only asks on a Mac.
+// When it does, the import skips its own detached collection — see importAccount.
+const CHECKS_IMPORTS = process.platform === "darwin";
+
 const lanEngine = createEngine({
   tailnet,
   // Who holds the discovery port when it is taken, so the panel can say.
@@ -3968,8 +3972,9 @@ const lanEngine = createEngine({
     // export that can only fail. Mac only: claude-swap's `keychain_unavailable`
     // elsewhere is an unreadable .enc file, and the sentence the peer prints
     // talks about a Keychain.
-    if (process.platform !== "darwin" || !Array.isArray(got?.accounts)) return got;
-    return { ...got, accounts: got.accounts.map(a => a.collector === "keychain_unavailable" ? { ...a, readable: false } : a) };
+    if (!got || !Array.isArray(got.accounts)) return got;
+    const { markUnreadable } = await import("./cswap-admin.mjs");
+    return { ...got, accounts: markUnreadable(got.accounts) };
   },
   exportAccount: async num => {
     const { shareAccounts } = await import("./cswap-admin.mjs");
@@ -4011,7 +4016,7 @@ const lanEngine = createEngine({
     // `force === true && narrowing` — so the promise above survives word for
     // word, and a bundle that does not carry what was asked for is refused
     // rather than unpacked.
-    const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });
+    const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" }, collect: !CHECKS_IMPORTS });
     if (!out?.ok) return { ok: false, why: out?.reason ?? "import refused" };
     // A SKIP IS NOT A HEAL, and reading `ok` alone said it was. `cswap import`
     // exits ZERO when it declines an account it already holds, so a round that
@@ -4070,7 +4075,7 @@ const lanEngine = createEngine({
     // verdict taken before any of it began. fillEmptySlot re-reads the verdict
     // as its first statement INSIDE the lock, so the promise holds by
     // construction rather than by how long the queue happened to be.
-    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
+    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "", collect: !CHECKS_IMPORTS });
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the
@@ -6321,10 +6326,17 @@ async function handleClaudeAccountAdmin(req, res) {
     // `only` names one account inside the pasted bundle, and is the only way
     // `force` is honoured at all - see importAccount for why the pair is
     // required rather than the flag alone.
-    case "import":       result = await admin.importAccount(parsed.blob, {
-      force: parsed.force === true,
-      only: parsed.only ?? null,
-    }); break;
+    case "import": {
+      const out = await admin.importAccount(parsed.blob, {
+        force: parsed.force === true,
+        only: parsed.only ?? null,
+        collect: !CHECKS_IMPORTS,
+      });
+      // Checked the way a LAN round's arrivals are (#1244): `cswap import`
+      // exiting 0 on a Mac is not proof this process can read what it wrote.
+      result = out?.ok ? { ...out, results: await admin.checkImportResults(out.results) } : out;
+      break;
+    }
     case "remove":       result = await admin.removeAccount(parsed.account); break;
     // #721. Re-captures the active slot's credentials in place; see
     // recaptureActive for why this is not a login and cannot become one.

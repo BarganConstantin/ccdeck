@@ -19,12 +19,20 @@ const MODAL = code("../components/LanPeerModal.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 describe("LAN warning visibility", () => {
-  it("shows the warning on the deck row, modal header and state, round note and link", () => {
+  it("shows the warning without marking a healthy peer link as failed", () => {
     expect(CSS).toContain('.ap-lan-who[data-tone="warn"] .ap-lan-who-when { color: var(--warn); }');
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }');
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }');
     expect(CSS).toContain('.lan-round[data-tone="warn"] { color: var(--warn); }');
     expect(MODAL).toMatch(/row\.tone === "bad" \? "bad"/);
+  });
+});
+
+describe("peer dialog connection hints", () => {
+  it("keeps the one-way pairing explanation beside a Keychain round remedy", () => {
+    expect(MODAL).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
+    expect(MODAL).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
+    expect(MODAL).not.toContain("line?.hint ?? row.hint");
   });
 });
 

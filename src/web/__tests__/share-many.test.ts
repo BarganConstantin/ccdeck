@@ -39,6 +39,8 @@ const cli = vi.hoisted(() => ({
   /** What the run does to the store before it reports back - which is the
    *  whole of what a real `cswap import` is, from this module's side. */
   duringImport: null as null | (() => void),
+  /** Every `runDetached`, which is fire-and-forget and so seen nowhere else. */
+  detached: [] as string[][],
 }));
 
 vi.mock("../../server/exec.mjs", async (importOriginal) => {
@@ -61,7 +63,7 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
         done: Promise.resolve().then(() => { cli.duringImport?.(); return cli.interactiveReply; }),
       };
     },
-    runDetached: () => {},
+    runDetached: (_cmd: string, args: string[] = []) => { cli.detached.push(args); },
   };
 });
 
@@ -126,6 +128,7 @@ beforeEach(() => {
   store.dir = mkdtempSync(join(tmpdir(), "ccdeck-share-"));
   dirs.push(store.dir);
   writeStore({});
+  cli.detached.length = 0;
   cli.calls.length = 0;
   cli.replies.length = 0;
   cli.interactive = null;
@@ -451,6 +454,20 @@ describe("importAccount", () => {
       { email: "b@x.com", org: "org-b", num: "3", state: "imported" },
     ]);
     expect(out.added).toBe(true);
+  });
+
+  it("leaves the first collection to the check that follows, when one does", async () => {
+    // A new slot is collected at once so the panel has numbers for it. On a
+    // Mac, checkImports' `cswap list --json` is that same collection; running
+    // both races them for the slot's claim, and the loser reads `unavailable`.
+    for (const [collect, spawned] of [[true, [["list"]]], [false, []]] as Array<[boolean, string[][]]>) {
+      cli.detached.length = 0;
+      writeStore({});
+      cli.duringImport = () => writeStore({ "3": { email: "b@x.com", organizationUuid: "org-b" } });
+      const out = await importAccount(wrapShare(envelope([acct("3", "b@x.com", "org-b")])), { collect });
+      expect(out.added, String(collect)).toBe(true);
+      expect(cli.detached, String(collect)).toEqual(spawned);
+    }
   });
 
   it("still says what arrived when the envelope itself cannot be read", async () => {

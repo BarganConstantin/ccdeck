@@ -37,7 +37,7 @@
 // every machine at once.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { KEYCHAIN } from "../admin-failure";
+import { arrivalCheck, KEYCHAIN } from "../admin-failure";
 import { armedPress, pressAccepted, pressState } from "../panel-press";
 import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
@@ -256,17 +256,14 @@ const ROUND_WHY: Record<string, { short: string; long: string }> = {
     short: "Keychain locked on the other Mac",
     long: `the other Mac could not export it. On that Mac: ${KEYCHAIN}. The next round brings it.`,
   },
-  // The rest are this deck's own findings. The login ARRIVED for all but the
-  // first, which can also be fillEmptySlot refusing to write at all.
-  unreadable_here: { short: "Keychain locked on this Mac", long: `${KEYCHAIN}.` },
-  no_credentials_here: { short: "no stored login here", long: "claude-swap still holds no login for it here." },
-  relogin_required_here: { short: "login expired", long: "the imported login was rejected — sign in again on a deck where it still works." },
-  unverified_here: { short: "not checked", long: "claude-swap could not confirm whether this Mac can read it." },
 };
 
-/** What a round has to say about one login beyond arrived / did not, or null. */
+/** What a round has to say about one login beyond arrived / did not, or null.
+ *  This deck's own findings are worded where the Add Account dialog's are —
+ *  see arrivalCheck. */
 export function roundWhy(d: DoneRow): { short: string; long: string } | null {
-  return d.why && Object.hasOwn(ROUND_WHY, d.why) ? ROUND_WHY[d.why] : null;
+  if (!d.why) return null;
+  return Object.hasOwn(ROUND_WHY, d.why) ? ROUND_WHY[d.why] : arrivalCheck(d.why);
 }
 
 /**

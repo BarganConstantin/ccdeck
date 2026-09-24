@@ -352,8 +352,9 @@ let _verdicts = { at: 0, byNum: {} };
  *  verdict: "no credentials" under an account somebody has since signed into is
  *  a sentence that sends them to fix what is already fixed. */
 const VERDICT_TTL_MS = 10 * 60_000;
-/** Run one `cswap list --json` at a time. Fresh requests made after a write
- * wait for any earlier collection to finish before reading the new store. */
+/** Run one `cswap list --json` at a time. A post-write question must start
+ * after any older collection has finished; routine readers can share the
+ * latest pending answer without starting another slow collection. */
 export function createVerdictQueue(collect) {
   let pending = null;
   return {
@@ -404,7 +405,7 @@ export async function verdictNow(email, org, { runner = run, bin = cswapBin } = 
 
 /**
  * Every account's verdict from ONE `cswap list --json`, as `{ email, org,
- * status }` rows (email lower-cased, status null when claude-swap gave none),
+ * status, active }` rows (email lower-cased, status null when claude-swap gave none),
  * or null when the question could not be asked at all.
  *
  * For a caller holding several identities at once — a round that imported
@@ -424,14 +425,18 @@ async function collectVerdicts({ runner, bin }) {
       email: String(a?.email ?? "").trim().toLowerCase(),
       org: a?.organizationUuid ?? "",
       status: typeof a?.usageStatus === "string" ? a.usageStatus : null,
+      // For the account Claude Code is signed in as, claude-swap reads the
+      // LIVE credential, not the stored copy — so its verdict there is about
+      // the live login. See checkImports.
+      active: a?.active === true,
     }));
   } catch { return null; }
 }
 
 const verdictQueue = createVerdictQueue(() => collectVerdicts({ runner: run, bin: cswapBin }));
 
-/** Routine readers share a pending answer; post-write callers request a new
- * collection after older work finishes to avoid a pre-write snapshot. */
+/** Routine readers share a collection; post-write callers wait for any older
+ * collection and start a new one, so they never inspect the pre-write store. */
 export function verdictsNow({ runner = run, bin = cswapBin, fresh = false } = {}) {
   // Tests and callers supplying their own runner must receive their own answer.
   if (runner !== run || bin !== cswapBin) return collectVerdicts({ runner, bin });
