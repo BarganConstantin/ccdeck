@@ -295,6 +295,9 @@ export function createBeacon({
   let told = null;
   let rebind = null;
   let stopped = true;
+  // Socket binds finish asynchronously. A stopped start must not attach its
+  // late socket to a subsequent start or leave an outbound socket open.
+  let startGeneration = 0;
   /** When this deck last answered a deck it had not heard, so answering cannot
    *  become a storm, and which decks it has already answered — without the
    *  second, a deck that is never accepted is answered again on every packet
@@ -442,9 +445,10 @@ export function createBeacon({
     });
   });
 
-  const tryListen = async () => {
+  const tryListen = async (startedIn) => {
+    if (stopped || startedIn !== startGeneration) return;
     const got = await listen();
-    if (stopped) { try { got.sock?.close(); } catch { /* gone */ } return; }
+    if (stopped || startedIn !== startGeneration) { try { got.sock?.close(); } catch { /* gone */ } return; }
     if (got.sock) {
       sock = got.sock;
       hearing = true;
@@ -455,7 +459,7 @@ export function createBeacon({
     hearing = false;
     deafError = got.err;
     tell(false);
-    rebind = setTimeout(() => { rebind = null; void tryListen(); }, rebindMs);
+    rebind = setTimeout(() => { rebind = null; void tryListen(startedIn); }, rebindMs);
     rebind.unref?.();
   };
 
@@ -491,11 +495,17 @@ export function createBeacon({
   });
 
   const start = async () => {
+    const startedIn = ++startGeneration;
     stopped = false;
     told = null;
-    await tryListen();
-    out = await openOut();
-    if (stopped) return;
+    await tryListen(startedIn);
+    if (stopped || startedIn !== startGeneration) return;
+    const opened = await openOut();
+    if (stopped || startedIn !== startGeneration) {
+      try { opened?.close(); } catch { /* already closed */ }
+      return;
+    }
+    out = opened;
     // Immediately, not on the next tick. Syncthing's rule: a deck that just
     // came up should appear now rather than up to thirty seconds later, which
     // is the difference between "it works" and "it seems broken" for anybody
@@ -516,6 +526,7 @@ export function createBeacon({
     tunneled: () => tunneled,
     stop() {
       stopped = true;
+      startGeneration++;
       if (timer) clearInterval(timer);
       timer = null;
       if (rebind) clearTimeout(rebind);
