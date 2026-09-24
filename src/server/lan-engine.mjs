@@ -699,14 +699,22 @@ export function createEngine({
       // reject path also never removed the listener; only roundWith's
       // `finally { conn?.sock?.destroy(); }` stopped it.
       const ask = frame => new Promise((resolve, reject) => {
-        const bell = setTimeout(() => reject(new Error("peer went quiet")), ROUND_MS);
-        bell.unref?.();
         let buf = "";
+        let settled = false;
         const give = (fn, arg) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(bell);
           conn.sock.off("data", onData);
+          conn.sock.off("close", onClose);
+          conn.sock.off("error", onError);
           fn(arg);
         };
+        const onClose = () => give(reject, new Error("peer closed the connection"));
+        // The errno rides along in the sentence, because faultText reads it
+        // there: ECONNRESET is "it hung up" on the row, and a bare "peer
+        // connection failed" was the one fault the panel could only repeat.
+        const onError = err => give(reject, new Error(`peer connection failed${err?.code ? ` (${err.code})` : ""}`));
         const onData = chunk => {
           buf += chunk;
           if (buf.length > MAX_FRAME_BYTES) {
@@ -730,9 +738,18 @@ export function createEngine({
           }
           give(resolve, got);
         };
+        const bell = setTimeout(() => give(reject, new Error("peer went quiet")), ROUND_MS);
+        bell.unref?.();
         conn.sock.on("data", onData);
+        conn.sock.on("close", onClose);
+        conn.sock.on("error", onError);
         // And out through its own writer, which seals whenever the reader opens.
-        conn.send(frame);
+        // A dead socket cannot throw here — sendFrame swallows a failed write,
+        // and `close`/`error` above are what report it. What CAN throw is the
+        // seal running out of counter, which is this deck's limit and not a
+        // network drop, so it is rejected under its own name.
+        if (conn.sock.destroyed) return onClose();
+        try { conn.send(frame); } catch (err) { give(reject, err); }
       });
 
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
