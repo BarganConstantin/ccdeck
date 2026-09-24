@@ -3487,6 +3487,106 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   overflow: hidden;
 }
 
+/* The drop target for the gesture in #1264, on the canvas rather than the
+   viewport so it centres on the board whatever panels sit beside it, and in
+   the auto-fit chip's place, which a drag always calls up and which is hidden
+   for the length of the drag. Calm while the card is far away, leaning in as
+   the pointer approaches, and red only once a release would remove the card.
+   Pointer events stay with React Flow: App hit-tests the release against this
+   box, with some slop around it, so the target never interrupts the drag. */
+.drag-trash-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 12;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  min-width: 240px;
+  min-height: 52px;
+  margin: 0 auto;
+  padding: 8px 16px 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed var(--chrome-edge);
+  border-radius: var(--r-panel);
+  background: var(--chrome-bg);
+  color: var(--muted);
+  box-shadow: var(--shadow-1);
+  font-size: 12px;
+  pointer-events: none;
+  animation: dragTrashIn 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+}
+.drag-trash-zone.near {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--err) 45%, var(--chrome-edge));
+  color: var(--text);
+  transform: translateY(-4px) scale(1.03);
+}
+.drag-trash-zone.over {
+  border-style: solid;
+  border-color: var(--err);
+  background: color-mix(in srgb, var(--chrome-bg) 82%, var(--err) 18%);
+  color: var(--err);
+  transform: translateY(-6px) scale(1.06);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 18%, transparent), var(--shadow-1);
+}
+.drag-trash-zone.leaving { animation: dragTrashOut 140ms ease both; }
+.drag-trash-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border-radius: 50%;
+  background: var(--ctl-fill);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+}
+.drag-trash-zone.over .drag-trash-icon {
+  background: color-mix(in srgb, var(--err) 20%, transparent);
+  transform: scale(1.12) rotate(-8deg);
+}
+.drag-trash-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.drag-trash-text { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drag-trash-name { display: inline-block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.drag-trash-hint { color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+.canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
+.react-flow__node.dragging .agent-node {
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease;
+}
+.canvas-wrap.trash-hover .react-flow__node.dragging .agent-node {
+  opacity: 0.55;
+  transform: scale(0.92);
+  border-color: var(--err);
+}
+@keyframes dragTrashIn {
+  from { opacity: 0; translate: 0 14px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes dragTrashOut {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-trash-zone,
+  .drag-trash-zone.leaving { animation: none; }
+  .drag-trash-zone,
+  .drag-trash-zone.near,
+  .drag-trash-zone.over,
+  .drag-trash-zone.over .drag-trash-icon { transform: none; }
+  .drag-trash-zone,
+  .drag-trash-icon,
+  .react-flow__node.dragging .agent-node { transition: none; }
+}
+
 /* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
    filter bar above and the controls and minimap in the corners. A status and
    an action in one small strip, on the surface and edge the canvas's other
