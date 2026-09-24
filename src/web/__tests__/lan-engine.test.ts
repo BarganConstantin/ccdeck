@@ -2399,7 +2399,7 @@ describe("an account that arrives over the network", () => {
     expect(a.ticked).toEqual([]);
   }, 20_000);
 
-  it.each(["unpair", "disable"] as const)("does not auto-share an account whose import finishes after %s", async choice => {
+  it.each(["unpair", "disable", "disable and re-enable"] as const)("does not auto-share an account whose import finishes after %s", async choice => {
     let started!: () => void;
     let release!: () => void;
     const importing = new Promise<void>(resolve => { started = resolve; });
@@ -2420,11 +2420,39 @@ describe("an account that arrives over the network", () => {
     await importing;
     if (choice === "unpair") expect(a.e.unpair(b.id.fp)).toBe(true);
     else await a.e.apply({ enabled: false });
+    if (choice === "disable and re-enable") await a.e.apply({ enabled: true });
     release();
     await transfer;
     expect(mine.imported).toEqual(["ccdeck2:slot-4"]);
     expect(a.ticked).toEqual([]);
     expect(a.e.status().shared).toEqual([]);
+  }, 20_000);
+
+  it("still auto-shares an import that finishes after the deck is renamed", async () => {
+    // A rename restarts the listener and revokes nothing: the peer is still
+    // paired and LAN still on, so the arrival is ticked as it would have been.
+    let started!: () => void;
+    let release!: () => void;
+    const importing = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const mine = store([]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [], {
+      importAccount: async (blob: string) => {
+        started();
+        await gate;
+        mine.imported.push(blob);
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    const transfer = a.e.round();
+    await importing;
+    await a.e.apply({ name: "Deck-A renamed" });
+    release();
+    expect(await transfer).toMatchObject([{ key: NEW, action: "add", ok: true }]);
+    expect(a.ticked).toEqual([NEW]);
   }, 20_000);
 
   it("keeps the person's untick: the tick happens on arrival and never again", async () => {

@@ -273,9 +273,14 @@ export function createEngine({
     // person's own Tailscale account — see routeOf.
     tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
   };
-  // A stopped round cannot resume after LAN is switched back on with the
-  // same peer and settings while its old export was still pending.
+  // Bumped by every stop, a restart included: anything started before it
+  // belongs to a listener that is gone.
   let generation = 0;
+  // What a round checks instead, so a round stopped by switching LAN off
+  // cannot resume when it is switched back on. A restart for a new name or
+  // key revokes nothing — the peer is still paired and LAN still on — so a
+  // transfer in flight lands and is shared onward as usual.
+  let session = 0;
   let identity = null;
   let beacon = null;
   let server = null;
@@ -687,7 +692,7 @@ export function createEngine({
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
     let conn = null;
-    const startedIn = generation;
+    const startedIn = session;
     try {
       conn = await connectToPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
@@ -820,13 +825,13 @@ export function createEngine({
       // on — so the deck being asked knows both without dialling back, which a
       // deck with no address for this one never could. An older deck reads the
       // question's `t` and card and nothing else, so it answers as it always did.
-      const mayExchange = () => generation === startedIn && cfg.enabled && !!beacon
+      const stillPaired = () => session === startedIn && cfg.enabled
         && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
-      if (!mayExchange()) throw new Error("peer no longer paired");
+      if (!stillPaired()) throw new Error("peer no longer paired");
       const mine = await localAccounts();
       // The owner can revoke trust or disable sync while the store is read.
       // Never send this deck's account identities on that old connection.
-      if (!mayExchange()) throw new Error("peer no longer paired");
+      if (!stillPaired()) throw new Error("peer no longer paired");
       const theirs = await ask({
         t: "manifest", accounts: manifestFor(mine, cfg.shared),
         ...currentFor(mine, cfg.shared, cfg.shareActive),
@@ -834,7 +839,7 @@ export function createEngine({
       });
       // A response from a round that was stopped or unpaired is stale even
       // when the peer had already sent it before the setting changed.
-      if (!mayExchange()) throw new Error("peer no longer paired");
+      if (!stillPaired()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const card = openAbout(conn.key, theirs.about, conn.peerFp, identity.fp);
       if (card) aboutBy.set(conn.peerFp, { ...card, at: now() });
@@ -862,11 +867,9 @@ export function createEngine({
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
       const done = [];
       // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
-      // a stop, LAN switched off, the peer unpaired — ends the round. A heal
-      // unticked mid-round ends only that heal: the adds behind it need no
-      // tick, and the skipped row says why rather than vanishing.
-      const stillPaired = () => generation === startedIn && cfg.enabled && !!beacon
-        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
+      // LAN switched off, the peer unpaired (`stillPaired`, above) — ends the
+      // round. A heal unticked mid-round ends only that heal: the adds behind
+      // it need no tick, and the skipped row says why rather than vanishing.
       const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
       for (const step of wanted) {
         if (!stillPaired()) break;
@@ -1113,7 +1116,7 @@ export function createEngine({
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
       if (!restart) { syncTailnet(); return; }
-      this.stop();
+      this.stop(cfg.enabled);
       if (!cfg.enabled) return;
       identity = identityFrom(cfg.secret);
       // Hand the caller a key to keep when there was none, so the next start is
@@ -1731,8 +1734,9 @@ export function createEngine({
         })() : [],
       };
     },
-    stop() {
+    stop(restarting = false) {
       generation++;
+      if (!restarting) session++;
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;
