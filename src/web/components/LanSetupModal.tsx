@@ -399,6 +399,17 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 now — see `.switch` (#886). It was a pill with a dot and the
                 word `on` in it, which reports a state well and asks for one
                 badly. Paused, not hidden, while invite-only holds them. */}
+            {/* NAMED AS WHAT INVITE-ONLY OVERRIDES. Two switches under a third
+                read as three equal settings, and "ask every deck" beside "only
+                by invite" looked like a contradiction. A caption and a rule
+                above them make them one group the switch above governs, and the
+                caption says so while it holds them. A label, not a paragraph:
+                it says what the group is, not what the reader should do. */}
+            <div className="lan-auto" role="group" aria-labelledby="lan-auto-h">
+            <p className="lan-sub" id="lan-auto-h">
+              Automatic pairing
+              {inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only</span>}
+            </p>
             <div className="lan-switches" data-paused={inviteOnly || undefined}>
               <div className="lan-switch">
                 <span className="lan-switch-what">Ask every deck this one finds</span>
@@ -448,6 +459,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 </button>
               </div>
             </div>
+            </div>
             {/* AND NO PARAGRAPH UNDER THEM. There was one: it changed with the
                 switches and went yellow while saying yes was on. Once that
                 setting ships ON, the yellow is the resting state of the dialog —
@@ -491,7 +503,12 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   </button>
                 </div>
                 {tsOn && (
-                  <>
+                  <div className="lan-auto" role="group" aria-labelledby="lan-ts-auto-h">
+                    <p className="lan-sub" id="lan-ts-auto-h">
+                      Automatic pairing with my devices
+                      {inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only</span>}
+                    </p>
+                    <div className="lan-switches">
                     <div className="lan-switch" data-paused={inviteOnly || undefined}>
                       <span className="lan-switch-what">Ask each device it finds</span>
                       <button
@@ -536,7 +553,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                         <span className="switch-knob" />
                       </button>
                     </div>
-                  </>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
