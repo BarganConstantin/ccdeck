@@ -565,6 +565,8 @@ export default function SoundMenu({
               type="file"
               accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
               {...fullProps}
+              // A click that would open the picker, from the card or its
+              // caption, opens nothing while the library is full.
               onClick={e => { if (full) e.preventDefault(); }}
               onChange={e => {
                 const file = e.target.files?.[0];
@@ -574,10 +576,10 @@ export default function SoundMenu({
             />
           </label>
 
-          <div className="sm-custom-card sm-record">
+          <div className="sm-custom-card">
             <span className="sm-custom-card-copy">
               <strong>Record a clip</strong>
-              <span>Up to 5 seconds</span>
+              <span>{recording ? "Recording…" : "Up to 5 seconds"}</span>
             </span>
             {recording ? (
               <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
@@ -590,6 +592,8 @@ export default function SoundMenu({
         <details className="sm-voice">
           <summary
             {...fullProps}
+            // Held shut while full, so nobody fills in a form that cannot be
+            // saved. One already open can still be closed.
             onClick={e => {
               const details = e.currentTarget.parentElement as HTMLDetailsElement | null;
               if (full && details && !details.open) e.preventDefault();
@@ -599,6 +603,8 @@ export default function SoundMenu({
             <span>Create from text</span>
           </summary>
           <div className="sm-voice-fields">
+            {/* The deck's text field, as the appearance menu's station fields
+                are: `.sm-select` is a select's class, and these are not. */}
             <label>
               <span>Name</span>
               <input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} />
@@ -620,11 +626,13 @@ export default function SoundMenu({
             </div>
             <button
               type="button"
-              className="btn sm-custom-action sm-voice-add"
+              className="btn sm-custom-action"
               {...fullProps}
               onClick={() => {
                 if (full) return;
                 void runCustom(async () => {
+                  // parseFloat, so an empty field is NaN and createCustomVoice's
+                  // default rather than Number("")'s 0.
                   await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
                   setVoiceText("Your turn");
                 });
