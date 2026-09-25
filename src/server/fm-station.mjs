@@ -30,6 +30,7 @@ export const FM_STATION_MISS_CACHE_MS = 60_000;
 /** Answers kept at once. A deck has a handful of stations; the cap only has to
  *  stop a caller walking the map up with invented handles. */
 const CACHE_MAX = 32;
+const MAX_REDIRECTS = 5;
 
 const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const CANONICAL_VIDEO = /<link\s+rel="canonical"\s+href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})"/;
@@ -117,17 +118,29 @@ export async function resolveYouTubeStation(value, { fetchImpl, now = Date.now }
 
 async function lookUp(parsed, get) {
   try {
-    const response = await get(parsed.url, {
-      headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9" },
-      signal: AbortSignal.timeout(FM_STATION_TIMEOUT_MS),
-      redirect: "follow",
-    });
-    // Where the redirects ended. YouTube sends some regions to a consent page
-    // on its own domain first, which is fine to read and simply carries no
-    // player; anywhere else is not a page this parser should be believing.
-    if (response.url && !isYouTubeHost(response.url)) {
+    // Validate every hop before fetching it. Automatic redirects may contact
+    // an arbitrary host before response.url can be inspected (SSRF).
+    const signal = AbortSignal.timeout(FM_STATION_TIMEOUT_MS);
+    let target = parsed.url;
+    let response;
+    for (let redirects = 0; ; redirects++) {
+      if (!isYouTubeHost(target)) return { ok: false, error: "unresolved" };
+      response = await get(target, {
+        headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9" },
+        signal,
+        redirect: "manual",
+      });
+      // A custom fetch implementation must not silently follow redirects.
+      if (response.url && !isYouTubeHost(response.url)) {
+        try { await response.body?.cancel(); } catch { /* already closed */ }
+        return { ok: false, error: "unresolved" };
+      }
+      if (![301, 302, 303, 307, 308].includes(response.status)) break;
+      const location = response.headers?.get("location");
       try { await response.body?.cancel(); } catch { /* already closed */ }
-      return { ok: false, error: "unresolved" };
+      if (!location || redirects >= MAX_REDIRECTS) return { ok: false, error: "unresolved" };
+      try { target = new URL(location, target).href; }
+      catch { return { ok: false, error: "unresolved" }; }
     }
     if (!response.ok) return { ok: false, error: `youtube_${response.status}` };
     const marks = readYouTubeStationPage(await readBounded(response));
@@ -147,8 +160,10 @@ async function lookUp(parsed, get) {
 
 function isYouTubeHost(href) {
   try {
-    const host = new URL(href).hostname.toLowerCase();
-    return host === "youtube.com" || host.endsWith(".youtube.com");
+    const url = new URL(href);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "https:" && !url.username && !url.password && !url.port
+      && (host === "youtube.com" || host.endsWith(".youtube.com"));
   } catch { return false; }
 }
 
