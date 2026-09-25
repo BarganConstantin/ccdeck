@@ -385,11 +385,9 @@ export default memo(
           if (asked) startDirect(custom.url, custom.format === "hls", source);
           return () => { alive = false; };
         }
-        if (custom.kind === "youtube-channel") {
-          setProbe({ live: true, channel: custom.channel });
-          onAvailabilityChange?.(source, false);
-          return () => { alive = false; };
-        }
+        // Every YouTube link goes by the server, a channel link included:
+        // it answers one without a request of its own, and it is where
+        // AGENTS_DECK_NO_MUSIC is kept.
         get(`/api/fm-station?url=${encodeURIComponent(custom.url)}`)
           .then(r => r.ok ? r.json() : null)
           .then(a => {
