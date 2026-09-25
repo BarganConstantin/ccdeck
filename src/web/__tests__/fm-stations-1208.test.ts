@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmSelection, newCustomFmStation, parseFmStationUrl,
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
 } from "../fm-stations";
 
@@ -55,6 +55,17 @@ describe("custom FM stations (#1208)", () => {
     expect(newCustomFmStation("   ", "https://radio.example/live.mp3", "radio-1")).toBeNull();
     expect(newCustomFmStation("Night radio", "javascript:alert(1)", "radio-1")).toBeNull();
     expect(newCustomFmStation("x".repeat(81), "https://radio.example/live.mp3", "radio-1")).toBeNull();
+  });
+
+  it("adds a station on a deck opened over the LAN, where crypto.randomUUID does not exist", () => {
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+    try {
+      const station = newCustomFmStation("Night radio", "https://radio.example/live.mp3");
+      expect(station).not.toBeNull();
+      expect(customFmId(customFmSelection(station!.id))).toBe(station!.id);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("strictly restores local stations and mute under separate keys", () => {

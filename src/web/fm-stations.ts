@@ -113,7 +113,17 @@ export function selectionAfterRemovingStation(selection: FmSelection, removedId:
   return selection === customFmSelection(removedId) ? "claude-fm" : selection;
 }
 
-export function newCustomFmStation(name: string, url: string, id = crypto.randomUUID()): CustomFmStation | null {
+/** A new station's id. `crypto.randomUUID` exists only in a secure context, and
+ *  a deck reached over the LAN is plain http — the same fallback presence.ts
+ *  uses, in the alphabet `ID` accepts. */
+function newStationId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch { /* not a secure context */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function newCustomFmStation(name: string, url: string, id = newStationId()): CustomFmStation | null {
   const cleanName = name.trim();
   const parsed = parseFmStationUrl(url);
   if (!cleanName || cleanName.length > STATION_NAME_MAX || !ID.test(id) || !parsed) return null;
