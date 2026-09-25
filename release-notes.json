@@ -68,8 +68,8 @@
       "body": "Drag a card to the target at the bottom of the canvas to take it off the board, or use Remove from board in the detail panel (Delete). The session keeps running, and the session list (L) brings it back."
     },
     {
-      "title": "🔐 Invite-only pairing on the local network",
-      "body": "Local network can now accept only decks that join with an invite you created, so a nearby machine cannot ask to pair on its own."
+      "title": "🔐 Optional invite-only pairing",
+      "body": "Pairing works as before, with or without an invite. If you want, Local network can now be set to accept only decks that join with an invite you created, so a nearby machine cannot ask to pair on its own."
     },
     {
       "title": "🌐 Account sharing between your machines is more reliable",
