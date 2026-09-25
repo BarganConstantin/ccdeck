@@ -661,15 +661,9 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
     readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
-  /** The last card taken off the board, for the Undo row. Not persisted: Undo
-   *  answers the press just made, and a reload has the session list for the
-   *  rest. */
-  const [lastRemoval, setLastRemoval] = useState<{
-    id: string;
-    label: string;
-    pin?: { x: number; y: number };
-    position?: { x: number; y: number };
-  } | null>(null);
+  /** The last card taken off the board, for the sentence a screen reader
+   *  hears. Nothing is drawn for it: the session list (L) is the way back. */
+  const [lastRemoval, setLastRemoval] = useState<{ id: string; label: string } | null>(null);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   /** Right detail panel visibility — persisted across refresh. Declared ahead
@@ -2969,9 +2963,6 @@ function Inner() {
   const [trashLabel, setTrashLabel] = useState("");
   const [trashState, setTrashState] = useState<TrashProximity>("far");
   const trashZoneRef = useRef<HTMLDivElement>(null);
-  // Where the card sat before the drag, so a card dropped on the trash comes
-  // back there on Undo rather than at the bottom of the screen.
-  const trashOriginRef = useRef<{ id: string; pin?: { x: number; y: number }; position?: { x: number; y: number } } | null>(null);
   const trashPhase = usePanelPresence(trashDragging, 140);
   const trashProximityOf = useCallback((event: Parameters<typeof clientPointOf>[0]): TrashProximity => {
     const rect = trashZoneRef.current?.getBoundingClientRect();
@@ -3367,9 +3358,7 @@ function Inner() {
       saveRemovedNodes(window.localStorage, next);
       return next;
     });
-    // Kept for Undo, so the card comes back to the place it was dragged to
-    // rather than wherever the layout finds room for a newcomer.
-    setLastRemoval({ id, label: agent.label, pin: pinnedRef.current.get(id), position: positionsRef.current.get(id) });
+    setLastRemoval({ id, label: agent.label });
     pinnedRef.current.delete(id);
     positionsRef.current.delete(id);
     clearSelection();
@@ -3379,18 +3368,15 @@ function Inner() {
     if (primarySelectedId) removeNode(primarySelectedId);
   }, [primarySelectedId, removeNode]);
 
-  // The Undo row, for as long as there is a removal to undo: a session that
-  // came back through the session list or by starting to wait leaves nothing
-  // for Undo to do, and the row goes with it.
+  // Said for as long as the card is still off the board: one that came back
+  // through the session list or by starting to wait has nothing left to say.
   const removalNotice = lastRemoval && removedNodes.has(lastRemoval.id) ? lastRemoval : null;
-  // Focus follows the press to its Undo. The button that was pressed sat in the
-  // detail panel, which unmounts with the selection, so focus would otherwise
-  // fall to <body> and a keyboard user would start again from the top. The
-  // canvas when a dropped connection holds the row's place: <main> takes focus
-  // without taking the single-key shortcuts (#367).
-  const undoRef = useRef<HTMLButtonElement>(null);
+  // The button that was pressed sat in the detail panel, which unmounts with
+  // the selection, so focus would otherwise fall to <body> and a keyboard user
+  // would start again from the top. <main> takes focus without taking the
+  // single-key shortcuts (#367).
   useEffect(() => {
-    if (lastRemoval) (undoRef.current ?? canvasRef.current)?.focus();
+    if (lastRemoval) canvasRef.current?.focus();
   }, [lastRemoval]);
 
   const bringBack = useCallback((ids: Iterable<string>) => {
@@ -3402,17 +3388,6 @@ function Inner() {
     });
   }, []);
 
-  const undoRemoval = useCallback(() => {
-    if (!lastRemoval) return;
-    const { id, pin, position } = lastRemoval;
-    bringBack([id]);
-    if (pin) pinnedRef.current.set(id, pin);
-    if (position) positionsRef.current.set(id, position);
-    setLastRemoval(null);
-    // Back to where the press was made: the card selected and its panel open,
-    // which is also where focus goes — the Undo button leaves with its row.
-    if (stateRef.current.agents.has(id)) selectAgent(id, false);
-  }, [lastRemoval, bringBack, selectAgent]);
 
   // The keydown listener below is registered once and must stay that way, so
   // the gate reads what is on screen through refs rather than closing over it.
@@ -3768,7 +3743,7 @@ function Inner() {
       // The detail panel's "Remove from board", one key from a selection — a
       // plain click on a card shuts that panel, so the button alone would sit
       // two gestures away. Delete and not Backspace: Backspace is the key a
-      // stray press in the wrong place sends, and Undo is the only net.
+      // stray press in the wrong place sends, and only the session list brings a card back.
       if (e.key === "Delete") removeSelectedRef.current();
       // The only way in, now that the topbar's ☰ is gone — and a genuine
       // toggle, so the same key that opened the sidebar closes it again. The
@@ -5094,24 +5069,6 @@ function Inner() {
                 );
               })()}
         </div>
-      ) : removalNotice ? (
-        // Ahead of the version notices: it answers the press just made, and its
-        // Undo only means anything now. No role="status" of its own — the
-        // sentence is said by the region mounted above, which is there before
-        // the words arrive, and focus lands on the Undo inside this row.
-        <div className="ver-banner note">
-          <span className="ver-dot" />
-          <strong>{removalNotice.label} is off the board.</strong>
-          <span className="ver-sub">The session list (L) brings it back.</span>
-          <button
-            ref={undoRef}
-            type="button"
-            className="ver-act"
-            aria-label={`Undo removing ${removalNotice.label}`}
-            onClick={undoRemoval}
-          >Undo</button>
-          <button type="button" aria-label="Dismiss" className="ver-close" onClick={() => setLastRemoval(null)}>×</button>
-        </div>
       ) : noticeOpen && notice ? (
         // Both banners want grid row 2, and a dead connection is the more
         // urgent of the two — the version notice waits its turn.
@@ -5605,11 +5562,6 @@ function Inner() {
             dragPatchRef.current = new Map();
             setDragging(true);
             if (n.type === "agent") {
-              trashOriginRef.current = {
-                id: n.id,
-                pin: pinnedRef.current.get(n.id),
-                position: positionsRef.current.get(n.id) ?? { x: n.position.x, y: n.position.y },
-              };
               setTrashLabel(stateRef.current.agents.get(n.id)?.label ?? "");
               setTrashDragging(true);
             }
@@ -5669,8 +5621,6 @@ function Inner() {
           onNodeDragStop={(event, n) => {
             markInteract();
             const droppedOnTrash = n.type === "agent" && trashProximityOf(event) === "over";
-            const origin = trashOriginRef.current;
-            trashOriginRef.current = null;
             draggingRef.current = false;
             dragPatchRef.current = null;
             setDragging(false);
@@ -5695,11 +5645,6 @@ function Inner() {
             pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
             positionsRef.current.set(n.id, { x: n.position.x, y: n.position.y });
             if (droppedOnTrash) {
-              if (origin?.id === n.id) {
-                if (origin.pin) pinnedRef.current.set(n.id, origin.pin);
-                else pinnedRef.current.delete(n.id);
-                if (origin.position) positionsRef.current.set(n.id, origin.position);
-              }
               removeNode(n.id);
               return;
             }
@@ -5950,7 +5895,7 @@ function Inner() {
                   : "Drop here to remove from the board"}
               </span>
               <span className="drag-trash-hint">
-                {trashState === "over" ? "Undo brings it back" : "The session keeps running"}
+                {trashState === "over" ? "The session list (L) brings it back" : "The session keeps running"}
               </span>
             </span>
           </div>
@@ -6404,15 +6349,15 @@ function Detail({
               agent" it was one stray click from taking a session off the board,
               and at 1440px it wrapped the bar onto a second line. In the panel
               it sits with the other verbs about this one card. Not a danger
-              button either — it is undoable, and the red stays with Clear. */}
+              button either — the session list brings it back, and the red stays with Clear. */}
           {onRemove && (
             <button
               type="button"
               className="btn hero-action-btn"
               onClick={onRemove}
               title={agent.kind === "root"
-                ? "Take this session's cards off the board (Delete). The session carries on; Undo or the session list (L) brings it back"
-                : "Take this card and the ones under it off the board (Delete). Undo or the session list (L) brings it back"}
+                ? "Take this session's cards off the board (Delete). The session carries on; the session list (L) brings it back"
+                : "Take this card and the ones under it off the board (Delete). The session list (L) brings it back"}
             >Remove from board</button>
           )}
         </div>
