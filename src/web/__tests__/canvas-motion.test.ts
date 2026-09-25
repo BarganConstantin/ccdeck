@@ -368,6 +368,11 @@ const PRESSES: Press[] = [
   // #820's Resume, the one pressable part of the auto-fit strip. A labelled
   // control, so 0.97 like every other one.
   [".autofit-resume:active", "0.97", "transform"],
+  // The sound menu's import card, a <label> the size of a card that opens the
+  // file picker, and the spoken-voice disclosure under it: a full-width row,
+  // like `.up-disclose`. Both are labelled controls, so 0.97.
+  [".sm-file:active", "0.97", "transform"],
+  [".sm-voice summary:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

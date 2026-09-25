@@ -768,6 +768,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".react-flow__node:focus-visible .lod-face",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
+      // The sound menu's import card: the focused thing is a 1px file input,
+      // so the card it stands for draws the ring.
+      ".sm-file:has(input:focus-visible)",
       ".switch:focus-visible",
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",

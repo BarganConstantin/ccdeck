@@ -553,31 +553,40 @@ export default function SoundMenu({
           <span>{customCount} of {MAX_CUSTOM_ASSETS}, kept on this machine</span>
         </div>
         {full && <p className="sm-note" id="sm-custom-full">{fullReason}</p>}
-        <label className="sm-file">
-          <span>Import WAV, MP3 or OGG</span>
-          <input
-            ref={importRef}
-            type="file"
-            accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
-            {...fullProps}
-            // A click that would open the picker, from the field or its
-            // caption, opens nothing while the library is full.
-            onClick={e => { if (full) e.preventDefault(); }}
-            onChange={e => {
-              const file = e.target.files?.[0];
-              e.currentTarget.value = "";
-              if (file && !full) void runCustom(() => onImportCustom(file));
-            }}
-          />
-        </label>
+        <div className="sm-custom-actions">
+          <label className="sm-custom-card sm-file">
+            <span className="sm-custom-card-copy">
+              <strong>Import audio</strong>
+              <span>WAV, MP3 or OGG</span>
+            </span>
+            <span className="btn sm-custom-action" aria-hidden="true">Choose file</span>
+            <input
+              ref={importRef}
+              type="file"
+              accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
+              {...fullProps}
+              // A click that would open the picker, from the card or its
+              // caption, opens nothing while the library is full.
+              onClick={e => { if (full) e.preventDefault(); }}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                e.currentTarget.value = "";
+                if (file && !full) void runCustom(() => onImportCustom(file));
+              }}
+            />
+          </label>
 
-        <div className="sm-record">
-          <span>Record a voice (up to 5 seconds)</span>
-          {recording ? (
-            <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
-          ) : (
-            <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record with microphone</button>
-          )}
+          <div className="sm-custom-card">
+            <span className="sm-custom-card-copy">
+              <strong>Record a clip</strong>
+              <span>{recording ? "Recording…" : "Up to 5 seconds"}</span>
+            </span>
+            {recording ? (
+              <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
+            ) : (
+              <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record</button>
+            )}
+          </div>
         </div>
 
         <details className="sm-voice">
@@ -590,22 +599,30 @@ export default function SoundMenu({
               if (full && details && !details.open) e.preventDefault();
             }}
           >
-            Add spoken voice
+            <span>Spoken voice</span>
+            <span>Create from text</span>
           </summary>
           <div className="sm-voice-fields">
             {/* The deck's text field, as the appearance menu's station fields
                 are: `.sm-select` is a select's class, and these are not. */}
-            <label>Name<input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
-            <label>Text<input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
-            <label>Voice
+            <label>
+              <span>Name</span>
+              <input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} />
+            </label>
+            <label>
+              <span>Text</span>
+              <input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} />
+            </label>
+            <label>
+              <span>Voice</span>
               <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
                 <option value="">System default</option>
                 {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
               </select>
             </label>
             <div className="sm-voice-pair">
-              <label>Rate<input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
-              <label>Pitch<input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
+              <label><span>Rate</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
+              <label><span>Pitch</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
             </div>
             <button
               type="button"
@@ -621,7 +638,7 @@ export default function SoundMenu({
                 });
               }}
             >
-              Add voice
+              Add spoken voice
             </button>
           </div>
         </details>
