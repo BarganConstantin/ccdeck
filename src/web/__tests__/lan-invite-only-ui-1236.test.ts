@@ -59,6 +59,12 @@ describe("the controls that say it (#1236)", () => {
     expect(setup).not.toMatch(/pairingMode !== "invite" && <div className="lan-switches">/);
   });
 
+  it("groups each automatic pair under a caption that says invite-only is holding it", () => {
+    expect(setup).toMatch(/<div className="lan-auto" role="group" aria-labelledby="lan-auto-h">\s*<p className="lan-sub" id="lan-auto-h">\s*Automatic pairing/);
+    expect(setup).toMatch(/<div className="lan-auto" role="group" aria-labelledby="lan-ts-auto-h">\s*<p className="lan-sub" id="lan-ts-auto-h">\s*Automatic pairing with my devices/);
+    expect(setup.match(/\{inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only<\/span>\}/g)).toHaveLength(2);
+  });
+
   it("leaves a nearby or declined machine one verb — an invite — on its row and in its dialog", () => {
     expect(section).toMatch(
       /\(p\.kind === "nearby" \|\| p\.kind === "declined"\) && status\?\.pairingMode === "invite"[\s\S]{0,200}setAddOpen\("invite"\)/,

@@ -12262,6 +12262,20 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 /* INVITE-ONLY, above the pair it holds, set off by the same step: it is the
    answer that overrides them, not a third row of the same question. */
 .lan-switches-lead + .lan-switches { margin-top: 10px; }
+/* The automatic switches as one group under the switch that governs them:
+   set apart by a rule, and named by a caption in the heading's quiet ink. */
+.lan-auto {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.lan-sub {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lan-sub-state { font-weight: 400; }
 /* A switch invite-only is holding. The label steps down with the knob, so the
    row reads as paused rather than as a live sentence beside a dead control.
    --muted rather than --text-dim: this line is on --panel, where --muted still
