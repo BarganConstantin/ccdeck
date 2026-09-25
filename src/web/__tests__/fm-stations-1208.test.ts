@@ -297,3 +297,10 @@ describe("the station forms, named and answering", () => {
     expect(menuCode).toContain('setRenameValue(activeCustomStation.name); setRenameError(""); setRenamingStation(true);');
   });
 });
+
+describe("the deck's music off switch, whatever link a station was given as", () => {
+  it("asks the server about every YouTube station, so AGENTS_DECK_NO_MUSIC can refuse a channel link too", () => {
+    expect(player).not.toContain('custom.kind === "youtube-channel"');
+    expect(player).toContain("get(`/api/fm-station?url=${encodeURIComponent(custom.url)}`)");
+  });
+});
