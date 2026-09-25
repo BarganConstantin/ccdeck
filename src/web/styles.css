@@ -3488,17 +3488,19 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 
 /* The drop target for the gesture in #1264, on the canvas rather than the
-   viewport so it centres on the board whatever panels sit beside it, and in
-   the auto-fit chip's place, which a drag always calls up and which is hidden
-   for the length of the drag. Calm while the card is far away, leaning in as
-   the pointer approaches, and red only once a release would remove the card.
-   Pointer events stay with React Flow: App hit-tests the release against this
-   box, with some slop around it, so the target never interrupts the drag. */
+   viewport so it centres on the board whatever panels sit beside it, above
+   the auto-fit chip, which a drag always calls up and which is hidden for the
+   length of the drag. Raised clear of the 35px band where React Flow pans the
+   board under a dragged card, slop included (AUTO_PAN_EDGE_PX), so aiming at
+   it never scrolls the board away. Calm while the card is far away, leaning in
+   as the pointer approaches, and red only once a release would remove the
+   card. Pointer events stay with React Flow: App hit-tests the release against
+   this box, with some slop around it, so the target never interrupts the drag. */
 .drag-trash-zone {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 14px;
+  bottom: 56px;
   z-index: 12;
   width: max-content;
   max-width: calc(100% - 32px);
