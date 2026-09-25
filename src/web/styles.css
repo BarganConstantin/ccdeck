@@ -1241,7 +1241,9 @@ button:focus-visible { outline-offset: 1px; }
   font-weight: 500;
   line-height: 18px;
 }
-.appearance-source-picker { position: relative; min-width: 0; }
+/* A grid, so the trigger stretches to the column like a field rather than
+   shrinking to a short name ("Mix") and reading as one more button. */
+.appearance-source-picker { position: relative; min-width: 0; display: grid; }
 /* A station name is whatever somebody typed, up to 80 characters with no space
    in them. A button sizes to its content, so that name made the trigger 532px
    in a 323px dialog and the whole dialog scrolled sideways. Capped at its
@@ -1363,11 +1365,29 @@ button:focus-visible { outline-offset: 1px; }
 /* The custom-station controls (#1208). Layout only: the buttons are
    `button.btn` and the fields `.ap-manage-input`, so their edges, focus ring
    and press are the ones already swept rather than a third copy of each. */
+/* Why the chosen station is silent, under the picker that chose it and
+   aligned with it rather than with the Station label. Empty, it takes no room. */
+.appearance-fm-status {
+  margin: -6px 0 0 60px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.appearance-fm-status:empty { display: none; }
+/* The station's own verbs, under the picker and in its column (48px label
+   plus the row's 12px gap): Add on the left, and Rename and Remove, which
+   only a custom station has, pushed to the right edge, away from Add. Trimmed
+   like `.sm-custom-action`, so they read as the field's secondary actions
+   rather than as a row of equal buttons competing with it. */
 .appearance-station-manage {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+  margin: -6px 0 0 60px;
 }
+.appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
+button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
 .appearance-station-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
