@@ -46,7 +46,7 @@ import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, resolveFmSource, storedCharacterEnabled, storedFmVolume } from "./appearance";
 import {
-  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_NAME_MAX, customFmId, customFmSelection,
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_NAME_MAX, customFmId, fmAvailabilityKey, customFmSelection,
   resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation,
   type CustomFmStation, type FmSelection,
 } from "./fm-stations";
@@ -2133,8 +2133,8 @@ function Inner() {
   // retry — the mark comes off and the counter moves, so ClaudeFm asks again,
   // whether it is the station already set or one somebody came back to.
   const pickFmSource = useCallback((next: FmSelection) => {
-    const retryId = customFmId(next);
-    const retry = retryId !== null && unavailableFmStations.has(retryId);
+    const retryId = fmAvailabilityKey(next);
+    const retry = unavailableFmStations.has(retryId);
     if (next === fmSource && !retry) return;
     if (retry) {
       setUnavailableFmStations(current => {
@@ -2146,8 +2146,7 @@ function Inner() {
   }, [fmSource, unavailableFmStations]);
 
   const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
-    const id = customFmId(selection);
-    if (!id) return;
+    const id = fmAvailabilityKey(selection);
     setUnavailableFmStations(current => {
       const had = current.has(id);
       if (had === unavailable) return current;

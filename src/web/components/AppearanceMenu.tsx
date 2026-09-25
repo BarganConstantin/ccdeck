@@ -5,7 +5,7 @@ import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { FM_SOURCE_OPTIONS } from "../appearance";
 import {
-  STATION_NAME_MAX, STATION_URL_MAX, customFmId, customFmSelection, newCustomFmStation,
+  STATION_NAME_MAX, STATION_URL_MAX, customFmId, customFmSelection, fmUnavailableNote, newCustomFmStation,
   type CustomFmStation, type FmSelection,
 } from "../fm-stations";
 import { isEscapeKey } from "../modal-dismiss";
@@ -75,7 +75,11 @@ export default function AppearanceMenu({
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
   const fmSources = [
-    ...FM_SOURCES,
+    ...FM_SOURCES.map(source => ({
+      ...source,
+      label: unavailableFmStations.has(source.value) ? `${source.label} · not live` : source.label,
+      unavailable: unavailableFmStations.has(source.value),
+    })),
     ...customFmStations.map(station => ({
       group: "🎵 Your stations",
       value: customFmSelection(station.id),
@@ -83,6 +87,7 @@ export default function AppearanceMenu({
       unavailable: unavailableFmStations.has(station.id),
     })),
   ];
+  const chosenUnavailable = fmSources.some(source => source.value === fmSource && source.unavailable);
   // The list as the runs it is drawn in — Claude FM on its own, then each
   // group's options together — so a group can be a real role="group" named by
   // its header. The options keep their flat index: it is what their ids, the
@@ -412,19 +417,24 @@ export default function AppearanceMenu({
           <span id="appearance-fm-source-note" className="vis-hidden">
             Changing station starts live playback automatically.
           </span>
+          {/* Mounted whether or not there is anything to say, so the words are
+              announced when they arrive (#372). */}
+          <p className="appearance-fm-status" role="status">
+            {chosenUnavailable ? fmUnavailableNote(customFmId(fmSource) !== null) : ""}
+          </p>
           {/* Custom stations are rows in the list above, not a second picker:
               these only add one, and rename or remove the one that is chosen.
               The deck's own buttons and the accounts panel's text field, both
               already swept for edge contrast, focus ring and press. */}
           <div className="appearance-station-manage">
-            <button type="button" className="btn" aria-expanded={addingStation} onClick={() => { setAddingStation(open => !open); setStationError(""); }}>
-              {addingStation ? "Cancel add" : "Add station"}
+            <button type="button" className="btn appearance-station-action" aria-expanded={addingStation} onClick={() => { setAddingStation(open => !open); setStationError(""); }}>
+              {addingStation ? "Cancel" : "+ Add station"}
             </button>
             {activeCustomStation && !renamingStation && (
-              <>
-                <button type="button" className="btn" onClick={() => { setRenameValue(activeCustomStation.name); setRenameError(""); setRenamingStation(true); }}>Rename</button>
-                <button type="button" className="btn danger" onClick={() => { onRemoveFmStation(activeCustomStation.id); backToPicker(); }}>Remove</button>
-              </>
+              <span className="appearance-station-edit">
+                <button type="button" className="btn appearance-station-action" onClick={() => { setRenameValue(activeCustomStation.name); setRenameError(""); setRenamingStation(true); }}>Rename</button>
+                <button type="button" className="btn danger appearance-station-action" onClick={() => { onRemoveFmStation(activeCustomStation.id); backToPicker(); }}>Remove</button>
+              </span>
             )}
           </div>
           {/* Each field is named by words that stay on screen. The name field

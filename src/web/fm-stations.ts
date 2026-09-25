@@ -38,6 +38,21 @@ export function customFmId(selection: string): string | null {
   return ID.test(id) ? id : null;
 }
 
+/** The key a station's availability is kept under: a custom station's id, or
+ *  a built-in station's own value. The two cannot collide, since a custom
+ *  selection always carries its prefix. */
+export function fmAvailabilityKey(selection: string): string {
+  return customFmId(selection) ?? selection;
+}
+
+/** What the menu says under the picker when the chosen station cannot play,
+ *  so silence is never left to explain itself. */
+export function fmUnavailableNote(custom: boolean): string {
+  return custom
+    ? "This station could not be played. Check its link, pick another, or pick it again to retry."
+    : "This station is not live right now. Pick another, or pick it again later to retry.";
+}
+
 export function parseFmStationUrl(value: string): ParsedFmStationUrl | null {
   const text = value.trim();
   if (text.length > STATION_URL_MAX) return null;

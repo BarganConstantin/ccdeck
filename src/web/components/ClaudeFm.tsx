@@ -420,22 +420,31 @@ export default memo(
         get(liveEndpoint)
           .then(r => r.ok ? r.json() : null)
           .then(a => {
-            if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
+            if (!alive) return;
+            if (a?.video) setProbe({ live: true, channel: "", video: a.video });
+            onAvailabilityChange?.(source, !a?.video);
           })
-          .catch(() => { /* no music today */ });
+          .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
       } else if (builtIn !== "claude-fm") {
         const station = builtIn.replace("lofi-", "");
         get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
           .then(r => r.ok ? r.json() : null)
           .then(a => {
-            if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
+            if (!alive) return;
+            if (a?.video) setProbe({ live: true, channel: "", video: a.video });
+            onAvailabilityChange?.(source, !a?.video);
           })
-          .catch(() => { /* no music today */ });
+          .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
       } else {
         get("/api/claude-fm")
           .then(r => r.ok ? r.json() : null)
-          .then(a => { if (alive && a?.live && a?.channel) setProbe({ live: true, channel: a.channel }); })
-          .catch(() => { /* no music today */ });
+          .then(a => {
+            if (!alive) return;
+            const live = !!(a?.live && a?.channel);
+            if (live) setProbe({ live: true, channel: a.channel });
+            onAvailabilityChange?.(source, !live);
+          })
+          .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
       }
       return () => { alive = false; };
     }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);

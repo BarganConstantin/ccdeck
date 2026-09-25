@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, newCustomFmStation, parseFmStationUrl,
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableNote, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
 } from "../fm-stations";
 
@@ -155,7 +155,7 @@ describe("the station form in the Appearance menu (#1208)", () => {
   });
 
   it("puts custom stations in the one combobox, not a second picker", () => {
-    expect(menu).toMatch(/const fmSources = \[\s*\.\.\.FM_SOURCES,\s*\.\.\.customFmStations\.map/);
+    expect(menu).toMatch(/const fmSources = \[\s*\.\.\.FM_SOURCES\.map\([\s\S]*?\),\s*\.\.\.customFmStations\.map/);
     // Drawn from that one list, a run per group, each option by its index in it.
     expect(menu).toContain("fmSources.forEach((source, index) => {");
     expect(menu).toContain("{sourceRuns.map((run, runIndex) => run.group ? (");
@@ -166,7 +166,7 @@ describe("the station form in the Appearance menu (#1208)", () => {
   it("reuses the swept button and field instead of a third copy of each", () => {
     expect(menu).not.toContain("appearance-station-button");
     expect(menu).toContain('<button type="submit" className="btn primary">Add</button>');
-    expect(menu).toContain('className="btn danger"');
+    expect(menu).toContain('className="btn danger appearance-station-action"');
     expect(menu.match(/className="ap-manage-input"/g)).toHaveLength(3);
   });
 
@@ -241,7 +241,8 @@ describe("the station picker as a combobox", () => {
     expect(choose).not.toContain("unavailable");
     expect(menuCode).not.toContain("aria-disabled");
     const pick = between(appCode, "const pickFmSource", "const markFmStationAvailability");
-    expect(pick).toContain("const retry = retryId !== null && unavailableFmStations.has(retryId);");
+    expect(pick).toContain("const retryId = fmAvailabilityKey(next);");
+    expect(pick).toContain("const retry = unavailableFmStations.has(retryId);");
     expect(pick).toContain("rest.delete(retryId)");
     expect(pick).toContain("}, [fmSource, unavailableFmStations]);");
     expect(decl(".appearance-source-option[data-unavailable]", "color")).toBe("var(--text-dim)");
@@ -302,5 +303,31 @@ describe("the deck's music off switch, whatever link a station was given as", ()
   it("asks the server about every YouTube station, so AGENTS_DECK_NO_MUSIC can refuse a channel link too", () => {
     expect(player).not.toContain('custom.kind === "youtube-channel"');
     expect(player).toContain("get(`/api/fm-station?url=${encodeURIComponent(custom.url)}`)");
+  });
+});
+
+describe("a silent station says why (#1267)", () => {
+  const menuSource = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
+  const playerSource = readFileSync(fileURLToPath(new URL("../components/ClaudeFm.tsx", import.meta.url)), "utf8");
+
+  it("keeps a built-in station's availability under its own value and a custom one's under its id", () => {
+    expect(fmAvailabilityKey("cafe-music-bgm")).toBe("cafe-music-bgm");
+    expect(fmAvailabilityKey(customFmSelection("abc123"))).toBe("abc123");
+  });
+
+  it("says a built-in is not live and a custom station could not be played", () => {
+    expect(fmUnavailableNote(false)).toMatch(/not live right now/);
+    expect(fmUnavailableNote(true)).toMatch(/could not be played/);
+  });
+
+  it("reports a built-in station that is not live, instead of only drawing nothing", () => {
+    expect(playerSource).not.toContain("/* no music today */");
+    expect(playerSource.match(/onAvailabilityChange\?\.\(source, !a\?\.video\);/g)).toHaveLength(2);
+    expect(playerSource).toContain("onAvailabilityChange?.(source, !live);");
+  });
+
+  it("marks a silent built-in in the list and explains it under the picker", () => {
+    expect(menuSource).toContain('`${source.label} · not live`');
+    expect(menuSource).toMatch(/<p className="appearance-fm-status" role="status">\s*\{chosenUnavailable \? fmUnavailableNote\(customFmId\(fmSource\) !== null\) : ""\}/);
   });
 });
