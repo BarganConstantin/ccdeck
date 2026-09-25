@@ -130,6 +130,15 @@ describe("the month is read only while it is shown (#737)", () => {
     expect(monthlyReadDue({ ...at, lastReadAt: null })).toBe(true);
   });
 
+  it("reads at once when the month has turned since the last read", () => {
+    // A read at 23:58 on the last day would otherwise hold the next until
+    // 00:03, and last month's total would stand under "this month".
+    const recent = { ...at, lastReadAt: at.now - 60_000 };
+    expect(monthlyReadDue({ ...recent, lastSince: "20260901", since: "20261001" })).toBe(true);
+    expect(monthlyReadDue({ ...recent, lastSince: "20261001", since: "20261001" })).toBe(false);
+    expect(monthlyReadDue({ ...recent, shown: false, lastSince: "20260901", since: "20261001" })).toBe(false);
+  });
+
   it("asks again every five minutes, not every minute", () => {
     expect(MONTHLY_USAGE_POLL_MS).toBe(5 * 60_000);
     expect(monthlyReadDue({ ...at, lastReadAt: at.now - 60_000 })).toBe(false);

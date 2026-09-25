@@ -756,6 +756,7 @@ function Inner() {
     let alive = true;
     let inFlight = false;
     let lastReadAt: number | null = null;
+    let lastSince: string | null = null;
     // The month the figure on screen was read for. A failed read leaves the
     // last good figure standing, as the Usage panel does, but only inside the
     // month it belongs to: once the 1st comes round, last month's total under
@@ -773,6 +774,7 @@ function Inner() {
       inFlight = true;
       lastReadAt = Date.now();
       const since = monthlyUsageSince();
+      lastSince = since;
       fetch(`/api/ccusage?since=${since}`)
         .then(r => (r.ok ? r.json() : null))
         .then(data => {
@@ -795,6 +797,8 @@ function Inner() {
       if (monthlyReadDue({
         shown: !!phrase && phrase.getClientRects().length > 0,
         tabVisible: document.visibilityState === "visible",
+        lastSince,
+        since: monthlyUsageSince(),
         lastReadAt,
         now: Date.now(),
       })) read();

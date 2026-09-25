@@ -23,15 +23,25 @@ export const MONTHLY_USAGE_CHECK_MS = 60_000;
  * the last MONTHLY_USAGE_POLL_MS, and at once when none has started at all —
  * which is what a phrase that has been hidden since the page loaded, and has
  * just been given the room to show, wants.
+ *
+ * AND AT ONCE WHEN THE MONTH HAS TURNED. The cadence alone let a read at 23:58
+ * on the last day hold the next one until 00:03, and for those minutes last
+ * month's total stood under the words "this month" — the label and the number
+ * disagreeing, the pairing #737 says has to survive.
  */
-export function monthlyReadDue({ shown, tabVisible, lastReadAt, now }: {
+export function monthlyReadDue({ shown, tabVisible, lastReadAt, now, lastSince, since }: {
   shown: boolean;
   tabVisible: boolean;
   /** When the last read started, or null before the first. */
   lastReadAt: number | null;
   now: number;
+  /** The month the last read asked for, in monthlyUsageSince's form. */
+  lastSince?: string | null;
+  /** The month a read now would ask for. */
+  since?: string;
 }): boolean {
   if (!shown || !tabVisible) return false;
+  if (lastSince && since && lastSince !== since) return true;
   return lastReadAt === null || now - lastReadAt >= MONTHLY_USAGE_POLL_MS;
 }
 
