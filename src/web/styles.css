@@ -1807,33 +1807,85 @@ button.btn.sm-hear {
    nothing does not give under the finger either. */
 .sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
-/* A caption over its control rather than beside it: at 268px neither the file
-   picker nor "Record with microphone" leaves room for a label on its left. */
-.sm-file,
-.sm-record {
+.sm-custom-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sm-custom-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 72px;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--sm-fill) 72%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.sm-file { cursor: pointer; }
+.sm-custom-card:hover { border-color: var(--sm-edge); background: var(--sm-fill); }
+.sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sm-custom-card-copy strong { font-size: 11px; font-weight: 600; color: var(--text); }
+.sm-custom-card-copy > span { font-size: 10px; line-height: 1.35; color: var(--muted); }
+.sm-file input[type="file"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.sm-file:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sm-voice {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sm-fill) 48%, transparent);
+}
+.sm-voice summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+.sm-voice summary::-webkit-details-marker { display: none; }
+.sm-voice summary::after { content: '›'; color: var(--muted); transition: transform 120ms ease; }
+.sm-voice[open] summary::after { transform: rotate(90deg); }
+.sm-voice summary > span:first-child { font-weight: 600; }
+.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 400; }
+.sm-voice-fields {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-dim);
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
 }
-.sm-file input[type="file"] {
-  width: 100%;
-  min-width: 0;
-  font: inherit;
-  font-size: 11px;
+.sm-voice-fields label {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
 }
-.sm-voice { color: var(--text-dim); font-size: 11px; }
-.sm-voice summary { color: var(--text); }
-.sm-voice-fields { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
-.sm-voice-fields label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
-.sm-voice-fields .ap-manage-input { flex: 1; }
+.sm-voice-fields .ap-manage-input,
+.sm-voice-fields .sm-select { width: 100%; min-width: 0; }
 .sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sm-voice-pair label { display: grid; grid-template-columns: auto 1fr; }
-/* Trimmed like `.sm-hear` and exactly as tall as every other button: the
-   height is --ctl-h's, which panel-rhythm.test.ts keeps to one value. */
+.sm-voice-pair label { grid-template-columns: auto minmax(0, 1fr); }
 button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: 11px; }
+button.btn.sm-voice-add { margin-top: 2px; }
+@media (max-width: 310px) {
+  .sm-custom-actions { grid-template-columns: 1fr; }
+}
 .sm-custom-list { display: flex; flex-direction: column; gap: 6px; }
 .sm-custom-item {
   display: grid;
