@@ -6,6 +6,9 @@ export type TrashProximity = "far" | "near" | "over";
 export const TRASH_HIT_SLOP_PX = 16;
 /** How close the pointer comes before the target leans in to meet it. */
 export const TRASH_NEAR_PX = 120;
+/** React Flow pans the board while a dragged node is this close to the canvas
+ *  edge (`calcAutoPan`), so no part of the target's hit area may sit in it. */
+export const AUTO_PAN_EDGE_PX = 35;
 
 /** Whether the point lies inside the rectangle, grown by `slop` on every side. */
 export function pointInRect(point: ClientPoint, rect: ClientRectBounds, slop = 0): boolean {

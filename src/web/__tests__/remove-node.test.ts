@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { collectBursts } from "../components/ToolBursts";
 import type { AgentNodeData } from "../types";
 import { readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
-import { clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
+import { AUTO_PAN_EDGE_PX, clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -171,6 +171,13 @@ describe("drag-to-trash hit testing", () => {
     expect(trashProximity({ clientX: 510, clientY: 700 - TRASH_NEAR_PX }, target)).toBe("near");
     expect(trashProximity({ clientX: 510, clientY: 700 - TRASH_NEAR_PX - 1 }, target)).toBe("far");
     expect(distanceToRect({ clientX: 397, clientY: 696 }, target)).toBe(5);
+  });
+
+  it("keeps the whole target clear of the band where React Flow pans the board", () => {
+    const sheet = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const rule = /\.drag-trash-zone \{([^}]*)\}/.exec(sheet)?.[1] ?? "";
+    const bottom = Number(/\bbottom:\s*(\d+)px/.exec(rule)?.[1]);
+    expect(bottom - TRASH_HIT_SLOP_PX).toBeGreaterThan(AUTO_PAN_EDGE_PX);
   });
 
   it("reads the release point of a touch drag from changedTouches", () => {
