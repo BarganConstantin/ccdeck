@@ -197,7 +197,7 @@ describe("where Remove lives and what follows it", () => {
     const detail = /function Detail\([\s\S]*?\n}\n/.exec(app)?.[0] ?? "";
     expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>Remove from board<\/button>/);
     expect(app).toMatch(/onRemove=\{removeSelectedNode\}/);
-    // Undoable, so not dressed as the one destructive .btn the sheet reserves
+    // Reversible from the session list, so not dressed as the one destructive .btn the sheet reserves
     // red for.
     expect(detail).not.toMatch(/btn danger[^"]*"\s+onClick=\{onRemove\}/);
   });
@@ -207,21 +207,14 @@ describe("where Remove lives and what follows it", () => {
     expect(app).toMatch(/removeSelectedRef\.current = removeSelectedNode;/);
   });
 
-  it("offers Undo, names it for what it undoes, and moves focus onto it", () => {
-    expect(app).toMatch(/className="ver-banner note"/);
-    expect(app).toMatch(/aria-label=\{`Undo removing \$\{removalNotice\.label\}`\}\s+onClick=\{undoRemoval\}\s*>Undo<\/button>/);
-    expect(app).toMatch(/if \(lastRemoval\) \(undoRef\.current \?\? canvasRef\.current\)\?\.focus\(\);/);
+  it("draws nothing after a removal, and keeps focus on the board", () => {
+    expect(app).not.toMatch(/is off the board\.<\/strong>/);
+    expect(app).not.toMatch(/undoRemoval/);
+    expect(app).toMatch(/if \(lastRemoval\) canvasRef\.current\?\.focus\(\);/);
   });
 
   it("says the removal through a region that is mounted before the words arrive", () => {
     expect(app).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{removalNotice \? `\$\{removalNotice\.label\} removed from the board\.` : ""\}/);
-  });
-
-  it("puts a card back where it was on Undo, with its selection", () => {
-    const undo = /const undoRemoval = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
-    expect(undo).toMatch(/if \(pin\) pinnedRef\.current\.set\(id, pin\);/);
-    expect(undo).toMatch(/if \(position\) positionsRef\.current\.set\(id, position\);/);
-    expect(undo).toMatch(/selectAgent\(id, false\)/);
   });
 
   it("brings a waiting session back instead of leaving the alarm pointing at nothing", () => {
@@ -236,7 +229,7 @@ describe("where Remove lives and what follows it", () => {
     expect(css).toMatch(/\.session-list \.sl-row\.removed \.sl-label \{ color: var\(--muted\); \}/);
   });
 
-  it("forgets the Undo on Clear", () => {
+  it("forgets the last removal on Clear", () => {
     const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
     expect(clear).toMatch(/setLastRemoval\(null\);/);
   });
