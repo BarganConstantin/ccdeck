@@ -36,6 +36,10 @@ import { looksLikeTunnel } from "./route-via.mjs";
 const REFUSALS = Object.freeze({
   pending: "waiting for the other deck to accept this one",
   declined: "that deck said no",
+  "invite only": "that deck pairs only by invite",
+  // Sent back to a caller that said it was not asking, so the far end's answer
+  // is about the caller's own setting — the same words its own round uses.
+  "not asking": "this deck pairs only by invite",
   impostor: "that deck has this one pinned under a different key",
   "bad proof": "the other deck refused this one's proof",
 });
@@ -291,6 +295,9 @@ export function createBeacon({
   let told = null;
   let rebind = null;
   let stopped = true;
+  // Socket binds finish asynchronously. A stopped start must not attach its
+  // late socket to a subsequent start or leave an outbound socket open.
+  let startGeneration = 0;
   /** When this deck last answered a deck it had not heard, so answering cannot
    *  become a storm, and which decks it has already answered — without the
    *  second, a deck that is never accepted is answered again on every packet
@@ -302,6 +309,7 @@ export function createBeacon({
 
   const announce = (also = []) => {
     if (!sock && !out) return;
+    const announcedIn = startGeneration;
     // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
     //
     // This used to send only to 255.255.255.255, on the argument that the
@@ -335,6 +343,9 @@ export function createBeacon({
     const failed = [];
     for (const to of targets) {
       from.send(payload(), DISCOVERY_PORT, to, err => {
+        // A send may finish after this socket has closed and a new LAN
+        // session has started. Its result says nothing about the new session.
+        if (stopped || announcedIn !== startGeneration) return;
         if (err) failed.push(`${to} (${err.code ?? err.message})`);
         // REPORTED ONLY WHEN EVERY ONE FAILED. One address being unreachable is
         // the ordinary state of a machine with a VPN up, and a panel that said
@@ -358,6 +369,9 @@ export function createBeacon({
   };
 
   const onMessage = (msg, rinfo) => {
+    // A queued UDP callback can run after close(). It belongs to the stopped
+    // discovery session and must not repopulate peers or invite strangers.
+    if (stopped) return;
     // Everything about whether to care lives in lan-sync.mjs. This hands it
     // the bytes and the address and does what it is told.
     if (msg.length > MAX_BEACON_BYTES) return;
@@ -421,16 +435,24 @@ export function createBeacon({
 
   /** One try at the discovery port: the listening socket, or the error that
    *  kept it. A bind that fails never calls back; it arrives as an error. */
-  const listen = () => new Promise(resolve => {
+  const listen = (startedIn) => new Promise(resolve => {
     let s;
     try { s = createSocket({ type: "udp4", reuseAddr: true }); } catch (err) { resolve({ err }); return; }
     let bound = false;
     s.on("error", err => {
-      if (bound) { onError?.("socket", err); return; }
+      if (bound) {
+        if (!stopped && startedIn === startGeneration) onError?.("socket", err);
+        return;
+      }
       try { s.close(); } catch { /* never opened */ }
       resolve({ err });
     });
-    s.on("message", onMessage);
+    // close() can leave a message callback queued. After restart, stopped is
+    // false again, so the socket's own generation must also be checked.
+    s.on("message", (msg, rinfo) => {
+      if (startedIn !== startGeneration) return;
+      onMessage(msg, rinfo);
+    });
     s.bind(DISCOVERY_PORT, "0.0.0.0", () => {
       bound = true;
       try { s.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
@@ -438,9 +460,10 @@ export function createBeacon({
     });
   });
 
-  const tryListen = async () => {
-    const got = await listen();
-    if (stopped) { try { got.sock?.close(); } catch { /* gone */ } return; }
+  const tryListen = async (startedIn) => {
+    if (stopped || startedIn !== startGeneration) return;
+    const got = await listen(startedIn);
+    if (stopped || startedIn !== startGeneration) { try { got.sock?.close(); } catch { /* gone */ } return; }
     if (got.sock) {
       sock = got.sock;
       hearing = true;
@@ -451,7 +474,7 @@ export function createBeacon({
     hearing = false;
     deafError = got.err;
     tell(false);
-    rebind = setTimeout(() => { rebind = null; void tryListen(); }, rebindMs);
+    rebind = setTimeout(() => { rebind = null; void tryListen(startedIn); }, rebindMs);
     rebind.unref?.();
   };
 
@@ -487,11 +510,17 @@ export function createBeacon({
   });
 
   const start = async () => {
+    const startedIn = ++startGeneration;
     stopped = false;
     told = null;
-    await tryListen();
-    out = await openOut();
-    if (stopped) return;
+    await tryListen(startedIn);
+    if (stopped || startedIn !== startGeneration) return;
+    const opened = await openOut();
+    if (stopped || startedIn !== startGeneration) {
+      try { opened?.close(); } catch { /* already closed */ }
+      return;
+    }
+    out = opened;
     // Immediately, not on the next tick. Syncthing's rule: a deck that just
     // came up should appear now rather than up to thirty seconds later, which
     // is the difference between "it works" and "it seems broken" for anybody
@@ -512,6 +541,7 @@ export function createBeacon({
     tunneled: () => tunneled,
     stop() {
       stopped = true;
+      startGeneration++;
       if (timer) clearInterval(timer);
       timer = null;
       if (rebind) clearTimeout(rebind);
@@ -605,6 +635,10 @@ export function createSyncServer({
    *  silent wait — they are the same frame otherwise, and only one of them ever
    *  comes right by waiting. */
   declined = () => false,
+  /** Does this deck pair only by invite? Then a deck it has not met, holding no
+   *  invite, is told so instead of "pending": nobody here will ever be shown a
+   *  request to accept, and a caller left waiting on one waits for good. */
+  inviteOnly = () => false,
   /** The invite this deck is currently offering, or null. A caller that proves
    *  it holds the code is somebody the owner handed a token to, so it is paired
    *  on arrival rather than queued behind a press. */
@@ -645,6 +679,7 @@ export function createSyncServer({
   ephemeral = true,
 } = {}) {
   let server = null;
+  let cancelStart = null;
   const live = new Set();
 
   /** Which host a socket came from, in one spelling. Node reports an IPv4 peer
@@ -690,6 +725,9 @@ export function createSyncServer({
     let peerPub = null;
     let peerName = "";
     let peerPort = null;
+    // Whether the caller said it is NOT asking to pair — an invite-only deck
+    // reaching an address it already had. See the unknown-deck branch below.
+    let peerNoAsk = false;
     let key = null;
     // Carrying this deck's marks — that it seals, and that it mixes a key pair
     // of its own into the key — inside the one field the handshake already
@@ -815,6 +853,7 @@ export function createSyncServer({
           // of a fixed 288px column and left a complete, plausible sentence.
           peerName = cleanName(msg.name, "");
           peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
+          peerNoAsk = msg.ask === false;
           // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
           // the proofs bind decide it, never whether a field turned up. Once
           // both say so, a hello with no usable key is refused rather than
@@ -925,6 +964,19 @@ export function createSyncServer({
           // do — the deck that asked is told, so its own panel can stop saying
           // "waiting" about a question that has been answered.
           if (declined(peerFp)) return refuse("declined");
+          // AN INVITE-ONLY DECK, and this caller brought none (a caller that
+          // did was paired above). Answered rather than queued: the engine
+          // records no request in this mode, so "pending" would leave the other
+          // deck's panel saying "waiting for them to say yes" about a question
+          // nobody here will ever see. After "declined", which is the more
+          // specific answer about this one deck.
+          if (inviteOnly()) return refuse("invite only");
+          // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
+          // addresses it already had, because an invite-paired deck is one of
+          // them; one that turns out not to know it must not become a request
+          // here — with the accept switch on, that request would have pinned a
+          // deck whose owner said it pairs only by invite.
+          if (peerNoAsk) return refuse("not asking");
 
           // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
           // a port scan, and it told us a name and an address a person can
@@ -1001,23 +1053,51 @@ export function createSyncServer({
     start: () => new Promise((resolve, reject) => {
       const wanted = Number.isInteger(prefer) && prefer > 0 && prefer < 65_536 ? prefer : 0;
       let retried = wanted === 0;
-      server = net.createServer(onConnection);
-      server.on("error", err => {
+      const listener = net.createServer(onConnection);
+      server = listener;
+      let pending = true;
+      const finish = (done, result) => {
+        if (!pending) return;
+        pending = false;
+        if (cancelStart === cancel) cancelStart = null;
+        done(result);
+      };
+      // A close before the listening callback otherwise leaves start() pending
+      // forever. Null tells the engine that this startup was cancelled.
+      let cancelled = false;
+      const cancel = () => { cancelled = true; finish(resolve, null); };
+      // A bind that lands after the cancel is closed by its own callback. With
+      // a host, `listen` binds after a dns.lookup that current Node drops on
+      // close(); a runtime that still binds would leave a listener nobody owns.
+      const bound = () => {
+        if (cancelled) { try { listener.close(); } catch { /* already closed */ } return; }
+        finish(resolve, listener.address()?.port ?? null);
+      };
+      cancelStart = cancel;
+      listener.on("error", err => {
+        // A listener can also fail after its initial bind succeeded. Continue
+        // reporting those errors while it is the active server.
+        if (!pending) {
+          if (server === listener) onError?.("listen", err);
+          return;
+        }
         if (!retried) {
           // Somebody else has it — another deck on this machine, or something
           // unrelated. The pin is not worth failing to start over.
           retried = true;
           onError?.("listen", err);
-          try { server.listen(0, host, () => resolve(server.address().port)); } catch { reject(err); }
+          try { listener.listen(0, host, bound); } catch { finish(reject, err); }
           return;
         }
         onError?.("listen", err);
-        reject(err);
+        finish(reject, err);
       });
-      server.listen(wanted, host, () => resolve(server.address().port));
+      try { listener.listen(wanted, host, bound); }
+      catch (err) { finish(reject, err); }
     }),
     port: () => server?.address()?.port ?? null,
     stop() {
+      cancelStart?.();
       for (const s of live) s.destroy();
       live.clear();
       try { server?.close(); } catch { /* not listening */ }
@@ -1038,6 +1118,11 @@ export function createSyncServer({
  */
 export function connectToPeer({
   host, port, fp, pub, secret, name, myPort = null, code = null, timeoutMs = HANDSHAKE_MS,
+  /** False when this deck is reaching an address it already had WITHOUT asking
+   *  to pair — an invite-only deck's round. Sent only when false, so every other
+   *  hello is byte-for-byte what it was, and a deck that predates the field
+   *  reads past it the way it reads past `epk`. */
+  ask = true,
   /** The public key we pinned for this deck the first time, or null for a deck
    *  we are meeting — an address somebody typed. */
   expectPub = null,
@@ -1089,6 +1174,7 @@ export function connectToPeer({
       // reads past a field it does not know, and one of this version answers.
       sendFrame(sock, {
         t: "hello", fp, pub, name, port: myPort, challenge: myChallenge, ...(myEpk ? { epk: myEpk } : {}),
+        ...(ask === false ? { ask: false } : {}),
       });
     });
 

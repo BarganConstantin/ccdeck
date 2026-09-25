@@ -378,6 +378,22 @@ describe("version-drift banner (#272)", () => {
   });
 });
 
+describe("the update dialog's failure line (#1187)", () => {
+  it("writes --warn on the modal's own --panel, not on a wash of itself", () => {
+    // The trap #272 fell into was --warn text on a 13% --warn wash, 3.74:1 in
+    // light. This line has no wash: it sits on the dialog's panel, where the
+    // same --warn is 5.43:1 light and 12.55:1 dark (measured in Chromium too).
+    expect(decl(rule(".modal"), "background")).toBe("var(--panel)");
+    const said = rule(".release-notes .rn-update-said");
+    expect(decl(said, "color")).toBe("var(--warn)");
+    expect(decl(said, "background")).toBeNull();
+    for (const theme of themes) {
+      const ratio = contrastRatio(resolve("var(--warn)", theme), parseColor(TOK[theme]["--panel"]));
+      expect(ratio, theme).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+});
+
 // ── #619 / #622 ─────────────────────────────────────────────────────────────
 
 /** Comments in this sheet quote the very declarations these blocks assert are

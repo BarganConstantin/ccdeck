@@ -27,7 +27,8 @@
 // something in it, which is when an account is actually broken. A deck whose
 // accounts all work talks to its peers every minute and never asks for
 // anything.
-import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
+import { accountKey, currentFor, manifestFor, onePerKey, open, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge } from "./lan-sync.mjs";
+import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
@@ -156,9 +157,8 @@ function flatten(v, max) {
 }
 
 export function offered(list) {
-  return (Array.isArray(list) ? list : [])
+  return onePerKey((Array.isArray(list) ? list : [])
     .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
-    .slice(0, 50)
     // Character-filtered, not merely cut. These two are drawn beside the
     // fingerprint at the moment the operator picks which of a peer's logins to
     // import (LanPeerModal.tsx:497), and a bare slice let a format character
@@ -166,9 +166,16 @@ export function offered(list) {
     .map(a => ({
       key: flatten(a.key, 320),
       email: flatten(a.email, 254),
-      alive: a.alive === true,
+      alive: storedCopyAlive(a.alive, a.collector),
+      // Additive wire field: an older peer omitted it, which means shareable.
+      ...(a.shareable === false ? { shareable: false } : {}),
     }))
-    .filter(a => a.key && a.email);
+    .filter(a => a.key && a.email))
+    // Fifty IDENTITIES, so the cap is spent after onePerKey rather than before
+    // it: a peer with duplicate slots could otherwise push a live copy past
+    // row fifty and out of the list while offering far fewer than fifty
+    // logins. The raw array is already bounded by MAX_FRAME_BYTES.
+    .slice(0, 50);
 }
 
 /**
@@ -212,7 +219,7 @@ export function ticksOnArrival(step, via) {
 }
 
 export function createEngine({
-  readAccounts, exportAccount, importAccount,
+  readAccounts, exportAccount, importAccount, checkArrivals, liveLogin,
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
@@ -263,7 +270,7 @@ export function createEngine({
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], unpaired: [], port: 0,
-    autoAsk: true, autoAccept: true, aliases: {},
+    autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
     // DISCOVERY OVER TAILSCALE, off until somebody turns it on, and its own
@@ -273,6 +280,14 @@ export function createEngine({
     // person's own Tailscale account — see routeOf.
     tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
   };
+  // Bumped by every stop, a restart included: anything started before it
+  // belongs to a listener that is gone.
+  let generation = 0;
+  // What a round checks instead, so a round stopped by switching LAN off
+  // cannot resume when it is switched back on. A restart for a new name or
+  // key revokes nothing — the peer is still paired and LAN still on — so a
+  // transfer in flight lands and is shared onward as usual.
+  let session = 0;
   let identity = null;
   let beacon = null;
   let server = null;
@@ -405,6 +420,8 @@ export function createEngine({
 
   /** The tailnet read's own timer, running only while the switch is on. */
   let tailTimer = null;
+  // An in-flight refresh may finish after discovery is disabled or restarted.
+  let tailRefreshGeneration = 0;
 
   /** Who held the discovery port the last time it was asked, for as long as
    *  this deck cannot hear: the answer does not change between two tries half a
@@ -443,8 +460,8 @@ export function createEngine({
   };
 
   /** The two permissions that answer for one route. */
-  const asksOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
-  const saysYesOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
+  const asksOn = via => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
+  const saysYesOn = via => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
 
   /**
    * Read the tailnet on a timer while the switch is on, and not at all while it
@@ -458,10 +475,17 @@ export function createEngine({
   const syncTailnet = () => {
     const want = !!(beacon && tailnet && cfg.enabled && cfg.tailscale);
     if (want && !tailTimer) {
-      void tailnet.refresh().then(() => beacon?.announce(), () => {});
+      const startedIn = ++tailRefreshGeneration;
+      const currentBeacon = beacon;
+      void tailnet.refresh().then(() => {
+        if (startedIn === tailRefreshGeneration && beacon === currentBeacon && cfg.enabled && cfg.tailscale) {
+          currentBeacon.announce();
+        }
+      }, () => {});
       tailTimer = setInterval(() => { void tailnet.refresh(); }, TAILNET_MS);
       tailTimer.unref?.();
     } else if (!want && tailTimer) {
+      tailRefreshGeneration++;
       clearInterval(tailTimer);
       tailTimer = null;
     }
@@ -474,7 +498,14 @@ export function createEngine({
     return (got?.accounts ?? []).map(a => ({
       key: accountKey(a.email, a.orgUuid),
       email: a.email,
-      alive: a.alive === true,
+      org: a.orgUuid,
+      alive: storedCopyAlive(a.alive, a.collector),
+      // False only for a login the wiring knows this process cannot read (a
+      // Mac whose Keychain will not open from here). Absent means readable,
+      // which is every deck that does not say.
+      readable: a.readable !== false && cachedExportReadable(a.collector, { active: a.active === true }),
+      unreadableWhy: a.readable === false || a.collector === "keychain_unavailable"
+        ? SENDER_UNREADABLE : "export failed",
       num: a.num,
       // The one this deck is on — claude-swap's own answer, one at most.
       active: a.active === true,
@@ -542,6 +573,10 @@ export function createEngine({
   };
 
   const serve = async (msg, ctx) => {
+    // Authentication happened at connection setup; a previously trusted deck
+    // may have been unpaired while this socket remained open.
+    const mayAnswer = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx?.peerFp);
+    if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
     if (ctx?.peerFp) {
@@ -567,6 +602,10 @@ export function createEngine({
           offersBy.set(ctx.peerFp, { at: now(), accounts: list, current: heardCurrent(msg.current, list) });
         }
         const accounts = await localAccounts();
+        // Reading the store can take long enough for the owner to unpair this
+        // deck. Do not disclose account identities or the active account from
+        // a manifest assembled before that decision.
+        if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
         return ctx.send({
           t: "manifest", accounts: manifestFor(accounts, cfg.shared),
           ...currentFor(accounts, cfg.shared, cfg.shareActive),
@@ -574,6 +613,12 @@ export function createEngine({
         });
       }
       if (msg.t === "want") {
+        // A listener may have authenticated this socket before its owner
+        // unpaired the caller or switched sharing off. Recheck at the moment
+        // a credential is requested and again after every asynchronous read.
+        const maySend = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx.peerFp)
+          && cfg.shared.includes(msg.key);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A SECOND PROOF, for the one operation that moves a credential. The
         // session says who connected; this says they are asking for this
         // account, now. A long-lived connection authenticated an hour ago is
@@ -587,11 +632,30 @@ export function createEngine({
         // Only what the user ticked, checked again here rather than trusted
         // from the manifest we sent: the list can change between the two, and
         // the answer that matters is the one at the moment of sending.
-        if (!cfg.shared.includes(msg.key)) return ctx.send({ t: "no", why: "not shared" });
         const accounts = await localAccounts();
-        const mine = accounts.find(a => a.key === msg.key);
-        if (!mine || !mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
-        const blob = await exportAccount(mine.num);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
+        // The slot manifestFor told the peer about, by the same rule: with two
+        // slots for one identity, an expired one listed first must not hide a
+        // live one behind it.
+        const mine = slotFor(accounts, msg.key);
+        if (!mine) return ctx.send({ t: "no", why: "not mine to give" });
+        // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
+        // a failed export: no subprocess, and nothing the CLI printed. The
+        // asking deck prints it under the account, so the person learns which
+        // machine to unlock instead of reading "export failed".
+        if (!mine.readable) return ctx.send({ t: "no", why: mine.unreadableWhy });
+        if (!mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
+        // The active slot exports the live CLI login, and its verdict can
+        // predate a `/login` as somebody else, so ask the CLI who it is now.
+        if (mine.active && liveLogin && !liveLoginIs(await liveLogin(), mine.email, mine.org)) {
+          return ctx.send({ t: "no", why: "export failed" });
+        }
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
+        const blob = await exportAccount(mine.num, msg.key);
+        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
+        // A Mac's failed export refreshes the verdict behind `readable` in the
+        // background, so when the Keychain was why, the next ask is answered by
+        // the line above.
         if (!blob) return ctx.send({ t: "no", why: "export failed" });
         const aad = `${identity.fp}->${ctx.peerFp}|${msg.key}`;
         return ctx.send({ t: "have", key: msg.key, sealed: seal(ctx.key, blob, aad) });
@@ -623,7 +687,7 @@ export function createEngine({
    * is nothing before this, so the check lives here.
    */
   const askToAccept = entry => {
-    if (declined.has(entry.fp)) return;
+    if (cfg.pairingMode === "invite" || declined.has(entry.fp)) return;
     const had = pending.get(entry.fp);
     // WHICH SWITCH ANSWERS depends on where the deck is. A request from the
     // tailnet is answered by the Tailscale pair, and only for a machine on this
@@ -654,9 +718,23 @@ export function createEngine({
    *  read from the routing table, the way the peer list reads it. */
   const viaOf = peer => peer.via ?? (routeTo(peer.addr) ? "tailscale" : "lan");
 
+  /** Checks the logins a round brought, once, and records any reason one is
+   *  unusable here on its row. An unanswered check is not a failure. */
+  const markArrivals = async done => {
+    const arrived = done.filter(d => d.ok);
+    if (!arrived.length || !checkArrivals) return;
+    let found = null;
+    try { found = await checkArrivals(arrived); } catch { /* unasked is not a failure of the round */ }
+    arrived.forEach((d, i) => { if (typeof found?.[i] === "string") d.why = found[i]; });
+  };
+
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
     let conn = null;
+    const startedIn = session;
+    // Out here, so a round that dies after some logins arrived still reports
+    // them — see the catch below.
+    const done = [];
     try {
       conn = await connectToPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
@@ -667,6 +745,10 @@ export function createEngine({
         // The key pinned when this deck was accepted, so a second machine
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
+        // Invite-only still dials the rows it has — an invite-paired deck is one
+        // of them — but tells the far end it is not asking, so a row that turns
+        // out to be a stranger is refused there instead of becoming a request.
+        ask: cfg.pairingMode !== "invite",
         sealFrames, ephemeral,
       });
       // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
@@ -683,14 +765,22 @@ export function createEngine({
       // reject path also never removed the listener; only roundWith's
       // `finally { conn?.sock?.destroy(); }` stopped it.
       const ask = frame => new Promise((resolve, reject) => {
-        const bell = setTimeout(() => reject(new Error("peer went quiet")), ROUND_MS);
-        bell.unref?.();
         let buf = "";
+        let settled = false;
         const give = (fn, arg) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(bell);
           conn.sock.off("data", onData);
+          conn.sock.off("close", onClose);
+          conn.sock.off("error", onError);
           fn(arg);
         };
+        const onClose = () => give(reject, new Error("peer closed the connection"));
+        // The errno rides along in the sentence, because faultText reads it
+        // there: ECONNRESET is "it hung up" on the row, and a bare "peer
+        // connection failed" was the one fault the panel could only repeat.
+        const onError = err => give(reject, new Error(`peer connection failed${err?.code ? ` (${err.code})` : ""}`));
         const onData = chunk => {
           buf += chunk;
           if (buf.length > MAX_FRAME_BYTES) {
@@ -714,9 +804,18 @@ export function createEngine({
           }
           give(resolve, got);
         };
+        const bell = setTimeout(() => give(reject, new Error("peer went quiet")), ROUND_MS);
+        bell.unref?.();
         conn.sock.on("data", onData);
+        conn.sock.on("close", onClose);
+        conn.sock.on("error", onError);
         // And out through its own writer, which seals whenever the reader opens.
-        conn.send(frame);
+        // A dead socket cannot throw here — sendFrame swallows a failed write,
+        // and `close`/`error` above are what report it. What CAN throw is the
+        // seal running out of counter, which is this deck's limit and not a
+        // network drop, so it is rejected under its own name.
+        if (conn.sock.destroyed) return onClose();
+        try { conn.send(frame); } catch (err) { give(reject, err); }
       });
 
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
@@ -758,6 +857,9 @@ export function createEngine({
       // A deck we DO have a pin for was checked before this line: connectToPeer
       // was given expectPub and refuses a different key at that address.
       if (!trustedPeer(cfg.trusted, conn.peerFp)) {
+        // Said as this deck's own setting, not as a fault: the row the panel
+        // draws for it is a state the owner chose (see WIRE_ANSWERS).
+        if (cfg.pairingMode === "invite") throw new Error("this deck pairs only by invite");
         if (!peer.typed || wasUnpaired(conn.peerFp)) {
           // The same row the listener's own `onPending` draws, from the other
           // direction: this deck dialled rather than being dialled, and the
@@ -782,12 +884,21 @@ export function createEngine({
       // on — so the deck being asked knows both without dialling back, which a
       // deck with no address for this one never could. An older deck reads the
       // question's `t` and card and nothing else, so it answers as it always did.
+      const stillPaired = () => session === startedIn && cfg.enabled
+        && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
+      if (!stillPaired()) throw new Error("peer no longer paired");
       const mine = await localAccounts();
+      // The owner can revoke trust or disable sync while the store is read.
+      // Never send this deck's account identities on that old connection.
+      if (!stillPaired()) throw new Error("peer no longer paired");
       const theirs = await ask({
         t: "manifest", accounts: manifestFor(mine, cfg.shared),
         ...currentFor(mine, cfg.shared, cfg.shareActive),
         ...cardFor(conn.key, conn.peerFp),
       });
+      // A response from a round that was stopped or unpaired is stale even
+      // when the peer had already sent it before the setting changed.
+      if (!stillPaired()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const card = openAbout(conn.key, theirs.about, conn.peerFp, identity.fp);
       if (card) aboutBy.set(conn.peerFp, { ...card, at: now() });
@@ -813,8 +924,15 @@ export function createEngine({
       // importAccount untyped, which `offered`'s filter would have caught.
       const wanted = plan(mine, list)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
-      const done = [];
+      // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
+      // LAN switched off, the peer unpaired (`stillPaired`, above) — ends the
+      // round. A heal unticked mid-round ends only that heal: the adds behind
+      // it need no tick, and the skipped row says why rather than vanishing.
+      const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
+      let cut = false;
       for (const step of wanted) {
+        if (!stillPaired()) { cut = true; break; }
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
           t: "want", key: step.key, nonce,
@@ -822,17 +940,31 @@ export function createEngine({
             nonce, accountKey: step.key, fromFp: identity.fp, toFp: conn.peerFp,
           }),
         });
-        if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: reply?.why ?? "refused" }); continue; }
+        if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: peerWhy(reply?.why) }); continue; }
         const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
+        // Unpairing, disabling LAN, or unticking a heal while export was in
+        // progress takes effect before the received credential touches disk.
+        if (!stillPaired()) { cut = true; break; }
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
-        // accepted: the suite drives this with one.
+        // accepted: the suite drives this with one. `ok` here means the login
+        // LANDED; whether this deck can then use it is checked after the loop
+        // and rides on the same row as a warning.
         // The step goes down with the blob: the wiring has to know WHICH account
         // it is placing before it may treat a decline as an empty slot rather
         // than as a healthy one.
-        const got = await importAccount(blob, step);
+        let got;
+        try { got = await importAccount(blob, step); }
+        catch {
+          // One local store failure must not erase earlier arrivals or stop
+          // independent logins from being received. Store diagnostics can
+          // contain credential material, so only a fixed verdict leaves here.
+          done.push({ ...step, ok: false, why: "import failed" });
+          continue;
+        }
         const ok = got === true || got?.ok === true;
         // AN ACCOUNT THAT ARRIVED HERE IS SHARED ONWARD (#1188). People forget
         // to tick it, and a group where one machine can heal the others and the
@@ -846,17 +978,44 @@ export function createEngine({
         // add for one; and a tailnet reaches further than the person's own
         // machines, which is a decision they make for themselves rather than
         // one an arrival makes for them.
-        if (ok && ticksOnArrival(step, viaOf(peer))) {
+        // The store can finish an import after the owner disabled LAN or
+        // revoked this peer. Keep the imported slot, but do not turn it into
+        // a newly shared credential on behalf of an obsolete transfer.
+        if (ok && stillPaired() && ticksOnArrival(step, viaOf(peer))) {
           try { await onShared?.(step.key); }
           catch { /* the account is here; the tick is retried the next time one arrives */ }
         }
         done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
       }
-      lastRound.set(peer.fp, { at: now(), name: peer.name, offered: theirs.accounts.length, done });
+      // A ROUND FROM A SESSION THAT ENDED SAYS NOTHING. LAN was switched off
+      // under it, and possibly on again: a cut-short list is not "all logins
+      // fine", and it is not this session's to report.
+      if (session !== startedIn) return done;
+      // Unpaired mid-round: said as such, not as the short list that reads
+      // "all logins fine".
+      if (cut) throw new Error("peer no longer paired");
+      // WHAT ARRIVED, CHECKED ONCE, AFTER THE LAST QUESTION. An import that
+      // exited cleanly can still have left a login this process cannot read (a
+      // Mac's Keychain, from SSH or a LaunchAgent). Such a row stays `ok` — it
+      // DID arrive, and was ticked onward above — and carries the reason as a
+      // warning. After the loop because the check is a usage collection that
+      // can outlast the peer's thirty-second idle timer, and one ask covers
+      // every login the round brought.
+      await markArrivals(done);
+      lastRound.set(peer.fp, { at: now(), name: peer.name, offered: list.length, done });
       if (done.length) onChange?.();
       return done;
     } catch (err) {
-      lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message });
+      // Nor does its failure: "peer no longer paired" from a round that LAN
+      // being switched off ended is about the old session, and would stand on
+      // a row that is paired and fine until the next round replaced it.
+      if (session !== startedIn) return [];
+      // A round cut short still reports what arrived, so the logins it did
+      // bring are checked the same way a finished round's are.
+      await markArrivals(done);
+      if (session !== startedIn) return [];
+      lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message, done });
+      if (done.length) onChange?.();
       // A DIAL-BACK THAT NEVER ANSWERED IS TAKEN AWAY AGAIN. The address came
       // from a paired deck's inbound call, and this round was the test of
       // whether the call can be returned. It could not — a strict NAT, a
@@ -871,7 +1030,7 @@ export function createEngine({
         lastRound.delete(peer.fp);
         onChange?.();
       }
-      return [];
+      return done;
     } finally {
       conn?.sock?.destroy();
     }
@@ -904,6 +1063,7 @@ export function createEngine({
 
   const oneRound = async () => {
     if (!beacon) return [];
+    const startedIn = session;
     const all = [];
     // Heard first, typed second, and a typed one is skipped when the beacon
     // already found that address: otherwise a deck that is both would be dialled
@@ -934,8 +1094,13 @@ export function createEngine({
       // time anyway (the mutex in store-lock.mjs), and two peers healing the
       // same account at once would race for a slot number claude-swap assigns
       // as max+1 without a lock of its own.
+      //
+      // And given up when LAN is switched off under it: the rest of the list
+      // belongs to no session, and dialling it only delays the next round.
+      if (session !== startedIn) return all;
       all.push(...await roundWith(peer));
     }
+    if (session !== startedIn) return all;
     roundAt = now();
     return all;
   };
@@ -965,6 +1130,8 @@ export function createEngine({
 
   /** The whole round in flight or waiting its turn, or null. See `round` below. */
   let _round = null;
+  /** The session `_round` was asked for in. */
+  let _roundIn = -1;
 
   /**
    * One round at a time, and the one already running is the answer (#1040).
@@ -992,7 +1159,18 @@ export function createEngine({
    * never a check: joining a check would answer "ask every deck" with one
    * deck's work and leave the rest waiting another minute.
    */
-  const round = () => (_round ??= inTurn(oneRound).finally(() => { _round = null; }));
+  //
+  // NEVER A ROUND FROM A SESSION THAT ENDED. LAN switched off and on again
+  // while one ran: that round stops at its next peer and reports nothing, so
+  // joining it would answer the new session's first tick with nothing and
+  // leave every deck unasked for a whole SYNC_MS. The new one queues behind it.
+  const round = () => {
+    if (_round && _roundIn === session) return _round;
+    _roundIn = session;
+    const mine = inTurn(oneRound).finally(() => { if (_round === mine) _round = null; });
+    _round = mine;
+    return mine;
+  };
 
   return {
     async apply(next) {
@@ -1002,6 +1180,13 @@ export function createEngine({
       engine = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
+      // A request made before invite-only was enabled must not survive the
+      // switch and become an automatic approval when automatic mode returns.
+      // A fresh handshake after that switch may request pairing again.
+      if (was.pairingMode !== "invite" && cfg.pairingMode === "invite" && pending.size) {
+        pending.clear();
+        onChange?.();
+      }
       // TURNING IT ON ANSWERS WHAT IS ALREADY WAITING. A person who switches
       // this on with two rows sitting in the panel means those two as much as
       // the next one, and leaving them queued behind a setting called
@@ -1010,8 +1195,8 @@ export function createEngine({
       // PER ROUTE, because each pair of switches answers for its own: turning
       // the local one on does not answer a tailnet request, and turning the
       // Tailscale one on answers only the owner's own machines.
-      const yes = c => ({ lan: !!c.autoAccept, tailscale: !!c.tailscale && c.tailscaleAccept !== false });
-      const ask = c => ({ lan: !!c.autoAsk, tailscale: !!c.tailscale && c.tailscaleAsk !== false });
+      const yes = c => ({ lan: c.pairingMode !== "invite" && !!c.autoAccept, tailscale: c.pairingMode !== "invite" && !!c.tailscale && c.tailscaleAccept !== false });
+      const ask = c => ({ lan: c.pairingMode !== "invite" && !!c.autoAsk, tailscale: c.pairingMode !== "invite" && !!c.tailscale && c.tailscaleAsk !== false });
       const turnedOn = (f, via) => !f(was)[via] && f(cfg)[via];
       const mayAnswer = p => (p.via === "tailscale" ? turnedOn(yes, "tailscale") && p.own : turnedOn(yes, "lan"));
       for (const [fp, p] of [...pending]) if (!wasUnpaired(fp) && mayAnswer(p)) this.accept(fp, { byHand: false });
@@ -1028,8 +1213,9 @@ export function createEngine({
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
       if (!restart) { syncTailnet(); return; }
-      this.stop();
+      this.stop(cfg.enabled);
       if (!cfg.enabled) return;
+      const startedIn = generation;
       identity = identityFrom(cfg.secret);
       // Hand the caller a key to keep when there was none, so the next start is
       // the same deck rather than a stranger to everybody who paired with it.
@@ -1041,7 +1227,7 @@ export function createEngine({
       // still works after this deck restarts. createSyncServer falls through to
       // an OS-chosen one when it is taken, and the caller stores whatever came
       // back — so the pin drifts to a free port rather than failing.
-      server = createSyncServer({
+      const startingServer = createSyncServer({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
         name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames, ephemeral,
         // See inboundAt. Every connection passes here, including one that goes
@@ -1079,26 +1265,34 @@ export function createEngine({
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
         declined: fp => declined.has(fp),
+        // Read on every handshake rather than captured, so switching the mode
+        // takes effect on the next caller without restarting the listener.
+        inviteOnly: () => cfg.pairingMode === "invite",
         // The same helper the outbound round uses, because a deck that called
         // in and a deck this one called have proved exactly the same thing —
         // see askToAccept.
         onPending: askToAccept,
       });
+      server = startingServer;
       let port;
       try {
-        port = await server.start();
+        port = await startingServer.start();
       } catch (err) {
+        if (startedIn !== generation || server !== startingServer || !cfg.enabled) return;
         // Kept, so the panel can say it. Rethrown, because the caller's own
         // catch is what leaves the engine stopped rather than half-started.
         stalled = err?.message ?? String(err);
         throw err;
       }
+      // An immediately cancelled start must not resurrect its listener or
+      // beacon after stop(), or overwrite a newer start's server.
+      if (startedIn !== generation || server !== startingServer || !cfg.enabled || port == null) return;
       stalled = null;
       // From here the socket is accepting, so this is the moment the silence
       // starts being about the network rather than about a deck still starting.
       listeningSince = now();
       if (port !== cfg.port) onPort?.(port);
-      beacon = createBeacon({
+      const startingBeacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
         trusted: () => cfg.trusted,
         // The owner's own machines on the tailnet, while the switch is on.
@@ -1158,7 +1352,9 @@ export function createEngine({
         onError, now,
         ...(createSocket ? { createSocket } : {}),
       });
-      await beacon.start();
+      beacon = startingBeacon;
+      await startingBeacon.start();
+      if (startedIn !== generation || beacon !== startingBeacon || !cfg.enabled) return;
       // One read of the tailnet whatever the switch says, so a packet from a
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
@@ -1167,7 +1363,7 @@ export function createEngine({
       // between rounds is not one number: see ASKING_MS.
       const tick = async () => {
         try { await round(); } catch { /* a round reports itself, per peer */ }
-        if (!beacon) return;
+        if (startedIn !== generation || beacon !== startingBeacon || !cfg.enabled) return;
         timer = setTimeout(() => { void tick(); }, waitingOnSomebody() ? ASKING_MS : SYNC_MS);
         timer.unref?.();
       };
@@ -1226,8 +1422,11 @@ export function createEngine({
       if (!inv) return { ok: false, reason: "not_an_invite" };
       if (inv.expired) return { ok: false, reason: "expired" };
       if (!identity || !server) return { ok: false, reason: "not_running" };
+      const startedIn = generation;
+      const stillJoining = () => generation === startedIn && cfg.enabled && !!server;
       const tried = [];
       for (const at of inv.addrs) {
+        if (!stillJoining()) return { ok: false, reason: "not_running", tried };
         let conn = null;
         try {
           conn = await connectToPeer({
@@ -1244,6 +1443,9 @@ export function createEngine({
             inviteProvesBack: inv.provesBack,
             sealFrames, ephemeral,
           });
+          // The handshake can complete after LAN was switched off (or the
+          // identity was restarted). Never persist a pin from that old join.
+          if (!stillJoining()) return { ok: false, reason: "not_running", tried };
           const { list } = addTrusted(cfg.trusted, {
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),
           });
@@ -1281,7 +1483,7 @@ export function createEngine({
       const asked = pending.get(fp) ?? null;
       const heard = strangers.get(fp) ?? null;
       const seen = asked ?? heard;
-      if (!seen) return null;
+      if (!seen || cfg.pairingMode === "invite") return null;
       if (wasUnpaired(fp) && !byHand) return null;
       // TWO KINDS OF ROW, AND THEY ARE NOT THE SAME CLAIM.
       //
@@ -1494,6 +1696,7 @@ export function createEngine({
         // arrives is answered here or answered for you.
         autoAsk: !!cfg.autoAsk,
         autoAccept: !!cfg.autoAccept,
+        pairingMode: cfg.pairingMode === "invite" ? "invite" : "automatic",
         // Whether paired decks are told which shared account this one is on.
         shareActive: cfg.shareActive !== false,
         // Discovery over Tailscale: whether this machine has it at all, which
@@ -1636,7 +1839,10 @@ export function createEngine({
         })() : [],
       };
     },
-    stop() {
+    stop(restarting = false) {
+      generation++;
+      if (!restarting) session++;
+      tailRefreshGeneration++;
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;

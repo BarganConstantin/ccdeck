@@ -204,6 +204,26 @@ describe("the port it listens on", () => {
     expect(got).not.toBe(port);
   });
 
+  it("does not leave a listener behind when stopped before its bind finished", async () => {
+    // With a host, `listen` binds only after a dns.lookup, and a close before
+    // that has no handle to close. The bind then lands with nobody owning it.
+    const probe = net.createServer();
+    const free = await new Promise<number>(resolve => probe.listen(0, "127.0.0.1", () => resolve((probe.address() as net.AddressInfo).port)));
+    await new Promise(r => probe.close(r));
+    const { s } = server({ prefer: free });
+    const starting = s.start();
+    s.stop();
+    expect(await starting).toBeNull();
+    await new Promise(r => setTimeout(r, 120));
+    const again = net.createServer();
+    const bound = await new Promise<boolean>(resolve => {
+      again.once("error", () => resolve(false));
+      again.listen(free, "127.0.0.1", () => resolve(true));
+    });
+    await new Promise(r => again.close(r));
+    expect(bound, "the cancelled start still holds the port").toBe(true);
+  });
+
   it("still asks the OS when it has no port to remember", async () => {
     const { s } = server({ prefer: 0 });
     expect(await s.start()).toBeGreaterThan(0);
@@ -587,6 +607,7 @@ function fakeSocket() {
     sent,
     get broadcast() { return broadcast; },
     deliver(msg: Buffer, address: string) { handlers.get("message")?.(msg, { address }); },
+    emitError(err: Error) { handlers.get("error")?.(err); },
     on(ev: string, fn: (...args: unknown[]) => void) { handlers.set(ev, fn); },
     bind(_port: number, _host: string, cb: () => void) { cb(); },
     setBroadcast(v: boolean) { broadcast = v; },
@@ -624,6 +645,150 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
 }
 
 describe("shouting, and hearing", () => {
+  it("ignores a delayed broadcast failure from an earlier discovery session", async () => {
+    const oldCallbacks: Array<(err: Error | null) => void> = [];
+    const currentCallbacks: Array<(err: Error | null) => void> = [];
+    const delayedSocket = (callbacks: Array<(err: Error | null) => void>) => ({
+      ...fakeSocket(),
+      send(_msg: Buffer, _port: number, _addr: string, cb?: (err: Error | null) => void) {
+        if (cb) callbacks.push(cb);
+      },
+    });
+    const sockets = [fakeSocket(), delayedSocket(oldCallbacks), fakeSocket(), delayedSocket(currentCallbacks)];
+    const errors: string[] = [];
+    const { b } = beaconOn(sockets[0], {
+      createSocket: () => sockets.shift(),
+      onError: (what: string) => errors.push(what),
+    });
+    await b.start();
+    expect(oldCallbacks).toHaveLength(1);
+    b.stop();
+    await b.start();
+    expect(currentCallbacks).toHaveLength(1);
+
+    oldCallbacks[0](new Error("previous network disconnected"));
+    expect(errors).toEqual([]);
+    currentCallbacks[0](new Error("current network disconnected"));
+    expect(errors).toEqual(["announce"]);
+    b.stop();
+  });
+
+  it("does not report errors from a closed listener after discovery restarts", async () => {
+    const oldSocket = fakeSocket();
+    const currentSocket = fakeSocket();
+    const sockets = [oldSocket, fakeSocket(), currentSocket, fakeSocket()];
+    const errors: string[] = [];
+    const { b } = beaconOn(oldSocket, {
+      createSocket: () => sockets.shift(),
+      onError: (what: string) => errors.push(what),
+    });
+    await b.start();
+    b.stop();
+    await b.start();
+
+    oldSocket.emitError(new Error("closed socket error"));
+    expect(errors).toEqual([]);
+
+    currentSocket.emitError(new Error("active socket error"));
+    expect(errors).toEqual(["socket"]);
+    b.stop();
+  });
+
+  it("rejects datagrams queued by the previous socket after discovery restarts", async () => {
+    const oldSocket = fakeSocket();
+    const currentSocket = fakeSocket();
+    const sockets = [oldSocket, fakeSocket(), currentSocket, fakeSocket()];
+    const peer = beaconOn(fakeSocket());
+    const { b, seen } = beaconOn(oldSocket, {
+      trustedFps: [peer.fp], createSocket: () => sockets.shift(),
+    });
+    await b.start();
+    b.stop();
+    await b.start();
+    const packet = Buffer.from(JSON.stringify({
+      m: "CCDK", v: PROTOCOL, n: "Trusted", f: peer.fp, p: 4319, i: "0badc0de",
+    }));
+
+    oldSocket.deliver(packet, "192.168.1.42");
+    expect(seen).toEqual([]);
+    expect(b.peers.size).toBe(0);
+
+    currentSocket.deliver(packet, "192.168.1.43");
+    expect(seen).toHaveLength(1);
+    expect(b.peers.get(peer.fp).addr).toBe("192.168.1.43");
+    b.stop();
+  });
+
+  it("ignores queued peer and stranger datagrams after discovery is stopped", async () => {
+    const sock = fakeSocket();
+    const peer = beaconOn(fakeSocket());
+    const stranger = beaconOn(fakeSocket());
+    const { b, seen, strangers } = beaconOn(sock, { trustedFps: [peer.fp] });
+    await b.start();
+    const sentBeforeStop = sock.sent.length;
+    b.stop();
+
+    for (const [name, fp] of [["Trusted", peer.fp], ["Stranger", stranger.fp]]) {
+      sock.deliver(Buffer.from(JSON.stringify({
+        m: "CCDK", v: PROTOCOL, n: name, f: fp, p: 4319, i: "0badc0de",
+      })), "192.168.1.42");
+    }
+
+    expect(seen).toEqual([]);
+    expect(strangers).toEqual([]);
+    expect(b.peers.size).toBe(0);
+    expect(sock.sent).toHaveLength(sentBeforeStop);
+  });
+
+  it("closes an outbound socket that finishes binding after the beacon stopped", async () => {
+    let finishBind!: () => void;
+    let binding!: () => void;
+    const bindingStarted = new Promise<void>(resolve => { binding = resolve; });
+    let closed = 0;
+    const listening = fakeSocket();
+    const outgoing = {
+      ...fakeSocket(),
+      bind(_port: number, _host: string, cb: () => void) { finishBind = cb; binding(); },
+      close() { closed++; },
+    };
+    let sockets = 0;
+    const { b } = beaconOn(listening, {
+      createSocket: () => ++sockets === 1 ? listening : outgoing,
+    });
+    const starting = b.start();
+    await bindingStarted;
+    b.stop();
+    finishBind();
+    await starting;
+    expect(closed).toBe(1);
+    expect(outgoing.sent).toEqual([]);
+  });
+
+  it("discards a delayed outbound bind from an older start after restarting", async () => {
+    let finishOldBind!: () => void;
+    let oldBinding!: () => void;
+    const oldBindingStarted = new Promise<void>(resolve => { oldBinding = resolve; });
+    let oldClosed = 0;
+    const oldOutgoing = {
+      ...fakeSocket(),
+      bind(_port: number, _host: string, cb: () => void) { finishOldBind = cb; oldBinding(); },
+      close() { oldClosed++; },
+    };
+    const currentOutgoing = fakeSocket();
+    const sockets = [fakeSocket(), oldOutgoing, fakeSocket(), currentOutgoing];
+    const { b } = beaconOn(sockets[0], { createSocket: () => sockets.shift() });
+    const previous = b.start();
+    await oldBindingStarted;
+    b.stop();
+    await b.start();
+    finishOldBind();
+    await previous;
+    expect(oldClosed).toBe(1);
+    expect(oldOutgoing.sent).toEqual([]);
+    expect(currentOutgoing.sent).toHaveLength(1);
+    b.stop();
+  });
+
   it("announces the moment it starts, not on the next interval", async () => {
     // A deck that just came up should appear now rather than up to thirty
     // seconds later — which is the difference between "it works" and "it seems
@@ -931,4 +1096,3 @@ describe("the name a peer sends over the handshake", () => {
     expect(src).not.toContain("peerName: msg.name,");
   });
 });
-

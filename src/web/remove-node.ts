@@ -54,3 +54,28 @@ export function visibleBoard<N extends { id: string; data: { parentId?: string; 
   const ids = new Set(visible.map(node => node.id));
   return { nodes: visible, edges: edges.filter(edge => ids.has(edge.source) && ids.has(edge.target)) };
 }
+
+/** The removal set with `ids` taken back out of it — Undo, a session brought
+ *  back from the session list, one that started waiting. The SAME set when none
+ *  of them was in it, so a caller can tell a change from a no-op without a
+ *  storage write or a re-render for nothing. */
+export function withoutRemovals(removed: Set<string>, ids: Iterable<string>): Set<string> {
+  let next: Set<string> | null = null;
+  for (const id of ids) {
+    if (!removed.has(id)) continue;
+    next ??= new Set(removed);
+    next.delete(id);
+  }
+  return next ?? removed;
+}
+
+/** Removed sessions that have started waiting on the person at the deck. A
+ *  removal takes a card off the board, not a session off anyone's hands: a
+ *  permission prompt behind a removed card still rings the topbar alarm, and
+ *  W or a click on that alarm would select a card that is not drawn. So the
+ *  session comes back instead — the one thing on the board that needs you is
+ *  never the one you hid. */
+export function sessionsCalledBack(waiting: Iterable<{ id: string }>, hidden: ReadonlySet<string>): string[] {
+  if (hidden.size === 0) return [];
+  return [...waiting].filter(session => hidden.has(session.id)).map(session => session.id);
+}

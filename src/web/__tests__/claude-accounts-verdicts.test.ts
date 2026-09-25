@@ -120,7 +120,9 @@ function seedStore({ due }: { due: boolean }) {
 }
 
 const verdicts = (...pairs: [number, string][]) =>
-  JSON.stringify({ accounts: pairs.map(([number, usageStatus]) => ({ number, usageStatus })) });
+  JSON.stringify({ accounts: pairs.map(([number, usageStatus]) => ({
+    number, usageStatus, email: `acct${number}@example.invalid`, organizationUuid: `org-${number}`,
+  })) });
 const lists = () => proc.calls.filter(a => a[0] === "list" && a[1] === "--json");
 const rest = (ms: number) => new Promise(r => setTimeout(r, ms));
 

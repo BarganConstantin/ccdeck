@@ -23,6 +23,7 @@ import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 const accounts = await import("../../server/claude-accounts.mjs");
 import { autoRecaptureState } from "../../server/cswap-admin.mjs";
+import { manifestFor } from "../../server/lan-sync.mjs";
 import { accountIssue, collectorText, staleCopyText } from "../components/AccountsPanel";
 
 const src = (rel: string) =>
@@ -161,15 +162,24 @@ describe("a collector that has simply stopped", () => {
   });
 
   it("makes the account healable and stops it being advertised", () => {
-    // The two consequences that matter more than the label. `alive` is
-    // `trouble == null` in the row the panel and the LAN both read.
+    // `alive` follows the stored-copy state with collector verdicts taken
+    // into account, so a genuine lost copy remains healable.
     const server = src("../../server/claude-accounts.mjs");
-    expect(server).toContain("alive:    trouble == null,");
+    expect(server).toContain("alive:    storedCopyAlive(trouble == null, collector),");
     const lan = src("../../server/lan-sync.mjs");
     // A peer heals only what this deck calls dead …
     expect(lan).toContain("return mine.alive ? null : \"heal\";");
-    // … and publishes only what it calls alive.
-    expect(lan).toContain("alive: !!a.alive");
+    // … and publishes only what it calls alive. A copy this process cannot
+    // read is still alive; it goes out as `shareable: false`, so the peer
+    // neither asks for it nor calls it broken.
+    const rows = [
+      { key: "dead@@o", email: "dead@x", alive: false },
+      { key: "locked@@o", email: "locked@x", alive: true, readable: false },
+    ];
+    expect(manifestFor(rows, ["dead@@o", "locked@@o"])).toEqual([
+      { key: "dead@@o", email: "dead@x", alive: false },
+      { key: "locked@@o", email: "locked@x", alive: true, shareable: false },
+    ]);
   });
 });
 

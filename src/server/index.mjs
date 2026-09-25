@@ -432,6 +432,67 @@ function notifyTrays(title, body, { chime = null, who = null } = {}) {
   return true;
 }
 
+// The desktop app's updater lives in Electron, while the window is a page
+// served by this deck. Keep only the small piece of state the page needs. A
+// report is accepted only with the deck token; a browser may request an
+// install, but Electron verifies the exact ready version again before acting.
+const DESKTOP_UPDATE_STATUSES = new Set(["idle", "checking", "current", "downloading", "ready", "error"]);
+let desktopUpdateState = { status: "idle", version: null };
+
+function cleanDesktopUpdate(value) {
+  if (!value || typeof value !== "object" || !DESKTOP_UPDATE_STATUSES.has(value.status)) return null;
+  const version = typeof value.version === "string" && value.version.trim()
+    ? value.version.trim().slice(0, 80)
+    : null;
+  if (value.status === "ready" && !version) return null;
+  return { status: value.status, version };
+}
+
+function broadcastDesktopUpdate() {
+  const frame = `event: desktop-update\ndata: ${JSON.stringify(desktopUpdateState)}\n\n`;
+  for (const client of sseClients) {
+    if (!trayClients.has(client)) writeSse(client, frame);
+  }
+}
+
+function handleDesktopUpdateRead(_req, res) {
+  send(res, 200, desktopUpdateState);
+}
+
+async function handleDesktopUpdateReport(req, res) {
+  // Same-origin pages pass the generic mutation gate, but only the native app
+  // may claim what its updater has verified.
+  if (!presentsDeckToken(req.headers ?? {})) {
+    return send(res, 401, { ok: false, reason: "app_token_required" });
+  }
+  const body = await readBody(req, res).catch(() => null);
+  let value = null;
+  try { value = cleanDesktopUpdate(JSON.parse(body ?? "")); } catch { /* bad JSON */ }
+  if (!value) return send(res, 400, { ok: false, reason: "bad_update_state" });
+  desktopUpdateState = value;
+  broadcastDesktopUpdate();
+  send(res, 200, { ok: true });
+}
+
+// The window's two messages about that update, relayed to the app as frames
+// on its tray stream: apply it (`desktop-update-restart`), or it has been shown
+// (`desktop-update-seen`, so the app's own ready notice stands down, #1182).
+// Both behind the same gates as /api/restart, and neither decides anything:
+// this refuses only what cannot be current, and Electron checks the exact
+// ready version again before acting on either.
+async function handleDesktopUpdateRequest(req, res, event) {
+  const body = await readBody(req, res).catch(() => null);
+  let version = "";
+  try { version = String(JSON.parse(body ?? "")?.version ?? "").trim(); } catch { /* bad JSON */ }
+  if (!version || desktopUpdateState.status !== "ready" || desktopUpdateState.version !== version) {
+    return send(res, 409, { ok: false, reason: "update_not_ready" });
+  }
+  if (trayClients.size === 0) return send(res, 409, { ok: false, reason: "app_disconnected" });
+  const frame = `event: ${event}\ndata: ${JSON.stringify({ version })}\n\n`;
+  for (const client of trayClients) writeSse(client, frame);
+  send(res, 202, { ok: true });
+}
+
 let persistPath = null;             // absolute path to events.jsonl, or null
 
 // ─── Which deck records which session ─────────────────────────────────────
@@ -3889,6 +3950,31 @@ async function handlePresence(req, res) {
  *  Tailscale is here at all before anybody can turn discovery on. */
 const tailnet = createTailnet();
 
+// Whether every import is followed by checkImports, which only asks on a Mac.
+// When it does, the import skips its own detached collection — see importAccount.
+const CHECKS_IMPORTS = process.platform === "darwin";
+
+const ACTIVE_VERDICT_FIRST_RETRY_MS = 60_000;
+const ACTIVE_VERDICT_MAX_RETRY_MS = 30 * 60_000;
+const LIVE_LOGIN_TIMEOUT_MS = 5_000;
+let activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
+let activeVerdictNextAt = 0;
+// A claude-swap that never reports a verdict for the active slot would
+// otherwise cost a usage collection every minute for as long as LAN is on.
+function refreshActiveVerdict() {
+  if (Date.now() < activeVerdictNextAt) return;
+  activeVerdictNextAt = Date.now() + activeVerdictRetryMs;
+  activeVerdictRetryMs = Math.min(activeVerdictRetryMs * 2, ACTIVE_VERDICT_MAX_RETRY_MS);
+  void import("./claude-accounts.mjs")
+    .then(({ verdictsNow, invalidateClaudeAccountsCache }) =>
+      verdictsNow().then(got => { if (got) invalidateClaudeAccountsCache(); }))
+    .catch(() => {});
+}
+function activeVerdictArrived() {
+  activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
+  activeVerdictNextAt = 0;
+}
+
 const lanEngine = createEngine({
   tailnet,
   // Who holds the discovery port when it is taken, so the panel can say.
@@ -3901,17 +3987,63 @@ const lanEngine = createEngine({
   about: aboutThisDeck({ version: RUNNING_VERSION }),
   readAccounts: async () => {
     const { fetchClaudeAccounts } = await import("./claude-accounts.mjs");
-    return fetchClaudeAccounts();
+    const got = await fetchClaudeAccounts();
+    // A login this Mac's Keychain will not open from the deck's session. The
+    // engine refuses to export it with a fixed code rather than spawning an
+    // export that can only fail. Mac only: claude-swap's `keychain_unavailable`
+    // elsewhere is an unreadable .enc file, and the sentence the peer prints
+    // talks about a Keychain.
+    if (!got || !Array.isArray(got.accounts)) return got;
+    // The active slot is withheld from peers until it has a fresh verdict — see
+    // cachedExportReadable — so ask for one now rather than waiting on the
+    // collector's own schedule.
+    if (got.accounts.some(a => a.active === true && a.collector == null)) refreshActiveVerdict();
+    else activeVerdictArrived();
+    const { markUnreadable } = await import("./cswap-admin.mjs");
+    return { ...got, accounts: markUnreadable(got.accounts) };
   },
-  exportAccount: async num => {
-    const { shareAccounts } = await import("./cswap-admin.mjs");
-    const out = await shareAccounts([String(num)]);
-    return out?.ok ? out.blob : null;
+  // Bounded well inside a round, since a want waits on it.
+  liveLogin: async () => {
+    const { currentIdentity } = await import("./cswap-admin.mjs");
+    const late = new Promise(resolve => setTimeout(resolve, LIVE_LOGIN_TIMEOUT_MS, null).unref?.());
+    return Promise.race([currentIdentity().catch(() => null), late]);
+  },
+  exportAccount: async (num, expectedKey) => {
+    const { accountKey } = await import("./lan-sync.mjs");
+    const { shareAccounts, unwrapShare } = await import("./cswap-admin.mjs");
+    // Do not collect live verdicts here. A LAN want has a ten-second round
+    // budget, while a verdict collection may wait up to ninety seconds (or
+    // queue behind another one). The want handler already re-reads this deck's
+    // cached account state immediately before export and refuses known
+    // unreadable/dead copies. The share itself is therefore the only bounded
+    // operation left on the hot path.
+    //
+    // Without the explanation, which would outlast the asking peer's patience;
+    // see shareAccounts.
+    const out = await shareAccounts([String(num)], { explain: false });
+    // The blob or nothing. WHY it failed is never carried out of here: the
+    // engine decides what a peer is told from this deck's state — see
+    // `readable` in readAccounts below.
+    if (!out?.ok) return null;
+    const opened = unwrapShare(out.blob);
+    if (!opened.ok) return null;
+    let accounts;
+    try { accounts = JSON.parse(opened.payload)?.accounts; } catch { return null; }
+    if (!Array.isArray(accounts) || accounts.length !== 1) return null;
+    // Slot numbers are local. Verify the payload identity after export so a
+    // moved/reused slot can never satisfy a want for another account.
+    return accountKey(accounts[0]?.email, accounts[0]?.organizationUuid) === expectedKey ? out.blob : null;
+  },
+  // The logins a round just imported, checked once after it — see checkImports.
+  checkArrivals: async steps => {
+    const { checkImports } = await import("./cswap-admin.mjs");
+    return checkImports(steps.map(step => {
+      const [email, org] = String(step?.key ?? "").split("@@");
+      return { email, org: org ?? "" };
+    }));
   },
   importAccount: async (blob, step) => {
-    // `landed` is not needed out here any more: the only call that read it was
-    // the forced import, which fillEmptySlot now owns along with it.
-    const { importAccount, fillEmptySlot } = await import("./cswap-admin.mjs");
+    const { importAccount, fillEmptySlot, landed } = await import("./cswap-admin.mjs");
     const [want, wantOrg] = String(step?.key ?? "").split("@@");
     // NO `force`, ever, and this is the line where that promise is kept. A
     // plain import adds an account that is missing and replaces exactly one
@@ -3932,14 +4064,19 @@ const lanEngine = createEngine({
     // `force === true && narrowing` — so the promise above survives word for
     // word, and a bundle that does not carry what was asked for is refused
     // rather than unpacked.
-    const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });
+    const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" }, collect: !CHECKS_IMPORTS });
     if (!out?.ok) return { ok: false, why: out?.reason ?? "import refused" };
     // A SKIP IS NOT A HEAL, and reading `ok` alone said it was. `cswap import`
-    // exits ZERO when it declines an account it already holds — importAccount's
-    // own comment says so and reports it as `added: false` — so a round that
+    // exits ZERO when it declines an account it already holds, so a round that
     // changed nothing was counted as a successful repair and the panel said the
     // account had been fixed. Whoever read that then waited for numbers that
     // were never going to move.
+    //
+    // `landed`, NOT `added`: `added` counts new slots only, and a plain import
+    // that replaces a quarantined slot is `healed` — the one repair this path
+    // exists for. Reading `added` reported every such heal as a failure and
+    // then sent it on to fillEmptySlot, which declined it. A slot that stayed
+    // `present` is the decline.
     //
     // The decline is narrow and documented on claude-swap's side: a plain
     // import replaces a slot only when its usage row is quarantined as
@@ -3947,7 +4084,7 @@ const lanEngine = createEngine({
     // `no credentials` state". So an account whose login expired heals over the
     // network, and one that has NO stored login does not — which is a true
     // sentence the panel can now print instead of a false one.
-    if (out.added === true) return { ok: true };
+    if (landed(out.results)) return { ok: true };
 
     // THE DECLINE, AND WHY IT MATTERS WHICH ONE IT IS.
     //
@@ -3986,7 +4123,7 @@ const lanEngine = createEngine({
     // verdict taken before any of it began. fillEmptySlot re-reads the verdict
     // as its first statement INSIDE the lock, so the promise holds by
     // construction rather than by how long the queue happened to be.
-    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
+    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "", collect: !CHECKS_IMPORTS });
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the
@@ -4117,6 +4254,7 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     shared: Array.isArray(lan.shared) ? lan.shared : [],
     autoAsk: lan.autoAsk !== false,
     autoAccept: lan.autoAccept !== false,
+    pairingMode: lan.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on.
     shareActive: lan.shareActive !== false,
     // Discovery over Tailscale, off unless somebody turned it on, and the two
@@ -5875,6 +6013,31 @@ async function handleClaudeFm(req, res) {
   send(res, 200, answer);
 }
 
+/**
+ * A custom station's YouTube link, resolved to the channel and video the
+ * embed plays (#1208). fm-station.mjs rebuilds the request from the parsed
+ * link rather than fetching it as given, and caches the answer.
+ *
+ * AGENTS_DECK_NO_MUSIC is the promise that this deck never contacts YouTube,
+ * and a station somebody added is not an exception to it: the answer is the
+ * same plain no /api/claude-fm gives, and the canvas draws nothing for it.
+ */
+async function handleFmStation(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: false, off: true });
+  }
+  const url = new URL(req.url, "http://localhost");
+  const stationUrl = url.searchParams.get("url") ?? "";
+  const { parseYouTubeStationUrl, resolveYouTubeStation } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/fm-station.mjs")).href
+  );
+  if (!parseYouTubeStationUrl(stationUrl)) {
+    return send(res, 400, { ok: false, error: "unsupported_url" });
+  }
+  const answer = await resolveYouTubeStation(stationUrl);
+  send(res, answer.ok ? 200 : 404, answer);
+}
+
 async function handleLofiGirl(req, res) {
   if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
     return send(res, 200, { ok: true, live: false, off: true });
@@ -6154,14 +6317,14 @@ function getProjectRollup() {
  * The "Projects" report for one account: how many tokens it spent per project
  * over a window. The server tallies only tokens (per model); the web side
  * prices them with its own table, so cost never lives in two places. `num` is
- * the account's slot, resolved to its `(email, org)` key here; `days` is 7, 30,
- * or 0 for all tracked.
+ * the account's slot, resolved to its `(email, org)` key here; `days` is 1, 7,
+ * 30, or 0 for all tracked.
  */
 async function handleAccountProjects(req, res) {
   const url = new URL(req.url, "http://localhost");
   const num = Number(url.searchParams.get("num"));
   const d = Number(url.searchParams.get("days"));
-  const days = d === 30 ? 30 : d === 0 ? 0 : 7;
+  const days = d === 1 ? 1 : d === 30 ? 30 : d === 0 ? 0 : 7;
   if (!Number.isInteger(num) || num <= 0) return send(res, 400, { ok: false, reason: "bad_account" });
   const { identityForSlot } = await import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href);
   const id = await identityForSlot(num);
@@ -6211,10 +6374,17 @@ async function handleClaudeAccountAdmin(req, res) {
     // `only` names one account inside the pasted bundle, and is the only way
     // `force` is honoured at all - see importAccount for why the pair is
     // required rather than the flag alone.
-    case "import":       result = await admin.importAccount(parsed.blob, {
-      force: parsed.force === true,
-      only: parsed.only ?? null,
-    }); break;
+    case "import": {
+      const out = await admin.importAccount(parsed.blob, {
+        force: parsed.force === true,
+        only: parsed.only ?? null,
+        collect: !CHECKS_IMPORTS,
+      });
+      // Checked the way a LAN round's arrivals are (#1244): `cswap import`
+      // exiting 0 on a Mac is not proof this process can read what it wrote.
+      result = out?.ok ? { ...out, results: await admin.checkImportResults(out.results) } : out;
+      break;
+    }
     case "remove":       result = await admin.removeAccount(parsed.account); break;
     // #721. Re-captures the active slot's credentials in place; see
     // recaptureActive for why this is not a login and cannot become one.
@@ -6270,6 +6440,7 @@ function cswapAutoModule() {
 const PINNED_MODULES = [
   "self-update.mjs",
   "claude-accounts.mjs",
+  "account-health.mjs",
   "cswap-admin.mjs",
   "cswap-auto.mjs",
   "quota.mjs",
@@ -6279,6 +6450,7 @@ const PINNED_MODULES = [
   "browser-watch.mjs",
   "browser-watch-store.mjs",
   "claude-fm.mjs",
+  "fm-station.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",
@@ -7244,6 +7416,13 @@ const GUARDED_READS = new Set([
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.
   "/api/account-projects",
+  // Not a secret, and here for the other reason a read can be dangerous: it is
+  // the one route where the caller names what the deck goes and fetches
+  // (#1208). fm-station.mjs holds that to YouTube, but a page on another site
+  // still had a way to make this process download pages on demand, and the
+  // only caller that needs it is the deck's own canvas, which sends
+  // Sec-Fetch-Site: same-origin on every fetch.
+  "/api/fm-station",
 ]);
 
 function isAuthorizedMutation(req) {
@@ -7554,6 +7733,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/hook-challenge") return handleHookChallenge(req, res, url);
     if (req.method === "GET"  && url.pathname === "/events")     return handleSse(req, res);
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/desktop-update") return handleDesktopUpdateRead(req, res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update") return guard(handleDesktopUpdateReport(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/restart") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-restart"), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/seen") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-seen"), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
@@ -7613,6 +7796,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);

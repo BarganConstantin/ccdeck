@@ -960,8 +960,12 @@ describe("the popover, built out of the parts the six dialogs already use", () =
 
   it("disables nothing, least of all the button that opened it (#620)", () => {
     // A disclosure that disabled itself under its own press would drop focus
-    // off the very control the popover's Escape hands focus back to.
-    expect(menu).not.toMatch(/disabled/);
+    // off the very control the popover's Escape hands focus back to. The one
+    // refusal the menu does make — no more custom sounds at the ceiling
+    // (#1207) — is aria-disabled, which leaves the control focusable, and is
+    // the only spelling of the word allowed here.
+    expect(menu).toMatch(/"aria-disabled": true/);
+    expect(menu.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
     const tags = openTags(read("App.tsx"), ["button"])
       .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags[0].attrs.replace(/\s+/g, " ")).toMatch(/\{\.\.\.selfPressProps\(false\)\}/);

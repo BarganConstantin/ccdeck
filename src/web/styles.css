@@ -771,11 +771,11 @@ button:focus-visible { outline-offset: 1px; }
    it does not read as part of the name. The hairline it had made it a pill;
    the pointer still finds the control, because the fill and the foreground
    come up under it exactly as they do on the toolbar. */
-.topbar .brand button.v:not(.stale) {
+.topbar .brand button.v:not(.stale):not(.ready) {
   color: var(--muted);
   font-weight: 400;
 }
-.topbar .brand button.v:not(.stale):hover {
+.topbar .brand button.v:not(.stale):not(.ready):hover {
   color: var(--text);
   background: var(--ctl-fill);
 }
@@ -799,6 +799,30 @@ button:focus-visible { outline-offset: 1px; }
 .topbar .brand button.v.stale:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+/* THE APP'S UPDATE IS READY (#1187), and that is good news, which is why it no
+   longer wears the stale chip's amber. Amber is this bar's warning — the deck
+   running superseded code, a session blocked on you — and a download the app
+   has already verified is the opposite of something being wrong. So it is
+   drawn in the accent, the deck's own colour for "here, this is for you",
+   in the stale chip's proportions so the two read as one family: a full-
+   strength edge (the accent clears 3:1 on both ends of the bar in both themes
+   without being mixed down, where --warn needed 85%), a tenth of it for the
+   bed, and a little more under the pointer. Its dot holds still: a pulse is
+   how this bar says something needs you, and nothing here does until you
+   choose it. */
+.topbar .brand button.v.ready {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.topbar .brand button.v.ready:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.topbar .brand button.v.ready .v-dot {
+  background: var(--accent);
+  box-shadow: none;
+  animation: none;
 }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
@@ -883,7 +907,8 @@ button:focus-visible { outline-offset: 1px; }
      Here the bar spends its readout on the alarm: the wordmark leaves the
      screen but not the outline (it is the page's <h1>, so it is hidden the way
      .vis-hidden hides, never with display), an up-to-date version chip leaves
-     (a stale one stays, it is a warning), and the chip says its number without
+     (a stale one stays, it is a warning, and so does the app's ready update,
+     the one way into it from the window), and the chip says its number without
      the word, which its accessible name still carries in full. */
   .topbar .readout { gap: 12px; }
   .topbar .brand h1 {
@@ -894,7 +919,7 @@ button:focus-visible { outline-offset: 1px; }
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .topbar .brand button.v:not(.stale),
+  .topbar .brand button.v:not(.stale):not(.ready),
   .topbar .waiting-stat .ws-word { display: none; }
   .topbar .waiting-stat { padding: 3px 8px; }
 }
@@ -925,6 +950,12 @@ button:focus-visible { outline-offset: 1px; }
   right: 0;
   z-index: 40;
   width: 268px;
+  /* Custom sounds (#1207) made the menu taller than a short window, and a
+     popover whose bottom is off-screen has controls no one can reach. It
+     scrolls rather than widening: 268px is the width the comment above
+     defends, and the appearance menu beside it keeps. */
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -1210,12 +1241,20 @@ button:focus-visible { outline-offset: 1px; }
   font-weight: 500;
   line-height: 18px;
 }
-.appearance-source-picker { position: relative; min-width: 0; }
+/* A grid, so the trigger stretches to the column like a field rather than
+   shrinking to a short name ("Mix") and reading as one more button. */
+.appearance-source-picker { position: relative; min-width: 0; display: grid; }
+/* A station name is whatever somebody typed, up to 80 characters with no space
+   in them. A button sizes to its content, so that name made the trigger 532px
+   in a 323px dialog and the whole dialog scrolled sideways. Capped at its
+   column here, the label gives way with an ellipsis — the list below shows
+   the full name. */
 .appearance-source-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  max-width: 100%;
   min-height: 30px;
   padding: 5px 8px;
   color: var(--text);
@@ -1227,6 +1266,12 @@ button:focus-visible { outline-offset: 1px; }
   text-align: left;
   cursor: pointer;
   transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+}
+.appearance-source-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .appearance-source-trigger:hover,
 .appearance-source-picker.is-open .appearance-source-trigger {
@@ -1254,8 +1299,15 @@ button:focus-visible { outline-offset: 1px; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  /* The deck's popover shadow (.anchored-popover): a tight line for sitting on
+     something over --shadow-2 for its height. Its own black 0.22 stayed black
+     on the white page, the thing #876 took off the menus beside it; the wide
+     layer is themed already, so only the tight line is said twice. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
   scrollbar-color: var(--muted) transparent;
+}
+:root[data-theme="light"] .appearance-source-list {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 .appearance-source-group {
   padding: 6px 8px 3px;
@@ -1281,17 +1333,93 @@ button:focus-visible { outline-offset: 1px; }
   cursor: pointer;
   transition: transform 120ms ease-out;
 }
-.appearance-source-option:hover,
-.appearance-source-option[data-highlighted="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* The name wraps rather than widening the list; `anywhere` rather than
+   `break-word`, because only `anywhere` lowers the min-content width a flex
+   row is sized from. The tick keeps its own width beside it. */
+.appearance-source-option > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.appearance-source-option > span + span { flex: none; }
+.appearance-source-option:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .appearance-source-option[aria-selected="true"] {
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
+/* THE KEYBOARD'S PLACE IN THE LIST IS A RING, not a tint. Focus stays on the
+   trigger (aria-activedescendant), so this is the only focus indicator the
+   arrows have — and as the hover tint it measured 1.28:1 dark and 1.19:1
+   light against the list, and about 1.1:1 against the selected row's tint.
+   The focus ring's own 2px --accent, drawn inside so the list's clip keeps
+   it; the tint stays the selected row's. */
+.appearance-source-option[data-highlighted="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* Still a choice — picking it retries it — but dimmed, beside the word that
+   says why. */
+.appearance-source-option[data-unavailable] { color: var(--text-dim); }
 .appearance-source-trigger:active,
 .appearance-source-option:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .appearance-source-trigger:active,
   .appearance-source-option:active { transform: none; }
+}
+/* The custom-station controls (#1208). Layout only: the buttons are
+   `button.btn` and the fields `.ap-manage-input`, so their edges, focus ring
+   and press are the ones already swept rather than a third copy of each. */
+/* Why the chosen station is silent, under the picker that chose it and
+   aligned with it rather than with the Station label. Empty, it takes no room. */
+.appearance-fm-status {
+  margin: -6px 0 0 60px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.appearance-fm-status:empty { display: none; }
+/* The station's own verbs, under the picker and in its column (48px label
+   plus the row's 12px gap): Add on the left, and Rename and Remove, which
+   only a custom station has, pushed to the right edge, away from Add. Trimmed
+   like `.sm-custom-action`, so they read as the field's secondary actions
+   rather than as a row of equal buttons competing with it. */
+.appearance-station-manage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0 60px;
+}
+.appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
+button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
+.appearance-station-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  /* The buttons sit on the fields' line, not level with their labels. */
+  align-items: end;
+  gap: 8px;
+}
+/* A field and the words over it that name it, in the Station label's own
+   type: named on screen rather than by a placeholder that typing erases. */
+.appearance-station-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* On the words and not the <label>: the field sets `font: inherit`, and would
+   have taken the label's weight with it. */
+.appearance-station-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-station-form .appearance-station-field:first-child { grid-column: 1 / -1; }
+.appearance-station-form.is-rename .appearance-station-field:first-child { grid-column: 1; }
+.appearance-station-form.is-rename { grid-template-columns: minmax(0, 1fr) auto auto; }
+.appearance-station-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--err);
+  font-size: 11px;
+  line-height: 16px;
 }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
@@ -1656,6 +1784,70 @@ button.btn.sm-hear {
 }
 .sm-select:hover { border-color: var(--text); }
 
+/* Custom sounds and voices (#1207), under the tones they can stand in for.
+   Built from parts that already exist wherever one fits — the heading is a
+   tone's caption, the voice picker is `.sm-select`, the text and number fields
+   are the deck's `.ap-manage-input` (as the appearance menu's station fields
+   are), every button a plain `.btn` — so the section reads as more of the menu
+   rather than a form dropped into it, and the edge, focus and height sweeps
+   already know every control in it. */
+.sm-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sm-custom-head span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* At the ceiling the controls that add a sound stay in the tab order and say
+   aria-disabled, never `disabled` — two of them hold focus at the moment the
+   library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
+   looks like every other control that cannot act, and a press that does
+   nothing does not give under the finger either. */
+.sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
+/* A caption over its control rather than beside it: at 268px neither the file
+   picker nor "Record with microphone" leaves room for a label on its left. */
+.sm-file,
+.sm-record {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.sm-file input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sm-voice { color: var(--text-dim); font-size: 11px; }
+.sm-voice summary { color: var(--text); }
+.sm-voice-fields { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+.sm-voice-fields label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.sm-voice-fields .ap-manage-input { flex: 1; }
+.sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sm-voice-pair label { display: grid; grid-template-columns: auto 1fr; }
+/* Trimmed like `.sm-hear` and exactly as tall as every other button: the
+   height is --ctl-h's, which panel-rhythm.test.ts keeps to one value. */
+button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: 11px; }
+.sm-custom-list { display: flex; flex-direction: column; gap: 6px; }
+.sm-custom-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.sm-custom-item > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: 10px; }
+/* Armed is the second press of the one act here nothing can undo, and it
+   takes the error colour for the four seconds it waits — the LAN unpair's. */
+button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
+.sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
+
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
    Notification — said next to the control it applies to rather than only in a
    tooltip on the button that opened this. */
@@ -1846,10 +2038,9 @@ button.btn.sm-hear {
    controls, via a `margin-right: 6px` that made that boundary 14px too. The
    margin is gone; .readout's 24px and .topbar's 24px carry the two boundaries
    this strip actually has.
-   One member left, the pill, so the gap separates the strip from what follows
-   it and nothing else — the 1px dividers this strip used to draw went with the
-   two board readouts they separated, and the machine meter that was the pill's
-   last neighbour is a button in the run to the right now. */
+   The second member is one month-to-date usage phrase. It is intentionally one
+   element rather than separate token/cost chips: "this month" qualifies both
+   figures and must travel with them when the row reflows. */
 .topbar .status {
   color: var(--muted);
   font-size: 12px;
@@ -1857,11 +2048,80 @@ button.btn.sm-hear {
   align-items: center;
   gap: 14px;
 }
+.topbar .status .month-usage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.topbar .status .month-usage-label,
+.topbar .status .month-usage-unit,
+.topbar .status .month-usage-sep,
+.topbar .status .month-usage-pending { color: var(--muted); }
+.topbar .status .month-usage b {
+  color: var(--text);
+  font-weight: 650;
+}
 /* Nothing to say is no box at all. The strip renders nothing while the stream
    is live, and an empty flex item still takes a gap on either side, so the bar
    drew 48px between the version chip and the blocked-session chip where every
    other role boundary in it is 24. */
 .topbar .status:empty { display: none; }
+/* WHERE THE MONTH GIVES WAY (#737). The readout clips from the left when the
+   bar is short, and the monthly phrase is ~180px of it. A figure without its
+   period is the one thing #737 said must not ship, and the version chip is a
+   control, which this bar never gives up for a readout.
+   BY WIDTH ALONE. The phrase used to leave as soon as a node was selected
+   under 1760px, and it sits AHEAD of the blocked-session chip in this
+   left-packed group, so one click on a card slid the alarm 204px left at 1440
+   and 1600 — the one light on the bar that is meant to be an anchor, moving
+   because of something done on the canvas. Nothing a click on the canvas puts
+   on the bar may change what the readout holds.
+   AND THE RIBBON PAYS FOR IT, not the phrase. 1440 is the app's default
+   window, so hiding the phrase wherever a selection might not fit beside it
+   hid "this month" from most people most of the time. The selected-node ribbon
+   is the one member of the bar that can say less and still be itself — a
+   state, a name cut with an ellipsis, a ×; the cost is on the card and in the
+   detail panel, and in the ribbon's own title — so where the room is short it
+   is the ribbon's cap that comes down.
+   The budget is a blocked session, the phrase with a nine-digit month, and a
+   selected node whose name is long enough to fill any cap. Measured in
+   Chromium (dark and light alike; Remove node left the bar in #1242),
+   everything but the ribbon comes to W - 827 of room for it on glyphs and
+   W - 1213 once the words (#836) arrive at 1440. Less 40px of headroom for
+   faces wider than the one measured, those are the two caps below; each meets
+   the ribbon's usual min(380px, 24vw) where the room runs out — 1140 and 1633
+   — so the ribbon never grows back past what fits. Where it is held under its
+   usual cap it drops its cost and rate first, so what it has left goes to the
+   name, which keeps about ten characters at the 1040 floor and twelve at 1440.
+   Under 1040 even that ribbon leaves no room, and the phrase leaves whole —
+   which also covers the phone bar, where the readout is spent on the alarm.
+   A paused pill or the app's ready-update chip on top of the budget is outside
+   it, the way .tb-word leaves a paused deck outside its own, and there the
+   readout gives up the logo and the wordmark from the left, never the alarm.
+   The Usage panel is one keystroke away (U) and says the same number with more
+   beside it.
+   The strip goes with the phrase when the pill is not there either, for the
+   reason the :empty rule above gives: an empty flex item still takes both
+   gaps. All of this after the base rules, and not in the 640 block at the top
+   of the topbar section, where `.month-usage`'s own `display` and the ribbon's
+   own cap would win on source order. The page's ccusage poll asks the phrase
+   whether it is drawn rather than repeating these numbers, so a bound moved
+   here moves the poll with it. */
+@media (max-width: 1039px) {
+  .topbar .status .month-usage,
+  .topbar .status:not(:has(.pill)) { display: none; }
+}
+@media (min-width: 1040px) and (max-width: 1439px) {
+  .selected-ribbon { max-width: min(24vw, calc(100vw - 867px)); }
+}
+@media (min-width: 1440px) {
+  .selected-ribbon { max-width: min(380px, calc(100vw - 1253px)); }
+}
+@media (min-width: 1040px) and (max-width: 1139px), (min-width: 1440px) and (max-width: 1632px) {
+  .selected-ribbon .selected-cost { display: none; }
+}
 /* ---------------- machine detail ----------------
    Docked in the right rail, in the same slot family as the usage panel, rather
    than floating over the canvas. The two queue instead of overlapping: alone,
@@ -3102,6 +3362,15 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 .ver-banner.done .ver-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
 
+/* A note about something the reader just did, not a warning. Remove from board
+   is undoable, so its row keeps the banner's shape and drops the amber the
+   restart rows use: the dot goes quiet and Undo is an ordinary control. */
+.ver-banner.note {
+  background: var(--bg-soft);
+  border-bottom-color: var(--line);
+}
+.ver-banner.note .ver-dot { background: var(--muted); box-shadow: none; }
+
 /* The one action in the row. Filled, because everything else here is text. */
 .ver-banner .ver-act {
   padding: 3px 12px;
@@ -3135,6 +3404,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
    alone did not. */
 .ver-banner .ver-act:active:not(:disabled) { transform: scale(0.97); }
+.ver-banner.note .ver-act { border-color: var(--ctl-edge); background: transparent; }
+.ver-banner.note .ver-act:hover:not(:disabled) { border-color: var(--text); background: var(--panel); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
 /* A failed install is not a warning, it is a failure, and the command beside it
    is now the only way forward — so it reads in the error colour. */
@@ -3234,6 +3505,108 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   position: relative;
   background: var(--bg);
   overflow: hidden;
+}
+
+/* The drop target for the gesture in #1264, on the canvas rather than the
+   viewport so it centres on the board whatever panels sit beside it, above
+   the auto-fit chip, which a drag always calls up and which is hidden for the
+   length of the drag. Raised clear of the 35px band where React Flow pans the
+   board under a dragged card, slop included (AUTO_PAN_EDGE_PX), so aiming at
+   it never scrolls the board away. Calm while the card is far away, leaning in
+   as the pointer approaches, and red only once a release would remove the
+   card. Pointer events stay with React Flow: App hit-tests the release against
+   this box, with some slop around it, so the target never interrupts the drag. */
+.drag-trash-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  z-index: 12;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  min-width: 240px;
+  min-height: 52px;
+  margin: 0 auto;
+  padding: 8px 16px 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed var(--chrome-edge);
+  border-radius: var(--r-panel);
+  background: var(--chrome-bg);
+  color: var(--muted);
+  box-shadow: var(--shadow-1);
+  font-size: 12px;
+  pointer-events: none;
+  animation: dragTrashIn 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+}
+.drag-trash-zone.near {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--err) 45%, var(--chrome-edge));
+  color: var(--text);
+  transform: translateY(-4px) scale(1.03);
+}
+.drag-trash-zone.over {
+  border-style: solid;
+  border-color: var(--err);
+  background: color-mix(in srgb, var(--chrome-bg) 82%, var(--err) 18%);
+  color: var(--err);
+  transform: translateY(-6px) scale(1.06);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 18%, transparent), var(--shadow-1);
+}
+.drag-trash-zone.leaving { animation: dragTrashOut 140ms ease both; }
+.drag-trash-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border-radius: 50%;
+  background: var(--ctl-fill);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+}
+.drag-trash-zone.over .drag-trash-icon {
+  background: color-mix(in srgb, var(--err) 20%, transparent);
+  transform: scale(1.12) rotate(-8deg);
+}
+.drag-trash-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.drag-trash-text { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drag-trash-name { display: inline-block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.drag-trash-hint { color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+.canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
+.react-flow__node.dragging .agent-node {
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease;
+}
+.canvas-wrap.trash-hover .react-flow__node.dragging .agent-node {
+  opacity: 0.55;
+  transform: scale(0.92);
+  border-color: var(--err);
+}
+@keyframes dragTrashIn {
+  from { opacity: 0; translate: 0 14px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes dragTrashOut {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-trash-zone,
+  .drag-trash-zone.leaving { animation: none; }
+  .drag-trash-zone,
+  .drag-trash-zone.near,
+  .drag-trash-zone.over,
+  .drag-trash-zone.over .drag-trash-icon { transform: none; }
+  .drag-trash-zone,
+  .drag-trash-icon,
+  .react-flow__node.dragging .agent-node { transition: none; }
 }
 
 /* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
@@ -5235,7 +5608,12 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    status class lands and the sub therefore has to wait out its own spawn. The
    list does not restart — see .tool-burst.status-done — so that sum was 680ms
    of pure lateness, measured, and it is what made a sub's glow trail its
-   primary's by 220ms on a tool that finished once. */
+   primary's by 220ms on a tool that finished once.
+
+   The 140px is what SUB_LABEL_MAX in ToolBursts.tsx is counted against: the
+   word is cut there, to the thirteen characters this pill shows, so this
+   max-width only catches a glyph wider than that count assumed. Raise one and
+   the other has to follow — and the lane has 2px left for it (#978). */
 .tool-burst.sub {
   max-width: 140px;
   font-size: 10px;
@@ -5558,6 +5936,22 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   flex: 1;
   width: 100%;
 }
+/* A session "Remove from board" took off the canvas. Still listed, because the
+   row is the way back; muted, because what it points at is not on the board. */
+.session-list .sl-row.removed .sl-label { color: var(--muted); }
+.session-list .sl-removed {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Pinned under the rows by the list's own flex: 1, so it stays at the panel's
+   foot however few sessions there are. */
+.session-list .sl-foot {
+  padding: 8px var(--panel-inset) 12px;
+  border-top: 1px solid var(--line);
+}
+.session-list .sl-bring-back { width: 100%; }
 .session-list .sl-empty {
   padding: 16px 12px;
   color: var(--muted);
@@ -6348,6 +6742,21 @@ button.tool.clickable:last-child { border-bottom: none; }
    comfortable to read at. Wider than the shortcuts sheet's 560 because that
    sheet is a two-column table and this is sentences. */
 .modal.release-notes { width: min(620px, 92vw); }
+/* The app's verified update and what became of the last press of its button
+   (#1187), held as ONE item of the body's column, so the body's 16px gap does
+   not open between a button and the sentence about it — or open at all while
+   that sentence is empty, which it is until a press fails. The line stays on
+   the page while empty because it is a live region; only its margin goes, the
+   way .ap-lan-status's does. Amber because it reports that nothing happened,
+   which is a warning about the press and not an error in the deck. */
+.release-notes .rn-update { display: flow-root; }
+.release-notes .rn-update-said {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.release-notes .rn-update-said:empty { margin: 0; }
 /* The release a run of notes belongs to. Monospace and quiet: it is a label on
    the group, not a heading competing with the note titles under it, and the
    version chip it echoes in the topbar is set the same way. */
@@ -8020,10 +8429,16 @@ button.qb-pace::after {
   position: relative;
   z-index: 1;
 }
-/* Titled text must be hit-testable above the row's overlay button. Otherwise
-   the button intercepts hover, hiding full clipped identities and usage ages.
-   The rest of the row remains the disclosure target. (#1115) */
-.ap-account :is(.ap-alias, .ap-email, .ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+/* The small titled labels sit above the door so their own tooltips answer the
+   pointer — each one says what the age or the trade means (#1115). They are a
+   few words wide, so the door keeps the row.
+
+   The alias and the email are NOT raised. The email is `flex: 1` and spans
+   about 152px of the 272px head, so raising it took most of the row away from
+   the door while the hover tint still promised the row would open. The door
+   carries the whole identity itself instead, in its title and its
+   description, so a clipped name is recoverable from anywhere on the row. */
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
   position: relative;
   z-index: 1;
 }
@@ -9151,6 +9566,7 @@ button.qb-pace::after {
   overflow-wrap: anywhere;
 }
 .ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
+.ap-lan-who[data-tone="warn"] .ap-lan-who-when { color: var(--warn); }
 /* The route, beside the name of a row reached over the tailnet: a fact about
    the path rather than about the machine, so it is set in the quiet ink. */
 .ap-lan-via { color: var(--muted); }
@@ -9169,6 +9585,8 @@ button.qb-pace::after {
 .ap-lan-who .ap-pulse { color: var(--ok); opacity: 1; }
 .ap-lan-who[data-tone="bad"] .ap-pulse,
 .ap-lan-who[data-tone="bad"] .ap-dot { color: var(--warn); opacity: 1; }
+.ap-lan-who[data-tone="warn"] .ap-pulse,
+.ap-lan-who[data-tone="warn"] .ap-dot { color: var(--warn); opacity: 1; }
 .ap-lan-who[data-tone="wait"] .ap-pulse { color: var(--accent); }
 
 /* THE INVITE, WHICH IS THE WHOLE ACT WHILE NOBODY IS PAIRED. It gets a card
@@ -11841,6 +12259,29 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 }
 /* The one switch that is about the list above it, set a step below its rows. */
 .ap-lan-picks + .lan-switch { margin-top: 10px; }
+/* INVITE-ONLY, above the pair it holds, set off by the same step: it is the
+   answer that overrides them, not a third row of the same question. */
+.lan-switches-lead + .lan-switches { margin-top: 10px; }
+/* The automatic switches as one group under the switch that governs them:
+   set apart by a rule, and named by a caption in the heading's quiet ink. */
+.lan-auto {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.lan-sub {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lan-sub-state { font-weight: 400; }
+/* A switch invite-only is holding. The label steps down with the knob, so the
+   row reads as paused rather than as a live sentence beside a dead control.
+   --muted rather than --text-dim: this line is on --panel, where --muted still
+   clears 4.5:1. */
+.lan-switches[data-paused] .lan-switch-what,
+.lan-switch[data-paused] .lan-switch-what { color: var(--muted); }
 
 /* The one paragraph in the dialog that is a warning rather than an explanation,
    above the only control that cannot be undone. It takes --warn, which is what
@@ -11998,6 +12439,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer-head > .ap-pulse { color: var(--ok); }
 .lan-peer-head > .ap-dot { color: var(--muted); }
 .lan-peer[data-tone="bad"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
+.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
 .lan-peer[data-tone="wait"] .lan-peer-head > .ap-pulse { color: var(--accent); }
 .lan-peer-id { flex: 1 1 auto; min-width: 0; }
 /* Baseline, not centre: a name that has wrapped to two lines would otherwise
@@ -12045,6 +12487,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer-restore { margin-left: 8px; padding: 0; min-height: 0; }
 .lan-peer[data-tone="ok"] .lan-peer-state { color: var(--ok); }
 .lan-peer[data-tone="bad"] .lan-peer-state { color: var(--warn); }
+.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }
 .lan-peer[data-tone="wait"] .lan-peer-state { color: var(--accent); }
 
 .lan-peer-body { gap: 20px; }
@@ -12162,6 +12605,7 @@ input, textarea { caret-color: var(--accent); }
 }
 .lan-link > .lan-done { align-items: center; }
 .lan-round[data-tone="bad"] { color: var(--warn); }
+.lan-round[data-tone="warn"] { color: var(--warn); }
 .lan-link-sub .lan-fact-raw { margin-top: 2px; }
 
 /* THE RAILS. Each row draws its own stretch — from under the machine on the
@@ -13114,7 +13558,8 @@ input, textarea { caret-color: var(--accent); }
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .topbar .brand button.v .v-dot,
+  .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
   /* An open toolbar button keeps a boundary in the theme's own highlight, so
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */
@@ -14145,6 +14590,15 @@ input, textarea { caret-color: var(--accent); }
 
 .ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
 .ap-proj-error { color: var(--text); }
+/* Switching windows keeps the last report up, dimmed, until the next lands. */
+.ap-proj-body > * { transition: opacity 140ms ease; }
+.ap-proj-body.refreshing > * { opacity: 0.55; }
+/* The way out of an empty window: the next wider one, one press away, drawn
+   as the report's own Copy control. */
+.ap-proj-widen-wrap { margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .ap-proj-body > * { transition: none; }
+}
 .ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
 
 /* The one-glance stacked bar: 100% of this account's spend on the window. */
@@ -14240,16 +14694,20 @@ input, textarea { caret-color: var(--accent); }
 
 .ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
 
-/* Phone: the track column is the first thing to go; keep name + numbers. */
+/* Phone: the track column is the first thing to go; keep name + numbers.
+   An Other member is two rows: name, cost, tokens and Copy across the first,
+   the location under them. The first row needs a column for each of its four
+   — with three, Copy took the tokens' cell and the tokens fell onto a third
+   row by themselves. */
 @media (max-width: 520px) {
   .ap-proj-head { flex-wrap: wrap; }
   .ap-proj-sub { max-width: 100%; }
   .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content 24px; }
   .ap-proj-track { display: none; }
   .ap-proj-details { grid-column: 2 / -1; }
-  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content; }
+  .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content max-content; }
   .ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }
-  .ap-proj-other-member .ap-proj-copy { grid-column: 3; grid-row: 1; }
+  .ap-proj-other-member .ap-proj-copy { grid-column: 4; grid-row: 1; }
 }
 
 /* Per-day chart in the Projects report: a stacked column per day, coloured by

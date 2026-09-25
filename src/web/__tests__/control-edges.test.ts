@@ -483,6 +483,9 @@ const CONTROLS: Control[] = [
   // beside the wordmark, identified by its own text, and it wears the
   // toolbar's resting look. The stale chip is a warning and keeps its edge.
   { at: ".topbar .brand button.v.stale", states: [".topbar .brand button.v.stale:hover"], beds: TOPBAR },
+  // The app's ready update (#1187): good news, so the accent rather than the
+  // stale chip's amber, and an edge that has to clear 3:1 on its own.
+  { at: ".topbar .brand button.v.ready", states: [".topbar .brand button.v.ready:hover"], beds: TOPBAR },
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
@@ -527,6 +530,9 @@ const CONTROLS: Control[] = [
   // version banner
   { at: ".ver-banner .ver-cmd", states: [".ver-banner .ver-cmd:hover"], beds: BANNER },
   { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
+  // The Undo row keeps the banner's shape on a plain --bg-soft bed, and its
+  // button trades the amber edge for the controls' own.
+  { at: ".ver-banner.note .ver-act", states: [".ver-banner.note .ver-act:hover:not(:disabled)"], beds: ["--bg-soft"] },
   // The auto-restart switch is the shared one since #886. Armed, it fills with
   // the banner's warning colour, measured here on the banner's own beds.
   { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
@@ -673,9 +679,16 @@ const EXEMPT_RINGS = new Set([
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
  *  a control's, or ANY element's focus indicator, since 2.4.11 is owed to
- *  whatever the keyboard can reach and not only to things with a class. */
+ *  whatever the keyboard can reach and not only to things with a class.
+ *
+ *  That includes focus the DOM does not hold. In a combobox the arrows move an
+ *  `aria-activedescendant` highlight through options that are never focused
+ *  themselves, so `:focus-visible` never matches one — and the station list's
+ *  highlight sat outside this sweep as a 1.2:1 tint. `data-highlighted` is
+ *  that focus's spelling in this sheet. */
+const VIRTUAL_FOCUS = /\[data-highlighted="true"\]/;
 const RING_RULES = RULES.filter(rule => {
-  if (!isControlRule(rule.selector) && !/:focus-visible/.test(rule.selector)) return false;
+  if (!isControlRule(rule.selector) && !/:focus-visible/.test(rule.selector) && !VIRTUAL_FOCUS.test(rule.selector)) return false;
   if (selectors(rule.selector).every(s => EXEMPT_RINGS.has(s))) return false;
   // A rule that declares a border is measured as a border above; the ring, if
   // it has one too, is the extra on top.
@@ -743,6 +756,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
       ".ap-proj-day:focus-visible",
+      // The station list's keyboard highlight, which is focus the DOM does not
+      // hold — see VIRTUAL_FOCUS.
+      '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
@@ -769,7 +785,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // they were made secondary, which is a control gaining an edge rather than
     // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
-    expect(EDGED_CONTROLS.length).toBeLessThan(92);
+    expect(EDGED_CONTROLS.length).toBeLessThan(96);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

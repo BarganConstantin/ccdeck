@@ -30,7 +30,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { armedPress, pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
+import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, roundWhy, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
 import type { DeckAbout, DeckRow, Lane, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
 
 interface Props {
@@ -52,6 +52,10 @@ interface Props {
   /** Close this and open what this deck offers — the one list here that is
    *  not about the machine on the other end. */
   onSettings: () => void;
+  /** Close this and open the add dialog with an invite made — the one way a
+   *  nearby or declined machine can still be paired while this deck pairs
+   *  only by invite. Optional so a caller from before the mode still fits. */
+  onInvite?: () => void;
   /** The other decks folded into this row — its name at its address, one
    *  machine running more than one — each with the peer it was built from. */
   twins?: Array<{ row: DeckRow; peer: RowSource["peer"] }>;
@@ -120,8 +124,8 @@ function Chevron({ dir, gate = false }: { dir: "in" | "out"; gate?: boolean }) {
 
 /** What the two marks at the ends of a lane stand for, for a reader who cannot
  *  see them. The caption beside them only says what is not working. */
-const HERE_SAID = { works: "works here", expired: "expired here", missing: "not on this deck" } as const;
-const THERE_SAID = { works: "works there", broken: "broken there", unknown: "not offered by that deck" } as const;
+const HERE_SAID = { works: "works here", expired: "expired here", missing: "not on this deck", unavailable: "cannot share here" } as const;
+const THERE_SAID = { works: "works there", broken: "broken there", unavailable: "cannot share there", unknown: "not offered by that deck" } as const;
 function laneSaid(l: Lane): string {
   const ways = l.in && l.out ? "offered both ways" : l.in ? "offered by that deck" : "offered by this deck";
   // The accent and the ring say this to the eye; these words say it aloud.
@@ -129,7 +133,7 @@ function laneSaid(l: Lane): string {
 }
 
 export default function LanPeerModal({
-  row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings,
+  row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings, onInvite,
   twins = [], onUnpair,
 }: Props) {
   // The keyboard lands on ×, as it does in the tool inspector: this dialog is
@@ -276,7 +280,7 @@ export default function LanPeerModal({
     : overTailnet ? "asked this deck to pair, over Tailscale" : "asked this deck to pair";
 
   // THE NETWORK, drawn the way the row's mark is coloured: whole and lit while
-  // it answers, broken in the warning ink when the last round failed, and a
+  // it answers, broken only when the link itself failed, and a
   // dotted line for every other state — not paired yet, or not heard lately.
   const link = row.tone === "bad" ? "bad" : !paired ? "loose" : row.here ? "up" : "down";
   const asking = busy === `check:${row.fp}`;
@@ -488,11 +492,14 @@ export default function LanPeerModal({
               )}
               {unplaced.length > 0 && (
                 <ul className="lan-done">
-                  {unplaced.map(d => (
-                    <li key={`${d.email}:${d.action}`} data-ok={d.ok}>
-                      {d.email} <span className="lan-done-what">{d.ok ? "arrived" : "did not arrive"}</span>
-                    </li>
-                  ))}
+                  {unplaced.map(d => {
+                    const why = roundWhy(d);
+                    return (
+                      <li key={`${d.email}:${d.action}`} data-ok={d.ok && !why}>
+                        {d.email} <span className="lan-done-what">{d.ok ? "arrived" : "did not arrive"}{why && ` — ${why.long}`}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {/* Why the silence, when this deck holds evidence the socket did
@@ -501,12 +508,15 @@ export default function LanPeerModal({
               {/* The one-way case in full — the sentence the row's tooltip used
                   to carry, which is the only place it is ever explained. */}
               {peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>}
+              {line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>}
             </div>
 
             {lanes.length > 0 && (
               <ul key={drawn} className="lan-lanes" role="list" aria-label={`Logins between this deck and ${row.name}`}>
                 {lanes.map((l, i) => {
                   const d = told.get(l.email);
+                  // An arrival with a problem is not drawn as a clean one.
+                  const why = d ? roundWhy(d) : null;
                   const flows = l.out === "live" || (l.in != null && l.in !== "cut");
                   return (
                     <li key={l.key} role="listitem" className="lan-lane" data-tone={l.tone}
@@ -530,8 +540,8 @@ export default function LanPeerModal({
                           {l.caption}
                           {l.caption && d && " · "}
                           {d && (
-                            <span className="lan-lane-done" data-ok={d.ok}>
-                              {d.ok ? "arrived last round" : "did not arrive last round"}
+                            <span className="lan-lane-done" data-ok={d.ok && !why}>
+                              {d.ok ? "arrived last round" : "did not arrive last round"}{why && ` — ${why.long}`}
                             </span>
                           )}
                         </span>
@@ -709,7 +719,7 @@ export default function LanPeerModal({
               {busy === `unpair:${row.fp}` ? "Unpairing…" : armed ? "Confirm unpair" : "Unpair"}
             </button>
           )}
-          {row.kind === "nearby" && (
+          {row.kind === "nearby" && status.pairingMode !== "invite" && (
             <button type="button" className="btn primary lan-peer-verb" {...press(`accept:${row.fp}`)}
               onClick={() => void run(onVerb)}
               title="Send it a request. Somebody at that machine has to accept it before anything is shared.">
@@ -723,11 +733,22 @@ export default function LanPeerModal({
               {busy === `drop:${row.fp}` ? "Stopping…" : "Stop dialling"}
             </button>
           )}
-          {row.kind === "declined" && (
+          {row.kind === "declined" && status.pairingMode !== "invite" && (
             <button type="button" className="btn lan-peer-verb" {...press(`allow:${row.fp}`)}
               onClick={() => void run(onVerb)}
               title="Take the no back. That deck is still trying, so its request comes round again on its own.">
               {busy === `allow:${row.fp}` ? "Allowing…" : "Let it ask again"}
+            </button>
+          )}
+          {/* INVITE-ONLY LEAVES THIS FOOTER ONE VERB, not none. Without it a
+              nearby or declined machine opened here showed a border with
+              nothing in it — the state the comment on this footer says was
+              fixed — at the moment the reader came here to pair it. */}
+          {(row.kind === "nearby" || row.kind === "declined") && status.pairingMode === "invite" && onInvite && (
+            <button type="button" className="btn primary lan-peer-verb"
+              onClick={onInvite}
+              title="This deck pairs only by invite. Make one and send it to whoever is at that machine.">
+              Invite to pair
             </button>
           )}
         </footer>

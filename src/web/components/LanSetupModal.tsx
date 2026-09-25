@@ -42,6 +42,13 @@
 // prose. A switch somebody has turned OFF is: that deck is no longer doing what
 // it says on the box, and the line under it says what that costs.
 //
+// AND ABOVE THEM, INVITE-ONLY (#1236), off by default and the strictest answer
+// to "who may take them": on, no deck pairs without an invite this one minted
+// or was sent. It is a switch like its neighbours, not a second kind of
+// control; its line appears only while it is on; and the pair under it — and
+// Tailscale's pair — are paused in place rather than hidden, so what comes back
+// when it goes off is still in view.
+//
 // TAILSCALE IS ITS OWN SECTION, shown only on a machine that has it. One switch
 // turns discovery over the tailnet on — off until somebody does, because it is
 // a new path off this machine — and the same two permissions as the local
@@ -79,6 +86,10 @@ export function tailscaleDetail(ts: LanTailscale): string {
   const whose = ts.login ?? "your Tailscale account";
   return ts.on ? `${ts.devices} online · ${whose}` : whose;
 }
+
+/** What a paused automatic switch says on hover: why it cannot be pressed, and
+ *  where the thing that holds it is. One sentence for all four of them. */
+const PAUSED_TITLE = "Paused while this deck pairs only by invite. Turn that off above to use it.";
 
 export default function LanSetupModal({ status, accounts, onClose, onChanged }: {
   status: LanStatus;
@@ -189,6 +200,16 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // switches against what the engine is actually doing.
   const asks = status.autoAsk !== false;
   const says = status.autoAccept !== false;
+  // Absent is automatic, which is what the engine does with a missing mode.
+  const inviteOnly = status.pairingMode === "invite";
+  // The automatic switches, LAN and Tailscale alike, while invite-only holds
+  // them: still drawn, still showing what they will do when it is off, and not
+  // pressable, because the engine ignores both pairs in that mode. Disabled
+  // only through a state the reader did not just press, so no focus is lost.
+  const autoProps = (tag: string) => {
+    const p = pressProps(tag);
+    return { ...p, disabled: p.disabled || inviteOnly };
+  };
   // The same rule for the third: absent is on, which is what the engine does.
   const tells = status.shareActive !== false;
   const ts = status.tailscale ?? null;
@@ -324,14 +345,72 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
           </div>
 
           <div className="modal-section">
-            <h3 className="lan-h">Pairing</h3>
+            <h3 className="lan-h" id="lan-pairing-h">Pairing</h3>
+            {/* INVITE-ONLY IS A SWITCH, and it sits above the two it overrides.
+                It was two native radios — "Automatic pairing (current
+                behavior)" / "by invite code only" — in the one dialog whose
+                every other on/off is a track and a knob, and with `disabled`
+                on the focused one, which drops keyboard focus to <body> (#518).
+                One more switch is one fewer kind of control to learn, and "off"
+                is what automatic always meant.
+
+                ITS LINE SAYS WHAT CHANGED, AND ONLY WHILE IT IS ON: the owner's
+                rule below is about prose over a resting state, and off is the
+                resting state. On, the two switches under it are paused rather
+                than hidden, so what comes back when this goes off is in view. */}
+            <div className="lan-switches lan-switches-lead" role="group" aria-labelledby="lan-pairing-h">
+              <div className="lan-switch">
+                <span className="lan-switch-what">
+                  Pair new decks only by invite
+                  {inviteOnly && (
+                    <span id="lan-invite-only-detail" className="lan-switch-detail">
+                      A new deck needs an invite from + in the panel. Paired decks stay paired.
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="switch ap-auto-state"
+                  role="switch"
+                  aria-checked={inviteOnly}
+                  aria-label="Pair new decks only by invite"
+                  aria-describedby={inviteOnly ? "lan-invite-only-detail" : undefined}
+                  {...pressProps("mode")}
+                  // A held key is one decision: switching it on turns away the
+                  // requests that are waiting, and a repeat would undo that.
+                  onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                  onClick={() => void write(
+                    { pairingMode: inviteOnly ? "automatic" : "invite" },
+                    inviteOnly ? "let decks pair on their own again" : "pair new decks only by invite",
+                    "mode",
+                  )}
+                  title={inviteOnly
+                    ? "Let decks on this network pair as the two switches below say again."
+                    : "Only a deck you send an invite to can pair with this one. Nearby decks can't ask, and requests waiting now are turned away."}
+                >
+                  <span className="switch-knob" />
+                </button>
+              </div>
+            </div>
+
             {/* Two rows and one shape, because they are the two halves of one
                 question: who reaches whom without anybody pressing anything.
                 A TRACK AND A KNOB, which is what every switch in this app wears
                 now — see `.switch` (#886). It was a pill with a dot and the
                 word `on` in it, which reports a state well and asks for one
-                badly. */}
-            <div className="lan-switches">
+                badly. Paused, not hidden, while invite-only holds them. */}
+            {/* NAMED AS WHAT INVITE-ONLY OVERRIDES. Two switches under a third
+                read as three equal settings, and "ask every deck" beside "only
+                by invite" looked like a contradiction. A caption and a rule
+                above them make them one group the switch above governs, and the
+                caption says so while it holds them. A label, not a paragraph:
+                it says what the group is, not what the reader should do. */}
+            <div className="lan-auto" role="group" aria-labelledby="lan-auto-h">
+            <p className="lan-sub" id="lan-auto-h">
+              Automatic pairing
+              {inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only</span>}
+            </p>
+            <div className="lan-switches" data-paused={inviteOnly || undefined}>
               <div className="lan-switch">
                 <span className="lan-switch-what">Ask every deck this one finds</span>
                 <button
@@ -340,13 +419,13 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   role="switch"
                   aria-checked={asks}
                   aria-label="Ask every deck this one finds"
-                  {...pressProps("ask")}
+                  {...autoProps("ask")}
                   onClick={() => void write(
                     { autoAsk: !asks },
                     asks ? "stop asking automatically" : "ask every deck this one finds",
                     "ask",
                   )}
-                  title={asks
+                  title={inviteOnly ? PAUSED_TITLE : asks
                     ? "Stop sending requests on their own. You press ask on the row instead."
                     : "Send a pairing request to every deck heard on this network. Somebody over there still has to say yes."}
                 >
@@ -364,7 +443,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   // The one switch here whose on gives something away: it fills
                   // with --warn, on either press, from the first one.
                   data-tone="warn"
-                  {...pressProps("accept")}
+                  {...autoProps("accept")}
                   // A held key is one decision, as it is on unpair.
                   onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
                   onClick={() => void write(
@@ -372,13 +451,14 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     says ? "stop accepting automatically" : "accept every deck that asks",
                     "accept",
                   )}
-                  title={says
+                  title={inviteOnly ? PAUSED_TITLE : says
                     ? "Stop saying yes for you. A deck that asks waits in the panel again."
                     : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
                 >
                   <span className="switch-knob" />
                 </button>
               </div>
+            </div>
             </div>
             {/* AND NO PARAGRAPH UNDER THEM. There was one: it changed with the
                 switches and went yellow while saying yes was on. Once that
@@ -423,8 +503,13 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   </button>
                 </div>
                 {tsOn && (
-                  <>
-                    <div className="lan-switch">
+                  <div className="lan-auto" role="group" aria-labelledby="lan-ts-auto-h">
+                    <p className="lan-sub" id="lan-ts-auto-h">
+                      Automatic pairing with my devices
+                      {inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only</span>}
+                    </p>
+                    <div className="lan-switches">
+                    <div className="lan-switch" data-paused={inviteOnly || undefined}>
                       <span className="lan-switch-what">Ask each device it finds</span>
                       <button
                         type="button"
@@ -432,20 +517,20 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                         role="switch"
                         aria-checked={tsAsks}
                         aria-label="Ask each of my devices it finds over Tailscale"
-                        {...pressProps("tailscale-ask")}
+                        {...autoProps("tailscale-ask")}
                         onClick={() => void write(
                           { tailscaleAsk: !tsAsks },
                           tsAsks ? "stop asking your devices automatically" : "ask your devices automatically",
                           "tailscale-ask",
                         )}
-                        title={tsAsks
+                        title={inviteOnly ? PAUSED_TITLE : tsAsks
                           ? "Stop sending requests on their own. You press ask on the row instead."
                           : "Send a pairing request to every deck found on your devices over Tailscale."}
                       >
                         <span className="switch-knob" />
                       </button>
                     </div>
-                    <div className="lan-switch">
+                    <div className="lan-switch" data-paused={inviteOnly || undefined}>
                       <span className="lan-switch-what">Say yes to each device that asks</span>
                       <button
                         type="button"
@@ -454,21 +539,22 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                         aria-checked={tsSays}
                         aria-label="Say yes to my devices when they ask over Tailscale"
                         data-tone="warn"
-                        {...pressProps("tailscale-accept")}
+                        {...autoProps("tailscale-accept")}
                         onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
                         onClick={() => void write(
                           { tailscaleAccept: !tsSays },
                           tsSays ? "stop accepting your devices automatically" : "accept your devices automatically",
                           "tailscale-accept",
                         )}
-                        title={tsSays
+                        title={inviteOnly ? PAUSED_TITLE : tsSays
                           ? "Stop saying yes for you. A device that asks waits in the panel again."
                           : "Say yes for you when a deck on one of your own devices asks. Anybody else on the tailnet still waits for a press."}
                       >
                         <span className="switch-knob" />
                       </button>
                     </div>
-                  </>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

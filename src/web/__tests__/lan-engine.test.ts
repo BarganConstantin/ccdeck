@@ -19,14 +19,14 @@
 // comes back to every socket on the sending host. That was measured before any
 // of this was written and it is the same fact that makes self-recognition a
 // fingerprint question rather than an address question.
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
-import { parseAddress } from "../components/LanSyncSection";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, offered, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
+import { faultText, parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -35,7 +35,7 @@ import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "../../server/l
 
 const K = (email: string, org: string) => accountKey(email, org);
 
-interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean }
+interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean; collector?: string | null; readable?: boolean }
 
 /** A store, and a record of everything the engine asked it to do. */
 function store(rows: Row[]) {
@@ -161,6 +161,148 @@ async function point(
 }
 
 describe("the account that is dead here and alive there", () => {
+  it("ends a sync promptly when the remote deck disconnects during a credential request", async () => {
+    const email = "offline@example.com";
+    const key = K(email, "org-offline");
+    const mine = store([]);
+    const theirs = store([{ num: 5, email, orgUuid: "org-offline", alive: true }]);
+    const a = await deck(mine, "Receiver", [key]);
+    let b: Awaited<ReturnType<typeof deck>>;
+    b = await deck(theirs, "Sender", [key], {
+      exportAccount: async () => {
+        b.e.stop(); // A successful handshake, then the remote process goes away mid-request.
+        return "ccdeck2:slot-5";
+      },
+    });
+    await point(a, b, b.port);
+
+    const started = Date.now();
+    expect(await a.e.round()).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last?.error)
+      .toBe("peer closed the connection");
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("names a reset mid-request the way the panel can say it", async () => {
+    // Every socket the decks accept, so the sender can RESET its end — an RST,
+    // not a FIN — which is what the requester sees as ECONNRESET.
+    const accepted: net.Socket[] = [];
+    const real = net.createServer.bind(net);
+    const spy = vi.spyOn(net, "createServer").mockImplementation(((onConn: (s: net.Socket) => void) =>
+      real(s => { accepted.push(s); onConn(s); })) as typeof net.createServer);
+    try {
+      const email = "reset@example.com";
+      const key = K(email, "org-reset");
+      const mine = store([]);
+      const theirs = store([{ num: 5, email, orgUuid: "org-reset", alive: true }]);
+      const a = await deck(mine, "Receiver", [key]);
+      let b: Awaited<ReturnType<typeof deck>>;
+      b = await deck(theirs, "Sender", [key], {
+        exportAccount: async () => {
+          for (const s of accepted) if (s.localPort === b.port && !s.destroyed) s.resetAndDestroy();
+          return "ccdeck2:slot-5";
+        },
+      });
+      await point(a, b, b.port);
+
+      const started = Date.now();
+      expect(await a.e.round()).toEqual([]);
+      expect(Date.now() - started).toBeLessThan(2_000);
+      const error = a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last?.error;
+      expect(error).toBe("peer connection failed (ECONNRESET)");
+      expect(faultText(error)).toBe("it hung up");
+      expect(mine.imported).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 20_000);
+
+  it("imports a shared account once when the sender has two slots for its identity", async () => {
+    const email = "duplicate@example.com";
+    const key = K(email, "org-duplicate");
+    const mine = store([]);
+    const theirs = store([
+      { num: 5, email, orgUuid: "org-duplicate", alive: true },
+      { num: 6, email, orgUuid: "org-duplicate", alive: true },
+    ]);
+    const a = await deck(mine, "Receiver", [key]);
+    const b = await deck(theirs, "Sender", [key]);
+    await point(a, b, b.port);
+
+    const done = await a.e.round() as Array<{ key: string; ok: boolean }>;
+    expect(done).toHaveLength(1);
+    expect(done[0]).toMatchObject({ key, ok: true });
+    expect(theirs.exported).toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+
+  it("reads a peer's duplicate rows as one login each, kept by its working copy", () => {
+    // A deck from before manifestFor listed one row per slot, and the receiver
+    // must not take its word that they are different logins.
+    const row = (key: string, alive: boolean) => ({ key, email: `${key}@x`, alive });
+    expect(offered([row("a", false), row("b", true), row("a", true)]))
+      .toEqual([row("a", true), row("b", true)]);
+  });
+
+  it("caps a peer's list at fifty logins, not fifty rows", () => {
+    // Ten logins, six slots each, and each one's only working copy last: a
+    // cap spent on raw rows dropped the working copies past row fifty.
+    const rows = Array.from({ length: 60 }, (_, i) => ({
+      key: `k${i % 10}`, email: `k${i % 10}@x`, alive: i >= 50,
+    }));
+    const got = offered(rows);
+    expect(got).toHaveLength(10);
+    expect(got.every(a => a.alive)).toBe(true);
+    const many = Array.from({ length: 60 }, (_, i) => ({ key: `k${i}`, email: `k${i}@x`, alive: true }));
+    expect(offered(many)).toHaveLength(50);
+  });
+
+  it("uses the working slot when an expired duplicate comes first", async () => {
+    const email = "duplicated-expired@example.com";
+    const key = K(email, "org-duplicate");
+    const mine = store([]);
+    const theirs = store([
+      { num: 5, email, orgUuid: "org-duplicate", alive: false },
+      { num: 6, email, orgUuid: "org-duplicate", alive: true },
+    ]);
+    const a = await deck(mine, "Receiver", [key]);
+    const b = await deck(theirs, "Sender", [key]);
+    await point(a, b, b.port);
+
+    expect(await a.e.round()).toEqual([{ key, email, action: "add", ok: true, why: null }]);
+    expect(theirs.exported).toEqual([6]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-6"]);
+  }, 20_000);
+
+  it("keeps earlier arrivals and continues with other accounts when one import throws", async () => {
+    const emails = ["alpha@example.com", "middle@example.com", "zeta@example.com"];
+    const theirs = store(emails.map((email, i) => ({ num: i + 5, email, orgUuid: `org-${i}`, alive: true })));
+    const mine = store([]);
+    const shared = emails.map((email, i) => K(email, `org-${i}`));
+    const a = await deck(mine, "Receiver", shared, {
+      importAccount: async (blob: string) => {
+        if (blob === "ccdeck2:slot-6") throw new Error("private credential-store diagnostics");
+        mine.imported.push(blob);
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Sender", shared);
+    await point(a, b, b.port);
+
+    const done = await a.e.round() as Array<{ email: string; ok: boolean; why: string | null }>;
+    expect(done.map(({ email, ok, why }) => ({ email, ok, why }))).toEqual([
+      { email: emails[0], ok: true, why: null },
+      { email: emails[1], ok: false, why: "import failed" },
+      { email: emails[2], ok: true, why: null },
+    ]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5", "ccdeck2:slot-7"]);
+    expect(theirs.exported).toEqual([5, 6, 7]);
+    const last = a.e.status().peers.find((p: { name: string }) => p.name === "Sender")?.last;
+    expect(last?.done).toEqual(done);
+    expect(JSON.stringify(last)).not.toContain("private credential-store diagnostics");
+  }, 20_000);
+
   it("is healed, which is the whole feature", async () => {
     // The owner's own case, in a fixture: claude2 is quarantined on this
     // machine and works on the other one.
@@ -224,6 +366,68 @@ describe("the account that is dead here and alive there", () => {
     const b = await deck(theirs, "Deck-B", shared);
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it.each(["keychain_unavailable", "no_credentials", "relogin_required", "foreign_credential", "token_expired", "unknown_status"])("does not request a peer's stale healthy copy with collector verdict %s", async verdict => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, collector: verdict }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    expect(await a.e.round(), verdict).toEqual([]);
+    expect(theirs.exported, verdict).toEqual([]);
+    expect(mine.imported, verdict).toEqual([]);
+  }, 20_000);
+
+  it("does not export the active account while its verdict is missing, since that export is the live login", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("prefers a verified inactive copy over the active slot that has no verdict", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([
+      { num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null },
+      { num: 7, email: "s@x", orgUuid: "org", alive: true, active: false, collector: "ok" },
+    ]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([7]);
+  }, 20_000);
+
+  it("still exports an inactive account without a verdict, since that export is the stored copy", async () => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: false, collector: null }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it.each(["keychain_unavailable", "token_expired"])("does not repeatedly heal a local copy during %s", async verdict => {
+    const key = K("s@x", "org");
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false, collector: verdict }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true }]);
+    const a = await deck(mine, "Deck-A", [key]);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([]);
+    expect(await a.e.round()).toEqual([]);
+    expect(theirs.exported).toEqual([]);
     expect(mine.imported).toEqual([]);
   }, 20_000);
 });
@@ -346,6 +550,68 @@ describe("what the holder checks when a credential is asked for", () => {
     }
   }, 20_000);
 
+  it("refuses the active login when its verdict lapsed after the manifest", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const row = { num: 5, email: "s@x", orgUuid: "o", alive: true, active: true };
+    const theirs = store([{ ...row, collector: "ok" }]);
+    let reads = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: [{ ...row, collector: ++reads === 1 ? "ok" : null }] }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses the active login when the CLI is signed in as somebody else", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("refuses the active login when the CLI cannot say who is signed in", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+  }, 20_000);
+
+  it("gives the active login when the CLI is signed in as that account", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it("never asks the CLI who is signed in for an inactive login", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: false, collector: "ok" }]);
+    let asked = 0;
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => { asked++; return null; } });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(asked).toBe(0);
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
   it("says so when claude-swap exported nothing, rather than sealing nothing", async () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
@@ -356,6 +622,76 @@ describe("what the holder checks when a credential is asked for", () => {
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
     ]);
     expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("says a login that becomes unreadable after its manifest cannot be exported", async () => {
+    // The Keychain answer comes from claude-swap's verdict, which the wiring
+    // folds into `readable` — never from the export's words, which never
+    // mention the Keychain and whose stdout is the credential.
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    let reads = 0;
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: theirs.rows.map(row => ({
+        ...row, readable: ++reads < 2,
+      })) }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable" },
+    ]);
+    expect(theirs.exported, "an export that could only fail was spawned").toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("explains a Keychain lock reported by the collector after the manifest", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    let reads = 0;
+    const b = await deck(theirs, "Deck-B", [S], {
+      readAccounts: async () => ({ accounts: theirs.rows.map(row => ({
+        ...row, collector: ++reads < 2 ? "ok" : "keychain_unavailable",
+      })) }),
+    });
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: S, email: "s@x", action: "heal", ok: false, why: "keychain_unavailable" },
+    ]);
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
+  it("checks what arrived once, after the round, and keeps a problem with it as a warning", async () => {
+    // Two logins land. One cannot be read here. Both ARRIVED — the credential
+    // is in the store — so both stay `ok`, and the one with the problem says
+    // it; the check runs once for the two, after the last ask.
+    const A = K("a@x", "o");
+    const mine = store([
+      { num: 1, email: "a@x", orgUuid: "o", alive: false },
+      { num: 2, email: "s@x", orgUuid: "o", alive: false },
+    ]);
+    const theirs = store([
+      { num: 5, email: "a@x", orgUuid: "o", alive: true },
+      { num: 6, email: "s@x", orgUuid: "o", alive: true },
+    ]);
+    const checks: string[][] = [];
+    const a = await deck(mine, "Deck-A", [A, S], {
+      checkArrivals: async (steps: Array<{ key: string }>) => {
+        checks.push(steps.map(x => x.key));
+        // Called after both imports, not between them.
+        expect(mine.imported).toHaveLength(2);
+        return steps.map(x => x.key === S ? "unreadable_here" : null);
+      },
+    });
+    const b = await deck(theirs, "Deck-B", [A, S]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: A, email: "a@x", action: "heal", ok: true, why: null },
+      { key: S, email: "s@x", action: "heal", ok: true, why: "unreadable_here" },
+    ]);
+    expect(checks).toEqual([[A, S]]);
   }, 20_000);
 
   it("answers a store that threw with a refusal, and keeps what threw", async () => {
@@ -432,6 +768,33 @@ describe("what the holder checks when a credential is asked for", () => {
 });
 
 describe("the switch, and what turning it off means", () => {
+  it("finishes an in-flight startup when LAN is immediately switched off", async () => {
+    const e = createEngine({ ...store([]).deps(), createSocket: () => deafSocket() });
+    running.push(e);
+    const starting = e.apply({ enabled: true });
+    await e.apply({ enabled: false });
+    const result = await Promise.race([
+      starting.then(() => "finished", () => "failed"),
+      new Promise<string>(resolve => setTimeout(() => resolve("stuck"), 200)),
+    ]);
+    expect(result).toBe("finished");
+    expect(e.status().running).toBe(false);
+    expect(e.status().enabled).toBe(false);
+  });
+
+  it("does not let an aborted startup replace a new listener", async () => {
+    const e = createEngine({ ...store([]).deps(), createSocket: () => deafSocket() });
+    running.push(e);
+    const previous = e.apply({ enabled: true });
+    await e.apply({ enabled: false });
+    const current = e.apply({ enabled: true });
+    await Promise.all([previous, current]);
+    expect(e.status().running).toBe(true);
+    expect(e.status().port).toBeGreaterThan(0);
+    await e.apply({ enabled: false });
+    expect(e.status().running).toBe(false);
+  });
+
   it("is off until it is turned on, and shouts nothing until then", async () => {
     const s = store([]);
     const e = createEngine({ ...s.deps(), createSocket: () => deafSocket() });
@@ -477,6 +840,30 @@ describe("the switch, and what turning it off means", () => {
     expect(e.status().peers).toEqual([]);
     expect(e.status().fp).not.toBe(first);
   }, 20_000);
+});
+
+describe("a Tailscale refresh finishing after its discovery switch changed", () => {
+  it("does not broadcast a late announcement after Tailscale discovery is turned off", async () => {
+    let finishRefresh!: () => void;
+    const refreshing = new Promise<void>(resolve => { finishRefresh = resolve; });
+    const sent: string[] = [];
+    const sock = deafSocket();
+    sock.send = (_msg, _port, addr, cb) => { sent.push(addr); cb?.(null); };
+    const e = createEngine({
+      ...store([]).deps(),
+      createSocket: () => sock,
+      tailnet: { refresh: () => refreshing, freshen: () => Promise.resolve(), snapshot: () => null },
+    });
+    running.push(e);
+    await e.apply({ enabled: true, tailscale: false });
+    const before = sent.length;
+    await e.apply({ tailscale: true });
+    await e.apply({ tailscale: false });
+    finishRefresh();
+    await refreshing;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(sent).toHaveLength(before);
+  });
 });
 
 describe("how a deck names itself", () => {
@@ -788,6 +1175,239 @@ describe("saying no, and meaning it", () => {
 // is a request again when it calls, and is given nothing.
 //
 describe("unpairing", () => {
+  it("does not send an outbound manifest when the caller unpairs during its account read", async () => {
+    const key = K("outbound-private@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    let hold = false;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const callerStore = store([{ num: 7, email: "outbound-private@x", orgUuid: "o", alive: true }]);
+    const caller = await deck(callerStore, "Caller", [], {
+      readAccounts: async () => {
+        if (hold) { started(); await gate; }
+        return { accounts: callerStore.rows };
+      },
+    });
+    const holder = await deck(store([]), "Holder", []);
+    await point(caller, holder, holder.port);
+    await caller.e.round();
+    await caller.e.apply({ shared: [key] });
+    hold = true;
+    const transfer = caller.e.round();
+    await began;
+    expect(caller.e.unpair(holder.id.fp)).toBe(true);
+    release();
+    await transfer;
+    expect(peerRow(holder, caller.id.fp)?.offers?.accounts ?? []).toEqual([]);
+  }, 20_000);
+
+  it("does not reveal account identities in a manifest after the sender unpairs mid-read", async () => {
+    const key = K("private@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    let hold = false;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiver = await deck(store([]), "Receiver", []);
+    const senderStore = store([{ num: 7, email: "private@x", orgUuid: "o", alive: true }]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (hold) { started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    hold = true;
+    const transfer = receiver.e.round();
+    await began;
+    expect(sender.e.unpair(receiver.id.fp)).toBe(true);
+    release();
+    await transfer;
+    expect(peerRow(receiver, sender.id.fp)?.offers?.accounts ?? []).toEqual([]);
+  }, 20_000);
+
+  it.each(["unpair", "unshare"] as const)("refuses an in-flight export after the sender chooses to %s", async choice => {
+    const key = K("revoked@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const senderStore = store([{ num: 7, email: "revoked@x", orgUuid: "o", alive: true }]);
+    const receiverStore = store([]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:revoked"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    if (choice === "unpair") expect(sender.e.unpair(receiver.id.fp)).toBe(true);
+    else await sender.e.apply({ shared: [] });
+    release();
+    await transfer;
+    expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
+  it.each(["unpair", "disable"] as const)("cancels an in-flight import after the receiver chooses to %s", async choice => {
+    const key = K("incoming@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([]);
+    const senderStore = store([{ num: 7, email: "incoming@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:incoming"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    if (choice === "unpair") expect(receiver.e.unpair(sender.id.fp)).toBe(true);
+    else await receiver.e.apply({ enabled: false });
+    release();
+    await transfer;
+    expect(receiverStore.imported).toEqual([]);
+  }, 20_000);
+
+  it("leaves no stale error on a peer when LAN is switched off and on mid-round", async () => {
+    const key = K("kept@x", "o");
+    let armed = false;
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const senderStore = store([{ num: 7, email: "kept@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(store([]), "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (armed) { started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    armed = true;
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ enabled: false });
+    await receiver.e.apply({ enabled: true });
+    release();
+    expect(await transfer).toEqual([]);
+    expect(peerRow(receiver, sender.id.fp)?.last?.error).not.toBe("peer no longer paired");
+  }, 20_000);
+
+  it("starts a fresh round after LAN is switched off and on, rather than joining the old one", async () => {
+    const key = K("fresh@x", "o");
+    let armed = false;
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([]);
+    const senderStore = store([{ num: 7, email: "fresh@x", orgUuid: "o", alive: true }]);
+    const receiver = await deck(receiverStore, "Receiver", [key]);
+    const sender = await deck(senderStore, "Sender", [key], {
+      readAccounts: async () => {
+        if (armed) { armed = false; started(); await gate; }
+        return { accounts: senderStore.rows };
+      },
+    });
+    await point(receiver, sender, sender.port);
+    armed = true;
+    const stale = receiver.e.round();
+    await began;
+    await receiver.e.apply({ enabled: false });
+    await receiver.e.apply({ enabled: true });
+    const fresh = receiver.e.round();
+    release();
+    expect(await stale).toEqual([]);
+    expect(await fresh).toMatchObject([{ key, action: "add", ok: true }]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-7"]);
+  }, 20_000);
+
+  it("reports a round cut short by unpairing as that, not as a clean one", async () => {
+    const key = K("cut@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiver = await deck(store([]), "Receiver", [key]);
+    const sender = await deck(store([{ num: 7, email: "cut@x", orgUuid: "o", alive: true }]), "Sender", [key], {
+      exportAccount: async () => { started(); await gate; return "ccdeck2:cut"; },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    expect(receiver.e.unpair(sender.id.fp)).toBe(true);
+    release();
+    await transfer;
+    const last = (receiver.e.status().peers as Array<Record<string, any>>)
+      .find(p => (p.peerFp ?? p.fp) === sender.id.fp)?.last;
+    expect(last?.error).toBe("peer no longer paired");
+  }, 20_000);
+
+  it("still checks the logins that arrived before a round was cut short", async () => {
+    const first = K("first@x", "o");
+    const second = K("second@x", "o");
+    const checks: string[][] = [];
+    let sender!: Awaited<ReturnType<typeof deck>>;
+    const receiverStore = store([]);
+    const receiver = await deck(receiverStore, "Receiver", [first, second], {
+      importAccount: async (blob: string) => {
+        receiverStore.imported.push(blob);
+        receiver.e.unpair(sender.id.fp);
+        return true;
+      },
+      checkArrivals: async (steps: Array<{ key: string }>) => {
+        checks.push(steps.map(x => x.key));
+        return steps.map(() => "unreadable_here");
+      },
+    });
+    sender = await deck(store([
+      { num: 7, email: "first@x", orgUuid: "o", alive: true },
+      { num: 8, email: "second@x", orgUuid: "o", alive: true },
+    ]), "Sender", [first, second]);
+    await point(receiver, sender, sender.port);
+    await receiver.e.round();
+    const last = (receiver.e.status().peers as Array<Record<string, any>>)
+      .find(p => (p.peerFp ?? p.fp) === sender.id.fp)?.last;
+    expect(last?.error).toBe("peer no longer paired");
+    expect(checks).toEqual([[first]]);
+    expect(last?.done).toMatchObject([{ key: first, ok: true, why: "unreadable_here" }]);
+  }, 20_000);
+
+  it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
+    const A = K("a-heal@x", "o");
+    const B = K("b-add@x", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const receiverStore = store([{ num: 1, email: "a-heal@x", orgUuid: "o", alive: false }]);
+    const senderStore = store([
+      { num: 5, email: "a-heal@x", orgUuid: "o", alive: true },
+      { num: 6, email: "b-add@x", orgUuid: "o", alive: true },
+    ]);
+    const receiver = await deck(receiverStore, "Receiver", [A]);
+    const sender = await deck(senderStore, "Sender", [A, B], {
+      exportAccount: async (num: number) => {
+        if (num === 5) { started(); await gate; }
+        return `ccdeck2:slot-${num}`;
+      },
+    });
+    await point(receiver, sender, sender.port);
+    const transfer = receiver.e.round();
+    await began;
+    await receiver.e.apply({ shared: [] });
+    release();
+    expect(await transfer).toEqual([
+      { key: A, email: "a-heal@x", action: "heal", ok: false, why: "not shared" },
+      { key: B, email: "b-add@x", action: "add", ok: true, why: null },
+    ]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-6"]);
+  }, 20_000);
+
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
     const a = await deck(store([]), "Deck-A", []);
     const b = await deck(store([]), "Deck-B", []);
@@ -996,7 +1616,7 @@ describe("a heal that healed nothing", () => {
   it("requires the account to have actually arrived", () => {
     // `ok` alone is no longer the whole answer, on either path.
     expect(src).not.toContain("return !!out?.ok;");
-    expect(src).toContain("if (out.added === true) return { ok: true };");
+    expect(src).toContain("if (landed(out.results)) return { ok: true };");
     expect(fillEmptySlot).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
@@ -1038,7 +1658,7 @@ describe("a heal that healed nothing", () => {
     // listed — and `syncAction` answers "add" for anything this deck lacks,
     // without the owner's tick. Every one of them landed. `only` narrows
     // without implying `force`, so the no-force promise is unchanged.
-    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });');
+    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" }, collect: !CHECKS_IMPORTS });');
     expect(src).not.toContain("const out = await importAccount(blob);");
   });
 
@@ -1047,8 +1667,8 @@ describe("a heal that healed nothing", () => {
     // touch: claude-swap replaces a slot "iff its usage row is quarantined as
     // refresh-token-dead" and is "never triggered by the live store's
     // `no credentials` state".
-    expect(fillEmptySlot).toContain('if (now !== "no_credentials") return { ok: false,');
-    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });');
+    expect(fillEmptySlot).toContain('if (now !== "no_credentials") {\n      return { ok: false,');
+    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" }, collect });');
     // ASKED NOW rather than read from the ten-minute cache: somebody who signed
     // in two minutes ago still reads as `no_credentials` there, and acting on
     // that would replace the login they had just created.
@@ -1120,7 +1740,7 @@ describe("a heal that healed nothing", () => {
     // second call here, whatever options it carries.
     expect(route, "the route's importAccount is gone or renamed").not.toBe("");
     expect(route.match(/\bimportAccount\(/g) ?? [], "the route imports more than once").toHaveLength(1);
-    const decline = route.indexOf("if (out.added === true) return { ok: true };");
+    const decline = route.indexOf("if (landed(out.results)) return { ok: true };");
     expect(decline, "the decline is no longer told apart from a heal").toBeGreaterThan(-1);
     expect(route.slice(decline)).toMatch(/return fillEmptySlot\(blob, /);
     expect(route).not.toMatch(/\bforce\b/);
@@ -1177,6 +1797,24 @@ describe("what a paired deck says about itself", () => {
       { key: K("shared@x.md", "o1"), email: "shared@x.md", alive: true },
     ]);
     expect(offers?.at).toBeTypeOf("number");
+  }, 20_000);
+
+  it("keeps a valid remote login unavailable when that deck cannot read its Keychain", async () => {
+    const key = K("locked@x.md", "o1");
+    const theirs = store([
+      { num: 5, email: "locked@x.md", orgUuid: "o1", alive: true, readable: false },
+    ]);
+    const mine = store([]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", [key]);
+    await point(a, b, b.port);
+
+    expect(await a.e.round()).toEqual([]);
+    expect(peerRow(a, b.id.fp)?.offers?.accounts).toEqual([
+      { key, email: "locked@x.md", alive: true, shareable: false },
+    ]);
+    expect(theirs.exported).toEqual([]);
+    expect(mine.imported).toEqual([]);
   }, 20_000);
 
   it("remembers when somebody said yes, on both sides", async () => {
@@ -1368,17 +2006,34 @@ describe("the sync round keeps the caps the rest of the protocol keeps", () => {
     const a = await deck(store([]), "Deck-A", []);
     const peer = await hostile(a, (msg, ctx) => {
       if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: rows });
-      if (msg.t === "want") { wants += 1; ctx.send({ t: "no", why: "busy" }); }
+      if (msg.t === "want") { wants += 1; ctx.send({ t: "no", why: "not shared" }); }
     });
     const done = await a.e.round() as Array<{ key: string; action: string; ok: boolean; why: string }>;
     expect(done).toHaveLength(50);
     expect(wants).toBe(50);
     // Every step carries the far side's own reason for saying no.
-    expect(done.every(d => d.action === "add" && d.ok === false && d.why === "busy")).toBe(true);
+    expect(done.every(d => d.action === "add" && d.ok === false && d.why === "not shared")).toBe(true);
     // And what was asked for is exactly what the panel was shown: one list.
     const shown = peerRow(a, peer.id.fp)?.offers?.accounts as Array<{ key: string }>;
     expect(shown).toHaveLength(50);
     expect(done.map(d => d.key).sort()).toEqual(shown.map(x => x.key).sort());
+  }, 20_000);
+
+  it("does not let a peer's refusal speak about this machine", async () => {
+    // The panel prints `why`, and the HERE codes are sentences about THIS
+    // deck. A peer answering with one — or with anything outside the closed set
+    // serve uses — is recorded as the refusal it is.
+    for (const said of ["unreadable_here", "keychain_unavailable_local", "busy", 42]) {
+      const key = K("new@x", "o");
+      const a = await deck(store([]), "Deck-A", []);
+      await hostile(a, (msg, ctx) => {
+        if (msg.t === "manifest") ctx.send({ t: "manifest", accounts: [{ key, email: "new@x", alive: true }] });
+        if (msg.t === "want") ctx.send({ t: "no", why: said });
+      });
+      expect(await a.e.round(), String(said)).toEqual([
+        { key, email: "new@x", action: "add", ok: false, why: "refused" },
+      ]);
+    }
   }, 20_000);
 
   it("counts a login that arrives sealed under some other key as a failure, not a login", async () => {
@@ -1596,7 +2251,130 @@ describe("a deck this one heard rather than reached for", () => {
 // since moved to somebody else's machine is an ordinary thing to find in one.
 // One of those winning the race won the whole token, and being trusted is the
 // whole inbound gate.
+describe("invite-only pairing mode", () => {
+  it("discards pending requests when entering invite-only instead of auto-approving them on return", async () => {
+    const requester = await deck(store([]), "Requester", []);
+    const receiver = await deck(store([]), "Receiver", []);
+    requester.e.addPeer("127.0.0.1", receiver.port);
+    await requester.e.round();
+    expect(receiver.e.status().pending).toMatchObject([{ fp: requester.id.fp }]);
+
+    await receiver.e.apply({ pairingMode: "invite", autoAccept: true });
+    expect(receiver.e.status().pending).toEqual([]);
+    expect(receiver.e.status().trusted).toEqual([]);
+    expect(receiver.e.accept(requester.id.fp)).toBeNull();
+
+    await receiver.e.apply({ pairingMode: "automatic" });
+    expect(receiver.e.status().pending).toEqual([]);
+    expect(receiver.e.status().trusted).toEqual([]);
+
+    // The other deck may request pairing again after automatic mode returns;
+    // only that new handshake is eligible for automatic acceptance.
+    await requester.e.round();
+    expect(receiver.e.status().trusted).toMatchObject([{ fp: requester.id.fp }]);
+  }, 20_000);
+
+  it("requires an invite for new peers and retains existing trust", async () => {
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite", autoAsk: true, autoAccept: true });
+    const b = await deck(store([]), "Other", []);
+    expect(a.e.status().pairingMode).toBe("invite");
+    b.e.addPeer("127.0.0.1", a.port);
+    await b.e.round();
+    expect(a.e.status().trusted).toHaveLength(0);
+    expect(a.e.accept(b.id.fp)).toBeNull();
+    const offered = a.e.invite();
+    expect((await b.e.join(offered.token)).ok).toBe(true);
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    await a.e.apply({ pairingMode: "invite" });
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+  }, 20_000);
+
+  it("tells a deck that calls without an invite why, instead of leaving it waiting for a yes", async () => {
+    // The engine records no request in this mode, so the old "pending" answer
+    // left the caller's row reading "waiting for them to say yes" for good.
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite" });
+    const b = await deck(store([]), "Caller", []);
+    b.e.addPeer("127.0.0.1", a.port);
+    await b.e.round();
+    const rowAt = (d: typeof a, port: number) =>
+      (d.e.status().peers as Array<Record<string, any>>).find(p => p.port === port);
+    expect(rowAt(b, a.port)?.last?.error).toBe("that deck pairs only by invite");
+    expect(a.e.status().pending).toEqual([]);
+  }, 20_000);
+
+  it("does not knock on a deck it only heard, which is a request by another name", async () => {
+    // Dialling a stranger IS asking it: the far listener queues the caller as a
+    // request, and with its accept switch on — the shipped default — pins it.
+    // A deck that pairs only by invite must not be sending those.
+    // The shipped defaults — ask and accept both on — plus the mode, which is
+    // what a person who flips invite-only on is actually running.
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite", autoAsk: true, autoAccept: true });
+    const b = await deck(store([]), "Neighbour", [], {}, { autoAsk: true, autoAccept: true });
+    a.sock.deliver(Buffer.from(JSON.stringify({
+      m: "CCDK", v: PROTOCOL, n: "Neighbour", f: b.e.status().fp, p: b.e.status().port,
+      i: "00".repeat(8), h: hostId({ hostname: "somewhere-else", home: "/home/somebody" }),
+    })), "127.0.0.1");
+    await a.e.round();
+    await a.e.round();
+
+    expect(b.e.status().pending, "the neighbour was sent a request").toEqual([]);
+    expect(b.e.status().trusted, "and its accept switch pinned the caller").toEqual([]);
+    expect(a.e.status().trusted).toEqual([]);
+    // Nothing was put on the dial list to knock with: the heard deck is a
+    // nearby row, which the panel offers an invite on.
+    expect((a.e.status().peers as unknown[]).length).toBe(0);
+  }, 20_000);
+
+  it("reaches an address it already had without turning into a request there", async () => {
+    // A row typed before invite-only was switched on is still dialled — an
+    // invite-paired deck is one of those rows — but a stranger at that address
+    // must refuse it rather than queue it, and the row says whose setting it is.
+    const a = await deck(store([]), "Invite-only", [], {}, { pairingMode: "invite" });
+    const b = await deck(store([]), "Stranger", [], {}, { autoAsk: true, autoAccept: true });
+    a.e.addPeer("127.0.0.1", b.port);
+    await a.e.round();
+    await a.e.round();
+
+    expect(b.e.status().pending, "the far deck was sent a request").toEqual([]);
+    expect(b.e.status().trusted, "and its accept switch pinned the caller").toEqual([]);
+    const row = (a.e.status().peers as Array<{ port: number; last?: { error?: string } }>)
+      .find(p => p.port === b.port);
+    expect(row?.last?.error).toBe("this deck pairs only by invite");
+  }, 20_000);
+
+  it("still lets an invite-only deck join someone else's invite, and keeps talking to it", async () => {
+    // The mode refuses a pairing nobody invited. Joining an invite IS the
+    // invitation, from this side: `join` dials with the code and pins what
+    // proved it, and never goes through the round's untrusted-peer refusal.
+    const minter = await deck(store([]), "Minter", []);
+    const joiner = await deck(store([]), "Invite-only joiner", [], {}, { pairingMode: "invite" });
+    const joined = await joiner.e.join(minter.e.invite().token);
+    expect(joined.ok).toBe(true);
+    expect(joiner.e.status().trusted).toMatchObject([{ fp: minter.id.fp }]);
+    expect(minter.e.status().trusted).toMatchObject([{ fp: joiner.id.fp }]);
+
+    // And the next round reaches it as a trusted peer, not a stranger the
+    // mode would refuse to dial.
+    await joiner.e.round();
+    expect(joiner.errors).toEqual([]);
+    expect(joiner.e.status().trusted).toMatchObject([{ fp: minter.id.fp }]);
+  }, 20_000);
+});
+
 describe("the invite, and the half of it that was never checked", () => {
+  it("does not persist a pairing if LAN was disabled while joining an invite", async () => {
+    const minter = await deck(store([]), "Minter", []);
+    const joiner = await deck(store([]), "Joiner", []);
+    const invite = minter.e.invite();
+    const joining = joiner.e.join(invite.token);
+    await joiner.e.apply({ enabled: false });
+    const result = await joining;
+    expect(result.ok).toBe(false);
+    expect(joiner.trusted).toEqual([]);
+    expect(joiner.dials).toEqual([]);
+  }, 20_000);
+
   it("pairs with the deck that minted the token", async () => {
     const a = await deck(store([]), "Minter", []);
     const b = await deck(store([]), "Joiner", []);
@@ -2040,6 +2818,23 @@ describe("an account that arrives over the network", () => {
     return { ...d, ticked, shared };
   }
 
+  it("is still ticked when this Mac cannot read it yet, because it did arrive", async () => {
+    // A landed login with a problem found after it is a warning, not a failure:
+    // the credential is in the store, so the onward tick (#1188) is not lost,
+    // and the row says what is wrong with it rather than that it never came.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")], {
+      checkArrivals: async (steps: unknown[]) => steps.map(() => "unreadable_here"),
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: NEW, email: "new@sapec.md", action: "add", ok: true, why: "unreadable_here" },
+    ]);
+    expect(a.ticked).toEqual([NEW]);
+  }, 20_000);
+
   it("is ticked for sharing here, so this deck can heal the next one", async () => {
     const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
     const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
@@ -2066,6 +2861,62 @@ describe("an account that arrives over the network", () => {
 
     expect((await a.e.round()).map((d: { ok: boolean }) => d.ok)).toEqual([false]);
     expect(a.ticked).toEqual([]);
+  }, 20_000);
+
+  it.each(["unpair", "disable", "disable and re-enable"] as const)("does not auto-share an account whose import finishes after %s", async choice => {
+    let started!: () => void;
+    let release!: () => void;
+    const importing = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const mine = store([]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [], {
+      importAccount: async (blob: string) => {
+        started();
+        await gate;
+        mine.imported.push(blob);
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    const transfer = a.e.round();
+    await importing;
+    if (choice === "unpair") expect(a.e.unpair(b.id.fp)).toBe(true);
+    else await a.e.apply({ enabled: false });
+    if (choice === "disable and re-enable") await a.e.apply({ enabled: true });
+    release();
+    await transfer;
+    expect(mine.imported).toEqual(["ccdeck2:slot-4"]);
+    expect(a.ticked).toEqual([]);
+    expect(a.e.status().shared).toEqual([]);
+  }, 20_000);
+
+  it("still auto-shares an import that finishes after the deck is renamed", async () => {
+    // A rename restarts the listener and revokes nothing: the peer is still
+    // paired and LAN still on, so the arrival is ticked as it would have been.
+    let started!: () => void;
+    let release!: () => void;
+    const importing = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const mine = store([]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [], {
+      importAccount: async (blob: string) => {
+        started();
+        await gate;
+        mine.imported.push(blob);
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    const transfer = a.e.round();
+    await importing;
+    await a.e.apply({ name: "Deck-A renamed" });
+    release();
+    expect(await transfer).toMatchObject([{ key: NEW, action: "add", ok: true }]);
+    expect(a.ticked).toEqual([NEW]);
   }, 20_000);
 
   it("keeps the person's untick: the tick happens on arrival and never again", async () => {

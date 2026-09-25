@@ -29,6 +29,7 @@
 import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes } from "../release-notes";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
+import { RESTART_TO_UPDATE } from "../desktop-update";
 
 interface Props {
   /** The releases to show, newest first — decideReleaseNotes' answer, or every
@@ -51,13 +52,21 @@ interface Props {
   /** Close this and open the tour. The version chip is one of the two doors a
    *  reader always has to it, whatever is on the canvas. */
   onTour?: () => void;
+  /** A verified desktop-app update waiting on disk. Electron remains the
+   *  authority that decides whether this exact version may restart. */
+  updateVersion?: string;
+  updateBusy?: boolean;
+  onUpdateRestart?: () => void;
+  /** Why the last press of the update's button did not restart anything, and
+   *  where to go instead. Absent until one fails. */
+  updateFailure?: string;
   /** Close this and restart the deck (#1163). Absent where the deck cannot be
    *  restarted from the page — see `canRestart` — so no button offers what the
    *  server would refuse. */
   onRestart?: () => void;
 }
 
-export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, onRestart }: Props) {
+export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, updateFailure, onRestart }: Props) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
@@ -98,16 +107,49 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
         </header>
 
         <section className="modal-body">
-          {/* Why this is on screen, in the first line. A dialog that appears
-              without being asked and does not say why is the one people learn
-              to dismiss unread, which would make it worthless on the release it
-              exists for. */}
+          {/* THE UPDATE FIRST, when the app has one ready. The chip that opens
+              this dialog in that state is the update's own chip, so the action
+              it is about goes where the eye lands, ahead of the notes and ahead
+              of the tour — which it used to sit below, a line about the deck's
+              pictures standing between a reader and the button they came for.
+              The notes underneath are this build's, not the update's (they
+              arrive with it), and the first line below says which release
+              they belong to. */}
+          {(updateVersion || updateFailure) && (
+            <div className="rn-update">
+              {updateVersion && onUpdateRestart && (
+                <div className="guide-door">
+                  <span>ccdeck v{updateVersion} is downloaded and verified.</span>
+                  {/* Busy, never disabled, while its request is out (#620): the
+                      second press is refused by App's ref, in askDesktopUpdateRestart,
+                      and focus stays where the reader was. */}
+                  <button type="button" className="btn" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
+                    {updateBusy ? "Restarting…" : RESTART_TO_UPDATE}
+                  </button>
+                </div>
+              )}
+              {/* What became of the press, when it came to nothing. A live
+                  region, and mounted with the door rather than with its first
+                  sentence: text that arrives in the same tick as its region is
+                  the announcement screen readers most often drop, and the
+                  quickest failure here is a network round-trip after the door
+                  was drawn. Empty, it draws nothing — see .rn-update-said. */}
+              <p className="rn-update-said" role="status">{updateFailure}</p>
+            </div>
+          )}
+          {/* Why this is on screen, in the first line — the second when the
+              update above is the reason. A dialog that appears without being
+              asked and does not say why is the one people learn to dismiss
+              unread, which would make it worthless on the release it exists
+              for. */}
           <p className="modal-note">{releaseNotesIntro({ since, running, firstRun, entries })}</p>
           {/* THE WAY BACK TO THE TOUR. It opened once, by itself, and the only
               other door was the empty canvas — which a deck with agents on it
               never shows. The version chip is always there, and "what is this
-              thing" is a question somebody opening release notes is asking. */}
-          {onTour && (
+              thing" is a question somebody opening release notes is asking.
+              Not while an update is ready: that chip opens this dialog for the
+              update, and a second door here competes with the one it came for. */}
+          {onTour && !updateVersion && (
             <div className="guide-door">
               <span>Eight pictures of what the deck shows.</span>
               <button type="button" className="btn" onClick={onTour}>Take the tour</button>
@@ -118,7 +160,10 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
               other reason — a network it missed, a port another program took —
               needed a terminal. The version chip is where the deck's own
               lifecycle already lives. Nothing is lost: the canvas replays from
-              the event log, and settings and pairings are on disk. */}
+              the event log, and settings and pairings are on disk. App
+              leaves it out while the app's update is ready: that door above
+              restarts too, and two restarts side by side, only one of which
+              updates, is a guess nobody should have to make. */}
           {onRestart && (
             <div className="guide-door">
               <span>Restart the deck. Sessions, settings and pairings come back as they were.</span>

@@ -18,6 +18,24 @@ const SECTION = code("../components/LanSyncSection.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
+describe("LAN warning visibility", () => {
+  it("shows the warning without marking a healthy peer link as failed", () => {
+    expect(CSS).toContain('.ap-lan-who[data-tone="warn"] .ap-lan-who-when { color: var(--warn); }');
+    expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }');
+    expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }');
+    expect(CSS).toContain('.lan-round[data-tone="warn"] { color: var(--warn); }');
+    expect(MODAL).toMatch(/row\.tone === "bad" \? "bad"/);
+  });
+});
+
+describe("peer dialog connection hints", () => {
+  it("keeps the one-way pairing explanation beside a Keychain round remedy", () => {
+    expect(MODAL).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
+    expect(MODAL).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
+    expect(MODAL).not.toContain("line?.hint ?? row.hint");
+  });
+});
+
 const paired = (over: Record<string, unknown> = {}) => ({
   fp: "aaa-aaa-aaa-aaa", peerFp: "aaa-aaa-aaa-aaa", name: "Dorin Marketing", paired: true,
   addr: "192.168.1.44", port: 52011, lastSeen: NOW, last: { at: NOW, done: [] }, ...over,
@@ -111,7 +129,7 @@ describe("a version read against this deck's", () => {
 });
 
 describe("what one offered login would do here", () => {
-  const theirs = (alive: boolean) => ({ key: "a@x@@o", email: "a@x", alive });
+  const theirs = (alive: boolean, shareable: boolean = true) => ({ key: "a@x@@o", email: "a@x", alive, shareable });
   const mine = (alive: boolean) => ({ key: "a@x@@o", email: "a@x", alive });
 
   it("says a login this deck lacks arrives, whatever this deck shares", () => {
@@ -136,6 +154,13 @@ describe("what one offered login would do here", () => {
   it("is plain about the steady state", () => {
     expect(offerLine(theirs(true), mine(true), true))
       .toEqual({ there: "works there", here: "works here", note: null, tone: "ok" });
+  });
+
+  it("does not call a valid but inaccessible remote Keychain broken or promise a repair", () => {
+    expect(offerLine(theirs(true, false), null, true))
+      .toEqual({ there: "cannot share there", here: "not on this deck", note: null, tone: "idle" });
+    expect(offerLine(theirs(true, false), mine(false), true))
+      .toEqual({ there: "cannot share there", here: "expired here", note: null, tone: "idle" });
   });
 
   // The half a reader scans is `here`, and it is only scannable if the words
@@ -180,6 +205,27 @@ describe("one login between two decks", () => {
     }]);
   });
 
+  it("shows a valid but temporarily unshareable local login without promising a transfer", () => {
+    const local = { ...acct("a", true), shareable: false };
+    expect(offerLine(acct("a", true), local, true))
+      .toMatchObject({ here: "cannot share here", tone: "idle" });
+    expect(exchangeLanes([acct("a", true)], [local], ["a"])[0])
+      .toMatchObject({ here: "unavailable", out: "cut", caption: "cannot share here", tone: "idle" });
+    expect(exchangeLanes([], [local], ["a"])[0])
+      .toMatchObject({ here: "unavailable", out: "cut", caption: "cannot share here" });
+  });
+
+  it("shows a valid but temporarily unshareable remote login as unavailable, not broken", () => {
+    const remote = { ...acct("a", true), shareable: false };
+    expect(exchangeLanes([remote], [], [])[0])
+      .toMatchObject({ here: "missing", there: "unavailable", in: "cut", out: null, caption: "not on this deck · cannot share there", tone: "idle" });
+    const withExpiredLocal = exchangeLanes([remote], [acct("a", false)], ["a"])[0];
+    expect(withExpiredLocal)
+      .toMatchObject({ here: "expired", there: "unavailable", in: "cut", out: "cut", tone: "idle" });
+    expect(withExpiredLocal.caption).toBe("expired here · cannot share there");
+    expect(withExpiredLocal.caption).not.toContain("sign in again");
+  });
+
   it("cuts both ways when neither copy works, and names the fix once", () => {
     const [l] = exchangeLanes([acct("a", false)], [acct("a", false)], ["a"]);
     expect(l).toMatchObject({ here: "expired", there: "broken", in: "cut", out: "cut", tone: "bad" });
@@ -212,6 +258,11 @@ describe("one login between two decks", () => {
     expect(lanes.map(l => l.key)).toEqual(["a", "c", "b"]);
     expect(lanes[1]).toMatchObject({ there: "unknown", in: null, out: "cut", caption: "expired here", tone: "bad" });
     expect(lanes[2]).toMatchObject({ there: "unknown", in: null, out: "live", caption: null });
+  });
+
+  it("reads this deck's end from its working slot when it holds the login twice", () => {
+    expect(exchangeLanes([acct("a", true)], [acct("a", true), acct("a", false)], ["a"])[0])
+      .toMatchObject({ here: "works", out: "live", caption: null });
   });
 
   it("draws this deck's half alone when what that deck offers is not known", () => {

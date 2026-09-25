@@ -15,6 +15,7 @@ import { reconcile, type Counters, type CcCell } from "../account-projects-recon
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { emptyWindowSentence, showsDayChart, widerWindow, windowPhrase } from "../account-projects-window";
 
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
 interface DailyEntry {
@@ -33,6 +34,7 @@ interface Report {
 
 /** The windows, and their chip labels. 0 = everything tracked. */
 const WINDOWS: Array<{ days: number; label: string }> = [
+  { days: 1, label: "Today" },
   { days: 7, label: "7d" },
   { days: 30, label: "30d" },
   { days: 0, label: "All" },
@@ -48,6 +50,8 @@ const PALETTE = [
 ];
 const UNATTRIBUTED_COLOR = "var(--usage-zinc)";
 const MAX_ROWS = 6;
+/** How long a Copy reads `Copied` — the deck's other copy buttons' moment. */
+const COPIED_MS = 1_600;
 
 /** Format a local date as the `YYYYMMDD` /api/ccusage insists on. */
 function ymd(d: Date): string {
@@ -98,8 +102,12 @@ function niceDate(ms: number | null): string {
 }
 
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(1);
   const [report, setReport] = useState<Report | null>(null);
+  // The window the report on screen belongs to. While another window loads,
+  // the last report stays up, dimmed, rather than the modal collapsing to a
+  // Loading line and jumping back open.
+  const [shownDays, setShownDays] = useState(days);
   // The raw ccusage range for the window — the dollar authority. Null while
   // loading or when ccusage could not be reached (then pricing.ts stands in).
   // Per-model and per-day-per-model costs are derived from it in the memo.
@@ -108,6 +116,14 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // THE LAST COPY, AND WHETHER IT LANDED. A Copy that says nothing leaves the
+  // reader pasting to find out; the button reads `Copied` for a moment and the
+  // status line below says it to a screen reader, which a word changing on a
+  // button does not reliably do (WCAG 4.1.3).
+  const [copied, setCopied] = useState<{ path: string; label: string; ok: boolean } | null>(null);
+  const copiedTimer = useRef<number | undefined>(undefined);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; window.clearTimeout(copiedTimer.current); }, []);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const reqId = useRef(0);
@@ -134,11 +150,12 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
       .then(([j, u]: [Report, unknown]) => {
         if (id !== reqId.current) return;
         setReport(j);
+        setShownDays(days);
         const range = u as { ok?: unknown } | null;
         setCcRange(range && range.ok !== false ? range : null);
         setLoading(false);
       })
-      .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setLoading(false); } });
+      .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setReport(null); setLoading(false); } });
   }, [num, days]);
 
   // One reconciliation, per day, aggregated — so period, project, day and
@@ -237,10 +254,25 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     return { rows, totalCost, totalTokens, basis, denom, un: rec.unattributed, reconciled: rec.reconciled, chart, maxDay, colorOrder };
   }, [report, ccRange]);
 
+  // The row shows the `~` form; the clipboard gets the absolute path. The fold
+  // is by shape, and a pasted `~` resolves to the home of whoever pastes it —
+  // see account-project-paths.ts.
+  const copyLocation = (path: string, label: string) => {
+    void copyText(path).then(ok => {
+      if (!alive.current) return;
+      window.clearTimeout(copiedTimer.current);
+      setCopied({ path, label, ok });
+      copiedTimer.current = window.setTimeout(() => { if (alive.current) setCopied(null); }, COPIED_MS);
+    });
+  };
+  const copyWord = (path: string) => (copied?.ok && copied.path === path ? "Copied" : "Copy");
+
   const trackedNote = report?.trackedSince
     ? `Tracked since ${niceDate(report.trackedSince)}`
     : "Tracking starts with this version";
-  const windowWord = days === 0 ? "all time" : `the last ${days} days`;
+  const windowWord = windowPhrase(shownDays);
+  const wider = widerWindow(shownDays);
+  const refreshing = loading && !!report;
 
   // Portalled to <body>: the report is opened from inside AccountsPanel, and a
   // dialog left in the panel's subtree is laid out by it (panel-modal-portal).
@@ -264,15 +296,22 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
           <button ref={closeRef} className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 
-        <div className="ap-proj-body">
-          {loading && <div className="ap-proj-state">Loading…</div>}
+        <div className={`ap-proj-body${refreshing ? " refreshing" : ""}`} aria-busy={loading}>
+          {loading && !report && <div className="ap-proj-state">Loading…</div>}
           {!loading && error && <div className="ap-proj-state ap-proj-error">Couldn’t load this report: {error}</div>}
 
-          {!loading && !error && view && (
+          {!error && view && (
             <>
               {view.rows.length === 0 ? (
                 <div className="ap-proj-state">
-                  No work attributed to this account in {windowWord}.
+                  {emptyWindowSentence(shownDays)}
+                  {wider != null && (
+                    <div className="ap-proj-widen-wrap">
+                      <button type="button" className="ap-proj-copy" onClick={() => setDays(wider)}>
+                        Show {windowPhrase(wider)}
+                      </button>
+                    </div>
+                  )}
                   <div className="ap-proj-note">{trackedNote}. Only work from this version onward can be tied to an account.</div>
                 </div>
               ) : (
@@ -296,7 +335,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     <span className="ap-proj-total-win">· {windowWord}</span>
                   </div>
 
-                  {view.chart.length > 0 && (
+                  {showsDayChart(shownDays, view.chart.length) && (
                     <div className="ap-proj-days">
                       <div className="ap-proj-days-cap">By day{view.chart.length > 1 ? " · click a bar" : ""}</div>
                       <div className="ap-proj-days-plot" role="img"
@@ -353,10 +392,20 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                   )}
 
                   <ul className="ap-proj-list">
-                    {view.rows.map(r => {
+                    {view.rows.map((r, i) => {
                       const val = view.basis === "cost" ? r.cost : r.tokens;
                       const pct = view.denom > 0 ? (val / view.denom) * 100 : 0;
                       const expanded = expandedRows.has(r.key);
+                      // aria-controls only while the region is on the page: an
+                      // IDREF to nothing is a dangling pointer (#800).
+                      const detailsId = `ap-proj-details-${i}`;
+                      const hasDetails = expanded && (!!r.path || !!r.members);
+                      // Other opens a list of projects, not a location, and its
+                      // label is already "Other · N projects" — so it says what
+                      // it opens rather than echoing that.
+                      const infoLabel = r.members
+                        ? `${expanded ? "Hide" : "Show"} the ${r.members.length} project${r.members.length > 1 ? "s" : ""} folded into Other`
+                        : `${expanded ? "Hide" : "Show"} location for ${r.label}`;
                       return (
                         <li key={r.key} className={`ap-proj-row${r.muted ? " muted" : ""}${expanded ? " expanded" : ""}`}>
                           <span className="ap-proj-dot" style={{ background: r.color }} aria-hidden="true" />
@@ -369,27 +418,32 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                           <span className="ap-proj-cost">{fmtCost(r.cost)}</span>
                           <span className="ap-proj-tok">{fmtTokens(r.tokens)}</span>
                           <button type="button" className="glyph-btn ap-proj-info" aria-expanded={expanded}
-                            aria-label={`${expanded ? "Hide" : "Show"} location for ${r.label}`}
+                            aria-controls={hasDetails ? detailsId : undefined}
+                            aria-label={infoLabel}
                             onClick={() => setExpandedRows(prev => {
                               const next = new Set(prev);
                               if (next.has(r.key)) next.delete(r.key); else next.add(r.key);
                               return next;
                             })}>ⓘ</button>
                           {expanded && r.path && (
-                            <div className="ap-proj-details">
+                            <div className="ap-proj-details" id={detailsId}>
                               <code className="ap-proj-path">{homeRelativePath(r.path)}</code>
-                              <button type="button" className="ap-proj-copy" onClick={() => { void copyText(homeRelativePath(r.path!)); }}>Copy</button>
+                              <button type="button" className="ap-proj-copy"
+                                aria-label={`${copyWord(r.path)} location for ${r.label}`}
+                                onClick={() => copyLocation(r.path!, r.label)}>{copyWord(r.path)}</button>
                             </div>
                           )}
                           {expanded && r.members && (
-                            <div className="ap-proj-details ap-proj-other-members">
+                            <div className="ap-proj-details ap-proj-other-members" id={detailsId}>
                               {r.members.map(member => (
                                 <div key={member.path} className="ap-proj-other-member">
                                   <div className="ap-proj-other-name">{member.label}{member.parentLabel && <span className="ap-proj-parent"> · in {member.parentLabel}</span>}</div>
                                   <code className="ap-proj-path">{homeRelativePath(member.path)}</code>
                                   <span className="ap-proj-cost">{fmtCost(member.cost)}</span>
                                   <span className="ap-proj-tok">{fmtTokens(member.tokens)}</span>
-                                  <button type="button" className="ap-proj-copy" aria-label={`Copy location for ${member.label}`} onClick={() => { void copyText(homeRelativePath(member.path)); }}>Copy</button>
+                                  <button type="button" className="ap-proj-copy"
+                                    aria-label={`${copyWord(member.path)} location for ${member.label}`}
+                                    onClick={() => copyLocation(member.path, member.label)}>{copyWord(member.path)}</button>
                                 </div>
                               ))}
                             </div>
@@ -411,6 +465,13 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       <div className="ap-proj-note">Work no account could be tied to — from before tracking, or a gap.</div>
                     </div>
                   )}
+
+                  {/* Always on the page, so the text arriving is what is announced. */}
+                  <div className="vis-hidden" role="status" aria-atomic="true">
+                    {copied && (copied.ok
+                      ? `Copied the location of ${copied.label}`
+                      : `Could not copy the location of ${copied.label} — select it and copy it by hand`)}
+                  </div>
 
                   <div className="ap-proj-foot">
                     {view.reconciled ? "Dollars from ccusage · split by activity" : "Dollars estimated · ccusage unavailable"} · {trackedNote}

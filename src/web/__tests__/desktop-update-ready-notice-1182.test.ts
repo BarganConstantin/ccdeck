@@ -43,12 +43,23 @@ describe("the ready-update notice", () => {
 });
 
 describe("the desktop wiring", () => {
-  it("offers Restart now and Later and restarts through the existing updater", () => {
+  it("offers Restart to update and Later and restarts through the existing updater", () => {
     const fn = main.match(/async function offerReadyUpdate\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
-    expect(fn).toContain('buttons: ["Restart now", "Later"]');
+    // The same words as the window's button and the tray line (#1187).
+    expect(fn).toContain('buttons: ["Restart to update", "Later"]');
+    expect(fn).toContain("message: `ccdeck v${version} is ready`,");
     expect(fn).toMatch(/response === 0[\s\S]*?updater\.restartNow\(\)/);
-    expect(fn).toContain("readyUpdateNoticeVersion");
+    expect(fn).toContain("rememberUpdateNotice(version)");
     expect(fn).not.toContain("new BrowserWindow");
+  });
+
+  it("keeps one on-disk memory for the sheet and the window's own offer (#1187)", () => {
+    // The window's version dialog offers the same Restart to update. Seeing
+    // it there is this version's one notice, so the sheet must not follow it.
+    const remember = main.match(/function rememberUpdateNotice\(version\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(remember).toContain("updateNoticeVersion = version");
+    expect(remember).toContain("readyUpdateNoticeVersion: version");
+    expect(main).toMatch(/updateSeen: request => \{\s*if \(matchesReadyUpdate\(updater, request\?\.version\)\) rememberUpdateNotice\(updater\.state\.version\);/);
   });
 
   it("retries the offer when readiness, focus, or idle state changes", () => {

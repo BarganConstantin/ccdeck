@@ -37,6 +37,7 @@
 // every machine at once.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { arrivalCheck, KEYCHAIN } from "../admin-failure";
 import { armedPress, pressAccepted, pressState } from "../panel-press";
 import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
@@ -53,7 +54,7 @@ export interface DeckAbout { version: string | null; os: string | null; arch: st
 
 /** One account a paired deck offers, as its last manifest listed it. `alive`
  *  is that deck's verdict on its own copy, not this one's. */
-export interface OfferedAccount { key: string; email: string; alive: boolean }
+export interface OfferedAccount { key: string; email: string; alive: boolean; shareable?: boolean }
 
 /** One deck this one dials, as the status route reports it. */
 export interface Peer {
@@ -75,7 +76,9 @@ export interface Peer {
    *  said yes, so it calls and we answer. */
   waiting?: boolean;
   lastSeen?: number;
-  last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean }> } | null;
+  /** `why` on a row that did not arrive says why; on one that did, it is a
+   *  problem this deck found with it after — see roundWhy. */
+  last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean; why?: string | null }> } | null;
   /** What it said about itself. Null until it has, and forever for a deck
    *  older than the one that started saying. */
   about?: DeckAbout | null;
@@ -154,6 +157,7 @@ export interface LanStatus {
    *  arrives is answered here or answered for you. */
   autoAsk?: boolean;
   autoAccept?: boolean;
+  pairingMode?: "automatic" | "invite";
   /** Whether paired decks are told which shared account this one is on.
    *  Absent is on, which is what the engine does with a missing setting. */
   shareActive?: boolean;
@@ -213,7 +217,7 @@ export interface LanReach {
 }
 
 /** The accounts this deck holds, in the shape the panel already has them. */
-export interface LanAccount { key: string; email: string; alive: boolean }
+export interface LanAccount { key: string; email: string; alive: boolean; shareable?: boolean }
 
 /** How long ago, in the panel's own vocabulary. Seconds are not printed: a
  *  beacon lands every thirty of them, so "12s ago" would be a number that
@@ -229,8 +233,38 @@ export function seenLabel(lastSeen: number | undefined, now: number): string {
 }
 
 /** What the last round with one peer did: the sentence, and which of the three
- *  things it is. */
-export interface RoundLine { text: string; tone: "bad" | "idle" | "ok" }
+ *  things it is — and, when a login came with a problem, what to do about it,
+ *  which is too long for the row and goes where the whole sentence goes. */
+export interface RoundLine { text: string; tone: "bad" | "warn" | "idle" | "ok"; hint?: string }
+
+type DoneRow = NonNullable<NonNullable<Peer["last"]>["done"]>[number];
+
+/**
+ * The reasons a round names, keyed by the codes lan-sync.mjs defines: a few
+ * words for the row and the sentence with the remedy for the dialog. Looked up
+ * with Object.hasOwn, so a code this build does not know names nothing rather
+ * than something from the prototype.
+ *
+ * WHICH MACHINE is the whole point of the Keychain pair. The fix is on the Mac
+ * that cannot read its own Keychain, and "blocked by Keychain" without saying
+ * which sent people to the one that was fine.
+ */
+const ROUND_WHY: Record<string, { short: string; long: string }> = {
+  // From the sending deck, on the wire. Nothing to do here: once that Mac
+  // opens its Keychain the next round asks again and brings it.
+  keychain_unavailable: {
+    short: "Keychain locked on the other Mac",
+    long: `the other Mac could not export it. On that Mac: ${KEYCHAIN}. The next round brings it.`,
+  },
+};
+
+/** What a round has to say about one login beyond arrived / did not, or null.
+ *  This deck's own findings are worded where the Add Account dialog's are —
+ *  see arrivalCheck. */
+export function roundWhy(d: DoneRow): { short: string; long: string } | null {
+  if (!d.why) return null;
+  return Object.hasOwn(ROUND_WHY, d.why) ? ROUND_WHY[d.why] : arrivalCheck(d.why);
+}
 
 /**
  * The two refusals that are ANSWERS rather than faults.
@@ -248,6 +282,10 @@ export interface RoundLine { text: string; tone: "bad" | "idle" | "ok" }
 const WIRE_ANSWERS: Record<string, RoundLine> = {
   "waiting for the other deck to accept this one": { text: "waiting for them to say yes", tone: "idle" },
   "that deck said no": { text: "it said no", tone: "bad" },
+  // Invite-only, from both ends. Neither is a fault, so neither is red: the
+  // other deck chose it, or this one did, and an invite is the way through.
+  "that deck pairs only by invite": { text: "it pairs only by invite", tone: "idle" },
+  "this deck pairs only by invite": { text: "needs an invite · your setting", tone: "idle" },
 };
 
 /**
@@ -325,6 +363,16 @@ const WIRE_FAULTS: Record<string, string> = {
  */
 export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   if (!last) return null;
+  // A ROUND CUT OFF PART-WAY STILL SAYS WHAT IT DID. Logins that arrived before
+  // the socket died are on this machine now, and a Keychain problem found on
+  // the way is still the thing to fix — so the line is the finished part's own,
+  // with the interruption added after its problems and, like them, before the
+  // clock, where the deck list keeps it.
+  if (last.error && last.done?.length) {
+    const finished = roundLabel({ ...last, error: undefined }, now)!;
+    const at = ` · ${seenLabel(last.at, now)}`;
+    return { ...finished, text: `${finished.text.slice(0, -at.length)}, then ${faultText(last.error)}${at}`, tone: "bad" };
+  }
   if (last.error) return WIRE_ANSWERS[last.error] ?? { text: faultText(last.error), tone: "bad" };
   const done = last.done ?? [];
   // NOT "nothing to do", which reads two ways and one of them is alarming: a
@@ -334,14 +382,25 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   if (!done.length) return { text: `all logins fine · ${seenLabel(last.at, now)}`, tone: "idle" };
   const ok = done.filter(d => d.ok);
   const verb = ok.length === 1 ? "login" : "logins";
+  // THE COUNT STAYS, AND EVERY PROBLEM IS NAMED AFTER IT. A round with one
+  // Keychain failure among three arrivals is still three arrivals, and a second
+  // failure on the other machine is a second thing to fix; a line that showed
+  // only the first sent somebody to fix one, retry, and meet the next. The
+  // names go BEFORE the clock, because the list cuts everything after the
+  // first " · " — see deckRows.
+  const said = done.map(d => ({ d, why: roundWhy(d) })).filter(x => x.why);
+  const names = [...new Set(said.map(x => x.why!.short))];
+  const what = names.length ? `, ${names.join(", ")}` : "";
+  const hint = said.length ? said.map(x => `${x.d.email}: ${x.why!.long}`).join(" ") : undefined;
+  const at = seenLabel(last.at, now);
   return ok.length === done.length
     // "arrived", because a round only ever pulls: roundWith dials, reads the
     // other deck's manifest and imports. Nothing leaves this deck on a round it
     // started, and "took 2 accounts" left which way it went to the reader.
-    ? { text: `${ok.length} ${verb} arrived · ${seenLabel(last.at, now)}`, tone: "ok" }
+    ? { text: `${ok.length} ${verb} arrived${what} · ${at}`, tone: said.length ? "warn" : "ok", ...(hint ? { hint } : {}) }
     // Some moved and some did not, which is neither a clean round nor a failure
     // to reach the deck. It reads as the partial thing it is.
-    : { text: `${ok.length} of ${done.length} logins arrived · ${seenLabel(last.at, now)}`, tone: "bad" };
+    : { text: `${ok.length} of ${done.length} logins arrived${what} · ${at}`, tone: "bad", ...(hint ? { hint } : {}) };
 }
 
 /** How recently a beacon has to have arrived for this panel to speak about that
@@ -824,6 +883,8 @@ export function deckRows(
   s: {
     peers?: Peer[]; pending?: LanStranger[]; strangers?: LanStranger[]; declined?: LanStranger[];
     aliases?: Record<string, string>;
+    /** Read for the one word a nearby row says: what pairing it takes. */
+    pairingMode?: "automatic" | "invite";
   } | null,
   now: number,
 ): DeckRow[] {
@@ -934,7 +995,7 @@ export function deckRows(
         // The whole sentence, verbatim, including the address and the code the
         // row is too narrow to carry. This is where somebody looks when the
         // short form is not enough.
-        : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}`,
+        : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
     });
   }
   rows.push(...oneRowPerMachine(paired).sort(byName), ...dialling.sort(byName));
@@ -946,7 +1007,9 @@ export function deckRows(
     const n = named(p.fp, p.name || p.fp);
     nearby.push({
       fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
-      kind: "nearby", state: "not paired yet", tone: "idle", here: true,
+      // Under invite-only the row says what it takes, since "not paired yet"
+      // over a row with no ask on it reads as a machine that cannot be paired.
+      kind: "nearby", state: s.pairingMode === "invite" ? "needs an invite" : "not paired yet", tone: "idle", here: true,
       hint: p.via === "tailscale"
         ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
         : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
@@ -1106,7 +1169,15 @@ export function offerLine(
   mine: LanAccount | null,
   sharedHere: boolean,
 ): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
-  const here = !mine ? "not on this deck" : mine.alive ? "works here" : "expired here";
+  const here = !mine ? "not on this deck" : mine.alive
+    ? mine.shareable === false ? "cannot share here" : "works here"
+    : "expired here";
+  // A valid copy behind an unavailable Keychain is not broken and cannot be
+  // pulled. Say exactly that, without promising a transfer or telling the user
+  // to sign in again.
+  if (theirs.alive && theirs.shareable === false) {
+    return { there: "cannot share there", here, note: null, tone: "idle" };
+  }
   if (!theirs.alive) {
     // BOTH COPIES GONE is the one state with no repair anywhere, and it used
     // to wear the same warning ink as the state that is fixed with one tick.
@@ -1119,7 +1190,7 @@ export function offerLine(
   // `arrives here next round` in the state slot, which left a reader unable to
   // tell the present from the promise.
   if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
-  if (mine.alive) return { there: "works there", here, note: null, tone: "ok" };
+  if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false ? "idle" : "ok" };
   return sharedHere
     ? { there: "works there", here, note: "repairs next round", tone: "wait" }
     : { there: "works there", here, note: "share it to repair", tone: "bad" };
@@ -1150,9 +1221,9 @@ export interface Lane {
   key: string;
   email: string;
   /** This deck's copy. */
-  here: "works" | "expired" | "missing";
+  here: "works" | "expired" | "missing" | "unavailable";
   /** That deck's, as its last list said — `unknown` when it does not offer it. */
-  there: "works" | "broken" | "unknown";
+  there: "works" | "broken" | "unavailable" | "unknown";
   /** From that deck to this one; null when that deck does not offer it. */
   in: LaneFlow | null;
   /** From this deck to every paired deck; null when this deck does not offer it. */
@@ -1173,7 +1244,11 @@ export function exchangeLanes(
    *  is in the same list, so it can only ever land on a lane it offers. */
   current: string | null = null,
 ): Lane[] {
-  const byKey = new Map(accounts.map(a => [a.key, a]));
+  // Two slots for one login read as the live one, as the engine's onePerKey
+  // picks it (lan-sync.mjs): an expired duplicate after it must not paint this
+  // end "expired" while the deck is offering a working copy.
+  const byKey = new Map<string, LanAccount>();
+  for (const a of accounts) if (!byKey.get(a.key)?.alive) byKey.set(a.key, a);
   const sharedHere = new Set(shared);
   const lanes: Lane[] = [];
   const seen = new Set<string>();
@@ -1183,19 +1258,24 @@ export function exchangeLanes(
     const mine = byKey.get(theirs.key) ?? null;
     const giving = sharedHere.has(theirs.key);
     const said = offerLine(theirs, mine, giving);
-    const here = !mine ? "missing" : mine.alive ? "works" : "expired";
+    const here = !mine ? "missing" : !mine.alive ? "expired"
+      : mine.shareable === false ? "unavailable" : "works";
     // Both copies gone is the one note that already names both ends.
     const caption = !theirs.alive && mine && !mine.alive
       ? said.note
-      : [here === "works" ? null : said.here, theirs.alive ? null : said.there, said.note]
+      : [here === "works" ? null : said.here,
+          theirs.alive && theirs.shareable !== false ? null : said.there,
+          said.note]
           .filter(Boolean).join(" · ") || null;
     lanes.push({
       key: theirs.key,
       email: theirs.email,
       here,
-      there: theirs.alive ? "works" : "broken",
-      in: !theirs.alive ? "cut" : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
-      out: giving && mine ? (mine.alive ? "live" : "cut") : null,
+      there: !theirs.alive ? "broken" : theirs.shareable === false ? "unavailable" : "works",
+      in: !theirs.alive || theirs.shareable === false
+        ? "cut"
+        : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
+      out: giving && mine ? (mine.alive && mine.shareable !== false ? "live" : "cut") : null,
       caption,
       tone: said.tone,
       usedThere: current === theirs.key,
@@ -1209,12 +1289,12 @@ export function exchangeLanes(
     lanes.push({
       key,
       email: mine.email,
-      here: mine.alive ? "works" : "expired",
+      here: !mine.alive ? "expired" : mine.shareable === false ? "unavailable" : "works",
       there: "unknown",
       in: null,
-      out: mine.alive ? "live" : "cut",
-      caption: mine.alive ? null : "expired here",
-      tone: mine.alive ? "ok" : "bad",
+      out: mine.alive && mine.shareable !== false ? "live" : "cut",
+      caption: !mine.alive ? "expired here" : mine.shareable === false ? "cannot share here" : null,
+      tone: mine.alive ? mine.shareable === false ? "idle" : "ok" : "bad",
       // That deck does not offer it, so it is never named as the one it is on.
       usedThere: false,
     });
@@ -1422,7 +1502,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  monospace, an invite is 140 characters and the firewall block is a
    *  paragraph and a shell command — unfolded in 288px they turned a list of
    *  machines into a form with a list on top of it. */
-  const [addOpen, setAddOpen] = useState(false);
+  // WHICH DOOR the add dialog was opened through: the `+`, or a nearby row's
+  // invite — which arrives with one made, because that press already said so.
+  const [addOpen, setAddOpen] = useState<false | "add" | "invite">(false);
   /** The four pictures that say what this section is for and what to do on
    *  each machine. Opened from a press only — the card while the section is
    *  off, and the word under an empty list — never from a flag. */
@@ -1657,7 +1739,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   }, [claim, release, onChanged]);
 
   const on = status?.enabled === true;
-  const rows = deckRows(status, now);
+  // Invite-only has no actionable manual pairing requests, including during
+  // the brief interval before a refreshed engine status reaches this panel.
+  const rows = deckRows(status?.pairingMode === "invite" && status
+    ? { ...status, pending: [] } : status, now);
   // The deck whose dialog is open, found again in every poll's rows. When it
   // is gone — unpaired and not heard since, or an address whose answer just
   // gave it an identity — the dialog closes rather than drawing a machine that
@@ -1700,6 +1785,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
         <LanAddDeckModal
           status={status}
           manual={manual}
+          startWith={addOpen === "invite" ? "invite" : undefined}
           onClose={() => setAddOpen(false)}
           onChanged={() => { void load(); onChanged(); }}
         />
@@ -1751,6 +1837,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
           // What this deck offers is this deck's setting, not that deck's —
           // so the door to it closes this dialog on the way through.
           onSettings={() => { setPeerOpen(null); setSetupOpen(true); }}
+          // The same door for an invite-only deck's one way to pair a nearby
+          // machine: out of this dialog and into the add dialog, invite made.
+          onInvite={() => { setPeerOpen(null); setAddOpen("invite"); }}
           twins={(openRow.twins ?? []).map(t => ({ row: t, peer: rowSource(status, t).peer ?? null }))}
           onUnpair={fp => answer("unpair", fp, "unpair that deck")}
         />
@@ -1879,9 +1968,11 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               decks is a broadcast, one ask sent to all of them. */}
           {on && (
             <button type="button" className="glyph-btn ap-lan-plus"
-              onClick={() => setAddOpen(true)}
+              onClick={() => setAddOpen("add")}
               aria-label="Add a deck"
-              title="Reach a deck that has not turned up on its own — by address, or with an invite">
+              title={status?.pairingMode === "invite"
+                ? "Send an invite, or use one you were sent. This deck pairs only by invite."
+                : "Reach a deck that has not turned up on its own — by address, or with an invite"}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
                 strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M6.1 7.9a2.6 2.6 0 0 0 3.7 0l1.9-1.9a2.6 2.6 0 0 0-3.7-3.7l-.9.9" />
@@ -2138,12 +2229,25 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             spends no line on it — `.vis-hidden` is out of flow, and
                             the stylesheet gives such a row a single grid track. */}
                         <span id={`lan-who-state-${i}`} className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
-                        {p.kind === "nearby" && (
+                        {p.kind === "nearby" && status?.pairingMode !== "invite" && (
                           <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
                             onClick={() => void answer("accept", p.fp, "reach that deck")}
                             aria-label={`Ask ${p.name} to pair`}
                             title={`Send ${p.name} a request. Somebody at that machine has to accept it before anything is shared. Its fingerprint is ${p.fp}.`}>
                             ask
+                          </button>
+                        )}
+                        {/* INVITE-ONLY TAKES THE ASK AWAY, AND THIS IS WHAT IT
+                            LEAVES: the one way this machine can still be paired,
+                            on its own row, where the reader is already looking.
+                            Opens the add dialog with the invite made — a
+                            dialog, said the way the row's own door says it. */}
+                        {(p.kind === "nearby" || p.kind === "declined") && status?.pairingMode === "invite" && (
+                          <button type="button" className="ap-manage-btn ap-lan-do" aria-haspopup="dialog"
+                            onClick={() => setAddOpen("invite")}
+                            aria-label={`Invite ${p.name} to pair`}
+                            title={`This deck pairs only by invite. Make one and send it to whoever is at ${p.name}.`}>
+                            invite
                           </button>
                         )}
                         {p.kind === "paired" && (
@@ -2191,7 +2295,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             stop
                           </button>
                         )}
-                        {p.kind === "declined" && (
+                        {p.kind === "declined" && status?.pairingMode !== "invite" && (
                           <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`allow:${p.fp}`)}
                             onClick={() => void answer("allow", p.fp, "let that deck ask again")}
                             aria-label={`Let ${p.name} ask again`}

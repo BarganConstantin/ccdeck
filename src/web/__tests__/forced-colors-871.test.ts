@@ -41,7 +41,10 @@ const RESTING_WORDED = [
   ".ap-dot",
 ];
 const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
-const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar .brand button.v .v-dot"];
+// The ready-update chip's dot recolours itself to the accent in a rule more
+// specific than the version dot's own, so it has to be named here as well or
+// that accent would stand in for Highlight under a Contrast theme.
+const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar .brand button.v .v-dot", ".topbar .brand button.v.ready .v-dot"];
 const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".session-summary .ss-tt-bar-fill"];
 const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".uh-bar-seg", ".uh-agent-seg", ".uh-model-bar-fill", ".uh-legend-dot", ".cost-bar .cb-seg"];
 const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".session-summary .ss-tt-bar", ".uh-model-bar", ".uh-agent-bar", ".cost-bar"];

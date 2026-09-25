@@ -16,6 +16,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cswapBin, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
+import { storedCopyAlive } from "./account-health.mjs";
 // The CLI identity oracle, already written and already trusted by the account
 // admin routes. #721 needs the same answer, so it reuses the same function
 // rather than shelling out a second way to ask one question.
@@ -347,14 +348,39 @@ export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
  * for `--json` and keeps the verdicts. Still not awaited by anyone — the nudge
  * stays synchronous for its callers — and still one child at a time.
  */
-let _verdicts = { at: 0, byNum: {} };
+let _verdicts = { at: 0, byNum: {}, identities: {} };
 /** Stale after this, because a verdict that outlives its cause is worse than no
  *  verdict: "no credentials" under an account somebody has since signed into is
  *  a sentence that sends them to fix what is already fixed. */
 const VERDICT_TTL_MS = 10 * 60_000;
-/** One `cswap list --json` at a time. A collection can take a while on a cold
- *  network, and a nudge landing inside one must not start a second. */
-let _verdictInFlight = false;
+/** Run one `cswap list --json` at a time. A post-write question must start
+ * after any older collection has finished; routine readers can share the
+ * latest pending answer without starting another slow collection. */
+export function createVerdictQueue(collect) {
+  let pending = null;
+  return {
+    ask({ fresh = false } = {}) {
+      if (pending && !fresh) return pending;
+      const previous = pending;
+      // Start the first poll immediately: requestCollection promises the UI that
+      // its refresh has started before it returns. Only subsequent fresh polls
+      // wait for the earlier snapshot to finish.
+      let next;
+      if (previous) next = previous.then(collect, collect);
+      else {
+        try { next = Promise.resolve(collect()); }
+        catch (error) { next = Promise.reject(error); }
+      }
+      pending = next;
+      void next.then(
+        () => { if (pending === next) pending = null; },
+        () => { if (pending === next) pending = null; },
+      );
+      return next;
+    },
+    busy() { return pending !== null; },
+  };
+}
 
 /**
  * Ask claude-swap about one account RIGHT NOW, rather than reading the cache.
@@ -374,6 +400,20 @@ let _verdictInFlight = false;
 export async function verdictNow(email, org, { runner = run, bin = cswapBin } = {}) {
   const want = String(email ?? "").trim().toLowerCase();
   if (!want) return null;
+  const all = await verdictsNow({ runner, bin, fresh: true });
+  return all?.find(a => a.email === want && a.org === (org ?? ""))?.status ?? null;
+}
+
+/**
+ * Every account's verdict from ONE `cswap list --json`, as `{ email, org,
+ * status, active }` rows (email lower-cased, status null when claude-swap gave none),
+ * or null when the question could not be asked at all.
+ *
+ * For a caller holding several identities at once — a round that imported
+ * three logins asks once, not three times, since each ask is a full usage
+ * collection that can take a minute on a cold network.
+ */
+async function collectVerdicts({ runner, bin }) {
   try {
     const out = await runner(await bin(), ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS });
     if (!out?.ok) return null;
@@ -381,20 +421,47 @@ export async function verdictNow(email, org, { runner = run, bin = cswapBin } = 
     // The same freshly-read answer feeds the cache the panel draws from, since
     // it cost a subprocess either way.
     const byNum = readVerdicts(out.stdout);
-    if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
+    const identities = {};
     for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
-      if (String(a?.email ?? "").trim().toLowerCase() !== want) continue;
-      if ((a?.organizationUuid ?? "") !== (org ?? "")) continue;
-      return typeof a?.usageStatus === "string" ? a.usageStatus : null;
+      if (Number.isInteger(a?.number) && typeof a?.email === "string" && a.email.trim()) {
+        identities[String(a.number)] = `${a.email.trim().toLowerCase()}@@${a.organizationUuid ?? ""}`;
+      }
     }
-    return null;
+    _verdicts = { at: Date.now(), byNum, identities };
+    return (Array.isArray(d?.accounts) ? d.accounts : []).map(a => ({
+      number: a?.number,
+      email: String(a?.email ?? "").trim().toLowerCase(),
+      org: a?.organizationUuid ?? "",
+      status: typeof a?.usageStatus === "string" ? a.usageStatus : null,
+      // For the account Claude Code is signed in as, claude-swap reads the
+      // LIVE credential, not the stored copy — so its verdict there is about
+      // the live login. See checkImports.
+      active: a?.active === true,
+    }));
   } catch { return null; }
 }
 
+const verdictQueue = createVerdictQueue(() => collectVerdicts({ runner: run, bin: cswapBin }));
+
+/** Routine readers share a collection; post-write callers wait for any older
+ * collection and start a new one, so they never inspect the pre-write store. */
+export function verdictsNow({ runner = run, bin = cswapBin, fresh = false } = {}) {
+  // Tests and callers supplying their own runner must receive their own answer.
+  if (runner !== run || bin !== cswapBin) return collectVerdicts({ runner, bin });
+  return verdictQueue.ask({ fresh });
+}
+
 /** claude-swap's verdict for a slot, or null when there is none fresh enough. */
-function verdictFor(num, now) {
-  if (now - _verdicts.at > VERDICT_TTL_MS) return null;
-  const v = _verdicts.byNum[String(num)];
+function verdictFor(num, now, email, org) {
+  return cachedVerdictFor(_verdicts, num, now, email, org);
+}
+
+/** Only attach a cached slot verdict to the identity it was collected for. */
+export function cachedVerdictFor(cache, num, now, email, org) {
+  if (now - cache.at > VERDICT_TTL_MS) return null;
+  const identity = `${String(email ?? "").trim().toLowerCase()}@@${org ?? ""}`;
+  if (cache.identities[String(num)] !== identity) return null;
+  const v = cache.byNum[String(num)];
   return typeof v === "string" && v !== "" ? v : null;
 }
 
@@ -439,22 +506,12 @@ function nudgeCollector(rows, slots, now, activeNum) {
     cswapBin().then(bin => runDetached(bin, ["auto", "--once", "--dry-run", "--json"])).catch(() => {});
     return;
   }
-  if (_verdictInFlight) return;
-  _verdictInFlight = true;
+  if (verdictQueue.busy()) return;
   // Fire-and-forget: this function is deliberately synchronous so callers never
   // wait on it, and resolving the binary is the only async part. `run` rather
   // than `runDetached` only so the output can be read; the caller is no more
   // aware of it than before.
-  cswapBin()
-    .then(bin => run(bin, ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS }))
-    .then(out => {
-      const byNum = out?.ok ? readVerdicts(out.stdout) : {};
-      // Replaced whole rather than merged. A slot that has gone away must not
-      // keep the verdict it had when it was last seen.
-      if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
-    })
-    .catch(() => {})
-    .finally(() => { _verdictInFlight = false; });
+  void verdictsNow();
 }
 
 /** Long enough for a cold collection over a slow network, short enough that a
@@ -637,6 +694,7 @@ async function readRoster(now, gen) {
         .filter(Boolean),
     ].filter(Boolean);
 
+    const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
     accounts.push({
       num:      Number(num),
       email:    acct.email ?? null,
@@ -654,7 +712,7 @@ async function readRoster(now, gen) {
       // `stale-copy` row means the live session is fine while the copy in the
       // store is dead, and the copy is what a share would carry and what a
       // peer's copy would heal. So both kinds of trouble read as not alive.
-      alive:    trouble == null,
+      alive:    storedCopyAlive(trouble == null, collector),
       active:   String(seq.activeAccountNumber) === num,
       disabled: acct.disabled === true,
       lanes,
@@ -694,7 +752,7 @@ async function readRoster(now, gen) {
       // "no_credentials", "relogin_required", "keychain_unavailable", … It is
       // what turns "not collecting" into a sentence with a next step in it, and
       // it is null on every machine where the collector has not been asked yet.
-      collector: verdictFor(num, now),
+      collector,
     });
   }
 

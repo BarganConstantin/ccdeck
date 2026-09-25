@@ -81,9 +81,9 @@ function stream(path: string, token = true): Promise<{ req: ClientRequest; text:
   });
 }
 
-function post(path: string, body: unknown, token = false): Promise<number> {
+function post(path: string, body: unknown, token = false, extra: Record<string, string> = {}): Promise<number> {
   return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...extra };
     if (token) headers["x-ccdeck-token"] = hookToken();
     const req = request({ host: "127.0.0.1", port, path, method: "POST", headers }, res => {
       res.resume();
@@ -140,5 +140,42 @@ describe("the tray connection", () => {
     expect(tray.text()).not.toContain("event: notify");
     tray.req.destroy();
     page.req.destroy();
+  });
+
+  it("relays desktop update state and restart requests", async () => {
+    const tray = await stream("/events?role=tray");
+    const page = await stream("/events");
+    await until(async () => (await health()).clients === 1 && (await health()).trays === 1, "update clients to subscribe");
+    expect(await post("/api/desktop-update", { status: "ready", version: "3.28.0" }, true)).toBe(200);
+    await until(async () => page.text().includes("event: desktop-update"), "the update state");
+    expect(tray.text()).not.toContain("event: desktop-update\n");
+    expect(await post("/api/desktop-update/restart", { version: "3.28.1" }, true)).toBe(409);
+    expect(await post("/api/desktop-update/restart", { version: "3.28.0" }, true)).toBe(202);
+    await until(async () => tray.text().includes("event: desktop-update-restart"), "the restart request");
+    // The window's dialog showing the offer is relayed the same way, so the
+    // app's native notice for this version stands down (#1182).
+    expect(await post("/api/desktop-update/seen", { version: "3.28.1" }, true)).toBe(409);
+    expect(await post("/api/desktop-update/seen", { version: "3.28.0" }, true)).toBe(202);
+    await until(async () => tray.text().includes("event: desktop-update-seen"), "the seen notice");
+    tray.req.destroy();
+    page.req.destroy();
+  });
+
+  it("lets the deck's own page ask, and nothing else ask or claim", async () => {
+    const tray = await stream("/events?role=tray");
+    await until(async () => (await health()).trays === 1, "the tray to subscribe");
+    expect(await post("/api/desktop-update", { status: "ready", version: "3.28.0" }, true)).toBe(200);
+    const page = { Origin: `http://127.0.0.1:${port}`, "Sec-Fetch-Site": "same-origin" };
+    // Only the app may say what its updater verified — the page's own origin
+    // passes the mutation gate, and is still refused the claim.
+    expect(await post("/api/desktop-update", { status: "ready", version: "9.9.9" }, false, page)).toBe(401);
+    // Another site, and a local caller presenting nothing, never reach the relay.
+    const elsewhere = { Origin: "http://evil.example", "Sec-Fetch-Site": "cross-site" };
+    expect(await post("/api/desktop-update/restart", { version: "3.28.0" }, false, elsewhere)).toBe(403);
+    expect(await post("/api/desktop-update/restart", { version: "3.28.0" })).toBe(401);
+    expect(await post("/api/desktop-update/seen", { version: "3.28.0" })).toBe(401);
+    // The window itself may ask; the app checks the exact version again.
+    expect(await post("/api/desktop-update/restart", { version: "3.28.0" }, false, page)).toBe(202);
+    tray.req.destroy();
   });
 });

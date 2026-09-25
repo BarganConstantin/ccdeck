@@ -74,7 +74,7 @@ function deafSocket() {
   };
 }
 
-interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean }
+interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean; collector?: string | null }
 
 async function deck(rows: Row[], name: string, shared: string[], port: number, over: Record<string, unknown> = {}) {
   const id = sync.identityFrom("");
@@ -198,11 +198,11 @@ function keysFromLongTermKeys(caller: Id, listener: Id, hello: Frame, challenge:
 }
 
 const MINE: Row[] = [
-  { num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true, active: true },
+  { num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true, active: true, collector: "ok" },
   { num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false },
 ];
 const THEIRS: Row[] = [
-  { num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true, active: true },
+  { num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true, active: true, collector: "ok" },
   { num: 6, email: "claude3@sapec.md", orgUuid: "org-3", alive: true },
 ];
 const SHARED = [K("claude1@sapec.md", "org-1"), K("claude2@sapec.md", "org-2"), K("claude3@sapec.md", "org-3")];

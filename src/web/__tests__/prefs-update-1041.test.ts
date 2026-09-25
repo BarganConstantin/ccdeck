@@ -248,6 +248,8 @@ describe("the fields the engine authors", () => {
       shared: ["a@example.test@@org-1"],
       autoAsk: true,
       autoAccept: false,
+      // A page owns the pairing mode too (#1236); absent is automatic.
+      pairingMode: "automatic",
       shareActive: true,
       tailscale: false,
       tailscaleAsk: true,

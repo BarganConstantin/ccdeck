@@ -54,6 +54,32 @@
     "3.28.0",
     "3.28.1"
   ],
+  "3.29.0": [
+    {
+      "title": "🎵 Your own stations in Claude FM",
+      "body": "Add any YouTube live link or radio stream as a station in Appearance, next to the built-in ones, and mute the music without losing your volume. When a station is not live, the picker now says so instead of staying silent."
+    },
+    {
+      "title": "🔔 Notification sounds and voices of your own",
+      "body": "Pick a local audio file or a spoken voice for each alert, so the sound that means an agent is waiting is one you will recognise."
+    },
+    {
+      "title": "🗑️ Drag a card off the board to remove it",
+      "body": "Drag a card to the target at the bottom of the canvas to take it off the board, or use Remove from board in the detail panel (Delete). The session keeps running, and the session list (L) brings it back."
+    },
+    {
+      "title": "🔐 Optional invite-only pairing",
+      "body": "Pairing works as before, with or without an invite. If you want, Local network can now be set to accept only decks that join with an invite you created, so a nearby machine cannot ask to pair on its own."
+    },
+    {
+      "title": "🌐 Account sharing between your machines is more reliable",
+      "body": "A locked macOS Keychain is explained instead of failing silently, a login that is broken or belongs to another account is never shared, and a sync that stops partway keeps what already arrived."
+    },
+    {
+      "title": "📅 Projects opens on Today",
+      "body": "The Projects report per account starts with today's work, and an empty window offers the next wider one. The topbar also shows this month's usage, and the desktop app can restart into an update from its own window."
+    }
+  ],
   "3.27.0": [
     {
       "title": "📊 Projects: where each account spent its work",

@@ -1332,6 +1332,47 @@ export function accountKey(email, orgUuid) {
   return `${String(email ?? "").trim().toLowerCase()}@@${String(orgUuid ?? "")}`;
 }
 
+// ── why a login did not move ────────────────────────────────────────────────
+
+/**
+ * The reason a sending deck gives for a login it holds and cannot read: on a
+ * Mac, claude-swap could not open the Keychain from the session this deck runs
+ * in. A fixed code, never the CLI's words — export's stdout IS the credential,
+ * and nothing it printed is any business of the deck asking.
+ */
+export const SENDER_UNREADABLE = "keychain_unavailable";
+
+/** Every reason `serve` answers a `want` with. */
+const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]);
+
+/**
+ * A peer's refusal, as this deck records it. The panel prints these, so a peer
+ * must not be able to put words in its mouth — least of all one of the HERE
+ * codes, which are sentences about this machine. Anything outside the closed
+ * set is "refused", which is all it ever proved.
+ */
+export function peerWhy(why) {
+  return typeof why === "string" && WIRE_REFUSALS.has(why) ? why : "refused";
+}
+
+/**
+ * What this deck found wrong with a login it received. Produced by the local
+ * adapters only and never read off a frame — see peerWhy — so a code here is
+ * always about THIS machine, and on an arrived row it is a warning rather than
+ * a failure: the credential landed and something about this machine stops it
+ * being used.
+ */
+export const HERE = Object.freeze({
+  // claude-swap cannot open this Mac's Keychain from the deck's session.
+  unreadable: "unreadable_here",
+  // It landed, and claude-swap still holds no login for it.
+  noLogin: "no_credentials_here",
+  // It landed, and the login it carried was rejected.
+  expired: "relogin_required_here",
+  // It landed, and claude-swap could not be asked whether it is readable.
+  unverified: "unverified_here",
+});
+
 /**
  * What to do about one account, given what I have and what a peer has.
  *
@@ -1364,7 +1405,7 @@ export function accountKey(email, orgUuid) {
  * nothing here ever asks for that.
  */
 export function syncAction(mine, theirs) {
-  if (!theirs || !theirs.alive) return null;
+  if (!theirs || !theirs.alive || theirs.shareable === false) return null;
   if (!mine) return "add";
   return mine.alive ? null : "heal";
 }
@@ -1378,7 +1419,10 @@ export function syncAction(mine, theirs) {
  * different half each time.
  */
 export function plan(local, remote) {
-  const mine = new Map(local.map(a => [a.key, a]));
+  // Through onePerKey, not array order: a Map built straight from the rows
+  // keeps the LAST one for a key, so an expired second slot hid a live first
+  // one and every round "healed" a login that works here.
+  const mine = new Map(onePerKey(local).map(a => [a.key, a]));
   const out = [];
   for (const theirs of remote) {
     const action = syncAction(mine.get(theirs.key), theirs);
@@ -1388,13 +1432,42 @@ export function plan(local, remote) {
 }
 
 /**
+ * One row per identity, and THE rule for which one when claude-swap holds two
+ * slots for the same login: a live copy beats an expired one, then one this
+ * process can read beats one it cannot, then the earlier slot.
+ *
+ * ONE RULE, FOUR PLACES. The manifest this deck sends, the peer manifest it
+ * reads, the export it answers a `want` with, and plan's view of this deck's
+ * own copy all pick through this, so the slot a peer was told about is the
+ * slot it is then handed, and the copy this deck advertises as working is the
+ * one it plans from. Each used to take array order on its own and agreed only
+ * by coincidence — and two slots for one identity became two imports of it in
+ * a single round.
+ */
+export function onePerKey(rows) {
+  const rank = a => (a.alive ? 2 : 0) + (a.readable === false ? 0 : 1);
+  const best = new Map();
+  for (const a of rows) {
+    const had = best.get(a.key);
+    if (!had || rank(a) > rank(had)) best.set(a.key, a);
+  }
+  return [...best.values()];
+}
+
+/** This deck's own slot for one identity, by onePerKey's rule, or null. */
+export function slotFor(accounts, key) {
+  return onePerKey(accounts.filter(a => a.key === key))[0] ?? null;
+}
+
+/**
  * What this deck publishes about its own accounts — to the group, and only to
  * the group.
  *
- * Three fields, and `alive` is the only one that is a judgement: it is
- * claude-swap's own verdict on this machine's copy, not a guess. An account
- * this deck cannot use is worth nothing to a peer, so saying so plainly is what
- * stops a peer asking for it.
+ * `alive` says whether the stored copy is still valid. `shareable: false` is
+ * the separate, temporary condition where this process cannot read that valid
+ * copy (for example a locked macOS Keychain). Keeping those facts separate is
+ * what stops another deck treating a healthy-but-inaccessible copy as expired
+ * and repeatedly trying to heal it.
  *
  * Emails are in it, and the manifest is sealed on its way. This said "in the
  * clear inside the encrypted channel" until #810, and there was no such
@@ -1417,9 +1490,13 @@ export function plan(local, remote) {
  */
 export function manifestFor(accounts, shared) {
   const want = new Set(shared);
-  return accounts
-    .filter(a => want.has(a.key))
-    .map(a => ({ key: a.key, email: a.email, alive: !!a.alive }))
+  return onePerKey(accounts.filter(a => want.has(a.key)))
+    .map(a => ({
+      key: a.key,
+      email: a.email,
+      alive: !!a.alive,
+      ...(a.readable === false ? { shareable: false } : {}),
+    }))
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 

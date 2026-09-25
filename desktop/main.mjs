@@ -12,7 +12,7 @@
 // The tray icon is the favicon of a closed tab: the same four marks, the same
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
-import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -22,6 +22,8 @@ import { navigationFor } from "./nav.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
+import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
+import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -109,7 +111,7 @@ function buildMenu() {
       click: item => app.setLoginItemSettings({ openAtLogin: item.checked }),
     },
     { type: "separator" },
-    { label: `ccdeck ${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck ${deck.version}` : ""}`, enabled: false },
+    { label: `ccdeck v${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck v${deck.version}` : ""}`, enabled: false },
     updateItem(),
     // #1163: the deck restarted from the tray, the way the page's version
     // dialog does it, rather than Quit and a trip to the Start menu.
@@ -120,11 +122,15 @@ function buildMenu() {
 }
 
 /** The update line of the menu, which says where the update is rather than
- *  offering a button that does nothing while one is already on its way. */
+ *  offering a button that does nothing while one is already on its way.
+ *  "Restart to update" and "v1.64.0" are the words the native sheet and the
+ *  window's dialog use for the same action — one verb and one spelling of the
+ *  version on all three surfaces, so a person told to find this line by the
+ *  window can recognise it. */
 function updateItem() {
   const u = updater?.state ?? { status: "idle" };
-  if (u.status === "ready") return { label: `Restart to update to ${u.version}`, click: () => updater.restartNow() };
-  if (u.status === "downloading") return { label: `Downloading ccdeck ${u.version}…`, enabled: false };
+  if (u.status === "ready") return { label: `Restart to update to v${u.version}`, click: () => updater.restartNow() };
+  if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
   if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
   return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => updater?.check() };
 }
@@ -187,10 +193,30 @@ function attach(found) {
   stream = openTrayStream(deck, {
     connected: () => { model.reset(); model.setConnected(true); scheduleRedraw(); },
     hook: env => { model.apply(env); scheduleRedraw(); },
-    live: () => { refreshPrefs(); },
+    live: () => { refreshPrefs(); publishUpdateState(); },
     notify: n => showNotification(n),
+    restartUpdate: request => {
+      const version = request?.version;
+      if (restartReadyUpdate(updater, version)) trace(`window requested verified update ${version}`);
+      else trace(`ignored window update request ${version ?? "without a version"}`);
+    },
+    // The window's dialog has put this version's Restart to update in front
+    // of the person, which is the one notice a version gets (#1182). Without
+    // this the native sheet still owed its own, and arrived on top of the
+    // window's offer, or after the person had already closed it, to ask the
+    // same question a second time.
+    updateSeen: request => {
+      if (matchesReadyUpdate(updater, request?.version)) rememberUpdateNotice(updater.state.version);
+    },
     lost: () => { model.setConnected(false); scheduleRedraw(); discoverSoon(); },
   });
+}
+
+function publishUpdateState() {
+  if (!deck || !updater) return;
+  const { status, version = null } = updater.state;
+  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })
+    .catch(err => trace(`could not publish update state: ${err?.message ?? err}`));
 }
 
 /**
@@ -386,6 +412,7 @@ function openWindow(steal = true) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: join(here, "preload.cjs"),
       // The page's chimes: in a browser they wait for the first click to
       // unlock audio. An app the person opened on purpose need not.
       autoplayPolicy: "no-user-gesture-required",
@@ -431,6 +458,35 @@ function readState() {
   try { return JSON.parse(readFileSync(statePath(), "utf8")); } catch { return {}; }
 }
 
+// Custom notification sounds and voices (#1207): local app data the page
+// reaches through preload.cjs by opaque id, never by path. What may be stored,
+// and how much of it, is notification-audio-store.mjs; who may ask is here.
+const notificationAudio = createNotificationAudioStore(() => join(app.getPath("userData"), "notification-audio.json"));
+
+/** Whether an IPC call came from the deck's own page in the deck's own window.
+ *  The preload runs in whatever this window shows, and navigation is already
+ *  held to the deck's origin (nav.mjs) — but that is the window's rule, and a
+ *  handler that trusted it would be one missed redirect from answering some
+ *  other site. So the door checks for itself, as Electron's security guidance
+ *  asks: the sender must be this window, and the frame must be on the origin
+ *  the window was opened at. */
+function fromDeckPage(event) {
+  if (!deck || !win || win.isDestroyed() || event.sender.id !== win.webContents.id) return false;
+  const url = event.senderFrame?.url;
+  return typeof url === "string" && navigationFor(url, `http://127.0.0.1:${deck.port}`) === "stay";
+}
+
+function installNotificationAudioIpc() {
+  const handle = (name, run) => ipcMain.handle(`ccdeck:notification-audio:${name}`, (event, arg) => {
+    if (!fromDeckPage(event)) throw new Error("Notification audio is only available to the deck.");
+    return run(arg);
+  });
+  handle("list", () => notificationAudio.list());
+  handle("get", id => notificationAudio.get(id));
+  handle("put", asset => { notificationAudio.put(asset); });
+  handle("remove", id => { notificationAudio.remove(id); });
+}
+
 /** How long a question waits for the window to reach the screen before it is
  *  asked app-modally instead. Longer than a deck's page takes to paint, short
  *  enough that a window which never comes does not hold the question forever. */
@@ -473,6 +529,24 @@ async function ask(options) {
 }
 
 /**
+ * This version has had its one notice, from whichever surface gave it first:
+ * the native sheet below, or the window's own version dialog, which offers
+ * the same Restart to update (#1187). One memory for both, kept on disk, so
+ * "Later" in either place survives a relaunch and neither asks again. The
+ * version chip and the tray line stay, as the places to find it afterwards.
+ */
+function rememberUpdateNotice(version) {
+  if (updateNoticeVersion === version) return;
+  updateNoticeVersion = version;
+  try {
+    const state = readState();
+    writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
+  } catch (err) {
+    trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
+  }
+}
+
+/**
  * Say that a verified update is ready while the person is already looking at
  * ccdeck. The updater never opens or raises a window for this notice: if the
  * window is closed, unfocused, or the deck is active, the next focus/redraw
@@ -504,21 +578,17 @@ async function offerReadyUpdate() {
   try {
     const { response } = await dialog.showMessageBox(target, {
       type: "info",
-      message: `ccdeck ${version} is ready`,
-      detail: "The update has been downloaded and verified. Restart ccdeck to use the new version.",
-      buttons: ["Restart now", "Later"],
+      message: `ccdeck v${version} is ready`,
+      // The tray's own words for where it lives, the ones the window's dialog
+      // uses when a restart from there fails (trayMenuName in desktop-update.ts).
+      detail: `It has been downloaded and verified. To do it later, use Restart to update in ${process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu"}.`,
+      buttons: ["Restart to update", "Later"],
       defaultId: 0,
       cancelId: 1,
     });
 
     // The sheet was actually shown, so this version has had its one notice.
-    updateNoticeVersion = version;
-    try {
-      const state = readState();
-      writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
-    } catch (err) {
-      trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
-    }
+    rememberUpdateNotice(version);
 
     // A newer update may have replaced this one while the sheet was open.
     // Only restart for the exact verified version the person accepted.
@@ -592,6 +662,7 @@ async function offerToReplaceLoginItem() {
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  installNotificationAudioIpc();
   setRegular(false);
   updateNoticeVersion = readState().readyUpdateNoticeVersion ?? null;
   await loadModel();
@@ -605,6 +676,7 @@ app.whenReady().then(async () => {
     onChange: s => {
       trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`);
       scheduleRedraw();
+      publishUpdateState();
       offerReadyUpdate();
       // An update that lands while the app is already quiet does not wait for
       // the next tick to be noticed.

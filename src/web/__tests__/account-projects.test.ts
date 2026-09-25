@@ -167,7 +167,9 @@ describe("per-message attribution", () => {
     foldLine(tally, line("2026-09-22T10:00:00Z", "claude-opus-5", "/p", 9, 9), early);   // recent, inside 7d
     const now = ISO("2026-09-22T12:00:00Z");
     expect(reportFrom(tally, early, KEY_A, 7, now).projects[0].models["claude-opus-5"].i).toBe(9);   // last 7d only
+    expect(reportFrom(tally, early, KEY_A, 1, now).projects[0].models["claude-opus-5"].i).toBe(9);   // today only
     expect(reportFrom(tally, early, KEY_A, 0, now).projects[0].models["claude-opus-5"].i).toBe(14);  // all time
+    expect(windowCutoff(1, now)).toBe("2026-09-22");
     expect(windowCutoff(7, now)).toBe("2026-09-16");
     expect(localDay(ISO("2026-09-22T00:00:00")).length).toBe(10);
   });

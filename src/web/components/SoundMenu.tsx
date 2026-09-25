@@ -39,7 +39,7 @@
 // elsewhere in the topbar would otherwise fire against a menu that is still up.
 // The opener is excluded from it — its own onClick already toggles, and letting
 // both run would close the menu and immediately reopen it.
-import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import {
   CHIME_ORDER, FIGURE_SETS, LEVEL_MAX, LEVEL_MIN, LEVEL_STEP,
   type Chime, type TonePrefs,
@@ -47,6 +47,16 @@ import {
 import { useModalDismiss } from "./use-modal-dismiss";
 import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 import { inDesktopApp } from "../in-app";
+import { armedPress, focusDropped } from "../panel-press";
+import { CONFIRM_GAP_MS } from "./LanSyncSection";
+import {
+  MAX_CUSTOM_ASSETS,
+  deleteFocusTarget,
+  libraryFullReason,
+  sameCustomSelection,
+  type CustomAssetSummary,
+  type CustomSelections,
+} from "../notification-audio";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -75,6 +85,15 @@ interface Props {
   onFigure: (chime: Chime, id: string) => void;
   /** Play this tone now, at what it is currently set to. */
   onPreview: (chime: Chime) => void;
+  customAssets: CustomAssetSummary[];
+  customSelections: CustomSelections;
+  onBuiltInSelected: (chime: Chime) => void;
+  onCustomSelected: (chime: Chime, id: string) => void;
+  onImportCustom: (file: File) => Promise<void>;
+  onCreateVoice: (input: { name: string; text: string; voiceURI: string; rate: number; pitch: number }) => Promise<void>;
+  onRenameCustom: (id: string, name: string) => Promise<void>;
+  onPreviewCustom: (id: string) => void;
+  onDeleteCustom: (id: string) => Promise<void>;
   /** The deck's OTHER way of interrupting you, and the reason it is in this
    *  menu rather than a settings panel of its own: this popover is already
    *  "how loudly does this deck interrupt me", and notifications were the only
@@ -105,6 +124,8 @@ interface Props {
 
 export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
+  customAssets, customSelections, onBuiltInSelected, onCustomSelected, onImportCustom,
+  onCreateVoice, onRenameCustom, onPreviewCustom, onDeleteCustom,
   notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
 }: Props) {
   /* The channel, and whether it is worth drawing at all. A veto silences both
@@ -115,6 +136,143 @@ export default function SoundMenu({
   // browser's permission that this section reports is never asked there.
   const inApp = inDesktopApp();
   const showChannel = notifyOn && !notifyVetoed && !inApp;
+  const [customError, setCustomError] = useState("");
+  const [voiceName, setVoiceName] = useState("Custom voice");
+  const [voiceText, setVoiceText] = useState("Your turn");
+  const [voiceURI, setVoiceURI] = useState("");
+  // Kept as the text in the field, not a number. A controlled number input
+  // bound to Number(value) turns a cleared field into 0 on the spot, so the
+  // person could never empty it to type a new value — and 0 would then have
+  // been saved as the slowest rate rather than read as "not set".
+  const [voiceRate, setVoiceRate] = useState("1");
+  const [voicePitch, setVoicePitch] = useState("1");
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sharedCustomId = sameCustomSelection(customSelections);
+  const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
+  // The ceiling, said where sounds are added and before any work is done. It
+  // used to arrive as an error after the fact — after a 4.4-second recording,
+  // or a voice form filled in — which is the person doing the work for the
+  // refusal. The controls that add stay focusable and say aria-disabled rather
+  // than `disabled`: the import field and Stop & save both hold focus at the
+  // moment the 24th sound lands, and a control disabled under focus drops it to
+  // <body> (#518).
+  const customCount = customAssets.length;
+  const fullReason = libraryFullReason(customCount);
+  const full = fullReason !== null;
+  const fullProps = full ? { "aria-disabled": true, "aria-describedby": "sm-custom-full" } : {};
+  /** Which sound's Delete is armed, by id. Nothing brings a deleted sound back,
+   *  so it costs two presses — the LAN unpair's rule (#1175), one row at a time. */
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  /** When it was armed, so a double-click cannot be its own confirmation. */
+  const deleteArmedAt = useRef(0);
+  /** Each row's Delete, and the import field, for where focus goes once a row
+   *  is gone (deleteFocusTarget). */
+  const deleteRefs = useRef(new Map<string, HTMLButtonElement>());
+  const importRef = useRef<HTMLInputElement>(null);
+  // An armed delete stands down on its own, the way the unpairs do.
+  useEffect(() => {
+    if (!armedDelete) return;
+    const t = window.setTimeout(() => setArmedDelete(null), 4_000);
+    return () => window.clearTimeout(t);
+  }, [armedDelete]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const refresh = () => {
+      const next = window.speechSynthesis.getVoices();
+      setVoices(next);
+      setVoiceURI(current => current || next[0]?.voiceURI || "");
+    };
+    refresh();
+    window.speechSynthesis.addEventListener("voiceschanged", refresh);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", refresh);
+  }, []);
+
+  const runCustom = async (work: () => Promise<void>) => {
+    setCustomError("");
+    try { await work(); }
+    catch (error) { setCustomError(error instanceof Error ? error.message : "Custom audio could not be saved."); }
+  };
+
+  const pressDelete = (id: string, pressed: HTMLButtonElement) => {
+    const now = Date.now();
+    const press = armedPress({
+      armedFor: armedDelete, target: id, armedAt: deleteArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
+    });
+    if (press === "arm") { setArmedDelete(id); deleteArmedAt.current = now; return; }
+    // A double-click is one decision, not two.
+    if (press === "ignore") return;
+    setArmedDelete(null);
+    // Chosen before the row goes, from the list as it stands at the press.
+    const next = deleteFocusTarget(customAssets.map(asset => asset.id), id);
+    void runCustom(async () => {
+      await onDeleteCustom(id);
+      // Only when focus is still on the pressed Delete or has already fallen
+      // to <body>: somebody who tabbed on meanwhile is left where they went.
+      const active = document.activeElement;
+      if (active !== pressed && !focusDropped(active?.tagName ?? null)) return;
+      (next ? deleteRefs.current.get(next) : importRef.current)?.focus();
+    });
+  };
+
+  const stopRecording = () => {
+    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+    recordingTimerRef.current = null;
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+  };
+
+  const startRecording = async () => {
+    if (full) return;
+    setCustomError("");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setCustomError("Microphone recording is unavailable in this browser.");
+      return;
+    }
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { setCustomError("Microphone access was denied or unavailable."); return; }
+    if (recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+    try {
+      const format = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"]
+        .find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
+      const chunks: Blob[] = [];
+      recorderRef.current = recorder;
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onerror = () => setCustomError("Recording failed. Please try again.");
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+        const shouldSave = recorderRef.current === recorder;
+        if (shouldSave) recorderRef.current = null;
+        setRecording(false);
+        if (!shouldSave || !chunks.length) return;
+        const mime = recorder.mimeType.split(";")[0];
+        const extension = mime === "audio/mp4" ? "m4a" : mime === "audio/ogg" ? "ogg" : "webm";
+        const file = new File(chunks, `Recorded voice.${extension}`, { type: mime });
+        void runCustom(() => onImportCustom(file));
+      };
+      recorder.start(200);
+      setRecording(true);
+      // Stop just before the five-second limit to allow encoder/container overhead.
+      recordingTimerRef.current = setTimeout(stopRecording, 4400);
+    } catch {
+      recorderRef.current = null;
+      stream.getTracks().forEach(track => track.stop());
+      setCustomError("This browser cannot record a supported audio format.");
+    }
+  };
+
+  useEffect(() => () => {
+    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (recorder?.state === "recording") recorder.stop();
+  }, []);
 
   // A popover, so the canvas letters stay live under it — V and M included,
   // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
@@ -357,12 +515,23 @@ export default function SoundMenu({
               <select
                 id={figureId}
                 className="sm-select"
-                value={tone.figure}
-                onChange={e => onFigure(chime, e.target.value)}
+                value={customSelections[chime] ? `custom:${customSelections[chime]}` : tone.figure}
+                onChange={e => {
+                  const value = e.target.value;
+                  if (value.startsWith("custom:")) onCustomSelected(chime, value.slice(7));
+                  else { onBuiltInSelected(chime); onFigure(chime, value); }
+                }}
               >
                 {FIGURE_SETS[chime].map(f => (
                   <option key={f.id} value={f.id}>{f.label}</option>
                 ))}
+                {customAssets.length > 0 && (
+                  <optgroup label="Custom">
+                    {customAssets.map(asset => (
+                      <option key={asset.id} value={`custom:${asset.id}`}>{asset.name}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
@@ -371,6 +540,136 @@ export default function SoundMenu({
         );
       })}
       </div>
+
+      {sharedCustomId && (
+        <p className="sm-note" role="status">
+          Both tones use “{sharedCustomName}”. They may be harder to tell apart.
+        </p>
+      )}
+
+      <section className="sm-custom" aria-labelledby="sm-custom-title">
+        <div className="sm-custom-head">
+          <h3 className="sm-tone-name" id="sm-custom-title">Custom sounds</h3>
+          <span>{customCount} of {MAX_CUSTOM_ASSETS}, kept on this machine</span>
+        </div>
+        {full && <p className="sm-note" id="sm-custom-full">{fullReason}</p>}
+        <label className="sm-file">
+          <span>Import WAV, MP3 or OGG</span>
+          <input
+            ref={importRef}
+            type="file"
+            accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
+            {...fullProps}
+            // A click that would open the picker, from the field or its
+            // caption, opens nothing while the library is full.
+            onClick={e => { if (full) e.preventDefault(); }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              e.currentTarget.value = "";
+              if (file && !full) void runCustom(() => onImportCustom(file));
+            }}
+          />
+        </label>
+
+        <div className="sm-record">
+          <span>Record a voice (up to 5 seconds)</span>
+          {recording ? (
+            <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
+          ) : (
+            <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record with microphone</button>
+          )}
+        </div>
+
+        <details className="sm-voice">
+          <summary
+            {...fullProps}
+            // Held shut while full, so nobody fills in a form that cannot be
+            // saved. One already open can still be closed.
+            onClick={e => {
+              const details = e.currentTarget.parentElement as HTMLDetailsElement | null;
+              if (full && details && !details.open) e.preventDefault();
+            }}
+          >
+            Add spoken voice
+          </summary>
+          <div className="sm-voice-fields">
+            {/* The deck's text field, as the appearance menu's station fields
+                are: `.sm-select` is a select's class, and these are not. */}
+            <label>Name<input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
+            <label>Text<input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
+            <label>Voice
+              <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
+                <option value="">System default</option>
+                {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
+              </select>
+            </label>
+            <div className="sm-voice-pair">
+              <label>Rate<input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
+              <label>Pitch<input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
+            </div>
+            <button
+              type="button"
+              className="btn sm-custom-action"
+              {...fullProps}
+              onClick={() => {
+                if (full) return;
+                void runCustom(async () => {
+                  // parseFloat, so an empty field is NaN and createCustomVoice's
+                  // default rather than Number("")'s 0.
+                  await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
+                  setVoiceText("Your turn");
+                });
+              }}
+            >
+              Add voice
+            </button>
+          </div>
+        </details>
+
+        {customAssets.length > 0 && (
+          <div className="sm-custom-list">
+            {customAssets.map(asset => (
+              <div className="sm-custom-item" key={asset.id}>
+                <input
+                  className="ap-manage-input"
+                  aria-label={`Rename ${asset.name}`}
+                  defaultValue={asset.name}
+                  maxLength={80}
+                  onBlur={e => {
+                    // A name cannot be blank, so a cleared field goes back to
+                    // the one it had rather than showing a name nothing saved.
+                    if (!e.target.value.trim()) { e.target.value = asset.name; return; }
+                    void runCustom(() => onRenameCustom(asset.id, e.target.value));
+                  }}
+                  onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                />
+                <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
+                {/* Named for the sound, not only the verb: a list of eight
+                    rows read aloud as "Play, Delete, Play, Delete" says
+                    nothing about which one a press would act on. */}
+                <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
+                {/* Two presses, because nothing brings a deleted sound back:
+                    the first arms, a second inside four seconds deletes. And
+                    it hands focus on, since the row it sat in goes with it. */}
+                <button
+                  type="button"
+                  ref={el => { if (el) deleteRefs.current.set(asset.id, el); else deleteRefs.current.delete(asset.id); }}
+                  className={`btn sm-custom-icon${armedDelete === asset.id ? " armed" : ""}`}
+                  // A held key repeats at about half a second, past the gap,
+                  // while the finger has never come up: one decision.
+                  onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                  onClick={e => pressDelete(asset.id, e.currentTarget)}
+                  aria-label={armedDelete === asset.id ? `Confirm deleting ${asset.name}` : `Delete ${asset.name}`}
+                  title={armedDelete === asset.id ? "Press again to delete this sound. It cannot be brought back." : "Delete this sound"}
+                >
+                  {armedDelete === asset.id ? "Confirm" : "Delete"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {customError && <p className="sm-custom-error" role="alert">{customError}</p>}
+      </section>
 
       {/* The key, drawn as a key. It was a sentence about a letter, which is
           the one shape a reader does not scan for when they are looking for a

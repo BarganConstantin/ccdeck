@@ -44,15 +44,20 @@ import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
-import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, storedCharacterEnabled, storedFmSource, storedFmVolume } from "./appearance";
-import type { FmSource } from "./appearance";
+import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY, resolveFmSource, storedCharacterEnabled, storedFmVolume } from "./appearance";
+import {
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_NAME_MAX, customFmId, fmAvailabilityKey, customFmSelection,
+  resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation,
+  type CustomFmStation, type FmSelection,
+} from "./fm-stations";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
-import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, visibleBoard } from "./remove-node";
+import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
+import { clientPointOf, trashProximity, type TrashProximity } from "./trash-zone";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -99,7 +104,26 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
+import {
+  fmtMonthlyCost,
+  monthlyUsageFrom,
+  monthlyUsageSince,
+  monthlyReadDue,
+  MONTHLY_USAGE_CHECK_MS,
+  type MonthlyUsage,
+} from "./monthly-usage";
 import { inDesktopApp } from "./in-app";
+import {
+  desktopAppVersion,
+  readDesktopUpdate,
+  readyChipCopy,
+  readyDesktopUpdate,
+  UPDATE_RESTART_WAIT_MS,
+  updateRestartFailureText,
+  updateRestartRefusal,
+  type DesktopUpdateState,
+  type UpdateRestartFailure,
+} from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -127,10 +151,16 @@ import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
 import {
-  chimeFor, clampLevel, createChimePlayer, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
-  PREVIEW_DELAY_MS, readPrefs,
+  CHIME_ORDER, chimeFor, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
+  figureIdFrom, FIGURE_KEYS, LEVEL_KEYS, PREVIEW_DELAY_MS, readPrefs,
   type Chime, type ChimeState, type TonePrefs, type ToneSettings,
 } from "./sound";
+import {
+  CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
+  getCustomNotificationAsset, importCustomAudio, libraryFullReason, listCustomNotificationAssets,
+  readCustomSelections, renameCustomNotificationAsset, saveCustomNotificationAsset, summarizeCustomAsset,
+  type CustomAssetSummary, type CustomSelections,
+} from "./notification-audio";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -631,6 +661,9 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
     readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
+  /** The last card taken off the board, for the sentence a screen reader
+   *  hears. Nothing is drawn for it: the session list (L) is the way back. */
+  const [lastRemoval, setLastRemoval] = useState<{ id: string; label: string } | null>(null);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   /** Right detail panel visibility — persisted across refresh. Declared ahead
@@ -706,6 +739,85 @@ function Inner() {
   /** Usage panel visibility — persisted across refresh. */
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
+  /** Month-to-date usage for the topbar. Unlike the canvas aggregate, this is
+   *  read from transcripts via ccusage, so finished sessions never disappear
+   *  from the figure when their cards are pruned. */
+  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
+  const [monthlyUsageUnavailable, setMonthlyUsageUnavailable] = useState(false);
+  /** The phrase itself, so the poll can ask whether it is on screen. */
+  const monthUsageRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    let alive = true;
+    let inFlight = false;
+    let lastReadAt: number | null = null;
+    let lastSince: string | null = null;
+    // The month the figure on screen was read for. A failed read leaves the
+    // last good figure standing, as the Usage panel does, but only inside the
+    // month it belongs to: once the 1st comes round, last month's total under
+    // the words "this month" is the label and the number disagreeing, the one
+    // pairing #737 says has to survive the change.
+    let goodSince = "";
+    const failed = (since: string) => {
+      if (!alive) return;
+      setMonthlyUsageUnavailable(true);
+      if (since !== goodSince) setMonthlyUsage(null);
+    };
+
+    const read = () => {
+      if (inFlight) return;
+      inFlight = true;
+      lastReadAt = Date.now();
+      const since = monthlyUsageSince();
+      lastSince = since;
+      fetch(`/api/ccusage?since=${since}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => {
+          if (!alive) return;
+          if (!data?.ok) { failed(since); return; }
+          goodSince = since;
+          setMonthlyUsage(monthlyUsageFrom(data));
+          setMonthlyUsageUnavailable(false);
+        })
+        .catch(() => failed(since))
+        .finally(() => { inFlight = false; });
+    };
+
+    // Whether the phrase is drawn, asked of the phrase rather than of a copy of
+    // the breakpoints it gives way at: a box inside `display: none` has no
+    // client rects, and that stays true whatever the stylesheet later decides
+    // hides it. Clipped by the readout still counts as drawn.
+    const poll = () => {
+      const phrase = monthUsageRef.current;
+      if (monthlyReadDue({
+        shown: !!phrase && phrase.getClientRects().length > 0,
+        tabVisible: document.visibilityState === "visible",
+        lastSince,
+        since: monthlyUsageSince(),
+        lastReadAt,
+        now: Date.now(),
+      })) read();
+    };
+
+    poll();
+    // Three ways back to a read, all through the one rule: the minute check,
+    // the tab coming to the front, and the phrase itself coming back on
+    // screen. The observer is the last of those — a box going to or from
+    // `display: none` changes its size, so it reports the moment the window
+    // is wide enough again rather than up to a minute later.
+    const timer = window.setInterval(poll, MONTHLY_USAGE_CHECK_MS);
+    document.addEventListener("visibilitychange", poll);
+    let seen: ResizeObserver | null = null;
+    if (monthUsageRef.current && typeof ResizeObserver !== "undefined") {
+      seen = new ResizeObserver(poll);
+      seen.observe(monthUsageRef.current);
+    }
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+      seen?.disconnect();
+    };
+  }, []);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
   useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
   /** True while the session list holds the left column the accounts panel was
@@ -813,6 +925,53 @@ function Inner() {
   const tonePrefsRef = useRef(tonePrefs);
   tonePrefsRef.current = tonePrefs;
 
+  // Custom sounds are selected independently from the built-in figure. Keeping
+  // the figure intact gives every custom choice a deterministic local fallback
+  // without changing the shape #711 stores and tests.
+  const [customSelections, setCustomSelections] = useState<CustomSelections>(() => readCustomSelections(readStored));
+  const customSelectionsRef = useRef(customSelections);
+  customSelectionsRef.current = customSelections;
+  // The listing only — names, kinds and lengths. A clip's bytes stay in the
+  // store until the player asks for the one it is about to play (loadCustom).
+  const [customAssets, setCustomAssets] = useState<CustomAssetSummary[]>([]);
+
+  const clearCustomOnly = useCallback((chime: Chime) => {
+    setCustomSelections(prev => {
+      const next = { ...prev, [chime]: null };
+      customSelectionsRef.current = next;
+      return next;
+    });
+    try { localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]); } catch { /* no storage */ }
+  }, []);
+
+  const fallbackCustom = useCallback((chime: Chime, expectedId?: string) => {
+    const selected = customSelectionsRef.current[chime];
+    if (expectedId && selected !== expectedId) return;
+    clearCustomOnly(chime);
+    setTonePrefs(prev => {
+      const next = { ...prev, [chime]: { ...prev[chime], figure: DEFAULT_FIGURE_ID } };
+      tonePrefsRef.current = next;
+      return next;
+    });
+    try { localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID); } catch { /* no storage */ }
+  }, [clearCustomOnly]);
+  const fallbackCustomRef = useRef(fallbackCustom);
+  fallbackCustomRef.current = fallbackCustom;
+
+  useEffect(() => {
+    let live = true;
+    void listCustomNotificationAssets().then(assets => {
+      if (!live) return;
+      setCustomAssets(assets);
+      const ids = new Set(assets.map(asset => asset.id));
+      for (const chime of CHIME_ORDER) {
+        const selected = customSelectionsRef.current[chime];
+        if (selected && !ids.has(selected)) fallbackCustomRef.current(chime, selected);
+      }
+    }, () => { /* storage unavailable: keep the stored selection for a later retry */ });
+    return () => { live = false; };
+  }, []);
+
   /** The trailing timer for the tone a changed setting plays back. */
   const previewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -869,6 +1028,85 @@ function Inner() {
     previewTone(chime, true);
   }, [previewTone]);
 
+  const selectCustomTone = useCallback((chime: Chime, id: string) => {
+    if (!customAssets.some(asset => asset.id === id)) return;
+    const next = { ...customSelectionsRef.current, [chime]: id };
+    customSelectionsRef.current = next;
+    setCustomSelections(next);
+    try { localStorage.setItem(CUSTOM_AUDIO_KEYS[chime], id); } catch { /* no storage */ }
+    previewTone(chime, true);
+  }, [customAssets, previewTone]);
+
+  const importNotificationAudio = useCallback(async (file: File) => {
+    const full = libraryFullReason(customAssets.length);
+    if (full) throw new Error(full);
+    const Ctx = window.AudioContext
+      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) throw new Error("This browser cannot decode audio files.");
+    const decoder = new Ctx();
+    try {
+      const asset = await importCustomAudio(file, bytes => decoder.decodeAudioData(bytes));
+      await saveCustomNotificationAsset(asset);
+      // The row, not the clip: keeping the bytes here would be the boot load
+      // this state stopped holding, one import at a time.
+      const row = summarizeCustomAsset(asset);
+      setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
+    } finally {
+      void decoder.close?.();
+    }
+  }, [customAssets.length]);
+
+  const createNotificationVoice = useCallback(async (input: {
+    name: string; text: string; voiceURI: string; rate: number; pitch: number;
+  }) => {
+    const full = libraryFullReason(customAssets.length);
+    if (full) throw new Error(full);
+    const asset = createCustomVoice(input);
+    await saveCustomNotificationAsset(asset);
+    const row = summarizeCustomAsset(asset);
+    setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
+  }, [customAssets.length]);
+
+  const renameCustomAsset = useCallback(async (id: string, name: string) => {
+    const current = customAssets.find(asset => asset.id === id);
+    const nextName = name.trim().slice(0, 80);
+    if (!current || !nextName || nextName === current.name) return;
+    // By id, not by writing this row back: the row has no bytes to write.
+    await renameCustomNotificationAsset(id, nextName);
+    setCustomAssets(prev => prev.map(asset => asset.id === id ? { ...asset, name: nextName } : asset));
+  }, [customAssets]);
+
+  const deleteCustomAsset = useCallback(async (id: string) => {
+    await deleteCustomNotificationAsset(id);
+    setCustomAssets(prev => prev.filter(asset => asset.id !== id));
+    const before = customSelectionsRef.current;
+    const after = clearCustomAssetSelections(before, id);
+    customSelectionsRef.current = after;
+    setCustomSelections(after);
+    const affected = CHIME_ORDER.filter(chime => before[chime] === id);
+    for (const chime of affected) {
+      try {
+        localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]);
+        localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID);
+      } catch { /* no storage */ }
+    }
+    if (affected.length > 0) {
+      setTonePrefs(prev => {
+        const next = { ...prev };
+        for (const chime of affected) next[chime] = { ...next[chime], figure: DEFAULT_FIGURE_ID };
+        tonePrefsRef.current = next;
+        return next;
+      });
+    }
+  }, []);
+
+  const previewCustomAsset = useCallback((id: string) => {
+    const selectedTone = CHIME_ORDER.find(chime => customSelectionsRef.current[chime] === id);
+    const level = selectedTone ? tonePrefsRef.current[selectedTone].level : DEFAULT_LEVEL;
+    chimesRef.current?.unlock();
+    chimesRef.current?.previewCustom(id, level);
+  }, []);
+
   // A timer outliving the tab it belongs to is a tone fired into an unmounted
   // tree. Cheap to clear, and the only thing this component leaves running.
   useEffect(() => () => { if (previewRef.current !== null) clearTimeout(previewRef.current); }, []);
@@ -898,6 +1136,9 @@ function Inner() {
     const player = createChimePlayer({
       enabled: () => soundOnRef.current === true,
       prefs: () => tonePrefsRef.current,
+      customSelection: () => customSelectionsRef.current,
+      loadCustom: getCustomNotificationAsset,
+      onCustomFailure: (chime, id) => fallbackCustomRef.current(chime, id),
       onState: setChimeState,
     });
     chimesRef.current = player;
@@ -926,6 +1167,13 @@ function Inner() {
    *  tab-census.ts. */
   const [tabCapped, setTabCapped] = useState(false);
   const [version, setVersion] = useState<VersionInfo | null>(null);
+  const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateState | null>(null);
+  const [desktopUpdateRestarting, setDesktopUpdateRestarting] = useState(false);
+  /** Why the last press of Restart to update did not end in a restart, and for
+   *  which version. Null until one fails, and again from the next press. */
+  const [desktopUpdateFailure, setDesktopUpdateFailure] = useState<
+    { failure: UpdateRestartFailure; version: string } | null
+  >(null);
   const [versionDismissed, setVersionDismissed] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
@@ -985,6 +1233,81 @@ function Inner() {
   // "restarting…" until the five-minute poll came round — and in a background
   // tab, where visibilitychange never fires, that was the only thing left.
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
+  // On every (re)connect, not once: the app republishes its updater state when
+  // its own stream comes back, and after a deck restart that can land before
+  // this page's stream does, so the broadcast alone would be missed. Counted
+  // against the stream's own frames so a slow answer cannot overwrite a newer
+  // one that arrived while it was in flight.
+  const desktopUpdateFramesRef = useRef(0);
+  useEffect(() => {
+    if (!live || !inDesktopApp()) return;
+    let cancelled = false;
+    const frames = desktopUpdateFramesRef.current;
+    fetch("/api/desktop-update")
+      .then(r => r.ok ? r.json() : null)
+      .then(value => {
+        if (cancelled || desktopUpdateFramesRef.current !== frames) return;
+        const next = readDesktopUpdate(value);
+        if (next) setDesktopUpdate(next);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [live]);
+
+  const readyAppUpdate = readyDesktopUpdate(desktopUpdate);
+  // The press rule (#620): the button stays enabled while its request is out,
+  // and this ref is what a second Enter meets. Handed back after a while, as
+  // askRestart does, because the answer to a restart that worked is the
+  // window closing — one still here after half a minute did not happen.
+  // HANDED BACK WITH A REASON. It used to be handed back and nothing else: a
+  // 409 from the deck, or the half minute running out, turned "Restarting…"
+  // back into the button it had been, which looks exactly like a press that
+  // never registered, so the only thing left to try was the same press again.
+  // Each way it can fail now leaves a sentence in the dialog saying which, and
+  // naming the tray's line as the way out — that one talks to the updater
+  // directly and works in every case here, including a deck that has lost the
+  // app altogether.
+  // ONE PRESS AT A TIME, and only that one handed back. The half-minute clock
+  // used to be a bare setTimeout that checked the shared "asked" flag, so a
+  // press the stream had already released (the update stopped being ready),
+  // followed by a press for the next version, gave the old clock a flag that
+  // was true again: it fired "has not restarted after 30 seconds" into the new
+  // press seconds after it began. The same was true of a slow answer to the old
+  // request. So the clock's id is kept to be cleared — by a new press, by every
+  // hand-back and by the stream's release — and each press carries a number,
+  // and a hand-back for any number but the latest is about a press that is
+  // already over.
+  const desktopUpdateAskedRef = useRef(false);
+  const desktopUpdateTimerRef = useRef(0);
+  const desktopUpdatePressRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(desktopUpdateTimerRef.current), []);
+  const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
+    if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;
+    const press = ++desktopUpdatePressRef.current;
+    window.clearTimeout(desktopUpdateTimerRef.current);
+    desktopUpdateAskedRef.current = true;
+    setDesktopUpdateRestarting(true);
+    setDesktopUpdateFailure(null);
+    const handBack = (failure: UpdateRestartFailure) => {
+      if (press !== desktopUpdatePressRef.current) return;
+      window.clearTimeout(desktopUpdateTimerRef.current);
+      desktopUpdateAskedRef.current = false;
+      setDesktopUpdateRestarting(false);
+      setDesktopUpdateFailure({ failure, version: updateVersion });
+    };
+    try {
+      const response = await fetch("/api/desktop-update/restart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ version: updateVersion }),
+      });
+      if (!response.ok) return handBack(updateRestartRefusal(await response.json().catch(() => null)));
+    } catch {
+      return handBack("unreachable");
+    }
+    if (press !== desktopUpdatePressRef.current) return;
+    desktopUpdateTimerRef.current = window.setTimeout(() => handBack("timeout"), UPDATE_RESTART_WAIT_MS);
+  }, []);
 
   // ── who is looking ────────────────────────────────────────────────────────
   // The server updates the deck on its own while nobody is looking at it
@@ -1043,6 +1366,21 @@ function Inner() {
   const [releaseNotes, setReleaseNotes] = useState<
     { entries: VersionNotes[]; since: string | null; firstRun: boolean } | null
   >(null);
+  // This dialog offering the app's verified update IS that version's one
+  // notice (#1182), so the app is told and its native sheet does not ask the
+  // same question on top of it, or again after it is closed. Once per version
+  // per page; the app keeps the memory, on disk, for both surfaces.
+  const offeredAppUpdate = releaseNotes && readyAppUpdate ? readyAppUpdate.version : null;
+  const toldAppUpdateRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!offeredAppUpdate || toldAppUpdateRef.current === offeredAppUpdate) return;
+    toldAppUpdateRef.current = offeredAppUpdate;
+    fetch("/api/desktop-update/seen", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ version: offeredAppUpdate }),
+    }).catch(() => {});
+  }, [offeredAppUpdate]);
   // Decided once per load and then never again, and the ref is not belt and
   // braces. The decision writes the running version to the store, so a second
   // run would normally answer "seen" on its own — but a store that REFUSES the
@@ -1692,7 +2030,17 @@ function Inner() {
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
   const [fmVolume, setFmVolume] = useState(storedFmVolume);
-  const [fmSource, setFmSource] = useState<FmSource>(storedFmSource);
+  const [customFmStations, setCustomFmStations] = useState<CustomFmStation[]>(() =>
+    resolveCustomFmStations(readStored(FM_CUSTOM_STATIONS_KEY))
+  );
+  const [fmMuted, setFmMuted] = useState(() => resolveFmMuted(readStored(FM_MUTED_KEY)));
+  const [fmSource, setFmSource] = useState<FmSelection>(() =>
+    resolveFmSelection(readStored(FM_SOURCE_KEY), customFmStations, resolveFmSource)
+  );
+  const [unavailableFmStations, setUnavailableFmStations] = useState<Set<string>>(() => new Set());
+  /** How many times somebody has picked a station. ClaudeFm starts the station
+   *  when this moves and not when `fmSource` does — see its probe effect. */
+  const [fmPlayRequest, setFmPlayRequest] = useState(0);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -1745,8 +2093,68 @@ function Inner() {
   }, [fmVolume]);
 
   useEffect(() => {
+    try { window.localStorage.setItem(FM_MUTED_KEY, fmMuted ? "1" : "0"); } catch { /* private mode */ }
+  }, [fmMuted]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FM_CUSTOM_STATIONS_KEY, JSON.stringify(customFmStations)); } catch { /* private mode */ }
+  }, [customFmStations]);
+
+  useEffect(() => {
     try { window.localStorage.setItem(FM_SOURCE_KEY, fmSource); } catch { /* private mode */ }
   }, [fmSource]);
+
+  const addFmStation = useCallback((station: CustomFmStation) => {
+    setCustomFmStations(current => current.some(item => item.id === station.id) ? current : [...current, station]);
+    setUnavailableFmStations(current => {
+      if (!current.has(station.id)) return current;
+      const next = new Set(current); next.delete(station.id); return next;
+    });
+  }, []);
+
+  const renameFmStation = useCallback((id: string, name: string) => {
+    const clean = name.trim();
+    if (!clean || clean.length > STATION_NAME_MAX) return;
+    setCustomFmStations(current => current.map(station => station.id === id ? { ...station, name: clean } : station));
+  }, []);
+
+  const removeFmStation = useCallback((id: string) => {
+    setCustomFmStations(current => current.filter(station => station.id !== id));
+    setFmSource(current => selectionAfterRemovingStation(current, id));
+    setUnavailableFmStations(current => {
+      if (!current.has(id)) return current;
+      const next = new Set(current); next.delete(id); return next;
+    });
+  }, []);
+
+  // A pick of the station already playing changes nothing, as it did before
+  // custom stations: counting it would restart the stream under the person.
+  // A station marked unavailable is the exception, because picking it is the
+  // retry — the mark comes off and the counter moves, so ClaudeFm asks again,
+  // whether it is the station already set or one somebody came back to.
+  const pickFmSource = useCallback((next: FmSelection) => {
+    const retryId = fmAvailabilityKey(next);
+    const retry = unavailableFmStations.has(retryId);
+    if (next === fmSource && !retry) return;
+    if (retry) {
+      setUnavailableFmStations(current => {
+        const rest = new Set(current); rest.delete(retryId); return rest;
+      });
+    }
+    setFmSource(next);
+    setFmPlayRequest(count => count + 1);
+  }, [fmSource, unavailableFmStations]);
+
+  const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
+    const id = fmAvailabilityKey(selection);
+    setUnavailableFmStations(current => {
+      const had = current.has(id);
+      if (had === unavailable) return current;
+      const next = new Set(current);
+      if (unavailable) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
 
   /**
    * The window's own title bar, which only an INSTALLED deck has.
@@ -1939,6 +2347,24 @@ function Inner() {
       replayActiveRef.current = false;
       coalescer.flush();
       setLiveSince(Date.now());
+    });
+    es.addEventListener("desktop-update", (e) => {
+      if (!inDesktopApp()) return;
+      try {
+        const next = readDesktopUpdate(JSON.parse((e as MessageEvent).data));
+        if (next) {
+          desktopUpdateFramesRef.current++;
+          setDesktopUpdate(next);
+          if (next.status !== "ready") {
+            // The press that was out is over, and so are its clock and any
+            // answer still on its way (see askDesktopUpdateRestart).
+            desktopUpdatePressRef.current++;
+            window.clearTimeout(desktopUpdateTimerRef.current);
+            desktopUpdateAskedRef.current = false;
+            setDesktopUpdateRestarting(false);
+          }
+        }
+      } catch { /* ignore */ }
     });
     es.addEventListener("hook", (e) => {
       try {
@@ -2532,6 +2958,16 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
+  const [trashDragging, setTrashDragging] = useState(false);
+  const [trashLabel, setTrashLabel] = useState("");
+  const [trashState, setTrashState] = useState<TrashProximity>("far");
+  const trashZoneRef = useRef<HTMLDivElement>(null);
+  const trashPhase = usePanelPresence(trashDragging, 140);
+  const trashProximityOf = useCallback((event: Parameters<typeof clientPointOf>[0]): TrashProximity => {
+    const rect = trashZoneRef.current?.getBoundingClientRect();
+    const point = clientPointOf(event);
+    return rect && point ? trashProximity(point, rect) : "far";
+  }, []);
   /** WHICH CARD IS DRAWN AT THIS DISTANCE — detail, compact or overview.
    *
    *  The canvas zooms to 0.2, and below the full card every word on it is drawn
@@ -2906,23 +3342,51 @@ function Inner() {
     lastLayoutSigRef.current = "";
     clearStoredLayout();
     setRemovedNodes(new Set());
+    setLastRemoval(null);
     try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
     clearSelection();
     rerender();
   }, [rerender, clearSelection]);
 
-  const removeSelectedNode = useCallback(() => {
-    if (!primarySelectedId || !stateRef.current.agents.has(primarySelectedId)) return;
+  const removeNode = useCallback((id: string) => {
+    const agent = stateRef.current.agents.get(id);
+    if (!agent) return;
     setRemovedNodes(previous => {
       const next = new Set(previous);
-      next.add(primarySelectedId);
+      next.add(id);
       saveRemovedNodes(window.localStorage, next);
       return next;
     });
-    pinnedRef.current.delete(primarySelectedId);
-    positionsRef.current.delete(primarySelectedId);
+    setLastRemoval({ id, label: agent.label });
+    pinnedRef.current.delete(id);
+    positionsRef.current.delete(id);
     clearSelection();
-  }, [primarySelectedId, clearSelection]);
+  }, [clearSelection]);
+
+  const removeSelectedNode = useCallback(() => {
+    if (primarySelectedId) removeNode(primarySelectedId);
+  }, [primarySelectedId, removeNode]);
+
+  // Said for as long as the card is still off the board: one that came back
+  // through the session list or by starting to wait has nothing left to say.
+  const removalNotice = lastRemoval && removedNodes.has(lastRemoval.id) ? lastRemoval : null;
+  // The button that was pressed sat in the detail panel, which unmounts with
+  // the selection, so focus would otherwise fall to <body> and a keyboard user
+  // would start again from the top. <main> takes focus without taking the
+  // single-key shortcuts (#367).
+  useEffect(() => {
+    if (lastRemoval) canvasRef.current?.focus();
+  }, [lastRemoval]);
+
+  const bringBack = useCallback((ids: Iterable<string>) => {
+    const list = [...ids];
+    setRemovedNodes(previous => {
+      const next = withoutRemovals(previous, list);
+      if (next !== previous) saveRemovedNodes(window.localStorage, next);
+      return next;
+    });
+  }, []);
+
 
   // The keydown listener below is registered once and must stay that way, so
   // the gate reads what is on screen through refs rather than closing over it.
@@ -3072,6 +3536,10 @@ function Inner() {
   }, []);
   const primarySelectedIdRef = useRef(primarySelectedId);
   primarySelectedIdRef.current = primarySelectedId;
+  // Delete reaches the removal through a ref for the same reason: the handler
+  // below is registered once, and the callback moves with the selection.
+  const removeSelectedRef = useRef(removeSelectedNode);
+  removeSelectedRef.current = removeSelectedNode;
 
   /** Step through visible agents in render order. `direction` is +1 for
    *  next (j) or -1 for previous (k). Selecting moves the canvas to keep
@@ -3122,6 +3590,13 @@ function Inner() {
       try { focusAgent(sessionId); } catch {}
     }, 60);
   }, [selectAgent, focusAgent]);
+
+  // A session list row for a removed session brings it back as it focuses it:
+  // selecting a card that is not drawn would open a panel for nothing.
+  const openSession = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    focusSession(sessionId);
+  }, [removedAgentIds, bringBack, focusSession]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851; the rule is ownsKeystroke's).
@@ -3264,6 +3739,11 @@ function Inner() {
       if (e.key === "z" || e.key === "Z") {
         if (primarySelectedIdRef.current) focusAgent(primarySelectedIdRef.current);
       }
+      // The detail panel's "Remove from board", one key from a selection — a
+      // plain click on a card shuts that panel, so the button alone would sit
+      // two gestures away. Delete and not Backspace: Backspace is the key a
+      // stray press in the wrong place sends, and only the session list brings a card back.
+      if (e.key === "Delete") removeSelectedRef.current();
       // The only way in, now that the topbar's ☰ is gone — and a genuine
       // toggle, so the same key that opened the sidebar closes it again. The
       // panel's own ‹ is the second way out and calls the same setter; Escape
@@ -3379,6 +3859,12 @@ function Inner() {
     () => blockedSessions(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
   );
+  // Brought back rather than filtered out: see sessionsCalledBack. Filtering
+  // would leave the alarm counting one fewer than the sessions actually stuck.
+  useEffect(() => {
+    const back = sessionsCalledBack(waitingSessions, removedAgentIds);
+    if (back.length > 0) bringBack(back);
+  }, [waitingSessions, removedAgentIds, bringBack]);
   const runningSessions = useMemo(
     () => runningSessionCount(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
@@ -3821,7 +4307,26 @@ function Inner() {
                 behind stays behind until somebody upgrades it, and while this
                 branch is the one on screen it is the ONLY way back into a
                 dismissed dialog. */}
-            {notice ? (
+            {readyAppUpdate ? (() => {
+              // Good news, so not the stale chip's amber: that colour is this
+              // bar's warning, and an update the app has already downloaded
+              // and verified is the opposite of something being wrong. It
+              // wears the accent instead — see .v.ready.
+              const copy = readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version);
+              return (
+                <button
+                  type="button"
+                  className="v ready"
+                  onClick={openReleaseNotes}
+                  aria-haspopup="dialog"
+                  aria-label={copy.label}
+                  title={copy.title}
+                >
+                  {copy.text}
+                  <span className="v-dot" aria-hidden />
+                </button>
+              );
+            })() : notice ? (
               <button
                 type="button"
                 className="v stale"
@@ -3958,21 +4463,12 @@ function Inner() {
                 </span>
               );
             })()}
-            {/* The strip is the pill, and that is the whole strip.
-                It used to carry two board readouts — a token count and a dollar
-                figure, both sums over the agents on the canvas right now.
-                Neither survived the question they kept provoking: the canvas
-                evicts finished work on a timer, so both numbers fall on their
-                own with nothing on screen to account for the fall, and #687 had
-                already spent a tooltip and two qualifiers ("board tokens",
-                "board cost") trying to say so in a row that has 12px to say
-                anything in.
-                The usage panel answers the same question properly and without
-                the qualifier: it is backed by ccusage, it reads the logs on
-                disk, it covers sessions this deck never watched, and it does
-                not forget. A qualified approximation beside an authoritative
-                figure one keystroke away is a readout earning its width by
-                being second-best.
+            {/* Month-to-date usage comes from ccusage, not from the cards that
+                happen to remain on this board (#737). The label and both values
+                live in one element so the period can never be separated from
+                the figures it qualifies. A successful empty month is explicitly
+                0 tokens / $0.00; a ccusage failure says unavailable rather than
+                dressing the current board total up as history.
                 THE MACHINE METER WENT THE SAME WAY, and it is the one that had
                 been earning its width. A 50x24 box drew a 60-second CPU
                 sparkline and a memory bar, and it was the only readout here
@@ -3986,6 +4482,27 @@ function Inner() {
                 What is left is the one thing the bar is FOR: whether the stream
                 is alive. That is a fact about right now, which is the only
                 tense a topbar can keep. */}
+            <span
+              ref={monthUsageRef}
+              className="month-usage"
+              title={monthlyUsage
+                ? `${monthlyUsage.tokens.toLocaleString()} tokens · ${fmtMonthlyCost(monthlyUsage.cost)} spent since the 1st of this local calendar month`
+                : monthlyUsageUnavailable
+                  ? "Monthly usage is unavailable — ccusage could not be read"
+                  : "Loading usage since the 1st of this local calendar month"}
+            >
+              <span className="month-usage-label">this month</span>
+              {monthlyUsage ? (
+                <>
+                  <b>{fmtTokens(monthlyUsage.tokens)}</b>
+                  <span className="month-usage-unit">tokens</span>
+                  <span className="month-usage-sep" aria-hidden>·</span>
+                  <b>{fmtMonthlyCost(monthlyUsage.cost)}</b>
+                </>
+              ) : (
+                <span className="month-usage-pending">{monthlyUsageUnavailable ? "unavailable" : "…"}</span>
+              )}
+            </span>
           </span>
           {/* The deck's one alarm, said out loud — and the only live region in
               the topbar (#372).
@@ -4111,7 +4628,11 @@ function Inner() {
             <button
               type="button"
               className="selected-ribbon"
-              title={`Zoom to ${selected.label} and its session (Z)`}
+              /* The cost rides in the title as well as in the chip, because the
+                 chip drops it where the bar is short (see WHERE THE MONTH GIVES
+                 WAY in styles.css) and a hover should still find it there. */
+              title={`Zoom to ${selected.label} and its session (Z)${
+                c.total > 0 ? `\n${fmtCost(c.total)} spent${rate ? ` · ${rate}` : ""}` : ""}`}
               onClick={() => { try { focusAgent(selected.id); } catch {} }}
             >
               <span className={`state-pill state-${selected.state}`}>
@@ -4135,12 +4656,6 @@ function Inner() {
             </button>
           );
         })()}
-        {selected && (
-          <button type="button" className="btn danger" onClick={removeSelectedNode}
-            title={`Remove ${selected.label} from this board`} aria-label={`Remove ${selected.label} from the board`}>
-            Remove node
-          </button>
-        )}
         <div className="actions">
           {/* Three runs, 4px inside and 12px between, and the settings run a
               further 12px out, so it stands at the 24px that separates this
@@ -4437,6 +4952,15 @@ function Inner() {
                   onLevel={(chime, level) => changeTone(chime, { level })}
                   onFigure={(chime, figure) => changeTone(chime, { figure })}
                   onPreview={chime => previewTone(chime)}
+                  customAssets={customAssets}
+                  customSelections={customSelections}
+                  onBuiltInSelected={clearCustomOnly}
+                  onCustomSelected={selectCustomTone}
+                  onImportCustom={importNotificationAudio}
+                  onCreateVoice={createNotificationVoice}
+                  onRenameCustom={renameCustomAsset}
+                  onPreviewCustom={previewCustomAsset}
+                  onDeleteCustom={deleteCustomAsset}
                   notifyOn={notifyOn}
                   onToggleNotify={toggleNotify}
                   notifyVetoed={notifyVetoed}
@@ -4480,8 +5004,15 @@ function Inner() {
                   onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
                   fmVolume={fmVolume}
                   onFmVolume={setFmVolume}
+                  fmMuted={fmMuted}
+                  onFmMuted={() => setFmMuted(muted => !muted)}
                   fmSource={fmSource}
-                  onFmSource={setFmSource}
+                  onFmSource={pickFmSource}
+                  customFmStations={customFmStations}
+                  unavailableFmStations={unavailableFmStations}
+                  onAddFmStation={addFmStation}
+                  onRenameFmStation={renameFmStation}
+                  onRemoveFmStation={removeFmStation}
                   onClose={() => setAppearanceMenuOpen(false)}
                 />
               )}
@@ -4490,6 +5021,12 @@ function Inner() {
         </div>
       </header>
 
+      {/* Mounted whether or not anything was removed, for the reason the
+          topbar's alarm region is (#372): words that arrive with their region
+          are the ones screen readers drop. */}
+      <div className="vis-hidden" role="status" aria-atomic="true">
+        {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
+      </div>
       {restartedTo ? (
         // Outranks both: it is the shortest-lived of the three and it answers
         // the question the other two just raised.
@@ -4744,8 +5281,10 @@ function Inner() {
           state={stateRef.current}
           now={now}
           selectedIds={selectedIds}
-          onSelect={focusSession}
+          onSelect={openSession}
           onClose={() => setSessionListOpen(false)}
+          removedIds={removedAgentIds}
+          onBringBackAll={() => { bringBack([...removedNodes]); setLastRemoval(null); }}
         />
       )}
       {/* <main>, because the canvas is what this page is: everything else on
@@ -4768,7 +5307,7 @@ function Inner() {
       <main
         id="canvas"
         tabIndex={-1}
-        className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}`}
+        className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
         data-lod={lod}
         ref={canvasRef}
         onMouseDownCapture={releasePointerFocus}
@@ -5021,6 +5560,11 @@ function Inner() {
             draggingRef.current = true;
             dragPatchRef.current = new Map();
             setDragging(true);
+            if (n.type === "agent") {
+              setTrashLabel(stateRef.current.agents.get(n.id)?.label ?? "");
+              setTrashDragging(true);
+            }
+            setTrashState("far");
             markInteract();
             disableAutoFit();
             if (n.type === "sessionGroup") {
@@ -5039,8 +5583,9 @@ function Inner() {
             }
             pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
           }}
-          onNodeDrag={(_, n) => {
+          onNodeDrag={(event, n) => {
             markInteract();
+            if (n.type === "agent") setTrashState(trashProximityOf(event));
             if (n.type === "sessionGroup") {
               const g = groupDragRef.current;
               if (!g) return;
@@ -5072,11 +5617,13 @@ function Inner() {
             dragPatchRef.current?.set(n.id, { x: n.position.x, y: n.position.y });
             setDragMoveTick(t => t + 1);
           }}
-          onNodeDragStop={(_, n) => {
+          onNodeDragStop={(event, n) => {
             markInteract();
+            const droppedOnTrash = n.type === "agent" && trashProximityOf(event) === "over";
             draggingRef.current = false;
             dragPatchRef.current = null;
             setDragging(false);
+            setTrashDragging(false);
             setDragTick(t => t + 1);   // one rebuild, from the refs, at the end
             if (n.type === "sessionGroup") {
               const g = groupDragRef.current;
@@ -5096,6 +5643,10 @@ function Inner() {
             }
             pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
             positionsRef.current.set(n.id, { x: n.position.x, y: n.position.y });
+            if (droppedOnTrash) {
+              removeNode(n.id);
+              return;
+            }
             saveLayout(positionsRef.current, pinnedRef.current);
           }}
         >
@@ -5316,8 +5867,38 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          {characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}
+          {characterEnabled && (
+            <ClaudeFm
+              volume={fmVolume}
+              muted={fmMuted}
+              source={fmSource}
+              playRequest={fmPlayRequest}
+              customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
+              onAvailabilityChange={markFmStationAvailability}
+            />
+          )}
         </ReactFlow>
+        {isMounted(trashPhase) && (
+          <div
+            ref={trashZoneRef}
+            className={`drag-trash-zone ${trashState}${trashPhase === "leaving" ? " leaving" : ""}`}
+            role="status"
+          >
+            <svg className="drag-trash-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 7V5.8C8 4.8 8.8 4 9.8 4h4.4c1 0 1.8.8 1.8 1.8V7m-10 0h12M8 10v8m4-8v8m4-8v8M7 7l.7 13h8.6L17 7" />
+            </svg>
+            <span className="drag-trash-copy">
+              <span className="drag-trash-text">
+                {trashState === "over"
+                  ? <>Release to remove <strong className="drag-trash-name">{trashLabel || "this card"}</strong></>
+                  : "Drop here to remove from the board"}
+              </span>
+              <span className="drag-trash-hint">
+                {trashState === "over" ? "The session list (L) brings it back" : "The session keeps running"}
+              </span>
+            </span>
+          </div>
+        )}
         <SessionPeek
           agentFor={peekAgent}
           recapFor={peekRecap}
@@ -5382,6 +5963,7 @@ function Inner() {
                 onOpenTool={setOpenedToolId}
                 onShowSummary={setSummaryFor}
                 onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
+                onRemove={removeSelectedNode}
               />
         </aside>
       ) : null}
@@ -5402,6 +5984,13 @@ function Inner() {
         <BrowserWatchModal
           onClose={() => setBrowserWatchOpen(false)}
           onSeen={ms => {
+            // The reader has just looked, so the count falling to nothing is
+            // their own doing and not news: the region goes back to the silence
+            // it starts in rather than telling them "no unread findings" about
+            // the list they were reading. Only the reducer's all-clear is
+            // skipped — the next finding still speaks, because "" is the state
+            // a first announcement is made from.
+            setWatchSaid("");
             setWatchSeenMs(ms);
             try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
           }}
@@ -5450,10 +6039,20 @@ function Inner() {
           running={chipVersion}
           onClose={() => setReleaseNotes(null)}
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
+          updateVersion={readyAppUpdate?.version}
+          updateBusy={desktopUpdateRestarting}
+          /* Said until the next press. A failure for a version the app has
+             since replaced is about nothing that is on offer any more, so it
+             goes when a different one is ready. */
+          updateFailure={desktopUpdateFailure
+            && (!readyAppUpdate || readyAppUpdate.version === desktopUpdateFailure.version)
+            ? updateRestartFailureText(desktopUpdateFailure.failure, desktopUpdateFailure.version)
+            : undefined}
+          onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
           /* Only where the server would do it: an unsupervised deck answers
              501 and one without a writable log 409, and the button is not
              offered for either (#1163). */
-          onRestart={version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
+          onRestart={!readyAppUpdate && version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those
@@ -5641,12 +6240,14 @@ function Detail({
   onOpenTool,
   onShowSummary,
   onExportSession,
+  onRemove,
 }: {
   agent: AgentNodeData;
   now: number;
   onOpenTool: (toolId: string) => void;
   onShowSummary?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  onRemove?: () => void;
 }) {
   // The panel and the card it was opened from are on screen together, so this
   // is the card's clock rather than a second one written out here (#374). The
@@ -5742,6 +6343,21 @@ function Detail({
               onClick={() => onExportSession(agent.sessionId)}
               title="Download this session as JSON"
             >Export JSON</button>
+          )}
+          {/* Here and not in the topbar, where it was (#1210): beside "zoom to
+              agent" it was one stray click from taking a session off the board,
+              and at 1440px it wrapped the bar onto a second line. In the panel
+              it sits with the other verbs about this one card. Not a danger
+              button either — the session list brings it back, and the red stays with Clear. */}
+          {onRemove && (
+            <button
+              type="button"
+              className="btn hero-action-btn"
+              onClick={onRemove}
+              title={agent.kind === "root"
+                ? "Take this session's cards off the board (Delete). The session carries on; the session list (L) brings it back"
+                : "Take this card and the ones under it off the board (Delete). The session list (L) brings it back"}
+            >Remove from board</button>
           )}
         </div>
       </header>

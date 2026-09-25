@@ -12,7 +12,8 @@
 // unpairs were pinned by the shape of their lines; Remove, the one that deletes
 // credentials, was pinned by nothing at all, and deleting its gap line let a
 // double-click remove an account with the suite green. The four now ask one
-// function, which is driven here, and a sweep holds every site to it.
+// function, which is driven here, and a sweep holds every site to it — and the
+// fifth, deleting a custom notification sound (#1207), which has no undo either.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -81,6 +82,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
   const accounts = read("AccountsPanel.tsx");
   const section = read("LanSyncSection.tsx");
   const modal = read("LanPeerModal.tsx");
+  const sound = read("SoundMenu.tsx");
 
   it("routes the account's Remove through it, and only a fire posts the removal", () => {
     const start = accounts.indexOf("armedFor: confirmRemove, target: a.num,");
@@ -103,9 +105,23 @@ describe("every arm-then-confirm press asks armedPress", () => {
     expect([...modal.matchAll(/if \(press === "ignore"\) return;/g)]).toHaveLength(2);
   });
 
+  it("routes a custom sound's Delete through it, and only a fire deletes", () => {
+    const start = sound.indexOf("const pressDelete = ");
+    expect(start).toBeGreaterThan(-1);
+    const call = "await onDeleteCustom(id);";
+    const handler = sound.slice(start, sound.indexOf(call, start) + call.length);
+    expect(handler).toMatch(/armedFor: armedDelete, target: id, armedAt: deleteArmedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(handler).toMatch(/if \(press === "arm"\) \{ setArmedDelete\(id\); deleteArmedAt\.current = now; return; \}/);
+    expect(handler).toMatch(/if \(press === "ignore"\) return;\s*setArmedDelete\(null\);/);
+    // The row's button asks the handler and nothing else: no second road to
+    // the delete that skips the arm.
+    expect([...sound.matchAll(/onDeleteCustom\(/g)]).toHaveLength(1);
+    expect(sound).toMatch(/onClick=\{e => pressDelete\(asset\.id, e\.currentTarget\)\}/);
+  });
+
   it("leaves no hand-written gap check anywhere in the components", () => {
     // A fifth copy is how the first four drifted apart in what they pinned.
-    for (const [name, src] of [["AccountsPanel.tsx", accounts], ["LanSyncSection.tsx", section], ["LanPeerModal.tsx", modal]]) {
+    for (const [name, src] of [["AccountsPanel.tsx", accounts], ["LanSyncSection.tsx", section], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx", sound]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }
