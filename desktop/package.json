@@ -1,7 +1,7 @@
 {
   "name": "ccdeck-desktop",
   "private": true,
-  "version": "3.28.1",
+  "version": "3.29.0",
   "description": "ccdeck as a desktop app: the deck, a window, a tray icon and native notifications.",
   "desktopName": "ccdeck-desktop",
   "license": "AGPL-3.0-only",
