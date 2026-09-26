@@ -8,11 +8,13 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { mkdtemp, writeFile, appendFile, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 // @ts-expect-error — plain .mjs server module, no types
 import { appendSwap, readSwapLog, recordSwap, seedActive, accountAtTime, trackedSince, identityForSlot } from "../../server/swap-log.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, transcriptRoots, projectPath, UNATTRIBUTED } from "../../server/account-projects.mjs";
+import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, transcriptRoots, projectPath, sessionFolder, UNATTRIBUTED } from "../../server/account-projects.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { ccProjectSlug } from "../../server/claude-dir.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 
@@ -211,7 +213,7 @@ describe("the incremental scan", () => {
 
     // The tally persisted to disk.
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(2);
+    expect(disk.version).toBe(3);
     expect(disk.tally[KEY_A]["/Users/c/agents-deck"]).toBeTruthy();
     expect(disk.cursors[file]).toBeGreaterThan(0);
   });
@@ -284,6 +286,130 @@ describe("a worktree counts under its repo", () => {
     expect(rep.projects).toHaveLength(1);
     expect(rep.projects[0].name).toBe("agents-deck");
     expect(rep.projects[0].models["claude-opus-5"].i).toBe(18);   // 10 + 5 + 3, one row
+  });
+});
+
+// Built with resolve() so each is the platform's own absolute form, and its
+// slug is what CC would name the project directory on that platform.
+const at = (...p: string[]) => resolve("/work", ...p);
+
+describe("a session counts under the folder it started in (#1278)", () => {
+  it("recovers the start folder from any folder below it, dashes included", () => {
+    const app = at("my-app");
+    const slug = ccProjectSlug(app);
+    expect(sessionFolder(app, slug)).toBe(app);
+    expect(sessionFolder(join(app, "src", "web"), slug)).toBe(app);
+    // "-work-my-app" decodes just as well to /work/my/app; matching never guesses.
+    expect(sessionFolder(join(app, "node_modules", "@angular", "build"), slug)).toBe(app);
+    expect(sessionFolder(at("elsewhere"), slug)).toBeNull();   // the agent left its folder
+    expect(sessionFolder("", slug)).toBeNull();
+    expect(sessionFolder(app, "")).toBeNull();
+  });
+
+  async function transcripts(files: Record<string, string[]>): Promise<string> {
+    const projects = join(await tmp(), "projects");
+    for (const [rel, lines] of Object.entries(files)) {
+      const file = join(projects, rel);
+      await mkdir(join(file, ".."), { recursive: true });
+      await writeFile(file, lines.join("\n") + "\n", "utf8");
+    }
+    return projects;
+  }
+  async function rollupOver(projects: string, stateFile?: string) {
+    const swapLog = join(await tmp(), "swap.jsonl");
+    await appendSwap(TIMELINE[0], swapLog);
+    const rollup = createProjectRollup({
+      now: () => ISO("2026-09-22T10:30:00Z"),
+      roots: [projects], state: stateFile ?? join(await tmp(), "st.json"), swapLog, storeRoot: join(await tmp(), "none"),
+    });
+    await rollup.tick();
+    return { rollup, swapLog };
+  }
+  const rows = (rep: { projects: { path: string; models: Record<string, { i: number }> }[] }) =>
+    Object.fromEntries(rep.projects.map(p => [p.path, p.models["claude-opus-5"].i]));
+  const noCwd = (ts: string, i: number) =>
+    JSON.stringify({ type: "assistant", timestamp: ts, message: { model: "claude-opus-5", usage: { input_tokens: i, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } });
+
+  it("keeps one row while the agent moves into subfolders, out of the folder, and back", async () => {
+    const ws = at("workspace");
+    const { rollup } = await rollupOver(await transcripts({
+      [`${ccProjectSlug(ws)}/s1.jsonl`]: [
+        line("2026-09-22T09:10:00Z", "claude-opus-5", ws, 1, 0),
+        line("2026-09-22T09:11:00Z", "claude-opus-5", join(ws, "app", "src"), 2, 0),
+        line("2026-09-22T09:12:00Z", "claude-opus-5", join(ws, "builds", "0.9.0-validation"), 4, 0),
+        line("2026-09-22T09:13:00Z", "claude-opus-5", at("scratch"), 8, 0),   // cd ../scratch
+        noCwd("2026-09-22T09:14:00Z", 16),
+      ],
+    }));
+    expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 31 });
+  });
+
+  it("counts a subagent's transcript under its session's folder, even when it only worked outside it", async () => {
+    const ws = at("workspace");
+    const slug = ccProjectSlug(ws);
+    const { rollup } = await rollupOver(await transcripts({
+      [`${slug}/s1/subagents/agent-a.jsonl`]: [line("2026-09-22T09:20:00Z", "claude-opus-5", at("other-repo"), 5, 0)],
+      [`${slug}/s1.jsonl`]: [line("2026-09-22T09:10:00Z", "claude-opus-5", ws, 1, 0)],
+    }));
+    expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 6 });
+  });
+
+  it("keeps two sessions apart when one cds into the other's folder", async () => {
+    const app = at("app");
+    const lib = at("lib");
+    const { rollup } = await rollupOver(await transcripts({
+      [`${ccProjectSlug(app)}/a.jsonl`]: [
+        line("2026-09-22T09:10:00Z", "claude-opus-5", app, 1, 0),
+        line("2026-09-22T09:11:00Z", "claude-opus-5", join(lib, "src"), 2, 0),
+      ],
+      [`${ccProjectSlug(lib)}/b.jsonl`]: [line("2026-09-22T09:12:00Z", "claude-opus-5", lib, 4, 0)],
+    }));
+    expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [app]: 3, [lib]: 4 });
+  });
+
+  it("still counts a session started in a worktree under its repo", async () => {
+    const repo = at("repo");
+    const wt = join(repo, ".claude", "worktrees", "feat");
+    const { rollup } = await rollupOver(await transcripts({
+      [`${ccProjectSlug(wt)}/s.jsonl`]: [
+        line("2026-09-22T09:10:00Z", "claude-opus-5", wt, 1, 0),
+        line("2026-09-22T09:11:00Z", "claude-opus-5", join(wt, "src"), 2, 0),
+      ],
+    }));
+    expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [repo]: 3 });
+  });
+
+  it("rebuilds a version 2 tally once, and keeps its heartbeat so downtime is still fenced", async () => {
+    const ws = at("workspace");
+    const slug = ccProjectSlug(ws);
+    const projects = await transcripts({
+      [`${slug}/s.jsonl`]: [
+        line("2026-09-22T09:10:00Z", "claude-opus-5", ws, 1, 0),
+        line("2026-09-22T09:11:00Z", "claude-opus-5", join(ws, "src"), 2, 0),
+      ],
+    });
+    const file = join(projects, slug, "s.jsonl");
+    const stateFile = join(await tmp(), "st.json");
+    // A version 2 file as the old code left it: the per-cwd rows, its cursor at
+    // the end of the transcript it had folded, and a heartbeat from an hour
+    // before this boot, so the deck was down in between.
+    const counters = (i: number) => ({ "2026-09-22": { "claude-opus-5": { i, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 } } });
+    await writeFile(stateFile, JSON.stringify({
+      version: 2,
+      cursors: { [file]: (await readFile(file)).length },
+      tally: { [KEY_A]: { [ws]: counters(1), [join(ws, "src")]: counters(2) } },
+      lastAlive: ISO("2026-09-22T09:30:00Z"),
+    }), "utf8");
+    const { rollup, swapLog } = await rollupOver(projects, stateFile);
+    expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 3 });   // one row, re-read from the start
+    await rollup.tick();
+    expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 3 });   // and only once
+    const disk = JSON.parse(await readFile(stateFile, "utf8"));
+    expect(disk.version).toBe(3);
+    expect(disk.folders[slug]).toBe(ws);
+    // The heartbeat survived the rebuild: the hour down is fenced from it.
+    const stop = (await readSwapLog(swapLog)).find((e: { source: string }) => e.source === "stop");
+    expect(stop?.at).toBe(ISO("2026-09-22T09:30:00Z") + 1);
   });
 });
 

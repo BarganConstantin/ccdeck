@@ -15,17 +15,18 @@
 // accounts; only the message's own timestamp, matched against the swap log,
 // says who was active when it was billed. Each transcript line carries, in one
 // JSON object, its `timestamp`, its `message.model` and its `message.usage`
-// token counts, and its `cwd` — everything a row needs.
+// token counts, and its `cwd` — everything a row needs, once the `cwd` is taken
+// back to the folder the session started in (see sessionFolder).
 //
 // The scan is incremental: a byte cursor per transcript file means a pass folds
 // only the lines appended since the last one, so opening the report is a read
 // of a small on-disk tally rather than a walk of every transcript.
 import { open, stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve, basename, dirname } from "node:path";
+import { join, resolve, basename, dirname, relative } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { renameWithRetry } from "./installer.mjs";
-import { claudeConfigDir } from "./claude-dir.mjs";
+import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
 import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";
 
@@ -34,7 +35,7 @@ import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from ".
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -114,6 +115,51 @@ function cwdFromSlug(slug) {
 }
 
 /**
+ * The folder a transcript line's session started in, recovered exactly from the
+ * line's own `cwd` and the slug of the project directory the transcript sits in.
+ *
+ * CC writes the shell's CURRENT directory on every line, so an agent that ran
+ * `cd src/web` stamps every later line with that subfolder. Keying the tally by
+ * it split one project into a row for every folder its agent passed through —
+ * 25 rows for one repo over a month (#1278). The folder CC files the transcript
+ * under, ~/.claude/projects/<slug>, is the one the session started in, and the
+ * canvas names a session after the same one. The slug cannot be decoded (a dash
+ * in a folder name reads as a separator), but it can be MATCHED: the start
+ * folder is the nearest ancestor of the line's cwd, the cwd itself included,
+ * that encodes to that slug.
+ *
+ * Null when none does: the agent left its folder (`cd ../elsewhere`), or the
+ * slug is CC's hashed long form of a path this cwd is not under.
+ */
+export function sessionFolder(cwd, slug) {
+  if (!cwd || !slug) return null;
+  for (let dir = cwd; ;) {
+    if (ccProjectSlug(dir) === slug) return dir;
+    const up = dirname(dir);
+    if (up === dir) return null;
+    dir = up;
+  }
+}
+
+/**
+ * Which folder a line counts under. `from` describes the transcript the line
+ * came from: `slug` is its project directory's name, and `folders` maps each
+ * slug to the start folder last recovered for it. The map is shared by every
+ * transcript of one project directory and persisted, so a line written after
+ * the agent left its folder still counts under that folder. Without a slug (a
+ * direct call, as the unit tests make) the line's own cwd is used unchanged.
+ */
+function folderOf(lineCwd, { slug = "", folders = null } = {}) {
+  const found = sessionFolder(lineCwd, slug);
+  if (found) {
+    if (folders) folders[slug] = found;
+    return found;
+  }
+  if (slug && folders?.[slug]) return folders[slug];
+  return lineCwd || cwdFromSlug(slug);
+}
+
+/**
  * The project a cwd belongs to. A git worktree lives at
  * `<repo>/.claude/worktrees/<name>`, so work done in one is counted under the
  * repo it is a checkout of — otherwise the same project splits into a row per
@@ -135,8 +181,9 @@ export function projectPath(cwd) {
  *
  * `timeline` is the sorted swap log; the account is whoever it says was active
  * at this line's timestamp, or UNATTRIBUTED when the timestamp precedes it.
+ * `from` names the transcript's project directory — see folderOf.
  */
-export function foldLine(tally, line, timeline, fallbackCwd) {
+export function foldLine(tally, line, timeline, from) {
   if (!line || !line.includes('"usage"')) return;
   let obj = null;
   try { obj = JSON.parse(line); } catch { return; }
@@ -151,8 +198,8 @@ export function foldLine(tally, line, timeline, fallbackCwd) {
   const c = countersFrom(usage);
   if (!(c.i || c.o || c.cr || c.cc)) return;   // a usage block that billed nothing
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
-  const rawCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : (fallbackCwd || "");
-  const cwd = projectPath(rawCwd);   // a worktree counts under the repo it checks out
+  const lineCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : "";
+  const cwd = projectPath(folderOf(lineCwd, from));   // a worktree counts under the repo it checks out
   const who = accountAtTime(timeline, ts);
   const key = who ? accountKey(who.email, who.orgUuid) : UNATTRIBUTED;
   const day = localDay(ts);
@@ -187,19 +234,32 @@ async function foldAppended(fh, start, size, onLine) {
   return size - Buffer.byteLength(carry, "utf8");
 }
 
-/** Every `.jsonl` under the transcript roots, de-duplicated. */
+/** Every `.jsonl` under the transcript roots, de-duplicated, mapped to the
+ *  slug of the project directory it sits in: the first folder below the root,
+ *  also for a subagent's `<slug>/<session>/subagents/agent-*.jsonl`.
+ *
+ *  Shallowest first, so a session's own transcript, whose first line carries
+ *  the folder it started in, is folded before its subagents' and a subagent
+ *  that only ever worked outside that folder still finds it in `folders`. */
 async function listTranscripts(roots) {
-  const out = new Set();
+  const found = [];
+  const seen = new Set();
   for (const root of roots) {
     let ents = null;
     try { ents = await readdir(root, { recursive: true, withFileTypes: true }); }
     catch { continue; }
     for (const e of ents) {
       if (!e.isFile() || !e.name.endsWith(".jsonl")) continue;
-      out.add(join(e.parentPath ?? e.path ?? root, e.name));
+      const dir = e.parentPath ?? e.path ?? root;
+      const path = join(dir, e.name);
+      if (seen.has(path)) continue;
+      seen.add(path);
+      const parts = relative(root, dir).split(/[\\/]/).filter(Boolean);
+      found.push({ path, slug: parts[0] ?? "", depth: parts.length });
     }
   }
-  return [...out];
+  found.sort((a, b) => a.depth - b.depth);
+  return new Map(found.map(f => [f.path, f.slug]));
 }
 
 /** Drop day buckets older than the retention window and prune the empty
@@ -316,7 +376,7 @@ export function createProjectRollup({
   setInterval: setIv = setInterval,
   clearInterval: clearIv = clearInterval,
 } = {}) {
-  let state = { version: STATE_VERSION, cursors: {}, tally: {} };
+  let state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {} };
   let timer = null;
   let running = false;
   let dirty = false;
@@ -329,10 +389,14 @@ export function createProjectRollup({
       const disk = JSON.parse(await readFile(stateFile, "utf8"));
       if (disk && disk.version === STATE_VERSION && disk.tally && disk.cursors) {
         state = disk;
-      } else if (disk && disk.version === 1) {
-        // Version 1 counted every API content block. Keep the heartbeat so a
-        // restart gap remains fenced, but rebuild the tally from transcripts.
-        state = { version: STATE_VERSION, cursors: {}, tally: {}, lastAlive: disk.lastAlive };
+        state.folders ??= {};
+      } else if (disk && (disk.version === 1 || disk.version === 2)) {
+        // Version 1 counted every API content block; version 2 keyed each row
+        // by the line's own cwd, a row per folder the agent cd'd into (#1278).
+        // Neither tally can be re-keyed, since it no longer knows which
+        // transcript a count came from. Keep the heartbeat so a restart gap
+        // remains fenced, but rebuild the tally from transcripts.
+        state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, lastAlive: disk.lastAlive };
         dirty = true;
       }
     } catch { /* first run: empty state */ }
@@ -353,7 +417,7 @@ export function createProjectRollup({
     } catch { /* a failed persist just re-folds next time; cursors stay in memory */ }
   }
 
-  async function foldFile(path, timeline) {
+  async function foldFile(path, slug, timeline) {
     let st = null;
     try { st = await stat(path); } catch { return; }
     let offset = state.cursors[path] ?? 0;
@@ -364,11 +428,11 @@ export function createProjectRollup({
     // is the rare, safe side to err on.
     if (st.size < offset) { state.cursors[path] = st.size; dirty = true; return; }
     if (st.size <= offset) return;
-    const fallback = cwdFromSlug(basename(dirname(path)));
+    const from = { slug, folders: state.folders };
     let fh = null;
     try {
       fh = await open(path, "r");
-      const consumed = await foldAppended(fh, offset, st.size, (line) => foldLine(state.tally, line, timeline, fallback));
+      const consumed = await foldAppended(fh, offset, st.size, (line) => foldLine(state.tally, line, timeline, from));
       if (consumed > offset) { state.cursors[path] = consumed; dirty = true; }
     } catch { /* unreadable this pass; cursor unchanged, tried again next pass */ }
     finally { if (fh) await fh.close().catch(() => {}); }
@@ -391,10 +455,12 @@ export function createProjectRollup({
       await seedActive({ now, path: swapLog, root: storeRoot });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
       const files = await listTranscripts(roots);
-      for (const path of files) await foldFile(path, timeline);
-      // Forget cursors for files that are gone, so the map cannot grow forever.
-      const alive = new Set(files);
-      for (const p of Object.keys(state.cursors)) if (!alive.has(p)) { delete state.cursors[p]; dirty = true; }
+      for (const [path, slug] of files) await foldFile(path, slug, timeline);
+      // Forget cursors for files that are gone, and the folders of project
+      // directories with no transcript left, so neither map grows forever.
+      for (const p of Object.keys(state.cursors)) if (!files.has(p)) { delete state.cursors[p]; dirty = true; }
+      const slugs = new Set(files.values());
+      for (const s of Object.keys(state.folders)) if (!slugs.has(s)) { delete state.folders[s]; dirty = true; }
       // Heartbeat: record that the deck was alive now, so a later boot can see
       // how long it was down. Cheap when nothing else changed — only bumped
       // (and so only persisted) once every HEARTBEAT_MS while idle.
