@@ -54,6 +54,16 @@
     "3.28.0",
     "3.28.1"
   ],
+  "3.29.1": [
+    {
+      "title": "🗂️ One row per project in Projects",
+      "body": "The Projects report now counts a session's work under the folder you started it in, the same name its card has on the canvas, instead of adding a row for every folder the agent moved into. The first start after updating re-reads your transcripts once to regroup the report."
+    },
+    {
+      "title": "🔔 Tidier custom sounds",
+      "body": "Importing a sound, recording one and choosing a spoken voice now sit in compact cards that respond to clicks and focus like the rest of the deck."
+    }
+  ],
   "3.29.0": [
     {
       "title": "🎵 Your own stations in Claude FM",

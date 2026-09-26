@@ -22,7 +22,10 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 // re-exporting them would be inventing API on the way out of a move.
 export { challengeDeck, challengeProof, isProcessAlive };
 import { promisify } from "node:util";
-import { claudeConfigDir } from "./claude-dir.mjs";
+import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
+// Moved to claude-dir.mjs so the Projects rollup can read transcript folders
+// without importing this file; re-exported under the name it always had.
+export { ccProjectSlug };
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
@@ -1841,40 +1844,6 @@ export async function readContextFromTranscript(path) {
   // line. Callers treat that as "no breakdown", same as before.
   if (!state || state.offset === 0) return null;
   return { ...state.ctx };
-}
-
-/** Longest slug CC will store verbatim. Anything longer is truncated here and
- *  given a hash suffix, so two deep paths sharing a 200-character prefix still
- *  get separate directories. */
-const CC_SLUG_MAX = 200;
-
-/** CC's hash of the *unencoded* path, used only for the truncation suffix:
- *  the classic h*31 + c string hash, kept in a signed 32-bit int. */
-function ccPathHash(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return h;
-}
-
-/** Encode an absolute path the way CC stores it under
- *  ~/.claude/projects/<slug>/, so the auto-memory scan below looks in the
- *  directory CC actually wrote.
- *
- *  CC flattens *every* non-alphanumeric character to "-", not just the path
- *  separators and the Windows drive colon this used to replace. Dots are the
- *  ones that bite: a worktree under .claude/worktrees/, or any folder named
- *  like my.app, produced a slug with a literal dot in it, the readdir below
- *  missed, and the project's auto-memory files were quietly left out of the
- *  context panel. Underscores and spaces were wrong the same way. */
-export function ccProjectSlug(cwd) {
-  if (!cwd) return "";
-  // resolve() gives the platform's own absolute form — "/Users/…" on
-  // macOS/Linux, "C:\Users\…" on Windows — and this class covers both, so the
-  // drive colon and the backslashes fall out of the general rule.
-  const abs = resolve(cwd);
-  const slug = abs.replace(/[^a-zA-Z0-9]/g, "-");
-  if (slug.length <= CC_SLUG_MAX) return slug;
-  return `${slug.slice(0, CC_SLUG_MAX)}-${Math.abs(ccPathHash(abs)).toString(36)}`;
 }
 
 /**
