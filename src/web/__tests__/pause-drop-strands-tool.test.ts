@@ -404,15 +404,17 @@ describe("the deck this is all wired into", () => {
   // component is still doing the same thing, and both halves of this fix are
   // one line of wiring each — a gate built without `protect`, or a resume that
   // drains before it notes the hole, puts the bug straight back with every case
-  // above still green. So the source is read.
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // above still green. So the source is read — from use-pause-gate.ts, which is
+  // where the wiring lives since it was lifted out of `Inner`. The two lines
+  // this case defends did not change when they moved; only the file did.
+  const src = readFileSync(fileURLToPath(new URL("../use-pause-gate.ts", import.meta.url)), "utf8");
 
   it("builds its pause gate with the protection the ceiling reads", () => {
-    expect(app).toMatch(/createPauseGate<HookEnvelope>\(\{\s*protect: env => settlesInFlightCall\(stateRef\.current, env\),/);
+    expect(src).toMatch(/createPauseGate<HookEnvelope>\(\{\s*protect: env => settlesInFlightCall\(stateRef\.current, env\),/);
   });
 
   it("notes the hole on a resume that dropped, before it feeds the run in", () => {
-    const toggle = app.slice(app.indexOf("const togglePause"), app.indexOf("const [now, setNow]"));
+    const toggle = src.slice(src.indexOf("const togglePause"), src.indexOf("return {"));
     expect(toggle).toContain("noteDroppedEvents(stateRef.current)");
     // Ordering is the whole of it, twice over. `dropped` has to be read while
     // the gate is still paused, because the resume clears it; and the note has
