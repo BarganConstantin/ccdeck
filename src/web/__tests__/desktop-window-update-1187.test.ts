@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { matchesReadyUpdate, restartReadyUpdate } from "../../../desktop/window-update.mjs";
+import { clientText } from "./client-source";
 import {
   desktopAppVersion,
   readDesktopUpdate,
@@ -16,6 +17,10 @@ import {
 } from "../desktop-update";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
+
+// Read across the whole client rather than App.tsx: the updater's state, its
+// press rule and the stream event that releases a press moved to
+// use-desktop-update.ts, and what these cases pin is the discipline, not the file.
 
 describe("desktop update state in the window", () => {
   it("accepts known states and requires a version for ready", () => {
@@ -81,7 +86,7 @@ describe("the one-button window wiring", () => {
   });
 
   it("shows the verified target version and one Restart to update action", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const modal = read("../components/ReleaseNotesModal.tsx");
     expect(app).toContain('es.addEventListener("desktop-update"');
     expect(app).toMatch(/es\.addEventListener\("desktop-update"[\s\S]*?if \(!inDesktopApp\(\)\) return;/);
@@ -109,7 +114,7 @@ describe("the one-button window wiring", () => {
   });
 
   it("wears its own chip, not the stale chip's warning", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const at = app.indexOf("readyChipCopy(desktopAppVersion()");
     const chip = app.slice(at, app.indexOf("</button>", at));
     expect(chip).toContain('className="v ready"');
@@ -117,13 +122,13 @@ describe("the one-button window wiring", () => {
   });
 
   it("tells the app when the dialog has offered the update", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     expect(app).toContain("const offeredAppUpdate = releaseNotes && readyAppUpdate ? readyAppUpdate.version : null;");
     expect(app).toContain('fetch("/api/desktop-update/seen"');
   });
 
   it("asks for the app's state again on every reconnect, not only on load", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     expect(app).toMatch(/if \(!live \|\| !inDesktopApp\(\)\) return;[\s\S]*?fetch\("\/api\/desktop-update"\)[\s\S]*?\}, \[live\]\);/);
   });
 });
@@ -141,7 +146,7 @@ describe("the ready chip's words (#1187)", () => {
     expect(title).toContain("click to open What's new");
     expect(title).toContain(RESTART_TO_UPDATE);
     expect(title).not.toMatch(/click to (?:update|restart)/i);
-    const app = read("../App.tsx");
+    const app = clientText();
     expect(app).not.toContain("click to update and restart");
   });
 });
@@ -155,7 +160,7 @@ describe("one phrase and one version spelling on all three surfaces (#1187)", ()
     expect(modal).toContain("RESTART_TO_UPDATE");
     expect(main).toContain('buttons: ["Restart to update", "Later"]');
     expect(main).toContain("label: `Restart to update to v${u.version}`");
-    for (const src of [main, modal, read("../App.tsx")]) {
+    for (const src of [main, modal, clientText()]) {
       expect(src).not.toMatch(/"Update and restart"|"Restart now", "Later"/);
     }
   });
@@ -201,7 +206,7 @@ describe("a restart that did not happen says so (#1187)", () => {
   });
 
   it("hands the press back with a reason, into a live region the dialog already has", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const modal = read("../components/ReleaseNotesModal.tsx");
     expect(app).toContain("handBack(updateRestartRefusal(await response.json().catch(() => null)))");
     expect(app).toContain('return handBack("unreachable");');
@@ -214,7 +219,7 @@ describe("a restart that did not happen says so (#1187)", () => {
   });
 
   it("never lets an older press's clock or answer hand back a newer one", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const start = app.indexOf("const askDesktopUpdateRestart = useCallback(");
     const ask = app.slice(start, app.indexOf("}, []);", start));
     // Each press takes a number and stops whatever clock is still running.
