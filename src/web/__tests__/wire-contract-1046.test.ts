@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const types = read("../types.ts");
@@ -124,7 +125,9 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // cached `npm has vX` and offered no update, with the one fact that
     // explained it unread in the response.
     expect(selfUpdate).toMatch(/checkFailedAt: marker\?\.failedAt \?\? null,/);
-    expect(declares(decl(app, "VersionInfo"), "checkFailedAt")).toBe(true);
+    // VersionInfo is declared in use-version-check.ts since the check was
+    // lifted out of Inner; what matters is that the client declares the field.
+    expect(declares(decl(clientText(), "VersionInfo"), "checkFailedAt")).toBe(true);
     expect(declares(decl(chip, "VersionChipCopy"), "checkFailedAgo")).toBe(true);
     expect(chip).toMatch(/could not reach npm/);
     // And the accessible name too: the chip looks identical either way, so a

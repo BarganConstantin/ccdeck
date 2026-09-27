@@ -24,6 +24,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { pressAccepted, pressState, selfPressAccepted, selfPressProps } from "../panel-press";
 import { lineOf, openTags, withoutComments } from "./tsx-scan";
+import { clientText } from "./client-source";
 
 // ── the sources, with comments blanked ──────────────────────────────────────
 
@@ -337,7 +338,9 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // run started — and is released once the poll has been awaited.
     expect(app).toMatch(/if \(!selfPressAccepted\(upgradeAskedRef\.current \|\| upgradeState === "running"\)\) return;/);
     expect(app).toMatch(/await loadVersion\(\);\s*\n\s*upgradeAskedRef\.current = false;/);
-    expect(app).toMatch(/return fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
+    // `loadVersion` lives in use-version-check.ts now. The press lock above
+    // is App.tsx's; the round trip it awaits is the client's, wherever written.
+    expect(clientText()).toMatch(/return fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 
   it("holds one forced quota read at a time, per hook, and never blocks the poll", () => {

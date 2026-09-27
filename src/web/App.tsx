@@ -62,6 +62,7 @@ import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
+import { useVersionCheck, VERSION_DISMISSED_KEY } from "./use-version-check";
 import { readStored } from "./storage";
 import { THEME_KEY, storedTheme, type Theme } from "./theme";
 import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
@@ -298,7 +299,6 @@ const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
  *  no longer exists, and a tab that had the panel open still finds it open. */
 const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
 const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
-const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
 // Which old command the name notice has already been dismissed for — the name
 // itself, not a boolean. Somebody who dismisses it under `agent-dag` and later
 // starts the deck as `agents-deck` is a second install that has not heard this
@@ -309,75 +309,11 @@ const OLD_NAME_DISMISSED_KEY = "agent-dag.oldNameNoticeDismissed";
 // instead of accepting the server's cached answer. Three times the poll
 // interval: often enough that a release shows up while you are looking at the
 // deck, rare enough that the cost stays the one request the README advertises.
-const VERSION_FORCE_MS = 15 * 60_000;
 
 // What GET /api/version answers. `running` is the version this server process
 // booted with; `installed` is what is on disk right now. They diverge the
 // moment npm upgrades a deck that is already running, and Node's module cache
 // means the process keeps executing the old code until it restarts.
-type VersionNotice = { kind: "restart" | "upgrade"; from: string; to: string };
-type VersionInfo = {
-  /** The package the server asked npm about, which is the one its `command`
-   *  would install — `ccdeck` for a deck started with `npx ccdeck`. */
-  name: string;
-  running: string | null;
-  installed: string | null;
-  /** npm's newest version that is confirmed installable under `name`. */
-  latest: string | null;
-  /** A version npm's dist-tag names that the registry cannot serve yet. Never
-   *  offered: the tag moves before the version does, and a restart taken inside
-   *  that window fails with ETARGET. */
-  latestPending?: string | null;
-  notice: VersionNotice | null;
-  command: string;
-  // False when nothing is supervising the process, or when --no-persist means a
-  // restart would take the canvas with it.
-  canRestart?: boolean;
-  /** When npm was last asked, so the chip can say it. Null when the check is off. */
-  checkedAt?: number | null;
-  /** When the last attempt FAILED, null once one succeeds.
-   *
-   *  Computed, serialised, delivered — and until #1046 declared nowhere on this
-   *  side, so it was dropped at the door. The server's own comment says what it
-   *  is for: "the single most common reason for a missing update button — a
-   *  proxy, a flaky line, an offline machine — is indistinguishable from being
-   *  up to date" without it. And `checkedAt` deliberately does NOT move on a
-   *  failure ("checked 2 minutes ago" over an hour-old answer is the one thing
-   *  that field must never say), so on a machine behind a proxy the chip said
-   *  `checked 3h ago` beside a cached `npm has vX` and offered nothing, with
-   *  the one fact that explained it sitting unread in the response. */
-  checkFailedAt?: number | null;
-  checkDisabled?: boolean;
-  /** Why an in-app `npm i -g` is refused here, or null when it is allowed. */
-  upgradeBlocked?: string | null;
-  /** How this copy can update itself: install in place, come back through npx,
-   *  or not at all — in which case the command is the whole answer. */
-  upgradeMode?: "install" | "npx" | null;
-  /** `at` is when the failure was recorded — the only thing that tells one
-   *  failed npx relaunch from the one before it, since a retry that breaks the
-   *  same way reports the same command and the same error. */
-  upgrade?: { state: "idle" | "running" | "done" | "failed"; command: string | null; error: string | null; at?: number | null };
-  /** Which of the three published commands the user typed, when the server can
-   *  prove it — and null everywhere it cannot: a global install on Windows,
-   *  where npm's shim swallows the name before the process starts, and a git
-   *  checkout, where nothing was typed. Never guessed, so a null here means the
-   *  notice below stays away rather than that it picks the likeliest name.
-   *  Deliberately separate from `name` above, which is the upgrade target: for
-   *  a global install that is the published package whichever bin was run. */
-  invokedAs?: string | null;
-  /** The second line of that notice, already written: the command to type next
-   *  time under npx, and the reassurance that it is on the PATH already for an
-   *  install — the same one ships all three. Null when there is nothing to say,
-   *  which is every shape where `invokedAs` above is null too.
-   *
-   *  A string rather than a flag, and computed on the server rather than here,
-   *  because the browser has no honest way to tell those two apart on its own —
-   *  the field it used to guess from (`upgradeMode`) answers whether this copy
-   *  may install over itself, which `AGENTS_DECK_NO_INSTALL=1` turns off for
-   *  npx and global installs alike. The terminal row renders this same string
-   *  from this same function, which is what keeps the two surfaces one answer. */
-  renameFix?: string | null;
-};
 
 // Said in the UI's voice, not npm's. Each of these is a decision we made on
 // purpose, so each gets a reason rather than a disabled button.
@@ -1166,7 +1102,10 @@ function Inner() {
    *  is a full browser and not a dead server: see the SSE effect and
    *  tab-census.ts. */
   const [tabCapped, setTabCapped] = useState(false);
-  const [version, setVersion] = useState<VersionInfo | null>(null);
+  // The deck's own version check — the banner, the chip and the poll behind
+  // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
+  const { version, versionDismissed, setVersionDismissed, cmdCopied, setCmdCopied,
+          versionChecking, loadVersion } = useVersionCheck(live);
   const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateState | null>(null);
   const [desktopUpdateRestarting, setDesktopUpdateRestarting] = useState(false);
   /** Why the last press of Restart to update did not end in a restart, and for
@@ -1174,65 +1113,10 @@ function Inner() {
   const [desktopUpdateFailure, setDesktopUpdateFailure] = useState<
     { failure: UpdateRestartFailure; version: string } | null
   >(null);
-  const [versionDismissed, setVersionDismissed] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
-  });
-  const [cmdCopied, setCmdCopied] = useState(false);
-  // `force` asks npm now instead of reusing the answer cached on disk. Used by
-  // the chip, because "no banner" and "no check ran" look identical from here.
-  const lastForcedRef = useRef(0);
-  // A forced check is a round-trip to the registry, and on a slow line that is
-  // seconds during which the chip would otherwise not move at all — clicking it
-  // felt like clicking nothing. Only forced checks are shown: the unforced
-  // polls are answered from a marker on disk and would just make the chip
-  // flicker for no reason the user could act on.
-  const [versionChecking, setVersionChecking] = useState(false);
-  // Returns the round trip so a caller that has to know when the answer landed
-  // can wait for it — startUpgrade is the one, and holds its press lock until
-  // /api/version has reported the run it just started (#620).
-  const loadVersion = useCallback((force = false) => {
-    if (force) { lastForcedRef.current = Date.now(); setVersionChecking(true); }
-    return fetch(force ? "/api/version?refresh=1" : "/api/version")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setVersion(d as VersionInfo); })
-      .catch(() => {})
-      .finally(() => { if (force) setVersionChecking(false); });
-  }, []);
-  // Every unforced poll is answered from the server's on-disk marker, so once a
-  // deck had checked, nothing it could do would ever learn about a release
-  // published afterwards until that marker's hour was up — reported as seven
-  // releases shipping with no banner on any of four running decks. The client is
-  // the right place to decide how fresh the answer has to be, so the periodic
-  // poll forces on a slower cadence of its own rather than never.
-  //
-  // Gated on the ref rather than forced every time, because forcing skips the
-  // server's window entirely: the ~20-byte registry GET still happens at most
-  // once per interval per deck, whether the trigger was the poll, a tab
-  // regaining focus, or the chip — all of them stamp the same ref.
-  const forceVersionIfStale = useCallback(() => {
-    loadVersion(Date.now() - lastForcedRef.current >= VERSION_FORCE_MS);
-  }, [loadVersion]);
-  useEffect(() => {
-    // Unforced: the server asks npm on the first call of its own process, so a
-    // deck the user has just started is already answering with a fresh number.
-    loadVersion();
-    const iv = window.setInterval(forceVersionIfStale, 5 * 60_000);
-    // Coming back to this tab is exactly the moment after someone ran the
-    // upgrade in another window, and exactly the moment to be right — cheaper
-    // and far more timely than waiting out the interval.
-    const onVis = () => { if (document.visibilityState === "visible") forceVersionIfStale(); };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      window.clearInterval(iv);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [loadVersion, forceVersionIfStale]);
   // The stream coming back is the end of a restart, and the only moment the
   // answer is known to have changed. Without this the banner sat on
   // "restarting…" until the five-minute poll came round — and in a background
   // tab, where visibilitychange never fires, that was the only thing left.
-  useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
   // On every (re)connect, not once: the app republishes its updater state when
   // its own stream comes back, and after a deck restart that can land before
   // this page's stream does, so the broadcast alone would be missed. Counted
