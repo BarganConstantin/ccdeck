@@ -36,6 +36,7 @@ import { glyphs, labelColumn, palette, statusLine, stripAnsi } from "../../serve
 // shape this is, versus whether this copy may `npm i -g` over itself (#363).
 // @ts-expect-error — plain JS module, no types
 import { upgradeBlock, upgradeMode } from "../../server/self-update.mjs";
+import { clientText } from "./client-source";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -475,7 +476,9 @@ describe("one fact, one place: which line the rename notice ends with", () => {
   it("is rendered by the browser, not decided there", () => {
     const jsx = bannerJsx();
     expect(jsx).toContain('{version?.renameFix ? <span className="ver-sub">{version.renameFix}</span> : null}');
-    expect(app).toContain("renameFix?: string | null;");
+    // VersionInfo moved to use-version-check.ts with the check itself; the
+    // field is what this pins, not the file it is declared in.
+    expect(clientText()).toContain("renameFix?: string | null;");
     // The branch itself is gone, not merely corrected — this is the assertion
     // that stops the next person deriving the same fact from the same field.
     expect(withoutComments(jsx)).not.toContain("upgradeMode");

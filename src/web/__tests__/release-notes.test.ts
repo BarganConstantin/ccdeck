@@ -64,6 +64,7 @@ import {
 // self-update.mjs opens with node:fs and node:child_process, so the browser
 // bundle cannot import it. Held against this one below so the two cannot drift.
 import { isOlder } from "../../server/self-update.mjs";
+import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -947,7 +948,9 @@ describe("how App.tsx wires it up", () => {
     // exists" from "no check has run", which on a machine that only ever runs
     // `npx ccdeck` is the whole point of the chip.
     expect(app).toMatch(/loadVersion\(true\)/);
-    expect(app).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
+    // The forced round trip moved with `loadVersion` into use-version-check.ts;
+    // `loadVersion(true)` above is still the chip's own click, in App.tsx.
+    expect(clientText()).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 
   it("is reachable from the drift branch too, which is the branch that persists", () => {
