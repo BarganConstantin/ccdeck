@@ -14,7 +14,7 @@
 // and cannot lose a login. Switching shells out to `cswap` rather than
 // reimplementing the lock protocol its correctness depends on.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cswapBin, cswapVersion, installHint } from "./cswap-install.mjs";
+import { cswapBin, cswapInstalling, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
 import { storedCopyAlive } from "./account-health.mjs";
 // The CLI identity oracle, already written and already trusted by the account
@@ -550,10 +550,11 @@ function lane(id, label, win) {
 /**
  * Every managed account with whatever usage claude-swap last saw for it.
  *
- * When there is nothing to show, says which of the two reasons it is:
- * "no_cswap" (the tool is not installed, and here is the command for this
+ * When there is nothing to show, says which of the three reasons it is:
+ * "cswap_installing" (the deck is installing the tool and there is nothing to
+ * do), "no_cswap" (the tool is not installed, and here is the command for this
  * machine) or "no_accounts" (it is installed but nothing has been added yet).
- * They need different things from the user, and reporting both as one empty
+ * They need different things from the user, and reporting them as one empty
  * panel leaves whichever one they are in with nowhere to go.
  */
 export async function fetchClaudeAccounts({ force = false } = {}) {
@@ -636,6 +637,11 @@ async function readRoster(now, gen) {
   const root = backupRoot();
   const seq  = await readJson(join(root, "sequence.json"));
   if (!seq?.accounts) {
+    // Asked before the tool is probed: while the deck's own install is running
+    // there is nothing a `--version` spawn or installHint's interpreter checks
+    // could add, and the one thing the panel must not say is "install it
+    // yourself" — see cswapInstalling.
+    if (cswapInstalling()) return finish({ ok: false, reason: "cswap_installing", fetchedAt: now });
     const version = await cswapVersion();
     return finish(version
       ? { ok: false, reason: "no_accounts", version, fetchedAt: now }

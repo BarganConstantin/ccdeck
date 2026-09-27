@@ -1451,7 +1451,21 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
             )
           ) : !data.ok ? (
             <div className="ap-empty">
-              {data.reason === "no_cswap" ? (
+              {/* The deck's own install, still running. Said as a wait rather
+                  than a fault, and with no command in it: the command belongs
+                  to `no_cswap`, where there is no install coming, and printed
+                  here it sent people to race a second installer against the
+                  one already running. */}
+              {data.reason === "cswap_installing" ? (
+                <>
+                  <span>Installing claude-swap…</span>
+                  <span className="ap-hint">
+                    The deck is setting it up in the background, so there is nothing to do here.
+                    On a new machine this can take a few minutes; the panel fills in by itself
+                    when it is done.
+                  </span>
+                </>
+              ) : data.reason === "no_cswap" ? (
                 <>
                   <span>claude-swap isn't installed.</span>
                   <span className="ap-hint">
