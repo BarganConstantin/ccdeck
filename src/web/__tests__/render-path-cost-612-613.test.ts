@@ -40,12 +40,13 @@
 // still repainting the minimap, which is the one thing about #613 that must be
 // checked by eye; the palette contract below is as close as this gets.
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { restoreLayout, type StoredLayout } from "../stored-layout";
 import { CANVAS_TOKENS, paletteReader, readPalette, samePalette, type Palette } from "../palette";
 import { minimapNodeColor, SESSION_GROUP_TYPE } from "../minimap";
+import { clientSources } from "./client-source";
 
 // ---------------------------------------------------------------------------
 // #612, the half that is a fact about an algorithm.
@@ -225,13 +226,6 @@ describe("the canvas palette is read once per theme", () => {
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
-function clientSources(dir: string): string[] {
-  return readdirSync(dir).flatMap(name => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : clientSources(path);
-    return path.endsWith(".ts") || path.endsWith(".tsx") ? [path] : [];
-  });
-}
 /**
  * Comments out, code left in place.
  *
@@ -331,10 +325,11 @@ describe("no useRef in the client is seeded with work", () => {
     // it, which is the whole of what keeps the construction off every render,
     // so that is what stays pinned; the options are allowed to be there or not
     // and are matched across lines, since they wrap.
-    // The gate's own construction moved to use-pause-gate.ts with `Inner`'s
-    // pause wiring; the `() =>` in front of it is what this pins, wherever it
-    // lives. The directory scan above already covers the new file for seeds.
-    expect(sources.find(([p]) => p === "use-pause-gate.ts")![1]).toMatch(
+    // Read across every client source rather than one named file: the gate's
+    // construction moved out of `Inner` once already, and what this pins is the
+    // `() =>` in front of it wherever it is written. The seed sweep above
+    // covers the new file on its own, because it walks the directory.
+    expect(sources.map(([, src]) => src).join("\n")).toMatch(
       /const pauseGate = useState\(\(\) => createPauseGate<HookEnvelope>\((?:\{[\s\S]{0,400}?\})?\)\)\[0\];/);
   });
 

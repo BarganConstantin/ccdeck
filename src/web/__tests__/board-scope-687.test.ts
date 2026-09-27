@@ -47,7 +47,7 @@
 //     makes "the wording moved without the sum" and "the sum moved without the
 //     wording" both failures rather than one.
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
@@ -64,6 +64,7 @@ import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, type Graph
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
 /** The shipped constants — the same module App.tsx reads. The point is the deck as it runs. */
 import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "../board-limits";
+import { clientSources } from "./client-source";
 
 // Sandboxed before anything can read a real one, the way api-events-streaming
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
@@ -287,13 +288,6 @@ const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 
 /** Every client source that ends up in the bundle. The suite's own files are
  *  excluded: this one quotes the retired label on purpose. */
-function clientSources(dir: string): string[] {
-  return readdirSync(dir).flatMap(name => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : clientSources(path);
-    return path.endsWith(".ts") || path.endsWith(".tsx") ? [path] : [];
-  });
-}
 
 /** The same text with its comments gone — the only form an "appears nowhere"
  *  assertion may read. This repo's prose quotes the code it retires, and
