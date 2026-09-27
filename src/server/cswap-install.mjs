@@ -694,6 +694,24 @@ let _upgrade = null;
 export function upgradeSettled() { return _upgrade; }
 
 /**
+ * Whether ensureCswap is installing claude-swap right now.
+ *
+ * The install runs behind a deck that is already serving — reportStartup stops
+ * waiting the moment `onInstalling` fires — so for the minutes a first run takes
+ * the accounts panel is asking about a tool that is on its way. Absence alone
+ * read as `no_cswap`, and the panel answered it the only way that reason
+ * allows: "claude-swap isn't installed", and a command to install it by hand.
+ * Somebody who ran it then had two installers racing for one directory, over a
+ * tool that would have arrived by itself a minute later.
+ *
+ * True from the moment ensureCswap commits to an install until it has checked
+ * what arrived, whichever way that went. A failed install is `no_cswap` again,
+ * and then the hand-typed command is the right answer.
+ */
+let _installing = false;
+export function cswapInstalling() { return _installing; }
+
+/**
  * Upgrade claude-swap in the background when a newer release exists, and find
  * out what happened.
  *
@@ -835,10 +853,19 @@ export async function ensureCswap({ onInstalling = null } = {}) {
     return { state: "present", version: existing };
   }
 
-  // Said before the install starts rather than after it, because after it is
-  // three minutes later and the whole point is not to be waited for.
-  try { onInstalling?.(); } catch { /* a caller's notification is not our problem */ }
+  _installing = true;
+  try {
+    // Said before the install starts rather than after it, because after it is
+    // three minutes later and the whole point is not to be waited for.
+    try { onInstalling?.(); } catch { /* a caller's notification is not our problem */ }
+    return await installAndConfirm();
+  } finally {
+    _installing = false;
+  }
+}
 
+/** The install half of ensureCswap: run it, then check what arrived. */
+async function installAndConfirm() {
   const result = await installCswap();
   if (!result.ok) return { state: "unavailable", ...result };
   // Something was just installed, so any path resolved before it is a guess made
