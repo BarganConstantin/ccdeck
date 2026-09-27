@@ -61,7 +61,7 @@ import { clientPointOf, trashProximity, type TrashProximity } from "./trash-zone
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
-import { createPauseGate } from "./pause";
+import { usePauseGate } from "./use-pause-gate";
 import { readStored } from "./storage";
 import { THEME_KEY, storedTheme, type Theme } from "./theme";
 import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
@@ -84,7 +84,7 @@ import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestMod
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
 import { columnsWouldChange, type Frame } from "./layout";
-import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, settlesInFlightCall, type GraphState } from "./reducer";
+import { applyEvent, findToolOnBoard, initialState, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
@@ -1788,39 +1788,11 @@ function Inner() {
    */
   const dragPatchRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const [dragMoveTick, setDragMoveTick] = useState(0);
-  // Pause freezes the canvas; it does not drop the connection. The gate owns
-  // both the flag and the held events so the SSE handler can read the current
-  // pause state out of a ref — see pause.ts for why closing over the state
-  // variable instead made every toggle replay the server's whole ring buffer.
-  // `paused` mirrors the gate for rendering; the gate stays the source of truth.
-  // Lazily, for the reason spelled out at `initialGraph`: a `useRef`
-  // argument is re-evaluated on every render (#612). The gate is mutated in
-  // place and never replaced, so the value itself is the handle.
-  //
-  // `protect` is the payload half of the ceiling's eviction rule (#676): the
-  // gate drops the oldest event it holds, and the oldest events of a pause are
-  // the outcomes of the calls that were already running when it began. Nothing
-  // re-delivers those, so a dropped one leaves its call in-flight forever. The
-  // gate cannot recognise them — it reads `seq` and `epoch` — so the graph is
-  // asked, through the ref, which during a pause is frozen at exactly the set
-  // of calls that were open at the freeze.
-  const pauseGate = useState(() => createPauseGate<HookEnvelope>({
-    protect: env => settlesInFlightCall(stateRef.current, env),
-  }))[0];
-  const [paused, setPaused] = useState(false);
-  const togglePause = useCallback(() => {
-    // Read before the toggle: a resume clears the gate's count along with its
-    // queue, so afterwards there is nothing left to ask about this hold.
-    const holed = pauseGate.paused && pauseGate.dropped > 0;
-    const held = pauseGate.setPaused(!pauseGate.paused);
-    // Before the drain, not after. Every call still in flight is about to be
-    // handed a run with a hole in it, and the drain is what settles the ones
-    // whose outcomes did survive — which clears the flag again for each of
-    // them, leaving it only where the deck genuinely does not know (#676).
-    if (holed) noteDroppedEvents(stateRef.current);
-    for (const env of held) stateRef.current = applyEvent(stateRef.current, env);
-    setPaused(pauseGate.paused);
-  }, [pauseGate]);
+  // Pause freezes the canvas; it does not drop the connection. The gate, the
+  // mirrored flag and the toggle's eviction accounting live in use-pause-gate.ts,
+  // which carries the reasoning; the hook is called here so React sees the same
+  // two `useState` calls and the same `useCallback`, in the same order, as before.
+  const { pauseGate, paused, togglePause } = usePauseGate(stateRef);
   const [now, setNow] = useState(Date.now());
 
   // ── restart ───────────────────────────────────────────────────────────────

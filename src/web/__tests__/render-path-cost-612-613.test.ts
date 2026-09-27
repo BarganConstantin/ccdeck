@@ -331,7 +331,10 @@ describe("no useRef in the client is seeded with work", () => {
     // it, which is the whole of what keeps the construction off every render,
     // so that is what stays pinned; the options are allowed to be there or not
     // and are matched across lines, since they wrap.
-    expect(app).toMatch(
+    // The gate's own construction moved to use-pause-gate.ts with `Inner`'s
+    // pause wiring; the `() =>` in front of it is what this pins, wherever it
+    // lives. The directory scan above already covers the new file for seeds.
+    expect(sources.find(([p]) => p === "use-pause-gate.ts")![1]).toMatch(
       /const pauseGate = useState\(\(\) => createPauseGate<HookEnvelope>\((?:\{[\s\S]{0,400}?\})?\)\)\[0\];/);
   });
 
