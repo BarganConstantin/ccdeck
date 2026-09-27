@@ -1,0 +1,601 @@
+---
+name: ccdeck
+description: A live dashboard for Claude Code and Codex — dark-first, monospaced, instrument-panel calm.
+colors:
+  bg: "#0b0c10"
+  bg-soft: "#0f1116"
+  panel: "#14161b"
+  line: "#1f2229"
+  line-soft: "#1a1c22"
+  text: "#d8dae0"
+  text-secondary: "#9aa0ab"
+  muted: "#7e828c"
+  text-dim: "#7e828c"
+  muted-dim: "#50535b"
+  accent: "#7dd3fc"
+  accent-dim: "#38bdf850"
+  ok: "#86efac"
+  warn: "#fcd34d"
+  err: "#fca5a5"
+  inflight: "#f0abfc"
+  grid-line: "#1a1d24"
+  cat-file: "#7dd3fc"
+  cat-shell: "#fcd34d"
+  cat-web: "#67e8f9"
+  cat-agent: "#f0abfc"
+  cat-task: "#86efac"
+  cat-plan: "#c4b5fd"
+  cat-mcp: "#5eead4"
+  cat-other: "#94a3b8"
+  usage-purple: "#c4b5fd"
+  usage-blue: "#7dd3fc"
+  usage-green: "#86efac"
+  usage-amber: "#fcd34d"
+  usage-red: "#fca5a5"
+  usage-indigo: "#a5b4fc"
+  usage-orange: "#fdba74"
+  usage-zinc: "#94a3b8"
+typography:
+  body:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
+    fontSize: "13px"
+    lineHeight: 1.45
+  data:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "12px"
+    lineHeight: 1.45
+  label:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "11px"
+    fontWeight: 600
+    lineHeight: 1.3
+  micro:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "9px"
+    letterSpacing: "0.06em"
+rounded:
+  tag: "4px"
+  ctl: "6px"
+  panel: "8px"
+  node: "10px"
+  cluster: "16px"
+  pill: "999px"
+spacing:
+  ctl-h: "30px"
+  panel-inset: "14px"
+  pad-x: "14px"
+  flow-gutter: "15px"
+  sl-card-gutter: "4px"
+components:
+  button:
+    backgroundColor: "transparent"
+    textColor: "{colors.muted}"
+    typography: "{typography.data}"
+    rounded: "{rounded.ctl}"
+    height: "{spacing.ctl-h}"
+    padding: "0 12px"
+  button-hover:
+    backgroundColor: "rgba(216,218,224,0.07)"
+    textColor: "{colors.text}"
+  button-primary:
+    backgroundColor: "{colors.accent-dim}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.ctl}"
+    height: "{spacing.ctl-h}"
+  button-danger:
+    backgroundColor: "transparent"
+    textColor: "{colors.err}"
+    rounded: "{rounded.ctl}"
+    height: "{spacing.ctl-h}"
+  switch:
+    backgroundColor: "rgba(216,218,224,0.07)"
+    rounded: "{rounded.pill}"
+    width: "30px"
+    height: "18px"
+  field:
+    backgroundColor: "rgba(216,218,224,0.07)"
+    textColor: "{colors.text}"
+    rounded: "{rounded.ctl}"
+    height: "{spacing.ctl-h}"
+  panel:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.panel}"
+    padding: "{spacing.panel-inset}"
+  modal:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.panel}"
+    width: "min(820px, 92vw)"
+  canvas-chrome:
+    backgroundColor: "#101217"
+    textColor: "{colors.text}"
+    rounded: "{rounded.panel}"
+  agent-node:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.node}"
+  tag:
+    backgroundColor: "rgba(216,218,224,0.07)"
+    textColor: "{colors.muted}"
+    typography: "{typography.micro}"
+    rounded: "{rounded.tag}"
+---
+
+# ccdeck design system
+
+Extracted from `src/web/styles.css` on 2026-09-26, revised 2026-09-27 after review.
+The stylesheet is the single source of truth — one file, 14.8k lines, with its
+reasoning written inline. **When this file and the stylesheet disagree, the
+stylesheet is right and this file is stale.**
+
+Because that sentence is load-bearing, this file states no rule the sheet
+contradicts. Where the shipped code breaks a rule it otherwise follows, the
+exception is named and linked to its issue rather than quietly asserted away.
+
+## Overview
+
+ccdeck is an instrument panel. Somebody glances at it because an agent stopped, or
+leaves it open on a second monitor while work happens elsewhere. It is never the
+thing being looked at on purpose for long.
+
+Three consequences that decide everything else:
+
+- **Calm by default, loud only for a real event.** Colour carries state, not
+  decoration. A screen with nothing wrong on it is almost monochrome. The shipped
+  palette breaks this in three places, all recorded below — they are debt, not
+  precedent.
+- **Dark is the default, light is a full peer.** `:root` is the dark ramp;
+  `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
+  where contrast bugs live, because every terminal-adjacent colour assumes dark.
+  There are exactly two themes — `Theme = "dark" | "light"` in `theme.ts`.
+- **Density serves the glance.** The target is concrete so a screenshot can pass
+  or fail it: **at 1440×900 with the detail rail open, eight sessions in the list
+  and twenty nodes on the canvas fit without scrolling.** 13px base, 30px
+  controls, 9–11px labels.
+
+Contrast is enforced by tests, not by taste: `contrast-floors.test.ts`,
+`control-edges.test.ts` and `usage-series-contrast.test.ts` measure the shipped
+token values against the surfaces they land on, in both themes. A new colour that
+fails them is a failing build, not a review comment.
+
+**The floors those tests defend**, stated once so a new colour can be checked
+before the build does it:
+
+| What | Floor | WCAG |
+|---|---|---|
+| Text a reader reads | 4.5:1 | 1.4.3 |
+| Control edges, strokes, series bands, meter fills | 3:1 | 1.4.11 |
+| Decorative marks, and disabled or non-operable controls | exempt | 1.4.3 |
+
+**The tests measure token values, not composited opacity.** A token that passes
+can still fail once an `opacity` is multiplied over it — see `--dim-stale` under
+Shapes, and #1289.
+
+## Colors
+
+**A missing `data-theme` means dark, by design.** The sheet's first selector is
+`:root, :root[data-theme="dark"]`, so a light-theme user whose stored preference
+arrives late sees a fully painted dark deck rather than an unstyled frame. The
+attribute must therefore be written **before first paint**, which the bundle
+cannot do — module scripts are deferred — so `index.html` carries a small inline
+bootstrap that duplicates `resolveTheme`'s rule on purpose.
+`theme-first-paint.test.ts` runs the inlined text against the real function so the
+two copies cannot drift. Never move that logic into the bundle.
+
+| Token | Dark | Light | Job |
+|---|---|---|---|
+| `--bg` | `#0b0c10` | `#eef1f6` | The canvas. |
+| `--bg-soft` | `#0f1116` | `#ffffff` | One step off the canvas. In light it is **deliberately identical to `--panel`** — white is the ceiling, so a third surface tier would be noise at 1.09:1. |
+| `--panel` | `#14161b` | `#ffffff` | Panels, cards, modals. |
+| `--line` | `#1f2229` | `#c8cdd6` | Panel edges, rules, separators. |
+| `--line-soft` | `#1a1c22` | `#dde1e8` | The quieter rule. |
+| `--text` | `#d8dae0` | `#0d1117` | Primary foreground. |
+| `--text-secondary` | `#9aa0ab` | `#303845` | **Prose somebody reads**, as opposed to metadata they glance at. 6.89:1 on `--panel` in dark, 11.82:1 in light. |
+| `--muted` | `#7e828c` | `#4a5260` | Metadata. 4.70:1 on `--panel` in dark — two tenths above the AA floor, so it cannot be lowered. |
+| `--text-dim` | `#7e828c` | `#5f6673` | Annotation. Shares `--muted` in dark because the dark ramp has no room for a third readable tier; light has the headroom and keeps a real step. |
+| `--muted-dim` | `#50535b` | `#7c8493` | **Decorative tint only.** 2.35:1 on `--panel` in dark, 3.76:1 in light — never put words a reader needs in it. |
+| `--accent` | `#7dd3fc` | `#0369a1` | Interactive, live, focused. |
+| `--accent-dim` | `#38bdf850` | `rgba(3,105,161,0.22)` | The primary button's wash. |
+| `--grid-line` | `#1a1d24` | `#d0d5dd` | The canvas dot grid. |
+| `--ok` `--warn` `--err` | `#86efac` `#fcd34d` `#fca5a5` | `#157a3a` `#ad4e08` `#b91c1c` | Settled, attention, failed. |
+| `--inflight` | `#f0abfc` | `#7e22ce` | A tool call in flight. Intended as the one hue that means *right now* — see the collisions below. |
+
+**Derived tiers, and why they are derived.** These are deliberately absent from the
+frontmatter's `colors` map, because a primitive may not reference another primitive
+and every one of them is mixed from a token. `--ctl-fill` and `--ctl-edge` are
+mixed from `var(--text)`, not borrowed from a surface, and both themes declare them
+identically. A tier derived from the foreground exists in both themes by
+construction; one borrowed from `--bg-soft` collapses into the paper on white. Any
+operable control identifies itself with these, and `--line` is deliberately not
+used for it — lifting `--line` would redraw every panel edge in the app to solve a
+problem that belongs to controls.
+
+`--chrome-bg` / `--chrome-edge` are for the canvas's own instruments (the control
+stack, the minimap): most of the way back toward the canvas, so they read as part
+of it rather than as floating panels.
+
+**Hashed hues.** Per-session and per-MCP colours are hashed in JS, which emits the
+**hue only** (`--session-hue`, `--mcp-hue`); lightness comes from the cascade, one
+tier per job:
+
+| Tier | Dark | Light | Drawn as |
+|---|---|---|---|
+| `--session-label-l` | 78% | 26% | cluster label — text, 4.5:1 |
+| `--session-accent-l` | 60% | 26% | the node's own `--accent` |
+| `--session-rim-l` | 55% | 38% | cluster rims — decoration |
+| `--session-edge-l` | 72% | 30% | live parent→child edge, 2px, 3:1 |
+| `--session-edge-idle-l` | 55% | 36% | settled edge, 1.5px |
+| `--mcp-dot-l` | 65% | 32% | unknown-server stripe, MCP chip edge |
+
+Never hard-code a lightness in TypeScript — that is the mistake this split exists
+to prevent, and it made eight colours the only ones in the app that could not
+answer to `data-theme`.
+
+### The eight tool categories and the eight usage series
+
+Both sets are theme-tuned. These are the values people reach for when they add a
+chart, so both ramps are here rather than dark alone:
+
+| Token | Dark | Light | | Token | Dark | Light |
+|---|---|---|---|---|---|---|
+| `--cat-file` | `#7dd3fc` | `#0369a1` | | `--usage-purple` | `#c4b5fd` | `#7e22ce` |
+| `--cat-shell` | `#fcd34d` | `#b45309` | | `--usage-blue` | `#7dd3fc` | `#0369a1` |
+| `--cat-web` | `#67e8f9` | `#0e7490` | | `--usage-green` | `#86efac` | `#157a3a` |
+| `--cat-agent` | `#f0abfc` | `#a21caf` | | `--usage-amber` | `#fcd34d` | `#7a5c00` |
+| `--cat-task` | `#86efac` | `#15803d` | | `--usage-red` | `#fca5a5` | `#be123c` |
+| `--cat-plan` | `#c4b5fd` | `#6d28d9` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
+| `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#b0490c` |
+| `--cat-other` | `#94a3b8` | `#64748b` | | `--usage-zinc` | `#94a3b8` | `#4a5260` |
+
+The usage colours map to: purple = opus and Claude Code's own band, blue = sonnet,
+green = haiku and Copilot, amber = gpt-5, red = gpt, indigo = gemini, orange =
+codex, zinc = anything neither function recognises.
+
+**A category is never identified by colour alone; the chip carries its name.**
+That is already what `.cat-chip .cat-name` does, and it has to stay true: in dark,
+`--cat-shell`, `--cat-web`, `--cat-mcp` and `--cat-task` sit within 1.01–1.03:1 of
+each other, so only hue separates them, and in light `--cat-shell` `#b45309`
+against `--cat-task` `#15803d` is 1.00:1 — orange against green, the pair
+deuteranopes lose first. The hairline rule below covers bands that touch; a legend
+swatch or a lone chip has no neighbour, so it needs the word.
+
+**Eight series, three luminances.** Colours chained at 3:1 from each other need the
+luminance range to span 3^(n−1); 3² = 9 fits inside the 21:1 sRGB allows and 3³ =
+27 does not, so **at most three** colours can be mutually 3:1 apart — and there are
+eight series. So the usage series and the tool categories buy their separation with
+**geometry** — the hairline at `.uh-bar-seg` / `.uh-agent-seg` — and each colour
+clears 3:1 against `--panel` so that hairline is visible against whichever two
+bands it separates. Do not try to solve a new multi-series chart with colour alone.
+
+### Where the shipped palette breaks *colour carries state*
+
+Recorded because a reader will otherwise copy them:
+
+- **`--inflight` `#f0abfc` is also `--cat-agent` and the dark Opus chip**, so with
+  nothing running, every Opus chip and agent-category stripe wears the *right now*
+  hue — #1283.
+- **In dark, three usage series are byte-identical to the status colours:**
+  `--usage-green` = `--ok`, `--usage-amber` = `--warn`, `--usage-red` = `--err`. A
+  GPT band reads as *failed* — #1284. Legibility is fine; meaning is not.
+- **The model chip's family colours are literals, not tokens**, and disagree with
+  the usage band for the same model. Opus switches hue family across themes; Fable
+  and Mythos wear `--warn` — #1285. The intent to aim at is one `--model-*` hue per
+  family, read by both the chip and the chart, kept off the state hues.
+
+### Two palettes that are exempt from theming
+
+`--pixel-metal-light`, `--pixel-metal-shadow`, `--pixel-metal-edge` and
+`--pixel-character-body` are declared once, in `:root`, and never overridden in the
+light block. They keep their material identity across UI themes. Do not "fix" them
+by adding light values. Claude FM's props alias them (`--fm-prop-light` /
+`--fm-prop-shadow` on `.fm-held[data-prop="scope"]`).
+
+**Its ink is not exempt.** `--fm-ink` is `var(--bg)` on `.fm-sprite` and
+`var(--text)` under `:root[data-theme="light"] .fm-sprite`, which also swaps the
+sprite's `--accent` to `--pixel-character-body`. That light rule is deliberate —
+without it the sprite's eyes and hat band go wrong in light. Keep it.
+
+### The appearance picker's swatches are a hard copy
+
+`.appearance-preview[data-swatch]` re-declares each theme's values as `--tp-*`
+literals, because the preview draws the *other* theme while the app is in this one
+and cannot read live tokens. `appearance-swatch.test.ts` fails the day a token
+moves and its copy here does not — so moving any of `--bg`, `--panel`, `--line`,
+`--muted-dim` or `--accent` means updating the swatch in the same commit.
+
+## Typography
+
+One sans stack and one mono stack. No webfonts, no font loading, ever — the deck
+opens instantly and a FOUT on a dashboard is unacceptable.
+
+- **Body / UI:** `13px/1.45` system sans, the base on `html, body, #root`.
+- **Data:** `ui-monospace, SFMono-Regular, Menlo, monospace` — every number, id,
+  path, token count, model name, duration and dollar figure. If it is a value
+  rather than a sentence, it is monospaced. This is the single strongest carrier of
+  the product's character. **On Windows and Linux it names no font:**
+  `ui-monospace` resolves only in Safari and the other two are macOS fonts, so on
+  two of three peer platforms the browser picks. Accepted for now, tracked in
+  #1286.
+- **Every live number is `font-variant-numeric: tabular-nums`** — 72 declarations.
+  On a panel whose numbers tick every second, proportional digits jitter. This is
+  as much the character as the monospace is.
+
+**Weights and case.** 400 is the default. Chips and stat values are 600. A waiting
+duration is **700** — the heaviest thing on a resting card, because it is the
+number that decides whether somebody gets up. 27 labels are
+`text-transform: uppercase` with `letter-spacing: 0.05–0.06em`.
+
+**The scale, by role.** Only the first five are general-purpose; the rest are
+one-off hero sizes and using them as steps will look wrong:
+
+| Size | Uses | Role |
+|---|---|---|
+| 9px | 13 | Micro-labels: chart axis labels, stat captions. Uppercase with tracking. Readable text, which is why #1286 also asks about it on Windows. |
+| 10px | 109 | Chips, tags, node metadata. |
+| 11px | 166 | The workhorse label. |
+| 12px | 101 | Control and button text, dense body. |
+| 13px | 19 | Body prose. |
+| 14px | 11 | Stat values, small headings. |
+| 16 / 18 / 22 / 26 / 34px | 2 / 7 / 1 / 2 / 1 | **Hero only.** Headline numbers and modal titles. Not a scale to pick from. |
+
+## Layout
+
+A CSS grid shell, `.app`, with `:has()` deciding the columns rather than a body
+class:
+
+```
+rows:     52px  topbar
+          auto  banner
+          1fr   body
+
+columns:  1fr 360px                   default (canvas + detail rail)
+          240px 1fr 360px             with the session list
+          auto 1fr 360px              with the accounts panel
+          1fr · 240px 1fr · auto 1fr  the same three with no detail open
+```
+
+Sessions and Accounts share the left slot and are mutually exclusive; accounts
+takes `auto` because it has to fit bars and email addresses.
+
+**The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
+right offset the floating panels position against: `368px` (the rail plus an 8px
+gap), or `8px` when no detail is open. Setting the rail to 368 would be wrong.
+
+**Breakpoints,** and there are deliberately few: `520px`, `640px`, `1039/1040px`,
+`1200px`, `1439/1440px`, plus `1139px` and `1632px` for the topbar ribbon's
+sub-bands only. Below ~1100px the floating panels cover most of the canvas — a
+known defect tracked in #847, not a pattern to copy. **The full three-column layout
+wants 1040px or more**; 640 and 520 narrow the panels rather than offering a phone
+layout.
+
+**Node level of detail is not a viewport breakpoint.** It is `@container lod` on the
+node's own box, and `@container bw` for Browser Watch. A node three columns deep
+gets its compact face because *it* is small, not because the window is.
+
+**Scrollbars** are 10px where `::-webkit-scrollbar` applies; Firefox gets
+`scrollbar-width: thin` and the platform decides. The thumb is transparent until
+the pointer or focus is inside the scroller, and the **track keeps its width
+always**, so arriving with the pointer never reflows the panel underneath.
+`:focus-within` sits beside `:hover` because a scroller can be driven from the
+keyboard — though the colour it reveals is currently below 3:1, tracked in #1290.
+
+## Elevation & Depth
+
+**Elevation is two tokens, and that is the rule:**
+
+| Token | Dark | Light | Uses |
+|---|---|---|---|
+| `--shadow-1` | `0 6px 18px rgba(0,0,0,0.25)` | `0 4px 14px rgba(15,23,42,0.10)` | panels, popovers |
+| `--shadow-2` | `0 10px 24px rgba(0,0,0,0.32)` | `0 10px 28px rgba(15,23,42,0.16)` | modals |
+
+`var(--shadow-1|2)` appears 13 times. Depth is otherwise carried by surface tier
+(`--bg` → `--bg-soft` → `--panel`, which is only two tiers in light) and a 1px
+`--line` edge.
+
+**Halos and rings are a different job and are allowed.** A state colour at zero
+offset is a mark, not elevation: `0 0 8px var(--ok|warn|err|inflight)`,
+`0 0 22px var(--accent)`, and `0 0 0 1px` identity rings. Reach for these to say
+*this one*, never to lift something off the page.
+
+**Known debt:** about 47 `box-shadow` declarations carry literal values, and at
+least one of them is a genuine third elevation in both themes; 25 of the 27
+gradient calls are untokenised. Tracked in #1287 — do not add to it.
+
+## Shapes
+
+Two radius tiers, and the difference is deliberate: **chrome is tight, canvas
+objects are rounder**, because a node reads as a physical thing and a panel reads as
+a panel.
+
+| Tier | Values | Used by |
+|---|---|---|
+| Chrome | `--r-tag: 4px` · `--r-ctl: 6px` · `--r-panel: 8px` | tags, controls, panels, modals |
+| Canvas | `10px` · `16px` | `.agent-node` and `.recap-note` at 10px, `.cluster-card` at 16px |
+| Sub-scale | `3px` ×15 · `2px` ×10 · `1px` ×7 | hairlines, stripes, meter fills |
+| Round | `50%` ×41 · `999px` | dots, knobs, pills |
+
+The canvas tier has no token yet — #1288. **Do not bring the agent node down to
+8px**; it is 10px on purpose. Note also that only 35 declarations use `var(--r-*)`
+while `6px` ×22, `4px` ×20 and `8px` ×15 are the same values written as literals.
+
+Control height is `--ctl-h: 30px`. Panel padding is `--panel-inset: 14px`.
+
+**Two opacity tiers, and they are not interchangeable:**
+
+- **`--dim-off: 0.6`** — switched off or inactive. Safe everywhere it is used
+  today, because every use is a disabled or non-operable control, which 1.4.3
+  exempts.
+- **`--dim-stale: 0.45`** — **marks and fills only.** Over text it drops below AA
+  (3.55:1 on `--text` in dark, 2.15:1 on `--muted` in light) and the contrast tests
+  cannot see it, because they measure tokens rather than composited opacity. Stale
+  *text* says so in words — `updated 6m ago` — at full contrast. The four rules
+  that currently break this are #1289. The sheet already learned this once: the
+  comment at `styles.css:8539` explains why `.ap-account.disabled` stopped using
+  `--dim-off`.
+
+## Components
+
+Documented in the order new work touches them: the primitives first, then the
+canvas's own objects.
+
+### Buttons
+
+`button.btn` **rests transparent** with a `1px solid var(--ctl-edge)` border,
+`min-height: var(--ctl-h)`, `0 12px`, 12px text, `--muted` label.
+
+**Hover is neutral, not accent** — the edge goes to `--text` and the fill to
+`--ctl-fill`. This is deliberate and people break it: an accent hover "made every
+button the pointer crossed look selected". A press is `transform: scale(0.97)`,
+never a 1px drop. Disabled is `opacity: var(--dim-off)`.
+
+- `.btn.primary` — an `--accent-dim` wash with an `--accent` edge.
+- `.btn.danger` — `--err` text with an `--err` 65% edge, and an `.armed` second
+  step so a destructive action is never one click.
+- `.btn.warn` was removed on purpose. Do not bring it back.
+- `.icon-btn` is the square variant for a glyph alone.
+
+### Switch, fields, modal
+
+- **`.switch`** — 30×18, `999px`, `--ctl-fill` with a `--ctl-edge` border, a knob
+  that slides. Unlike a button it **does** carry the resting fill, because a switch
+  has no label of its own to be found by.
+- **`.ap-field select` / `.ap-manage-input`** — `--ctl-fill`, `--ctl-edge`, 6px,
+  `min-height: var(--ctl-h)`; hover lifts the border to `--text`.
+- **`.modal`** — `min(820px, 92vw)`, `max-height: 82vh`, `--panel` on `--r-panel`,
+  `--shadow-2` plus a faint accent ring. The backdrop is `rgba(5,6,9,0.55)` with
+  **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
+  dashes never stop re-rasterises under the dialog for as long as it is open.
+
+### Canvas objects
+
+- **Agent node** — the canvas's primary object. `--node-grad` fill, `10px` radius,
+  the session's hashed accent as its own `--accent`. State is carried by **both the
+  border and the state pill** (`stateLabel()`: `live` / `done` / `err`), never the
+  border alone — 1.4.1. It has **level-of-detail variants** via `@container lod`:
+  `compact` and `overview` strip it down as the board zooms out, so anything added
+  to a node must decide what it becomes at each LOD.
+- **Model chip** — `data-family` per family (`opus`, `sonnet`, `haiku`, `fable`,
+  `mythos`). Add a family here rather than in a component; see #1285 for the
+  colours.
+- **Tool bubble / burst** — striped with its `--cat-*` category colour; the chip's
+  edge is the same colour at 40%, and the chip always carries the category name.
+- **Panel** (usage, machine, accounts) — `--panel` on `--r-panel`, 14px inset, 1px
+  `--line`.
+- **Canvas chrome** (control stack, minimap) — `--chrome-bg` / `--chrome-edge`, so
+  it reads as part of the canvas.
+
+### Blocked on you — the signature pattern
+
+The product's sharpest job, and therefore the one pattern that must not be
+reinvented. Three rules:
+
+1. **`--warn` is reserved for it.** The topbar `.waiting-stat` chip is a transparent
+   pill with an `--warn` 85% edge and `--warn` text; `.notify-said-blocked` is
+   `--warn`. Nothing else competes at that colour.
+2. **The pulse is the only ambient motion a resting card may have.** `.waiting-dot`
+   is a 5px `currentColor` dot borrowing `.ap-pulse`'s motion, so the app keeps one
+   idiom for *still asking* and one reduced-motion answer for it.
+3. **Duration beats description.** On the node the waiting row truncates the
+   sentence and never the duration, at weight 700 — it is the number that decides
+   whether the user gets up.
+
+### Focus ring
+
+`2px solid var(--accent)`, `outline-offset: 2px` (`1px` on buttons),
+`border-radius: 4px`, global on `:focus-visible`. Nineteen rules already override
+it, and correctly: a component may move the **offset** (negative, to pull the ring
+inside a scroller that clips) or the **radius**. It never changes the colour or the
+width.
+
+### Forced colours
+
+`@media (forced-colors: active)` is a whole system, not a courtesy rule, and it has
+a requirement for new work:
+
+- A fill that carries state opts out with `forced-color-adjust: none` and redraws
+  in a system colour — `CanvasText` when a word beside it already carries the
+  state, `Highlight` when live or on, `GrayText` when resting.
+- Identity marks matched to a legend keep their own colour.
+- Every meter track gets a hairline.
+
+**A new status dot, meter or fill has to be added to that block, or it disappears
+under a Windows contrast theme.** Windows is a peer platform.
+
+## States
+
+On an instrument panel the states *are* the design, so they are listed in one place
+rather than scattered through the sections above.
+
+| State | Token | Mark | Words | Motion |
+|---|---|---|---|---|
+| Live | session accent | node border, state pill | `live` | in-flight edge animates |
+| In flight | `--inflight` | tool-call edge, burst stripe | tool name | dash animation |
+| **Blocked on you** | `--warn` | topbar chip, `.waiting-dot` | `waiting 6m · Bash` | the pulse, and only here |
+| Done | `--ok` | node border, state pill | `done` | edge fades to settled |
+| Error | `--err` | node border, state pill | `err` | none |
+| Switched off / disabled | `--dim-off` | the whole control dims | — | none |
+| Stale data | `--dim-stale` | marks and fills only | `updated 6m ago` at full contrast | none |
+| Disconnected | `--warn` | `.conn-banner` row | — | none |
+| Update ready | `--accent` | `.ver-banner` row | — | none |
+| Empty canvas | `--muted` | — | the tour offer | none |
+
+A new state adds a row here, and it needs a **mark and a word** — never colour
+alone.
+
+## Motion
+
+The house vocabulary, so nothing reaches for `300ms ease-in-out` and feels foreign
+on a panel this dense:
+
+- **120ms** (97 uses) and **140ms** (71 uses) for control feedback. 200ms is the
+  longest ordinary transition.
+- **`cubic-bezier(0.23, 1, 0.32, 1)`** is the ease-out — 59 uses, where the next
+  most common custom curve has 11. Use this one.
+- **`scale(0.97)`** on press, 36 uses. Not a translate, not a shadow change.
+- **The pulse is the one ambient loop** (`--pulse-live: 1.2s ease-in-out`), reserved
+  for *still asking*.
+- **`prefers-reduced-motion: reduce` is honoured in 25 blocks**, and the motion
+  tokens (`--edge-transition`, `--ctx-arc-transition`) are *redefined* inside them
+  rather than deleted — so a reduced-motion user still gets the opacity change that
+  carries meaning, without the movement.
+
+Promoting these to `--ease-out` / `--dur-fast` tokens is a sensible follow-up; they
+are literals today.
+
+## Do's and Don'ts
+
+**Do**
+
+- Take colour from a token. If a value needs a new tier, add the tier to
+  `styles.css` in both theme blocks and let the contrast tests judge it.
+- Monospace every value and give every live number `tabular-nums`; leave sentences
+  in the sans stack.
+- Give every state a mark **and** a word.
+- Register a new status dot, meter or fill in the `forced-colors: active` block, or
+  it vanishes under a Windows contrast theme.
+- Honour `prefers-reduced-motion` by redefining the motion token, not by deleting
+  the transition.
+- Decide what a new canvas element looks like at `compact` and `overview` LOD.
+- Let `:has()` do layout switching. No body classes.
+
+**Don't**
+
+- Don't hard-code a hex in a `.tsx`. The cascade knows the theme and JS does not;
+  hand an inline style a `var()` string when a value must come from JS. A
+  `<canvas>` cannot take `var()`: read the token with `getComputedStyle` at draw
+  time and redraw on theme change, **with no literal fallback** — a fallback is a
+  copy that drifts, and `WatchRadar`'s `#6e727c` is an old `--text-dim`.
+- Don't put readable words in `--muted-dim`, and don't put `--dim-stale` over text.
+- Don't lift `--muted` without re-running the contrast tests — it has two tenths of
+  headroom.
+- Don't introduce a webfont, a third elevation, or a third surface tier in light.
+- Don't bring a canvas object down to the chrome radius; 10px and 16px are
+  deliberate.
+- Don't give a button an accent hover. Neutral hover is a decision, not an
+  oversight.
+- Don't solve a new multi-series chart with colour alone; at most three colours can
+  be mutually 3:1 apart.
+- Don't add a hue that only works in dark. Light is a peer, and it is where the bugs
+  are.
+- Don't use `--line` to identify a control. That is `--ctl-edge`'s job.
