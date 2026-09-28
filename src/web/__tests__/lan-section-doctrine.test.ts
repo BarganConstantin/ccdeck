@@ -45,6 +45,15 @@ const ADD = readFileSync(
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The section's whole surface: the component and the files lifted out of it,
+ *  comments gone the same way. Every rule below that says what the section
+ *  never does reads all of it, so that moving a piece into a file of its own
+ *  cannot move it out from under the rule. */
+const SURFACE = [
+  CODE,
+  readFileSync(fileURLToPath(new URL("../components/LanPeek.tsx", import.meta.url)), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "),
+].join("\n");
 
 const NOW = 1_700_000_000_000;
 
@@ -348,7 +357,7 @@ describe("the three rules the panel above it already keeps", () => {
     // no value written, nothing parsed and nothing thrown away. The rule is
     // about a blur that DECIDES something the user did not aim at; a card that
     // stops being drawn is the opposite of a decision.
-    expect(CODE.replace(/onBlur=\{shutPeek\}/g, "")).not.toMatch(/onBlur/);
+    expect(SURFACE.replace(/onBlur=\{shutPeek\}/g, "")).not.toMatch(/onBlur/);
   });
 
   it("has a failure box, announced and dismissible, like the panel's own", () => {
@@ -394,7 +403,7 @@ describe("the three rules the panel above it already keeps", () => {
       `aria-label="This deck's name on the network"`,
       'type="checkbox"',
     ]) {
-      expect(CODE, field).not.toContain(field);
+      expect(SURFACE, field).not.toContain(field);
       expect(MODAL, field).toContain(field);
     }
     // And the other way round for everything that names another machine. The
@@ -408,7 +417,7 @@ describe("the three rules the panel above it already keeps", () => {
       `aria-label="An invite you were sent"`,
     ]) {
       expect(MODAL, field).not.toContain(field);
-      expect(CODE, field).not.toContain(field);
+      expect(SURFACE, field).not.toContain(field);
       expect(ADD, field).toContain(field);
     }
     // The word became the glyph the accounts header two sections up has always
@@ -460,7 +469,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     expect(MODAL).toMatch(/aria-label="Say yes to every deck that asks"/);
     expect(MODAL).toMatch(/autoAsk: !asks/);
     expect(MODAL).toMatch(/autoAccept: !says/);
-    expect(CODE).not.toContain("autoAccept: !");
+    expect(SURFACE).not.toContain("autoAccept: !");
     // Last, after the list it is a permission over, so the warning under it
     // points at rows the reader has just looked at.
     expect(MODAL.indexOf('type="checkbox"')).toBeLessThan(MODAL.indexOf("Pairing"));
@@ -664,11 +673,11 @@ describe("the list is quiet until it is not", () => {
     // the one thing that was never a control — when the last round ran — shares
     // the list's last line with the fold, because both are facts about the list
     // rather than about any deck on it.
-    expect(CODE).not.toContain("ap-lan-foot");
+    expect(SURFACE).not.toContain("ap-lan-foot");
     const tail = /<div className="ap-lan-tail">([\s\S]*?)\n {16}<\/div>/.exec(CODE)?.[1] ?? "";
     expect(tail).toMatch(/ap-lan-more/);
     expect(tail).toMatch(/ap-lan-checked/);
-    expect(CODE).not.toContain("name &amp; sharing");
+    expect(SURFACE).not.toContain("name &amp; sharing");
     // And the title is what pushes the header's controls right, so the row
     // survives every combination of the three that can be missing. It is the
     // shared title rule now, since Auto-switch's head is the same row.
@@ -714,7 +723,7 @@ describe("switching on says what switching on does", () => {
     // An effect watching it would therefore put a dialog in front of a reader
     // who is three sections up looking at a quota — which is the same defect
     // the fold and the live regions were written around.
-    for (const [effect] of CODE.matchAll(/useEffect\([\s\S]*?\n  \}, \[[^\]]*\]\);/g)) {
+    for (const [effect] of SURFACE.matchAll(/useEffect\([\s\S]*?\n  \}, \[[^\]]*\]\);/g)) {
       expect(effect).not.toMatch(/setSetupOpen/);
       expect(effect).not.toMatch(/enabled/);
     }
@@ -744,7 +753,7 @@ describe("the pairing that replaced the passphrase", () => {
   });
 
   it("has no passphrase left anywhere in the surface", () => {
-    for (const src of [CODE, MODAL]) {
+    for (const src of [SURFACE, MODAL]) {
       expect(src).not.toMatch(/passphrase/i);
       expect(src).not.toMatch(/type="password"/);
     }
