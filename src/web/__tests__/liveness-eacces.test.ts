@@ -30,7 +30,8 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 // sweeping index.mjs would now be sweeping a file with nothing in it to find —
 // which this file's whole `toBeGreaterThan(0)` guard exists to catch, and did.
 // self-update.mjs left the list the same way: its copy of the probe went, and
-// the restart-note sweep asks deck-probe.mjs's — see the case below the loop.
+// the restart-note sweep (restart-note.mjs now) asks deck-probe.mjs's — see the
+// case below the loop.
 const SITES: Array<[string, string]> = [
   ["hook/hook.js", "../../../hook/hook.js"],
   ["src/server/deck-probe.mjs", "../../server/deck-probe.mjs"],
@@ -57,14 +58,16 @@ describe("every liveness probe accepts both spellings of 'not allowed'", () => {
     });
   }
 
-  it("self-update.mjs asks deck-probe.mjs rather than keeping a probe of its own", () => {
-    // It carried a copy, comment and all, from before deck-probe.mjs existed.
-    // A copy is one more site that can drift back to EPERM alone, so none may
-    // come back: the sweep of orphaned restart notes goes through the shared one.
-    const src = read("../../server/self-update.mjs");
-    expect(src).not.toMatch(/process\.kill\([^)]*, 0\)/);
-    expect(src).toContain('import { isProcessAlive } from "./deck-probe.mjs";');
-    expect(src).toContain("isProcessAlive(owner)");
+  it("the restart-note sweep asks deck-probe.mjs rather than keeping a probe of its own", () => {
+    // self-update.mjs carried a copy, comment and all, from before deck-probe.mjs
+    // existed, and the note it guarded has since moved to restart-note.mjs. A
+    // copy is one more site that can drift back to EPERM alone, so none may come
+    // back in either file: the sweep of orphaned notes goes through the shared one.
+    const note = read("../../server/restart-note.mjs");
+    const both = read("../../server/self-update.mjs") + "\n" + note;
+    expect(both).not.toMatch(/process\.kill\([^)]*, 0\)/);
+    expect(note).toContain('import { isProcessAlive } from "./deck-probe.mjs";');
+    expect(note).toContain("isProcessAlive(owner)");
   });
 
   it("browser-watch asks through a named predicate rather than a bare catch", () => {
