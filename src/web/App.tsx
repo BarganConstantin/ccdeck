@@ -36,7 +36,6 @@ import {
   customFmId, customFmSelection,
 } from "./fm-stations";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
-import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { sweepTick } from "./prune";
 import { visibleBoard } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
@@ -60,7 +59,6 @@ import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { clearStoredLayout } from "./layout-storage";
 import { isCanvasNodeElement } from "./canvas-node-element";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
@@ -93,6 +91,8 @@ import { useLeftColumn } from "./use-left-column";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { useModalGate } from "./use-modal-gate";
+import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
@@ -280,9 +280,6 @@ function Inner() {
    *  clicking the donut on the session's root node. */
   const [contextFor, setContextFor] = useState<string | null>(null);
   const openContext = useCallback((sid: string) => setContextFor(sid), []);
-  /** Whether the Clear confirmation is up. Clear truncates the server's event
-   *  log, so nothing destructive happens until this dialog is answered. */
-  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   /** Whether the shortcuts sheet is up. Deliberately not persisted: it is a
    *  reference someone reaches for and closes again, and a deck that reopened
    *  it on every refresh would be answering a question nobody asked twice. */
@@ -710,7 +707,7 @@ function Inner() {
   // which needs to know whether the detail panel is mounted.
 
   // The tool the modal is showing, found without building a list of the ones it
-  // is not (#997). In the render body and not skippable — `modalOpenRef` below
+  // is not (#997). In the render body and not skippable — the modal gate below
   // reads `openedTool != null` — so while the modal is open this runs on every
   // render, four times a second on an idle deck. What it must not do on that
   // tick is why the walk lives in the reducer; see findToolOnBoard.
@@ -720,54 +717,15 @@ function Inner() {
   // it is evicted the modal draws nothing, and the tick closes it (#781).
   const contextAgent = contextFor ? stateRef.current.agents.get(contextFor) : undefined;
 
-  const handleClear = useCallback(async () => {
-    try { await fetch("/api/clear", { method: "POST" }); } catch {}
-    stateRef.current = initialState();
-    pinnedRef.current.clear();
-    measuredRef.current.clear();
-    positionsRef.current.clear();
-    lastLayoutSigRef.current = "";
-    clearStoredLayout();
-    forgetRemovals();
-    clearSelection();
-    rerender();
-  }, [rerender, clearSelection, forgetRemovals]);
-
-
-
-
-  // The keydown listener below is registered once and must stay that way, so
-  // the gate reads what is on screen through refs rather than closing over it.
-  // Assigned during render, the way nodesRef is, so a keystroke in the same
-  // commit sees the dialogs that were just drawn.
-  const clearConfirmOpenRef = useMirroredRef(clearConfirmOpen);
-  // The same treatment for the shortcuts sheet, because `?` is a toggle and the
-  // gate below has to be able to tell "the sheet is the modal" from "a modal is
-  // open" — the first still answers `?`, the second must not stack a second one.
-  const keyHelpOpenRef = useMirroredRef(keyHelpOpen);
-  const modalOpenRef = useRef(false);
-  // The shortcuts sheet counts, for the reason clearActionFor gives: a clear
-  // prompt raised over another dialog is two things competing for one Escape.
-  // It cannot normally happen from the keyboard — the sheet holds focus and a
-  // focused control keeps its own keys — but a click on the sheet's own prose
-  // drops focus to <body>, and from there a stray "c" would reach Clear.
-  modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null
-    // The tour, for the same reason as the shortcuts sheet: a click on its
-    // caption drops focus to <body>, and from there a stray "c" reaches Clear.
-    || tourOpen
-    || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;
-
-  /** The single door to Clear. Both the toolbar button and the "c" shortcut
-   *  come through here, so the confirmation cannot hold for one and not the
-   *  other, and only the dialog's own button reaches handleClear. */
-  const requestClear = useCallback((source: ClearSource) => {
-    const action = clearActionFor(source, {
-      confirmOpen: clearConfirmOpenRef.current,
-      modalOpen: modalOpenRef.current,
-    });
-    if (action === "confirm") setClearConfirmOpen(true);
-    else if (action === "clear") { setClearConfirmOpen(false); handleClear(); }
-  }, [handleClear]);
+  // Whether a dialog is up that the keys must not reach past, and whether it
+  // is the shortcuts sheet — use-modal-gate.ts.
+  const { keyHelpOpenRef, modalOpenRef } = useModalGate({
+    openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
+  });
+  // Clear, the confirmation it waits on, and the one door to it — use-clear-flow.ts.
+  const { clearConfirmOpen, setClearConfirmOpen, requestClear } = useClearFlow({
+    stateRef, pinnedRef, measuredRef, positionsRef, lastLayoutSigRef, forgetRemovals, clearSelection, rerender, modalOpenRef,
+  });
 
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.

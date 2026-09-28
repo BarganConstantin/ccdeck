@@ -36,6 +36,8 @@ import { applyEvent, initialState, pruneDoneSessions, type GraphState } from "..
 import type { HookEnvelope, HookPayload } from "../types";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The modal gate, which App.tsx hands every dialog's flag. */
+const gate = readFileSync(fileURLToPath(new URL("../use-modal-gate.ts", import.meta.url)), "utf8");
 /** The deck's 250ms tick, which App.tsx calls with both modal setters. */
 const tick = readFileSync(fileURLToPath(new URL("../use-board-tick.ts", import.meta.url)), "utf8");
 
@@ -110,7 +112,9 @@ describe("what App.tsx does about it", () => {
     // The other direction. The flag must keep blocking shortcuts for a modal
     // that IS on screen — "fixing" this by dropping the two ids from the
     // expression would make Escape-less dialogs swallow every key press.
-    expect(app).toContain("modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null");
-    expect(app).toContain("|| summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;");
+    // Two links: the gate is use-modal-gate.ts's, and App.tsx hands it the ids.
+    expect(gate).toContain("modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null");
+    expect(gate).toContain("|| summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;");
+    expect(app).toMatch(/useModalGate\(\{\s*openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,\s*\}\)/);
   });
 });

@@ -506,6 +506,8 @@ describe("where Remove lives and what follows it", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
   // The removal state and its operations are use-removals.ts's, which App.tsx calls.
   const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
+  // Clear is use-clear-flow.ts's, which App.tsx hands forgetRemovals.
+  const clearFlow = readFileSync(fileURLToPath(new URL("../use-clear-flow.ts", import.meta.url)), "utf8");
   const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
   const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
@@ -559,8 +561,10 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("forgets the last removal on Clear", () => {
-    // Two links: Clear forgets the removals, and forgetting them drops the notice.
-    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
+    // Three links: App.tsx hands Clear the removals' forget, Clear forgets
+    // them, and forgetting them drops the notice.
+    expect(app).toMatch(/useClearFlow\(\{[^}]*\bforgetRemovals\b/);
+    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(clearFlow)?.[0] ?? "";
     expect(clear).toMatch(/forgetRemovals\(\);/);
     const forget = /const forgetRemovals = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(removals)?.[0] ?? "";
     expect(forget).toMatch(/setLastRemoval\(null\);/);
