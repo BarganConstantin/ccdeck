@@ -11,6 +11,7 @@ import {
 } from "../notification-audio";
 import { createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
 import { withoutComments } from "./tsx-scan";
+import { clientText } from "./client-source";
 
 const audio = (size = 4, name = "voice.wav") =>
   Object.assign(new Blob([new Uint8Array(size)], { type: "audio/wav" }), { name });
@@ -298,11 +299,15 @@ describe("the listing carries no bytes (#1207)", () => {
   });
 
   it("keeps only the listing in the deck's state, and gives an import back as a row", () => {
-    expect(app).toMatch(/useState<CustomAssetSummary\[\]>\(\[\]\)/);
+    // The custom-sound layer moved to use-custom-tones.ts, so this reads the whole
+    // client. The count is the point, and it is stronger for it: "both ways a
+    // sound is added" means these are the only two, anywhere in the client.
+    const client = clientText();
+    expect(client).toMatch(/useState<CustomAssetSummary\[\]>\(\[\]\)/);
     expect(menu).toMatch(/customAssets: CustomAssetSummary\[\];/);
     // Both ways a sound is added put its row in state, never the asset.
-    expect([...app.matchAll(/const row = summarizeCustomAsset\(asset\);\s*setCustomAssets\(prev => \[\.\.\.prev\.filter\(item => item\.id !== row\.id\), row\]\);/g)]).toHaveLength(2);
-    expect(app).toMatch(/await renameCustomNotificationAsset\(id, nextName\);/);
+    expect([...client.matchAll(/const row = summarizeCustomAsset\(asset\);\s*setCustomAssets\(prev => \[\.\.\.prev\.filter\(item => item\.id !== row\.id\), row\]\);/g)]).toHaveLength(2);
+    expect(client).toMatch(/await renameCustomNotificationAsset\(id, nextName\);/);
   });
 
   it("renames through the desktop bridge's own get and put, bytes and all", async () => {
