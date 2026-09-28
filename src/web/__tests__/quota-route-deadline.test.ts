@@ -265,8 +265,9 @@ describe("the budget the route spends", () => {
     // The route is where the 47 seconds were spent, so the route is where this
     // has to be read out of. A deadline the module offers and no caller uses
     // leaves the connection pinned exactly as before.
+    // The route's own module, since the usage routes left index.mjs.
     const server = readFileSync(
-      fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+      fileURLToPath(new URL("../../server/usage-routes.mjs", import.meta.url)), "utf8");
     expect(server).toContain("await fetchClaudeQuota({ force, deadlineMs: QUOTA_DEADLINE_MS })");
   });
 
