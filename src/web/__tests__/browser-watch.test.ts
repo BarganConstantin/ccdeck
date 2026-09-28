@@ -585,8 +585,9 @@ describe("a Refresh that lands while a poll is running", () => {
 // on the next ten-second poll.
 describe("two dismissals in one turn", () => {
   it("are both kept, because the list is built inside the job", () => {
+    // The route's own module, since the Browser Watch routes left index.mjs.
     const server = readFileSync(
-      fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+      fileURLToPath(new URL("../../server/browser-watch-routes.mjs", import.meta.url)), "utf8");
     expect(server).toContain("dismissed: [...new Set([...(cur.dismissed ?? []), key])],");
     expect(server, "the snapshot taken before the queue must not come back")
       .not.toContain("const dismissed = [...new Set([...(store.dismissed ?? []), key])];");

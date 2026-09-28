@@ -188,8 +188,10 @@ describe("the writers this file knows about are all the writers there are", () =
     // writer in a file nothing below drives is the case this catches: the
     // regexes cannot tell whether a literal is right, but they can tell that
     // somebody added one and did not come here.
+    // The routes' writes are browser-watch-routes.mjs's since they left
+    // index.mjs; the cases below drive them through the same POSTs.
     const writing = new Set([...calls(), ...updates()].map(([file]) => file));
-    expect([...writing].sort()).toEqual(["browser-watch.mjs", "index.mjs"]);
+    expect([...writing].sort()).toEqual(["browser-watch-routes.mjs", "browser-watch.mjs"]);
   });
 });
 
