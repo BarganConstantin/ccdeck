@@ -210,27 +210,26 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     const x2 = x1 + n.width;
     const y2 = y1 + n.height;
     const existing = bySession.get(d.sessionId);
+    const root = rootFields(d);
     if (!existing) {
       bySession.set(d.sessionId, {
         minX: x1, minY: y1, maxX: x2, maxY: y2,
-        label: rootLabel(d) ?? d.sessionId,
-        name: rootName(d),
-        alarm: d.kind === "root" && isAlarming(d.waiting),
-        branch: rootBranch(d),
+        label: root?.label ?? d.sessionId,
+        name: root?.name,
+        alarm: root?.alarm ?? false,
+        branch: root?.branch,
       });
     } else {
       existing.minX = Math.min(existing.minX, x1);
       existing.minY = Math.min(existing.minY, y1);
       existing.maxX = Math.max(existing.maxX, x2);
       existing.maxY = Math.max(existing.maxY, y2);
-      if (d.kind === "root") existing.label = rootLabel(d) ?? existing.label;
-      // Same rule as the label, and for the same reason: only the session root
-      // speaks for the session. A subagent carries no sessionName at all, so
-      // reading one off whichever node arrived first would leave the header
-      // waiting on iteration order for a field the root has had all along.
-      if (d.kind === "root") existing.name = rootName(d);
-      if (d.kind === "root") existing.alarm = isAlarming(d.waiting);
-      if (d.kind === "root") existing.branch = rootBranch(d);
+      if (root) {
+        existing.label = root.label ?? existing.label;
+        existing.name = root.name;
+        existing.alarm = root.alarm;
+        existing.branch = root.branch;
+      }
     }
   }
 
@@ -259,33 +258,38 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
   return out;
 }
 
-/** The summary App puts on a root's node data (FlowNodeData.branch), in the
- *  card's own `→ N` notation. Only the root carries one. */
-function rootBranch(d: AgentNodeData): string | undefined {
-  if (d.kind !== "root") return undefined;
-  const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
-  return b && b.total > 0 ? branchShort(b) : undefined;
-}
-
-function rootLabel(d: AgentNodeData): string | undefined {
-  if (d.kind !== "root") return undefined;
-  return d.label;
-}
-
 /**
- * The header reads the SAME field the card does — the name when the session has
- * one, the title when it does not — via the one function that decides it.
+ * What a session's root card says for the whole session's header — its
+ * workspace label, its name, whether it is stopped on a human and what its
+ * subagents add up to — or null for any other card.
  *
- * Not `d.sessionName` alone, which is what #521 shipped. On the transcripts
- * under ~/.claude/projects here that field is present on 0.2% of sessions and
- * the title on 4.1%, so a header keyed on the name alone was blank for
- * essentially every deck. The cap in cluster-header.ts survives the change
- * unaltered: it is derived from where the CARD ellipsises, which is a fact
- * about a 240px node and not about which record filled it.
+ * Only the session root speaks for the session, and the rule is the same for
+ * all four fields, so it is one check here rather than one per field. A
+ * subagent carries the session's id and no sessionName at all, so reading a
+ * field off whichever node arrived first would leave the header waiting on
+ * iteration order for a field the root has had all along.
  */
-function rootName(d: AgentNodeData): string | undefined {
-  if (d.kind !== "root") return undefined;
-  return sessionDisplay(d.sessionName, d.sessionTitle).face;
+function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string } | null {
+  if (d.kind !== "root") return null;
+  const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
+  return {
+    label: d.label,
+    // The header reads the SAME field the card does — the name when the
+    // session has one, the title when it does not — via the one function that
+    // decides it.
+    //
+    // Not `d.sessionName` alone, which is what #521 shipped. On the transcripts
+    // under ~/.claude/projects here that field is present on 0.2% of sessions
+    // and the title on 4.1%, so a header keyed on the name alone was blank for
+    // essentially every deck. The cap in cluster-header.ts survives the change
+    // unaltered: it is derived from where the CARD ellipsises, which is a fact
+    // about a 240px node and not about which record filled it.
+    name: sessionDisplay(d.sessionName, d.sessionTitle).face,
+    alarm: isAlarming(d.waiting),
+    // The summary App puts on a root's node data (FlowNodeData.branch), in the
+    // card's own `→ N` notation. Only the root carries one.
+    branch: b && b.total > 0 ? branchShort(b) : undefined,
+  };
 }
 
 export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
