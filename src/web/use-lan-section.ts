@@ -41,11 +41,76 @@ export const LAN_POLL_OFF_MS = 60_000;
  * moves: a deck that answered `bad_request` has a panel bug behind it, and a
  * deck that answered nothing at all has stopped.
  */
-export function writeFailure(what: string, out: { ok?: boolean; reason?: string } | null): string {
+export function writeFailure(
+  what: string,
+  out: { ok?: boolean; reason?: string; detail?: RefusalDetail | null } | null,
+): string {
   if (out == null) return `Could not ${what} — the deck did not answer.`;
+  const machine = out.reason ? outOfReach(out.reason, out.detail) : undefined;
+  if (machine) return `Could not ${what} — ${machine}`;
   return out.reason
     ? `Could not ${what} — the deck refused it (${out.reason}).`
     : `Could not ${what}.`;
+}
+
+/** The two refusals whose next move is on the machine rather than in the panel
+ *  (#1335), so a bracketed code would send the reader looking in the wrong
+ *  place. The server keeps the path out of its answer; its log has it. */
+const SETTINGS_OUT_OF_REACH: Record<string, string> = {
+  prefs_unreadable: "this deck cannot read its settings file, so it will not write over it. "
+    + "The file may belong to another user, for example after ccdeck was run with sudo. The deck's log names the file.",
+  prefs_not_writable: "this deck is not allowed to save its settings. "
+    + "The settings folder may belong to another user, for example after ccdeck was run with sudo, "
+    + "or another program may be holding the file. The deck's log names the folder.",
+};
+
+/** What the deck says blocked a settings write — deck-prefs.mjs's
+ *  prefsRefusalDetail: an errno, who owns what blocked it, file or folder.
+ *  Closed sets, never a path. A deck older than this sends none. */
+export type RefusalDetail = { code?: string; owner?: string; on?: string };
+
+/** The only read errors that can be about who owns the file. */
+const PERMISSION = new Set(["EACCES", "EPERM"]);
+
+/**
+ * The sentence for a settings write the machine refused, as exact as the deck
+ * could make it (#1335), then the errno — so a screenshot of this line is enough
+ * to tell the cases apart. The general sentence, which has to guess, is what is
+ * left when the deck could not say more.
+ */
+function outOfReach(reason: string, detail?: RefusalDetail | null): string | undefined {
+  const general = SETTINGS_OUT_OF_REACH[reason];
+  if (!general) return undefined;
+  const exact = reason === "prefs_unreadable" && detail ? unreadableBecause(detail) : undefined;
+  const code = detail?.code && detail.code !== "BADJSON" ? ` Error code: ${detail.code}.` : "";
+  return (exact ?? general) + code;
+}
+
+function unreadableBecause({ code, owner, on }: RefusalDetail): string | undefined {
+  if (code === "BADJSON") {
+    return "its settings file is damaged and could not be moved aside, so it will not write over it. "
+      + "The deck's log names the file.";
+  }
+  if (on === "folder" && owner === "other") {
+    return "this deck cannot open its settings folder, which belongs to another user, "
+      + "for example after ccdeck was run with sudo. The deck's log has the command that gives it back.";
+  }
+  if (on === "folder" && owner === "you") {
+    return "this deck cannot open its own settings folder, so it will not write over what is in it. "
+      + "The deck's log names the folder.";
+  }
+  if (owner === "other") {
+    return "its settings file belongs to another user and could not be moved aside, so it will not write over it. "
+      + "The deck's log names the file.";
+  }
+  if (owner === "you") {
+    return "this deck cannot read its settings file although the file is yours, so it will not write over it. "
+      + "Something on this machine is blocking the read; the deck's log names the file.";
+  }
+  if (code && !PERMISSION.has(code)) {
+    return "this deck cannot read its settings file, so it will not write over it. The deck's log names the file.";
+  }
+  return undefined;
 }
 
 async function post(url: string, body: Record<string, unknown>) {
