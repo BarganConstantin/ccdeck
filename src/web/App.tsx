@@ -50,9 +50,7 @@ import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadout
 import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import DragTrashZone from "./components/DragTrashZone";
-import VersionBanner from "./components/VersionBanner";
-import ConnectionBanner from "./components/ConnectionBanner";
-import OldNameBanner from "./components/OldNameBanner";
+import DeckBanner from "./components/DeckBanner";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -293,8 +291,8 @@ function Inner() {
     useEventStream({ stateRef, rerender, pauseGate, chimesRef, desktopUpdateRef });
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
-  const { version, notice, noticeOpen, showNotice, dismissNotice,
-          versionChecking, loadVersion } = useVersionCheck(live);
+  const versionCheck = useVersionCheck(live);
+  const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
   // Everything about the desktop app's own updater — its state, the press rule
   // behind Restart to update, and the stream event that releases a press — is in
   // use-desktop-update.ts. `live` drives the read on every (re)connect.
@@ -318,12 +316,12 @@ function Inner() {
   const { workspace, providers, providersRef } = useDeckScope(live);
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
-  const { oldName, oldNameOpen, dismissOldName } = useOldNameNotice(version);
+  const oldNameNotice = useOldNameNotice(version);
   // Upgrading the deck from its banner — the press, the faster poll while npm
   // runs, and copying the command for anyone who would rather type it — lives
   // in use-deck-upgrade.ts.
-  const { upgradeState, upgradeFailure, startUpgrade, copyCommand, cmdCopied }
-    = useDeckUpgrade({ version, loadVersion });
+  const upgrade = useDeckUpgrade({ version, loadVersion });
+  const { upgradeFailure } = upgrade;
 
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
@@ -363,9 +361,8 @@ function Inner() {
   // Restarting the deck: the auto-update switch, the press behind the banner's
   // Restart, the idle stretch an automatic one waits for, and what the banner
   // says about it — in use-auto-restart.ts.
-  const { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
-          restartCopy, restartFuseMs, loadAutoRestartPrefs }
-    = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure });
+  const restart = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure });
+  const { askRestart, loadAutoRestartPrefs } = restart;
 
   // The deck's look — the theme, the pixel character, and the canvas palette
   // read from the theme's tokens — with the effects that keep the DOM, storage
@@ -879,29 +876,11 @@ function Inner() {
       <div className="vis-hidden" role="status" aria-atomic="true">
         {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
       </div>
-      {restartedTo ? (
-        // Outranks both: it is the shortest-lived of the three and it answers
-        // the question the other two just raised.
-        <div className="ver-banner done" role="status">
-          <span className="ver-dot" />
-          <strong>Restarted — now running v{restartedTo}.</strong>
-          <span className="ver-sub">The canvas replayed from the event log.</span>
-        </div>
-      ) : everConnected && !live ? (
-        <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} />
-      ) : noticeOpen && notice ? (
-        <VersionBanner
-          notice={notice} version={version} dismissNotice={dismissNotice}
-          upgradeState={upgradeState} startUpgrade={startUpgrade} copyCommand={copyCommand} cmdCopied={cmdCopied}
-          autoRestart={autoRestart} toggleAutoRestart={toggleAutoRestart} askRestart={askRestart}
-          restartCopy={restartCopy} restartFuseMs={restartFuseMs} restarting={restarting}
-        />
-      ) : oldNameOpen && oldName ? (
-        // Last of the four, because it is the only one nobody has to act on
-        // today: a dropped connection, a restart and a release all outrank a
-        // name. It comes back the moment the row above it is dismissed.
-        <OldNameBanner oldName={oldName} version={version} dismissOldName={dismissOldName} />
-      ) : null}
+      {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
+      <DeckBanner
+        restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
+        everConnected={everConnected} live={live} paused={paused}
+      />
 
       {/* Claude-only, and now conditional on Claude Code actually being here.
           Every account in it is a Claude account, the store behind it is

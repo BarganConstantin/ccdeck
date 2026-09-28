@@ -1,7 +1,7 @@
 // The banner that says the stream from the server is gone: either a restart
 // this deck asked for is under way, or the connection dropped by itself.
 //
-// Moved out of App.tsx's markup unchanged. App.tsx still decides WHICH banner
+// Moved out of App.tsx's markup unchanged. DeckBanner.tsx decides WHICH banner
 // the strip under the topbar shows (a finished restart, then this, then the
 // version notice, then the old-name notice); this file is only what this one
 // says.

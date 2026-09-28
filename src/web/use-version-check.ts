@@ -20,7 +20,7 @@
 // `Inner` and were the only reason `setVersionDismissed` and the storage key it
 // writes had to leave this file at all. With them here, the dismissal — which
 // version was put away, and where that is remembered — is private too, and
-// App.tsx asks for exactly four things about the notice: what it is, whether it
+// the deck asks for exactly four things about the notice: what it is, whether it
 // is showing, and the two ways to change that.
 import { useCallback, useEffect, useRef, useState } from "react";
 
