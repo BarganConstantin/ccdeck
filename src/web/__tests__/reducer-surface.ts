@@ -23,6 +23,7 @@ export const REDUCER_FILES = [
   "reducer.ts",
   "usage-wire.ts",
   "payload-model.ts",
+  "graph-state.ts",
 ] as const;
 
 let joined: string | null = null;
