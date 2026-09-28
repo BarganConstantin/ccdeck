@@ -33,6 +33,12 @@ export { MAX_CLIENT_BUFFER_BYTES, queuedBytes } from "./sse-clients.mjs";
 // The built page and its assets, with the SPA fallback for everything else —
 // see static-serve.mjs. The route table hands it every GET nothing above took.
 import { serveStatic } from "./static-serve.mjs";
+// Which sessions the deck still keeps anything for — the LRU cap, the
+// transcript watch between hook events, and POST /api/forget. See
+// session-tracking.mjs.
+import { handleForget, outputWatch, startOutputWatch, touchSession } from "./session-tracking.mjs";
+// Exported from this file before it moved, and still.
+export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
 // and the window's answers relayed back to it. See desktop-update-routes.mjs.
 import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
@@ -50,7 +56,7 @@ import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 export { ccProjectSlug };
 // The Codex half of capture: a session's rollout, found by id for its usage,
 // and the rollouts directory tailed for its events — see codex-watch.mjs.
-import { forgetCodexSession, maybeResolveCodex, startCodexWatcher } from "./codex-watch.mjs";
+import { maybeResolveCodex, startCodexWatcher } from "./codex-watch.mjs";
 // Exported from this file before they moved, and still.
 export { readCodexRollout, sidFromRolloutName, startCodexWatcher } from "./codex-watch.mjs";
 // Re-exported because bin/deck.js prints this path in the boot banner, and it
@@ -69,7 +75,7 @@ export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // What the deck learns about a session that its hooks never say — model,
 // spend, name, recap, context — read off the transcript and sent back through
 // pushEvent. See session-enrichment.mjs.
-import { clearEnrichmentGates, forgetEnrichment, knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage, onRecapTail } from "./session-enrichment.mjs";
+import { clearEnrichmentGates, knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
 // The readers it exported from this file before they moved, and still.
 export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, scanAgentsMdFiles, scanClaudeMdFiles, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
 // What a starting deck reads back out of its log, and which of those events
@@ -82,9 +88,6 @@ export { replayLog, replayScope } from "./log-replay.mjs";
 import { connectEventSink } from "./event-sink.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
-// What a session is producing between its tool calls — the 16.5% of measured
-// time the hooks cannot see. See output-watch.mjs.
-import { createOutputWatch } from "./output-watch.mjs";
 // The gate pushEvent asks before a transcript path is followed — see
 // transcript-scan.mjs.
 import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-scan.mjs";
@@ -116,7 +119,7 @@ import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { appendFailureStats, appendLogLine, emptyLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers — see http-io.mjs.
-import { OVERSIZE_DRAIN_MS, readBody, send } from "./http-io.mjs";
+import { OVERSIZE_DRAIN_MS, send } from "./http-io.mjs";
 // The accounts surface's routes — see account-routes.mjs. The boot reaches the
 // admin and auto-switch modules through the same two loaders.
 import { cswapAdminModule, cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction } from "./account-routes.mjs";
@@ -234,155 +237,6 @@ const SEQ_EPOCH = `${Date.now().toString(36)}-${Math.random().toString(36).slice
 export function eventsSince(seq) {
   const after = Number(seq) || 0;
   return events.filter(e => e.seq > after);
-}
-
-// ─── Per-session cache expiry ────────────────────────────────────────────
-// Every enrichment cache above is keyed by session id and nothing ever
-// removed an entry: a deck left up for weeks — the 24/7 use this thing is
-// built for — kept a model string, a subagent signature and four read-throttle
-// stamps for every session it had ever seen, plus the Codex rollout path and
-// model of each. SessionEnd is not a usable eviction signal (a killed CLI
-// never sends one, and Codex has no such hook at all), so entries expire by
-// least-recent use against a cap instead — the same shape pruneTranscriptScans
-// already uses for its per-path state.
-//
-// AND A LIVE SESSION IS NEVER EVICTED, which this comment used to assert on the
-// strength of the cap sitting "far above any plausible number of concurrent
-// sessions". The cap held; the claim around it did not, and the 257th
-// concurrent session is where that showed. forgetSession clears the three
-// read-throttle stamps and pruneTranscriptScans drops the byte cursor, so an
-// evicted session that speaks again does not "simply re-read its transcript" —
-// it re-reads it on EVERY event, and those re-reads are themselves pushEvent
-// calls, so the degradation feeds itself. Measured here, fresh deck per row,
-// 16 events per session, 21 KB transcripts:
-//
-//   N=200  posted=3200  synthetic=600   rchar=6 MB   rps=5614  p50=17ms
-//   N=256  posted=4096  synthetic=768   rchar=7 MB   rps=6341  p50=16ms
-//   N=300  posted=4800  synthetic=9159  rchar=77 MB  rps=2308  p50=97ms
-//
-// A 17% increase in session count: 11.9x the derived events, 11x the transcript
-// reads, ingest down 2.7x, p50 up 6x. Three per SESSION became three per EVENT.
-// A cliff, not a slope, sitting exactly on the constant — and the server's cap
-// (256) sits above the client's AGENT_CAP (200), so the UI cannot warn about a
-// number it will not draw.
-//
-// So the cap reaps only what it was always described as reaping: sessions
-// nothing has been heard from. A session with an event inside
-// OUTPUT_WATCH_WINDOW_MS is live by the same definition outputWatchOnce already
-// uses, and keeping it costs four numbers and a string.
-const sessionTouchedAt = new Map();   // sid -> ms of the last event seen
-const MAX_TRACKED_SESSIONS = 256;
-
-/**
- * The absolute ceiling, above which even a live session is dropped.
- *
- * The age rule alone is unbounded in principle — nothing stops a machine from
- * having ten thousand sessions inside five minutes — and an unbounded map is
- * the leak this whole mechanism exists to end. This is a backstop, not the
- * working limit: reaching it means something is wrong in a way no cache policy
- * fixes, and dropping the least-recently-seen entries is still the least bad
- * answer. Eight times the cap, which is forty times the client's AGENT_CAP.
- */
-export const HARD_TRACKED_SESSIONS = MAX_TRACKED_SESSIONS * 8;
-
-/** The transcript watch, and how far back a session stays worth polling.
- *
- *  A session is polled while its last HOOK event is recent — and the window has
- *  to be generous for exactly the reason this watch exists: a session that is
- *  thinking has, by definition, not fired a hook. Measured on this machine's
- *  log, the gaps with no event at all run to p99 53s and 155s at the longest,
- *  so five minutes clears the whole measured distribution and still keeps the
- *  polled set to the sessions somebody is actually running. */
-const outputWatch = createOutputWatch();
-const OUTPUT_WATCH_WINDOW_MS = 5 * 60_000;
-const OUTPUT_WATCH_MS = 1_500;
-let outputWatchTimer = null;
-
-/** How long a quiet session is still worth a `stat` for its recap, and how
- *  often it gets one.
- *
- *  The five minutes above are sized to a session that is WORKING. A recap is
- *  the opposite case: Claude Code writes it once a finished turn has sat three
- *  minutes AND the terminal has lost focus, so it lands whenever the person
- *  walks away — a median 3.1 minutes after the turn on this machine, and an
- *  hour after it for somebody who stayed at the terminal first. A session that
- *  quiet is producing nothing, so every fourth tick is plenty: a recap reaches
- *  the deck within six seconds of being written, and a resting session costs a
- *  `stat` every six seconds rather than every one and a half. */
-const RECAP_WATCH_WINDOW_MS = 12 * 60 * 60_000;
-const RECAP_WATCH_EVERY = 4;
-let outputWatchTicks = 0;
-
-/** One tick: stat the recent sessions' transcripts, read only what grew, and
- *  say what landed. Everything expensive about this is guarded inside the watch
- *  — a session that wrote nothing costs one `stat`.
- *
- *  Resting sessions ride along on every RECAP_WATCH_EVERY-th tick for their
- *  recap alone, and their blocks are not reported: this answers for the
- *  sessions it calls live, and a resting one that starts working again fires a
- *  hook first, which makes it live the ordinary way.
- *
- *  A tick that starts while the last one is still reading gets nothing back:
- *  the watch refuses the overlap itself, where the offset is — see `poll` in
- *  output-watch.mjs for what two overlapping ticks used to report (#1089). */
-async function outputWatchOnce() {
-  const now = Date.now();
-  const cutoff = now - OUTPUT_WATCH_WINDOW_MS;
-  const restingCutoff = now - RECAP_WATCH_WINDOW_MS;
-  const withResting = outputWatchTicks++ % RECAP_WATCH_EVERY === 0;
-  const live = new Set();
-  const polled = [];
-  for (const [sid, at] of sessionTouchedAt) {
-    if (at >= cutoff) { live.add(sid); polled.push(sid); }
-    else if (withResting && at >= restingCutoff) polled.push(sid);
-  }
-  if (!polled.length) return;
-  const found = await outputWatch.poll(polled, onRecapTail);
-  for (const f of found) {
-    if (!live.has(f.sid)) continue;
-    pushEvent({
-      hook_event_name: "OutputObserved",
-      session_id: f.sid,
-      kind: f.kind,
-      at: f.at,
-    }, "internal");
-  }
-}
-
-function startOutputWatch() {
-  if (outputWatchTimer) return outputWatchTimer;
-  outputWatchTimer = setInterval(() => { outputWatchOnce().catch(() => {}); }, OUTPUT_WATCH_MS);
-  // Unref'd like the Codex watcher beside it: a poll must never be the reason
-  // the process stays up.
-  if (outputWatchTimer.unref) outputWatchTimer.unref();
-  return outputWatchTimer;
-}
-
-function forgetSession(sid) {
-  outputWatch.forget(sid);
-  forgetEnrichment(sid);
-  forgetCodexSession(sid);
-}
-
-function touchSession(sid) {
-  if (!sid || typeof sid !== "string") return;
-  // Re-insert so the Map's own insertion order *is* the LRU order and eviction
-  // below is one key read rather than a scan of every session ever seen.
-  sessionTouchedAt.delete(sid);
-  const now = Date.now();
-  sessionTouchedAt.set(sid, now);
-  if (sessionTouchedAt.size <= MAX_TRACKED_SESSIONS) return;
-  // Insertion order IS recency, so the first entry still inside the window
-  // proves every entry after it is too, and the loop stops there rather than
-  // scanning. That is what keeps this O(evicted) and not O(sessions) on the hot
-  // path — which matters most in exactly the case that used to be worst.
-  const idleBefore = now - OUTPUT_WATCH_WINDOW_MS;
-  for (const [oldest, at] of sessionTouchedAt) {
-    if (sessionTouchedAt.size <= MAX_TRACKED_SESSIONS) break;
-    if (at >= idleBefore && sessionTouchedAt.size <= HARD_TRACKED_SESSIONS) break;
-    sessionTouchedAt.delete(oldest);
-    forgetSession(oldest);
-  }
 }
 
 /**
@@ -1153,73 +1007,6 @@ async function handleClear(res) {
     mine: sharing.mine,
     owner: sharing.owner ? { port: sharing.owner.port } : null,
   });
-}
-
-/** The most session ids one press of this may name. A board holding more than
- *  the server tracks at all cannot be describing anything the server still
- *  remembers, and a body is not a reason to walk an unbounded list. */
-const MAX_FORGET_IDS = MAX_TRACKED_SESSIONS;
-
-/**
- * POST /api/forget — the client's own pruners, saying what left the board.
- *
- * THE THIRD PLACE THE RULE HAD TO REACH (#1024). `handleClear`'s comment states
- * it: "anything answering 'has this changed' has to appear in BOTH places that
- * mean the client no longer has it — here, and in forgetSession." There was a
- * third, and the server never heard about it — `pruneDoneSessions` and
- * `pruneOldAgents` in the page, which run every 250ms at cap 6 / grace 2
- * minutes, and #445's own measurement says 7 of 20 evicted sessions went on to
- * emit more events.
- *
- * Usage, context and the ROOT model all come back on their own: the first two
- * are not change-gated, and `pushEvent` stamps `raw.model` on every payload.
- * `sessionName`/`sessionTitle` and the per-subagent models do not, because
- * `nameBySession` and `modelBySession` still hold the signature that gates the
- * emit. Measured against a real deck over a real transcript, sandboxed HOME:
- *
- *     SessionNamed while the session was on the board: ["reducer-audit"]
- *     --- the client prunes S5, and tells nobody ---
- *     events for S5 after the resume: UserPromptSubmit, UsageObserved,
- *       UserPromptSubmit, UsageObserved, ContextObserved, …
- *     SessionNamed among them: false
- *
- * A session evicted while idle and then resumed showed as unnamed in the sidebar
- * and on the card for the rest of the day, with no way to recover but reloading
- * the tab.
- *
- * `forgetSession` is the whole of the answer and it already exists — this route
- * is the client's half of a call the server has been making to itself since the
- * LRU cap was added. It drops the read stamps along with the signatures, for the
- * reason `handleClear` lists them: clearing only the signatures would leave the
- * next hook event inside MODEL_READ_THROTTLE_MS, so nothing would be re-read and
- * the name would still be missing.
- *
- * NOT DROPPING THE CHANGE GATE INSTEAD, which was the other option in the
- * report. The gate is what keeps a per-pass emit from becoming ~683 events
- * saying nothing out of 685 records, and the reducer absorbing repeats correctly
- * is not a reason to send them.
- *
- * Costs nothing when it is wrong. A session named here that the deck is still
- * hearing from re-reads its transcript once and re-emits what it finds, which
- * the reducer's assign-don't-append handlers apply idempotently.
- */
-async function handleForget(req, res) {
-  const raw = await readBody(req).catch(() => null);
-  let body = null;
-  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
-  const ids = Array.isArray(body?.ids) ? body.ids : null;
-  if (!ids) return send(res, 400, { ok: false, reason: "bad_request" });
-  let forgotten = 0;
-  for (const sid of ids.slice(0, MAX_FORGET_IDS)) {
-    if (typeof sid !== "string" || sid === "") continue;
-    // Out of the LRU as well, so the cap is not spent on a session nothing is
-    // tracking any more. A session that speaks again is re-inserted by
-    // `touchSession` as what it now is: one the deck has just heard from.
-    sessionTouchedAt.delete(sid);
-    forgetSession(sid);
-    forgotten++;
-  }
-  return send(res, 200, { ok: true, forgotten });
 }
 
 function handleHealth(_req, res) {
