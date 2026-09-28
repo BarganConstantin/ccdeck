@@ -23,12 +23,16 @@ import { autoRestartStep } from "../restart";
 import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
 import { clientText } from "./client-source";
 import { browserWatchSurface } from "./browser-watch-surface";
+import { soundMenuSurface } from "./sound-menu-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
 const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
 const soundMenu = read("../components/SoundMenu.tsx");
+// The menu and every file lifted out of it, so the negatives below still see
+// the custom sounds, which moved to CustomSoundsSection.tsx.
+const soundMenuAll = soundMenuSurface();
 // Browser Watch's reads and writes moved to use-browser-watch.ts; the dialog and
 // what was lifted out of it are read as one, so #803's negative still sees them.
 const watchModal = browserWatchSurface();
@@ -144,7 +148,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // switch is plural now and the picker is the thing it picks.
     expect(soundMenu).toContain('id="sm-sound-label">Sounds<');
     expect(soundMenu).toContain("<label htmlFor={figureId}>Tone</label>");
-    expect(soundMenu).not.toMatch(/>Sound</);
+    expect(soundMenuAll).not.toMatch(/>Sound</);
   });
 
   it("keeps the promise identical either side of the press that grants it", () => {
@@ -174,8 +178,8 @@ describe("#801 — what the Notifications switch is saying", () => {
     // ONE clause, in the two states where a browser has taken the first away,
     // because there it changes what a refusal means. Never a row: nobody
     // outside this repo asks which mechanism fired.
-    expect(soundMenu).not.toContain("This tab, when hidden");
-    expect(soundMenu).not.toContain("The deck, when no tab is open");
+    expect(soundMenuAll).not.toContain("This tab, when hidden");
+    expect(soundMenuAll).not.toContain("The deck, when no tab is open");
     for (const p of ["denied", "unsupported"] as const) {
       expect(browserChannel(p).note, p).toContain("once this tab is closed");
     }

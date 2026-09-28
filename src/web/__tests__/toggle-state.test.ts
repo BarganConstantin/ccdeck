@@ -47,6 +47,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops } from "./gradient-stops";
 import { clientText } from "./client-source";
+import { soundMenuSurface } from "./sound-menu-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
@@ -57,7 +58,10 @@ const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, "");
 /** A component's markup with its commentary gone, for the same reason: the
  *  comments here argue about `primary` and `role="toolbar"` by name. */
 function markup(...path: string[]): string {
-  return readFileSync(join(web, ...path), "utf8")
+  return markupOf(readFileSync(join(web, ...path), "utf8"));
+}
+function markupOf(source: string): string {
+  return source
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
@@ -530,14 +534,16 @@ describe("what each of the four toggles announces", () => {
     // deck's other one already is (.bw-toggle in Browser Watch), so a reader
     // meets one shape rather than two spellings of it.
     const menu = markup("components", "SoundMenu.tsx");
+    // The menu and every file lifted out of it, for the negatives.
+    const menuSurface = markupOf(soundMenuSurface());
     expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
     expect(menu).toMatch(/aria-labelledby="sm-sound-label"/);
-    expect(menu).not.toMatch(/aria-pressed/);
+    expect(menuSurface).not.toMatch(/aria-pressed/);
     // Non-modal on purpose: nothing behind it is inert and there is no scrim,
     // so claiming aria-modal would be the lie #518 removed from the modals that
     // did have one.
     expect(menu).toMatch(/role="dialog"/);
-    expect(menu).not.toMatch(/aria-modal/);
+    expect(menuSurface).not.toMatch(/aria-modal/);
   });
 
   it("gives the usage-history button aria-haspopup and no state at all", () => {
