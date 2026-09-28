@@ -118,8 +118,8 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
   });
 
   it("names npm.cmd by its full path for the in-app upgrade — the caller this sweep missed", () => {
-    // self-update.mjs's startUpgrade, and the reason it was not in this list:
-    // it does not go through run/runInteractive/runDetached at all. It called
+    // startUpgrade (npm-upgrade.mjs now), and the reason it was not in this
+    // list: it does not go through run/runInteractive/runDetached at all. It called
     // `spawn("npm.cmd", args, { shell: true })` directly, so #457 swept the
     // helpers' callers and walked straight past the one place left spelling the
     // defect out in full — with a comment claiming it matched ccusage, which had
