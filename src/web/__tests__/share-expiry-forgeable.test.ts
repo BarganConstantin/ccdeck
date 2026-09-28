@@ -83,9 +83,10 @@ describe("the share envelope's expiry", () => {
 });
 
 // The strings are the fix for this item, so they are the thing under test. Read
-// out of the source rather than rendered, because this suite has no DOM.
+// out of the source rather than rendered, because this suite has no DOM — out
+// of the ⋯ popover, which is where a row's Share and its answer are drawn.
 const panel = readFileSync(
-  fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
+  fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8");
 
 describe("what the accounts panel says a share is", () => {
   it("tells the reader the text IS the password", () => {

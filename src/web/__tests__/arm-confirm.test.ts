@@ -91,7 +91,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
 
   it("routes the account's Remove through it, and only a fire posts the removal", () => {
     // The item asks the hook's press by name and does nothing else.
-    expect(accounts).toMatch(/onClick=\{\(\) => pressRemove\(a\.num\)\}/);
+    expect(read("AccountMenuPopover.tsx")).toMatch(/onClick=\{\(\) => pressRemove\(a\.num\)\}/);
     const start = accountMenu.indexOf("armedFor: confirmRemove, target: num,");
     expect(start).toBeGreaterThan(-1);
     const post = 'admin({ action: "remove", account: num }';

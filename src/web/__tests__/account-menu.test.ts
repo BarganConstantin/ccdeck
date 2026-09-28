@@ -1,5 +1,5 @@
 // An account row's ⋯ opens a menu over the column now, not a form inside the
-// row (AccountsPanel, AnchoredPopover). It used to open the row into a block —
+// row (AccountMenuPopover, AnchoredPopover). It used to open the row into a block —
 // name field, slot picker, share and remove at once — that pushed every
 // account under it down the panel.
 //
@@ -11,13 +11,18 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
 const strip = (src: string) => src
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
-const panel = strip(read("../components/AccountsPanel.tsx"));
+/** The menu and its forms, which AccountMenuPopover.tsx draws. */
+const menuPopover = strip(read("../components/AccountMenuPopover.tsx"));
+/** The panel and every file lifted out of it, for a count: one Remove, one
+ *  name field and one slot picker in the whole of it, wherever they live. */
+const surface = strip(accountsSurface());
 const popover = strip(read("../components/AnchoredPopover.tsx"));
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -39,13 +44,13 @@ const row = /<li className=\{`ap-account[\s\S]*?<\/li>/.exec(strip(read("../comp
 
 /** One view of the popover, up to the next view or the popover's end. */
 function view(name: "menu" | "rename" | "move" | "share"): string {
-  const at = panel.indexOf(`menu.view === "${name}" &&`);
+  const at = menuPopover.indexOf(`menu.view === "${name}" &&`);
   expect(at, name).toBeGreaterThan(-1);
   const ends = ["menu", "rename", "move", "share"]
-    .map(n => panel.indexOf(`menu.view === "${n}" &&`, at + 1))
-    .concat(panel.indexOf("</AnchoredPopover>", at))
+    .map(n => menuPopover.indexOf(`menu.view === "${n}" &&`, at + 1))
+    .concat(menuPopover.indexOf("</AnchoredPopover>", at))
     .filter(i => i > at);
-  return panel.slice(at, Math.min(...ends));
+  return menuPopover.slice(at, Math.min(...ends));
 }
 
 describe("the row keeps its shape when its ⋯ is pressed", () => {
@@ -84,7 +89,7 @@ describe("the menu", () => {
   });
 
   it("carries the error colour on Remove alone", () => {
-    expect([...panel.matchAll(/ap-menu-item danger/g)]).toHaveLength(1);
+    expect([...surface.matchAll(/ap-menu-item danger/g)]).toHaveLength(1);
     expect(view("menu")).toMatch(/className=\{`ap-menu-item danger\$\{confirmRemove === a\.num \? " armed" : ""\}`\}/);
   });
 
@@ -92,8 +97,8 @@ describe("the menu", () => {
     expect(view("menu")).not.toMatch(/<input|<select/);
     expect(view("rename")).toMatch(/id=\{`ap-alias-\$\{a\.num\}`\}/);
     expect(view("move")).toMatch(/id=\{`ap-slot-\$\{a\.num\}`\}/);
-    expect(panel.match(/id=\{`ap-alias-/g)).toHaveLength(1);
-    expect(panel.match(/id=\{`ap-slot-/g)).toHaveLength(1);
+    expect(surface.match(/id=\{`ap-alias-/g)).toHaveLength(1);
+    expect(surface.match(/id=\{`ap-slot-/g)).toHaveLength(1);
   });
 
   it("gives every form a way out that is a word, not a gesture to discover", () => {

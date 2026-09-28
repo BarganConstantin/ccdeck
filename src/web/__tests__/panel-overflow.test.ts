@@ -423,10 +423,12 @@ describe("the account alias in the accounts panel row", () => {
     // name the store would have taken.
     const server = /\{\s*1\s*,\s*(\d+)\s*\}/.exec(/const ALIAS_OK = (\/.+\/);/.exec(cswapSrc)![1])![1];
     expect(aliasSaveSrc).toMatch(new RegExp(`export const ALIAS_MAX_LENGTH = ${server};`));
-    expect(accounts).toMatch(/maxLength=\{ALIAS_MAX_LENGTH\}/);
+    // The field is drawn in the ⋯ popover.
+    const popover = strip(readFileSync(fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8"));
+    expect(popover).toMatch(/maxLength=\{ALIAS_MAX_LENGTH\}/);
     // The bound and the save it guards come from the one module: the field is
-    // the panel's, the save is the ⋯ menu's hook's.
-    expect(accounts).toMatch(/import \{ ALIAS_MAX_LENGTH \} from "\.\.\/alias-save";/);
+    // the popover's, the save is the ⋯ menu's hook's.
+    expect(popover).toMatch(/import \{ ALIAS_MAX_LENGTH \} from "\.\.\/alias-save";/);
     expect(readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8"))
       .toMatch(/import \{ aliasSave \} from "\.\/alias-save";/);
   });

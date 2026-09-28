@@ -44,6 +44,12 @@ const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.ts
 const panelCode = panel
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The ⋯ popover's markup — the menu and the three forms that were the manage
+ *  block — which is AccountMenuPopover.tsx's now, raw and without comments. */
+const popover = readFileSync(fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8");
+const popoverCode = popover
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 /** The same over the panel and every file lifted out of it, for a count or a
  *  negative: the row's markup is AccountRow.tsx's now. */
 const surfaceCode = accountsSurface()
@@ -414,7 +420,7 @@ describe("the buttons stopped sharing the labels' colour (#325's first finding)"
     expect(accountsSurface()).not.toMatch(/aliasDraft\.trim\(\)\s*===/);
     // `Save` is the rename form's primary now — the deck's own `.btn primary`
     // rather than the row's pill — and it takes the same two attributes.
-    expect(panel).toMatch(/className="btn primary" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
+    expect(popover).toMatch(/className="btn primary" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
     // The one place the rule is written, so it cannot be spelled two ways.
     expect(clientText()).toMatch(/const s = pressState\(busy, tag\);/);
     expect(clientText()).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
@@ -486,15 +492,15 @@ describe("no row grid, and one form at a time", () => {
     // Distance did it on the row — `remove` pushed 102px along a line of its
     // own. In a list the same pause is a hairline, and there is exactly one:
     // between the three acts that can be taken back and the one that cannot.
-    expect([...panelCode.matchAll(/role="separator"/g)]).toHaveLength(1);
-    expect(panelCode).toMatch(
+    expect([...surfaceCode.matchAll(/role="separator"/g)]).toHaveLength(1);
+    expect(popoverCode).toMatch(
       /<div role="separator" className="ap-menu-sep" \/>\s*(?:\{\}\s*)?<button\s+type="button"\s+role="menuitem"\s+className=\{`ap-menu-item danger/,
     );
     expect(decl(".ap-menu-sep", "height")).toBe("1px");
   });
 
   it("keeps the two-step arm and its four-second expiry", () => {
-    expect(panel).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
+    expect(popover).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
     // The press itself is the ⋯ menu's hook's, which holds the armed account.
     const menu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
     expect(menu).toMatch(/setConfirmRemove\(c => \(c === num \? null : c\)\), REMOVE_ARMED_MS\)/);
@@ -540,11 +546,11 @@ describe("the input behaves like its four siblings (#325's ninth finding)", () =
 
 describe("the disclosure and what it opens are related (#325's seventh finding)", () => {
   it("names the popover, and points the button at it while it exists", () => {
-    expect(panel).toMatch(/id=\{`ap-menu-\$\{a\.num\}`\}/);
+    expect(popover).toMatch(/id=\{`ap-menu-\$\{a\.num\}`\}/);
     // A menu while it is one, named by the button — whose own name carries the
     // account — and a dialog named by its title once an item makes it a form.
-    expect(panel).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
-    expect(panel).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
+    expect(popover).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
+    expect(popover).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
     expect(clientText()).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
     expect(clientText()).toMatch(/aria-haspopup="menu"/);
   });
@@ -555,8 +561,8 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     // room for a label and hid one; each form in the popover has a title, and
     // the title IS the <label for> — one line that names the field and says
     // what the form is for. Still never an aria-label on a bare input.
-    expect(panel).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Rename account<\/label>/);
-    expect(panel).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
+    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Rename account<\/label>/);
+    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Alias for account/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Slot for account/);
   });
@@ -574,13 +580,13 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
   });
 
   it("moves the keyboard into the block rather than leaving it above everything", () => {
-    expect(panel).toMatch(/autoFocus/);
+    expect(popover).toMatch(/autoFocus/);
   });
 });
 
 describe("microcopy (#325's eighth finding)", () => {
   it("shows the shape of an answer instead of narrating the empty state", () => {
-    expect(panelCode).toMatch(/placeholder="e\.g\. work"/);
+    expect(popoverCode).toMatch(/placeholder="e\.g\. work"/);
     expect(surfaceCode).not.toMatch(/placeholder="no alias"/);
   });
 
@@ -595,7 +601,7 @@ describe("microcopy (#325's eighth finding)", () => {
     // pointing at. Neither sentence survives: the options carry it now.
     expect(surfaceCode).not.toMatch(/rotation order/);
     expect(surfaceCode).not.toMatch(/swaps if the slot is taken/);
-    expect(panelCode).toMatch(/slotChoices\(/);
+    expect(popoverCode).toMatch(/slotChoices\(/);
   });
 
   it("does not duplicate the notice #327 already shows after a swap", () => {
