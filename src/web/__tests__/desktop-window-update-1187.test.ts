@@ -88,8 +88,14 @@ describe("the one-button window wiring", () => {
   it("shows the verified target version and one Restart to update action", () => {
     const app = clientText();
     const modal = read("../components/ReleaseNotesModal.tsx");
-    expect(app).toContain('es.addEventListener("desktop-update"');
-    expect(app).toMatch(/es\.addEventListener\("desktop-update"[\s\S]*?if \(!inDesktopApp\(\)\) return;/);
+    // Three links, each in the file that owns it: the stream hands the frame
+    // on, App.tsx binds it to the updater's handler, and the handler ignores it
+    // outside the desktop app. This used to be one lazy match from the
+    // subscription to the guard, which held only because the two files it
+    // spanned happened to sort in that order.
+    expect(app).toContain('es.addEventListener("desktop-update", (e) => desktopUpdateRef.current((e as MessageEvent).data));');
+    expect(app).toContain("desktopUpdateRef.current = onDesktopUpdateEvent;");
+    expect(app).toMatch(/const onDesktopUpdateEvent = useCallback\(\(data: string\) => \{\s*if \(!inDesktopApp\(\)\) return;/);
     expect(app).toContain('fetch("/api/desktop-update/restart"');
     expect(app).toContain("readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version)");
     // One restart door: the deck's own Restart is not offered beside it.

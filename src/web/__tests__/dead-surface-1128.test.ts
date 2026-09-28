@@ -69,10 +69,14 @@ describe("dismissedSummaries — a Set App.tsx wrote on every recap close and no
 
 describe("HookEnvelope.replay — App.tsx's half of #993's finding", () => {
   it("no longer says the reducer reads the flag, and names the two readers that do", () => {
+    // The handler and the comment about it moved to use-event-stream.ts, so
+    // the negative is asked of both files and the readers of the new one.
     const app = src(WEB, "App.tsx");
+    const stream = src(WEB, "use-event-stream.ts");
     expect(app).not.toContain("the reducer sees the flag");
+    expect(stream).not.toContain("the reducer sees the flag");
     // The two the comment now names are the handler's.
-    expect(app).toMatch(/if \(isReplay\) coalescer\.replay\(\);/);
-    expect(app).toContain("chimeFor(env, isReplay)");
+    expect(stream).toMatch(/if \(isReplay\) coalescer\.replay\(\);/);
+    expect(stream).toContain("chimeFor(env, isReplay)");
   });
 });

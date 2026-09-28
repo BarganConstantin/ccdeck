@@ -355,7 +355,8 @@ describe("the deck's own sound plays over the music", () => {
   });
 
   it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
-    expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
+    // Played by the stream, in use-event-stream.ts, which moved out of App.tsx.
+    expect(code("../use-event-stream.ts")).toContain("if (chime) chimesRef.current?.play(chime);");
     // The audition moved with the tone settings into use-tone-prefs.ts.
     expect(clientText()).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
     expect(app).toContain("<ClaudeFm");

@@ -52,9 +52,9 @@ import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, removalsLiftedBy
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
+import { useEventStream } from "./use-event-stream";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
-import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -78,7 +78,6 @@ import { usePresenceBeacon } from "./use-presence-beacon";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { readStored } from "./storage";
-import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
 import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-counts";
@@ -92,7 +91,7 @@ const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { columnsWouldChange, type Frame } from "./layout";
-import { applyEvent, findToolOnBoard, initialState, type GraphState } from "./reducer";
+import { findToolOnBoard, initialState, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds } from "./visibility";
 import { SESSION_GROUP_TYPE } from "./minimap";
 import { parseLayoutFrame, parseStoredLayout, restoreLayout, serializeLayout, type StoredLayout } from "./stored-layout";
@@ -133,7 +132,7 @@ import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./versio
 import { emptyScope } from "./scope";
 import type { Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
-import { chimeFor, createChimePlayer } from "./sound";
+import { createChimePlayer } from "./sound";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -141,7 +140,7 @@ import { promptTime, shortAgo } from "./relative-time";
 // coarser than the dialog the same row opens (#374). See duration.ts.
 import { elapsed, toolDuration } from "./duration";
 import CostBar from "./components/CostBar";
-import type { AgentNodeData, HookEnvelope, ToolCall } from "./types";
+import type { AgentNodeData, ToolCall } from "./types";
 
 const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
@@ -593,16 +592,18 @@ function Inner() {
   const { chimeState } = useChimePlayer({ chimesRef, soundOnRef, tonePrefsRef, customSelectionsRef, fallbackCustomRef });
 
   // ── version drift ─────────────────────────────────────────────────────────
-  // A deck upgraded while it was running keeps executing the old code, silently
-  // and indefinitely. Nothing else in the product can tell you that, so this
-  // asks the server which version it actually booted with.
-  // Declared here because the version check keys off it: a restart ends with
-  // the SSE stream reconnecting.
-  const [live, setLive] = useState(false);
-  /** This tab's stream is queued behind other deck tabs' streams (#830), which
-   *  is a full browser and not a dead server: see the SSE effect and
-   *  tab-census.ts. */
-  const [tabCapped, setTabCapped] = useState(false);
+  // The stream of hook events from the server, and what it says about the
+  // connection, in use-event-stream.ts. Called here, above everything that
+  // keys off `live`: the version check, the desktop updater and the scope all
+  // re-ask when a restart ends with the stream reconnecting. The pause gate
+  // comes first because every envelope passes through it.
+  const { pauseGate, paused, togglePause } = usePauseGate(stateRef);
+  // The desktop app's update frames arrive on the same stream, and the handler
+  // for them comes out of useDesktopUpdate below, which itself keys off `live`.
+  // Bound once that hook has run; it is a stable callback.
+  const desktopUpdateRef = useRef<(data: string) => void>(() => {});
+  const { live, tabCapped, everConnected, liveSince } =
+    useEventStream({ stateRef, rerender, pauseGate, chimesRef, desktopUpdateRef });
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
   const { version, notice, noticeOpen, showNotice, dismissNotice,
@@ -612,6 +613,7 @@ function Inner() {
   // use-desktop-update.ts. `live` drives the read on every (re)connect.
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate,
           askDesktopUpdateRestart, onDesktopUpdateEvent } = useDesktopUpdate(live);
+  desktopUpdateRef.current = onDesktopUpdateEvent;
 
   // Telling the server somebody is looking at this deck lives in
   // use-presence-beacon.ts. It takes nothing and returns nothing.
@@ -671,7 +673,6 @@ function Inner() {
   // mirrored flag and the toggle's eviction accounting live in use-pause-gate.ts,
   // which carries the reasoning; the hook is called here so React sees the same
   // two `useState` calls and the same `useCallback`, in the same order, as before.
-  const { pauseGate, paused, togglePause } = usePauseGate(stateRef);
   const [now, setNow] = useState(Date.now());
 
   // Restarting the deck: the auto-update switch, the press behind the banner's
@@ -714,7 +715,6 @@ function Inner() {
   const { fmVolume, setFmVolume, fmMuted, setFmMuted, fmSource, customFmStations,
           unavailableFmStations, fmPlayRequest, addFmStation, renameFmStation,
           removeFmStation, pickFmSource, markFmStationAvailability } = useClaudeFm();
-  const [everConnected, setEverConnected] = useState(false);
 
   /**
    * Put the pane where the deck wants it — and make sure it gets there.
@@ -815,104 +815,9 @@ function Inner() {
     return () => window.clearTimeout(id);
   }, [applyViewport, restoredViewport]);
 
-  // SSE subscription.
-  //
-  // Replay handling: on connect the server drains its ring buffer over the
-  // same SSE channel before live events. Each replayed envelope is tagged
-  // `replay: true`; a `replay-end` sentinel marks the boundary. We do two
-  // things differently for replay traffic:
-  //   1) the SSE handler coalesces renders during replay — one render at
-  //      replay-end;
-  //   2) `chimeFor` stays quiet for it, so a reconnect does not play every
-  //      Stop in the ring.
-  //
-  // The reducer never reads the flag: its turn cleanup keys on event time,
-  // which comes out right for replayed and live events alike. See
-  // HookEnvelope.replay in types.ts.
-  //
-  // Live traffic is coalesced too, but leading-edge (see coalesce.ts): the
-  // first event of a quiet stream still renders in its own task, while a tool
-  // storm — eight subagents each firing PreToolUse/PostToolUse arrives as
-  // dozens of separate macrotasks that React cannot batch — collapses into one
-  // render per window instead of one full canvas rebuild per event. Every
-  // envelope is still applied to the reducer the instant it lands, in order,
-  // so coalescing costs redraws and never state.
-  //
-  // Fallback heuristic (`Date.now() - receivedAt > 30s`) covers older
-  // servers without the replay flag.
-  const replayActiveRef = useRef<boolean>(true);
-  /** When the latest replay landed, by the wall clock: the moment this page's
-   *  board stops being history arriving and starts being spend happening. Null
-   *  before the first replay-end and after the stream drops, because a
-   *  reconnect replays the ring again. The usage header's $/min counts from
-   *  here (#821) — counted from mount, the board total climbing from $0 to
-   *  itself during the replay read as hundreds of dollars a minute. */
-  const [liveSince, setLiveSince] = useState<number | null>(null);
   /** The same boundary as a flag, for the layout: positions restored from
    *  storage are only pruned against the agents once all of them are back. */
   const historyReplayed = liveSince !== null;
-  useEffect(() => {
-    const es = new EventSource("/events");
-    const coalescer = createRenderCoalescer(rerender, {
-      now: () => Date.now(),
-      setTimeout: (fn, ms) => window.setTimeout(fn, ms),
-      clearTimeout: (id) => window.clearTimeout(id),
-    });
-    // TOO MANY TABS IS NOT A DEAD SERVER (#830). A browser keeps at most six
-    // live HTTP/1.1 connections to one address and every deck tab holds one
-    // here, so a seventh tab's stream waits in the browser's own queue: no
-    // `open`, no `error`, and every fetch from this tab queued behind it, so it
-    // cannot ask the server either. The tabs can still hear one another, so a
-    // tab whose stream has not opened asks which of the others are streaming,
-    // and the hero says so when enough are to explain the wait.
-    let streaming = false;
-    const census = typeof BroadcastChannel === "function"
-      ? joinCensus(new BroadcastChannel(CENSUS_CHANNEL), Math.random().toString(36).slice(2), () => streaming)
-      : null;
-    const probe = window.setInterval(() => {
-      if (streaming || !census) return;
-      void census.ask(600).then(peers => { if (!streaming) setTabCapped(tooManyTabs(peers)); });
-    }, 3_000);
-    es.addEventListener("open", () => { setLive(true); setEverConnected(true); });
-    es.addEventListener("error", () => { setLive(false); setLiveSince(null); });
-    // What this tab answers a census with, kept beside the stream it describes.
-    es.addEventListener("open", () => { streaming = true; setTabCapped(false); });
-    es.addEventListener("error", () => { streaming = false; });
-    es.addEventListener("replay-end", () => {
-      replayActiveRef.current = false;
-      coalescer.flush();
-      setLiveSince(Date.now());
-    });
-    es.addEventListener("desktop-update", (e) => onDesktopUpdateEvent((e as MessageEvent).data));
-    es.addEventListener("hook", (e) => {
-      try {
-        const env: HookEnvelope = JSON.parse((e as MessageEvent).data);
-        if (!pauseGate.accept(env)) return; // paused: held for the resume
-        stateRef.current = applyEvent(stateRef.current, env);
-        const isReplay = env.replay === true
-          || replayActiveRef.current
-          || Date.now() - env.receivedAt > 30_000;
-        if (isReplay) coalescer.replay();
-        else coalescer.live();
-        // After the coalescer, and reusing its `isReplay`: a reconnect is sent
-        // the whole ring, and every Stop in a day's work is in it.
-        // Over Claude FM, never under it: the chime is short and the music
-        // keeps its level. Turning the track down for each one was heard as
-        // the stream cutting out.
-        const chime = chimeFor(env, isReplay);
-        if (chime) chimesRef.current?.play(chime);
-      } catch { /* ignore */ }
-    });
-    return () => {
-      es.close();
-      coalescer.cancel();
-      window.clearInterval(probe);
-      census?.leave();
-    };
-    // Deliberately not keyed on `paused`: a pause must not tear this stream
-    // down, because the reconnect carries no Last-Event-ID and the server
-    // answers with a full replay of its ring buffer. The gate handles pausing.
-  }, [rerender]);
 
   // Tick clock so elapsed-time fields refresh smoothly + exit animations
   // clean up. Same tick also reaps in-flight tools whose PostToolUse never

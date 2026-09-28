@@ -127,8 +127,10 @@ describe("the usage header's pill (#821)", () => {
 
   it("counts only from the moment the replay landed, and starts again on each one", () => {
     const app = read("../App.tsx");
-    expect(app).toMatch(/es\.addEventListener\("replay-end", \(\) => \{[\s\S]*?setLiveSince\(Date\.now\(\)\);/);
-    expect(app).toMatch(/es\.addEventListener\("error", \(\) => \{ setLive\(false\); setLiveSince\(null\); \}\);/);
+    // The stream sets it and clears it, in use-event-stream.ts; App.tsx hands it on.
+    const stream = read("../use-event-stream.ts");
+    expect(stream).toMatch(/es\.addEventListener\("replay-end", \(\) => \{[\s\S]*?setLiveSince\(Date\.now\(\)\);/);
+    expect(stream).toMatch(/es\.addEventListener\("error", \(\) => \{ setLive\(false\); setLiveSince\(null\); \}\);/);
     expect(app).toMatch(/liveSince=\{liveSince\}/);
     expect(panel).toMatch(/if \(spendSince\.current !== liveSince\) \{[\s\S]*?spendSamples\.current = NO_SPEND_HISTORY;/);
     expect(panel).toMatch(/const rate = liveSince == null \? null : spendRate\(/);
