@@ -1457,16 +1457,16 @@ function Inner() {
     }, 30);
   }, [selectAgent, focusAgent]);
 
-  /** Select a session's root and bring it on screen. Reads `nodesRef` rather
-   *  than the render-scope array so callers can be memoised: the array is
-   *  rebuilt every render and would otherwise re-create every handler that
-   *  closes over it. The frame of delay is for the same reason the session list
-   *  has always needed one — the node has to be laid out before fitView can
-   *  have anything to fit to. */
   /** The blocked session W went to last (#825), so the next press moves on to
    *  the one after it. The waiting button writes it too: the two are one way in. */
   const waitingCursorRef = useRef<string | null>(null);
 
+  /** Select a session's root and bring it on screen. Through focusAgent, which
+   *  reads `nodesRef` rather than the render-scope array so callers can be
+   *  memoised: the array is rebuilt every render and would otherwise re-create
+   *  every handler that closes over it. The frame of delay is for the same
+   *  reason the session list has always needed one — the node has to be laid
+   *  out before focusAgent has a box to frame. */
   const focusSession = useCallback((sessionId: string) => {
     selectAgent(sessionId, false);
     window.setTimeout(() => {
