@@ -36,6 +36,8 @@ import { applyEvent, initialState, pruneDoneSessions, type GraphState } from "..
 import type { HookEnvelope, HookPayload } from "../types";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The deck's 250ms tick, which App.tsx calls with both modal setters. */
+const tick = readFileSync(fileURLToPath(new URL("../use-board-tick.ts", import.meta.url)), "utf8");
 
 let seq = 0;
 function send(state: GraphState, session: string, payload: HookPayload, at?: number): GraphState {
@@ -79,8 +81,9 @@ describe("what App.tsx does about it", () => {
     // The selection already had this treatment (#576) and the two modals did
     // not; that asymmetry IS the bug. Pinned by shape because a DOM-less suite
     // cannot watch a setter run.
-    expect(app).toContain("setContextFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
-    expect(app).toContain("setSummaryFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
+    expect(app).toMatch(/useBoardTick\(\{[^}]*\bsetContextFor\b[^}]*\bsetSummaryFor\b[^}]*\}\)/);
+    expect(tick).toContain("setContextFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
+    expect(tick).toContain("setSummaryFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
   });
 
   it("puts them beside the selection prune, so one tick owns all four", () => {
@@ -90,10 +93,10 @@ describe("what App.tsx does about it", () => {
     // applies to the modals exactly as it does to the selection.
     // The selection's half is one call now, to the operation in use-selection.ts
     // that makes both of its prunes.
-    const sel = app.indexOf("pruneSelectionToBoard();");
-    const ctx = app.indexOf("setContextFor(prev => (prev != null");
-    const sum = app.indexOf("setSummaryFor(prev => (prev != null");
-    const tickEnd = app.indexOf("if (changed) rerender();", sel);
+    const sel = tick.indexOf("pruneSelectionToBoard();");
+    const ctx = tick.indexOf("setContextFor(prev => (prev != null");
+    const sum = tick.indexOf("setSummaryFor(prev => (prev != null");
+    const tickEnd = tick.indexOf("if (changed) rerender();", sel);
     expect(sel).toBeGreaterThan(-1);
     expect(ctx, "setContextFor is not in the prune tick").toBeGreaterThan(sel);
     expect(sum, "setSummaryFor is not in the prune tick").toBeGreaterThan(sel);
