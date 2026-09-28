@@ -38,6 +38,7 @@ export const CLI_FILES = [
   "bin/cli/startup.js",
   "bin/cli/restart.js",
   "bin/cli/pulse.js",
+  "bin/cli/second-start.js",
 ] as const;
 
 let joined: string | null = null;

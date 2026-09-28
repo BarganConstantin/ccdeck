@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { wayBackNote } from "../../server/way-back.mjs";
 
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
+const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
 
 describe("the way back", () => {
   it("names no port and no address", () => {
@@ -95,7 +96,9 @@ describe("where bin/deck.js prints it", () => {
   });
 
   it("prints it after the flag warnings, which must stay the last thing said", () => {
-    const warn = DECK.indexOf("reportIncompleteFlags(flags.incomplete)");
+    // The start's own warnings, after the server row: the respawn path prints
+    // them too, earlier in the file, and does not print the note at all.
+    const warn = DECK.indexOf("reportIncompleteFlags(flags.incomplete)", DECK.indexOf('label: "server ready"'));
     const note = DECK.indexOf("wayBackNote({");
     expect(warn).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(warn);
@@ -106,11 +109,13 @@ describe("where bin/deck.js prints it", () => {
     // it open — they have just performed the lesson. The attach branch runs
     // from `plan.act === "attach"` to the end of its own block; the note must
     // not be inside it.
-    const attach = DECK.indexOf('plan.act === "attach"');
-    const noSecond = DECK.indexOf("no second deck was started");
+    //
+    // The attach branch is bin/cli/second-start.js's now, so the whole file is
+    // held to it rather than one slice of it.
+    const attach = SECOND_START.indexOf('plan.act === "attach"');
+    const noSecond = SECOND_START.indexOf("no second deck was started");
     expect(attach).toBeGreaterThan(-1);
     expect(noSecond).toBeGreaterThan(attach);
-    const inAttach = DECK.slice(attach, noSecond);
-    expect(inAttach).not.toContain("wayBackNote");
+    expect(SECOND_START).not.toContain("wayBackNote");
   });
 });

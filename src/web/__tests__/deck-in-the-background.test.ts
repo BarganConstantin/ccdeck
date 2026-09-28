@@ -92,7 +92,7 @@ describe("the deck from before this version that is still running", () => {
     // keeps one deck now, so the older one is stopped and this one takes its
     // place — the line that says so names the version it replaced.
     expect(cliSurface()).not.toContain("too old to be recognised");
-    expect(DECK).toMatch(/olderVersion\(d\.version, PKG_VERSION\)[\s\S]{0,120}it was v\$\{d\.version\}/);
+    expect(read("../../../bin/cli/second-start.js")).toMatch(/olderVersion\(d\.version, PKG_VERSION\)[\s\S]{0,120}it was v\$\{d\.version\}/);
   });
 });
 

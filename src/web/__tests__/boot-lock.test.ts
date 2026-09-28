@@ -32,6 +32,8 @@ let n = 0;
 const fresh = () => join(ROOT, `r${n++}`);
 
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
+// Where the start asks whether it is the second one, and acts on the answer.
+const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
 
 describe("one start at a time", () => {
   it("makes the second start wait until the first gives the lock back", async () => {
@@ -146,8 +148,9 @@ describe("where bin/deck.js holds it", () => {
 
   it("takes it before asking, and asks before anything is bound", () => {
     const take = at("bootLock = await takeBootLock({ dir: deckRegistryDir() })");
-    const ask = at("const plan = secondStart({");
+    const ask = at("await settleSecondStart(");
     const bind = at("const starting = startServer({");
+    expect(SECOND_START).toContain("const plan = secondStart({");
     expect(take).toBeGreaterThan(0);
     expect(ask).toBeGreaterThan(take);
     expect(bind).toBeGreaterThan(ask);
@@ -191,14 +194,20 @@ describe("where bin/deck.js holds it", () => {
     // And before each of the three exits it has to survive, named one by one so
     // a fourth added above the handler fails here rather than quietly joining
     // them: the yield, the attach, and the boot that could not bind.
+    //
+    // The yield and the attach are settled in bin/cli/second-start.js, which
+    // resolves to their exit code rather than exiting — so both leave through
+    // the one line here that exits with it, and that module may exit nothing.
     for (const exit of [
-      'if (plan.act === "yield") {',
-      'if (plan.act === "attach") {',
+      "if (ended !== null) process.exit(ended);",
       'server failed: ${bound.err.message}',
     ]) {
       expect(at(exit)).toBeGreaterThan(0);
       expect(at(arm)).toBeLessThan(at(exit));
     }
+    expect(SECOND_START).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}return 0;/);
+    expect(SECOND_START).toMatch(/if \(plan\.act === "attach"\) \{/);
+    expect(SECOND_START).not.toMatch(/process\.exit/);
   });
 
   it("declares it above the first line shutdown can be reached from", () => {

@@ -82,6 +82,8 @@ const SRC = readFileSync(
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
 const HELP = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
 const ONE_SHOT = readFileSync(fileURLToPath(new URL("../../../bin/cli/one-shot.js", import.meta.url)), "utf8");
+// The question and what is done with its answer, lifted out of deck.js.
+const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
 const INDEX = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
 const LISTEN = readFileSync(fileURLToPath(new URL("../../server/listen.mjs", import.meta.url)), "utf8");
 
@@ -160,7 +162,8 @@ describe("a start keeps at most one deck", () => {
   });
 
   it("is asked of every start, respawns included, with nothing but the rule's inputs", () => {
-    const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(DECK)?.[1] ?? "";
+    const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(SECOND_START)?.[1] ?? "";
+    expect(call, "the question left bin/cli/second-start.js").not.toBe("");
     expect(call).toMatch(/live: await liveDecks\(\)/);
     expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude, codexHome \}/);
     expect(call).toMatch(/fresh: flags\.new === true/);
@@ -170,28 +173,32 @@ describe("a start keeps at most one deck", () => {
     expect(call).not.toMatch(/unknown|incomplete/);
     // And no gate in front of it that a respawn or a flag could walk around.
     expect(cliSurface()).not.toContain("asksForOwnDeck");
-    expect(DECK).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}process\.exit\(0\);/);
+    expect(SECOND_START).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}return 0;/);
+    // And deck.js asks it of every start and exits with what it says.
+    expect(DECK).toMatch(/const ended = await settleSecondStart\(\{[^}]*\bRESPAWN\b[^}]*\}\);\s*\n(?:\s*\/\/[^\n]*\n)*\s*if \(ended !== null\) process\.exit\(ended\);/);
   });
 
   it("stops what it replaces before it binds anything, and says why", () => {
-    const stop = DECK.indexOf("const out = await stopDeck(d)");
+    // The stop is settleSecondStart's, and deck.js settles it before the bind.
+    expect(SECOND_START).toContain("const out = await stopDeck(d)");
+    const settle = DECK.indexOf("await settleSecondStart(");
     const bind = DECK.indexOf("const starting = startServer({");
-    expect(stop).toBeGreaterThan(0);
-    expect(stop).toBeLessThan(bind);
-    expect(DECK).toContain("stopped the deck on ${d.port}");
-    expect(DECK).toContain("you asked for a fresh one");
-    expect(DECK).toContain("it was started with different settings");
+    expect(settle).toBeGreaterThan(0);
+    expect(settle).toBeLessThan(bind);
+    expect(SECOND_START).toContain("stopped the deck on ${d.port}");
+    expect(SECOND_START).toContain("you asked for a fresh one");
+    expect(SECOND_START).toContain("it was started with different settings");
   });
 
   it("prints a typo's warning on the attach path, which is what was actually needed", () => {
-    const ask = DECK.indexOf("if (plan.act === \"attach\") {");
-    const unknown = DECK.indexOf("reportUnknownFlags(flags.unknown);", ask);
-    const incomplete = DECK.indexOf("reportIncompleteFlags(flags.incomplete);", ask);
-    const bind = DECK.indexOf("const starting = startServer({");
+    const ask = SECOND_START.indexOf("if (plan.act === \"attach\") {");
+    const unknown = SECOND_START.indexOf("reportUnknownFlags(flags.unknown);", ask);
+    const incomplete = SECOND_START.indexOf("reportIncompleteFlags(flags.incomplete);", ask);
+    expect(ask).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(ask);
     expect(incomplete).toBeGreaterThan(ask);
-    expect(unknown).toBeLessThan(bind);
-    expect(incomplete).toBeLessThan(bind);
+    // Before anything binds: deck.js settles the second start first.
+    expect(DECK.indexOf("await settleSecondStart(")).toBeLessThan(DECK.indexOf("const starting = startServer({"));
   });
 
   it("is offered by the parser, and documented as the replace it now is", () => {
@@ -357,7 +364,7 @@ describe("what the attach does and does not disturb", () => {
     // The position is the point: an attach must leave the machine exactly as it
     // found it, so it happens before the port, the hooks, the tool probes, the
     // banner and the discovery file.
-    const ask = DECK.indexOf("const plan = secondStart({");
+    const ask = DECK.indexOf("await settleSecondStart(");
     const bind = DECK.indexOf("const starting = startServer({");
     const work = DECK.indexOf("const jobs = startupWork(");
     const register = DECK.indexOf("discovery = keepDiscovery({");
@@ -382,16 +389,16 @@ describe("what the attach does and does not disturb", () => {
     // process before a missing xdg-open has been answered by gio — and then no
     // browser opens and nothing says why. The boot path never had to think
     // about this because it stays alive forever.
-    expect(DECK).toMatch(/openUrl\(liveUrl\);[\s\S]{0,400}await sleep\(LAUNCH_GRACE_MS\);/);
+    expect(SECOND_START).toMatch(/openUrl\(liveUrl\);[\s\S]{0,400}await sleep\(LAUNCH_GRACE_MS\);/);
   });
 
   it("says a second deck was not started, and how to get a fresh one", () => {
     // Without it the command looks like it did nothing at all, which is the
     // other way to be confusing about this.
-    expect(DECK).toContain("no second deck was started");
+    expect(SECOND_START).toContain("no second deck was started");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
-    expect(DECK).toContain("--new\\` replaces it with a fresh one");
+    expect(SECOND_START).toContain("--new\\` replaces it with a fresh one");
   });
 
   it("has nothing left to warn about older decks, because they are replaced", () => {
@@ -422,7 +429,7 @@ describe("a newer deck kept on the port is said out loud", () => {
   });
 
   it("prints it on the attach and carries on", () => {
-    expect(DECK).toMatch(/const note = versionNote\(live\.version, PKG_VERSION\);/);
+    expect(SECOND_START).toMatch(/const note = versionNote\(live\.version, PKG_VERSION\);/);
     expect(cliSurface()).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
   });
 });
