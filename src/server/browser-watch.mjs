@@ -28,16 +28,24 @@
 // question completely — which is why there is no process to keep alive and no
 // gap to apologise for.
 import { statSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { claudeConfigDir } from "./claude-dir.mjs";
+import { readFile } from "node:fs/promises";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { msToChromeTime, readVisitsSince } from "./browser-history.mjs";
-import { classify, toEpisodes, defaultExclusions, isProgramNavigation } from "./agent-activity.mjs";
+import { toEpisodes, defaultExclusions } from "./agent-activity.mjs";
 import { appendLog, logPath, logSize, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST, hostsPath, readKillswitch, extensionReport, killswitchCommand, verdict } from "./relay-guard.mjs";
+// Which decks are here: whose tabs are the deck's own, and which one writes.
+import { isReactingDeck } from "./browser-watch-decks.mjs";
+export { deckOwnOrigins, registeredDeckPorts } from "./browser-watch-decks.mjs";
+// The feed: what the watch did, one line at a time, newest first.
+import { note, watchLog } from "./browser-watch-feed.mjs";
+export { noteWatchSetting } from "./browser-watch-feed.mjs";
+// What each profile has contributed since the deck started, and the fold that
+// adds one read to it.
+import { absorb, nothingSeen } from "./browser-watch-seen.mjs";
+export { absorb, nothingSeen } from "./browser-watch-seen.mjs";
 
 /**
  * The moment this deck started, and where every profile's first read begins.
@@ -206,22 +214,6 @@ async function relayGuard(profiles, { platform, env, deps }) {
  * schedule. `stale` is reported so the panel can say when it last actually
  * looked rather than implying the answer is a live one.
  */
-/**
- * Is that pid still running?
- *
- * A bare `catch { continue; }` used to stand where this is called, which threw
- * away the one distinction that matters: a process this account may not signal
- * answers EPERM on POSIX and EACCES on Windows (libuv maps
- * ERROR_ACCESS_DENIED), and both mean ALIVE. Treating them as gone made an
- * elevated deck invisible to the writer election below, which is how a machine
- * ends up with two elected writers — duplicate log lines, duplicate reactions,
- * and two writers racing the same rename.
- */
-function pidAlive(pid) {
-  try { process.kill(pid, 0); return true; }
-  catch (e) { return !!e && (e.code === "EPERM" || e.code === "EACCES"); }
-}
-
 async function visitsFor(profile, { sinceChromeTime, countSince, copyDir, deps = {} }) {
   const stamp = mtimeMs(profile.historyPath, deps);
   if (stamp === null) return { rows: [], degraded: true, reason: "no-history-file", stamp: null };
@@ -374,184 +366,6 @@ function occupy(read) {
 }
 
 /**
- * Every loopback address a ccdeck could have opened a tab on.
- *
- * Not just this process's port. The deck asks for 4317 and, when something else
- * already holds it, binds a RANDOM port in 4318-4400 instead (startServer's
- * `portRange`), so a machine that has been running decks for a month has tabs
- * on several. The real profile this feature was tuned against carried 41 visits
- * to 127.0.0.1:4317 and 34 to 127.0.0.1:4399 — two ports, both this deck, both
- * FROM_API because `open` is an API call, and every one of them a card the
- * panel would have shown its owner about itself.
- *
- * The whole range rather than the ports seen: the alternative is to remember
- * which ports past decks used, which is a file to keep, a file to migrate, and
- * a file that is empty the first time it matters. Eighty-four loopback ports
- * this program documents as its own are not a meaningful loss of coverage — a
- * user's own dev server on 3000 or 44440 is still reported, which is the case
- * that would have hurt.
- */
-export function deckOwnOrigins(portRange = [4317, 4400], registered = []) {
-  const [lo, hi] = portRange;
-  const out = [];
-  for (let port = lo; port <= hi; port++) out.push(`http://127.0.0.1:${port}`);
-  // AND THE PORTS DECKS ACTUALLY REGISTERED, which the range cannot know about.
-  // The range covers the default and its fallback; an explicit `--port` lands
-  // anywhere. Measured: a deck running from a worktree on `--port 4793` opened
-  // its own tab, and this panel reported it to its owner as a program driving
-  // the browser — which it was, and the program was ccdeck.
-  //
-  // Read rather than guessed. The registry already holds a port per live deck
-  // for the election, so this is a fact the machine has, not a range somebody
-  // has to keep current.
-  //
-  // A deck that registered NOTHING is still reported, and that is right rather
-  // than a gap: from here it is a program driving the browser and nothing
-  // announces otherwise. The reader can dismiss it once and it stays dismissed.
-  for (const port of registered) {
-    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
-    if (port >= lo && port <= hi) continue;
-    out.push(`http://127.0.0.1:${port}`);
-  }
-  return out;
-}
-
-/** The port of every live deck that registered one. Same directory and the same
- *  liveness check the election uses — a record whose process is gone is a
- *  leftover, not a deck whose tabs should be excused. */
-export async function registeredDeckPorts(deps = {}) {
-  if (deps.registeredDeckPorts) return deps.registeredDeckPorts();
-  const dir = join(claudeConfigDir(), "agent-dag");
-  let files;
-  try { files = await readdir(dir); } catch { return []; }
-  const ports = [];
-  for (const f of files) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      const d = JSON.parse(await readFile(join(dir, f), "utf8"));
-      if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
-      if (!pidAlive(d.pid)) continue;
-      ports.push(d.port);
-    } catch { /* corrupt, or gone between listing and read */ }
-  }
-  return ports;
-}
-
-
-/**
- * What the watch has been doing, newest first.
- *
- * The shell tool this descends from printed a running commentary — armed,
- * standing down, still watching, nothing found — and that commentary was most
- * of what made it trustworthy: you could see it working rather than take its
- * silence on faith. A panel that only ever shows a list has no way to say "I
- * looked, and there was nothing", which reads identically to "I am not looking".
- *
- * In memory and bounded. It is a record of what this process did since it
- * started, not an audit trail — the archive on disk is the thing that must
- * survive, and it already does.
- */
-const LOG_MAX = 200;
-const logLines = [];
-
-/**
- * One line of what the watch did.
- *
- * FIVE LEVELS, AND THEY ARE NOT SEVERITIES. `find` is the only one that means
- * something was found; `act` is the reader themselves, changing a setting or
- * the switch — the only lines in the file a person put there, and the ones they
- * scan for when asking "what did I change and when"; `ok` is the deck working,
- * `info` is the deck deciding not to work, and `warn` is the deck unable to.
- *
- * A log where every line is the same weight is a log nobody scans — and the one
- * line worth catching here is a program having driven the browser, which is not
- * an error and must not be dressed as one.
- *
- * @param {"find"|"act"|"ok"|"info"|"warn"} level
- */
-function note(level, text, atMs = Date.now(), parts = null) {
-  // `parts` is the same line said as columns, for the one shape that HAS
-  // columns: a profile read. The panel aligns those into a grid, where the
-  // count lands in the same place on every row instead of at the end of a
-  // sentence whose length depends on the browser's name. Composed here rather
-  // than parsed back out of `text` in the client — a program that has to
-  // reverse its own formatting has two spellings of one fact and will
-  // eventually disagree with itself.
-  //
-  // Null for every other line, and that is not a gap: "still watching 2
-  // profiles" and "closed the tab" are the deck talking, not events with a
-  // browser and a number, and the panel renders them as a different kind of
-  // row on purpose.
-  logLines.unshift(parts ? { atMs, level, text, parts } : { atMs, level, text });
-  if (logLines.length > LOG_MAX) logLines.length = LOG_MAX;
-}
-
-function watchLog() {
-  return logLines.slice();
-}
-
-/** Called by the settings route, which is the one moment worth a line of its
- *  own: everything else here is the deck reading, and this is the user acting. */
-export function noteWatchSetting(text) {
-  note("act", text);
-}
-
-/**
- * Whether THIS deck is the one that reacts and writes.
- *
- * ONE MACHINE, ONE STORE, AND USUALLY MORE THAN ONE DECK. The archive and the
- * log live at a single path per machine, but running two decks is ordinary here
- * — the repo has electWriters and a discovery directory precisely because it is.
- * Both would read the same Chrome history, find the same new episode, and each
- * write a line and fire a notification: one event, told twice.
- *
- * Verified rather than assumed: at the moment this was written, two decks were
- * live on this machine (ports 4317 and 4393), so the collision is the ordinary
- * case and not a corner.
- *
- * The rule is log-writer.mjs's, reused rather than reinvented: among live decks,
- * the LOWEST PORT wins, with the pid breaking a tie a stale discovery file could
- * invent. Deterministic, needs no lock file, and cannot strand the feature — a
- * deck that reads a directory it cannot open decides it is alone, which for the
- * common case of one deck is the right answer anyway.
- *
- * Reading only, never writing: this is a question about who else is running, and
- * a watcher that had to claim something to answer it could leave the claim
- * behind. The shell tool this descends from lost its lock on SIGHUP and then
- * refused to watch anything ever again.
- */
-async function isReactingDeck(deps = {}) {
-  if (deps.isReactingDeck) return deps.isReactingDeck();
-  const dir = join(claudeConfigDir(), "agent-dag");
-  let files;
-  try { files = await readdir(dir); } catch { return true; }   // cannot look — assume alone
-
-  let best = null;
-  for (const f of files) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      const d = JSON.parse(await readFile(join(dir, f), "utf8"));
-      if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
-      // ONLY DECKS THAT RUN THE WATCH GET A VOTE. This elected on port alone,
-      // so an older ccdeck that predates the feature won by holding the lower
-      // port and then wrote nothing — while the deck that has the watch stood
-      // down and also wrote nothing. Measured here: a v1.46 deck out of an npx
-      // cache held 4317, answered this route with the SPA's index.html, and the
-      // watch recorded nothing at all for as long as both were up. Findings on
-      // screen, an empty disk, and not one line anywhere saying why.
-      //
-      // An older deck has no such field, so it loses by construction rather
-      // than by a version comparison this would otherwise have to keep.
-      if (d.watch !== true) continue;
-      // A record whose process is gone is a leftover, not a rival.
-      if (!pidAlive(d.pid)) continue;
-      if (!best || d.port < best.port || (d.port === best.port && d.pid < best.pid)) best = d;
-    } catch { /* corrupt, or gone between listing and read */ }
-  }
-  return best === null || best.pid === process.pid;
-}
-
-/**
  * The browser survey, behind a short cache.
  *
  * It costs a `dig`, a `pgrep` per browser and an `lsof` per running one — up to
@@ -615,120 +429,6 @@ const _lastRead = new Map();
 /** How many visits each profile held above the deck's start at its last real
  *  read, so a row can report what was ADDED rather than the running total. */
 const _lastCount = new Map();
-
-/** What a profile has contributed before its first read. */
-export function nothingSeen() {
-  return {
-    /** The oldest and newest visit times seen, and the newest a PERSON made. */
-    oldest: null,
-    newest: null,
-    human: null,
-    /** How many of those visits Chrome marked as coming from an API. */
-    byProgram: 0,
-    /**
-     * Findings whose verdict can no longer change, and those that still can.
-     *
-     * THE QUIET GATE IS WHY THIS IS TWO LISTS. `classify` reports a program
-     * navigation only when no HUMAN visit falls within `quietMs` of it, on
-     * either side, so a verdict depends on visits that may arrive in a later
-     * read. Classifying each read's rows on their own is a different
-     * computation, and wrong in the direction that matters: the person's visits
-     * from the read before would be missing from the gate, and a program page
-     * opened while they sat at the browser would be reported.
-     *
-     * What saves it is that the question SETTLES. Only a human visit less than
-     * `quietMs` from a candidate can silence it, and every later read returns
-     * visits newer than `newest`, so once `newest` is `quietMs` past a candidate
-     * nothing still to come can change its answer. Verdicts up to `settledTo`
-     * are final and kept; the ones after it are recomputed on every read from
-     * `window`, the same computation the whole-history classify was.
-     */
-    settled: [],
-    open: [],
-    settledTo: -Infinity,
-    /**
-     * The only raw visits this module keeps between polls: every visit newer
-     * than `settledTo`, and the TIME of the newest visit a person made at or
-     * before it. Bounded by the clock, where the cache before #989 held every
-     * visit since the deck booted.
-     *
-     * NOT PRUNED BY THE GATE IN FORCE, SINCE #1131. It was everything newer
-     * than `settledTo - quietMs`, which is what that gate needs and less than a
-     * longer one does. With the gate lengthened from 15 minutes to 60, the
-     * person's visit forty minutes before a program page had already been
-     * dropped, and the next poll reported two pages that `classify` over the
-     * same rows under the 60-minute gate reports none of.
-     *
-     * Every verdict still open is newer than `settledTo`, so of the visits a
-     * person made at or before that line the newest is the nearest to every one
-     * of them, and the rest can never decide anything, under any gate: the hour
-     * the panel offers, or the day `normalise` accepts from a hand edit. Kept,
-     * that one visit makes the evidence complete whatever the gate is changed
-     * to. It is kept as a time and nothing else, because the gate asks when a
-     * person was at the browser and never where. What is held comes to one gate
-     * of browsing and one timestamp, where it was two gates of addresses.
-     */
-    window: [],
-    /** The gate the open verdicts were last judged under, so a changed one is
-     *  applied on the next poll whether or not that poll read anything. */
-    judgedUnder: null,
-  };
-}
-
-/** Fold one real read's rows into what the profile has contributed, and judge
- *  again whatever is still open. Mutates `seen`, which is the object `_lastRead`
- *  holds. Exported for tests, with `nothingSeen`: what is held between polls
- *  is the question #989 was about, and a snapshot cannot see it. */
-export function absorb(seen, rows, { quietMs, classifyOpts, browser }) {
-  // NOTHING NEW UNDER THE SAME GATE IS NOTHING TO DO. A gate that has changed
-  // since the open verdicts were judged is applied with no new rows at all
-  // (#1131): the settings route drops the cache, the read after it finds the
-  // file as it was and returns nothing, and returning here on that left a
-  // lengthened gate unapplied until the browser next wrote — the panel still
-  // listing a page the new gate hides.
-  if (rows.length === 0 && (seen.newest === null || seen.judgedUnder === quietMs)) return;
-  for (const row of rows) {
-    if (seen.oldest === null || row.timeMs < seen.oldest) seen.oldest = row.timeMs;
-    if (seen.newest === null || row.timeMs > seen.newest) seen.newest = row.timeMs;
-    // PAGES A PROGRAM OPENED, which is not the same as findings. A finding also
-    // has to clear the quiet gate; this is every navigation Chrome marked as
-    // coming from an API, whether or not anybody was at the keyboard. It is the
-    // figure the overview shows, because a panel about what programs did should
-    // count what programs did — the total row count it showed before was, on a
-    // measured profile, 78% the reader's own browsing.
-    if (isProgramNavigation(row.transition)) seen.byProgram += 1;
-    else if (seen.human === null || row.timeMs > seen.human) seen.human = row.timeMs;
-  }
-  // The visits still in play from earlier reads, then this read's.
-  const evidence = seen.window.concat(rows);
-  // MONOTONIC, so a quiet gate the reader has just lengthened cannot move the
-  // line back and re-open a verdict already kept, which would list that finding
-  // twice: once settled and once open.
-  const settleTo = Math.max(seen.settledTo, seen.newest - quietMs);
-  const verdicts = classify(evidence, classifyOpts)
-    // Tagged with the browser they came from, which is the one thing a reaction
-    // cannot work out for itself: closing a tab means telling ONE application
-    // to close it, and a finding that has forgotten which browser it was in can
-    // only be guessed at.
-    .map(f => ({ ...f, browser }));
-  for (const f of verdicts) {
-    if (f.timeMs > seen.settledTo && f.timeMs <= settleTo) seen.settled.push(f);
-  }
-  seen.open = verdicts.filter(f => f.timeMs > settleTo);
-  seen.settledTo = settleTo;
-  seen.judgedUnder = quietMs;
-  // Everything newer than the line, and of what a person did at or before it
-  // only the newest, as a time: `window` in `nothingSeen` says why that one
-  // visit is all any gate can ask for.
-  let person = null;
-  for (const r of evidence) {
-    if (r.timeMs > settleTo || isProgramNavigation(r.transition)) continue;
-    if (person === null || r.timeMs > person) person = r.timeMs;
-  }
-  seen.window = evidence.filter(r => r.timeMs > settleTo);
-  if (person !== null) seen.window.unshift({ url: "", timeMs: person, transition: 0 });
-}
-
 
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same

@@ -17,6 +17,7 @@ import {
 import { unseenEpisodes, SEEN_KEY } from "../browser-watch-seen";
 import { flooredReader } from "./floored-reader";
 import { clientText } from "./client-source";
+import { watchServerSurface } from "./browser-watch-server-surface";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");
@@ -348,7 +349,7 @@ describe("one machine, one store, usually more than one deck", () => {
     // A deck that cannot read the discovery directory must not fall silent —
     // for the common case of one deck, "alone" is the right answer anyway, and
     // the failure mode of the opposite choice is a watch that never reports.
-    const server = src("../../server/browser-watch.mjs");
+    const server = src("../../server/browser-watch-decks.mjs");
     expect(server).toMatch(/catch \{ return true; \}\s+\/\/ cannot look/);
   });
 
@@ -356,11 +357,11 @@ describe("one machine, one store, usually more than one deck", () => {
     // The shell tool this descends from lost its lock on SIGHUP and then
     // refused to watch anything ever again. This reads and compares; there is
     // no claim to strand.
-    const server = src("../../server/browser-watch.mjs");
+    const server = src("../../server/browser-watch-decks.mjs");
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const body = fn.slice(0, fn.indexOf("\n}"));
     expect(body).not.toMatch(/writeFile|mkdir|open\(|rename/);
-    expect(body).toMatch(/pidAlive\(d\.pid\)/);
+    expect(body).toMatch(/isProcessAlive\(d\.pid\)/);
   });
 });
 
@@ -371,7 +372,9 @@ describe("a log a person can read", () => {
     // one line saying a visit had been read. The view answering "is this
     // working" answered it by making its own answer unfindable.
     const server = src("../../server/browser-watch.mjs");
-    expect(server).not.toMatch(/unchanged, nothing to re-read/);
+    // The feed has a module of its own now; the old line must not come back in
+    // either place.
+    expect(watchServerSurface()).not.toMatch(/unchanged, nothing to re-read/);
     expect(server).toMatch(/else if \(read\.cached\) \{ \/\* silent \*\/ \}/);
   });
 
@@ -382,7 +385,7 @@ describe("a log a person can read", () => {
     // merely clutter it, it evicts the findings the panel exists to show.
     // A count and a timestamp say the same thing and cost no rows.
     const server = src("../../server/browser-watch.mjs");
-    expect(server, "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
+    expect(watchServerSurface(), "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
     expect(server).toMatch(/checkedMs: _checkedMs,/);
     expect(server).toMatch(/checks: _checks,/);
   });
@@ -506,7 +509,7 @@ describe("what the test suite is allowed to touch", () => {
 });
 
 describe("which deck is allowed to win the election", () => {
-  const server = src("../../server/browser-watch.mjs");
+  const server = src("../../server/browser-watch-decks.mjs");
 
   it("skips a deck that does not run the watch", () => {
     // THE BUG THIS CLOSES, measured on a real machine. The election ran on port
@@ -523,10 +526,10 @@ describe("which deck is allowed to win the election", () => {
     // whichever comes first in the file rather than the one in this function.
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const skip = fn.indexOf("if (d.watch !== true) continue;");
-    // `pidAlive`, not a bare `process.kill` any more: the probe accepts EPERM
-    // and the Windows spelling EACCES, because a deck this account cannot
+    // `isProcessAlive`, not a bare `process.kill` any more: the probe accepts
+    // EPERM and the Windows spelling EACCES, because a deck this account cannot
     // signal is alive and used to lose the election by being unreachable.
-    const kill = fn.indexOf("pidAlive(d.pid)");
+    const kill = fn.indexOf("isProcessAlive(d.pid)");
     expect(skip, "the skip is not inside isReactingDeck").toBeGreaterThan(0);
     expect(kill, "the liveness check is not inside isReactingDeck").toBeGreaterThan(0);
     expect(skip).toBeLessThan(kill);
