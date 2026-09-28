@@ -16,7 +16,6 @@ import {
 } from "../usage-from-ccusage";
 import { readStored } from "../storage";
 import type { GraphState } from "../reducer";
-import type { AgentState } from "../types";
 import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
 import { shortModel } from "../model-label";
@@ -28,6 +27,7 @@ import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
+import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 
 /** Where the chosen period lives between reloads.
  *
@@ -264,54 +264,24 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
    */
   const rangePending = rangeLoading && rangeStale;
 
-  // The board's own names, by session id. ccusage knows what a session cost and
-  // the canvas knows what to call it; `period` on a ccusage session row is the
-  // session id, which is the same key the canvas files its agents under.
-  const boardNames = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const a of state.agents.values()) {
-      // The same label the board's own session rows use — a.label when the
-      // session has been named, the working directory otherwise. Roots only:
-      // a subagent carries its parent's sessionId and would overwrite the
-      // session's name with a tool's.
-      if (a.kind !== "root" || !a.sessionId) continue;
-      const label = a.label || a.cwdBasename;
-      if (label) names.set(a.sessionId, label);
-    }
-    return names;
-  }, [state, state.revision]);
-
-  // What the canvas is doing right now, by the same key. A ccusage row for a
-  // session that finished last week has no state to report and gets no dot;
-  // one that is on the board keeps the dot the session list draws for it.
-  const boardStates = useMemo(() => {
-    const st = new Map<string, AgentState>();
-    for (const a of state.agents.values()) {
-      if (a.kind !== "root" || !a.sessionId) continue;
-      st.set(a.sessionId, a.state);
-    }
-    return st;
-  }, [state, state.revision]);
+  // The board's own names and states, by session id — the two halves of the
+  // join between ccusage's session rows and the canvas. The folds are
+  // usage-session-join.ts's, with the rule that only roots are read; these
+  // memos decide only when they run again.
+  const boardNames = useMemo(() => boardSessionNames(state.agents.values()), [state, state.revision]);
+  const boardStates = useMemo(() => boardSessionStates(state.agents.values()), [state, state.revision]);
 
   const rangeModelRows = useMemo(() => (fromRange ? ccModelRows(range) : []), [range, fromRange]);
   // Cut at twelve, the same as the board's list and for the same reason: this
   // is a 280px column, and "all time" on a machine that has run coding CLIs for
   // a year is hundreds of sessions. The rows are sorted by cost before the cut,
   // so what survives is the spend worth looking at.
+  //
+  // A repeated project name then takes the head of its session id, counted over
+  // the rows that survive the cut — see distinctSessionLabels.
   const rangeSessionRows = useMemo(() => {
     if (!fromRange) return [];
-    const rows = ccSessionRows(range, boardNames).slice(0, 12);
-    // Two sessions in the same folder is the normal case here — parallel
-    // agents, or one deck restarted — and both then arrive under the same
-    // project name. Identical rows carrying different figures read as a bug in
-    // the panel, so a repeated name takes the head of its session id. Only a
-    // repeated one: the common case is a list of distinct projects, and a uuid
-    // fragment on every row would be noise on a 280px column.
-    const seen = new Map<string, number>();
-    for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);
-    return rows.map(r => (r.label && (seen.get(r.label) ?? 0) > 1
-      ? { ...r, label: `${r.label} ${r.sessionId.slice(0, 4)}` }
-      : r));
+    return distinctSessionLabels(ccSessionRows(range, boardNames).slice(0, 12));
   }, [range, fromRange, boardNames]);
   const rangeSum = useMemo(() => rangeTotals(range), [range]);
   // Off the WHOLE list, which is why it is not folded into `rangeSessionRows`

@@ -30,6 +30,7 @@ export const USAGE_FILES = [
   "use-count-up.ts",
   "components/UsagePeriodStrip.tsx",
   "components/UsageSessionBreakdown.tsx",
+  "usage-session-join.ts",
 ] as const;
 
 let joined: string | null = null;

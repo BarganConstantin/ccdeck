@@ -45,6 +45,7 @@ import {
   nounFor, panelFigures, rangeView, PERIODS, periodFocusMove, sinceFor,
   type Board, type Delta, type Landed, type UsageRange,
 } from "../usage-from-ccusage";
+import { distinctSessionLabels } from "../usage-session-join";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
@@ -296,8 +297,10 @@ describe("the join to the canvas", () => {
   it("names sessions from roots only", () => {
     // A subagent carries its parent's sessionId, so including one would file a
     // tool's label under the session's id and overwrite the project name.
-    expect(panel).toMatch(/const boardNames = useMemo[\s\S]{0,600}?if \(a\.kind !== "root" \|\| !a\.sessionId\) continue;/);
-    expect(panel).toMatch(/const boardStates = useMemo[\s\S]{0,400}?if \(a\.kind !== "root" \|\| !a\.sessionId\) continue;/);
+    // The folds are usage-session-join.ts's, and usage-session-join.test.ts
+    // drives them with a subagent in the way. What is left here is the wire.
+    expect(panel).toContain("boardSessionNames(state.agents.values())");
+    expect(panel).toContain("boardSessionStates(state.agents.values())");
   });
 
   it("shows a uuid as a uuid when the board cannot name the session", () => {
@@ -354,8 +357,14 @@ describe("the join to the canvas", () => {
     // back under the same project name, and two identical labels carrying
     // different money read as a bug in the panel rather than as two sessions.
     // Only a repeated label pays for the uuid fragment.
-    expect(panel).toContain("`${r.label} ${r.sessionId.slice(0, 4)}`");
-    expect(panel).toContain("for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);");
+    // Called rather than matched, now that it is a function of its own.
+    const rows = distinctSessionLabels([
+      { sessionId: "07ac7b2b-0000-4000-8000-000000000001", label: "agents-deck" },
+      { sessionId: "91fe0c3d-0000-4000-8000-000000000002", label: "agents-deck" },
+      { sessionId: "5b1c2d3e-0000-4000-8000-000000000003", label: "vcrm-core" },
+    ]);
+    expect(rows.map(r => r.label)).toEqual(["agents-deck 07ac", "agents-deck 91fe", "vcrm-core"]);
+    expect(panel).toContain("distinctSessionLabels(ccSessionRows(range, boardNames).slice(0, 12))");
   });
 });
 
