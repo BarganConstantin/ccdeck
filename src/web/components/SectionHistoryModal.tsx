@@ -291,8 +291,8 @@ export default function SectionHistoryModal({ group, title, onClose }: {
   // it. A transformed ancestor becomes the containing block for a fixed
   // descendant, so the backdrop stopped being the viewport and became the
   // panel — measured at 274px wide, pinned in the right rail, over a scrim that
-  // covered nothing. The other ten render from App.tsx at the top of the tree
-  // and never meet this.
+  // covered nothing. The other ten render from DeckDialogs at the top of the
+  // tree and never meet this.
   return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div

@@ -24,8 +24,10 @@ const modal = bare(read("components/GuideModal.tsx"));
 const lan = bare(read("components/LanSyncSection.tsx"));
 /** The section's poll and its writes, which moved into a hook of their own. */
 const lanHook = bare(read("use-lan-section.ts"));
-// The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
-const app = bare(read("App.tsx")) + "\n" + bare(read("components/EmptyHero.tsx"));
+// The empty-board heroes moved to components/EmptyHero.tsx, and the dialogs to
+// components/DeckDialogs.tsx; App.tsx and they are read as one.
+const app = bare(read("App.tsx")) + "\n" + bare(read("components/EmptyHero.tsx"))
+  + "\n" + bare(read("components/DeckDialogs.tsx"));
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -154,7 +156,10 @@ describe("where the guides open from", () => {
     }
     expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">/);
     expect(notes).toMatch(/\{onTour && !updateVersion && \(\s*<div className="guide-door">/);
-    // The notes close and the tour opens through named operations now.
+    // The notes close and the tour opens through named operations now. Both
+    // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome
+    // hook whole.
+    expect(bare(read("App.tsx"))).toMatch(/<DeckDialogs\b[^>]*\bwelcome=\{welcome\}/);
     expect(app).toMatch(/onTour=\{\(\) => \{ closeReleaseNotes\(\); openTour\(\); \}\}/);
     expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); openTour\(\); \}\}/);
   });

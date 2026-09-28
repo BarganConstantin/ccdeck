@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const MODAL = read("../components/ReleaseNotesModal.tsx");
 const APP = read("../App.tsx");
+/** The dialogs App.tsx mounts, the release notes among them. */
+const DIALOGS = read("../components/DeckDialogs.tsx");
 const TRAY = read("../../../desktop/main.mjs");
 
 describe("restart in the page", () => {
@@ -28,7 +30,10 @@ describe("restart in the page", () => {
     // Except while the desktop app has a verified update ready (#1187): the
     // dialog's Update and restart is then the restart it offers, the way the
     // tray's Restart ccdeck takes a staged update on its way through.
-    expect(APP).toMatch(/onRestart=\{!readyAppUpdate && version\?\.canRestart \? \(\) => \{ closeReleaseNotes\(\); void askRestart\(\); \} : undefined\}/);
+    // Two links: the door is written where the dialog is mounted, and App.tsx
+    // hands that the restart, the version and the desktop update whole.
+    expect(DIALOGS).toMatch(/onRestart=\{!readyAppUpdate && version\?\.canRestart \? \(\) => \{ closeReleaseNotes\(\); void askRestart\(\); \} : undefined\}/);
+    expect(APP).toMatch(/<DeckDialogs\b[^>]*\bdesktopUpdate=\{desktopUpdate\} versionCheck=\{versionCheck\} restart=\{restart\}/);
   });
 });
 

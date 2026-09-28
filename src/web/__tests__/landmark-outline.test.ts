@@ -91,6 +91,8 @@ const canvasMain = source("components/CanvasMain.tsx");
 const detail = source("components/Detail.tsx");
 /** The version chip beside the wordmark, out of App.tsx's topbar. */
 const versionChip = source("components/VersionChip.tsx");
+/** The topbar's readout group, the wordmark among it, out of App.tsx's topbar. */
+const readouts = source("components/TopbarReadouts.tsx");
 const usage = source("UsagePanel.tsx");
 /** The usage panel and every file lifted out of it, for negatives and counts. */
 const usageAll = usageSurface();
@@ -280,9 +282,12 @@ describe("the deck's five regions are five landmarks (#381)", () => {
 
 describe("the heading outline starts at level 1 and skips nothing (#381)", () => {
   it("has exactly one <h1>, and it is the wordmark already on the page", () => {
+    // In the readout group, which App.tsx mounts at the head of the topbar.
     const h1s = BUNDLE.flatMap(([name, src]) => [...src.matchAll(/<h1[\s>]/g)].map(() => name));
-    expect(h1s).toEqual(["App.tsx"]);
-    expect(code(app)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
+    expect(h1s).toEqual(["components/TopbarReadouts.tsx"]);
+    expect(code(readouts)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
+    // `{}` is what is left of the pointer comment between the two.
+    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*<ReadoutGroup\b/);
   });
 
   it("did not hide it, because the name it carries is already visible", () => {
@@ -290,16 +295,18 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // reader say "ccdeck" twice — once as the heading, once as the wordmark two
     // pixels to its right. The class exists (#373) and is deliberately not used
     // here; marking up the text that is already on screen is what 1.3.1 asks.
-    expect(code(app)).toMatch(/<h1>/);
-    expect(code(app)).not.toMatch(/<h1 className="vis-hidden"/);
-    expect(code(app)).not.toMatch(/<h1[^>]*aria-hidden/);
+    // The heading is the readout group's now; the negatives read it and App.tsx.
+    expect(code(readouts)).toMatch(/<h1>/);
+    expect(code(app) + "\n" + code(readouts)).not.toMatch(/<h1 className="vis-hidden"/);
+    expect(code(app) + "\n" + code(readouts)).not.toMatch(/<h1[^>]*aria-hidden/);
   });
 
   it("keeps the <h1> out of the version chip's accessible name", () => {
     // The chip is a sibling of the heading and not a child of it. Inside, its
     // whole sentence about npm would become part of the heading's name — the
     // rotor's entry for this page would be a paragraph.
-    const brand = code(app).slice(code(app).indexOf('<div className="brand">'));
+    // The brand is in the readout group (components/TopbarReadouts.tsx) now.
+    const brand = code(readouts).slice(code(readouts).indexOf('<div className="brand">'));
     expect(brand).toContain("<h1>");
     // The chip is VersionChip now: drawn after the heading, and outside it.
     expect(brand.indexOf("<VersionChip")).toBeGreaterThan(-1);

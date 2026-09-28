@@ -101,7 +101,7 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
   const kind = popover ? "popover" : "dialog";
   const dialogRef = useRef<T | null>(null);
 
-  // App.tsx hands these modals a fresh arrow on every render, so a stack entry
+  // DeckDialogs hands these modals a fresh arrow on every render, so a stack entry
   // holding the function itself would have to be re-registered four times a
   // second (the snapshot tick) just to stay current, and each churn is a chance
   // to lose the overlay's place in the order.

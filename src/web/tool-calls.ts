@@ -36,11 +36,11 @@ export const MAX_TOOLS_PER_AGENT = 200;
  * The `ToolCall` carrying `id`, searched across every agent on the board, or
  * null. First match in agent insertion order.
  *
- * OUT HERE RATHER THAN INLINE IN App.tsx BECAUSE OF WHAT IT COSTS (#997). The
- * tool modal's render body resolves the open tool on every render, and cannot
- * skip it — `modalOpenRef` reads the result later in the same render — while
- * `setNow` re-renders the deck four times a second whether or not anything is
- * happening.
+ * OUT HERE RATHER THAN INLINE WHERE THE MODAL'S TOOL IS RESOLVED (App.tsx then,
+ * use-dialogs.ts now) BECAUSE OF WHAT IT COSTS (#997). The tool modal's render
+ * body resolves the open tool on every render, and cannot skip it —
+ * `modalOpenRef` reads the result later in the same render — while `setNow`
+ * re-renders the deck four times a second whether or not anything is happening.
  * The form this replaces was
  *
  *     Array.from(agents.values()).flatMap(a => a.tools).find(t => t.id === id)
@@ -65,7 +65,7 @@ export const MAX_TOOLS_PER_AGENT = 200;
  * agent has left the board is not found at all, and the modal closes rather
  * than showing somebody else's.
  *
- * Here rather than in App.tsx also so it can be measured without a DOM — the
+ * Here rather than in a hook also so it can be measured without a DOM — the
  * same reason `usage-range.ts` gives for living outside its component.
  */
 export function findToolOnBoard(agents: Map<string, AgentNodeData>, agentId: string, id: string): ToolCall | null {

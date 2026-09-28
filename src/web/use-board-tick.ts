@@ -49,7 +49,7 @@ export function useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setCon
       pruneSelectionToBoard();
       // AND THE TWO MODALS THAT NAME AN AGENT, for a reason worse than the
       // selection's (#781). Both render nothing once their subject is gone —
-      // App.tsx mounts the context modal only while `contextAgent` resolves,
+      // DeckDialogs mounts the context modal only while `contextAgent` resolves,
       // and buildSummary returns null on the same `agents.get(sessionId)` — but
       // `modalOpenRef` is computed from the ID rather than from what rendered,
       // so it stayed true with no dialog on screen. From there

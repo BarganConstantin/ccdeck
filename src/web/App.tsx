@@ -1,21 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
 import { usePanelPresence, isMounted } from "./panel-exit";
-import ToolModal from "./components/ToolModal";
 import BoardFlow from "./components/BoardFlow";
-import SessionSummary from "./components/SessionSummary";
-import ContextModal from "./components/ContextModal";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import ClearConfirm from "./components/ClearConfirm";
-import KeyboardHelp from "./components/KeyboardHelp";
-import GuideModal from "./components/GuideModal";
-import { WELCOME_STEPS } from "./components/guide-art";
-import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -41,13 +33,13 @@ import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
-import VersionChip from "./components/VersionChip";
 import { SessionRun, SettingsRun, SourceRun } from "./components/TopbarRuns";
-import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
+import { ReadoutGroup } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
+import DeckDialogs from "./components/DeckDialogs";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -60,10 +52,11 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useLeftColumn } from "./use-left-column";
+import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
 import { useMirroredRef } from "./use-mirrored-ref";
-import { useModalGate } from "./use-modal-gate";
+import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
@@ -72,79 +65,13 @@ import { usePresenceBeacon } from "./use-presence-beacon";
 import { usePrefsRead } from "./use-prefs-read";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
-import { readStored, writeStored } from "./storage";
-import { PRODUCT } from "./brand";
 import { blockedSessions } from "./ambient-counts";
-// Loaded when they open (#883). Both are opened rarely and each is a large
-// file; imported here, they were in the one bundle every reload and every deck
-// opened from another machine had to fetch before drawing anything. The topbar
-// needs only Browser Watch's unseen count, which lives in browser-watch-seen.
-const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
-const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
-import { LanPairRequests } from "./components/LanPairRequestModal";
-import { findToolOnBoard, initialState } from "./reducer";
+import { initialState } from "./reducer";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
-import { updateRestartFailureText } from "./desktop-update";
 import { createChimePlayer } from "./chime-player";
-import type { ToolCall } from "./types";
-
-const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
-const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
-/** Named for the panel it opens rather than for the button, which is how it
- *  survived the button changing: this key was written by a topbar meter that
- *  no longer exists, and a tab that had the panel open still finds it open. */
-const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
-// First-run layout: Usage and Accounts open, everything else closed. Those two
-// answer "how much have I got left, and on which account" — the questions you
-// have before you have a graph worth looking at. The session list and detail
-// panel are for navigating work that already exists, so they stay shut until
-// asked for, and the canvas gets the width.
-//
-// All three panels read and write through storage.ts rather than
-// window.localStorage directly: the loaders run inside useState initialisers,
-// and the property read throws outright on a browser that blocks site data,
-// which takes App's first render with it.
-function loadDetailOpen(): boolean {
-  return readStored(DETAIL_OPEN_KEY) === "1";
-}
-function saveDetailOpen(open: boolean): void {
-  writeStored(DETAIL_OPEN_KEY, open ? "1" : "0");
-}
-function loadUsagePanelOpen(): boolean {
-  const stored = readStored(USAGE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
-}
-function saveUsagePanelOpen(open: boolean): void {
-  writeStored(USAGE_PANEL_OPEN_KEY, open ? "1" : "0");
-}
-/**
- * Whether the machine panel was open when this tab was last looked at.
- *
- * OPEN ON A FIRST RUN, and never reopened after that — the same shape the
- * usage and accounts panels already use. This used to default to closed, on
- * the argument that "a machine readout that reopens itself on every refresh
- * would be occupying the rail on behalf of a decision nobody made". That
- * argument is about REOPENING, and the null check is exactly what prevents it:
- * a tab that has never expressed a preference gets the panel, and a tab that
- * has closed it once has expressed one and keeps it closed for good.
- *
- * The two cases were worth separating because they answer different people. A
- * first run is somebody who has not met the deck yet and cannot ask for a
- * panel they do not know is there; every run after that is somebody who has,
- * and whose answer is on record. Opening it starts the /api/system poll, which
- * stops with the panel and while the tab is hidden.
- */
-function loadMachinePanelOpen(): boolean {
-  const stored = readStored(MACHINE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
-}
-function saveMachinePanelOpen(open: boolean): void {
-  writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
-}
-
 
 export default function App() {
   return (
@@ -167,40 +94,20 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
-  /** Right detail panel visibility — persisted across refresh. Declared ahead
-   *  of the selection below, because a plain selection opens it (#814). */
-  const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
-  useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
+  // The detail, Usage and Machine panels' open flags, each kept in the browser
+  // across a refresh — use-right-panels.ts. Called ahead of the selection
+  // below, because a plain selection opens the detail panel (#814).
+  const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
+    = useRightPanels();
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
-  // Which call the tool modal shows: its agent and its id, since an id alone
-  // can name two sessions' calls (#1483).
-  const [openedToolKey, setOpenedToolKey] = useState<{ agentId: string; toolId: string } | null>(null);
-  const openTool = useCallback((agentId: string, toolId: string) => setOpenedToolKey({ agentId, toolId }), []);
-  /** Session ID for which we're showing the end-of-session recap modal,
-   *  or null when no modal is open. Opened from the detail panel's
-   *  `Show recap` on a finished session. */
-  const [summaryFor, setSummaryFor] = useState<string | null>(null);
-  /** Session id whose context-breakdown modal is open, or null. Driven by
-   *  clicking the donut on the session's root node. */
-  const [contextFor, setContextFor] = useState<string | null>(null);
-  const openContext = useCallback((sid: string) => setContextFor(sid), []);
-  /** Whether the shortcuts sheet is up. Deliberately not persisted: it is a
-   *  reference someone reaches for and closes again, and a deck that reopened
-   *  it on every refresh would be answering a question nobody asked twice. */
-  const [keyHelpOpen, setKeyHelpOpen] = useState(false);
   // The left column: the session list and the accounts panel share one slot,
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
-  /** Usage panel visibility — persisted across refresh. */
-  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
-  useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
-  const { monthlyUsage, monthlyUsageUnavailable, monthUsageRef } = useMonthlyUsage();
-  const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
-  useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
+  const monthly = useMonthlyUsage();
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
@@ -268,12 +175,12 @@ function Inner() {
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
   const versionCheck = useVersionCheck(live);
-  const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
+  const { version, notice, noticeOpen, loadVersion } = versionCheck;
   // Everything about the desktop app's own updater — its state, the press rule
   // behind Restart to update, and the stream event that releases a press — is in
   // use-desktop-update.ts. `live` drives the read on every (re)connect.
-  const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate,
-          askDesktopUpdateRestart, onDesktopUpdateEvent } = useDesktopUpdate(live);
+  const desktopUpdate = useDesktopUpdate(live);
+  const { readyAppUpdate, onDesktopUpdateEvent } = desktopUpdate;
   desktopUpdateRef.current = onDesktopUpdateEvent;
 
   // Telling the server somebody is looking at this deck lives in
@@ -284,8 +191,8 @@ function Inner() {
   // comes before it the first time: when each one opens, the notes an upgrade
   // holds back until the tour is closed, and the version chip's way back to
   // them. All of it, closing included, is in use-welcome-and-notes.ts.
-  const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion,
-          openReleaseNotes } = useWelcomeAndNotes({ version, readyAppUpdate });
+  const welcome = useWelcomeAndNotes({ version, readyAppUpdate });
+  const { tourOpen, openTour, releaseNotes } = welcome;
 
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
@@ -299,12 +206,16 @@ function Inner() {
   const upgrade = useDeckUpgrade({ version, loadVersion });
   const { upgradeFailure } = upgrade;
 
-  // ccusage history modal — transient (not persisted), opened from the toolbar.
-  const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
-  const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
+  // The six dialogs the reader opens — the tool, context and recap modals, the
+  // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
+  // the gate the keys ask before reaching past one: use-dialogs.ts.
+  const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
+  const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
+          setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
   // the reader last looked — lives in use-browser-watch-badge.ts.
-  const { watchOn, setWatchOn, watchUnseen, markWatchSeen } = useBrowserWatchBadge();
+  const watchBadge = useBrowserWatchBadge();
+  const { watchOn, watchUnseen } = watchBadge;
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
@@ -474,26 +385,11 @@ function Inner() {
   // `selected` is declared with the rail measurement further up this file,
   // which needs to know whether the detail panel is mounted.
 
-  // The tool the modal is showing, found without building a list of the ones it
-  // is not (#997). In the render body and not skippable — the modal gate below
-  // reads `openedTool != null` — so while the modal is open this runs on every
-  // render, four times a second on an idle deck. What it must not do on that
-  // tick is why the walk lives in the reducer; see findToolOnBoard.
-  const openedTool: ToolCall | null =
-    openedToolKey ? findToolOnBoard(stateRef.current.agents, openedToolKey.agentId, openedToolKey.toolId) : null;
-  // The agent the context modal is about, while it is still on the board: once
-  // it is evicted the modal draws nothing, and the tick closes it (#781).
-  const contextAgent = contextFor ? stateRef.current.agents.get(contextFor) : undefined;
-
-  // Whether a dialog is up that the keys must not reach past, and whether it
-  // is the shortcuts sheet — use-modal-gate.ts.
-  const { keyHelpOpenRef, modalOpenRef } = useModalGate({
-    openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
-  });
   // Clear, the confirmation it waits on, and the one door to it — use-clear-flow.ts.
-  const { clearConfirmOpen, setClearConfirmOpen, requestClear } = useClearFlow({
+  const clearFlow = useClearFlow({
     stateRef, pinnedRef, measuredRef, positionsRef, lastLayoutSigRef, forgetRemovals, clearSelection, rerender, modalOpenRef,
   });
+  const { requestClear } = clearFlow;
 
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.
@@ -594,13 +490,13 @@ function Inner() {
   useTabAmbient({ stateRef, waitingSessions, live });
   // Said aloud for a screen reader: that a session is waiting on you, and that
   // Browser Watch has something unread — in use-live-announcements.ts.
-  const { blockedSaid, watchSaid, setWatchSaid } = useLiveAnnouncements({ waitingSessions, watchUnseen });
+  const announcements = useLiveAnnouncements({ waitingSessions, watchUnseen });
 
   // OS notifications for a session that is waiting on you: the permission, the
   // switch, asking for it, and what has already been raised — in
   // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
   const notify = useOsNotifications({ waitingSessions, liveSince, focusSession });
-  const { notifySaid, loadNotifyPrefs } = notify;
+  const { loadNotifyPrefs } = notify;
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
   usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs });
@@ -645,161 +541,12 @@ function Inner() {
           back in play (ownsKeystroke() leaves a <main> alone). */}
       <a className="skip-link" href="#canvas">Skip to the canvas</a>
       <header className="topbar">
-        {/* Three groups now, not two, and this is the observation one.
-            The bar used to be a brand and one flat run of eight controls with
-            the readout strip wedged in front of them, and the only thing
-            marking the seam between "what is happening" and "what I can do to
-            it" was `.status { margin-right: 6px }` — 14px against the 8px
-            between two buttons. A 1.75x step under 16px does not read as a
-            group boundary, while a real 1px rule was drawn between the two
-            money readouts that used to close the strip. So the bar said the
-            break between two numbers was larger than the break between the
-            last number and the first control, which is exactly backwards. The
-            dividers were never the defect; the large boundary having no mark at
-            all was. Both dividers and both readouts have since gone, and the
-            24px between the groups is what is left doing the work.
-            LEFT, not centred. A centred group's x-position is a function of
-            both neighbours' widths, so the `live` pill would slide sideways
-            every time something after it gained a digit — and a status light
-            that has to be noticed cannot be a moving target. Everything ahead
-            of it here (the logo, the wordmark, the version chip) has bounded
-            width, so on the left it is an anchor instead. */}
-        <div className="readout">
-          <div className="brand">
-            <span className="logo" />
-            {/* The page's <h1>, and the wordmark that was already here rather
-                than a second copy of it hidden off screen (#381). The document
-                had no h1 at all, so its heading outline began at h3 and every
-                level below was a skip.
-                A visually-hidden heading was the other option and is the wrong
-                one HERE: the name it would carry is the word printed two pixels
-                to the right of it, so a screen reader would hear "ccdeck,
-                heading level 1" and then "ccdeck" again from the wordmark. A
-                hidden heading earns its keep when a region has no visible title;
-                this region has one, and marking up what is already on the page
-                is what 1.3.1 asks for. It is also the same string as the
-                document's <title>, from the same constant, so the tab, the
-                wordmark and the outline cannot drift.
-                The version chip stays a sibling and not a child: it is a button
-                whose accessible name is a whole sentence about npm, and inside
-                the heading that sentence would become part of the heading's
-                name. */}
-            <h1>{PRODUCT}</h1>
-            {/* The version chip, and what clicking it does: see VersionChip. */}
-            <VersionChip
-              readyAppUpdate={readyAppUpdate} notice={notice} noticeOpen={noticeOpen}
-              version={version} chipVersion={chipVersion} versionChecking={versionChecking} now={now}
-              openReleaseNotes={openReleaseNotes} showNotice={showNotice} loadVersion={loadVersion}
-            />
-          </div>
-          {/* NOT a live region, and #372 is the issue that took the
-              `role="status"` off it. Nothing in this strip is a status
-              *message*: it is a permanently visible readout the user can read
-              whenever they want one, and every number in it still moves on its
-              own — tokens climbs on every event carrying usage, and the cost
-              label reprices its `$/h` rate on each frame while something is
-              live. `role="status"` also carries an implicit
-              `aria-atomic="true"`, so what a screen reader actually did with
-              each of those increments was re-read the WHOLE strip rather than
-              the one number that moved. That is a property of the role, not of
-              how many numbers are in the row: it held when the row also carried
-              the sessions, agents and events counters, and it holds now that
-              they are gone. Continuous speech of numbers nobody asked for is how
-              a page teaches its user to turn the screen reader off, and it was
-              being spent on the least urgent thing in the topbar.
-              WCAG 4.1.3 was satisfied here — for the wrong content. The alarm
-              that is worth a live region has one of its own, below. */}
-          <StatusStrip
-            live={live} paused={paused} pauseGate={pauseGate}
-            monthUsageRef={monthUsageRef} monthlyUsage={monthlyUsage} monthlyUsageUnavailable={monthlyUsageUnavailable}
-          />
-          {/* The deck's one alarm, said out loud — and the only live region in
-              the topbar (#372).
-              MOUNTED UNCONDITIONALLY, which is the half that looks redundant and
-              is not. A screen reader registers a live region when the region
-              enters the accessibility tree, and text that arrives in the same
-              tick as the region itself is routinely never announced at all. The
-              chip below is mounted only while something is blocked, so wrapping
-              THAT in a role="status" would have put the region and its first
-              words on screen together — the one announcement that matters, on
-              the one delivery screen readers are least reliable about. It would
-              also have taken the region away again with the chip, leaving
-              nowhere to say the block had cleared. So the region is always here
-              and only its text moves.
-              POLITE, not assertive, and that was a decision rather than a
-              default. `role="alert"` interrupts whatever is being spoken, which
-              buys at most the length of one utterance — and a blocked session
-              waits indefinitely, so nothing is lost by arriving a sentence
-              later. What assertive would cost is concrete: a deck reloaded while
-              a session is already blocked replays that block during mount, and
-              an assertive region firing there talks over the screen reader's own
-              announcement of the page the user just opened. The connection
-              banner keeps role="alert" because its failure is the other kind —
-              once the stream is dead every number on this page is stale and the
-              deck is quietly lying, so a deferred announcement is a user acting
-              on dead data.
-              role="status" carries an implicit aria-atomic="true"; it is written
-              out because this sentence only means anything whole, and because a
-              partial reading of it is exactly the failure the strip above was
-              guilty of. */}
-          <div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>
-          <div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>
-          {/* Outside the .status strip and inside .readout, which are two
-              separate placements and only one of them still has the reason it
-              was given.
-              The half that expired: "a control has no business inside a live
-              region". .status was one when this was written and #372 took the
-              role off it, so that argument has had nothing to point at for a
-              while. The half that still does the work is the one about the
-              strip itself — .status is a run of readouts about what is
-              happening, and a button dropped into it would report a group
-              boundary where there is only a change of element. Its group is
-              the readout, because what it reports is
-              observation; its element is a button, because the number is the
-              only one in the bar the user is meant to act on. Click goes to the
-              session that has been stuck longest, which is both the one the
-              deck was left open for and the one the region above names.
-              It says nothing when nothing is blocked, and it never speaks for
-              Codex: those sessions emit no notification, so counting them would
-              turn "we have no signal" into "they are fine". It carries no live
-              region of its own; the div above is where the speaking happens,
-              for the mounting reason given there. */}
-          {waitingSessions.length > 0 && (
-            <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
-          )}
-          {/* The ask, and it lives HERE rather than in a settings panel.
-              Every browser requires a user gesture to raise the permission
-              prompt, so this button is not decoration — without it the feature
-              cannot be switched on at all. Putting it beside the blocked count
-              means it appears in the one moment its value is obvious (a session
-              is stuck and you can see it), and `canAsk` takes it away for good
-              once the question has been answered either way: "granted" needs no
-              button, and "denied" cannot be re-asked — requestPermission()
-              resolves denied again without showing anything, so a button that
-              kept offering would silently do nothing. That is the failure
-              browser-react.mjs refuses to ship for its own reactions, and it is
-              not worth shipping here. After a refusal the switch is in the
-              browser's site settings, which the title says in words. */}
-          {/* THE ASK IS NOT IN THE TOPBAR ANY MORE. It was here because a browser
-              raises its permission prompt only on a user gesture, so a button
-              somewhere is not optional — but there are two others already, and
-              both are better placed: turning the notify switch on in the sound
-              menu raises the prompt itself, and that menu's `Browser
-              notifications / Enable` is the way back from a prompt somebody
-              dismissed. A third door, in the topbar, beside a count of blocked
-              sessions, was a dashed outline asking for a permission next to a
-              number about work. */}
-          {/* What the browser answered, said once and then gone.
-              Pressing a button and watching it disappear looks the same whether
-              it worked or was refused, and only one of those is true — a user
-              who was refused walks away believing they switched something on.
-              So the grant gets a short acknowledgement and the refusal gets a
-              longer one carrying the only thing that can be done about it,
-              which is a switch in the browser's own site settings that no page
-              is allowed to touch. `role="status"` rather than an alert: this is
-              the outcome of something they just did, not an interruption. */}
-          {notifySaid && <NotifySaid notifySaid={notifySaid} />}
-        </div>
+        {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
+        <ReadoutGroup
+          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause} monthly={monthly}
+          announcements={announcements} notify={notify} waitingSessions={waitingSessions}
+          waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
+        />
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
         )}
@@ -957,109 +704,12 @@ function Inner() {
         />
       ) : null}
 
-      {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
-      {/* `providers` is what the modal's subtitle falls back to until a ccusage
-          run has said whose logs are actually in the figures (#431). It is not
-          a gate: ccusage reads the logs on this machine rather than this deck's
-          flags, so a deck started with --no-codex can still be shown Codex
-          spend, and the subtitle follows the data when there is any. */}
-      {usageHistoryOpen && (
-        <Suspense fallback={null}>
-          <UsageHistoryModal providers={providers} onClose={() => setUsageHistoryOpen(false)} />
-        </Suspense>
-      )}
-      {browserWatchOpen && (
-        <Suspense fallback={null}>
-        <BrowserWatchModal
-          onClose={() => setBrowserWatchOpen(false)}
-          onSeen={ms => {
-            // The reader has just looked, so the count falling to nothing is
-            // their own doing and not news: the region goes back to the silence
-            // it starts in rather than telling them "no unread findings" about
-            // the list they were reading. Only the reducer's all-clear is
-            // skipped — the next finding still speaks, because "" is the state
-            // a first announcement is made from.
-            setWatchSaid("");
-            markWatchSeen(ms);
-          }}
-          /* The switch lives in the dialog and the eye lives up here, reading a
-             five-minute poll. Without this the eye stays lit for up to five
-             minutes after the watch is turned off — the one control whose whole
-             job is to be true at a glance, lying. */
-          onWatching={setWatchOn}
-          palette={palette}
-        />
-        </Suspense>
-      )}
-      {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
-      {summaryFor && (
-        <SessionSummary
-          state={stateRef.current}
-          sessionId={summaryFor}
-          onClose={() => setSummaryFor(null)}
-        />
-      )}
-      {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
-          dialog that arrives on its own belongs: it must not paint over the one
-          waiting for an answer, and the stack in modal-dismiss.ts settles Esc
-          the same way round. */}
-      {releaseNotes && (
-        <ReleaseNotesModal
-          entries={releaseNotes.entries}
-          since={releaseNotes.since}
-          /* Both are null-on-a-browse, and they are not the same thing: a first
-             run is the deck announcing one release to somebody who has never
-             seen any of them, and its first line has to say so (#717). */
-          firstRun={releaseNotes.firstRun}
-          /* The same number the chip wears, and defaulted the same way, so the
-             dialog's first line and the chip that opened it cannot disagree
-             about which release the reader is on. */
-          running={chipVersion}
-          onClose={closeReleaseNotes}
-          onTour={() => { closeReleaseNotes(); openTour(); }}
-          updateVersion={readyAppUpdate?.version}
-          updateBusy={desktopUpdateRestarting}
-          /* Said until the next press. A failure for a version the app has
-             since replaced is about nothing that is on offer any more, so it
-             goes when a different one is ready. */
-          updateFailure={desktopUpdateFailure
-            && (!readyAppUpdate || readyAppUpdate.version === desktopUpdateFailure.version)
-            ? updateRestartFailureText(desktopUpdateFailure.failure, desktopUpdateFailure.version)
-            : undefined}
-          onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
-          /* Only where the server would do it: an unsupervised deck answers
-             501 and one without a writable log 409, and the button is not
-             offered for either (#1163). */
-          onRestart={!readyAppUpdate && version?.canRestart ? () => { closeReleaseNotes(); void askRestart(); } : undefined}
-        />
-      )}
-      {/* After the release notes and before the clear prompt. Both of those
-          also arrive without being asked for, and the order between them is
-          the order of what they want: a question that is holding another
-          machine up outranks an announcement about this one, and neither
-          outranks the prompt somebody is standing in front of deciding
-          whether to truncate a log. */}
-      <LanPairRequests {...lanPairs} />
-      {/* Before the clear prompt and after everything else, which is where a
-          reference belongs: it may paint over a tool inspector somebody opened
-          the sheet on top of, and it must not paint over the one dialog that is
-          waiting for an answer. Escape agrees with the paint order — the prompt
-          carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
-          before arrival. */}
-      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} onTour={() => { setKeyHelpOpen(false); openTour(); }} />}
-      {tourOpen && (
-        <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={closeTour} />
-      )}
-      {/* Last, so it sits above a session summary that pops in from a Stop
-          hook while the user is still deciding. The gate keeps it from opening
-          over a modal, but a modal can still arrive over it. */}
-      {clearConfirmOpen && (
-        <ClearConfirm
-          agentCount={agentCount}
-          onConfirm={() => requestClear("confirmation")}
-          onCancel={() => setClearConfirmOpen(false)}
-        />
-      )}
+      {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
+      <DeckDialogs
+        dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
+        lanPairs={lanPairs} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
+        appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
+      />
     </div>
   );
 }

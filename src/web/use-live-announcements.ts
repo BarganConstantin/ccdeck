@@ -5,7 +5,7 @@
 // lines above", the tab title and favicon effect, which did not come with it; it
 // now names what it means. `setWatchSaid` goes out as it is — the Browser Watch
 // dialog clears the region with it when the reader has just read the findings,
-// before the seen stamp, and that order is App.tsx's to keep.
+// before the seen stamp, and that order is components/DeckDialogs.tsx's to keep.
 import { useEffect, useState } from "react";
 
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";

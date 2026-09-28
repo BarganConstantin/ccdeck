@@ -566,7 +566,9 @@ describe("what each of the four toggles announces", () => {
     // `primary` was the whole of the visual state on all five. It is the
     // stylesheet's word for a primary ACTION and the add-account dialog still
     // uses it that way; what it must not do is stand in for "pressed".
-    expect(app).not.toMatch(/\bprimary\b/);
+    // The readout group moved out of App.tsx to components/TopbarReadouts.tsx,
+    // so the negative reads it too.
+    expect(app + "\n" + markup("components/TopbarReadouts.tsx")).not.toMatch(/\bprimary\b/);
     expect(markup("components", "AddAccountDialog.tsx")).toMatch(/className="btn primary"/);
   });
 });

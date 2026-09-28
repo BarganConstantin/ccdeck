@@ -18,11 +18,15 @@ describe("the deck announces state that is already visible (#1016)", () => {
 
   it("announces Browser Watch findings from an always-mounted polite region", () => {
     // The sentence and its reducer moved to use-live-announcements.ts; the region
-    // is still mounted in App.tsx. All three matches are positive.
-    const app = strip(read("../App.tsx") + "\n" + read("../use-live-announcements.ts"));
+    // is mounted in the topbar's readout group (components/TopbarReadouts.tsx),
+    // which App.tsx mounts and hands the announcements whole. All matches are
+    // positive.
+    const app = strip(read("../App.tsx") + "\n" + read("../use-live-announcements.ts")
+      + "\n" + read("../components/TopbarReadouts.tsx"));
     expect(app).toMatch(/const watchNow = watchUnseen > 0[\s\S]*?Browser watch has/);
     expect(app).toContain('nextAnnouncement(said, watchNow, "Browser watch has no unread findings.")');
     expect(app).toContain('<div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>');
+    expect(strip(read("../App.tsx"))).toMatch(/<ReadoutGroup\b[^>]*\bannouncements=\{announcements\}/);
   });
 
   it("does not announce an all-clear the reader caused by reading Browser Watch", () => {
@@ -30,11 +34,16 @@ describe("the deck announces state that is already visible (#1016)", () => {
     // nothing — and the reducer would then say "no unread findings" about the
     // list the reader had just finished. Reading it puts the region back to the
     // silence it starts in; a clear from anywhere else still speaks.
+    // The dialog is mounted in components/DeckDialogs.tsx, which App.tsx hands
+    // the announcements whole; the count reads both files.
     const app = strip(read("../App.tsx"));
+    const dialogs = strip(read("../components/DeckDialogs.tsx"));
+    expect(app).toMatch(/<DeckDialogs\b[^>]*\bannouncements=\{announcements\}/);
+    expect(dialogs).toMatch(/const \{ setWatchSaid \} = announcements;/);
     // `markWatchSeen` is the seen stamp and its write-through, named in the badge
     // hook; the ORDER is what this pins — the region goes quiet first.
-    expect(app).toMatch(/onSeen=\{ms => \{\s*setWatchSaid\(""\);\s*markWatchSeen\(ms\);/);
-    expect(app.match(/setWatchSaid\(""\)/g)).toHaveLength(1);
+    expect(dialogs).toMatch(/onSeen=\{ms => \{\s*setWatchSaid\(""\);\s*markWatchSeen\(ms\);/);
+    expect((app + "\n" + dialogs).match(/setWatchSaid\(""\)/g)).toHaveLength(1);
   });
 
   it("puts the context number in the button name and hides the decorative svg", () => {

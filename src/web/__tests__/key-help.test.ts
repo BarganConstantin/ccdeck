@@ -33,10 +33,11 @@ import { ASSUMED } from "../providers";
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts, the canvas stack to
-// components/CanvasControls.tsx and the topbar's settings run to
-// components/TopbarRuns.tsx; the keys and the rest of the deck are read as one.
+// components/CanvasControls.tsx, the topbar's settings run to
+// components/TopbarRuns.tsx and the dialogs to components/DeckDialogs.tsx; the
+// keys and the rest of the deck are read as one.
 const app = read("App.tsx") + "\n" + read("use-deck-shortcuts.ts") + "\n" + read("components/CanvasControls.tsx")
-  + "\n" + read("components/TopbarRuns.tsx");
+  + "\n" + read("components/TopbarRuns.tsx") + "\n" + read("components/DeckDialogs.tsx");
 const sheet = read("components/KeyboardHelp.tsx");
 
 /** The body of the deck's one window keydown handler. Sliced rather than
@@ -145,6 +146,8 @@ describe("the way in", () => {
   it("binds ? to the sheet, and the sheet to ?", () => {
     expect(app).toMatch(/if \(e\.key === "\?"\) setKeyHelpOpen\(o => !o\);/);
     expect(app).toMatch(/\{keyHelpOpen && <KeyboardHelp onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
+    // The sheet is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
+    expect(read("App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
   });
 
   it("keeps a control on screen for the deck a user actually works in", () => {

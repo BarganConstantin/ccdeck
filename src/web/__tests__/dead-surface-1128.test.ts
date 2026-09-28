@@ -79,14 +79,20 @@ describe("dismissedSummaries — a Set App.tsx wrote on every recap close and no
   const app = src(WEB, "App.tsx");
 
   it("is gone, with its helpers and its storage key", () => {
-    expect(app).not.toMatch(/\bdismissedSummaries\b|DismissedSummaries|SUMMARY_DISMISSED_KEY|agent-dag\.summariesDismissed/);
+    // The recap's open state is use-dialogs.ts's now, which App.tsx calls, and
+    // the recap is mounted in components/DeckDialogs.tsx, which App.tsx mounts;
+    // the negative reads all three.
+    expect(app + "\n" + src(WEB, "use-dialogs.ts") + "\n" + src(WEB, "components/DeckDialogs.tsx"))
+      .not.toMatch(/\bdismissedSummaries\b|DismissedSummaries|SUMMARY_DISMISSED_KEY|agent-dag\.summariesDismissed/);
   });
 
   it("and the recap still opens from the detail panel and still closes", () => {
     // The panel's frame is components/DetailAside.tsx, which App.tsx hands the setter.
     expect(app).toMatch(/<DetailAside\b[^>]*\bsetSummaryFor=\{setSummaryFor\}/);
     expect(src(WEB, "components/DetailAside.tsx")).toContain("onShowSummary={setSummaryFor}");
-    expect(app).toMatch(/<SessionSummary[\s\S]{0,200}?onClose=\{\(\) => setSummaryFor\(null\)\}/);
+    // The recap is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
+    expect(app).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
+    expect(src(WEB, "components/DeckDialogs.tsx")).toMatch(/<SessionSummary[\s\S]{0,200}?onClose=\{\(\) => setSummaryFor\(null\)\}/);
   });
 });
 

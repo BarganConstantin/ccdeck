@@ -206,12 +206,18 @@ describe("the six layouts are still the six the stylesheet declares", () => {
   it("opens with the accounts panel and without the detail panel", () => {
     // Which is `288px 1fr` — a pane 72px wider than the guess believed, on
     // every deck that has never had its panels touched.
-    // The accounts panel's default moved with the left column; the detail
-    // panel's below is still App.tsx's.
+    // The accounts panel's default moved with the left column, and the detail
+    // panel's below with the right-hand panels, to use-right-panels.ts, which
+    // App.tsx calls.
     expect(clientText()).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
     // Open only on a stored "1": nothing stored, and a store that refuses, both
     // read as null through readStored, and null is closed.
-    expect(appCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
+    const rightCode = readFileSync(fileURLToPath(new URL("../use-right-panels.ts", import.meta.url)), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+    expect(rightCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
+    expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(\);/);
   });
 });
 
