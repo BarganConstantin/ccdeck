@@ -40,9 +40,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { usageSurface } from "./usage-surface";
+import { contextWindowForModel } from "../context-window";
 import {
   billedInputTokens,
-  contextWindowForModel,
   costForUsage,
   fmtCost,
   ratesForModel,

@@ -337,7 +337,7 @@ export interface AgentNodeData {
    *  with replay events written before multi-provider support. */
   provider?: Provider;
   /** The context window the CLI itself reports, which takes precedence over the
-   *  static table in pricing.ts when present.
+   *  static table in context-window.ts when present.
    *
    *  NOT from `session_meta`, as this said until #399 went looking: that record
    *  does carry a `context_window` key, but it holds `{ window_id }` — the id of

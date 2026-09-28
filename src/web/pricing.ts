@@ -330,15 +330,16 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   //
   // The lookahead is what keeps this row from becoming the catch-all that
   // CODEX_CONTEXT_DEFAULTS ends with (`{ match: /^gpt[-_]5/i, window: 400_000 }`
-  // — see below), and the asymmetry between the two tables is deliberate rather
-  // than an oversight. A context window is a coarse capability that moves in
-  // powers of ten and only sizes a donut, so guessing 400K for an unrecognised
-  // gpt-5* is a good guess and a cheap wrong one. A PRICE is the number a user
-  // checks their bill against: if OpenAI ships a gpt-5.7 at $4/$20 and this row
-  // swallowed it, every surface in the deck would print a confident figure a
-  // third of the real spend, with nothing on screen to suggest it was invented.
-  // `not priced` beside the token count is the honest answer to a model this
-  // build has never heard of, and refusing the guess is what makes it reachable.
+  // — see context-window.ts), and the asymmetry between the two tables is
+  // deliberate rather than an oversight. A context window is a coarse
+  // capability that moves in powers of ten and only sizes a donut, so guessing
+  // 400K for an unrecognised gpt-5* is a good guess and a cheap wrong one. A
+  // PRICE is the number a user checks their bill against: if OpenAI ships a
+  // gpt-5.7 at $4/$20 and this row swallowed it, every surface in the deck
+  // would print a confident figure a third of the real spend, with nothing on
+  // screen to suggest it was invented. `not priced` beside the token count is
+  // the honest answer to a model this build has never heard of, and refusing
+  // the guess is what makes it reachable.
   { match: /^gpt[-_]5(?![-_.]\d)/i,
     rates: { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 } },
 
@@ -485,9 +486,10 @@ export interface CostBreakdown {
 // request stays far below it, so testing the total against a per-request
 // threshold surcharged nearly every Codex session by roughly 2x. The Codex
 // CLI also clamps its window to 258,400 (272,000 x 95%) precisely so no single
-// request crosses the boundary — see CODEX_CONTEXT_DEFAULTS below — which
-// makes the tier effectively unreachable. Restoring it would need per-request
-// input (the rollout's `last_token_usage`) accumulated request by request.
+// request crosses the boundary — see CODEX_CONTEXT_DEFAULTS in
+// context-window.ts — which makes the tier effectively unreachable. Restoring
+// it would need per-request input (the rollout's `last_token_usage`)
+// accumulated request by request.
 
 /** Cache-creation tokens grouped by the TTL they were billed at, with the
  *  dollars each bucket contributes. Exported so the cost tooltip can print
@@ -580,79 +582,6 @@ export function costForUsage(
   const cw = cacheWriteBreakdown(usage, rates);
   const cacheWrite = cw.usd5m + cw.usd1h;
   return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
-}
-
-// ─── Context window ──────────────────────────────────────────────────────
-// The 1M-token window begins at the 4.6 generation -- it is NOT "every model
-// above Haiku". Anthropic's context-windows page names the list exactly:
-// Fable 5.1, Mythos 5.1, Fable 5, Mythos 5, Opus 5, Opus 4.8, Opus 4.7,
-// Opus 4.6, Sonnet 5, Sonnet 4.6. "Other Claude models, including Claude
-// Sonnet 4.5, have a 200k-token context window" -- and Opus 4.5 is one of the
-// others. It was in the list below for five releases, which drew its donut at
-// a fifth of the fullness it had. The model id sometimes carries a `[1m]`
-// suffix (CC's UI banner uses it) -- treat that as an explicit override
-// regardless of family.
-const CONTEXT_WINDOW_DEFAULT = 200_000;
-const CONTEXT_WINDOW_BIG = 1_000_000;
-
-const BIG_CONTEXT_PATTERNS: RegExp[] = [
-  /\[1m\]/i,                                  // explicit suffix
-  /^claude[-_]opus[-_]5\b/i,                  // Opus 5
-  /^claude[-_]sonnet[-_]5\b/i,                // Sonnet 5
-  /^claude[-_]opus[-_]4[-_.](?:6|7|8)\b/i,    // Opus 4.6+ (4.5 is 200K)
-  /^claude[-_]sonnet[-_]4[-_.]6\b/i,          // Sonnet 4.6
-  /^claude[-_](fable|mythos)[-_]5\b/i,        // Fable/Mythos 5
-];
-
-// Codex context-window defaults, used only until the live
-// `model_context_window` reaches the agent node — which comes from the rollout's
-// `task_started` and `token_count` records, not from `session_meta`, whose
-// `context_window` key holds a terminal window id and no token count (#399).
-//
-// These are the API's real windows. Note the Codex CLI reports something
-// smaller — 258,400 for the gpt-5.6 family, being 272,000 x 95% — because it
-// deliberately clamps a session below OpenAI's >272K-input pricing boundary
-// rather than letting one silently cross it. The live value wins wherever it
-// is available; these only cover first paint.
-const CODEX_CONTEXT_DEFAULTS: Array<{ match: RegExp; window: number }> = [
-  { match: /^gpt[-_]6[-_]astra/i,                 window: 1_050_000 },
-  { match: /^gpt[-_]5[-_.]6[-_]cyber/i,           window:   400_000 },
-  { match: /^gpt[-_]5[-_.]6/i,                    window: 1_050_000 },
-  { match: /^gpt[-_]5[-_.]5/i,                    window: 1_050_000 },
-  { match: /^gpt[-_]5[-_.]4[-_](?:mini|nano)/i,   window:   400_000 },
-  { match: /^gpt[-_]5[-_.]4/i,                    window: 1_050_000 },
-  { match: /^gpt[-_]5[-_.]3[-_]codex[-_]spark/i,  window:   128_000 },
-  { match: /^gpt[-_]5[-_.]3[-_]codex/i,           window:   400_000 },
-  { match: /^gpt[-_]5[-_.]2/i,                    window:   400_000 },
-  { match: /^gpt[-_]5/i,                          window:   400_000 },
-  { match: /^codex[-_]mini/i,                     window:   200_000 },
-  { match: /^o\d/i,                               window:   200_000 },
-];
-
-export function contextWindowForModel(modelId: string | undefined): number {
-  if (!modelId) return CONTEXT_WINDOW_DEFAULT;
-  // Same strip as ratesForModel, and for the same reason: five of the six
-  // BIG_CONTEXT_PATTERNS are `^claude`-anchored, so without it a Bedrock Opus 5
-  // fell through to the 200K default and drew a context donut five times too
-  // full. CODEX_CONTEXT_DEFAULTS needs no such care — no third party serves
-  // OpenAI models to Claude Code, so a `gpt-*` id never carries this prefix —
-  // but it costs nothing to pass the same string to both, and a table that had
-  // to be told which half of the id to look at would be the thing that drifts.
-  const bare = bareModelId(modelId);
-  for (const p of BIG_CONTEXT_PATTERNS) if (p.test(bare)) return CONTEXT_WINDOW_BIG;
-  for (const e of CODEX_CONTEXT_DEFAULTS) if (e.match.test(bare)) return e.window;
-  return CONTEXT_WINDOW_DEFAULT;
-}
-
-/** The window to render for an agent. A live `model_context_window` observed
- *  from the CLI always wins; the static table above only covers first paint
- *  and providers that never report one. */
-export function effectiveContextWindow(
-  live: number | undefined,
-  modelId: string | undefined,
-): number {
-  if (typeof live === "number" && live > 0) return live;
-  return contextWindowForModel(modelId);
 }
 
 /** What a surface prints in the slot a dollar figure would occupy when the deck

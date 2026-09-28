@@ -69,7 +69,7 @@ function agent(id: string, model: string): AgentNodeData {
 //   · pricing.ts — one id per RATES row, plus the aliases each row's comment
 //     names (`gpt-5.6` is documented as an alias for `-sol`; the 5.1 row covers
 //     `-codex`, `-codex-max` and `-chat-latest`).
-//   · pricing.ts CODEX_CONTEXT_DEFAULTS — `gpt-5.3-codex-spark` is sized there
+//   · context-window.ts CODEX_CONTEXT_DEFAULTS — `gpt-5.3-codex-spark` is sized there
 //     and priced by the `-codex` row, so it exists and pricing.ts never spells
 //     it out on its own.
 //   · this machine's logs — the ids actually observed in

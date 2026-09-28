@@ -13,7 +13,8 @@
 // section says so instead of printing five zeroes (#399).
 import { useRef } from "react";
 import type { AgentNodeData, Provider } from "../types";
-import { fmtCost, effectiveContextWindow } from "../pricing";
+import { fmtCost } from "../pricing";
+import { effectiveContextWindow } from "../context-window";
 import { agentCost } from "../usage-models";
 import { useModalDismiss } from "./use-modal-dismiss";
 
