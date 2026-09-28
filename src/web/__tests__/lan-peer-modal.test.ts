@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { exchangeLanes, offerLine, versionOrder } from "../lan-exchange";
 import { deckRows, rowSource, withAliases } from "../lan-roster";
 import { peerView } from "../lan-peer";
+import { lanPeerSurface } from "./lan-peer-surface";
 
 const NOW = 1_700_000_000_000;
 /** A file with its comments taken out, so a rule cannot be satisfied by a
@@ -23,8 +24,10 @@ const MODAL = code("../components/LanPeerModal.tsx");
 /** What the dialog says about the machine behind the row, which moved out of
  *  the component into a module of its own. */
 const PEER = code("../lan-peer.ts");
+/** The picture in the dialog, which moved out of the component into its own. */
+const MAP = code("../components/LanPeerMap.tsx");
 /** The dialog and what was lifted out of it, for what it must never say. */
-const DIALOG = [MODAL, PEER].join("\n");
+const DIALOG = lanPeerSurface(src => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "));
 const PRESS = code("../panel-press.ts");
 const ROW_UNPAIR = code("../use-row-unpair.ts");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
@@ -54,8 +57,8 @@ describe("LAN warning visibility", () => {
 
 describe("peer dialog connection hints", () => {
   it("keeps the one-way pairing explanation beside a Keychain round remedy", () => {
-    expect(MODAL).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
-    expect(MODAL).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
+    expect(MAP).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
+    expect(MAP).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
     expect(DIALOG).not.toContain("line?.hint ?? row.hint");
   });
 });
@@ -314,16 +317,16 @@ describe("the dialog is as quiet as the row it opens from", () => {
   // left, that deck's on the right — so `here` and `there` stop being printed
   // on every row, and the two lists become one.
   it("draws each login once, as a lane with a mark at each machine's end", () => {
-    expect(MODAL).toMatch(/className="lan-lanes" role="list"/);
-    expect(MODAL).toMatch(/role="listitem"/);
-    expect(MODAL).toMatch(/data-end="here" data-state=\{l\.here\}/);
-    expect(MODAL).toMatch(/data-end="there" data-state=\{l\.there\}/);
-    expect(MODAL).not.toContain("lan-offer");
+    expect(MAP).toMatch(/className="lan-lanes" role="list"/);
+    expect(MAP).toMatch(/role="listitem"/);
+    expect(MAP).toMatch(/data-end="here" data-state=\{l\.here\}/);
+    expect(MAP).toMatch(/data-end="there" data-state=\{l\.there\}/);
+    expect(DIALOG).not.toContain("lan-offer");
   });
 
   // The marks are for the eye. Whatever they say is said in words as well.
   it("says what each mark means to a reader who cannot see it", () => {
-    expect(MODAL).toMatch(/<span className="vis-hidden">\{laneSaid\(l\)\}<\/span>/);
+    expect(MAP).toMatch(/<span className="vis-hidden">\{laneSaid\(l\)\}<\/span>/);
   });
 
   // A held key clears the 400ms bar while the finger has never come up, so
@@ -439,7 +442,7 @@ describe("the dialog says each thing once", () => {
 
   it("says the fix for this deck's expired logins once, under them", () => {
     expect(DIALOG).not.toContain("gives them nothing");
-    expect(MODAL).toContain('className="lan-spent"');
+    expect(MAP).toContain('className="lan-spent"');
   });
 
   it("dates an old list in muted ink, under a header that already warns", () => {
