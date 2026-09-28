@@ -745,71 +745,57 @@ export function connectToPeer({
     let key = null;
     /** What the key was derived over; the invite proofs are made over it too. */
     let transcript = null;
-    sock.on("data", frameReader(msg => {
-      if (settled) return;
-      // A deck that heard us and said no. Each reason is a different problem
-      // with a different fix, and until this frame existed they were all one
-      // silent close that read as a firewall. See REFUSALS.
-      if (msg.t === "no") {
-        // `Object.hasOwn`, and here more than anywhere: `msg.why` is a field in
-        // a frame written by the OTHER MACHINE, which is the case admin-failure
-        // states the rule for (#474). Every member of Object.prototype answers
-        // a plain bracket read with an inherited value that is neither nullish
-        // nor falsy, so `?? "the other deck refused this handshake"` never
-        // fired for one — `{...}["constructor"]` is the Object function itself,
-        // and `new Error(Object).message` is the string "function Object() {
-        // [native code] }". lan-engine files that as `lastRound.error` and the
-        // LAN panel prints it verbatim, so a peer chose what appeared in the
-        // user's interface. Asking whether the map has a ROW is the question
-        // this read was always trying to ask; no real reason moves.
-        return fail(new Error(Object.hasOwn(REFUSALS, msg.why) ? REFUSALS[msg.why]
-          : "the other deck refused this handshake"));
+
+    /** Step 2, answered: the listener's challenge, checked against the pin,
+     *  and this deck's proof back — with the connection's key derived first. */
+    const challenge = msg => {
+      if (theirFp || !readChallenge(msg.challenge)) return fail(new Error("bad challenge"));
+      const them = readPub(msg.pub);
+      if (!them || them.fp !== msg.fp) return fail(new Error("bad challenge"));
+      // THE PIN, CHECKED BEFORE ANYTHING ELSE. A deck we have paired with is
+      // this key and no other; a key that does not match is not a peer whose
+      // details changed, it is a different machine at the same address.
+      if (expectPub && expectPub !== them.pub) {
+        return fail(new Error("a different deck is answering at that address"));
       }
-      if (msg.t === "challenge") {
-        if (theirFp || !readChallenge(msg.challenge)) return fail(new Error("bad challenge"));
-        const them = readPub(msg.pub);
-        if (!them || them.fp !== msg.fp) return fail(new Error("bad challenge"));
-        // THE PIN, CHECKED BEFORE ANYTHING ELSE. A deck we have paired with is
-        // this key and no other; a key that does not match is not a peer whose
-        // details changed, it is a different machine at the same address.
-        if (expectPub && expectPub !== them.pub) {
-          return fail(new Error("a different deck is answering at that address"));
-        }
-        theirChallenge = msg.challenge;
-        theirFp = them.fp;
-        theirPub = them.pub;
-        // Mixed when both challenges say so, as at the listener, and then the
-        // listener's key is required: a deck of this version that says it
-        // mixes and sends no key is not an older deck, it is a deck whose key
-        // was taken out on the way. Refused, and never read the old way.
-        const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
-        const theirEphemeral = mixing ? readEphemeral(msg.epk) : null;
-        if (mixing && !theirEphemeral) return fail(new Error("bad challenge"));
-        transcript = mixing
-          ? handshakeTranscript(fp, theirFp, myChallenge, theirChallenge, myEpk, theirEphemeral)
-          : handshakeTranscript(fp, theirFp, myChallenge, theirChallenge);
-        try {
-          key = sessionKey(secret, theirPub, transcript,
-            mixing ? { role: "caller", priv: mine.priv, peer: theirEphemeral } : null);
-        } catch {
-          return fail(new Error("bad challenge"));
-        } finally {
-          // Used or not, the private half goes now.
-          mine = null;
-        }
-        sendFrame(sock, {
-          t: "auth",
-          proof: proof(key, {
-            challenge: myChallenge, peerChallenge: theirChallenge,
-            fromFp: fp, toFp: theirFp, direction: "hello",
-          }),
-          // Only when joining on an invite. Sent in the same frame as the
-          // session proof so a deck that holds a token is paired in one round
-          // trip rather than being queued behind somebody else's press.
-          ...(code ? { invite: inviteProof(code, transcript) } : {}),
-        });
-        return;
+      theirChallenge = msg.challenge;
+      theirFp = them.fp;
+      theirPub = them.pub;
+      // Mixed when both challenges say so, as at the listener, and then the
+      // listener's key is required: a deck of this version that says it
+      // mixes and sends no key is not an older deck, it is a deck whose key
+      // was taken out on the way. Refused, and never read the old way.
+      const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
+      const theirEphemeral = mixing ? readEphemeral(msg.epk) : null;
+      if (mixing && !theirEphemeral) return fail(new Error("bad challenge"));
+      transcript = mixing
+        ? handshakeTranscript(fp, theirFp, myChallenge, theirChallenge, myEpk, theirEphemeral)
+        : handshakeTranscript(fp, theirFp, myChallenge, theirChallenge);
+      try {
+        key = sessionKey(secret, theirPub, transcript,
+          mixing ? { role: "caller", priv: mine.priv, peer: theirEphemeral } : null);
+      } catch {
+        return fail(new Error("bad challenge"));
+      } finally {
+        // Used or not, the private half goes now.
+        mine = null;
       }
+      sendFrame(sock, {
+        t: "auth",
+        proof: proof(key, {
+          challenge: myChallenge, peerChallenge: theirChallenge,
+          fromFp: fp, toFp: theirFp, direction: "hello",
+        }),
+        // Only when joining on an invite. Sent in the same frame as the
+        // session proof so a deck that holds a token is paired in one round
+        // trip rather than being queued behind somebody else's press.
+        ...(code ? { invite: inviteProof(code, transcript) } : {}),
+      });
+    };
+
+    /** Step 4: the listener's own proof — and the invite's, when this deck is
+     *  joining on one — and then the connection, handed to whoever dialled. */
+    const ok = msg => {
       // The same deck that gave us the challenge, or nothing: a reply naming a
       // different fingerprint is a second party in the middle of this.
       //
@@ -858,6 +844,30 @@ export function connectToPeer({
          *  #810, a plain frame passes through as it arrived. */
         read: frame => (chan ? chan.unwrap(frame) : frame),
       });
+    };
+
+    sock.on("data", frameReader(msg => {
+      if (settled) return;
+      // A deck that heard us and said no. Each reason is a different problem
+      // with a different fix, and until this frame existed they were all one
+      // silent close that read as a firewall. See REFUSALS.
+      if (msg.t === "no") {
+        // `Object.hasOwn`, and here more than anywhere: `msg.why` is a field in
+        // a frame written by the OTHER MACHINE, which is the case admin-failure
+        // states the rule for (#474). Every member of Object.prototype answers
+        // a plain bracket read with an inherited value that is neither nullish
+        // nor falsy, so `?? "the other deck refused this handshake"` never
+        // fired for one — `{...}["constructor"]` is the Object function itself,
+        // and `new Error(Object).message` is the string "function Object() {
+        // [native code] }". lan-engine files that as `lastRound.error` and the
+        // LAN panel prints it verbatim, so a peer chose what appeared in the
+        // user's interface. Asking whether the map has a ROW is the question
+        // this read was always trying to ask; no real reason moves.
+        return fail(new Error(Object.hasOwn(REFUSALS, msg.why) ? REFUSALS[msg.why]
+          : "the other deck refused this handshake"));
+      }
+      if (msg.t === "challenge") return challenge(msg);
+      return ok(msg);
     // A refusal from the reader, with the thrown error as its cause when there
     // was one: the message is the one it always was, and whatever logs the
     // rejection can reach what actually threw.
