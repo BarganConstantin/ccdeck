@@ -25,12 +25,15 @@ import { rmTempDir } from "./rm-temp-dir";
 import { createUpdater, FEED } from "../../../desktop/updater.mjs";
 // @ts-expect-error — plain .mjs, no types
 import * as mac from "../../../desktop/updater-mac.mjs";
+// @ts-expect-error — plain .mjs, no types
+import * as relaunch from "../../../desktop/relaunch-linux.mjs";
 
 type Fake = {
   on: (event: string, fn: (...args: unknown[]) => unknown) => void;
   emit: (event: string, ...args: unknown[]) => boolean;
   checkForUpdates: ReturnType<typeof vi.fn>;
   quitAndInstall: ReturnType<typeof vi.fn>;
+  install: ReturnType<typeof vi.fn>;
   setFeedURL: ReturnType<typeof vi.fn>;
   autoInstallOnAppQuit?: boolean;
   autoDownload?: boolean;
@@ -65,11 +68,14 @@ vi.mock("../../../desktop/updater-mac.mjs", async (importOriginal) => ({
   discard: vi.fn(async () => {}),
 }));
 
+vi.mock("../../../desktop/relaunch-linux.mjs", () => ({ relaunchOnExit: vi.fn() }));
+
 async function newFake(): Promise<Fake> {
   const { EventEmitter } = await import("node:events");
   const fake = new EventEmitter() as unknown as Fake;
   fake.checkForUpdates = vi.fn(async () => {});
   fake.quitAndInstall = vi.fn();
+  fake.install = vi.fn(() => true);
   fake.setFeedURL = vi.fn();
   return fake;
 }
@@ -91,6 +97,7 @@ type State = { status: string; version?: string; error?: string };
 let fake: Fake;
 let dir = "";
 let feedEnv: string | undefined;
+let appImageEnv: string | undefined;
 
 beforeEach(async () => {
   fake = await newFake();
@@ -98,6 +105,10 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "ccdeck-updater-state-"));
   feedEnv = process.env.CCDECK_UPDATE_FEED;
   delete process.env.CCDECK_UPDATE_FEED;
+  // The runner is no AppImage; the cases that are one say so themselves.
+  appImageEnv = process.env.APPIMAGE;
+  delete process.env.APPIMAGE;
+  vi.mocked(relaunch.relaunchOnExit).mockReset();
   vi.mocked(mac.checkForUpdate).mockReset();
   vi.mocked(mac.stageUpdate).mockReset();
   vi.mocked(mac.installOnExit).mockReset();
@@ -108,6 +119,8 @@ afterEach(() => {
   Object.defineProperty(process, "platform", realPlatform);
   if (feedEnv === undefined) delete process.env.CCDECK_UPDATE_FEED;
   else process.env.CCDECK_UPDATE_FEED = feedEnv;
+  if (appImageEnv === undefined) delete process.env.APPIMAGE;
+  else process.env.APPIMAGE = appImageEnv;
   vi.unstubAllGlobals();
   rmTempDir(dir);
 });
@@ -174,6 +187,9 @@ describe("the Windows and Linux install gate", () => {
     // Restart only while ready must not be the only guard in front of it.
     u.restartNow();
     expect(fake.quitAndInstall).not.toHaveBeenCalled();
+    process.env.APPIMAGE = "/home/u/Applications/ccdeck-linux-x86_64.AppImage";
+    u.restartNow();
+    expect(fake.install).not.toHaveBeenCalled();
   });
 
   it("does not look again while an update is on its way or ready", async () => {
@@ -187,6 +203,65 @@ describe("the Windows and Linux install gate", () => {
     await until("ready");
     await u.check();
     expect(fake.checkForUpdates).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the AppImage restart (#1630)", () => {
+  // quitAndInstall(…, true) started the new AppImage from inside this process
+  // while it still ran, and the new app inherited this one's open files. The
+  // AppImage now only swaps its file in, and a detached script starts it once
+  // this process has gone (relaunch-linux.mjs, run for real in
+  // desktop-appimage-relaunch-1630.test.ts).
+  const APPIMAGE = "/home/u/Applications/ccdeck-linux-x86_64.AppImage";
+
+  beforeEach(() => {
+    onPlatform("linux");
+    process.env.APPIMAGE = APPIMAGE;
+  });
+
+  async function ready(app = appLike()) {
+    const { u, until } = updater(app);
+    await u.check();
+    const bytes = Buffer.from("the AppImage ccdeck built");
+    fake.emit("update-downloaded", downloaded(bytes, signed(bytes)));
+    await until("ready");
+    return u;
+  }
+
+  it("swaps the file in without starting it, then quits into a relaunch", async () => {
+    const order: string[] = [];
+    fake.install.mockImplementation(() => { order.push("install"); return true; });
+    vi.mocked(relaunch.relaunchOnExit).mockImplementation(() => { order.push("relaunch"); });
+    const app = appLike({ quit: vi.fn(() => { order.push("quit"); }) });
+    const u = await ready(app);
+
+    u.restartNow();
+
+    // install(…, false): electron-updater runs the new AppImage with
+    // APPIMAGE_EXIT_AFTER_INSTALL, so its AppRun swaps and returns.
+    expect(fake.install).toHaveBeenCalledWith(true, false);
+    expect(fake.quitAndInstall).not.toHaveBeenCalled();
+    expect(relaunch.relaunchOnExit).toHaveBeenCalledWith({ pid: process.pid, appImage: APPIMAGE });
+    expect(order).toEqual(["install", "relaunch", "quit"]);
+  });
+
+  it("relaunches the file electron-updater renamed", async () => {
+    const renamed = "/home/u/Applications/ccdeck-3.29.5-x86_64.AppImage";
+    fake.install.mockImplementation(() => { fake.emit("appimage-filename-updated", renamed); return true; });
+    const u = await ready();
+    u.restartNow();
+    expect(relaunch.relaunchOnExit).toHaveBeenCalledWith({ pid: process.pid, appImage: renamed });
+    // And stops listening: a later rename is not this restart's.
+    expect((fake as unknown as { listenerCount: (e: string) => number }).listenerCount("appimage-filename-updated")).toBe(0);
+  });
+
+  it("neither relaunches nor quits when the install did not happen", async () => {
+    fake.install.mockReturnValue(false);
+    const app = appLike();
+    const u = await ready(app);
+    u.restartNow();
+    expect(relaunch.relaunchOnExit).not.toHaveBeenCalled();
+    expect(app.quit).not.toHaveBeenCalled();
   });
 });
 
