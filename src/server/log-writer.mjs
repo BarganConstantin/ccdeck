@@ -79,6 +79,27 @@ import { PRODUCT } from "./brand.mjs";
 // already paid — open, write, close — minus the extra writes.
 const appendTails = new Map();
 
+/** The step the next one queued for this log starts behind: the last one
+ *  queued, or nothing when its queue is empty. */
+function tailOf(filePath) {
+  return appendTails.get(filePath) ?? Promise.resolve();
+}
+
+/**
+ * Make `tail` the step the next one queued for this log starts behind, and
+ * drop it from the map once it settles.
+ *
+ * Dropped so a process that writes to several logs over its life does not hold
+ * a promise per path it has finished with. Only the tail installed here is
+ * cleared: if another step chained on in the meantime the map already points
+ * at that one, and deleting it would let the next line race the one still in
+ * flight.
+ */
+function installTail(filePath, tail) {
+  appendTails.set(filePath, tail);
+  tail.then(() => { if (appendTails.get(filePath) === tail) appendTails.delete(filePath); });
+}
+
 // ─── What the queue is allowed to weigh ───────────────────────────────────
 //
 // The chain above ORDERS appends. Nothing bounded them. Every line handed over
@@ -394,7 +415,7 @@ export function appendLogLine(filePath, line) {
   }
   pendingLines++;
   pendingChars += charged;
-  const tail = (appendTails.get(filePath) ?? Promise.resolve())
+  const tail = tailOf(filePath)
     .then(() => writeWholeLine(filePath, line))
     // Counted, and reported once per episode — see noteAppendFailed. The order
     // of these four steps is the whole of the union between the append-queue
@@ -403,9 +424,10 @@ export function appendLogLine(filePath, line) {
     //
     //   * the failure handler comes BEFORE the `catch`, or the rejection has
     //     already been swallowed by the time anything could count it;
-    //   * the `catch` stays, because the map cleanup below chains a bare
-    //     `.then` on this tail and "never rejects" is the contract every caller
-    //     of this function has — neither handler above may be what breaks it;
+    //   * the `catch` stays, because the map cleanup in installTail chains a
+    //     bare `.then` on this tail and "never rejects" is the contract every
+    //     caller of this function has — neither handler above may be what
+    //     breaks it;
     //   * `finally` comes LAST, so the charge is given back whether the write
     //     landed, failed, or a handler here threw on its way past. It would run
     //     on a rejection anyway; what the ordering buys is that it cannot be
@@ -416,13 +438,7 @@ export function appendLogLine(filePath, line) {
     // which is the moment the closure holding it becomes collectable, and so
     // the moment the heap it was standing for is actually back.
     .finally(() => releaseCharge(charged));
-  appendTails.set(filePath, tail);
-  // Drop the chain once it drains, so a process that writes to several logs
-  // over its life does not hold a promise per path it has finished with. Only
-  // the tail we just installed is cleared: if another append chained on in the
-  // meantime the map already points at that one, and deleting it would let the
-  // next line race the one still in flight.
-  tail.then(() => { if (appendTails.get(filePath) === tail) appendTails.delete(filePath); });
+  installTail(filePath, tail);
   return tail;
 }
 
@@ -601,7 +617,7 @@ export function flushAppends(filePath, ms = 3000) {
  * @returns {Promise<boolean>} whether it was over before the deadline
  */
 export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
-  const turn = (appendTails.get(filePath) ?? Promise.resolve())
+  const turn = tailOf(filePath)
     .then(() => truncate(filePath, 0))
     .then(
       () => { outcome.error = null; },
@@ -616,10 +632,7 @@ export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
       outcome.archiveError = first;
     })
     .catch(() => {});
-  appendTails.set(filePath, turn);
-  // The same cleanup appendLogLine does, for the same reason: only the tail
-  // installed here, never one that has chained on since.
-  turn.then(() => { if (appendTails.get(filePath) === turn) appendTails.delete(filePath); });
+  installTail(filePath, turn);
   return flushAppends(filePath, ms);
 }
 
