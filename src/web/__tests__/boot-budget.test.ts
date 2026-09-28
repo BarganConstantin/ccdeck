@@ -39,6 +39,9 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-boot-budget-"));
+// Both boots run in this tree. At the top level, so it runs after both
+// describes' afterAll hooks have killed their decks.
+afterAll(() => rmTempDir(DIR));
 const PKG = join(DIR, "pkg");
 const SERVER_DIR = join(PKG, "src", "server");
 const REAL_BIN = fileURLToPath(new URL("../../../bin/", import.meta.url));

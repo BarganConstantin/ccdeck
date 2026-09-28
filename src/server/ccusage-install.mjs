@@ -323,9 +323,13 @@ function install(spec = "latest") {
       // fallback's stderr and the install's half of the story was never written
       // down at all.
       if (!resolveEntry()) {
+        // The reason before the path (#1672). startInstall fits this to
+        // INSTALL_ERROR_ROOM from the start, and with the path first a long home
+        // directory used the room up, so the level that was missing, the one
+        // thing this sentence is for, was what got cut.
         return finish(reject, new Error(
-          `npm install ccusage exited 0 but left nothing runnable under ${CACHE_DIR}: `
-          + `${installTreeReport()}`,
+          `npm install ccusage exited 0 but left nothing runnable: ${installTreeReport()}, `
+          + `under ${CACHE_DIR}`,
         ));
       }
       finish(resolve, undefined);

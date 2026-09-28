@@ -42,6 +42,7 @@
 // not asked to be trusted: on the Windows leg every case compares the model's
 // answer against the real one, so the model that the other two legs rely on is
 // itself checked by execution once per CI run.
+import { afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
 import { rmTempDir } from "./rm-temp-dir";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -175,7 +176,7 @@ const PRINT_ARGV = [
   'process.stdout.write(Buffer.from(argv, "utf8"));',
 ].join("\n");
 
-let harness: { node: string; script: string } | null = null;
+let harness: { node: string; script: string; dir: string } | null = null;
 
 /** The `<node> <script>` prefix, created once per run. */
 function printArgvHarness(): { node: string; script: string } {
@@ -194,16 +195,22 @@ function printArgvHarness(): { node: string; script: string } {
       throw new Error(`the round-trip harness cannot quote its own path naively: ${part}`);
     }
   }
-  // A test that leaves a directory behind on every run is a test that fills a
-  // CI runner's temp space over a few hundred builds. `process.on("exit")`
-  // rather than an afterAll hook because this module has no describe block to
-  // hang one off, and it must not force its importers to remember.
-  process.on("exit", () => {
-    try { rmTempDir(dir); } catch { /* already gone */ }
-  });
-  harness = { node: process.execPath, script };
+  harness = { node: process.execPath, script, dir };
   return harness;
 }
+
+// A test that leaves a directory behind on every run is a test that fills a
+// CI runner's temp space over a few hundred builds. Registered here, at the top
+// of the module, so its importers do not have to remember: the module is
+// evaluated while the importing file is collected, which makes this that
+// file's own afterAll. It was `process.on("exit")`, which never fires in a
+// vitest worker — the pool ends the worker without an exit — so every run left
+// one of these behind.
+afterAll(() => {
+  if (!harness) return;
+  try { rmTempDir(harness.dir); } catch { /* already gone */ }
+  harness = null;
+});
 
 /** Where the answer came from. `"cmd.exe"` means a real process really ran. */
 export type Authority = "cmd.exe" | "model";
