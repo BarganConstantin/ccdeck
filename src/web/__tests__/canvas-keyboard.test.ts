@@ -376,12 +376,13 @@ describe("nothing else in the deck invents a focus stop", () => {
   it("keeps its one negative tabIndex on the skip link's target and nowhere else", () => {
     // A tabindex="-1" is cheap to add and easy to leave behind, and the shape
     // it leaves behind is a mouse-focusable div nobody can reach by keyboard.
-    // One in the app, on <main>, is the whole allowance.
+    // One in the app, on <main>, is the whole allowance. <main> is
+    // components/CanvasMain.tsx's since it left App.tsx's markup.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
-        .map(() => p.slice(web.length)));
-    expect(negatives).toEqual(["App.tsx"]);
-    expect(code(app)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
+        .map(() => p.slice(web.length).replaceAll("\\", "/")));
+    expect(negatives).toEqual(["components/CanvasMain.tsx"]);
+    expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {

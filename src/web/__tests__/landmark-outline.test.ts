@@ -84,6 +84,8 @@ function code(src: string): string {
 }
 
 const app = source("App.tsx");
+/** The canvas's <main>, out of App.tsx's markup. */
+const canvasMain = source("components/CanvasMain.tsx");
 /** The detail panel, which moved out of App.tsx into its own component. */
 const detail = source("components/Detail.tsx");
 /** The version chip beside the wordmark, out of App.tsx's topbar. */
@@ -158,12 +160,14 @@ const GENERIC = [
 
 describe("the deck's five regions are five landmarks (#381)", () => {
   it("puts the canvas in the one <main> a document is allowed", () => {
-    expect(code(app)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}\n\s+className=\{`canvas-wrap/);
+    // <main> is components/CanvasMain.tsx's, which App.tsx mounts.
+    expect(code(app)).toMatch(/<CanvasMain\b/);
+    expect(code(canvasMain)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}\n\s+className=\{`canvas-wrap/);
     const mains = BUNDLE.flatMap(([name, src]) =>
       [...src.matchAll(/<main[\s>]/g)].map(() => name));
-    expect(mains).toEqual(["App.tsx"]);
+    expect(mains).toEqual(["components/CanvasMain.tsx"]);
     // The shape it replaced, gone rather than merely outnumbered.
-    expect(code(app)).not.toMatch(/<div\s*\n?\s*className=\{`canvas-wrap/);
+    expect(code(app) + "\n" + code(canvasMain)).not.toMatch(/<div\s*\n?\s*className=\{`canvas-wrap/);
   });
 
   it("keeps the topbar the banner it already was", () => {
@@ -463,14 +467,16 @@ describe("the route past a hundred and sixty-six tab stops (#381)", () => {
     expect(link).toBeGreaterThan(start);
     expect(link).toBeLessThan(topbar);
     // The href and the id are the same word, and the element that carries the
-    // id is the element the link means to reach.
-    expect(bare).toMatch(/<main\n\s+id="canvas"/);
+    // id is the element the link means to reach: CanvasMain's <main>, which
+    // App.tsx mounts after the topbar.
+    expect(bare.indexOf("<CanvasMain", start)).toBeGreaterThan(topbar);
+    expect(code(canvasMain)).toMatch(/<main\n\s+id="canvas"/);
   });
 
   it("gives that target a negative tabIndex, because a fragment must be focusable to be focused", () => {
     // Without it the browser scrolls to the element and leaves focus where it
     // was, which for a skip link is the whole failure.
-    expect(code(app)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
+    expect(code(canvasMain)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
   });
 
   it("is out of flow, or it would take the topbar's grid cell", () => {

@@ -37,8 +37,6 @@ import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { isCanvasNodeElement } from "./canvas-node-element";
-import { releasePointerFocus } from "./canvas-pointer-focus";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
@@ -48,7 +46,7 @@ import { SessionRun, SettingsRun, SourceRun } from "./components/TopbarRuns";
 import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
-import DragTrashZone from "./components/DragTrashZone";
+import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
@@ -85,7 +83,6 @@ const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
 import { findToolOnBoard, initialState } from "./reducer";
-import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
@@ -428,14 +425,15 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
-  const { trashDragging, trashLabel, trashState, trashZoneRef, trashPhase, beginTrashDrag, trackTrashDrag, endTrashDrag } = useDragTrash();
-  const { lod, lodRef, applyZoom } = useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef });
+  const trash = useDragTrash();
+  const { beginTrashDrag, trackTrashDrag, endTrashDrag } = trash;
+  const zoom = useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef });
+  const { lodRef, applyZoom } = zoom;
   // The viewport: the one restored from storage, the one stored on every move,
   // and whether a move was the user's or the deck's — use-canvas-viewport.ts.
   const viewport = useCanvasViewport({
     applyViewport, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom,
   });
-  const { markCanvasInput } = viewport;
 
   // The selected agent. Declared this high because the rail measurement below
   // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
@@ -531,7 +529,7 @@ function Inner() {
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
-  const { peekAgent, peekLabel, peekRecap, peekBounds } = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
+  const peek = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
   // Delete reaches the removal through a ref for the same reason: the handler
   // below is registered once, and the callback moves with the selection.
   const removeSelectedRef = useMirroredRef(removeSelectedNode);
@@ -882,64 +880,12 @@ function Inner() {
           onBringBackAll={bringBackAll}
         />
       )}
-      {/* <main>, because the canvas is what this page is: everything else on
-          screen — the toolbar above it, the panels beside it — exists to
-          describe or steer what is drawn here. One per document, and this is
-          the one.
-          tabIndex={-1} makes it a focus target for the skip link above without
-          adding a tab stop of its own. Focus landing here is also harmless to
-          the keyboard rules #367 settled: MAIN is not in shortcuts.ts's
-          KEY_OWNING_TAGS and carries no interactive role, so ownsKeystroke()
-          returns false and the deck's single-key shortcuts keep working from
-          it, and Escape releases it back to the document like any other
-          non-typing target.
-          What tabIndex={-1} must NOT do is make the canvas a thing the mouse
-          focuses, which it also is by default and which lit the skip link's
-          ring for every click on empty canvas one keystroke later (#434).
-          releasePointerFocus (canvas-pointer-focus.ts) is where that half is
-          taken back, and it has to be the capture phase: React Flow stops the
-          pane's mousedown dead before it can bubble this far. */}
-      <main
-        id="canvas"
-        tabIndex={-1}
-        className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
-        data-lod={lod}
-        ref={canvasRef}
-        onMouseDownCapture={releasePointerFocus}
-        /* The three that say a human is working this canvas right now. They
-           are here, on the canvas as a whole, rather than on the two controls
-           that need them, because a handler per control is a list that has to
-           be kept complete and #578 is what an incomplete one costs: React
-           Flow's own zoom buttons and minimap moved the viewport and nothing
-           here noticed. Everything that moves the viewport on a user's
-           behalf lives inside this element — the pane, the Controls
-           stack, the minimap — so one listener at the top of it covers the
-           controls the deck mounts today and the ones it mounts next.
-           Capture, for the reason releasePointerFocus is: React Flow
-           calls stopImmediatePropagation() on the pane's press, so a bubbling
-           handler here would never see the gesture that matters most.
-           Press AND release, because a Controls button only calls zoomIn() on
-           the click, which is the release — hold + for two seconds and a
-           press-only stamp would have gone stale by the time the zoom lands.
-           Not pointermove: see CANVAS_INPUT_WINDOW_MS. */
-        onPointerDownCapture={markCanvasInput}
-        onPointerUpCapture={markCanvasInput}
-        onWheelCapture={markCanvasInput}
-        /* The peek is not hover-only. A card the keyboard reaches at a distance
-           opens the same card the pointer would — Tab, j/k and W all land focus
-           on a card — and closes when focus moves on. Only a focus the browser
-           would ring (`:focus-visible`): a click also focuses the card, and a
-           peek that opened under every click would cover what was clicked. */
-        onFocusCapture={e => {
-          const el = e.target as Element;
-          if (!isCanvasNodeElement(el) || lodRef.current == null || lodRef.current === "detail") return;
-          const id = el.getAttribute("data-id");
-          if (id && stateRef.current.agents.has(id) && el.matches(":focus-visible")) showPeek(id, el, "focus");
-        }}
-        onBlurCapture={e => {
-          const id = (e.target as Element).getAttribute?.("data-id");
-          if (id) hidePeek(id);
-        }}
+      {/* <main>, the canvas: the listeners that have to sit on all of it, and
+          the drag-to-remove zone and the peek drawn over it —
+          components/CanvasMain.tsx. What is drawn on it is App's, below. */}
+      <CanvasMain
+        canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
+        viewport={viewport} stateRef={stateRef} peek={peek}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero />
@@ -968,16 +914,7 @@ function Inner() {
           stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
         />
-        {isMounted(trashPhase) && (
-          <DragTrashZone trashZoneRef={trashZoneRef} trashState={trashState} trashPhase={trashPhase} trashLabel={trashLabel} />
-        )}
-        <SessionPeek
-          agentFor={peekAgent}
-          recapFor={peekRecap}
-          labelFor={peekLabel}
-          bounds={peekBounds}
-        />
-      </main>
+      </CanvasMain>
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

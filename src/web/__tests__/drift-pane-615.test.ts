@@ -443,6 +443,11 @@ describe("App.tsx hands the rule the pane it measured", () => {
 
   it("observes the element the canvas is drawn in", () => {
     expect(sizeCode).toMatch(/const el = canvasRef\.current;/);
-    expect(appCode).toMatch(/className=\{`canvas-wrap\$\{[\s\S]*?ref=\{canvasRef\}/);
+    // The element is components/CanvasMain.tsx's, which App.tsx hands the ref.
+    const mainCode = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+    expect(appCode).toMatch(/<CanvasMain\b[^>]*\bcanvasRef=\{canvasRef\}/);
+    expect(mainCode).toMatch(/className=\{`canvas-wrap\$\{[\s\S]*?ref=\{canvasRef\}/);
   });
 });

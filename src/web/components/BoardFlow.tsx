@@ -5,8 +5,8 @@
 // and Claude FM.
 //
 // Moved out of App.tsx's markup unchanged, with nodeTypes, edgeTypes and the
-// opening fit's duration. App.tsx keeps the <main> around it and everything the
-// board is built from. A hook's return comes in whole and is taken apart here
+// opening fit's duration. The <main> around it is CanvasMain.tsx's, and
+// everything the board is built from stays App.tsx's. A hook's return comes in whole and is taken apart here
 // under the names the markup already used.
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import ReactFlow, { Background, MiniMap } from "reactflow";

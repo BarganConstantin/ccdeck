@@ -207,11 +207,22 @@ const cameraCode = readFileSync(fileURLToPath(new URL("../use-camera.ts", import
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
-/** The opening tag of the canvas element, attributes and all. */
-const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(appCode)?.[0] ?? "";
+/** components/CanvasMain.tsx the same way: the canvas element itself, out of
+ *  App.tsx's markup. */
+const mainCode = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
-/** Everything the canvas element contains. */
-const canvasBody = appCode.slice(appCode.indexOf(mainTag), appCode.indexOf("</main>"));
+/** The opening tag of the canvas element, attributes and all. */
+const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(mainCode)?.[0] ?? "";
+
+/** Everything the canvas element contains: what CanvasMain draws inside
+ *  <main>, and — only if it draws its children there — what App.tsx hands it
+ *  between <CanvasMain> and </CanvasMain>. */
+const mainInner = mainTag ? mainCode.slice(mainCode.indexOf(mainTag), mainCode.indexOf("</main>")) : "";
+const canvasBody = mainInner.includes("{children}")
+  ? mainInner + "\n" + appCode.slice(appCode.indexOf("<CanvasMain"), appCode.indexOf("</CanvasMain>"))
+  : mainInner;
 
 /** The body of one of the canvas's move handlers. They are use-canvas-viewport.ts's
  *  `const name = (…) => { … };` now, App.tsx hands the hook's return to
