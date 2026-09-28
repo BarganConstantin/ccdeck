@@ -10,7 +10,7 @@ import { adoptCwd, adoptRootLabel, ensureRoot } from "./agent-attribution";
 import { rootAgentId, toolKey, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, promptAlreadyRecorded, sessionEvidenceAt } from "./redelivery";
-import { shortPreview } from "./tool-calls";
+import { DROPPED_OUTCOME_PREVIEW, shortPreview } from "./tool-calls";
 import type { HookPayload } from "./types";
 
 /** That this session was heard from, whatever the event says: the root's
@@ -341,7 +341,7 @@ export function applyTurnEnd(state: GraphState, name: string, sessionId: string,
       // succeeded into a socket that had gone. Asserting the second is the
       // expensive kind of wrong — see the sweep's own note on this.
       t.errorPreview = t.outcomeGap
-        ? "no result reached the deck — events were dropped while the deck was paused"
+        ? DROPPED_OUTCOME_PREVIEW
         : "the turn ended before this call returned";
       // Out of the live index for the same reason the sweep drops it: the id
       // is no longer held open. A late outcome still lands — the PostToolUse
