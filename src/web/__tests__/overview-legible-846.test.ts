@@ -50,6 +50,7 @@ describe("what a card keeps at a distance is drawn at a size that reads (#846)",
   });
 
   it("gets its zoom from the canvas, written where the mode is", () => {
-    expect(app).toMatch(/style\.setProperty\("--zoom", String\(vp\.zoom\)\)/);
+    // Written by the canvas's move handler, in use-canvas-viewport.ts.
+    expect(read("../use-canvas-viewport.ts")).toMatch(/style\.setProperty\("--zoom", String\(vp\.zoom\)\)/);
   });
 });

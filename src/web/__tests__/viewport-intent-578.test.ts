@@ -190,6 +190,12 @@ const focusCode = readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", im
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
+/** use-canvas-viewport.ts the same way: the move handlers, the gesture stamps and the
+ *  restore all live there since they left App.tsx's markup. */
+const viewportCode = readFileSync(fileURLToPath(new URL("../use-canvas-viewport.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+
 /** use-camera.ts the same way: fitLeft and the door it frames through. */
 const cameraCode = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -201,15 +207,20 @@ const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(appCode)?.[0] ?? "";
 /** Everything the canvas element contains. */
 const canvasBody = appCode.slice(appCode.indexOf(mainTag), appCode.indexOf("</main>"));
 
-/** The body of one JSX handler prop, `name={(…) => { … }}`. */
+/** The body of one of the canvas's move handlers. They are use-canvas-viewport.ts's
+ *  `const name = (…) => { … };` now, and App.tsx hands each to <ReactFlow> as
+ *  `name={name}` — both links are checked, so an inline handler put back in
+ *  the markup, or one that stopped being wired, reads as missing. */
 function handler(name: string): string {
-  const at = appCode.indexOf(`${name}={`);
+  if (!appCode.includes(`${name}={${name}}`)) return "";
+  const at = viewportCode.indexOf(`const ${name} = (`);
   if (at < 0) return "";
+  const open = viewportCode.indexOf("{", viewportCode.indexOf("=>", at));
   let depth = 0;
-  for (let i = at + name.length + 1; i < appCode.length; i++) {
-    const c = appCode[i];
+  for (let i = open; i < viewportCode.length; i++) {
+    const c = viewportCode[i];
     if (c === "{") depth++;
-    else if (c === "}") { if (depth === 0) return appCode.slice(at, i); depth--; }
+    else if (c === "}" && --depth === 0) return viewportCode.slice(at, i + 1);
   }
   return "";
 }
@@ -250,7 +261,7 @@ describe("every control that moves the viewport reaches that rule", () => {
   });
 
   it("feeds the rule the two stamps and the event, and nothing else", () => {
-    const inputs = handler("onMove") + appCode.slice(appCode.indexOf("const viewportMove ="), appCode.indexOf("const viewportMove =") + 400);
+    const inputs = handler("onMove") + viewportCode.slice(viewportCode.indexOf("const viewportMove ="), viewportCode.indexOf("const viewportMove =") + 400);
     expect(inputs).toMatch(/lastCanvasInputAt: lastCanvasInputRef\.current/);
     expect(inputs).toMatch(/lastDeckFitAt: lastFitTimeRef\.current/);
   });
@@ -298,7 +309,7 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // Flow's setViewport is a d3 transition at every duration — including
     // zero — so that spelling could not land there. What this test still
     // cares about is the line after it.
-    const restore = appCode.slice(appCode.indexOf("if (!restoredViewport) return;"));
+    const restore = viewportCode.slice(viewportCode.indexOf("if (!restoredViewport) return;"));
     expect(restore.slice(0, 400)).toMatch(/applyViewport\(restoredViewport[\s\S]*?lastFitTimeRef\.current = Date\.now\(\)/);
   });
 

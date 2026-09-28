@@ -32,7 +32,8 @@ describe("auto-fit off is a moment, not a setting (#820)", () => {
   });
 
   it("still turns off on the reader's own pan or zoom", () => {
-    expect(app).toMatch(/if \(isUserViewportGesture\(viewportMove\(e\)\)\) disableAutoFit\(\);/);
+    // The move handlers are use-canvas-viewport.ts's.
+    expect(read("../use-canvas-viewport.ts")).toMatch(/if \(isUserViewportGesture\(viewportMove\(e\)\)\) disableAutoFit\(\);/);
   });
 });
 
