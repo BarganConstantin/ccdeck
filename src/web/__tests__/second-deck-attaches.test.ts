@@ -81,6 +81,7 @@ const SRC = readFileSync(
 );
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
 const HELP = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
+const ONE_SHOT = readFileSync(fileURLToPath(new URL("../../../bin/cli/one-shot.js", import.meta.url)), "utf8");
 const INDEX = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
 const LISTEN = readFileSync(fileURLToPath(new URL("../../server/listen.mjs", import.meta.url)), "utf8");
 
@@ -238,8 +239,8 @@ describe("the deck found must be the deck we would have built", () => {
     // flags alone, so every tree matched it. Once the start began passing its tree
     // (the case above), the marker could name the very deck the next `ccdeck`
     // replaces. The selector now carries the tree, worked out the start's way.
-    expect(DECK).toMatch(/mine\.codexHome = codexHomeField\(mine\.codex\);/);
-    const selector = DECK.slice(DECK.indexOf("const mine = {"), DECK.indexOf("const opens = decks.find"));
+    expect(ONE_SHOT).toMatch(/mine\.codexHome = codexHomeField\(mine\.codex\);/);
+    const selector = ONE_SHOT.slice(ONE_SHOT.indexOf("const mine = {"), ONE_SHOT.indexOf("const opens = decks.find"));
     expect(selector).toContain("codexHomeField(");
   });
 
@@ -402,7 +403,7 @@ describe("the off switch ends every deck", () => {
   it("stops them all unless one is named by port", () => {
     // There is meant to be one. A second is a leftover, and an off switch that
     // ended one of two would leave the machine running.
-    expect(DECK).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
+    expect(ONE_SHOT).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
     expect(HELP).toContain("--stop               Stop the running deck.");
   });
 });
