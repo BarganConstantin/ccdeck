@@ -42,7 +42,7 @@ process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, eventsSince, challengeProof } = await import("../../server/index.mjs");
+const { startServer, scanCodexNow, eventsSince, challengeProof } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -455,8 +455,11 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
     }));
     mkdirSync(DAY, { recursive: true });
     // The watcher's first pass skips whatever is already on disk, so the
-    // rollout has to appear after it — as a live session does.
-    await tick(300);
+    // rollout has to appear after it — as a live session does. scanCodexNow
+    // waits that pass out, where this used to sleep 300ms and hope it had run.
+    // Each case below then awaits a scan begun after its write instead of the
+    // next 1500ms poll (#994).
+    await scanCodexNow();
   });
 
   afterAll(async () => {
@@ -474,6 +477,7 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
       line({ type: "event_msg", payload: { type: "user_message", message: "hello codex" } }) +
       line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_ONE", arguments: "{}" } }),
       "utf8");
+    await scanCodexNow();
 
     expect(await waitFor(() => drawn().some(p => p.hook_event_name === "PreToolUse"))).toBe(true);
     // Every deck draws it — that fan-out is the point, only the second copy on
@@ -490,6 +494,7 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
     appendFileSync(ROLLOUT,
       line({ type: "response_item", payload: { type: "function_call_output", call_id: "call_ONE", output: "ok" } }),
       "utf8");
+    await scanCodexNow();
 
     expect(await waitFor(() => drawn().some(p => p.hook_event_name === "PostToolUse"))).toBe(true);
     expect(logged().map(e => e.payload)).toMatchObject([
@@ -514,6 +519,7 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
     appendFileSync(ROLLOUT,
       line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_TWO", arguments: "{}" } }),
       "utf8");
+    await scanCodexNow();
 
     // Drawn first, so a failure below can only mean "drawn and not recorded".
     expect(await waitFor(() => drawn().some(p => p.tool_use_id === "call_TWO"))).toBe(true);
