@@ -38,7 +38,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { checkedLabel, type DeckRow, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
-import type { LanAccount, LanStatus, LanTailscale, OfferedAccount } from "../lan-types";
+import type { LanAccount, LanStatus, LanTailscale } from "../lan-types";
 import { armedPress, pressAccepted, pressState } from "../panel-press";
 import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
@@ -49,12 +49,14 @@ import LanReachNote from "./LanReachNote";
 import LanSetupModal from "./LanSetupModal";
 
 // What the status route reports is described in lan-types.ts, what a round
-// says in lan-round.ts, and who is on the list in lan-roster.ts. These are the
-// names the dialogs and the pair-request hook have always imported from here,
-// passed through so that none of them had to change with the move.
+// says in lan-round.ts, who is on the list in lan-roster.ts, and what passes
+// between two decks in lan-exchange.ts. These are the names the dialogs and the
+// pair-request hook have always imported from here, passed through so that
+// none of them had to change with the move.
 export type { DeckAbout, LanAccount, LanReach, LanStatus, LanStranger, LanTailscale } from "../lan-types";
 export { roundLabel, roundWhy, seenLabel, silenceNote } from "../lan-round";
 export { askedLabel, type DeckRow, type RowSource, withAliases } from "../lan-roster";
+export { exchangeLanes, type Lane, versionOrder } from "../lan-exchange";
 
 /**
  * An address somebody typed, or null.
@@ -203,181 +205,6 @@ export function tunnelNote(s: { tailscale?: LanTailscale | null }): string {
     return "Tailscale sends this machine's local network through an exit node, so decks on this network cannot find this one. Turn on Allow local network access in Tailscale's exit node menu to bring them back.";
   }
   return "This machine sends its local network through a VPN, so decks on this network cannot find this one. Allowing local network access in the VPN brings them back.";
-}
-
-/** Two versions against each other: negative when `a` is older, positive when
- *  newer, 0 when they match — and null when either is not a version this can
- *  read, so the dialog prints the number alone rather than guessing. Only the
- *  three numbers count; a pre-release tag is not something a reader compares. */
-export function versionOrder(a: string, b: string): number | null {
-  const pa = /^(\d+)\.(\d+)\.(\d+)/.exec(a ?? "");
-  const pb = /^(\d+)\.(\d+)\.(\d+)/.exec(b ?? "");
-  if (!pa || !pb) return null;
-  for (let i = 1; i <= 3; i++) {
-    const d = Number(pa[i]) - Number(pb[i]);
-    if (d) return Math.sign(d);
-  }
-  return 0;
-}
-
-/**
- * One login another deck offers, and what it would do HERE.
- *
- * The engine's rules, said in words. A copy that does not work there moves
- * nothing. One this deck lacks arrives on the next round, whatever this deck
- * shares. One that is expired here is repaired only if this deck shares it
- * too — a heal replaces a slot, so it needs this deck's own tick, and an add
- * does not (see roundWith). The last case is the one worth the warning ink:
- * it is the only one somebody here can fix, and the fix is a tick.
- *
- * TWO CELLS, NOT A SENTENCE. This was one string — `works there · works here`,
- * `broken there · not on this deck` — and a reader had to take it left to
- * right and hold both halves to see which one they could act on. It is a 2×2
- * fact (their copy × this deck's), so it is returned as two, and the dialog
- * puts each in its own column. What that buys is a single left edge under
- * `here`: the column somebody scans, because `here` is the only half anything
- * on this screen can change — a round only ever pulls.
- *
- * `note` is what HAPPENS NEXT, and it is null for every state where the
- * answer is "nothing". So the note exists on exactly the rows worth reading,
- * and it is the note — not the state — that carries the ink.
- */
-export function offerLine(
-  theirs: OfferedAccount,
-  mine: LanAccount | null,
-  sharedHere: boolean,
-): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
-  const here = !mine ? "not on this deck" : mine.alive
-    ? mine.shareable === false ? "cannot share here" : "works here"
-    : "expired here";
-  // A valid copy behind an unavailable Keychain is not broken and cannot be
-  // pulled. Say exactly that, without promising a transfer or telling the user
-  // to sign in again.
-  if (theirs.alive && theirs.shareable === false) {
-    return { there: "cannot share there", here, note: null, tone: "idle" };
-  }
-  if (!theirs.alive) {
-    // BOTH COPIES GONE is the one state with no repair anywhere, and it used
-    // to wear the same warning ink as the state that is fixed with one tick.
-    // Warn ink says act; this one says the act is not here, so it names the
-    // only thing that does work — the words the accounts panel already uses.
-    const note = mine && !mine.alive ? "neither copy works — sign in again here" : null;
-    return { there: "broken there", here, note, tone: note ? "bad" : "idle" };
-  }
-  // `here` stays what IS, and the note says what WILL BE. The old string put
-  // `arrives here next round` in the state slot, which left a reader unable to
-  // tell the present from the promise.
-  if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
-  if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false ? "idle" : "ok" };
-  return sharedHere
-    ? { there: "works there", here, note: "repairs next round", tone: "wait" }
-    : { there: "works there", here, note: "share it to repair", tone: "bad" };
-}
-
-/** Which way one login can move between this deck and a paired one. `live`
- *  is a copy that can cross; `wait` is one that will, on the next round;
- *  `blocked` works there and stops at this deck until this deck shares it
- *  too; `cut` is a copy with nothing to give. */
-export type LaneFlow = "live" | "wait" | "blocked" | "cut";
-
-/**
- * One login between this deck and one paired deck — a lane between the two
- * machines in that deck's dialog.
- *
- * ONE LANE PER LOGIN, BOTH WAYS. The dialog drew what that deck offers and
- * what this deck offers as two lists, so a login both decks share — the
- * ordinary case between one person's machines — was printed twice, once per
- * direction, and the reader paired the rows up by eye. A login is one thing
- * with a copy at each end, so it is one lane: a state at each end, and an
- * arrow for each way a copy can travel.
- *
- * `caption` is the words, only where the two ends cannot say it alone: the
- * end that is not working, then what happens next — offerLine's note. The
- * steady state has none, which is what makes a caption worth reading.
- */
-export interface Lane {
-  key: string;
-  email: string;
-  /** This deck's copy. */
-  here: "works" | "expired" | "missing" | "unavailable";
-  /** That deck's, as its last list said — `unknown` when it does not offer it. */
-  there: "works" | "broken" | "unavailable" | "unknown";
-  /** From that deck to this one; null when that deck does not offer it. */
-  in: LaneFlow | null;
-  /** From this deck to every paired deck; null when this deck does not offer it. */
-  out: "live" | "cut" | null;
-  caption: string | null;
-  tone: "ok" | "wait" | "bad" | "idle";
-  /** That machine is working on this account right now, by what it said in its
-   *  last list. This deck's own is not marked — its owner sees it in the
-   *  accounts panel's switcher. */
-  usedThere: boolean;
-}
-
-export function exchangeLanes(
-  offered: OfferedAccount[] | null,
-  accounts: LanAccount[],
-  shared: string[],
-  /** The key that deck said it is on, or null. The engine only keeps one that
-   *  is in the same list, so it can only ever land on a lane it offers. */
-  current: string | null = null,
-): Lane[] {
-  // Two slots for one login read as the live one, as the engine's onePerKey
-  // picks it (lan-sync.mjs): an expired duplicate after it must not paint this
-  // end "expired" while the deck is offering a working copy.
-  const byKey = new Map<string, LanAccount>();
-  for (const a of accounts) if (!byKey.get(a.key)?.alive) byKey.set(a.key, a);
-  const sharedHere = new Set(shared);
-  const lanes: Lane[] = [];
-  const seen = new Set<string>();
-  for (const theirs of offered ?? []) {
-    if (seen.has(theirs.key)) continue;
-    seen.add(theirs.key);
-    const mine = byKey.get(theirs.key) ?? null;
-    const giving = sharedHere.has(theirs.key);
-    const said = offerLine(theirs, mine, giving);
-    const here = !mine ? "missing" : !mine.alive ? "expired"
-      : mine.shareable === false ? "unavailable" : "works";
-    // Both copies gone is the one note that already names both ends.
-    const caption = !theirs.alive && mine && !mine.alive
-      ? said.note
-      : [here === "works" ? null : said.here,
-          theirs.alive && theirs.shareable !== false ? null : said.there,
-          said.note]
-          .filter(Boolean).join(" · ") || null;
-    lanes.push({
-      key: theirs.key,
-      email: theirs.email,
-      here,
-      there: !theirs.alive ? "broken" : theirs.shareable === false ? "unavailable" : "works",
-      in: !theirs.alive || theirs.shareable === false
-        ? "cut"
-        : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
-      out: giving && mine ? (mine.alive && mine.shareable !== false ? "live" : "cut") : null,
-      caption,
-      tone: said.tone,
-      usedThere: current === theirs.key,
-    });
-  }
-  // What only this deck offers, after, in the order this deck offers it.
-  for (const key of shared) {
-    const mine = byKey.get(key);
-    if (!mine || seen.has(key)) continue;
-    seen.add(key);
-    lanes.push({
-      key,
-      email: mine.email,
-      here: !mine.alive ? "expired" : mine.shareable === false ? "unavailable" : "works",
-      there: "unknown",
-      in: null,
-      out: mine.alive && mine.shareable !== false ? "live" : "cut",
-      caption: !mine.alive ? "expired here" : mine.shareable === false ? "cannot share here" : null,
-      tone: mine.alive ? mine.shareable === false ? "idle" : "ok" : "bad",
-      // That deck does not offer it, so it is never named as the one it is on.
-      usedThere: false,
-    });
-  }
-  return lanes;
 }
 
 async function post(url: string, body: Record<string, unknown>) {
