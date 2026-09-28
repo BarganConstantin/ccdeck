@@ -57,6 +57,8 @@ import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { appendFailureStats, appendLogLine, appendsLanded, codexCwdInWorkspace, electWriters, emptyLog, flushAppends, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
+// How every route reads a body and answers — see http-io.mjs.
+import { OVERSIZE_DRAIN_MS, readBody, send } from "./http-io.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -4830,22 +4832,6 @@ export async function replayLog(filePath, workspace = "", {
   return count;
 }
 
-function send(res, status, body, headers = {}) {
-  // ALREADY ANSWERED. A handler that replies after something upstream has
-  // already written a status would otherwise throw ERR_HTTP_HEADERS_SENT out
-  // of the route and become a 500 — or, on a streamed answer, corrupt it. The
-  // oversize path below relies on this: readBody answers 413 itself and then
-  // rejects into a caller whose own `send(res, 400, ...)` must be a no-op
-  // rather than a second reply.
-  if (res.headersSent) return;
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    ...headers,
-  });
-  res.end(typeof body === "string" ? body : JSON.stringify(body));
-}
-
 /**
  * Serialize one envelope, or a stub standing in for it.
  *
@@ -4993,61 +4979,6 @@ async function serveStatic(req, res, url) {
   }
 }
 
-// How long an oversized POST is drained after it has been refused, so the 413
-// reaches a poster that is still uploading. Generous next to hook.js's own
-// one-second budget, and finite so nothing can sit on the socket indefinitely.
-const OVERSIZE_DRAIN_MS = 10_000;
-
-/**
- * Collect a request body as a string, capped so a bad client can't fill memory.
- *
- * IT ANSWERS BEFORE IT HANGS UP, which it did not. `req.destroy()` ran ahead of
- * the reject, so the caller's own `send(res, 400, ...)` had no socket left to
- * write to: every one of the eleven routes through here replied to an oversized
- * body with a bare connection reset. Measured with a 70 KB body — `curl` exit
- * 56, "failure receiving network data", no status line, and nothing in the log.
- * `POST /api/lan/sync` is the one that matters, because its caller is another
- * deck rather than a person: it saw a reset it could not tell from a deck that
- * had died, and reported a network error rather than "too big".
- *
- * handleEventIngest was fixed for exactly this and its comment asserts this
- * function already got it right. It did not; this is that fix, in the shape
- * that one worked out and documents at length:
- *
- *   • answer 413 here, so there is a status on the wire;
- *   • keep reading and throw it away, because the poster is still mid-upload
- *     and hanging up now lands its next write on a dead socket — it aborts with
- *     EPIPE and discards the answer already sitting in its receive buffer;
- *   • bound the drain, because draining forever is its own denial of service.
- *
- * The reject still fires, so the callers' `.catch(() => null)` and their
- * `send(res, 400, ...)` are unchanged — `send` is a no-op once the headers have
- * gone out.
- */
-function readBody(req, res = null, limit = 64_000) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    let refused = false;
-    req.setEncoding("utf8");
-    req.on("data", c => {
-      if (refused) return;
-      body += c;
-      if (body.length > limit) {
-        refused = true;
-        body = "";
-        if (res) send(res, 413, { error: "body too large" });
-        req.resume();
-        const grace = setTimeout(() => req.destroy(), OVERSIZE_DRAIN_MS);
-        grace.unref?.();
-        req.on("close", () => clearTimeout(grace));
-        reject(new Error("body too large"));
-      }
-    });
-    req.on("end", () => { if (!refused) resolve(body); });
-    req.on("error", reject);
-  });
-}
-
 // `persist` is false when the hook posted this event to another deck as well
 // and elected that one to write it to the log they share. The event is still
 // buffered and broadcast here — every matching deck draws it — it is only the
@@ -5070,7 +5001,7 @@ function handleEventIngest(req, res, persist = true) {
       // the connection had gone — indistinguishable from a deck that died or
       // was never there, and nothing in the exchange to tell those apart. `end`
       // never fires on a destroyed request either, so the handler below got no
-      // second chance to speak. readBody above was believed to get this right
+      // second chance to speak. readBody was believed to get this right
       // by rejecting into a caller that replies; it destroyed the socket first,
       // so all eleven of its routes answered an oversized body with the same
       // bare reset. It answers and drains now, in this shape.
