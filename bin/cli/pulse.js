@@ -17,7 +17,7 @@
 // on the two states where something really is outstanding, and the frame is
 // compared against what is already on screen so a deck at rest paints once and
 // then leaves the terminal alone. See pulseMoves.
-import { pulseDot, pulseText } from "../../src/server/term.mjs";
+import { pulseDot, pulseText } from "../../src/server/pulse-line.mjs";
 import { G, MOTION, P, UNICODE, cols, write } from "./screen.js";
 import { busyLabel } from "./startup.js";
 

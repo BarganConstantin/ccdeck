@@ -15,7 +15,7 @@ import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
-import { unregisteredDetail } from "../src/server/term.mjs";
+import { unregisteredDetail } from "../src/server/pulse-line.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
 // with the rest rather than fetched later. Deliberately NOT the other way
@@ -631,7 +631,7 @@ process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDis
 // ordinary-looking deck that simply never shows a session.
 //
 // What that costs depends on which CLI this deck watches, so the sentence comes
-// from term.mjs, where both answers are written down and tested.
+// from pulse-line.mjs, where both answers are written down and tested.
 function reportUnregistered({ file, error }) {
   const why = error?.message ? ` ${G.dash} ${error.message}` : "";
   write(

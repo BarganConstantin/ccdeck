@@ -26,7 +26,9 @@ const { quitBrowser, available } = await import("../../server/browser-react.mjs"
 // @ts-expect-error — ditto
 const { browserRoots } = await import("../../server/browser-profiles.mjs");
 // @ts-expect-error — ditto
-const { unregisteredDetail, glyphs } = await import("../../server/term.mjs");
+const { glyphs } = await import("../../server/term.mjs");
+// @ts-expect-error — ditto
+const { unregisteredDetail } = await import("../../server/pulse-line.mjs");
 // @ts-expect-error — ditto
 const { crashCeilingNote, crashRestartNote, upgradeRefusalText } = await import("../../server/supervisor.mjs");
 const { upgradeBlock } = await import("../../server/self-update.mjs");
