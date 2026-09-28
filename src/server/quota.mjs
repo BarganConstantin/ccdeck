@@ -73,10 +73,6 @@ export function maySelfPoll({ now, force, lastSelfPollAt, rateLimitedUntil }) {
   return now - lastSelfPollAt >= (force ? FORCE_POLL_MS : SELF_POLL_MS);
 }
 
-// The retry-after clamp moved to quota-oauth.mjs with the requests it bounds;
-// codex-quota.mjs imports it from this module, so it is still answered here.
-export { cooldownFromHeader } from "./quota-oauth.mjs";
-
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 let _cache    = null;

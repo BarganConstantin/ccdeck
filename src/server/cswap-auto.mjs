@@ -10,6 +10,7 @@
 // A tick can move the user's live Claude account, so it is off unless turned
 // on and the setting survives restarts.
 import { run } from "./exec.mjs";
+import { failureDetail } from "./exec-output.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { invalidateClaudeAccountsCache, slotNumber } from "./claude-accounts.mjs";
 import { invalidateQuotaCache } from "./quota.mjs";
@@ -290,7 +291,7 @@ export async function setCswapConfig(key, value) {
     // longer be swallowed by the boot's own start — see the note there (#791).
     await startLoop();
   }
-  return r.ok ? { ok: true } : { ok: false, reason: "set_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+  return r.ok ? { ok: true } : { ok: false, reason: "set_failed", detail: failureDetail(r, 300) };
 }
 
 // ── ticks ──────────────────────────────────────────────────────────────────
@@ -753,7 +754,7 @@ export async function setAccountEnabled(accountNum, enabled) {
   // get it.
   return withStoreLock(async () => {
     const r = await run(await cswapBin(), [enabled ? "enable" : "disable", String(num)]);
-    if (!r.ok) return { ok: false, reason: "command_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+    if (!r.ok) return { ok: false, reason: "command_failed", detail: failureDetail(r, 300) };
     invalidateClaudeAccountsCache();
     return { ok: true };
   });

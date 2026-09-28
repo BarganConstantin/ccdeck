@@ -108,16 +108,19 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec }: {
               nowSec={nowSec}
             />
           )}
-          {quota.week7dPct != null && (
-            <QuotaBar
-              label="7-day window"
-              pct={quota.week7dPct}
-              reset={quota.week7dReset}
-              resetAt={quota.week7dResetAt}
-              windowSec={quota.week7dWindowSec}
-              nowSec={nowSec}
-            />
-          )}
+          {/* Drawn whether or not there is a number for it (#1627). A source
+              that sent no 7-day window has not said the week is empty, so the
+              bar says "no reading" — not the "< 1%" the server's stand-in zero
+              used to print, and not a missing row, which is how the CLI's
+              reading showed the same gap. */}
+          <QuotaBar
+            label="7-day window"
+            pct={quota.week7dPct ?? null}
+            reset={quota.week7dReset}
+            resetAt={quota.week7dResetAt}
+            windowSec={quota.week7dWindowSec}
+            nowSec={nowSec}
+          />
           {quota.weekSonnetPct != null && (
             <QuotaBar label="Sonnet (7d)" pct={quota.weekSonnetPct} nowSec={nowSec} />
           )}

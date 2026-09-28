@@ -16,6 +16,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cswapBin, cswapInstalling, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
+import { failureDetail } from "./exec-output.mjs";
 import { storedCopyAlive } from "./account-health.mjs";
 // The CLI identity oracle, already written and already trusted by the account
 // admin routes. #721 needs the same answer, so it reuses the same function
@@ -694,7 +695,7 @@ export function switchClaudeAccount(accountNum) {
     .then(r => {
       if (r.ok) return { ok: true, output: r.stdout.trim() };
       const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
-      return { ok: false, reason, output: (r.stderr || r.stdout).trim().slice(0, 500) };
+      return { ok: false, reason, output: failureDetail(r, 500) };
     }));
 }
 
@@ -779,7 +780,7 @@ export async function seedFirstAccount() {
 
     const r = await run(await cswapBin(), ["add"], { timeout: 60_000 });
     if (!r.ok) {
-      return { state: "failed", detail: (r.stderr || r.stdout).trim().slice(0, 200) };
+      return { state: "failed", detail: failureDetail(r, 200) };
     }
 
     invalidateClaudeAccountsCache();

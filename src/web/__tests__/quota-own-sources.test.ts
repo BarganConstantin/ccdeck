@@ -246,8 +246,10 @@ describe("the OAuth usage body, by value", () => {
       .toMatchObject({ session5hPct: 63, week7dPct: 63 });
   });
 
-  it("reads a missing seven-day window as zero rather than as nothing", async () => {
-    expect((await read({ five_hour: { utilization: 10 } })).week7dPct).toBe(0);
+  it("reads a missing seven-day window as unknown rather than as 0% (#1627)", async () => {
+    // It used to be a zero, which the bar printed as "< 1%": a week nobody
+    // measured. Null survives the route's JSON, which undefined would not.
+    expect((await read({ five_hour: { utilization: 10 } })).week7dPct).toBeNull();
   });
 
   it("maps the per-model weekly windows, rounded", async () => {

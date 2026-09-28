@@ -364,7 +364,7 @@ describe("the unforced background poll, which the guard must not break", () => {
 // window that lives in a FILE shared between processes, with a retry window and
 // a pending-version window on top of it and a version string rather than a
 // reading as its answer; claude-accounts.mjs a generation guard of its own, for
-// the nine call sites that invalidate it. A helper covering the common part would
+// the sixteen call sites that invalidate it. A helper covering the common part would
 // fit two of the six cleanly and would have to be escaped from by the other four,
 // and it would not have prevented a single one of the omissions — every one of
 // them was a route nobody had counted.
@@ -536,9 +536,11 @@ const CENSUS: Record<string, {
         + "reads plus a throttled collector nudge, so it is the cheapest of the "
         + "six by a wide margin and was fixed for the shape rather than the cost "
         + "— except for one part that is not shape at all: it is the only one of "
-        + "the six whose cache is invalidated from outside, from nine call sites "
-        + "in four modules, so the in-flight slot arrived with #582's generation "
-        + "guard rather than without it.",
+        + "the six whose cache is invalidated from outside, from sixteen call "
+        + "sites in five modules — cswap-admin.mjs, cswap-auto.mjs, "
+        + "account-routes.mjs, lan-deck.mjs and its own first `cswap add` — so "
+        + "the in-flight slot arrived with #582's generation guard rather than "
+        + "without it.",
   },
 };
 
