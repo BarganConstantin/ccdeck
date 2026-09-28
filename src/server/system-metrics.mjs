@@ -269,110 +269,122 @@ function seriesFor(group) {
     .map(b => ({ t: b.m * BUCKET_MS, v: b.v[key] }));
   const coreCount = os.cpus().length;
 
-  if (group === "thermal") {
-    const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
-    const labels = [];
-    for (const b of history) {
-      for (const k of Object.keys(b.v)) {
-        if (!k.startsWith("thermal:")) continue;
-        const label = k.slice("thermal:".length);
-        if (!labels.includes(label)) labels.push(label);
-      }
-    }
-    return labels.map(label => ({
-      // The stable name of this reading, which the display label is not: `Swap`
-      // is `Commit` on Windows, and anything joining on what the eye sees
-      // breaks on the one platform nobody re-reads this on. It is the key the
-      // ring is already recorded under, published rather than invented.
-      key: `thermal:${label}`,
-      label,
-      unit: label === THROTTLE_LABEL ? "%" : "C",
-      top: 100,
-      // Throttling is the one reading here whose normal value is zero, so it
-      // is the one that does not need a full-height box to be read. Said by the
-      // series rather than inferred from "has no bands", which was the first
-      // rule and was wrong: CPU has no bands DELIBERATELY and uses the whole
-      // scale, so it was getting the short box for a reason that is not true
-      // of it.
-      restsAtZero: label === THROTTLE_LABEL,
-      warnAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.warnAt ?? WARN_C),
-      critAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.critAt ?? CRIT_C),
-      points: at(`thermal:${label}`),
-    }));
-  }
-
-  if (group === "cores") {
-    // Not one line per core: twelve lines in a 620px dialog is a picture nobody
-    // can read. These two answer what the columns cannot answer over time —
-    // "all cores" at 20 with "busiest" at 100 is ONE core pinned, which is a
-    // different machine from twelve at 20.
-    //
-    // No bands, deliberately, and the reason is written at the top of
-    // MachinePanel: a CPU at 90% is the machine doing the work you asked for. An
-    // indicator that alarms during the normal case teaches you to stop reading
-    // it.
-    return [
-      { key: "cpu:all", label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all"), restsAtZero: false },
-      { key: "cpu:busiest", label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest"), restsAtZero: false },
-    ].filter(s => s.points.length);
-  }
-
-  if (group === "memory") {
-    const swapLabel = process.platform === "win32" ? "Commit" : "Swap";
-    return [
-      // One band, not two. A `critAt` of 100 draws a rule along the top of a
-      // chart whose scale ends at 100 — it is the ceiling, drawn again in red,
-      // and it says nothing the edge did not.
-      { key: "mem:physical", label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:physical") },
-      { key: "mem:swap", label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:swap") },
-    ].filter(s => s.points.length);
-  }
-
-  if (group === "load") {
-    // One series, not three. 1m, 5m and 15m are three views of one number —
-    // the longer two are the short one smoothed — so charting the 1m over an
-    // hour says everything the other two would, at the resolution they hide.
-    const points = at("load:1m");
-    if (!points.length) return [];
-    return [{
-      key: "load:1m",
-      label: "Queued work",
-      unit: "",
-      top: loadTop(points, coreCount),
-      // Where the queue exceeds the cores there are to run it, which is the one
-      // number the section's own note already draws the line at.
-      warnAt: coreCount,
-      critAt: null,
-      restsAtZero: false,
-      points,
-    }];
-  }
-
-  if (group === "network") {
-    // Download and upload are two charts, not two lines on one: upload is
-    // usually a hundredth of download, and on a shared scale it is a line along
-    // the floor. Each gets a top fitted to its own peak. No bands: there is no
-    // throughput that is too much, only more than usual, and a threshold here
-    // would be a number this module made up.
-    const down = at("net:down");
-    const up = at("net:up");
-    const api = at("net:api");
-    const series = [
-      // Floors of 100 KB/s and 100 ms, so a quiet line is drawn as quiet.
-      { key: "net:down", label: "Download", unit: "B/s", top: niceTop(down, 100_000), warnAt: null, critAt: null, restsAtZero: false, points: down },
-      { key: "net:up", label: "Upload", unit: "B/s", top: niceTop(up, 100_000), warnAt: null, critAt: null, restsAtZero: false, points: up },
-      { key: "net:api", label: "Claude API latency", unit: "ms", top: niceTop(api, 100), warnAt: null, critAt: null, restsAtZero: false, points: api },
-    ].filter(s => s.points.length);
-    // The path the traffic took, as marks on the last chart — the question the
-    // section exists for is "was it the VPN", and a line that jumps where a
-    // mark sits answers it without a legend.
-    const since = history.length ? history[0].m * BUCKET_MS : 0;
-    const changes = routeLog.filter(c => c.t >= since).map(c => ({ t: c.t, label: c.label, from: c.from }));
-    if (series.length && changes.length) series[series.length - 1].changes = changes;
-    return series;
-  }
-
+  if (group === "thermal") return thermalSeries(at);
+  if (group === "cores") return coreSeries(at);
+  if (group === "memory") return memorySeries(at);
+  if (group === "load") return loadSeries(at, coreCount);
+  if (group === "network") return networkSeries(at);
   return [];
+}
+
+/** The thermal chart: a series per sensor the ring holds points for, in the
+ *  order each first appeared — throttling among them, where it is recorded. */
+function thermalSeries(at) {
+  const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
+  const labels = [];
+  for (const b of history) {
+    for (const k of Object.keys(b.v)) {
+      if (!k.startsWith("thermal:")) continue;
+      const label = k.slice("thermal:".length);
+      if (!labels.includes(label)) labels.push(label);
+    }
+  }
+  return labels.map(label => ({
+    // The stable name of this reading, which the display label is not: `Swap`
+    // is `Commit` on Windows, and anything joining on what the eye sees
+    // breaks on the one platform nobody re-reads this on. It is the key the
+    // ring is already recorded under, published rather than invented.
+    key: `thermal:${label}`,
+    label,
+    unit: label === THROTTLE_LABEL ? "%" : "C",
+    top: 100,
+    // Throttling is the one reading here whose normal value is zero, so it
+    // is the one that does not need a full-height box to be read. Said by the
+    // series rather than inferred from "has no bands", which was the first
+    // rule and was wrong: CPU has no bands DELIBERATELY and uses the whole
+    // scale, so it was getting the short box for a reason that is not true
+    // of it.
+    restsAtZero: label === THROTTLE_LABEL,
+    warnAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.warnAt ?? WARN_C),
+    critAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.critAt ?? CRIT_C),
+    points: at(`thermal:${label}`),
+  }));
+}
+
+/** The cores chart: the whole machine, and its busiest core. */
+function coreSeries(at) {
+  // Not one line per core: twelve lines in a 620px dialog is a picture nobody
+  // can read. These two answer what the columns cannot answer over time —
+  // "all cores" at 20 with "busiest" at 100 is ONE core pinned, which is a
+  // different machine from twelve at 20.
+  //
+  // No bands, deliberately, and the reason is written at the top of
+  // MachinePanel: a CPU at 90% is the machine doing the work you asked for. An
+  // indicator that alarms during the normal case teaches you to stop reading
+  // it.
+  return [
+    { key: "cpu:all", label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all"), restsAtZero: false },
+    { key: "cpu:busiest", label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest"), restsAtZero: false },
+  ].filter(s => s.points.length);
+}
+
+/** The memory chart: physical memory, and swap — commit, on Windows. */
+function memorySeries(at) {
+  const swapLabel = process.platform === "win32" ? "Commit" : "Swap";
+  return [
+    // One band, not two. A `critAt` of 100 draws a rule along the top of a
+    // chart whose scale ends at 100 — it is the ceiling, drawn again in red,
+    // and it says nothing the edge did not.
+    { key: "mem:physical", label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:physical") },
+    { key: "mem:swap", label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:swap") },
+  ].filter(s => s.points.length);
+}
+
+/** The load chart: the one-minute load average, against the core count. */
+function loadSeries(at, coreCount) {
+  // One series, not three. 1m, 5m and 15m are three views of one number —
+  // the longer two are the short one smoothed — so charting the 1m over an
+  // hour says everything the other two would, at the resolution they hide.
+  const points = at("load:1m");
+  if (!points.length) return [];
+  return [{
+    key: "load:1m",
+    label: "Queued work",
+    unit: "",
+    top: loadTop(points, coreCount),
+    // Where the queue exceeds the cores there are to run it, which is the one
+    // number the section's own note already draws the line at.
+    warnAt: coreCount,
+    critAt: null,
+    restsAtZero: false,
+    points,
+  }];
+}
+
+/** The network charts: download, upload and API latency, with each route
+ *  change marked on the last of them. */
+function networkSeries(at) {
+  // Download and upload are two charts, not two lines on one: upload is
+  // usually a hundredth of download, and on a shared scale it is a line along
+  // the floor. Each gets a top fitted to its own peak. No bands: there is no
+  // throughput that is too much, only more than usual, and a threshold here
+  // would be a number this module made up.
+  const down = at("net:down");
+  const up = at("net:up");
+  const api = at("net:api");
+  const series = [
+    // Floors of 100 KB/s and 100 ms, so a quiet line is drawn as quiet.
+    { key: "net:down", label: "Download", unit: "B/s", top: niceTop(down, 100_000), warnAt: null, critAt: null, restsAtZero: false, points: down },
+    { key: "net:up", label: "Upload", unit: "B/s", top: niceTop(up, 100_000), warnAt: null, critAt: null, restsAtZero: false, points: up },
+    { key: "net:api", label: "Claude API latency", unit: "ms", top: niceTop(api, 100), warnAt: null, critAt: null, restsAtZero: false, points: api },
+  ].filter(s => s.points.length);
+  // The path the traffic took, as marks on the last chart — the question the
+  // section exists for is "was it the VPN", and a line that jumps where a
+  // mark sits answers it without a legend.
+  const since = history.length ? history[0].m * BUCKET_MS : 0;
+  const changes = routeLog.filter(c => c.t >= since).map(c => ({ t: c.t, label: c.label, from: c.from }));
+  if (series.length && changes.length) series[series.length - 1].changes = changes;
+  return series;
 }
 
 /** A scale top a person would choose — 1, 2 or 5 times a power of ten — just
