@@ -12,8 +12,10 @@
 // A panel that cries theft on the first card teaches its reader to close it,
 // and then it is worthless on the day it is right. It reports what a program
 // did and shows the evidence; the person reading it decides what it was.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
+import BrowserWatchFeed from "./BrowserWatchFeed";
+import BrowserWatchFindings from "./BrowserWatchFindings";
 import BrowserWatchOverview from "./BrowserWatchOverview";
 import BrowserWatchProfiles from "./BrowserWatchProfiles";
 import RemoteControl from "./RemoteControl";
@@ -21,7 +23,7 @@ import type { Palette } from "../palette";
 import { selfPressProps } from "../panel-press";
 import {
   logBytesLabel, watchedBrowsers, watchTrouble,
-  type WatchEpisode, type WatchSettings,
+  type WatchSettings,
 } from "../browser-watch-model";
 import { useBrowserWatch } from "../use-browser-watch";
 
@@ -54,28 +56,6 @@ function modeState(
   // Episodes tab uses. This line says whether the watch is running.
   if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "nothing new is recorded" };
   return { kind: "on", word: "Watching", detail: "" };
-}
-
-/** `17:03 → 17:44`, or a single time when an episode is one page. */
-function span(e: WatchEpisode): string {
-  // 24-hour, like every other clock in this panel. It was the reader's locale,
-  // so on an en-US machine an episode's head read `01:28 PM` directly above its
-  // own URL rows reading `13:28` — two clocks in one card, and the reader left
-  // to work out they are the same minute.
-  const t = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return e.count === 1 || e.endMs - e.startMs < 60_000 ? t(e.startMs) : `${t(e.startMs)} → ${t(e.endMs)}`;
-}
-
-function day(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-}
-
-/** "41 minutes", "2 minutes", "" for an instant. The headline of a card is how
- *  long a program was working, which is the part that separates one opened tab
- *  from something that ran for three quarters of an hour. */
-function lasted(e: WatchEpisode): string {
-  const mins = Math.round((e.endMs - e.startMs) / 60_000);
-  return mins < 1 ? "" : `${mins} min`;
 }
 
 /** The two views, in order. Kept as data because the strip's keyboard model is
@@ -111,7 +91,6 @@ export default function BrowserWatchModal({
   const dialogRef = useModalDismiss(onClose);
   const { snap, error, writeError, setWriteError, busy, quiet, setQuiet, saving, load, dismiss, save } =
     useBrowserWatch(onWatching);
-  const [open, setOpen] = useState<string | null>(null);
   const [why, setWhy] = useState(false);
   const [access, setAccess] = useState(false);
 
@@ -130,17 +109,6 @@ export default function BrowserWatchModal({
   const onSeenRef = useRef(onSeen);
   onSeenRef.current = onSeen;
   useEffect(() => () => onSeenRef.current(Date.now()), []);
-
-  const grouped = useMemo(() => {
-    const out: { label: string; episodes: WatchEpisode[] }[] = [];
-    for (const e of snap?.episodes ?? []) {
-      const label = day(e.startMs);
-      const last = out[out.length - 1];
-      if (last && last.label === label) last.episodes.push(e);
-      else out.push({ label, episodes: [e] });
-    }
-    return out;
-  }, [snap]);
 
   // The snapshot's browsers, split once: the side column's two sections each
   // take their half, and the header counts from the first.
@@ -238,158 +206,9 @@ export default function BrowserWatchModal({
                   the press that reached it always led to nothing. Now the
                   answer to "has anything been found" needs no press at all. */}
               <div className="bw-main">
-                <section className="bw-findings">
-                  <h4 className="bw-sec-head bw-head-row">
-                    Findings
-                    {/* No count at zero: the body directly below already says
-                        "Nothing found yet", and a `none` beside it is the same
-                        sentence twice in two vocabularies. */}
-                    {snap.episodes.length > 0 && (
-                      <span className="bw-feed-count">
-                        {snap.episodes.length} {snap.episodes.length === 1 ? "episode" : "episodes"}
-                      </span>
-                    )}
-                  </h4>
-                  <div className="bw-eps">
-                    {grouped.length === 0 ? (
-                      <div className="bw-empty">
-                        <p className="bw-empty-head">Nothing found yet</p>
-                        <p className="bw-empty-note">
-                          An episode lands here when a program opens pages in a browser nobody has touched for{" "}
-                          {snap.settings.quietMinutes}{" "}
-                          {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
-                          rare, so an empty list is the ordinary result rather than a sign something is wrong.
-                        </p>
-                        {!snap.settings.enabled && (
-                          <p className="bw-empty-note">
-                            Watching is off, so this shows only what this deck has seen since it started.
-                            Anything an earlier run recorded comes back when you switch it on.
-                          </p>
-                        )}
-                      </div>
-                    ) : grouped.map(g => (
-                      <div className="bw-day" key={g.label}>
-                        <h4 className="bw-sec-head">{g.label}</h4>
-                        {g.episodes.map(e => {
-                          const id = `${e.host}-${e.startMs}`;
-                          const isOpen = open === id;
-                          return (
-                            <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
-                              {/* A row holding two controls rather than one
-                                  control holding another: a button inside a
-                                  button is invalid markup and the inner one is
-                                  unreachable. The disclosure keeps the whole
-                                  row it always had; the dismiss sits beside
-                                  it. */}
-                              <div className="bw-ep-row">
-                              <button
-                                className="bw-ep-head"
-                                onClick={() => setOpen(isOpen ? null : id)}
-                                aria-expanded={isOpen}
-                              >
-                                <span className="bw-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
-                                <span className="bw-ep-host">{e.host}</span>
-                                <span className="bw-ep-meta">
-                                  {span(e)}
-                                  {lasted(e) && <> · {lasted(e)}</>}
-                                </span>
-                                <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
-                              </button>
-                              {/* DISMISS, NOT DELETE, and the title says which.
-                                  The panel rebuilds episodes from the browser's
-                                  own history every ten seconds, so a row that
-                                  was merely removed would come straight back;
-                                  what this records is that the reader has seen
-                                  it. The log file keeps the addresses either
-                                  way — a list you can tidy is not the same
-                                  thing as a record you can trust, and this
-                                  panel promises the second one. */}
-                              <button
-                                className="glyph-btn bw-ep-x"
-                                onClick={() => void dismiss(e)}
-                                aria-label={`Dismiss ${e.host}`}
-                                title="Dismiss — it leaves this list for good, and stays in the log file"
-                              >×</button>
-                              </div>
-                              {isOpen && (
-                                <ul className="bw-urls">
-                                  {e.urls.map((u, i) => (
-                                    <li key={`${u.url}-${u.timeMs}-${i}`}>
-                                      <span className="bw-url-time">
-                                        {new Date(u.timeMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}
-                                      </span>
-                                      <span className="bw-url">{u.url}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                <BrowserWatchFindings snap={snap} dismiss={dismiss} />
 
-                <section className="bw-feed">
-                <h4 className="bw-sec-head bw-head-row">
-                  Live activity
-                  {/* `entries` counted log rows and collided with the
-                      overview's "history entries", which are a different thing
-                      entirely. These rows are events — a browser adding
-                      history, a read failing, the reader changing a setting —
-                      and the successful checks that found nothing are no
-                      longer among them. */}
-                  <span className="bw-feed-count">
-                    {snap.log.length} {snap.log.length === 1 ? "event" : "events"}
-                  </span>
-                </h4>
-                {/* WHY THESE ROWS HAVE NO ADDRESSES, said once. `+3 entries`
-                    is a number about the reader's OWN browsing, and the panel
-                    was never explaining why it would not say more — which
-                    reads as a gap rather than as the deliberate line it is.
-                    Only a finding gets its addresses written down; ordinary
-                    pages are counted to run the rule and never kept. */}
-                <p className="bw-since bw-feed-note">
-                  Pages you opened yourself — counted to run the rule, never written down.
-                  Addresses appear under Findings, and only for pages a program opened.
-                </p>
-                <div className="bw-log" aria-live="polite" aria-relevant="additions">
-                  {snap.log.length === 0 ? (
-                    <p className="bw-note">The deck writes a line here each time it looks at a profile.</p>
-                  ) : snap.log.map(l => (
-                    /* Keyed on what the line SAYS, not where it sits: the log is
-                       newest-first, so an index in the key remounts the whole
-                       transcript and the arrival animation fires on all sixteen
-                       lines instead of the one that is new. */
-                    <div
-                      className={`bw-log-line ${l.level}${l.parts ? "" : " sys"}`}
-                      key={`${l.atMs}-${l.level}-${l.text}`}
-                    >
-                      {/* 24-hour and not the reader's locale: an en-US clock
-                          renders "06:28:55 PM", four characters wider than the
-                          column, and a log is 24-hour everywhere anyway. */}
-                      <span className="bw-log-time">
-                        {new Date(l.atMs).toLocaleTimeString("en-GB", { hour12: false })}
-                      </span>
-                      {l.parts ? (
-                        <>
-                          <span className="bw-log-browser">{l.parts.browser}</span>
-                          <span className="bw-log-profile" title={l.parts.profile}>{l.parts.profile}</span>
-                          <span className="bw-log-value">
-                            {l.parts.value}
-                            {l.parts.flagged > 0 && (
-                              <span className="bw-log-flag"> · {l.parts.flagged} flagged</span>
-                            )}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="bw-log-sys">{l.text}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                </section>
+                <BrowserWatchFeed snap={snap} />
               </div>
             </div>
           )}
