@@ -362,7 +362,10 @@ function Inner() {
   // connection, in use-event-stream.ts. Called here, above everything that
   // keys off `live`: the version check, the desktop updater and the scope all
   // re-ask when a restart ends with the stream reconnecting. The pause gate
-  // comes first because every envelope passes through it.
+  // comes first because every envelope passes through it. Pause freezes the
+  // canvas; it does not drop the connection. The gate, the mirrored flag and
+  // the toggle's eviction accounting live in use-pause-gate.ts, which carries
+  // the reasoning.
   const { pauseGate, paused, togglePause } = usePauseGate(stateRef);
   // The desktop app's update frames arrive on the same stream, and the handler
   // for them comes out of useDesktopUpdate below, which itself keys off `live`.
@@ -435,10 +438,6 @@ function Inner() {
    */
   const dragPatchRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const [dragMoveTick, setDragMoveTick] = useState(0);
-  // Pause freezes the canvas; it does not drop the connection. The gate, the
-  // mirrored flag and the toggle's eviction accounting live in use-pause-gate.ts,
-  // which carries the reasoning; the hook is called here so React sees the same
-  // two `useState` calls and the same `useCallback`, in the same order, as before.
   const [now, setNow] = useState(Date.now());
 
   // Restarting the deck: the auto-update switch, the press behind the banner's
