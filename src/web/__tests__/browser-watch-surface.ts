@@ -24,6 +24,8 @@ export const BROWSER_WATCH_FILES = [
   "browser-watch-model.ts",
   "use-browser-watch.ts",
   "components/RemoteControl.tsx",
+  "components/BrowserWatchOverview.tsx",
+  "components/BrowserWatchProfiles.tsx",
 ] as const;
 
 let joined: string | null = null;

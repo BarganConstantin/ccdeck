@@ -14,12 +14,13 @@
 // did and shows the evidence; the person reading it decides what it was.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
-import WatchRadar from "./WatchRadar";
+import BrowserWatchOverview from "./BrowserWatchOverview";
+import BrowserWatchProfiles from "./BrowserWatchProfiles";
 import RemoteControl from "./RemoteControl";
 import type { Palette } from "../palette";
 import { selfPressProps } from "../panel-press";
 import {
-  agoLabel, armsIn, logBytesLabel, untilLabel, visitTotals, watchedBrowsers, watchTrouble,
+  logBytesLabel, watchedBrowsers, watchTrouble,
   type WatchEpisode, type WatchSettings,
 } from "../browser-watch-model";
 import { useBrowserWatch } from "../use-browser-watch";
@@ -113,16 +114,6 @@ export default function BrowserWatchModal({
   const [open, setOpen] = useState<string | null>(null);
   const [why, setWhy] = useState(false);
   const [access, setAccess] = useState(false);
-  const [showKey, setKey] = useState(false);
-  const [showProfKey, setProfKey] = useState(false);
-  const [restOpen, setRestOpen] = useState(false);
-  // Its own clock, so the countdown moves every second rather than jumping
-  // whenever the panel happens to refetch.
-  const [tick, setTick] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setTick(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // Reading the panel is what marks it read, and it is recorded on the way out
   // rather than on the way in: a dialog opened and dismissed in the same second
@@ -151,16 +142,14 @@ export default function BrowserWatchModal({
     return out;
   }, [snap]);
 
+  // The snapshot's browsers, split once: the side column's two sections each
+  // take their half, and the header counts from the first.
   const watching = watchedBrowsers(snap?.browsers);
   const rest = (snap?.browsers ?? []).filter(b => !(b.installed && b.profiles > 0));
   const trouble = snap ? watchTrouble(snap) : null;
   /** Watched profiles, summed — the header's scope line, which is the shortest
    *  true answer to "how much is this looking at". */
   const profileCount = watching.reduce((n, b) => n + b.profiles, 0);
-  /** The quiet gate, if it is currently closed. It lives beside the numbers it
-   *  decides rather than in the toolbar, where it was a third idea competing
-   *  with the mode and its count. */
-  const gate = snap ? armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, tick) : null;
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -234,151 +223,9 @@ export default function BrowserWatchModal({
           {snap && (
             <div className="bw-work">
               <aside className="bw-side">
-                <section className="bw-sec">
-                  <h4 className="bw-sec-head">
-                    Activity overview
-                    {/* Progressive disclosure. The three-line explanation of
-                        what the disc's marks mean was permanent furniture in a
-                        column that has real work to do — and it is read once,
-                        by one reader, on one day. Behind a press, and the press
-                        is a real control with a real name rather than an icon
-                        that has to be guessed at. */}
-                    <button
-                      className="bw-help"
-                      onClick={() => setKey(k => !k)}
-                      aria-expanded={showKey}
-                      aria-label="What the sweep and the dots mean"
-                    >?</button>
-                  </h4>
+                <BrowserWatchOverview snap={snap} watching={watching} palette={palette} />
 
-                  {/* The disc is a SIGNATURE, not a chart. At 176px it was the
-                      largest thing on the panel and most of what it said —
-                      which browsers, running or not — was already in Watched
-                      Profiles below it and in the feed beside it. What it alone
-                      gives is the glance: something is sweeping, so something
-                      is alive. That is worth 88px, not 176. */}
-                  <div className="bw-glance">
-                    <WatchRadar
-                      browsers={watching.map(b => ({
-                        key: b.key,
-                        name: b.name,
-                        running: b.running,
-                        lastReadMs: snap.profiles.find(p => p.browser === b.key)?.lastWrittenMs ?? null,
-                      }))}
-                      findings={snap.episodes.slice(0, 6).map(e => ({ browser: e.browser ?? null, atMs: e.endMs }))}
-                      watching={snap.settings.enabled}
-                      palette={palette}
-                    />
-                    <ul className="bw-counts">
-                      {visitTotals(watching, snap.profiles).map(t => (
-                        <li key={t.key}>
-                          <span className="bw-count-n">{t.visits.toLocaleString("en-US")}</span>
-                          <span className="bw-count-of">{t.name}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Two short lines by design rather than one long one that
-                      wraps wherever the column happens to end. The first says
-                      what the figures ARE — rows in the browser's own history,
-                      newer than this deck's start, not visits a person made and
-                      not findings. The second is the only part that moves. */}
-                  <p className="bw-since">Pages a program opened, since this deck started</p>
-                  {/* THE DECK'S OWN CLOCK, NOT THE BROWSER'S. This read
-                      `lastWrittenMs`, which is the History file's mtime — when
-                      the BROWSER last wrote, not when the watch last looked. On
-                      a machine nobody is browsing it would climb past an hour
-                      while the deck kept checking every ten seconds, and the
-                      panel would read as though the watch had stopped. */}
-                  {snap.coverage.checkedMs > 0 && (
-                    <p className="bw-since">
-                      Last checked {agoLabel(snap.coverage.checkedMs, tick)}
-                      {snap.coverage.checks > 0 && (
-                        <> · {snap.coverage.checks.toLocaleString("en-US")}{" "}
-                        {snap.coverage.checks === 1 ? "check" : "checks"}</>
-                      )}
-                    </p>
-                  )}
-                  {gate !== null && (
-                    /* The quiet gate, where it belongs: beside the numbers it
-                       decides. In the toolbar it was a third idea competing
-                       with the mode and its count. */
-                    <p className="bw-gate">You are browsing — a program page would count in {untilLabel(gate)}</p>
-                  )}
-
-                  {showKey && (
-                    <dl className="bw-key">
-                      <dt>Sweep</dt><dd>one poll of every watched profile</dd>
-                      <dt>Dot</dt><dd>a browser, further out the longer since it last wrote history</dd>
-                      <dt>Ring</dt><dd>a finding, leaving the browser it came from</dd>
-                    </dl>
-                  )}
-                </section>
-
-                <section className="bw-sec">
-                  <h4 className="bw-sec-head">
-                    Watched profiles
-                    {/* The relay note's caveat lives here rather than in a
-                        `title` on the note itself. A tooltip on a span nothing
-                        can focus is mouse-only, and this qualification is
-                        load-bearing — without it the note overclaims, because
-                        the probe cannot tell an agent channel from an open
-                        claude.ai tab. A span with `tabIndex` is not a control
-                        and `aria-label` on a generic role is invalid, so the
-                        note is plain status text and the caveat is a real
-                        disclosure, in the pattern this panel already uses. */}
-                    <button
-                      className="bw-help"
-                      onClick={() => setProfKey(k => !k)}
-                      aria-expanded={showProfKey}
-                      aria-label="What running, idle and connected to Anthropic mean"
-                    >?</button>
-                  </h4>
-                  {showProfKey && (
-                    <dl className="bw-key">
-                      <dt>Running</dt><dd>the browser has a process on this machine right now</dd>
-                      <dt>Connected</dt><dd>
-                        an open connection to an address Anthropic&apos;s relay uses — which it shares
-                        with claude.ai, so an open tab looks the same as an agent channel
-                      </dd>
-                    </dl>
-                  )}
-                  <ul className="bw-profiles">
-                    {watching.map(b => (
-                      <li key={b.key}>
-                        <span className={`bw-prof-dot${b.running ? " on" : ""}`} aria-hidden />
-                        <span className="bw-prof-name">{b.name}</span>
-                        <span className="bw-prof-state">{b.running ? "running" : "idle"}</span>
-                        {b.running && b.relay.state === "live" && (
-                          /* NEUTRAL, NOT AMBER. This was one of the strongest
-                             accents on the panel, for a fact the probe cannot
-                             actually establish: the relay shares an address
-                             with claude.ai, so an open tab is indistinguishable
-                             from an agent channel. What a tool cannot
-                             distinguish must not be the loudest thing on its
-                             screen. It states what was seen and keeps the
-                             qualification on its title. */
-                          <span className="bw-relay">connected to Anthropic</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {rest.length > 0 && (
-                    <>
-                      <button className="bw-why bw-rest-head" onClick={() => setRestOpen(v => !v)} aria-expanded={restOpen}>
-                        <span className="bw-chev" aria-hidden>{restOpen ? "▾" : "▸"}</span>{" "}
-                        {rest.length} not watched
-                      </button>
-                      {restOpen && (
-                        <p className="bw-rest">
-                          {rest.map(b => b.name).join(", ")} — not installed, or installed and never
-                          opened, so there is no history to read.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </section>
+                <BrowserWatchProfiles watching={watching} rest={rest} />
 
                 {snap.relay && <RemoteControl relay={snap.relay} />}
               </aside>
