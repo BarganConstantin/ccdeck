@@ -199,7 +199,9 @@ describe("what the panel counts, and what it leaves alone", () => {
     // commit, so the memo held the PREVIOUS baseline on the render a reading
     // arrived and the headline overshot by a minute (#784). Committing both in
     // one `setLanded` removes the ordering rather than getting it right.
-    expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
+    // The reading is stored by the range hook, lifted out of the panel.
+    expect(readFileSync(fileURLToPath(new URL("../use-usage-range.ts", import.meta.url)), "utf8"))
+      .toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
     expect(usageSurface(), "the baseline is back in an effect of its own")
       .not.toContain("baselineRef.current =");
   });
