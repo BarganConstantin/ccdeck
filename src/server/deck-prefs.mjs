@@ -33,14 +33,16 @@
 // write defaults over it, destroying the LAN key every paired machine had
 // pinned. A file that cannot be parsed is now moved aside and said out loud;
 // only a genuinely ABSENT file starts clean. See loadPrefs.
-import { chmod, mkdir, readFile, stat, unlink } from "node:fs/promises";
+import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
 // The rename, with the Windows retry ladder atomic-write.mjs keeps for exactly
 // this call. See the note over the write below (#786). `stripBom` and
 // `createTemp` come from the same module for the reason its export block gives:
 // a rule spelled twice is a rule that drifts, and both of these are rules
 // settings.json and auth.json already follow on files with the same stakes.
 import { createTemp, renameWithRetry, stripBom } from "./atomic-write.mjs";
-import { join } from "node:path";
+import { prefsDir, prefsPath } from "./prefs-path.mjs";
+import { NOT_JSON, prefsRefusalDetail, prefsWriteRefusal, unreadablePrefs } from "./prefs-refusal.mjs";
+import { DENIED, foreignPath, quarantinePath, setAsideForeign } from "./prefs-set-aside.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -49,14 +51,8 @@ import { PRODUCT } from "./brand.mjs";
  *  AGENTS_DECK_NO_INSTALL, and unchanged in meaning by this file. */
 export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
 
-/* WHERE THIS FILE LIVES, AND WHY IT MOVED. It sat in ~/.claude/agent-dag — the
-   directory Claude Code owns — which meant a person clearing Claude Code's
-   configuration cleared this deck's private key, and every machine that had
-   pinned it had to be told to trust this one again. deck-home.mjs owns the new
-   answer and the reasons; what matters here is that the parameter is still a
-   DIRECTORY, so every caller that passes one is unchanged. */
-const prefsDir = (home = deckDataDir()) => home;
-export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.json");
+// Where prefs.json lives, and why it moved: prefs-path.mjs.
+export { prefsPath };
 
 /**
  * Every preference the deck keeps, with the answer it gives when there is no
@@ -270,152 +266,14 @@ export function normalise(raw) {
   };
 }
 
-/** Where the bytes of a prefs.json nothing could parse are put.
- *
- *  `Date.now()` rather than an ISO timestamp because a colon is not a legal
- *  filename character on Windows, and a quarantine that cannot be created on
- *  the platform it is protecting is not a quarantine. */
-export const quarantinePath = (home = deckDataDir(), at = Date.now()) =>
-  `${prefsPath(home)}.corrupt-${at}`;
+// How a refusal to write is told — the error writePrefs throws, and the reason
+// and the detail the route hands the panel: prefs-refusal.mjs.
+export { prefsRefusalDetail, prefsWriteRefusal };
 
-/** The refusal `writePrefs` throws rather than merge onto a base it knows is
- *  not the user's. Shaped like installer.mjs's SETTINGS_UNREADABLE, which is
- *  the same policy on the other file this deck rewrites: a file we cannot
- *  reproduce is never treated as an empty one. */
-function unreadablePrefs(path, why, blocked) {
-  const err = new Error(
-    `${path} could not be read (${why}). Refusing to overwrite it — this deck's ` +
-    `LAN key and its pairings are in there and cannot be re-derived. Fix the ` +
-    `file or move it aside, then restart ${PRODUCT}.`,
-  );
-  err.code = "PREFS_UNREADABLE";
-  err.prefsPath = path;
-  err.why = why;
-  err.blocked = blocked;
-  return err;
-}
-
-/** The errors a filesystem raises for a place this user may not write — most
- *  often a settings folder a `sudo` run left owned by root (#1335). */
-const NOT_WRITABLE = new Set(["EACCES", "EPERM", "EROFS"]);
-
-/**
- * Why a settings write failed, as a reason the panel can name — or null when
- * the failure is not one of the two a person can fix from outside the deck.
- *
- * A code, never the message: the message carries the absolute path, and a
- * route's body is readable by a DNS-rebound page (see sendInternalError). The
- * deck's log keeps the path for the person who has to go and look.
- */
-export function prefsWriteRefusal(err) {
-  if (err?.code === "PREFS_UNREADABLE") return "prefs_unreadable";
-  if (NOT_WRITABLE.has(err?.code)) return "prefs_not_writable";
-  return null;
-}
-
-/** What blocked a prefs.json that is not JSON and could not be moved aside —
- *  no errno for it, so a name of the deck's own in the same shape. */
-const NOT_JSON = Object.freeze({ code: "BADJSON", owner: "unknown", on: "file" });
-
-const OWNERS = new Set(["you", "other", "unknown"]);
-/** An errno as Node spells one, or the deck's BADJSON. Anything else — which
- *  nothing here produces — is dropped rather than echoed to the page. */
-const ERRNO = /^E?[A-Z][A-Z0-9]{1,15}$/;
-
-/**
- * The same refusal, told precisely enough to act on from a screenshot (#1335).
- *
- * 3.29.3's panel could only guess — "the file may belong to another user" — and
- * the one Mac it was written for turned out not to be the case 3.29.4 repairs,
- * with nothing on the screen to say which case it was. So the page now gets the
- * errno, who owns what blocked the read (`you`, `other`, `unknown`), and whether
- * that is the `file` or its `folder`.
- *
- * Every field is picked from a closed set. Still no path and no uid: the route's
- * body is readable by a DNS-rebound page (see prefsWriteRefusal), and a path
- * names the user. Null when there is nothing precise to add.
- */
-export function prefsRefusalDetail(err) {
-  const blocked = err?.code === "PREFS_UNREADABLE" ? err.blocked
-    : NOT_WRITABLE.has(err?.code) ? { code: err.code, owner: "unknown", on: "folder" }
-    : null;
-  if (!blocked || typeof blocked !== "object") return null;
-  return {
-    code: ERRNO.test(blocked.code ?? "") ? blocked.code : "",
-    owner: OWNERS.has(blocked.owner) ? blocked.owner : "unknown",
-    on: blocked.on === "folder" ? "folder" : "file",
-  };
-}
-
-/** The read errors that can mean "not yours" rather than "broken". Only these
- *  send a read to setAsideForeign; EISDIR, EIO and EMFILE never do. */
-const DENIED = new Set(["EACCES", "EPERM"]);
-
-/** Where a prefs.json another user owns is put. Beside the file, like
- *  quarantinePath, and stamped in milliseconds for the same Windows reason —
- *  but a name of its own, because nothing is wrong with these bytes. */
-export const foreignPath = (home = deckDataDir(), at = Date.now()) =>
-  `${prefsPath(home)}.foreign-${at}`;
-
-/**
- * Move a prefs.json that ANOTHER USER OWNS out of the way, or say why not.
- *
- * #1335. A `sudo ccdeck` that kept the user's HOME writes a root-owned 0600
- * prefs.json into the user's own folder. From then on every
- * deck that user starts is refused the read, refuses every settings write on
- * top of it — rightly — and so can never keep anything: a new LAN identity on
- * every start, a share tick that says "Could not share that account", and no
- * way out from inside the deck.
- *
- * WHY MOVING IT IS SAFE HERE WHEN IT IS NOT FOR "unreadable". The refusal
- * exists so the deck never loses a key it could still have read. A file owned
- * by somebody else is not one this user's deck will ever read — waiting does
- * not help, and the deck is already running on defaults. A rename reads and
- * changes nothing: owner and mode travel with the file, so the key in it stays
- * private and whole, and `sudo chown` plus a move puts it back.
- *
- * Only when the owner is KNOWN to be somebody else. A file this user owns and
- * still cannot read (a mode bit, a lock, a sandbox) is left exactly where it
- * is, and so is anything on Windows, where there is no uid to compare and
- * EPERM is usually another program holding the file.
- *
- * Answers `{ moved, uid }`, `{ gone }` when the file vanished under it, or,
- * when it stayed, `{ why, owner, on }`: a sentence for the log, possibly empty,
- * and who owns what blocked the read — "you", "other" or "unknown" — and
- * whether that is the "file" or its "folder". The last two are what the panel
- * is told (see prefsRefusalDetail); the sentence, which has the path, is not.
- */
-async function setAsideForeign(path, home, deps) {
-  const uid = deps.getuid ? deps.getuid() : process.getuid?.();
-  if (uid === undefined) return { why: "", owner: "unknown", on: "file" };
-  const look = deps.stat ?? stat;
-  let st;
-  try {
-    st = await look(path);
-  } catch (err) {
-    if (err?.code === "ENOENT") return { gone: true };
-    // The folder itself is out of reach, so nothing in it can be looked at, let
-    // alone moved. Name the folder and its owner, which is what a person needs.
-    const folder = prefsDir(home);
-    const owner = await look(folder).then(s => s.uid, () => undefined);
-    if (owner === undefined) return { why: "", owner: "unknown", on: "folder" };
-    if (owner === uid) return { why: "", owner: "you", on: "folder" };
-    return {
-      why: ` The folder ${folder} belongs to another user (uid ${owner}), most likely from a run with sudo; sudo chown -R "$(id -un)" "${folder}" gives it back.`,
-      owner: "other",
-      on: "folder",
-    };
-  }
-  if (st.uid === uid) return { why: "", owner: "you", on: "file" };
-  const to = foreignPath(home);
-  try {
-    await (deps.rename ?? renameWithRetry)(path, to);
-  } catch (err) {
-    if (err?.code === "ENOENT") return { gone: true };
-    return { why: ` It belongs to another user (uid ${st.uid}) and could not be moved aside either: ${err?.message ?? err}.`, owner: "other", on: "file" };
-  }
-  return { moved: to, uid: st.uid };
-}
+// Moving a prefs.json nobody can use out of the way — the quarantine for bytes
+// that are not JSON, and setAsideForeign for a file another user owns (#1335):
+// prefs-set-aside.mjs.
+export { foreignPath, quarantinePath };
 
 /**
  * Read prefs.json, and say WHICH of five things happened — because four of
