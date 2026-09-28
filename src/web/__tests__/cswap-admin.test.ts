@@ -67,7 +67,7 @@ import { createVerdictQueue } from "../../server/claude-verdicts.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
-import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
+import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-layout.mjs";
 
 describe("post-write verdicts", () => {
   it("starts idle collection synchronously and recovers after a start error", async () => {
