@@ -21,6 +21,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
 import { bundleOf, checkForUpdate, discard, installOnExit, stageUpdate, UPDATE_PUBLIC_KEY } from "./updater-mac.mjs";
+import { relaunchOnExit } from "./relaunch-linux.mjs";
 
 /** Where releases are published. `releases/latest/download/<file>` is
  *  GitHub's own redirect to the newest release's asset. */
@@ -127,7 +128,34 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   function restartNow() {
     if (state.status !== "ready") return;
     if (process.platform === "darwin") { app.quit(); return; }
+    if (process.platform === "linux" && process.env.APPIMAGE) { restartAppImage(); return; }
     auto?.quitAndInstall(false, true);
+  }
+
+  /**
+   * The AppImage swaps its file in now and starts again only after this
+   * process has gone (#1630): quitAndInstall(…, true) would start the new one
+   * while this one still runs, and it inherited this one's open files.
+   *
+   * install(…, false) swaps the file and runs the new AppImage with
+   * APPIMAGE_EXIT_AFTER_INSTALL, which makes its AppRun return without
+   * starting the app. electron-updater renames the file when the old name
+   * carried a version; the relaunch follows it.
+   */
+  function restartAppImage() {
+    if (!auto) return;
+    let target = process.env.APPIMAGE;
+    const renamed = path => { target = path; };
+    auto.on("appimage-filename-updated", renamed);
+    let installed = false;
+    try {
+      installed = auto.install(true, false);
+    } finally {
+      auto.off("appimage-filename-updated", renamed);
+    }
+    if (!installed) return;
+    relaunchOnExit({ pid: process.pid, appImage: target });
+    app.quit();
   }
 
   async function dispose() {
