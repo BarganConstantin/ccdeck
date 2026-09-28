@@ -53,7 +53,7 @@ import {
 // where this file has many, and the count of what a fix actually repairs is the
 // point of running it against the old tree.
 import * as pricing from "../pricing";
-import { costBreakdownTooltip } from "../components/AgentNode";
+import { costBreakdownTooltip } from "../card-cost";
 import { applyEvent, initialState } from "../reducer";
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
 
