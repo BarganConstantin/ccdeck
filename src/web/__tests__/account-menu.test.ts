@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
@@ -58,13 +59,16 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
     expect(row).not.toMatch(/<input|<select|<form/);
     expect(row).not.toMatch(/ap-manage-\$\{|role="group"/);
     expect(row).not.toMatch(/menuFor === a\.num && \(/);
+    expect(row).not.toMatch(/menuOpen && \(/);
   });
 
   it("opens from a trigger that says what it opens, and for which account", () => {
     const trigger = /<button type="button" id=\{`ap-more-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(row)![0];
     expect(trigger).toMatch(/aria-haspopup="menu"/);
-    expect(trigger).toMatch(/aria-expanded=\{menuFor === a\.num\}/);
-    expect(trigger).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    // Whether this row's ⋯ is the open one, read once off the panel's menu.
+    expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
+    expect(trigger).toMatch(/aria-expanded=\{menuOpen\}/);
+    expect(trigger).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
     expect(trigger).toMatch(/title="More actions"/);
     // The account in the name, from the account's own data.
     expect(trigger).toMatch(/aria-label=\{`More actions for \$\{a\.email \?\? a\.alias \?\? `account \$\{a\.num\}`\}`\}/);

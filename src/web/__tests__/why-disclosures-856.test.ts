@@ -42,10 +42,12 @@ describe("why a login failed is a button, not a title (#856)", () => {
   it("is a button that says whether its reason is open", () => {
     expect(warning, "the warning is not a button").not.toBeNull();
     expect(warning).toMatch(/aria-haspopup="dialog"/);
-    expect(warning).toMatch(/aria-expanded=\{issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}`\}/);
+    // Whether it is this row's warning that is open, read once off the panel's.
+    expect(clientText()).toMatch(/const issueExpanded = issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}`;/);
+    expect(warning).toMatch(/aria-expanded=\{issueExpanded\}/);
     // Conditional, because the target only exists while it is open — the same
     // rule the ⋯ menu follows.
-    expect(warning).toMatch(/aria-controls=\{issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}` \? "ap-issue-pop" : undefined\}/);
+    expect(warning).toMatch(/aria-controls=\{issueExpanded \? "ap-issue-pop" : undefined\}/);
   });
 
   it("opens the reason as text over the column, and never as a title", () => {

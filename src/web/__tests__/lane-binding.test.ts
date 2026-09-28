@@ -200,7 +200,9 @@ describe("the row renders the windows, and the panel reads the same function", (
 
   it("opens the live row, and every other row only when the reader opens it", () => {
     expect(panelCode).toMatch(/useState<string\[\]>\(\[\]\)/);
-    expect(clientText()).toMatch(/const open = a\.active \|\| openLanes\.includes\(laneKey\(a\)\);/);
+    // Whether the reader opened it is read off the set by account, once.
+    expect(clientText()).toMatch(/const opened = openLanes\.includes\(laneKey\(a\)\);/);
+    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
     // The live row has nothing folded, so it has no door.
     expect(clientText()).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
   });
@@ -210,7 +212,8 @@ describe("the row renders the windows, and the panel reads the same function", (
     expect(clientText()).toMatch(/aria-controls=\{open \? `ap-detail-\$\{a\.num\}` : undefined\}/);
     expect(clientText()).toMatch(/<div className="ap-detail" id=\{`ap-detail-\$\{a\.num\}`\}>/);
     // The ⋯ follows the same rule for the same reason.
-    expect(clientText()).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
+    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
   });
 
   it("no longer counts what is folded: there is no `1 more` to read", () => {

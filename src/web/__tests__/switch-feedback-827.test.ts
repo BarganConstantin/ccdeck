@@ -31,7 +31,9 @@ describe("a switch answers on the row it was about (#827)", () => {
   });
 
   it("draws the refusal on that row, and only other messages under the roster", () => {
-    expect(clientText()).toMatch(/\{failure\?\.row === a\.num && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
+    // The refusal is the row's when it is tagged with the row, read once.
+    expect(clientText()).toMatch(/const refusal = failure\?\.row === a\.num \? failure : null;/);
+    expect(clientText()).toMatch(/\{refusal && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
     // It stood below the scroll while Auto-switch did. Both moved into the
     // column together, because the refusal is said beside the control that
     // made it — and every branch around it already needs a roster, so the
@@ -62,7 +64,8 @@ describe("a switch answers on the row it was about (#827)", () => {
 
 describe("what a switch that took says (#827)", () => {
   it("says it on the row it took to, while that row is still the active one", () => {
-    expect(clientText()).toMatch(/\{a\.active && switched\?\.num === a\.num && \(\s*<p className="ap-switched">/);
+    expect(clientText()).toMatch(/const switchedHere = switched\?\.num === a\.num;/);
+    expect(clientText()).toMatch(/\{a\.active && switchedHere && \(\s*<p className="ap-switched">/);
   });
 
   it("says what happens to sessions already running, as claude-swap does", () => {
