@@ -1,9 +1,9 @@
 // Who has called this deck, and for how long anybody could have: lifted out of
 // createEngine in lan-engine.mjs with the four records only these write — when
 // each paired deck last spoke and from where, when another machine last got a
-// connection through, and when the listener came up. Nothing here listens: the
-// engine's serve and its listener's onInbound report each call, and status()
-// and the peer list read what they left.
+// connection through, and when the listener came up. Nothing here listens:
+// serve (lan-serve.mjs) and the listener's onInbound report each call, and
+// status() and the peer list read what they left.
 
 /**
  * Did this connection come from a DIFFERENT computer?

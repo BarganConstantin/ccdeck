@@ -37,12 +37,11 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  addTrusted, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, seal, slotFor, stillListed,
-  transferChallenge, trustedPeer,
+  addTrusted, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, stillListed, transferChallenge,
+  trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
-import { liveLoginIs } from "./account-health.mjs";
 import { syncAccounts } from "./lan-accounts.mjs";
 import { createBeacon } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
@@ -52,6 +51,7 @@ import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.
 import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
 import { anotherMachine, createInbound } from "./lan-inbound.mjs";
+import { createServe } from "./lan-serve.mjs";
 import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { createManifests } from "./lan-manifest.mjs";
 import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
@@ -444,92 +444,13 @@ export function createEngine({
     }
   };
 
-  /** Frames from a deck that finished the handshake AND that somebody here has
-   *  accepted. Nothing reaches this before both, which is the whole point of
-   *  where the two checks sit. `ctx.key` is this connection's key and no other
-   *  connection's — see sessionKey. `ctx.send` seals whatever it is handed when
-   *  both ends said they seal, so nothing below has to know which kind of deck
-   *  asked — see frameChannel. */
-  const serve = async (msg, ctx) => {
-    // Authentication happened at connection setup; a previously trusted deck
-    // may have been unpaired while this socket remained open.
-    const mayAnswer = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx?.peerFp);
-    if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
-    // Before the verbs, and for every one of them: something that proved it
-    // holds a key this deck accepted is talking, now.
-    if (ctx?.peerFp) {
-      inbound.spoke(ctx);
-      learnCaller(ctx);
-    }
-    try {
-      if (msg.t === "manifest") {
-        // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck
-        // that calls in ever says what it is: nothing here dials it, so nothing
-        // here ever asks. A seal that does not open is a deck that said nothing.
-        // AND SO DOES ITS LIST, from a deck new enough to send one: what it
-        // offers, and which of those it is on. This is the only way a deck
-        // nothing here dials is ever known by what it offers.
-        keepManifest(ctx.key, msg, ctx.peerFp);
-        const accounts = await localAccounts();
-        // Reading the store can take long enough for the owner to unpair this
-        // deck. Do not disclose account identities or the active account from
-        // a manifest assembled before that decision.
-        if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
-        return ctx.send(manifestFrame(accounts, ctx.key, ctx.peerFp));
-      }
-      if (msg.t === "want") {
-        // A listener may have authenticated this socket before its owner
-        // unpaired the caller or switched sharing off. Recheck at the moment
-        // a credential is requested and again after every asynchronous read.
-        const maySend = () => cfg.enabled && !!server && !!trustedPeer(cfg.trusted, ctx.peerFp)
-          && cfg.shared.includes(msg.key);
-        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        // A SECOND PROOF, for the one operation that moves a credential. The
-        // session says who connected; this says they are asking for this
-        // account, now. A long-lived connection authenticated an hour ago is
-        // not a statement about now.
-        const want = transferChallenge(ctx.key, {
-          nonce: msg.nonce, accountKey: msg.key, fromFp: ctx.peerFp, toFp: identity.fp,
-        });
-        if (typeof msg.proof !== "string" || msg.proof !== want) {
-          return ctx.send({ t: "no", why: "proof" });
-        }
-        // Only what the user ticked, checked again here rather than trusted
-        // from the manifest we sent: the list can change between the two, and
-        // the answer that matters is the one at the moment of sending.
-        const accounts = await localAccounts();
-        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        // The slot manifestFor told the peer about, by the same rule: with two
-        // slots for one identity, an expired one listed first must not hide a
-        // live one behind it.
-        const mine = slotFor(accounts, msg.key);
-        if (!mine) return ctx.send({ t: "no", why: "not mine to give" });
-        // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
-        // a failed export: no subprocess, and nothing the CLI printed. The
-        // asking deck prints it under the account, so the person learns which
-        // machine to unlock instead of reading "export failed".
-        if (!mine.readable) return ctx.send({ t: "no", why: mine.unreadableWhy });
-        if (!mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
-        // The active slot exports the live CLI login, and its verdict can
-        // predate a `/login` as somebody else, so ask the CLI who it is now.
-        if (mine.active && liveLogin && !liveLoginIs(await liveLogin(), mine.email, mine.org)) {
-          return ctx.send({ t: "no", why: "export failed" });
-        }
-        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        const blob = await exportAccount(mine.num, msg.key);
-        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        // A Mac's failed export refreshes the verdict behind `readable` in the
-        // background, so when the Keychain was why, the next ask is answered by
-        // the line above.
-        if (!blob) return ctx.send({ t: "no", why: "export failed" });
-        const aad = credentialAad(identity.fp, ctx.peerFp, msg.key);
-        return ctx.send({ t: "have", key: msg.key, sealed: seal(ctx.key, blob, aad) });
-      }
-    } catch (err) {
-      onError?.("serve", err);
-      ctx.send({ t: "no", why: "error" });
-    }
-  };
+  /** What this deck answers a paired deck that asks — its list, or one login
+   *  sealed for it — and the checks that decide whether it answers at all.
+   *  See lan-serve.mjs. */
+  const { serve } = createServe({
+    settings: () => cfg, serverNow: () => server, myFp: () => identity.fp,
+    inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount, onError,
+  });
 
   /**
    * Dial a deck just paired with from now on, and keep the address: in the
