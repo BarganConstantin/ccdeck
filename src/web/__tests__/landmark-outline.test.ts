@@ -342,6 +342,9 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(withH4).toEqual([
       "components/AddAccountDialog.tsx",
       "components/BrowserWatchModal.tsx",
+      // Browser Watch's remote-control section, lifted out of the dialog it
+      // still renders inside: its <h4> is one of the dialog's.
+      "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
       "components/ToolModal.tsx",

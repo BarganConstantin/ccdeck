@@ -20,6 +20,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { browserWatchSurface } from "./browser-watch-surface";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +30,9 @@ afterAll(() => rmTempDir(DIR));
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const watch = read("../../server/browser-watch.mjs");
-const modal = read("../components/BrowserWatchModal.tsx");
+// The dialog and what was lifted out of it — the section itself is
+// components/RemoteControl.tsx — so the negatives below still see the section.
+const modal = browserWatchSurface();
 
 // @ts-expect-error — plain .mjs server module, no types
 const { browserWatchSnapshot } = await import("../../server/browser-watch.mjs");
