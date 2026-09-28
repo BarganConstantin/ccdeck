@@ -521,6 +521,74 @@ function noteRead(profile, key, read, findings, now) {
 }
 
 /**
+ * Write down what this poll found that the archive did not have, and react to
+ * it: the elected deck's half of a poll, taken only when the archive changed.
+ *
+ * Only the deck isReactingDeck elects gets here, so an episode is written and
+ * reacted to once however many decks are open — the others still show it,
+ * because reading the store is free. `live` is this poll's episodes and `kept`
+ * the archive with them merged in.
+ */
+async function recordAndReact(store, kept, live, { platform, now, deps }) {
+  // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
+  // grown, so writing the whole set every time would repeat one episode once
+  // per page it gained. "The same episode" is the store's own key, the one
+  // the merge and the dismissals use, rather than a spelling of its own.
+  const known = new Set(store.episodes.map(e => episodeKey(e.host, e.startMs)));
+  // Already-dismissed episodes are not fresh news: the reader has seen them
+  // and said so, and notifying about one again is the panel arguing.
+  const fresh = undismissed(kept.filter(e => !known.has(episodeKey(e.host, e.startMs))), store.dismissed);
+  // Only when something actually arrived. "no new · 3 since this deck
+  // started" is the deck telling itself it wrote a file, which is not news.
+  if (fresh.length > 0) {
+    note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
+  }
+  // THE ARCHIVE IS OURS TO WRITE; THE OTHER TWO FIELDS ARE NOT. This poll
+  // takes about 400ms — a 21 MB History copy plus the sqlite read — and it
+  // used to write back the `dismissed` and `settings` it had read at the
+  // start, so a dismissal or a watch-off toggle made while it ran was
+  // reverted ten seconds later by the next poll. Re-merging inside the update
+  // keeps this poll's own answer and takes the other two from disk as
+  // they are at the moment of the write.
+  const merge = cur => ({
+    settings: cur.settings,
+    episodes: mergeEpisodes(cur.episodes, live, now),
+    dismissed: cur.dismissed,
+  });
+  if (deps.updateStore) await deps.updateStore(merge, undefined, deps);
+  else if (deps.writeStore) await deps.writeStore(merge(store), undefined, deps);
+  else await updateStore(merge, undefined, deps);
+  await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
+
+  // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not
+  // in the store a moment ago, so an episode still growing does not notify
+  // again on every page it gains — which is the difference between a watch
+  // and a nuisance.
+  //
+  // After the write, deliberately. A reaction that closed a tab and then lost
+  // the record of why would leave the user with a vanished page and nothing
+  // to read about it.
+  const reaction = store.settings.reaction;
+  if (fresh.length && performable(reaction, platform)) {
+    for (const episode of fresh) {
+      // A THROW IS NOT NOTHING. `catch(() => [])` turned a reaction that
+      // blew up into a reaction that had never been asked for, and the feed
+      // then said nothing at all about a finding the panel had promised to
+      // act on. The message goes in the line, because the one thing a reader
+      // needs when a reaction fails is which failure it was.
+      const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
+        .catch(err => [`reaction failed — ${err?.message ?? "unknown error"}`]);
+      // `could not` lines are the deck unable to do what it said it would,
+      // which is what `warn` is for; the rest is the reaction working.
+      for (const line of acted) {
+        note(/^(could not|reaction failed)/.test(line) ? "warn" : "find",
+             `${episode.host} — ${line}`, now);
+      }
+    }
+  }
+}
+
+/**
  * Everything the panel draws, in one object.
  *
  * `deckOrigins` are the addresses this deck is listening on. They are excluded
@@ -746,64 +814,7 @@ export async function browserWatchSnapshot({
   // reading the store is free and a second panel that went blank would be a
   // worse bug than the one this prevents.
   const acting = enabled ? await isReactingDeck(deps) : false;
-  if (acting && changedFrom(store.episodes, kept)) {
-    // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
-    // grown, so writing the whole set every time would repeat one episode once
-    // per page it gained. "The same episode" is the store's own key, the one
-    // the merge and the dismissals use, rather than a spelling of its own.
-    const known = new Set(store.episodes.map(e => episodeKey(e.host, e.startMs)));
-    // Already-dismissed episodes are not fresh news: the reader has seen them
-    // and said so, and notifying about one again is the panel arguing.
-    const fresh = undismissed(kept.filter(e => !known.has(episodeKey(e.host, e.startMs))), store.dismissed);
-    // Only when something actually arrived. "no new · 3 since this deck
-    // started" is the deck telling itself it wrote a file, which is not news.
-    if (fresh.length > 0) {
-      note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
-    }
-    // THE ARCHIVE IS OURS TO WRITE; THE OTHER TWO FIELDS ARE NOT. This poll
-    // takes about 400ms — a 21 MB History copy plus the sqlite read — and it
-    // used to write back the `dismissed` and `settings` it had read at the
-    // start, so a dismissal or a watch-off toggle made while it ran was
-    // reverted ten seconds later by the next poll. Re-merging inside the update
-    // keeps this function's own answer and takes the other two from disk as
-    // they are at the moment of the write.
-    const merge = cur => ({
-      settings: cur.settings,
-      episodes: mergeEpisodes(cur.episodes, live, now),
-      dismissed: cur.dismissed,
-    });
-    if (deps.updateStore) await deps.updateStore(merge, undefined, deps);
-    else if (deps.writeStore) await deps.writeStore(merge(store), undefined, deps);
-    else await updateStore(merge, undefined, deps);
-    await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
-
-    // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not
-    // in the store a moment ago, so an episode still growing does not notify
-    // again on every page it gains — which is the difference between a watch
-    // and a nuisance.
-    //
-    // After the write, deliberately. A reaction that closed a tab and then lost
-    // the record of why would leave the user with a vanished page and nothing
-    // to read about it.
-    const reaction = store.settings.reaction;
-    if (fresh.length && performable(reaction, platform)) {
-      for (const episode of fresh) {
-        // A THROW IS NOT NOTHING. `catch(() => [])` turned a reaction that
-        // blew up into a reaction that had never been asked for, and the feed
-        // then said nothing at all about a finding the panel had promised to
-        // act on. The message goes in the line, because the one thing a reader
-        // needs when a reaction fails is which failure it was.
-        const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
-          .catch(err => [`reaction failed — ${err?.message ?? "unknown error"}`]);
-        // `could not` lines are the deck unable to do what it said it would,
-        // which is what `warn` is for; the rest is the reaction working.
-        for (const line of acted) {
-          note(/^(could not|reaction failed)/.test(line) ? "warn" : "find",
-               `${episode.host} — ${line}`, now);
-        }
-      }
-    }
-  }
+  if (acting && changedFrom(store.episodes, kept)) await recordAndReact(store, kept, live, { platform, now, deps });
   // FILTERED ON BOTH PATHS, because the panel builds episodes from the
   // browser's own history on every poll: dropping only the archived copy would
   // be undone within ten seconds by the next read of the same visits.
