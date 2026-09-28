@@ -80,7 +80,8 @@ export { ccProjectSlug };
 // see codex-watch.mjs.
 import { startCodexWatcher } from "./codex-watch.mjs";
 // Exported from this file before they moved, and still.
-export { readCodexRollout, sidFromRolloutName, startCodexWatcher } from "./codex-watch.mjs";
+export { sidFromRolloutName, startCodexWatcher } from "./codex-watch.mjs";
+export { readCodexRollout } from "./codex-enrichment.mjs";
 // Re-exported because bin/deck.js prints this path in the boot banner, and it
 // used to build its own `join(homedir(), ".codex", "sessions")` for the purpose
 // — which ignored CODEX_HOME and so named a directory that does not exist on any
@@ -98,7 +99,9 @@ export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // spend, name, recap, context — read off the transcript and sent back through
 // pushEvent; see session-enrichment.mjs. The readers it exported from this
 // file before they moved, it still exports.
-export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, scanAgentsMdFiles, scanClaudeMdFiles, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
+export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
+// And the two memory-file scans, which have moved on to memory-files.mjs.
+export { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 // What a starting deck reads back out of its log, and which of those events
 // are in its scope — see log-replay.mjs. Both were exported from this file
 // before they moved, and still are.

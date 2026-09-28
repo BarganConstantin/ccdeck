@@ -401,9 +401,10 @@ function parseRolloutTime(filename) {
 
 // List rollout files whose start times fall within the given window.
 //
-// The walk over $CODEX_HOME/sessions is shared with the two entry points in
-// codex-watch.mjs (codex-dir.mjs) rather than repeated here, so the files this counts
-// usage from are exactly the files the watcher tails. They used to be two
+// The walk over $CODEX_HOME/sessions is shared with the rollout lookup in
+// codex-enrichment.mjs and the watcher in codex-watch.mjs (codex-dir.mjs) rather
+// than repeated here, so the files this counts usage from are exactly the files
+// the watcher tails. They used to be two
 // verbatim copies of the same four nested readdirs over two verbatim copies of
 // the same CODEX_SESSIONS_DIR — which is how one of them came to resolve a
 // relative CODEX_HOME differently from the other (#375).

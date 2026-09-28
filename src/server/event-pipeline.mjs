@@ -33,8 +33,8 @@ import { outputWatch, touchSession } from "./session-tracking.mjs";
 // What the deck learns about a session that its hooks never say, read off the
 // transcript and sent back through pushEvent — see session-enrichment.mjs.
 import { knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
-// The Codex half: a session's rollout, found by id — see codex-watch.mjs.
-import { maybeResolveCodex } from "./codex-watch.mjs";
+// The Codex half: a session's rollout, found by id — see codex-enrichment.mjs.
+import { maybeResolveCodex } from "./codex-enrichment.mjs";
 // The gate pushEvent asks before a transcript path is followed — see
 // transcript-scan.mjs.
 import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-scan.mjs";

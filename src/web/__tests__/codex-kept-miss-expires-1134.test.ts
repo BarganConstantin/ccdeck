@@ -82,7 +82,7 @@ if (!SESSIONS.startsWith(FAKE_HOME)) throw new Error(`refusing to run: resolved 
 fsCtl.root = SESSIONS;
 
 // The rollout finder, where the bound is declared.
-const WATCHER_SRC = readFileSync(fileURLToPath(new URL("../../server/codex-watch.mjs", import.meta.url)), "utf8");
+const FINDER_SRC = readFileSync(fileURLToPath(new URL("../../server/codex-enrichment.mjs", import.meta.url)), "utf8");
 /** The bound under test, stated here and pinned against the source below. */
 const MISS_TTL_MS = 10 * 60 * 1000;
 // The throttle maybeResolveCodex keeps per session id, plus a margin.
@@ -255,7 +255,7 @@ describe("an id no rollout carries", () => {
     // Pinned on its own, like codex-cursor-ttl-981.test.ts pins its TTL, so a
     // change to the bound is a change to this file too, and the case above
     // fails on what the server does rather than on how the source spells it.
-    expect(WATCHER_SRC).toMatch(/const CODEX_MISS_TTL_MS = 10 \* 60 \* 1000;/);
+    expect(FINDER_SRC).toMatch(/const CODEX_MISS_TTL_MS = 10 \* 60 \* 1000;/);
   });
 });
 

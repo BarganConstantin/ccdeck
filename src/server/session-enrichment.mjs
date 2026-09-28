@@ -10,10 +10,11 @@
 // index.mjs asks knownModelId for the stamp, forgetEnrichment when it forgets
 // a session and clearEnrichmentGates on a Clear. The readers, the throttles
 // and the emits are unchanged.
-import { readdir, stat } from "node:fs/promises";
-import { join, resolve, dirname as pdirname } from "node:path";
-import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
-import { CODEX_HOME } from "./codex-dir.mjs";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+// Which memory files a session has in scope, CLAUDE.md or AGENTS.md — see
+// memory-files.mjs.
+import { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { RECAP_MARK } from "./session-recap.mjs";
 // The shared transcript cursor every pass below reads through — see
@@ -22,6 +23,9 @@ import { mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
+// One read per session at a time, and none inside the window — the gate each
+// pass below keeps. See session-read-gate.mjs.
+import { sessionReadGate } from "./session-read-gate.mjs";
 
 // ─── Model enrichment ────────────────────────────────────────────────────
 // CC's hook payloads never carry the `model` field — but every hook
@@ -35,9 +39,8 @@ import { pushEvent } from "./event-sink.mjs";
 // filter, not a read filter: reading once per session meant a subagent
 // model that only appears after the root is known was never picked up.
 const modelBySession = new Map();         // sessionId -> { rootModel, subsSig }
-const pendingTranscriptReads = new Set(); // sessionId currently being read
-const modelLastReadAt = new Map();        // sessionId -> ms timestamp (re-read throttle)
 const MODEL_READ_THROTTLE_MS = 2500;
+const modelReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
 /** The cache entry is `{ rootModel, subsSig }`, but `payload.model` is a
  *  model *string* — that is the only shape the client's recursive scanner
@@ -185,13 +188,7 @@ function maybeResolveModel(payload) {
   // Re-read on every event for this session — the cache was preventing us
   // from picking up subagent models that arrive after the root is known.
   // Throttle so we don't thrash the filesystem.
-  if (pendingTranscriptReads.has(sid)) return;
-  const now = Date.now();
-  const last = modelLastReadAt.get(sid) ?? 0;
-  if (now - last < MODEL_READ_THROTTLE_MS) return;
-  modelLastReadAt.set(sid, now);
-  pendingTranscriptReads.add(sid);
-  Promise.all([readModelFromTranscript(tp), scanSubagentDir(tp)])
+  modelReads.run(sid, () => Promise.all([readModelFromTranscript(tp), scanSubagentDir(tp)])
     .then(([result, dir]) => {
       const rootModel = result?.rootModel ?? null;
       // Merge legacy (inline isSidechain) + new (subagents/ dir) maps. Dir
@@ -208,9 +205,7 @@ function maybeResolveModel(payload) {
         model: rootModel,
         subagentModels,
       }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingTranscriptReads.delete(sid));
+    }));
 }
 
 // ─── Usage enrichment ────────────────────────────────────────────────────
@@ -220,9 +215,8 @@ function maybeResolveModel(payload) {
 // whole transcript and ship a synthetic UsageObserved event so the
 // session's root agent gets accurate cumulative usage (and therefore the
 // cost columns actually have something to multiply by).
-const lastUsageReadAt = new Map();      // sid -> ms timestamp
-const pendingUsageReads = new Set();    // sid currently being read
 const USAGE_READ_THROTTLE_MS = 2500;
+const usageReads = sessionReadGate(USAGE_READ_THROTTLE_MS);
 
 // Every entry carries its own usage object and we sum every occurrence, so
 // the totals are cumulative over the whole transcript — the running state
@@ -321,13 +315,7 @@ function maybeResolveUsage(payload) {
   const sid = payload.session_id;
   const tp = payload.transcript_path;
   if (!sid || !tp) return;
-  if (pendingUsageReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastUsageReadAt.get(sid) ?? 0;
-  if (now - last < USAGE_READ_THROTTLE_MS) return;
-  lastUsageReadAt.set(sid, now);
-  pendingUsageReads.add(sid);
-  Promise.all([sessionUsageTotals(tp), sessionUsageByModel(tp)])
+  usageReads.run(sid, () => Promise.all([sessionUsageTotals(tp), sessionUsageByModel(tp)])
     .then(([usage, usageByModel]) => {
       if (!usage) return;
       // `usageByModel` rides on the same event because it is the same
@@ -337,9 +325,7 @@ function maybeResolveUsage(payload) {
       // even when null: an absent split has to CLEAR a stale one on the client,
       // for the reason the flat totals are assigned rather than added.
       pushEvent({ hook_event_name: "UsageObserved", session_id: sid, usage, usageByModel }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingUsageReads.delete(sid));
+    }));
 }
 
 // ─── Session-name enrichment ─────────────────────────────────────────────
@@ -374,8 +360,7 @@ function maybeResolveUsage(payload) {
 // records carrying 2 distinct values, a per-pass emit would be ~683 events
 // saying nothing. Sessions that never get named emit nothing at all.
 const nameBySession = new Map();        // sid -> `${agentName}\0${aiTitle}`
-const lastNameReadAt = new Map();       // sid -> ms timestamp
-const pendingNameReads = new Set();     // sid currently being read
+const nameReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
 /** The naming the cursor has folded so far, or null when the scan has nothing.
  *
@@ -403,13 +388,7 @@ function maybeResolveSessionName(payload) {
   const sid = payload.session_id;
   const tp = payload.transcript_path;
   if (!sid || !tp) return;
-  if (pendingNameReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastNameReadAt.get(sid) ?? 0;
-  if (now - last < MODEL_READ_THROTTLE_MS) return;
-  lastNameReadAt.set(sid, now);
-  pendingNameReads.add(sid);
-  readSessionNamingFromTranscript(tp)
+  nameReads.run(sid, () => readSessionNamingFromTranscript(tp)
     .then(read => {
       if (!read) return;
       noteRecap(sid, read.recap);
@@ -424,9 +403,7 @@ function maybeResolveSessionName(payload) {
         sessionName: naming.agentName ?? null,
         sessionTitle: naming.aiTitle ?? null,
       }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingNameReads.delete(sid));
+    }));
 }
 
 // ─── Session recap ───────────────────────────────────────────────────────
@@ -475,9 +452,8 @@ function onRecapTail(sid, text, path) {
 // context contain") plus the current window size — currentContextTokens, the
 // last usage block after the most recent /clear or /compact, which is what
 // the context donut and the modal's percentage are drawn from.
-const lastContextReadAt = new Map();
-const pendingContextReads = new Set();
 const CONTEXT_READ_THROTTLE_MS = 4000;
+const contextReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 
 // The counts reset at every `/clear` or `/compact` marker (see
 // foldTranscriptLine): CC resets its in-memory window there while the JSONL
@@ -491,166 +467,13 @@ export async function readContextFromTranscript(path) {
   return { ...state.ctx };
 }
 
-/**
- * Candidate memory-file paths on the walk from `cwd` up to the filesystem root.
- *
- * Both CLIs load their memory file the same way — nearest-first from the
- * working directory outwards — and differ only in what the file is CALLED and
- * in what else they add on top, so the walk is written once here and the two
- * scanners below supply their own names. `rels` is a list of paths RELATIVE to
- * each directory on the walk rather than bare filenames, because CC also honours
- * `.claude/CLAUDE.md` at every level and Codex does not.
- *
- * Sixteen levels is the same depth this has always used: deep enough for any
- * real checkout, shallow enough that a cwd on a network mount cannot turn one
- * context read into an unbounded number of stat() calls.
- *
- * Returns paths without touching the disk. Statting them is collectMemoryFiles'
- * job, so a caller that wants to add its own paths — a user-global file, a
- * per-project memory directory — can splice them into one ordered list and get
- * a single de-duplicated, existence-checked answer back.
- */
-function memoryWalkPaths(cwd, rels) {
-  const out = [];
-  let dir = resolve(cwd);
-  for (let depth = 0; depth < 16; depth++) {
-    for (const rel of rels) out.push(join(dir, rel));
-    const parent = pdirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return out;
-}
-
-/**
- * Which of `paths` are real, non-empty files, in the order given and with
- * duplicates dropped.
- *
- * A zero-byte file is skipped on purpose: it contributes nothing to the model's
- * context, and listing it in the modal would have the reader looking for the
- * bytes it claims to cost. A path that cannot be stat()ed is simply absent —
- * this runs against a tree another process is editing, and a permissions error
- * on one candidate is no reason to lose the other fifteen.
- */
-async function collectMemoryFiles(paths) {
-  const found = [];
-  const seen = new Set();
-  for (const p of paths) {
-    if (seen.has(p)) continue;
-    seen.add(p);
-    try {
-      const s = await stat(p);
-      if (s.isFile() && s.size > 0) found.push({ path: p, bytes: s.size });
-    } catch {}
-  }
-  return found;
-}
-
-/** The memory files a CLAUDE session has in scope. Exported alongside its Codex
- *  counterpart below so a test can check the pair together — the two must agree
- *  on the walk and disagree on the filename, and only one of them showing up in
- *  a test is how they would drift. */
-export async function scanClaudeMdFiles(cwd) {
-  if (!cwd || typeof cwd !== "string") return [];
-  // The CONFIG dir, not the home directory. CLAUDE_CONFIG_DIR relocates it
-  // wholesale — it replaces ~/.claude rather than overlaying it — so on a
-  // machine where it is set, `homedir()/.claude` is a directory Claude Code
-  // does not read. Spelling it by hand here failed in both directions at once:
-  // the user-global memory file and every auto-memory file went missing from
-  // the modal and from the byte total beside it, while a stale ~/.claude left
-  // over from before the variable was set got listed as if it were in context.
-  // Resolved per call, like the two other claudeConfigDir() readers in this
-  // file, so nothing captures the answer from an environment that has moved.
-  const cfg = claudeConfigDir();
-  // Walk up from cwd to filesystem root, checking the canonical CC memory
-  // filenames plus CLAUDE.local.md (user-private) at each level.
-  //
-  // The `.claude/` prefix on the last two is NOT the config dir wearing a
-  // second spelling: it is CC's per-directory project convention, one such
-  // folder per level of the walk, and it stays literal however the config dir
-  // moves.
-  const paths = memoryWalkPaths(cwd, [
-    "CLAUDE.md",
-    "CLAUDE.local.md",
-    join(".claude", "CLAUDE.md"),
-    join(".claude", "CLAUDE.local.md"),
-  ]);
-  // User-global memory.
-  paths.push(join(cfg, "CLAUDE.md"));
-  paths.push(join(cfg, "CLAUDE.local.md"));
-  // Per-project auto-memory: $CLAUDE_CONFIG_DIR/projects/<slug>/memory/*.md
-  // (plus MEMORY.md index). CC injects these into context for sessions whose
-  // cwd matches the slug. That directory sits beside the <sessionId>.jsonl
-  // transcripts, so it moves with the config dir by construction.
-  const slug = ccProjectSlug(cwd);
-  if (slug) {
-    const memDir = join(cfg, "projects", slug, "memory");
-    try {
-      const entries = await readdir(memDir);
-      for (const f of entries) {
-        if (f.toLowerCase().endsWith(".md")) paths.push(join(memDir, f));
-      }
-    } catch {}
-  }
-  return collectMemoryFiles(paths);
-}
-
-/**
- * The memory files a CODEX session has in scope: AGENTS.md, not CLAUDE.md.
- *
- * WHY THIS FUNCTION EXISTS AT ALL (#399). The context modal's third section was
- * fed by scanClaudeMdFiles for every session regardless of provider, so the
- * moment the donut became reachable for Codex the modal would have told a Codex
- * user "No CLAUDE.md files found on the path from cwd to ~/.claude" — naming a
- * file and a directory Codex does not read. Before this, `AGENTS.md` did not
- * appear anywhere in this repository.
- *
- * That Codex reads it is not an assumption. Sampled every rollout under this
- * machine's CODEX_HOME (structural search, no record content printed): the
- * literal string `AGENTS.md` appears on 9 lines across 5 of the 8 files — in the
- * `response_item/message` role=user preamble Codex prepends to a turn, in a
- * role=developer message, and in a `world_state` record — while `CLAUDE.md`
- * appears on zero lines in any of them.
- *
- * WHY THE FILESYSTEM AND NOT THE ROLLOUT. The rollout does name the files, but
- * only inside message TEXT, and reading the text of a user's conversation to
- * find a filename is not a trade this deck makes anywhere else — the Claude side
- * has always answered the same question by walking the filesystem, and the two
- * halves of one modal section should be derived the same way or the reader
- * cannot compare them.
- *
- * CODEX_HOME comes from codex-dir.mjs like every other Codex path in the
- * process (#375), so a relocated Codex home is honoured here without this
- * module growing a sixth spelling of the rule.
- *
- * Exported for the tests, like readContextFromTranscript beside it: the rule for
- * which files a session has in scope is worth pinning directly, rather than
- * through a watcher, a temp home and a 1.5s poll.
- */
-export async function scanAgentsMdFiles(cwd) {
-  if (!cwd || typeof cwd !== "string") return [];
-  // Codex has no `.codex/AGENTS.md` per-directory convention to mirror CC's
-  // `.claude/CLAUDE.md`, so the per-level list is the single filename.
-  const paths = memoryWalkPaths(cwd, ["AGENTS.md"]);
-  // The user-global instructions file, which Codex loads for every session
-  // whatever the cwd — the counterpart of ~/.claude/CLAUDE.md.
-  paths.push(join(CODEX_HOME, "AGENTS.md"));
-  return collectMemoryFiles(paths);
-}
-
 function maybeResolveContext(payload) {
   if (!payload || typeof payload !== "object") return;
   const sid = payload.session_id;
   const tp = payload.transcript_path;
   const cwd = payload.cwd;
   if (!sid || !tp) return;
-  if (pendingContextReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastContextReadAt.get(sid) ?? 0;
-  if (now - last < CONTEXT_READ_THROTTLE_MS) return;
-  lastContextReadAt.set(sid, now);
-  pendingContextReads.add(sid);
-  Promise.all([readContextFromTranscript(tp), scanClaudeMdFiles(cwd)])
+  contextReads.run(sid, () => Promise.all([readContextFromTranscript(tp), scanClaudeMdFiles(cwd)])
     .then(([breakdown, memoryFiles]) => {
       if (!breakdown && (!memoryFiles || memoryFiles.length === 0)) return;
       pushEvent({
@@ -661,17 +484,14 @@ function maybeResolveContext(payload) {
           memoryFiles: memoryFiles ?? [],
         },
       }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingContextReads.delete(sid));
+    }));
 }
 
-// Throttle state for the Codex half of the same question. Separate maps rather
-// than sharing maybeResolveContext's, because the two run on different triggers
-// — a hook payload there, a batch of appended rollout lines here — and one
-// session cannot be both.
-const lastCodexMemoryReadAt = new Map();
-const pendingCodexMemoryReads = new Set();
+// Throttle state for the Codex half of the same question. A gate of its own
+// rather than sharing maybeResolveContext's, because the two run on different
+// triggers — a hook payload there, a batch of appended rollout lines here — and
+// one session cannot be both.
+const codexMemoryReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 
 /**
  * Emit the memory files a Codex session has in scope, throttled per session.
@@ -716,13 +536,7 @@ const pendingCodexMemoryReads = new Set();
  */
 function maybeResolveCodexMemory(sid, cwd, persist) {
   if (!sid || !cwd) return;
-  if (pendingCodexMemoryReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastCodexMemoryReadAt.get(sid) ?? 0;
-  if (now - last < CONTEXT_READ_THROTTLE_MS) return;
-  lastCodexMemoryReadAt.set(sid, now);
-  pendingCodexMemoryReads.add(sid);
-  scanAgentsMdFiles(cwd)
+  codexMemoryReads.run(sid, () => scanAgentsMdFiles(cwd)
     .then(memoryFiles => {
       // Nothing found is not a fact worth an event: the reducer merges a
       // ContextObserved into whatever the session already had, and an empty list
@@ -739,9 +553,7 @@ function maybeResolveCodexMemory(sid, cwd, persist) {
         provider: "codex",
         context: { memoryFiles },
       }, "internal", { persist });
-    })
-    .catch(() => {})
-    .finally(() => pendingCodexMemoryReads.delete(sid));
+    }));
 }
 
 /**
@@ -763,11 +575,11 @@ function forgetEnrichment(sid) {
   nameBySession.delete(sid);
   // The recap's gate, for the same reason — see noteRecap.
   recapBySession.delete(sid);
-  lastNameReadAt.delete(sid);
-  modelLastReadAt.delete(sid);
-  lastUsageReadAt.delete(sid);
-  lastContextReadAt.delete(sid);
-  lastCodexMemoryReadAt.delete(sid);
+  nameReads.forget(sid);
+  modelReads.forget(sid);
+  usageReads.forget(sid);
+  contextReads.forget(sid);
+  codexMemoryReads.forget(sid);
 }
 
 /**
@@ -784,8 +596,8 @@ function clearEnrichmentGates() {
   // would not be re-read at all and the name would stay missing until the
   // throttle expired — a clear followed by a keystroke is exactly when a
   // user is watching.
-  lastNameReadAt.clear();
-  modelLastReadAt.clear();
+  nameReads.forgetAll();
+  modelReads.forgetAll();
 }
 
 // What index.mjs calls besides the readers exported above. Listed rather than
