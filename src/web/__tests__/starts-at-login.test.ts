@@ -29,6 +29,7 @@ const {
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const DECK = read("../../../bin/deck.js");
+const UNINSTALL = read("../../../bin/cli/uninstall.js");
 const SRC = read("../../server/login-service.mjs");
 
 const JOB = {
@@ -487,9 +488,12 @@ describe("installing it, and saying so", () => {
     // which are data somebody may still want. A login item left behind is not
     // data — it is a machine that keeps starting a deck whose hooks were just
     // removed.
-    const at = DECK.indexOf("flags.uninstall");
-    const gone = DECK.indexOf("svc.uninstallService()", at);
-    const retire = DECK.indexOf("retireSoundHook", at);
+    // The command lives in bin/cli/uninstall.js; deck.js hands it the flag.
+    expect(DECK).toMatch(/if \(flags\.uninstall \|\| flags\.purge\) \{\s*process\.exit\(await uninstall\(/);
+    const at = UNINSTALL.indexOf("export async function uninstall(");
+    const gone = UNINSTALL.indexOf("svc.uninstallService()", at);
+    const retire = UNINSTALL.indexOf("retireSoundHook", at);
+    expect(at).toBeGreaterThan(-1);
     expect(gone).toBeGreaterThan(at);
     expect(gone).toBeLessThan(retire);
   });

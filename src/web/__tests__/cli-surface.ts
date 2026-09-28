@@ -31,6 +31,7 @@ export const CLI_FILES = [
   "bin/deck.js",
   "bin/cli/help.js",
   "bin/cli/package.js",
+  "bin/cli/uninstall.js",
 ] as const;
 
 let joined: string | null = null;
