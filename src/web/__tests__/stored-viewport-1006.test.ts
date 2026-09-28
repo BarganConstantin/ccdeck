@@ -69,9 +69,11 @@ describe("a stored viewport", () => {
 
 describe("App.tsx", () => {
   it("reads the viewport key through the check", () => {
-    const at = app.indexOf("function loadViewport(");
-    expect(at, "loadViewport is gone from App.tsx").toBeGreaterThan(-1);
-    const body = app.slice(at, app.indexOf("\n}\n", at));
+    // The storage half moved to layout-storage.ts; App.tsx calls it.
+    const storage = readFileSync(fileURLToPath(new URL("../layout-storage.ts", import.meta.url)), "utf8");
+    const at = storage.indexOf("function loadViewport(");
+    expect(at, "loadViewport is gone from layout-storage.ts").toBeGreaterThan(-1);
+    const body = storage.slice(at, storage.indexOf("\n}\n", at));
     expect(body).toContain("parseStoredViewport(");
     // And does not parse the key a second way beside it.
     expect(body).not.toContain("JSON.parse");

@@ -99,10 +99,12 @@ describe("parseLayoutFrame", () => {
 });
 
 describe("App.tsx", () => {
+  // The storage half moved to layout-storage.ts, which App.tsx imports.
+  const storage = readFileSync(fileURLToPath(new URL("../layout-storage.ts", import.meta.url)), "utf8");
   const body = (name: string) => {
-    const start = app.indexOf(`function ${name}(`);
-    expect(start, `${name} is gone from App.tsx`).toBeGreaterThan(-1);
-    return app.slice(start, app.indexOf("\n}\n", start));
+    const start = storage.indexOf(`function ${name}(`);
+    expect(start, `${name} is gone from layout-storage.ts`).toBeGreaterThan(-1);
+    return storage.slice(start, storage.indexOf("\n}\n", start));
   };
 
   it("reads and writes the layout key through the format above", () => {
