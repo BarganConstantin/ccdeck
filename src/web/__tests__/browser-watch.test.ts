@@ -205,7 +205,8 @@ describe("what the badge counts", () => {
 });
 
 describe("how App.tsx wires it up", () => {
-  const app = src("../App.tsx");
+  // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+  const app = src("../App.tsx") + "\n" + src("../components/TopbarRuns.tsx");
 
   it("feeds the badge from its own poll, not from opening the dialog", () => {
     // The badge — its poll, its count and the seen stamp — moved to

@@ -25,7 +25,8 @@ import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts");
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
 const soundMenu = read("../components/SoundMenu.tsx");
 const watchModal = read("../components/BrowserWatchModal.tsx");
 const css = read("../styles.css");

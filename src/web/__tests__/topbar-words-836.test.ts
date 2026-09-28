@@ -13,7 +13,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const app = read("../App.tsx") + "\n" + read("../components/TopbarRuns.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The opening tag and body of the <button> a word sits in, up to the word. */
@@ -123,18 +124,26 @@ describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when o
   });
 
   it("groups the panels in two runs and stands the settings apart, by spacing alone", () => {
-    expect(app.match(/<div className="action-run">/g)).toHaveLength(2);
-    expect(app.match(/<div className="action-run action-run-utility">/g)).toHaveLength(1);
+    // The two panel runs are components/TopbarRuns.tsx's; the settings run is
+    // App.tsx's, and App.tsx draws the three in order.
+    const runs = read("../components/TopbarRuns.tsx");
+    const appOnly = read("../App.tsx");
+    expect(runs.match(/<div className="action-run">/g)).toHaveLength(2);
+    expect(appOnly.match(/<div className="action-run">/g)).toBeNull();
+    expect(appOnly.match(/<div className="action-run action-run-utility">/g)).toHaveLength(1);
     expect(body(".topbar .action-run")).toMatch(/gap: 4px;/);
     expect(body(".topbar .actions")).toMatch(/gap: 12px;/);
     expect(css).toMatch(/\.topbar \.action-run-utility \{ margin-left: 12px; \}/);
     // The runs are Session list, Usage, History | Accounts, Machine, Browser
     // watch | Sound, theme.
-    const second = app.indexOf('<div className="action-run">', app.indexOf('<div className="action-run">') + 1);
-    const utility = app.indexOf('<div className="action-run action-run-utility">');
-    expect(app.indexOf('aria-label="Open usage history"')).toBeLessThan(second);
-    expect(app.indexOf('aria-label="Toggle accounts panel"')).toBeGreaterThan(second);
-    expect(app.indexOf("aria-label={`Browser watch, ")).toBeLessThan(utility);
+    const second = runs.indexOf('<div className="action-run">', runs.indexOf('<div className="action-run">') + 1);
+    expect(runs.indexOf('aria-label="Open usage history"')).toBeLessThan(second);
+    expect(runs.indexOf('aria-label="Toggle accounts panel"')).toBeGreaterThan(second);
+    expect(runs.indexOf("aria-label={`Browser watch, ")).toBeGreaterThan(second);
+    const actions = appOnly.slice(appOnly.indexOf('<div className="actions">'));
+    expect(actions.indexOf("<SessionRun")).toBeGreaterThan(-1);
+    expect(actions.indexOf("<SessionRun")).toBeLessThan(actions.indexOf("<SourceRun"));
+    expect(actions.indexOf("<SourceRun")).toBeLessThan(actions.indexOf('<div className="action-run action-run-utility">'));
   });
 
   it("gives the narrow dollar sign back the air its box adds", () => {

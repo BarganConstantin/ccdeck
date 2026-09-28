@@ -58,7 +58,8 @@ function codeOf(text: string): string {
     .join("\n");
 }
 
-const appCode = codeOf(read("src", "web", "App.tsx"));
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const appCode = codeOf(read("src", "web", "App.tsx")) + "\n" + codeOf(read("src", "web", "components", "TopbarRuns.tsx"));
 const nodeCode = codeOf(read("src", "web", "components", "AgentNode.tsx"));
 const deckCode = codeOf(read("bin", "deck.js"));
 const readme = read("README.md");

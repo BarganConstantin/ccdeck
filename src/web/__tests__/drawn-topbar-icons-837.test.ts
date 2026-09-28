@@ -8,7 +8,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-const bar = /<header className="topbar"[\s\S]*?<\/header>/.exec(app)?.[0] ?? "";
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const bar = (/<header className="topbar"[\s\S]*?<\/header>/.exec(app)?.[0] ?? "")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8");
 
 describe("the topbar draws its icons on one spec (#837)", () => {
   it("finds the topbar", () => {
