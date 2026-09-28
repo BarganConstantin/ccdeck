@@ -76,13 +76,6 @@ const INVOKED_AS = invokedAs({ pkgRoot: PKG_ROOT, argv1: process.argv[1], platfo
 const P = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
 const G = glyphs(unicodeOK());
 
-// Who the restart-failure note below belongs to. Several decks of the same
-// package run out of one home directory — two `npx ccdeck` runs even share the
-// _npx directory and therefore the version — so a note named after the package
-// alone was read by every one of them, and a deck that had never asked for an
-// update reported someone else's failed npx as its own. Our pid is unique among
-// the decks alive on the machine, and putting it in our own environment is what
-// carries it to the worker: launch() spawns with a copy of it.
 // ── the terminal stops being the deck's leash ────────────────────────────────
 //
 // Everything about why is in src/server/detach.mjs. Here is only the decision,
@@ -170,6 +163,13 @@ if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
   console.error(`${PRODUCT}: could not open ${PRODUCT}'s log (${outcome.reason}) ${G.dash} staying in the foreground.`);
 }
 
+// Who the restart-failure note below belongs to. Several decks of the same
+// package run out of one home directory — two `npx ccdeck` runs even share the
+// _npx directory and therefore the version — so a note named after the package
+// alone was read by every one of them, and a deck that had never asked for an
+// update reported someone else's failed npx as its own. Our pid is unique among
+// the decks alive on the machine, and putting it in our own environment is what
+// carries it to the worker: launch() spawns with a copy of it.
 claimRestartFailureKey();
 
 // The port the worker actually bound, which is not necessarily the one it was
