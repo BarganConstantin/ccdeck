@@ -2,10 +2,11 @@
 // header may reach past it — the geometry the cluster layer draws, worked out
 // from the agent cards React Flow has measured.
 //
-// Lifted out of components/SessionClusters.tsx unchanged. None of it touches
-// React: the component hands clusterBounds the store's nodes through a
-// selector, re-renders only when shallowEqualClusters says a box moved, and
-// draws what comes back. The words on each header are cluster-header.ts's.
+// Lifted out of components/SessionClusters.tsx. None of it touches React: the
+// component hands clusterBounds the store's nodes through a selector,
+// re-renders only when shallowEqualClusters says a box moved, and draws what
+// comes back in the two inline styles clusterBoxStyle and clusterLabelStyle
+// build. The words on each header are cluster-header.ts's.
 import type React from "react";
 import { isAlarming } from "./ambient-counts";
 import { clusterHeader, type ClusterHeader } from "./cluster-header";
