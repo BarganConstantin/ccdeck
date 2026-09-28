@@ -100,6 +100,8 @@ function sourceOf(name: string): string {
   return hit.src;
 }
 const historySrc = sourceOf("UsageHistoryModal.tsx");
+/** The modal's rows and the colour each model is drawn in, lifted out of it. */
+const historyRowsSrc = sourceOf("usage-history.ts");
 const agentsSrc = sourceOf("usage-agents.ts");
 
 /** WCAG 1.4.3 for a word, 1.4.11 for a graphic that carries meaning. */
@@ -248,10 +250,10 @@ function functionBody(src: string, name: string): string {
 const returnsOf = (src: string, name: string) =>
   [...functionBody(src, name).matchAll(/return\s+"([^"]*)"/g)].map(m => m[1]);
 
-/** The eight, as UsageHistoryModal writes them — read out of the source rather
+/** The eight, as modelColor writes them — read out of the source rather
  *  than restated here, so a ninth model family lands in every sweep below on
  *  the day it is added rather than on the day somebody remembers this file. */
-const MODEL_COLOURS = returnsOf(historySrc, "modelColor");
+const MODEL_COLOURS = returnsOf(historyRowsSrc, "modelColor");
 const AGENT_COLOURS = returnsOf(agentsSrc, "agentColor");
 const SERIES = [...new Set([...MODEL_COLOURS, ...AGENT_COLOURS])];
 
@@ -360,7 +362,7 @@ describe("the eight colours answer the theme now, and still say which model they
     // The family test is the thing the cascade cannot do — there is no selector
     // for "the model name contains sonnet". What moved is the value, not the
     // decision, which is exactly the boundary #330 drew for the session hues.
-    expect(historySrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--usage-blue\)"/);
+    expect(historyRowsSrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--usage-blue\)"/);
     expect(agentsSrc).toMatch(/case "codex": return "var\(--usage-orange\)"/);
   });
 

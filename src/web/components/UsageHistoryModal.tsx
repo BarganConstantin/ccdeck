@@ -18,45 +18,11 @@ import { agentColor, agentTotals, dayAgentSummary, sharePct } from "../usage-age
 import type { Providers } from "../providers";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { asResp, type CcusageResp } from "../usage-history";
+import { asResp, modelColor, type CcusageResp } from "../usage-history";
 
 /** A landed response together with the preset it was requested for. The tag is
  *  what lets the view refuse to show one range's numbers under another's tab. */
 interface Landed { range: number; resp: CcusageResp; }
-
-// ── helpers ─────────────────────────────────────────────────────────────────
-/**
- * Stable per-model colour. Family-based so opus/sonnet/haiku/gpt read
- * consistently.
- *
- * A `var(--…)` string and not a hex, which is the whole of #583's first half.
- * These were eight literals chosen against the dark canvas — four of them
- * byte-identical to the dark theme's --accent, --ok, --warn and --err — and
- * because they are written into an inline `style` there is no selector the
- * stylesheet could add that would reach them: an inline style outranks the
- * cascade. On white they measured 1.40:1 to 2.56:1 against the modal's --panel,
- * every one under the 3:1 a bar in a bar chart owes SC 1.4.11.
- *
- * The boundary #330 drew for the session hues is the one that applies: this
- * function knows which model family a band is, the cascade knows which canvas
- * it is drawn on, and only one of those two should be deciding a lightness. So
- * the mapping stays here and the values live at :root, per theme, where a test
- * can compute them and a theme switch can answer them — which is exactly what
- * #357 did for --edge-transition, and legal in an inline style for the same
- * reason: `background: var(--usage-blue)` resolves against the element's own
- * computed custom properties.
- */
-function modelColor(m: string): string {
-  const s = m.toLowerCase();
-  if (s.includes("opus")) return "var(--usage-purple)";
-  if (s.includes("sonnet")) return "var(--usage-blue)";
-  if (s.includes("haiku")) return "var(--usage-green)";
-  if (s.includes("gpt-5") || s.includes("gpt5")) return "var(--usage-amber)";
-  if (s.includes("gpt")) return "var(--usage-red)";
-  if (s.includes("gemini")) return "var(--usage-indigo)";
-  if (s.includes("codex")) return "var(--usage-orange)";
-  return "var(--usage-zinc)";
-}
 
 const PRESETS = [7, 14, 30, 90];
 
