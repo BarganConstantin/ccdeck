@@ -30,8 +30,8 @@ import { presentsDeckToken } from "./request-gates.mjs";
 // engine's card and /api/version give one answer — see running-version.mjs.
 import { RUNNING_VERSION } from "./running-version.mjs";
 
-// Resolved the way index.mjs resolves it, from a file in the same directory, so
-// every lazy import below is the URL the pin has already evaluated.
+// Resolved the way pinned-build.mjs resolves it, from a file in the same
+// directory, so every lazy import below is the URL the pin has already evaluated.
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // Set from startServer's options. The server cannot restart itself — the

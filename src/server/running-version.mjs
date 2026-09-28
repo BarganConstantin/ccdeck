@@ -11,7 +11,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Resolved the way index.mjs resolves it, from a file in the same directory.
+// Resolved the way pinned-build.mjs resolves it, from a file in the same
+// directory.
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // Read at import — i.e. at boot, before an upgrade can overwrite these files.
