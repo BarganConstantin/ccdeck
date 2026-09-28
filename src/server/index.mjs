@@ -73,7 +73,6 @@ import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdate
 // The one spelling of `--workspace`, and of a rollout's cwd — see
 // canonical-path.mjs. Both were exported from this file before they moved,
 // and still are.
-import { canonicalCwd } from "./canonical-path.mjs";
 export { canonicalCwd, canonicalWorkspace } from "./canonical-path.mjs";
 import { ccProjectSlug } from "./claude-dir.mjs";
 // Moved to claude-dir.mjs so the Projects rollup can read transcript folders
