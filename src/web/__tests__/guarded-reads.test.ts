@@ -24,6 +24,7 @@ import type { IncomingHttpHeaders, Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { GROUPS as STRIP_GROUPS } from "../components/MachineStrip";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-guarded-reads-"));
 process.env.HOME = DIR;
@@ -300,7 +301,9 @@ describe("what stays open, and why", () => {
   // machine with nothing to report. So the names are read from the two places
   // that send them rather than typed a third time here.
   it("answers every history section the machine panel and the strip ask for", async () => {
-    const panel = readFileSync(fileURLToPath(new URL("../components/MachinePanel.tsx", import.meta.url)), "utf8");
+    // The panel and every file lifted out of it: the network section asks for
+    // its history from MachineNetwork.tsx.
+    const panel = machinePanelSurface();
     const asked = new Set<string>([
       ...[...panel.matchAll(/<OpensHistory\s+group="(\w+)"/g)].map(m => m[1]),
       ...STRIP_GROUPS,

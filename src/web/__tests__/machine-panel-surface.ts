@@ -24,6 +24,7 @@ export const MACHINE_PANEL_FILES = [
   "machine-readings.ts",
   "use-system.ts",
   "components/MachineReadout.tsx",
+  "components/MachineNetwork.tsx",
 ] as const;
 
 let joined: string | null = null;
