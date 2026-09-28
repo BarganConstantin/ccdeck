@@ -60,6 +60,13 @@ const SWAP_NOTE_MS = 8_000;
 // transient confirmation — `copied` on a share — uses the same 1.8s, and the
 // word is the whole signal.
 const SAVED_MS = 1_800;
+// How long a share's `Copy` stands as `Copied`. The same 1.8s as `saved`, for
+// the same reason, and the same length ShareAccountsDialog gives its own copy.
+const COPIED_MS = 1_800;
+// How long Remove stays armed before it stands down on its own. The bar that
+// drains along its foot is timed to this in styles.css (`ap-disarm 4000ms`),
+// so the two change together or the bar lies about the window.
+const REMOVE_ARMED_MS = 4_000;
 // Past this, a reload is called dead rather than slow. Both routes can spawn
 // cswap, and the server kills those at 20 seconds, so anything shorter would
 // abort answers that were still coming.
@@ -980,7 +987,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                             if (press === "arm") {
                               setConfirmRemove(a.num);
                               removeArmedAt.current = now;
-                              window.setTimeout(() => setConfirmRemove(c => (c === a.num ? null : c)), 4000);
+                              window.setTimeout(() => setConfirmRemove(c => (c === a.num ? null : c)), REMOVE_ARMED_MS);
                               return;
                             }
                             // A double-click is one decision, not two: its second
@@ -1117,7 +1124,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                                 if (dead) { await makeShare(a.num); return; }
                                 if (await copyText(share.blob)) {
                                   setShareCopied(true);
-                                  window.setTimeout(() => setShareCopied(false), 1800);
+                                  window.setTimeout(() => setShareCopied(false), COPIED_MS);
                                 }
                               }}>
                               {dead ? "Make a new share" : shareCopied ? "Copied" : "Copy"}

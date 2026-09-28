@@ -58,7 +58,6 @@ export function staleCopyText(repair: Repair | null, nowSec: number): { text: st
   return { text: "numbers paused", hint: why };
 }
 
-/** Plain-language version of claude-swap's error codes. */
 /**
  * claude-swap's failure codes, said in the product's voice.
  *
