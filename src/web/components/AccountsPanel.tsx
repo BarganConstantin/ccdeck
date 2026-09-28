@@ -30,6 +30,7 @@ import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
 import { useThresholdDraft } from "../use-threshold-draft";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
+import { useRosterFocus } from "../use-roster-focus";
 import { type Account, type AccountsData } from "../claude-accounts";
 
 interface Props {
@@ -104,6 +105,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // one.
   const trimLanes = useCallback((fresh: AccountsData) => setOpenLanes(open => knownLanes(open, fresh.accounts)), []);
   const { data, auto, reloading, failure, load, sayFailure, clearFailure } = useAccountRoster(trimLanes);
+  // Focus through a roster the panel did not ask for: a switch made outside it
+  // redraws the focused row in the other list — see use-roster-focus.ts.
+  const rosterFocus = useRosterFocus(data);
 
   /**
    * Focus the nearest control that outlived the press.
@@ -336,7 +340,8 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     // aria-label on a roleless <div> resolved to `generic` and the tree threw
     // the name away (#381). This panel is the left sidebar beside the canvas,
     // which is complementary content by any reading.
-    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts">
+    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts"
+      onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
           onAdd={() => setAddOpen(true)} onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
