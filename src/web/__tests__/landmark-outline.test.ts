@@ -167,8 +167,10 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // be a template built on the class. What is NOT allowed to move is the
       // rest of it: the tag, the id and the label are what the rotor reads.
       const className = `(?:"${cls}"|\\{\`${cls}\\$\\{[^\`]*\\}\`\\})`;
+      // What follows the label is not the rotor's: the accounts panel listens
+      // for focus on the whole column (#1497), and handlers render nothing.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}">`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}"(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\})*>`));
     }
     // The detail panel was already an <aside> and was the unnamed one.
     expect(code(app)).toMatch(/<aside className="detail" aria-label="Detail">/);

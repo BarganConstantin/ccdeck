@@ -39,6 +39,8 @@ export const ACCOUNTS_FILES = [
   "account-fold.ts",
   "account-lan.ts",
   "use-threshold-draft.ts",
+  "use-roster-focus.ts",
+  "account-refocus.ts",
 ] as const;
 
 let joined: string | null = null;
