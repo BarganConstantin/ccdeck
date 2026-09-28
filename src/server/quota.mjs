@@ -451,6 +451,16 @@ export function resetCreditsSettled() {
   return _creditsInflight ?? Promise.resolve();
 }
 
+/** The held inventory, forgotten — for invalidateQuotaCache. */
+function forgetResetCredits() { _credits = null; }
+
+/** The inventory floor, cleared — for resetQuotaPollFloor, beside the
+ *  self-poll floor it clears. */
+function clearResetCreditsFloor() {
+  _creditsTriedAt = 0;
+  _creditsTriedFor = null;
+}
+
 // After asking claude-swap to collect, how long to keep looking for the row it
 // writes. Its fetch is a single HTTPS call; three tries covers a slow one
 // without making the refresh button feel stuck.
@@ -491,8 +501,7 @@ async function nudgeAndReread(previous) {
 export function resetQuotaPollFloor() {
   _lastSelfPollAt = 0;
   clearCooldown();
-  _creditsTriedAt = 0;
-  _creditsTriedFor = null;
+  clearResetCreditsFloor();
 }
 
 async function _doFetch(now, force = false, gen = _generation) {
@@ -666,5 +675,5 @@ export function invalidateQuotaCache() {
   // claude-swap's own auto-switch. The inventory floor survives, for the reason
   // the self-poll floor does, and an account not tried yet is on the short one
   // anyway.
-  _credits = null;
+  forgetResetCredits();
 }
