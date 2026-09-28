@@ -289,7 +289,10 @@ describe("the wiring", () => {
 
   it("arms the tick when the server starts, and asks again after the lookup", () => {
     const start = index.indexOf("export async function startServer(");
-    expect(index.indexOf("_awayTimer = setInterval(", start)).toBeGreaterThan(start);
+    expect(start).toBeGreaterThan(-1);
+    expect(index.indexOf("startAwayUpdate();", start)).toBeGreaterThan(start);
+    // And that call is the timer, armed afresh on every boot.
+    expect(index).toMatch(/function startAwayUpdate\(\) \{[^}]*?clearInterval\(_awayTimer\);\s+_awayTimer = setInterval\(/);
     expect(index).toContain("if (presence.looking(again) || activity.busy(again) || _restarting) return null;");
   });
 

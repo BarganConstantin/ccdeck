@@ -2480,6 +2480,21 @@ async function awayUpdateTick() {
   return step.act;
 }
 
+/**
+ * The away-update's clock. The boot grace counts from here, and the timer is
+ * unref'd so it never keeps a process alive on its own. It does nothing until
+ * the launcher has handed down a restart — see awayGate's `supervised`.
+ *
+ * Lifted out of startServer, which calls it once per boot; a second boot in the
+ * same process replaces the timer rather than adding one.
+ */
+function startAwayUpdate() {
+  _bootedAt = Date.now();
+  clearInterval(_awayTimer);
+  _awayTimer = setInterval(() => { awayUpdateTick().catch(() => {}); }, AWAY_TICK_MS);
+  _awayTimer.unref?.();
+}
+
 /** POST {tab, looking} — a tab saying whether it is being looked at. See
  *  presence.mjs, and src/web/presence.ts for the sender. */
 async function handlePresence(req, res) {
@@ -4215,7 +4230,14 @@ let _restarting = false;
 // is reachable in and cannot answer for on its own.
 let _deckReady = false;
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+/**
+ * What this boot's launcher handed down, and the latches reset for it.
+ *
+ * Lifted out of startServer, which calls it first, once per boot: the restart
+ * and the stop it may hand to, whether a restart would have a log to replay,
+ * and the two in-flight flags and the ready flag, all back to a fresh boot's.
+ */
+function armLifecycle({ onRestart, onStop, persist }) {
   _onRestart = typeof onRestart === "function" ? onRestart : null;
   _onStop = typeof onStop === "function" ? onStop : null;
   _stopping = false;
@@ -4224,6 +4246,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // reporting. Nothing but bin/deck.js ever sets this, and it does so once, at
   // the end of the startup that begins with this call.
   _deckReady = false;
+}
+
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+  armLifecycle({ onRestart, onStop, persist });
   _workspace = typeof workspace === "string" ? workspace : "";
   // `!== false` rather than a cast: a caller that omits the field means "yes",
   // which is how every embedder that predates this option keeps working.
@@ -4231,13 +4257,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.
   resetLanLoaded();
-  // The away-update's clock. The boot grace counts from here, and the timer is
-  // unref'd so it never keeps a process alive on its own. It does nothing until
-  // the launcher has handed down a restart — see awayGate's `supervised`.
-  _bootedAt = Date.now();
-  clearInterval(_awayTimer);
-  _awayTimer = setInterval(() => { awayUpdateTick().catch(() => {}); }, AWAY_TICK_MS);
-  _awayTimer.unref?.();
+  // The away-update's clock starts here — see startAwayUpdate.
+  startAwayUpdate();
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see repairStaleCopyWith.
