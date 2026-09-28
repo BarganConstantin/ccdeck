@@ -22,28 +22,18 @@
 // all — and it is why self-recognition is by fingerprint rather than by
 // address.
 import dgram from "node:dgram";
+import net from "node:net";
+import { randomBytes } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { looksLikeTunnel } from "./route-via.mjs";
+import {
+  beaconPayload, beaconVerdict, challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript,
+  hostId, mixesEphemeral, notePeer, proof, proofOk, inviteProof, inviteProofBack, readBeacon, readChallenge,
+  readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
+  ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
+} from "./lan-sync.mjs";
 
 /** An IPv4 dotted quad as four numbers, or null for anything that is not one. */
-/**
- * What each refusal reason means, in a sentence the LAN panel can print.
- *
- * At module scope so it is one object rather than one per frame, and named so
- * the `Object.hasOwn` guard below reads as the rule it is rather than as
- * punctuation. The keys are the protocol's, not a user's.
- */
-const REFUSALS = Object.freeze({
-  pending: "waiting for the other deck to accept this one",
-  declined: "that deck said no",
-  "invite only": "that deck pairs only by invite",
-  // Sent back to a caller that said it was not asking, so the far end's answer
-  // is about the caller's own setting — the same words its own round uses.
-  "not asking": "this deck pairs only by invite",
-  impostor: "that deck has this one pinned under a different key",
-  "bad proof": "the other deck refused this one's proof",
-});
-
 function quad(text) {
   const parts = String(text ?? "").split(".");
   if (parts.length !== 4) return null;
@@ -117,14 +107,6 @@ export function leavesByTunnel(target, via, isTunnel) {
   if (target.iface) return via !== target.iface;
   return isTunnel(via);
 }
-import net from "node:net";
-import { randomBytes } from "node:crypto";
-import {
-  beaconPayload, beaconVerdict, challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript,
-  hostId, mixesEphemeral, notePeer, proof, proofOk, inviteProof, inviteProofBack, readBeacon, readChallenge,
-  readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
-  ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
-} from "./lan-sync.mjs";
 
 /** The one fixed port in the feature. Out of the deck's HTTP range (4317-4400)
  *  so a beacon can never be mistaken for a deck's own traffic, and unassigned:
@@ -305,7 +287,7 @@ export function createBeacon({
   let repliedAt = 0;
   const answered = new Set();
 
-    const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
+  const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
 
   const announce = (also = []) => {
     if (!sock && !out) return;
@@ -1105,6 +1087,24 @@ export function createSyncServer({
     },
   };
 }
+
+/**
+ * What each refusal reason means, in a sentence the LAN panel can print.
+ *
+ * At module scope so it is one object rather than one per frame, and named so
+ * the `Object.hasOwn` guard below reads as the rule it is rather than as
+ * punctuation. The keys are the protocol's, not a user's.
+ */
+const REFUSALS = Object.freeze({
+  pending: "waiting for the other deck to accept this one",
+  declined: "that deck said no",
+  "invite only": "that deck pairs only by invite",
+  // Sent back to a caller that said it was not asking, so the far end's answer
+  // is about the caller's own setting — the same words its own round uses.
+  "not asking": "this deck pairs only by invite",
+  impostor: "that deck has this one pinned under a different key",
+  "bad proof": "the other deck refused this one's proof",
+});
 
 /**
  * The calling half: connect, prove, be proved to, then talk.
