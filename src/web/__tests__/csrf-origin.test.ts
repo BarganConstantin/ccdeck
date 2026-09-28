@@ -43,7 +43,9 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 }
 
 // @ts-expect-error — plain .mjs module, no types
-const { isTrustedMutation, startServer, hookToken, challengeProof } = await import("../../server/index.mjs");
+const { startServer, hookToken, challengeProof } = await import("../../server/index.mjs");
+// @ts-expect-error — plain .mjs module, no types
+const { isTrustedMutation } = await import("../../server/request-gates.mjs");
 
 const HOST = "127.0.0.1:4317";
 
@@ -272,9 +274,11 @@ describe("mutations require the deck's own authority", () => {
   // /api/presence, the three LAN routes or either browser-watch route without
   // a credential. The gate denies by default, so a route added tomorrow is
   // covered — and the way that stops being true is a route landing in
-  // OPEN_MUTATIONS, which this reads out of the router rather than trusting a
-  // copy of it (#1168).
+  // OPEN_MUTATIONS, which this reads out of the source rather than trusting a
+  // copy of it (#1168). The routes are the router's, in index.mjs; the set is
+  // the gates', in request-gates.mjs.
   const routerSource = withoutComments(readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8"));
+  const gatesSource = withoutComments(readFileSync(fileURLToPath(new URL("../../server/request-gates.mjs", import.meta.url)), "utf8"));
   const postRoutes = [...new Set(
     [...routerSource.matchAll(/req\.method === "POST"\s*&&\s*url\.pathname === "([^"]+)"/g)].map(m => m[1]),
   )];
@@ -296,7 +300,7 @@ describe("mutations require the deck's own authority", () => {
     // The set the whole gate turns on. Anything added to it is a route any local
     // process may call with no credential, and the comment above it says what
     // has to be asked of each one first.
-    const literal = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(routerSource)?.[1];
+    const literal = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(gatesSource)?.[1];
     expect(literal, "OPEN_MUTATIONS is no longer a Set literal this can read").toBeDefined();
     expect([...literal!.matchAll(/"([^"]*)"/g)].map(m => m[1])).toEqual(["/api/event"]);
   });

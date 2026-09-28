@@ -25,7 +25,7 @@
 // the user to paste.
 //
 // WHY IT NEVER ELEVATES AND NEVER WRITES. Not squeamishness — the deck's own
-// threat model. `isTrustedMutation` in index.mjs deliberately lets a request
+// threat model. `isTrustedMutation` deliberately lets a request
 // carrying no Origin header through (`if (!hasOrigin && !site) return true;`)
 // so that hook.js and curl keep working, on the reasoning that a process able
 // to POST to loopback can already run anything as the user. That reasoning

@@ -216,7 +216,7 @@ describe("what wiring it up must not have changed", () => {
   });
 
   it("leaves the deck with no route that could run the command for you", () => {
-    // index.mjs's `isTrustedMutation` deliberately lets an Origin-less request
+    // `isTrustedMutation` deliberately lets an Origin-less request
     // through so hook.js and curl keep working. That reasoning holds only while
     // no route can do something the caller could not do for itself — the moment
     // one can raise a password dialog, any local process gets to make an

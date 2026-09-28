@@ -271,7 +271,11 @@ describe("the wiring", () => {
 
   it("takes presence on a route only the deck's own page can post to", () => {
     expect(index).toMatch(/url\.pathname === "\/api\/presence"\)\s+return guard\(handlePresence\(req, res\), res\);/);
-    const open = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(index)?.[1] ?? "";
+    // The set lives with the gates that read it, in request-gates.mjs, and it
+    // has to be found there: a pattern that matched nothing would make the
+    // refusal below pass on an empty string.
+    const open = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(src("../../server/request-gates.mjs"))?.[1];
+    expect(open, "OPEN_MUTATIONS is no longer a Set literal this can read").toBeDefined();
     expect(open).not.toMatch(/presence/);
   });
 
