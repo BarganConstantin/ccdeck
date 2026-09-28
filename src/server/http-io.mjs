@@ -9,6 +9,11 @@
 // 413 and the drain after it are one rule with two callers: handleEventIngest
 // keeps its own copy of the shape for a larger cap and imports the drain's
 // deadline from here.
+//
+// sendInternalError joined them from index.mjs when the event routes left it:
+// it is the answer to a handler that threw, the route table's `guard` and its
+// last line of defence both call it, and so does the ingest route.
+import { PRODUCT } from "./brand.mjs";
 
 export function send(res, status, body, headers = {}) {
   // ALREADY ANSWERED. A handler that replies after something upstream has
@@ -79,4 +84,21 @@ export function readBody(req, res = null, limit = 64_000) {
     req.on("end", () => { if (!refused) resolve(body); });
     req.on("error", reject);
   });
+}
+
+// A request handler rejected. Two audiences, two different amounts of detail:
+// the operator, who needs the whole error — stack included — to find the bug,
+// and the HTTP client, which needs to know only that the request failed.
+//
+// They used to get the same string, on the theory that this server binds
+// 127.0.0.1 and its only client is the user's own tab. A DNS-rebound page
+// reaches a loopback server as same-origin and can read the body, and the
+// errors that land here carry absolute paths out of the user's home directory
+// — a failed rename of ~/.claude/settings.json, an ENOENT from an import. So
+// stderr keeps every byte and the response body carries none of it; nothing is
+// swallowed, it just stops travelling over the wire.
+export function sendInternalError(res, err, log = console.error) {
+  log(`${PRODUCT}: request handler failed:`, err);
+  if (!res.headersSent) send(res, 500, { error: "internal error" });
+  else res.end();
 }
