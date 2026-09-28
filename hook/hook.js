@@ -527,7 +527,7 @@ function prove(d, cb, attempt = 0) {
  * The election has to be decided over the decks that are actually going to be
  * handed the payload, and the only thing that establishes that is the handshake.
  * So: prove, then elect, then post. It costs no extra round trip, only this
- * ordering, and it is the same reordering src/server/index.mjs makes in
+ * ordering, and it is the same reordering src/server/live-decks.mjs makes in
  * readLiveDecks for the Codex rollouts no hook ever sees.
  *
  * A FAILED CHALLENGE ON ITS OWN IS STILL NOT PROOF THE DECK IS GONE. A dead pid
