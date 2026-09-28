@@ -274,7 +274,7 @@ export function invalidateBrowserWatchCache() {
 }
 
 /** The floor between two reads somebody paid for, spelled the way quota.mjs,
- *  codex-quota.mjs, codex-usage.mjs, self-update.mjs and claude-accounts.mjs
+ *  codex-quota.mjs, codex-usage.mjs, npm-latest.mjs and claude-accounts.mjs
  *  spell it — one idea, one name, one number. */
 const FORCE_POLL_MS = 60_000;
 

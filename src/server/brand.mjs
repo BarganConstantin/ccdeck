@@ -4,10 +4,11 @@
 // something has already gone wrong, which is the worst moment to introduce
 // yourself by a name that appears nowhere else they have seen.
 //
-// Display name only. The package published to npm is still `agents-deck`, so
-// self-update.mjs's `name` defaults stay as they are — that string is what the
-// registry is queried for and what `npm i -g` installs, and an install that
-// names the product instead of the package installs nothing. Same for the
+// Display name only. The package published to npm is a separate fact, even
+// though it has been spelled `ccdeck` too since the old names were retired:
+// install-layout.mjs's PUBLISHED_NAME is what the registry is queried for and
+// what `npm i -g` installs, and an install that names the product instead of
+// the package installs nothing once the two differ again. Same for the
 // marker files under ~/.agents-deck, the event log under ~/.claude/agent-dag,
 // the AGENTS_DECK_* variables and the `user-agent` headers: identifiers outlive
 // a rename, and moving one orphans a running deck from its own state.
