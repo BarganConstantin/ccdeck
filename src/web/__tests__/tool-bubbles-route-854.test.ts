@@ -21,7 +21,8 @@ const code = (src: string) => src
 
 const bursts = code(read("../components/ToolBursts.tsx"));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-const app = code(read("../App.tsx")) + "\n" + code(read("../use-deck-shortcuts.ts"));
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = code(read("../App.tsx")) + "\n" + code(read("../use-deck-shortcuts.ts")) + "\n" + code(read("../components/Detail.tsx"));
 const shortcuts = read("../shortcuts.ts");
 
 describe("the bubbles stay decoration, and the keyboard has its own way in (#854)", () => {

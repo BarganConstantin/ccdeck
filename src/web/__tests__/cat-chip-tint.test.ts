@@ -55,7 +55,8 @@ function modulesUnder(dir: string): string[] {
 // for "other" is introduced by a comment naming its own selector.
 const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const taxonomy = readFileSync(join(web, "tool-taxonomy.ts"), "utf8");
-const app = readFileSync(join(web, "App.tsx"), "utf8");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
 
 /** The categories, from the union itself — never a list maintained here. */
 const CATEGORIES: string[] = (() => {

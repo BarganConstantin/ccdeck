@@ -294,7 +294,8 @@ describe("where it is drawn", () => {
     expect(card).toContain("const noteOpen = recap != null && !noteDismissed;");
     // The note is a node of its own, built beside the root while the recap is
     // true and not put away, and tied to it by an edge from note to root.
-    const appSrc = read("../App.tsx");
+    // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+    const appSrc = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
     expect(appSrc).toContain("const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };");
     expect(appSrc).toContain("const edgeTypes = { recapTie: RecapTieEdge };");
     // The node and its tie are built in canvas-flow.ts since #1175 — App.tsx
@@ -309,7 +310,8 @@ describe("where it is drawn", () => {
     expect(noteSrc).not.toContain("useModalDismiss");
     expect(read("../components/SessionList.tsx")).toContain("recap: recapShown(a),");
     expect(read("../components/SessionList.tsx")).toContain('<span className="sl-recap" title={r.recap.text}><RecapMark />');
-    const app = read("../App.tsx");
+    // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+    const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
     expect(app).toContain("const recap = recapShown(agent);");
     expect(app).toContain('<p className="detail-recap">{recap.text}</p>');
   });

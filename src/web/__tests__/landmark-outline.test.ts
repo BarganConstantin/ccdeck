@@ -63,6 +63,8 @@ function code(src: string): string {
 }
 
 const app = source("App.tsx");
+/** The detail panel, which moved out of App.tsx into its own component. */
+const detail = source("components/Detail.tsx");
 const usage = source("UsagePanel.tsx");
 const accounts = source("AccountsPanel.tsx");
 const sessions = source("SessionList.tsx");
@@ -225,10 +227,12 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // import it. The assertion got stronger rather than narrower — it is no
     // longer possible for one surface to have the role and another not.
     expect(code(costBar)).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label="Cost breakdown"/);
-    for (const [file, src] of [["App.tsx", app], ["UsagePanel.tsx", usage], ["SessionSummary.tsx", summary]] as const) {
+    for (const [file, src] of [["components/Detail.tsx", detail], ["UsagePanel.tsx", usage], ["SessionSummary.tsx", summary]] as const) {
       expect(code(src), `${file} imports the bar`).toMatch(/import CostBar from "\.(\/components)?\/CostBar";/);
       expect(code(src), `${file} draws no bar of its own`).not.toMatch(/className="cost-bar/);
     }
+    // App.tsx no longer imports the bar at all, and must not grow one of its own.
+    expect(code(app), "App.tsx draws no bar of its own").not.toMatch(/className="cost-bar/);
   });
 });
 
@@ -275,7 +279,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // and that whole empty state is gone: the panel is about an agent, and with
     // none selected it does not render at all. So the heading it must carry is
     // the agent's name, and there is no longer a second h2 to check.
-    expect(code(app)).toMatch(/<h2 className="hero-title"/);
+    expect(code(detail)).toMatch(/<h2 className="hero-title"/);
+    expect(code(detail)).not.toMatch(/<h2>Detail<\/h2>/);
     expect(code(app)).not.toMatch(/<h2>Detail<\/h2>/);
   });
 

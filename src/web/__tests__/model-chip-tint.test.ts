@@ -76,7 +76,7 @@ describe("the sheet", () => {
 describe("every surface that draws a chip stamps the family on it", () => {
   const surfaces: Array<[string, string]> = [
     ["AgentNode", "../components/AgentNode.tsx"],
-    ["App detail hero", "../App.tsx"],
+    ["Detail hero", "../components/Detail.tsx"],
     ["SessionList", "../components/SessionList.tsx"],
     ["SessionSummary", "../components/SessionSummary.tsx"],
   ];
