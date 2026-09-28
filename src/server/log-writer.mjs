@@ -443,6 +443,21 @@ export function appendLogLine(filePath, line) {
 }
 
 /**
+ * `drained` — a promise that answers true once what it waits for has landed —
+ * or false at `ms`, whichever comes first: the bound drainAppends and
+ * flushAppends below both keep. The bell is unref'd, so a wait still running
+ * never holds the process open by itself, and it is cleared either way.
+ */
+function withinDeadline(drained, ms) {
+  let bell;
+  const deadline = new Promise(resolve => {
+    bell = setTimeout(() => resolve(false), ms);
+    bell.unref?.();
+  });
+  return Promise.race([drained, deadline]).finally(() => clearTimeout(bell));
+}
+
+/**
  * Wait for every queued append to land, bounded.
  *
  * The deck answers `{ok:true, seq}` before the line reaches disk — pushEvent
@@ -471,17 +486,12 @@ export function appendLogLine(filePath, line) {
 export function drainAppends(ms = 3000) {
   const pending = [...appendTails.values()];
   if (!pending.length) return Promise.resolve(true);
-  let bell;
-  const deadline = new Promise(resolve => {
-    bell = setTimeout(() => resolve(false), ms);
-    bell.unref?.();
-  });
   // `catch` on each: a failed append has already been swallowed by the chain,
   // and a rejection here would skip the rest of the drain.
-  return Promise.race([
+  return withinDeadline(
     Promise.all(pending.map(p => Promise.resolve(p).catch(() => {}))).then(() => true),
-    deadline,
-  ]).finally(() => clearTimeout(bell));
+    ms,
+  );
 }
 
 /**
@@ -535,18 +545,10 @@ export function drainAppends(ms = 3000) {
 export function flushAppends(filePath, ms = 3000) {
   const tail = appendTails.get(filePath);
   if (!tail) return Promise.resolve(true);
-  let bell;
-  const deadline = new Promise(resolve => {
-    bell = setTimeout(() => resolve(false), ms);
-    bell.unref?.();
-  });
-  return Promise.race([
-    // The tail never rejects — appendLogLine's own catch sees to that — but a
-    // rejection here would skip the clearTimeout and leave the caller hanging,
-    // so it is handled rather than assumed away.
-    Promise.resolve(tail).then(() => true, () => true),
-    deadline,
-  ]).finally(() => clearTimeout(bell));
+  // The tail never rejects — appendLogLine's own catch sees to that — but a
+  // rejection here would reach a caller that was promised a boolean, so it is
+  // handled rather than assumed away.
+  return withinDeadline(Promise.resolve(tail).then(() => true, () => true), ms);
 }
 
 /**
