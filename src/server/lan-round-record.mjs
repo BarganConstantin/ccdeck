@@ -19,7 +19,7 @@ export function createRoundRecord({ now }) {
   /**
    * Is anybody on the other end still deciding?
    *
-   * The exact sentence lan-socket.mjs sends for "a real deck, not yet
+   * The exact sentence lan-call.mjs gives for "a real deck, not yet
    * accepted", which is the one state where dialling again in a few seconds
    * does something a minute later would not.
    */

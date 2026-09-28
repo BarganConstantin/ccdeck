@@ -3,7 +3,7 @@
 // frame it hears back. Lifted out of createEngine in lan-engine.mjs with the
 // two maps only these fill, so saying and hearing sit in one file as they sat
 // side by side in the engine. The rules for the lists themselves are
-// lan-sync.mjs's, and the card's are lan-about.mjs's.
+// lan-copies.mjs's, and the card's are lan-about.mjs's.
 import { currentFor, heardCurrent, manifestFor, offered } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 
