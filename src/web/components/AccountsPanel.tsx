@@ -12,6 +12,7 @@ import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
+import AccountsHeader from "./AccountsHeader";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
@@ -22,7 +23,6 @@ import { commandOutput, explainCommandFailure } from "../admin-failure";
 import { type PickerCommit, thresholdCommit } from "../picker-commit";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { focusDropped, rescueSelectors } from "../panel-press";
-import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
 import { activeSwitchNote } from "../active-switch-note";
 import { accountIssue } from "../account-issue";
@@ -481,94 +481,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     // which is complementary content by any reading.
     <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts">
       {view === "accounts" && (
-        <div className="ap-header">
-          {/* h2, under the topbar's h1 — the level every panel title sits at.
-
-              CLAUDE ACCOUNTS, BECAUSE THAT IS WHAT IS IN IT. `Accounts` was
-              written when Claude was the only thing this deck watched. The deck
-              has drawn Codex sessions on the same canvas for months, and a Codex
-              login is NOT in this list and cannot be — claude-swap manages Claude
-              credentials, and nothing here reads or switches a Codex one. So a
-              panel titled `Accounts` beside a canvas holding both promises a
-              place to manage the other one and then never mentions it.
-
-              Sentence case, like `Local network` below and every other caption in
-              this sheet, and now identical to the landmark name this panel has
-              carried since #381 — a region whose heading and whose accessible
-              name are the same string is one thing to a screen reader rather than
-              two. */}
-          <h2>Claude accounts</h2>
-          <div className="ap-header-right">
-            {/* The `+` is one glyph, so `title` was its whole accessible name.
-                A last-resort name source that a touch user never sees and that
-                some readers are configured to ignore is not a name; this is the
-                second and last of the two the #381 sweep found. The tooltip stays
-                as the longer hover sentence. */}
-            <button type="button" className="glyph-btn ap-add" onClick={() => setAddOpen(true)}
-              aria-label="Add an account"
-              title="Sign in to another Claude account, or paste one shared from another deck">
-              {/* AUTHORED, NOT TYPED. These four were `+`, `↗`, `↻` and `×` —
-                  four Unicode codepoints out of four different blocks, all set at
-                  16px and measuring 8.3, 9.1, 10.9 and 7.4 of ink, with the
-                  reload 78% taller than the close beside it. A row of one-size
-                  buttons cannot be one size while the glyphs in them come from
-                  four typefaces. Drawn at the app's own small-icon spec, which is
-                  what the topbar's five already are. */}
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-                strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-                <path d="M7 2.2v9.6M2.2 7h9.6" />
-              </svg>
-            </button>
-            {/* #518: this used to be `disabled={reloading}`, which disabled the
-                control the press came from and dropped focus to the document
-                body on every reload. It is inert while somebody ELSE is working and busy while
-                its own request is out — the same two attributes every control in
-                the panel takes from pressProps — and the glyph goes on saying
-                which of the two it is.
-                `reloading` is a second flag rather than the panel request slot
-                because a reload is fired by the poll and by every other action
-                too, and a reload that took the slot would disable the control
-                that had just fired it — which is the defect, one step further
-                along. */}
-            {/* A panel-level act and not a row one, so it is up here beside the
-                other two. It is drawn only when there is something to share:
-                a header offering to send accounts from a deck that holds none
-                is a control whose only outcome is an error.
-
-                It has no class of its own any more. The one it had existed to
-                nudge a text arrow inside the 24px box, and an icon is centred by
-                `.glyph-btn` itself — a class that styles nothing is a hook nobody
-                is holding. */}
-            {(data?.accounts?.length ?? 0) > 0 && (
-              <button type="button" className="glyph-btn" onClick={() => setShareSetOpen(true)}
-                aria-label="Share accounts with another deck"
-                title={`Copy several accounts to another ${PRODUCT} in one paste. The text carries a live login for each one — treat it as those passwords.`}>
-                {/* Out and away: the same arrowhead the reload beside it is built
-                    from, so the two read as one hand rather than two. */}
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-                  strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M3.3 10.7L10.7 3.3" />
-                  <path d="M5.5 3.3h5.2v5.2" />
-                </svg>
-              </button>
-            )}
-            <button type="button" className="glyph-btn ap-refresh" onClick={() => load(true)}
-              {...pressProps("reload", reloading)} aria-label="Reload accounts"
-              title="Reload from claude-swap">
-              {/* IT TURNS WHILE IT WORKS, where it used to swap the arrow for an
-                  ellipsis. Both say which of the two states the control is in,
-                  which is what #518 asked of it; a rotation says it without the
-                  button's ink changing shape. The LAN section's check turns the
-                  same way while it works, with its own glyph since #838. */}
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-                strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
-                <path d="M11.9 2.6v3.7h-3.6" />
-              </svg>
-            </button>
-            {closeBtn}
-          </div>
-        </div>
+        <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
+          onAdd={() => setAddOpen(true)} onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
+          pressProps={pressProps} reloading={reloading} closeButton={closeBtn} />
       )}
 
       {/* THE ACCOUNTS SCROLL, AND ONE ROW BELOW IT. The column used to be one

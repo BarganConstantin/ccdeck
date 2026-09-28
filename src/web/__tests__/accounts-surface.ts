@@ -33,6 +33,7 @@ export const ACCOUNTS_FILES = [
   "use-request-slot.ts",
   "use-account-menu.ts",
   "components/AccountMenuPopover.tsx",
+  "components/AccountsHeader.tsx",
 ] as const;
 
 let joined: string | null = null;

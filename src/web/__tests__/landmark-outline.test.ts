@@ -72,6 +72,8 @@ const usage = source("UsagePanel.tsx");
 /** The usage panel and every file lifted out of it, for negatives and counts. */
 const usageAll = usageSurface();
 const accounts = source("AccountsPanel.tsx");
+/** The accounts panel's header, lifted out of it: the title and the + live here. */
+const accountsHeader = source("AccountsHeader.tsx");
 const sessions = source("SessionList.tsx");
 const history = source("UsageHistoryModal.tsx");
 const summary = source("SessionSummary.tsx");
@@ -284,7 +286,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(code(usage)).toMatch(/<h2>Usage<\/h2>/);
     // `Claude accounts`, and the same string as the landmark name below: this
     // panel holds Claude logins only, on a deck that also draws Codex.
-    expect(code(accounts)).toMatch(/<h2>Claude accounts<\/h2>/);
+    expect(code(accountsHeader)).toMatch(/<h2>Claude accounts<\/h2>/);
     expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
@@ -581,8 +583,8 @@ describe("no control is named by its title attribute alone (#381)", () => {
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {
-    expect(code(accounts)).toMatch(/aria-label="Add an account"/);
-    expect(code(accounts)).toMatch(/title="Sign in to another Claude account/);
+    expect(code(accountsHeader)).toMatch(/aria-label="Add an account"/);
+    expect(code(accountsHeader)).toMatch(/title="Sign in to another Claude account/);
   });
 });
 

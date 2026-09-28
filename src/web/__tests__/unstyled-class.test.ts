@@ -112,7 +112,7 @@ describe("every class the markup hard-codes", () => {
   it("is read from enough files, and enough of them, for the sweep to mean something", () => {
     expect(files.length).toBeGreaterThan(10);
     expect(tokens.get("components/AutoSwitchPolicy.tsx")).toContain("ap-auto-state");
-    expect(tokens.get("components/AccountsPanel.tsx")).toContain("ap-refresh");
+    expect(tokens.get("components/AccountsHeader.tsx")).toContain("ap-refresh");
     expect(tokens.get("App.tsx")).toContain("topbar");
   });
 

@@ -128,6 +128,8 @@ describe("which message is left on screen", () => {
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const panel = readFileSync(`${web}components/AccountsPanel.tsx`, "utf8");
+/** The panel's header, where the ↻ is drawn since it left the panel. */
+const header = readFileSync(`${web}components/AccountsHeader.tsx`, "utf8");
 /** The busy state is half in the markup and half in the sheet now — the button
  *  wears `aria-busy` and the rule is what makes it turn. */
 const css = readFileSync(`${web}styles.css`, "utf8");
@@ -203,7 +205,9 @@ describe("the panel's reload path", () => {
     // the button is still not a way to fire two reloads at once — and the glyph
     // still says which of the two states it is in, which is the half of this
     // assertion that was never about `disabled`.
-    expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}\{\.\.\.pressProps\("reload", reloading\)\}/);
+    expect(header).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}\{\.\.\.pressProps\("reload", reloading\)\}/);
+    // And the panel hands it its own in-flight flag, not the request slot's.
+    expect(panel).toMatch(/<AccountsHeader[\s\S]*?reloading=\{reloading\}/);
     expect(accountsSurface()).not.toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}disabled=\{reloading\}/);
     // PINNED AS THE REQUIREMENT RATHER THAN AS THE GLYPH. It said which state it
     // was in by swapping the arrow for an ellipsis; it says it by turning now —
@@ -212,7 +216,7 @@ describe("the panel's reload path", () => {
     // What has to hold either way is that the control shows its own in-flight
     // state, which is the half of this assertion that was never about
     // `disabled`.
-    expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}<svg/);
+    expect(header).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}<svg/);
     expect(css).toMatch(/\.ap-refresh\[aria-busy="true"\][^}]*animation:\s*spin/);
     expect(accountsSurface()).not.toContain('"↻"');
     // Only the forced half: a poll blinking the button every 15 seconds would
