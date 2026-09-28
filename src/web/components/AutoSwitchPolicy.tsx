@@ -24,7 +24,7 @@ interface Props {
   thresholdSaved: boolean;
   thresholdRef: Ref<HTMLSelectElement>;
   thresholdSaveRef: Ref<HTMLButtonElement>;
-  setThresholdDraft: (pick: string) => void;
+  proposeThreshold: (pick: string) => void;
   doThreshold: (pick: string, commit: PickerCommit) => void;
   pressProps: ReturnType<typeof useRequestSlot>["pressProps"];
   post: (body: Record<string, unknown>, tag: string) => Promise<unknown>;
@@ -40,7 +40,7 @@ interface Props {
  */
 export default function AutoSwitchPolicy({
   auto, threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
-  setThresholdDraft, doThreshold, pressProps, post, load,
+  proposeThreshold, doThreshold, pressProps, post, load,
 }: Props) {
   return (
     <div className="ap-policy-block">
@@ -61,7 +61,7 @@ export default function AutoSwitchPolicy({
             aria-label="Switch threshold"
             value={thresholdPick}
             {...pressProps("threshold")}
-            onChange={e => setThresholdDraft(e.target.value)}
+            onChange={e => proposeThreshold(e.target.value)}
           >
             {thresholdChoices(threshold).map(t => <option key={t} value={t}>{t}%</option>)}
           </select>

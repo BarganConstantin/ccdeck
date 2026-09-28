@@ -141,7 +141,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // that stores it — see use-threshold-draft.ts.
   const {
     threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
-    setThresholdDraft, doThreshold,
+    proposeThreshold, doThreshold,
   } = useThresholdDraft({ auto, post, load });
 
 
@@ -327,7 +327,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     <AutoSwitchPolicy auto={auto} threshold={threshold} thresholdPick={thresholdPick}
       thresholdCtl={thresholdCtl} thresholdSaved={thresholdSaved}
       thresholdRef={thresholdRef} thresholdSaveRef={thresholdSaveRef}
-      setThresholdDraft={setThresholdDraft} doThreshold={doThreshold}
+      proposeThreshold={proposeThreshold} doThreshold={doThreshold}
       pressProps={pressProps} post={post} load={load} />
   ) : null;
   return (

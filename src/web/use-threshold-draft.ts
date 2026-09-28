@@ -5,7 +5,8 @@
 // Lifted out of AccountsPanel.tsx unchanged. It is held by the panel and not
 // by the policy row, because the row unmounts whenever the fold is shut and a
 // pick nobody saved has to outlive that — a hook the panel calls keeps it at
-// exactly that height. The row gets what to draw and the two presses.
+// exactly that height. The row gets what to draw and the two presses, and the
+// draft's setter stays here: the picker proposes through proposeThreshold.
 import { useRef, useState } from "react";
 
 import { type AutoStatus } from "./claude-accounts";
@@ -46,6 +47,9 @@ export function useThresholdDraft({ auto, post, load }: ThresholdDraftDeps) {
   // saved.
   const thresholdPick = thresholdDraft ?? threshold;
   const thresholdCtl = thresholdCommit(thresholdPick, threshold);
+  /** What the picker shows, as the reader picks it. A proposal: nothing is
+   *  stored until `save` is pressed (#516). */
+  const proposeThreshold = (pick: string) => setThresholdDraft(pick);
 
   /** The slot picker's rule (doSlot, in use-account-menu.ts) for the
    *  threshold: the picker proposes, `save` stores it. */
@@ -67,5 +71,5 @@ export function useThresholdDraft({ auto, post, load }: ThresholdDraftDeps) {
     }, SAVED_MS);
   };
 
-  return { threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef, setThresholdDraft, doThreshold };
+  return { threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef, proposeThreshold, doThreshold };
 }
