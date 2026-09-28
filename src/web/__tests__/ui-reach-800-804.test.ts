@@ -147,7 +147,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // too — one meaning on/off, the other which of three figures plays. The
     // switch is plural now and the picker is the thing it picks.
     expect(soundMenu).toContain('id="sm-sound-label">Sounds<');
-    expect(soundMenu).toContain("<label htmlFor={figureId}>Tone</label>");
+    expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
     expect(soundMenuAll).not.toMatch(/>Sound</);
   });
 

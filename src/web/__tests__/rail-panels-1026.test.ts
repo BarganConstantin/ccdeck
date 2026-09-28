@@ -35,6 +35,7 @@ const raw = at("../styles.css");
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
 const machinePanel = at("../components/MachinePanel.tsx");
 const soundMenu = at("../components/SoundMenu.tsx");
+const toneSection = at("../components/ToneSection.tsx");
 const processList = at("../components/ProcessListModal.tsx");
 
 /**
@@ -169,8 +170,9 @@ describe("the sound menu's reading is described once (#1026)", () => {
 
   it("is rendered only where that descendant selector reaches", () => {
     // The merge is only safe because the span has exactly one render site, and
-    // it is inside `.sound-menu`.
-    expect(soundMenu).toMatch(/className="sm-read"/);
+    // it is inside `.sound-menu`: a tone's row, which the menu renders.
+    expect(toneSection).toMatch(/className="sm-read"/);
+    expect(soundMenu).toMatch(/<ToneSection\b/);
     expect(soundMenu).toMatch(/className="sound-menu"/);
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
     for (const f of others) expect(at(f), f).not.toMatch(/className="[^"]*\bsm-read\b/);
