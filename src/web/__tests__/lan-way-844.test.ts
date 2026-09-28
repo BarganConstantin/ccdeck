@@ -18,6 +18,9 @@ import { entryLine, type DeckRow } from "../lan-roster";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
 const lan = read("../components/LanSyncSection.tsx");
+/** The card itself, which moved out of the section into its own file. What the
+ *  section is never allowed to do, the card beside it is not either. */
+const card = read("../components/LanPeek.tsx");
 const guide = read("../components/guide-art.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -154,7 +157,7 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
   // To the brace on its own line: the props are a destructure whose own `\n})`
   // ends a shorter match, and a body that stops at the signature would let the
   // assertions below pass on nothing.
-  const peek = /function LanPeek\(([\s\S]*?)\n\}\n/.exec(lan)?.[0] ?? "";
+  const peek = /function LanPeek\(([\s\S]*?)\n\}\n/.exec(card)?.[0] ?? "";
   const block = (sel: string) => new RegExp(`\\n\\${sel} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
 
   it("hangs off the way-in row and is drawn only while it is open", () => {
@@ -186,18 +189,18 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
     // not something a reader can be stuck inside, and App.tsx stays the one
     // place that reads that key. Held by modal-dismiss.test.ts for every
     // component; said here because this is the surface that raised it.
-    expect(lan).not.toMatch(/"Escape"/);
+    for (const src of [lan, card]) expect(src).not.toMatch(/"Escape"/);
   });
 
   it("lets the pointer rest on it, and stays while it is there", () => {
     // The first spelling refused the pointer outright, and a reader's next move
     // after a list appears is onto it — so the card went out from under them.
-    expect(lan).toMatch(/onPointerEnter=\{onHold\} onPointerLeave=\{onLet\}/);
+    expect(card).toMatch(/onPointerEnter=\{onHold\} onPointerLeave=\{onLet\}/);
     expect(lan).toMatch(/onHold=\{holdPeek\} onLet=\{shutPeek\}/);
     expect(block(".ap-peek")).not.toMatch(/pointer-events/);
     // The grace is what makes the 4px between row and card crossable at all.
     expect(lan).toMatch(/export const PEEK_GRACE_MS = 140;/);
-    expect(lan).toMatch(/const POPOVER_GAP|placeBeside/);
+    expect(card).toMatch(/const POPOVER_GAP|placeBeside/);
   });
 
   it("holds no control, whatever the pointer does on it", () => {
@@ -211,10 +214,10 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
   });
 
   it("names at most a handful, then counts the rest", () => {
-    expect(lan).toMatch(/const shown = here\.slice\(0, PEEK_NAMES\);/);
-    expect(lan).toMatch(/export const PEEK_NAMES = 6;/);
-    expect(lan).toMatch(/\{here\.length \? "On the network now" : "Nobody on the network"\}/);
-    expect(lan).toMatch(/\$\{off\} not on right now/);
+    expect(card).toMatch(/const shown = here\.slice\(0, PEEK_NAMES\);/);
+    expect(card).toMatch(/export const PEEK_NAMES = 6;/);
+    expect(card).toMatch(/\{here\.length \? "On the network now" : "Nobody on the network"\}/);
+    expect(card).toMatch(/\$\{off\} not on right now/);
   });
 });
 
@@ -234,7 +237,7 @@ describe("the view (#844)", () => {
   });
 
   it("adds no focus stop of its own", () => {
-    expect(lan).not.toMatch(/tabIndex=\{-1\}/);
+    for (const src of [lan, card]) expect(src).not.toMatch(/tabIndex=\{-1\}/);
   });
 });
 
