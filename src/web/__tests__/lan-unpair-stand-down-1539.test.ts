@@ -15,11 +15,15 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 import { WEB_DIR } from "./client-source";
+import { lanPeerSurface } from "./lan-peer-surface";
 import { lanSectionSurface } from "./lan-section-surface";
 import { withoutComments } from "./tsx-scan";
 
 const section = withoutComments(lanSectionSurface());
-const modal = withoutComments(readFileSync(`${WEB_DIR}components/LanPeerModal.tsx`, "utf8"));
+/** The dialog's two unpairs, which moved out of LanPeerModal.tsx into a hook
+ *  of their own; the dialog and every file lifted out of it, for the sweep. */
+const modal = withoutComments(readFileSync(`${WEB_DIR}use-peer-unpair.ts`, "utf8"));
+const dialog = lanPeerSurface(withoutComments);
 
 /** The body of `const <name> = (...) => { ... };`, to its own closing line. */
 function handler(src: string, name: string): string {
@@ -57,7 +61,7 @@ describe("an armed unpair gets four seconds from its own arm (#1539)", () => {
   it("leaves no stand-down timer anywhere on the section or the dialog that a press starts", () => {
     // The old spelling, in any of the three: a functional update that checks
     // the target when the timer fires.
-    for (const [name, src] of [["the section", section], ["the dialog", modal]] as const) {
+    for (const [name, src] of [["the section", section], ["the dialog", dialog]] as const) {
       expect(`${name}: ${/window\.setTimeout\(\(\) => setArmed\w*\(\w+ => \(\w+ === /.test(src)}`).toBe(`${name}: false`);
     }
   });

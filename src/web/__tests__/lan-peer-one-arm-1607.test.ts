@@ -14,7 +14,9 @@ import { readFileSync } from "node:fs";
 import { WEB_DIR } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 
-const modal = withoutComments(readFileSync(`${WEB_DIR}components/LanPeerModal.tsx`, "utf8"));
+/** The dialog's two unpairs, which moved out of LanPeerModal.tsx into a hook
+ *  of their own. */
+const modal = withoutComments(readFileSync(`${WEB_DIR}use-peer-unpair.ts`, "utf8"));
 
 /** The body of every `if (press === "arm") { ... }` in the dialog. */
 const arms = [...modal.matchAll(/if \(press === "arm"\) \{([^}]*)\}/g)].map(m => m[1]);

@@ -30,6 +30,7 @@ const MAP = code("../components/LanPeerMap.tsx");
 const DIALOG = lanPeerSurface(src => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "));
 const PRESS = code("../panel-press.ts");
 const ROW_UNPAIR = code("../use-row-unpair.ts");
+const PEER_UNPAIR = code("../use-peer-unpair.ts");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 describe("LAN warning visibility", () => {
@@ -405,10 +406,12 @@ describe("the row is the door", () => {
     // before anybody could have read `sure?`, so it confirms nothing — on the
     // row, and in the dialog.
     // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
-    expect(MODAL).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
-    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); setArmedTwin\(null\); armedAt\.current = now; return; \}/);
-    // The row's press lives in the section's own hook for it.
-    for (const src of [MODAL, ROW_UNPAIR]) {
+    // Each press lives in a hook of its own: the dialog's in use-peer-unpair.ts,
+    // the row's in the section's use-row-unpair.ts.
+    expect(MODAL).toMatch(/onClick=\{\(\) => pressOwn\(\)\}/);
+    expect(PEER_UNPAIR).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(PEER_UNPAIR).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); setArmedTwin\(null\); armedAt\.current = now; return; \}/);
+    for (const src of [PEER_UNPAIR, ROW_UNPAIR]) {
       expect(src).toMatch(/if \(press === "ignore"\) return;/);
     }
     // The gap is armedPress's own constant, beside it in panel-press.ts.
