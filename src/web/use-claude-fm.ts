@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { FM_SOURCE_KEY, FM_VOLUME_KEY, resolveFmSource, storedFmVolume } from "./appearance";
 import { type CustomFmStation, FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, type FmSelection, STATION_NAME_MAX, fmAvailabilityKey, resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation } from "./fm-stations";
-import { readStored } from "./storage";
+import { readStored, writeStored } from "./storage";
 
 export function useClaudeFm() {
   const [fmVolume, setFmVolume] = useState(storedFmVolume);
@@ -33,21 +33,13 @@ export function useClaudeFm() {
    *  when this moves and not when `fmSource` does — see its probe effect. */
   const [fmPlayRequest, setFmPlayRequest] = useState(0);
 
-  useEffect(() => {
-    try { window.localStorage.setItem(FM_VOLUME_KEY, String(fmVolume)); } catch { /* private mode */ }
-  }, [fmVolume]);
+  useEffect(() => { writeStored(FM_VOLUME_KEY, String(fmVolume)); }, [fmVolume]);
 
-  useEffect(() => {
-    try { window.localStorage.setItem(FM_MUTED_KEY, fmMuted ? "1" : "0"); } catch { /* private mode */ }
-  }, [fmMuted]);
+  useEffect(() => { writeStored(FM_MUTED_KEY, fmMuted ? "1" : "0"); }, [fmMuted]);
 
-  useEffect(() => {
-    try { window.localStorage.setItem(FM_CUSTOM_STATIONS_KEY, JSON.stringify(customFmStations)); } catch { /* private mode */ }
-  }, [customFmStations]);
+  useEffect(() => { writeStored(FM_CUSTOM_STATIONS_KEY, JSON.stringify(customFmStations)); }, [customFmStations]);
 
-  useEffect(() => {
-    try { window.localStorage.setItem(FM_SOURCE_KEY, fmSource); } catch { /* private mode */ }
-  }, [fmSource]);
+  useEffect(() => { writeStored(FM_SOURCE_KEY, fmSource); }, [fmSource]);
 
   const addFmStation = useCallback((station: CustomFmStation) => {
     setCustomFmStations(current => current.some(item => item.id === station.id) ? current : [...current, station]);

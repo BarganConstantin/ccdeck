@@ -98,8 +98,8 @@ describe("custom FM stations (#1208)", () => {
   });
 
   it("persists FM mute independently from volume and notification sound", () => {
-    expect(app).toContain("localStorage.setItem(FM_MUTED_KEY, fmMuted ? \"1\" : \"0\")");
-    expect(app).toContain("localStorage.setItem(FM_VOLUME_KEY, String(fmVolume))");
+    expect(app).toContain("writeStored(FM_MUTED_KEY, fmMuted ? \"1\" : \"0\")");
+    expect(app).toContain("writeStored(FM_VOLUME_KEY, String(fmVolume))");
     expect(FM_MUTED_KEY).not.toBe("agent-dag.sound-muted");
   });
 
