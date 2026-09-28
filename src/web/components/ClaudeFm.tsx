@@ -68,8 +68,9 @@ function sourceLabel(source: FmSelection, customStation?: CustomFmStation): stri
   return SOURCE_LABEL[source as FmSource];
 }
 
-/** A grid drawn as one SVG of merged runs. Shared by the character and the
- *  thing it picks up, which are the same kind of object at different sizes. */
+/** A prop's grid drawn as one SVG of merged runs: the litter, the ball and the
+ *  scope, each drawn once below. The character is drawn by FmSprite.tsx from
+ *  the same runs, split into the parts that move. */
 function pixels(grid: readonly string[], key: string) {
   const w = grid[0]?.length ?? 0;
   return (
