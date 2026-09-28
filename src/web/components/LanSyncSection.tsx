@@ -37,7 +37,7 @@
 // every machine at once.
 import { useEffect, useState, type ReactNode } from "react";
 import { checkedLabel, deckRows, entryLine, rowSource, sectionState, viewRows } from "../lan-roster";
-import type { LanAccount, LanTailscale } from "../lan-types";
+import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import { useRowUnpair } from "../use-row-unpair";
@@ -46,9 +46,9 @@ import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
 import LanAsks from "./LanAsks";
 import LanDeckList from "./LanDeckList";
+import LanDiscoveryNotes from "./LanDiscoveryNotes";
 import LanEntryRow from "./LanEntryRow";
 import LanPeerModal from "./LanPeerModal";
-import LanReachNote from "./LanReachNote";
 import LanSetupModal from "./LanSetupModal";
 import LanViewHeader from "./LanViewHeader";
 
@@ -60,18 +60,6 @@ import LanViewHeader from "./LanViewHeader";
 // to pass through here is imported from the module that owns it.
 export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
 export { CONFIRM_GAP_MS } from "../panel-press";
-
-/**
- * What to say when this machine sends its local network through a tunnel. The
- * Tailscale case is named, with the setting that fixes it; any other VPN is
- * said generally. Exported for the suite.
- */
-export function tunnelNote(s: { tailscale?: LanTailscale | null }): string {
-  if (s.tailscale?.exitNode) {
-    return "Tailscale sends this machine's local network through an exit node, so decks on this network cannot find this one. Turn on Allow local network access in Tailscale's exit node menu to bring them back.";
-  }
-  return "This machine sends its local network through a VPN, so decks on this network cannot find this one. Allowing local network access in the VPN brings them back.";
-}
 
 export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBack, closeButton }: {
   accounts: LanAccount[];
@@ -260,30 +248,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               </button>
           </div>
 
-          {/* WHY NOTHING WILL EVER TURN UP, UNDER THE SWITCH THAT TURNED IT ON.
-              The verdict has been read off this machine since 3.23.2 and was
-              drawn in one place: inside `+ add a deck`, which a reader opens
-              only after deciding the feature is broken. So the deck knew, and
-              the report that came back was still "I switched it on and nobody
-              appeared". It belongs at the moment of the act — above the list it
-              explains the emptiness of, and above the status line, because the
-              status line says WHAT is happening and this says why it cannot.
-
-              Only while the section is ON: a deck with the sockets down is not
-              a deck anything is failing to reach, and the switch below would be
-              answering a question nobody has asked yet. */}
-          {on && <LanReachNote reach={status?.reach} where="panel" />}
-          {/* A DECK THAT CANNOT HEAR IS STILL A DECK. It announces, it is found,
-              it pairs and syncs; what it has lost is hearing new decks announce
-              themselves, and the one line says so and who has the port. Not the
-              warning ink: nothing here is for the reader to do, and the deck
-              takes the port back on its own. */}
-          {on && status?.deaf && <p className="ap-lan-fine">{status.deaf}</p>}
-          {/* THE LOCAL NETWORK GOES THROUGH A TUNNEL HERE, so nothing on it can
-              find this deck, and the deck has stopped shouting into the tunnel
-              rather than onto somebody else's network. The one line says what
-              to change, in the words the VPN's own menu uses. */}
-          {on && status?.lanTunneled && <p className="ap-lan-fine">{tunnelNote(status)}</p>}
+          <LanDiscoveryNotes on={on} status={status} />
 
             {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
                 question — should I turn this on — and a deck that is already on has
