@@ -80,7 +80,8 @@ const appendQueueStats = mod.appendQueueStats as () => {
 const MAX_PENDING_APPEND_CHARS: number = mod.MAX_PENDING_APPEND_CHARS;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const INDEX = join(HERE, "..", "..", "server", "index.mjs");
+// Where the ring's own budget is declared.
+const RING_BOUNDS = join(HERE, "..", "..", "server", "ring-bounds.mjs");
 
 // A path that cannot be opened: the parent directory is not there, on POSIX and
 // on Windows alike. See the note above for why the writes are meant to fail.
@@ -230,7 +231,7 @@ describe("the budget itself", () => {
     // rather than one counter adding up two different units. Asserted against
     // the ring's own literal, so moving one without the other fails here.
     expect(MAX_PENDING_APPEND_CHARS).toBe(128 * 1024 * 1024);
-    expect(readFileSync(INDEX, "utf8"))
+    expect(readFileSync(RING_BOUNDS, "utf8"))
       .toContain("export const MAX_BUFFER_CHARS = 128 * 1024 * 1024;");
   });
 
