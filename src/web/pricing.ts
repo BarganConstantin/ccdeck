@@ -54,7 +54,7 @@ const SONNET_5: ModelRates =
   { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 };
 
 // THE `(?![-_.]\d{1,7}(?!\d))` ON EVERY CLAUDE ROW (#688). It is one assertion
-// repeated nine times rather than a shared constant, because the row patterns
+// repeated on each row rather than a shared constant, because the row patterns
 // have to stay regex LITERALS — bedrock-model-ids.test.ts reads them straight
 // out of this source and rebuilds them, so that a row added tomorrow with no
 // pinned id fails its coverage sweep instead of quietly going unproven. A table
@@ -108,6 +108,30 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   // Fable 5 / Mythos 5 — $10 / $50
   { match: /^claude[-_](fable|mythos)[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 } },
+
+  // Opus 5.5 — $4 / $20, and a cache read of $0.20 (#1330).
+  //
+  // Read 2026-09-28 from platform.claude.com/docs/en/about-claude/pricing:
+  // "Claude Opus 5.5 | $4 / MTok | $5 / MTok | $8 / MTok | $0.20 / MTok |
+  // $20 / MTok", with the footnote "Cache hits and refreshes on Claude Opus 5.5
+  // are priced at 0.05x the base input price." The same five numbers are the
+  // `claude-opus-5-5` entry in LiteLLM's catalog, which is what ccusage prices
+  // from, and ccusage's own cost for this machine's Opus 5.5 days of 2026-09-27
+  // and -28 lands inside the range these rates give for its unsplit cache
+  // writes (every write at 5 minutes to every write at 1 hour). Opus 5's rates
+  // overshoot that range before the writes are counted at all.
+  //
+  // Until this row the Opus 5 row's version guard refused the id, correctly,
+  // and the Projects report summed the refusal as $0 beside 282M real tokens.
+  // Inheriting Opus 5's row instead would have been the other mistake: the
+  // cache read is $0.20 against Opus 5's $0.50, and on a session that is
+  // mostly cache reads — 98.5% of the issue's bucket — Opus 5's prices
+  // come to about twice what Opus 5.5 is billed.
+  //
+  // Above the Opus 5 row because it is the more specific of the two, the order
+  // the Fable 5.1 row keeps above Fable 5.
+  { match: /^claude[-_]opus[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5, cacheWrite1h: 8 } },
 
   // Opus 5 — $5 / $25. Must precede the Opus 4.x rows: "opus-5" shares no
   // prefix with them, but keeping the generations in order stops the next
@@ -535,6 +559,12 @@ export function billedInputTokens(
   return Math.max(0, usage.inputTokens - usage.cacheReadTokens - written);
 }
 
+/** A model with no row comes back as a breakdown of zeros, and those zeros are
+ *  not a price: they are "this build cannot say". A caller that SUMS the result
+ *  must ask ratesForModel as well and carry the unpriced tokens beside its
+ *  total, or the total reads as complete when it is a floor. agentUnpricedTokens
+ *  does this for the board and the reconciliation does it for the Projects
+ *  report, which is where it was missing (#1330). */
 export function costForUsage(
   usage: TokenUsage,
   modelId: string | undefined,

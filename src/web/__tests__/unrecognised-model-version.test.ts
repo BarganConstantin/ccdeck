@@ -40,6 +40,7 @@ const A = (
 ): ModelRates => ({ input, output, cacheRead, cacheWrite, cacheWrite1h });
 
 const OPUS_TIER_NEW    = A(5, 25, 0.5, 6.25, 10);
+const OPUS_5_5         = A(4, 20, 0.2, 5, 8);
 const OPUS_TIER_OLD    = A(15, 75, 1.5, 18.75, 30);
 const SONNET_4         = A(3, 15, 0.3, 3.75, 6);
 const SONNET_5_INTRO   = A(2, 10, 0.2, 2.5, 4);   // NOW is inside the intro window
@@ -76,6 +77,15 @@ const FAMILIES: Array<{
       ["claude-opus-4-1", OPUS_TIER_OLD],
     ],
     unrecognised: ["claude-opus-4-2", "claude-opus-4-3", "claude-opus-4-4", "claude-opus-4-0"],
+  },
+  {
+    // The lifecycle Fable 5.1's row below describes, one release on: Opus 5's
+    // guard refused `claude-opus-5-5` until its price was read, and then it
+    // got a row of its own (#1330). Its cache read is 0.05x input, not Opus
+    // 5's 0.1x, so the refusal was right and inheriting would not have been.
+    family: "Opus 5.5",
+    priced: [["claude-opus-5-5", OPUS_5_5]],
+    unrecognised: ["claude-opus-5-6", "claude-opus-5-5-1", "claude-opus-5-55", "claude-opus-5-50"],
   },
   {
     family: "Opus 5",
@@ -198,6 +208,9 @@ const SPELLINGS_THAT_MUST_KEEP_PRICING: Array<[string, ModelRates]> = [
   ["claude-opus-4.1", OPUS_TIER_OLD],
   ["claude_opus_4_1", OPUS_TIER_OLD],
   ["claude_opus_5", OPUS_TIER_NEW],
+  ["claude_opus_5_5", OPUS_5_5],
+  ["claude-opus-5.5", OPUS_5_5],
+  ["claude-opus-5-5[1m]", OPUS_5_5],
   ["claude_haiku_4_5", HAIKU_4_5],
 ];
 
