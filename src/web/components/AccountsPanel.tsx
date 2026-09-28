@@ -20,7 +20,6 @@ import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf } from "../account-fold";
 import { lanAccounts } from "../account-lan";
-import { type PickerCommit, thresholdCommit } from "../picker-commit";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
@@ -29,13 +28,9 @@ import LanSyncSection from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
+import { useThresholdDraft } from "../use-threshold-draft";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { type Account, type AccountsData } from "../claude-accounts";
-
-// How long the threshold's `save` stands as `saved`. The panel's other
-// transient confirmation — `copied` on a share — uses the same 1.8s, and the
-// word is the whole signal.
-const SAVED_MS = 1_800;
 
 interface Props {
   onClose: () => void;
@@ -78,17 +73,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // store answers with no roster at all and the report goes on being drawn
   // through it (#1412).
   const [projectsFor, setProjectsFor] = useState<{ num: number; name: string } | null>(null);
-  // The same split for the auto-switch threshold as the slot picker's in
-  // use-account-menu.ts — the picker proposes, the button under it commits —
-  // because it had the same defect with a setting write on the other end
-  // (#516). Null follows whatever the store holds.
-  const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
-  const [thresholdSaved, setThresholdSaved] = useState(false);
-  // `save` only exists while there is a pick to store, so it leaves the panel
-  // under the reader's focus: the press that stored the pick is the press that
-  // unmounts it. The picker is where focus goes when that happens.
-  const thresholdRef = useRef<HTMLSelectElement>(null);
-  const thresholdSaveRef = useRef<HTMLButtonElement>(null);
   // Which of the other accounts the reader has opened. The live one is open by
   // what it is — its windows are the ones being spent — and every other row
   // rests shut on the two numbers it is chosen by. More than one may be open:
@@ -153,6 +137,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     data, claim, release, load, sayFailure, clearFailure, sayInMenu, rescueFocus,
   });
 
+  // Where auto-switch trips, what the picker proposes instead, and the press
+  // that stores it — see use-threshold-draft.ts.
+  const {
+    threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
+    proposeThreshold, doThreshold,
+  } = useThresholdDraft({ auto, post, load });
+
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
   useEffect(() => {
@@ -160,14 +151,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     return () => window.clearInterval(t);
   }, []);
 
-  // Where auto-switch trips, as the store holds it. The live percentage it
-  // races is the active row's own, one glance up the column — the policy row
-  // no longer prints a second copy of it.
-  const threshold = auto?.settings["autoswitch.threshold"]?.value ?? "90";
-  // The percentage the picker is showing, which is a proposal until it is
-  // saved.
-  const thresholdPick = thresholdDraft ?? threshold;
-  const thresholdCtl = thresholdCommit(thresholdPick, threshold);
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec) : null;
 
@@ -272,26 +255,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     rescueFocus(null);
   }, [data, projectsFor, rescueFocus]);
 
-  /** The slot picker's rule (doSlot, in use-account-menu.ts) for the
-   *  threshold: the picker proposes, `save` stores it. */
-  const doThreshold = async (pick: string, commit: PickerCommit) => {
-    if (commit.sends) {
-      const out = await post({ action: "setting", key: "autoswitch.threshold", value: pick }, "threshold");
-      await load(true);
-      if (!out?.ok) return;
-      setThresholdDraft(null);
-    }
-    setThresholdSaved(true);
-    window.setTimeout(() => {
-      // `saved` is the last thing the control says before it goes. A focused
-      // button that unmounts drops focus on <body>, so hand it to the picker
-      // first — only if it is still there, never out from under a reader who
-      // has moved on.
-      if (document.activeElement === thresholdSaveRef.current) thresholdRef.current?.focus();
-      setThresholdSaved(false);
-    }, SAVED_MS);
-  };
-
   // The one close, drawn in whichever header is up: the accounts' own, or Local
   // network's while that view has the column.
   const closeBtn = (
@@ -357,13 +320,14 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    * or the disclosure has hidden a fact rather than a form. See restLine.
    *
    * What the row says is AutoSwitchPolicy's; the draft it proposes is held
-   * here, so folding the list away does not drop a pick nobody saved.
+   * by the panel (use-threshold-draft.ts), so folding the list away does not
+   * drop a pick nobody saved.
    */
   const policyBlock = data?.ok && auto?.ok ? (
     <AutoSwitchPolicy auto={auto} threshold={threshold} thresholdPick={thresholdPick}
       thresholdCtl={thresholdCtl} thresholdSaved={thresholdSaved}
       thresholdRef={thresholdRef} thresholdSaveRef={thresholdSaveRef}
-      setThresholdDraft={setThresholdDraft} doThreshold={doThreshold}
+      proposeThreshold={proposeThreshold} doThreshold={doThreshold}
       pressProps={pressProps} post={post} load={load} />
   ) : null;
   return (

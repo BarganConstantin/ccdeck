@@ -201,10 +201,12 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // wrap them.
     for (const body of handlers(surfaceCode, "onChange")) {
       expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|onSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
-      // A setter, or one of the two drafts the ⋯ menu's hook writes by name —
-      // and each of those is one setter call and nothing else.
-      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot)\(/);
+      // A setter, or one of the three drafts written by name — the ⋯ menu's
+      // two and the threshold's — and each of those is one setter call and
+      // nothing else.
+      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold)\(/);
     }
+    expect(clientText()).toMatch(/const proposeThreshold = \(pick: string\) => setThresholdDraft\(pick\);/);
     expect(accountMenuCode).toMatch(/const typeAlias = \(text: string\) => setAliasDraft\(text\);/);
     expect(accountMenuCode).toMatch(/const pickSlot = \(slot: number\) => setSlotDraft\(slot\);/);
   });
@@ -226,7 +228,7 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
     expect(popoverCode).toMatch(/onChange=\{e => pickSlot\(Number\(e\.target\.value\)\)\}/);
-    expect(clientText()).toMatch(/onChange=\{e => setThresholdDraft\(e\.target\.value\)\}/);
+    expect(clientText()).toMatch(/onChange=\{e => proposeThreshold\(e\.target\.value\)\}/);
   });
 
   it("shows the pending pick in the picker, so the button and the box agree", () => {
@@ -302,7 +304,9 @@ describe("the threshold's commit control exists only while there is a pick to st
     // The press that stored the pick is the press that unmounts the control, and
     // a focused button that unmounts drops focus on <body>. Once React has
     // removed it there is nothing left to ask, so the handoff comes first.
-    const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(panelCode)?.[0] ?? "";
+    // The press is the threshold hook's, which holds the draft for the panel.
+    const draftCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-threshold-draft.ts", import.meta.url)), "utf8"));
+    const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(draftCode)?.[0] ?? "";
     expect(commit).toMatch(/document\.activeElement === thresholdSaveRef\.current\) thresholdRef\.current\?\.focus\(\)/);
     expect(commit.indexOf("thresholdRef.current?.focus()")).toBeLessThan(commit.indexOf("setThresholdSaved(false)"));
     expect(clientText()).toMatch(/<select\s+ref=\{thresholdRef\}/);
