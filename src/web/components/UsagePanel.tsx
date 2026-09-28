@@ -3,7 +3,6 @@
 // in the topbar or the U keyboard shortcut.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtCost, fmtCostRate, UNPRICED_LABEL } from "../pricing";
-import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
 import {
@@ -27,6 +26,7 @@ import { stateLabel } from "./AgentNode";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
+import { useCountUp } from "../use-count-up";
 
 /** Where the chosen period lives between reloads.
  *
@@ -94,7 +94,8 @@ function saveSessionsOpen(open: boolean): void {
 // each prints when it has nothing to show.
 //
 // The three quota reads, and the shapes their routes answer in, are
-// use-quota.ts; the ccusage read for the chosen period is use-usage-range.ts.
+// use-quota.ts; the ccusage read for the chosen period is use-usage-range.ts,
+// and the count the headline figures move by is use-count-up.ts.
 
 interface Props {
   state: GraphState;
@@ -104,53 +105,6 @@ interface Props {
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
-}
-
-/**
- * A figure that counts to its new value instead of teleporting to it.
- *
- * `key` is what the number MEANS — the period it belongs to. When that changes,
- * the value snaps: "today $269" and "all time $12.4k" are different quantities,
- * and counting between them would be theatre rather than a delta. Within one
- * period, a five-minute poll can move a total while somebody is looking at it,
- * and a count says which way and roughly how far.
- *
- * See count-up.ts for what deliberately does not animate — the first paint, a
- * change too small to read, and the tables.
- */
-function useCountUp(value: number): number {
-  const [shown, setShown] = useState(value);
-  // What is on screen right now, so a second change starts a count from where
-  // the number IS rather than from where the last one began.
-  const currentRef = useRef(value);
-  const firstRef = useRef(true);
-
-  useEffect(() => {
-    currentRef.current = shown;
-  }, [shown]);
-
-  useEffect(() => {
-    // ONLY THE FIRST PAINT SNAPS. Pressing `month` or `all` counts too — the
-    // figures ride up to twelve thousand or back down to three hundred, which
-    // is the one place in this panel where the size of the difference between
-    // two periods is worth feeling. It was a snap at first, on the reasoning
-    // that two periods are different quantities rather than one that moved;
-    // that reasoning is sound and the motion is still better, because the
-    // reader pressed the button and is watching the number they asked for.
-    if (firstRef.current) {
-      firstRef.current = false;
-      currentRef.current = value;
-      setShown(value);
-      return;
-    }
-    const stop = countTo(currentRef.current, value, v => {
-      currentRef.current = v;
-      setShown(v);
-    });
-    return stop;
-  }, [value]);
-
-  return shown;
 }
 
 export default function UsagePanel({ state, now, providers, leaving, onClose, liveSince = null }: Props & {
