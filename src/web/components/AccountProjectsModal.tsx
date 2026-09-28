@@ -11,7 +11,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
-import { ccCellsFrom, reconcile, type Counters } from "../account-projects-reconcile";
+import { ccCellsFrom, projectCostLabel, reconcile, unpricedNote, unpricedTitle, type Counters } from "../account-projects-reconcile";
 import { INITIAL_LOAD, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
@@ -88,8 +88,10 @@ function labelledDays(count: number): (i: number) => boolean {
 }
 
 /** A row ready to draw: priced, named, coloured. `other` folds the small tail;
- *  `unattributed` is the accountless bucket, shown apart from the bar. */
-interface Priced { key: string; label: string; path?: string; parentLabel?: string; cost: number; tokens: number; color: string; muted?: boolean; members?: Array<{ path: string; label: string; parentLabel?: string; cost: number; tokens: number }> }
+ *  `unattributed` is the accountless bucket, shown apart from the bar.
+ *  `unpricedTokens` is the part of `tokens` no rate reached — non-zero makes
+ *  `cost` a floor, and the row prints it as one (#1330). */
+interface Priced { key: string; label: string; path?: string; parentLabel?: string; cost: number; tokens: number; unpricedTokens: number; color: string; muted?: boolean; members?: Array<{ path: string; label: string; parentLabel?: string; cost: number; tokens: number; unpricedTokens: number }> }
 
 function niceDate(ms: number | null): string {
   if (!ms) return "";
@@ -165,6 +167,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
       parentLabel: projectParentLabel(a.path, projectLabels),
       cost: a.cost,
       tokens: a.tokens,
+      unpricedTokens: a.unpricedTokens,
     });
     const otherColor = PALETTE[MAX_ROWS % PALETTE.length];
     const colorForPath = new Map<string, string>();
@@ -181,6 +184,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
         label: `Other · ${tail.length} project${tail.length > 1 ? "s" : ""}`,
         cost: tail.reduce((sum, a) => sum + a.cost, 0),
         tokens: tail.reduce((sum, a) => sum + a.tokens, 0),
+        unpricedTokens: tail.reduce((sum, a) => sum + a.unpricedTokens, 0),
         color: otherColor,
         muted: true,
         members: tail.map(rowFor),
@@ -189,7 +193,11 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
 
     const totalCost = rec.totalCost;
     const totalTokens = rec.totalTokens;
-    const basis = totalCost > 0 ? "cost" : "tokens";
+    // Shares by dollars only when every token has one. With a model unpriced the
+    // dollars are a floor, and a share of a floor is wrong for every row: a
+    // project whose work was all on that model would draw no segment at all.
+    // Tokens are counted whole either way, so they carry the proportion then.
+    const basis = totalCost > 0 && rec.unpricedTokens === 0 ? "cost" : "tokens";
     const denom = basis === "cost" ? totalCost : totalTokens;
 
     // The per-day chart maps the reconciled per-project day costs onto colours.
@@ -200,11 +208,22 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
         const color = colorForPath.get(path) ?? otherColor;
         costByColor.set(color, (costByColor.get(color) ?? 0) + cost);
       }
-      return { day: d.day, total: d.total, costByColor };
+      const unpricedByColor = new Map<string, number>();
+      let unpriced = 0;
+      for (const [path, n] of d.unpricedByPath) {
+        const color = colorForPath.get(path) ?? otherColor;
+        unpricedByColor.set(color, (unpricedByColor.get(color) ?? 0) + n);
+        unpriced += n;
+      }
+      return { day: d.day, total: d.total, costByColor, unpricedByColor, unpriced };
     });
     const maxDay = chart.reduce((m, d) => Math.max(m, d.total), 0);
 
-    return { rows, totalCost, totalTokens, basis, denom, un: rec.unattributed, reconciled: rec.reconciled, chart, maxDay, colorOrder };
+    return {
+      rows, totalCost, totalTokens, basis, denom, un: rec.unattributed, chart, maxDay, colorOrder,
+      unpricedTokens: rec.unpricedTokens, unpricedNote: unpricedNote(rec.unpricedModels),
+      calibrated: rec.calibrated, reconciled: rec.reconciled,
+    };
   }, [report, ccRange]);
 
   // The row shows the `~` form; the clipboard gets the absolute path. The fold
@@ -272,27 +291,36 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                 </div>
               ) : (
                 <>
-                  {/* Proportion at a glance: 100% of this account's spend on the window. */}
+                  {/* Proportion at a glance: 100% of this account's spend on the
+                      window — or of its tokens, when some of the spend has no
+                      price and a share of it would be a share of a floor. */}
                   <div className="ap-proj-bar" role="img"
-                    aria-label={`Share of ${fmtCost(view.totalCost)} across ${view.rows.length} projects`}>
+                    aria-label={view.basis === "cost"
+                      ? `Share of ${fmtCost(view.totalCost)} across ${view.rows.length} projects`
+                      : `Share of ${fmtTokens(view.totalTokens)} tokens across ${view.rows.length} projects`}>
                     {view.rows.map(r => {
                       const val = view.basis === "cost" ? r.cost : r.tokens;
                       const pct = view.denom > 0 ? (val / view.denom) * 100 : 0;
                       if (pct <= 0) return null;
+                      const share = view.basis === "cost" ? pctLabel(r.cost, view.totalCost) : `${pctLabel(r.tokens, view.totalTokens)} of tokens`;
                       return <span key={r.key} className="ap-proj-seg"
                         style={{ width: `${pct}%`, background: r.color }}
-                        title={`${r.label} · ${fmtCost(r.cost)} · ${pctLabel(r.cost, view.totalCost)}${r.tokens ? ` · ${fmtTokens(r.tokens)} tokens` : ""}`} />;
+                        title={`${r.label} · ${projectCostLabel(r.cost, r.unpricedTokens)} · ${share}${r.tokens ? ` · ${fmtTokens(r.tokens)} tokens` : ""}`} />;
                     })}
                   </div>
 
                   <div className="ap-proj-totals">
-                    <span className="ap-proj-total-cost">{fmtCost(view.totalCost)}</span>
+                    {/* A `+` when a model under the total has no rate: the figure
+                        is then everything that could be priced, not everything
+                        that was spent (#1330). */}
+                    <span className="ap-proj-total-cost" title={unpricedTitle(view.unpricedTokens)}>{projectCostLabel(view.totalCost, view.unpricedTokens)}</span>
                     <span className="ap-proj-total-tok">{fmtTokens(view.totalTokens)} tokens</span>
                     <span className="ap-proj-total-win">· {windowWord}</span>
                     {/* pricing.ts's dollars until ccusage answers, reconciled in
                         place when it does — said beside the figure that moves. */}
                     {costPending && <span className="ap-proj-total-pending">Reconciling cost…</span>}
                   </div>
+                  {view.unpricedNote && <div className="ap-proj-note">{view.unpricedNote}</div>}
 
                   {showsDayChart(shownDays, view.chart.length) && (
                     <div className="ap-proj-days">
@@ -302,11 +330,11 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         {view.chart.map(d => {
                           const h = view.maxDay > 0 ? (d.total / view.maxDay) * 100 : 0;
                           const on = selectedDay === d.day;
-                          const parts = view.rows.map(r => ({ label: r.label, c: d.costByColor.get(r.color) ?? 0 })).filter(x => x.c > 0);
-                          const spoken = `${niceDate(Date.parse(`${d.day}T00:00:00`))}, ${fmtCost(d.total)}. ${parts.map(p => `${p.label} ${fmtCost(p.c)}`).join(", ")}`;
+                          const parts = view.rows.map(r => ({ label: r.label, c: d.costByColor.get(r.color) ?? 0, u: d.unpricedByColor.get(r.color) ?? 0 })).filter(x => x.c > 0 || x.u > 0);
+                          const spoken = `${niceDate(Date.parse(`${d.day}T00:00:00`))}, ${projectCostLabel(d.total, d.unpriced)}. ${parts.map(p => `${p.label} ${projectCostLabel(p.c, p.u)}`).join(", ")}`;
                           return (
                             <button key={d.day} type="button" className={`ap-proj-day${on ? " selected" : ""}`}
-                              aria-pressed={on} aria-label={spoken} title={`${d.day} · ${fmtCost(d.total)}`}
+                              aria-pressed={on} aria-label={spoken} title={`${d.day} · ${projectCostLabel(d.total, d.unpriced)}`}
                               onClick={() => setSelectedDay(s => (s === d.day ? null : d.day))}>
                               <span className="ap-proj-col" style={{ height: `${h}%` }}>
                                 {view.colorOrder.map((color, k) => {
@@ -330,18 +358,18 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       {(() => {
                         const d = selectedDay ? view.chart.find(x => x.day === selectedDay) : null;
                         if (!d) return null;
-                        const parts = view.rows.map(r => ({ r, c: d.costByColor.get(r.color) ?? 0 })).filter(x => x.c > 0);
+                        const parts = view.rows.map(r => ({ r, c: d.costByColor.get(r.color) ?? 0, u: d.unpricedByColor.get(r.color) ?? 0 })).filter(x => x.c > 0 || x.u > 0);
                         return (
                           <div className="ap-proj-day-detail">
                             <div className="ap-proj-day-detail-head">
                               <span>{niceDate(Date.parse(`${d.day}T00:00:00`))}</span>
-                              <span className="ap-proj-day-detail-total">{fmtCost(d.total)}</span>
+                              <span className="ap-proj-day-detail-total" title={unpricedTitle(d.unpriced)}>{projectCostLabel(d.total, d.unpriced)}</span>
                             </div>
-                            {parts.map(({ r, c }) => (
+                            {parts.map(({ r, c, u }) => (
                               <div key={r.key} className="ap-proj-day-detail-row">
                                 <span className="ap-proj-dot" style={{ background: r.color }} aria-hidden="true" />
                                 <span className="ap-proj-day-detail-name">{r.label}</span>
-                                <span className="ap-proj-day-detail-cost">{fmtCost(c)}</span>
+                                <span className="ap-proj-day-detail-cost" title={unpricedTitle(u)}>{projectCostLabel(c, u)}</span>
                               </div>
                             ))}
                           </div>
@@ -371,10 +399,12 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                           <span className="ap-proj-name">
                             {r.label}{r.parentLabel && <span className="ap-proj-parent"> · in {r.parentLabel}</span>}
                           </span>
-                          <span className="ap-proj-track" title={`${pctLabel(r.cost, view.totalCost)} of tracked cost`}>
+                          <span className="ap-proj-track" title={view.basis === "cost"
+                            ? `${pctLabel(r.cost, view.totalCost)} of tracked cost`
+                            : `${pctLabel(r.tokens, view.totalTokens)} of tracked tokens`}>
                             <span className="ap-proj-fill" style={{ width: `${pct}%`, background: r.color }} />
                           </span>
-                          <span className="ap-proj-cost">{fmtCost(r.cost)}</span>
+                          <span className="ap-proj-cost" title={unpricedTitle(r.unpricedTokens)}>{projectCostLabel(r.cost, r.unpricedTokens)}</span>
                           <span className="ap-proj-tok">{fmtTokens(r.tokens)}</span>
                           <button type="button" className="glyph-btn ap-proj-info" aria-expanded={expanded}
                             aria-controls={hasDetails ? detailsId : undefined}
@@ -398,7 +428,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                                 <div key={member.path} className="ap-proj-other-member">
                                   <div className="ap-proj-other-name">{member.label}{member.parentLabel && <span className="ap-proj-parent"> · in {member.parentLabel}</span>}</div>
                                   <code className="ap-proj-path">{homeRelativePath(member.path)}</code>
-                                  <span className="ap-proj-cost">{fmtCost(member.cost)}</span>
+                                  <span className="ap-proj-cost" title={unpricedTitle(member.unpricedTokens)}>{projectCostLabel(member.cost, member.unpricedTokens)}</span>
                                   <span className="ap-proj-tok">{fmtTokens(member.tokens)}</span>
                                   <button type="button" className="ap-proj-copy"
                                     aria-label={`${copyWord(member.path)} location for ${member.label}`}
@@ -419,7 +449,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         <span className="ap-proj-un-title">Unattributed usage</span>
                         <span className="ap-proj-un-tag">Excluded from the project totals</span>
                       </div>
-                      <span className="ap-proj-un-cost">{fmtCostGrouped(view.un.cost)}</span>
+                      <span className="ap-proj-un-cost" title={unpricedTitle(view.un.unpricedTokens)}>{projectCostLabel(view.un.cost, view.un.unpricedTokens, fmtCostGrouped)}</span>
                       <span className="ap-proj-un-tok">{fmtTokens(view.un.tokens)}</span>
                       <div className="ap-proj-note">Work no account could be tied to — from before tracking, or a gap.</div>
                     </div>
@@ -433,8 +463,15 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                   </div>
 
                   <div className="ap-proj-foot">
+                    {/* `reconciled` is the whole total; `calibrated` is ccusage
+                        having priced some of it, which is all it is while a
+                        model under the total has no rate (#1330). A ccusage
+                        that answered with nothing it could price is not
+                        unavailable, and says what it did instead. */}
                     {costPending ? "Dollars estimated · ccusage still running"
                       : view.reconciled ? "Dollars from ccusage · split by activity"
+                      : view.calibrated ? "Dollars from ccusage for the priced models · split by activity"
+                      : ccRange ? "Dollars estimated · ccusage could not price this window"
                       : "Dollars estimated · ccusage unavailable"} · {trackedNote}
                   </div>
                 </>
