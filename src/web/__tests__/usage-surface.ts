@@ -35,6 +35,7 @@ export const USAGE_FILES = [
   "usage-prefs.ts",
   "use-board-spend.ts",
   "usage-panel-rules.ts",
+  "use-panel-clock.ts",
 ] as const;
 
 let joined: string | null = null;

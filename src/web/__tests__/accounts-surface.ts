@@ -41,6 +41,7 @@ export const ACCOUNTS_FILES = [
   "use-threshold-draft.ts",
   "use-roster-focus.ts",
   "account-refocus.ts",
+  "use-panel-clock.ts",
 ] as const;
 
 let joined: string | null = null;
