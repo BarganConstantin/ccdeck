@@ -17,11 +17,20 @@
 // reducer skips turn cleanup for replayed events. It has never read the flag
 // since that cleanup keyed on event time.
 //
+// Then `readStored` / `seenStore`, one of the three #1128 left for a decision:
+// storage.ts's guarded read, bypassed by hand-rolled copies, a sixth copy of
+// the accessor guard in release-notes.ts, and no writer at all. The accessor
+// is storage.ts's `localStore()` now, `seenStore` is gone, `writeStored` and
+// `removeStored` are the writer, and the copies left are the files named
+// below, each for a stated reason.
+//
 // Plain node: source text and module namespaces.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+
+import { clientPairs } from "./client-source";
 
 const SERVER = fileURLToPath(new URL("../../server/", import.meta.url));
 const WEB = fileURLToPath(new URL("../", import.meta.url));
@@ -79,5 +88,41 @@ describe("HookEnvelope.replay — App.tsx's half of #993's finding", () => {
     // The two the comment now names are the handler's.
     expect(stream).toMatch(/if \(isReplay\) coalescer\.replay\(\);/);
     expect(stream).toContain("chimeFor(env, isReplay)");
+  });
+});
+
+describe("readStored / seenStore — one guard for the store, not one per hook", () => {
+  it("has one accessor guard, in storage.ts, and release-notes.ts no longer carries its own", async () => {
+    const notes = src(WEB, "release-notes.ts");
+    expect(notes, "seenStore came back").not.toMatch(/\bfunction seenStore\b/);
+    expect(Object.keys(await import("../release-notes"))).not.toContain("seenStore");
+    const storage = await import("../storage");
+    for (const name of ["readStored", "writeStored", "removeStored", "localStore"]) {
+      expect(typeof (storage as Record<string, unknown>)[name], `storage.ts no longer exports ${name}`).toBe("function");
+    }
+    // What the seen markers are handed is the shared accessor.
+    expect(src(WEB, "use-welcome-and-notes.ts")).toContain("const store = localStore();");
+  });
+
+  // The files that still touch `localStorage` themselves, with the reason each
+  // one does. Code only — comments are stripped. A new hand-rolled guard fails
+  // here; moving one of these onto storage.ts's helpers takes it off the list.
+  const DIRECT: Record<string, string> = {
+    "storage.ts": "the helpers themselves",
+    "main.tsx": "the boot prune, handed the store inside its own try before App exists",
+    // Left for the change their owners are making now, not for a reason of
+    // their own. Each already wraps every read and write.
+    "App.tsx": "the detail, usage and machine panels' open state",
+    "use-appearance.ts": "the theme and character switches",
+    "use-browser-watch-badge.ts": "the browser watch's seen marker",
+    "use-claude-fm.ts": "the station, volume and mute",
+    "use-custom-tones.ts": "the custom chimes",
+    "use-sound-switch.ts": "the finish-sound switch",
+    "use-tone-prefs.ts": "the chime levels and figures",
+  };
+
+  it("is touched directly only by the files that say why", () => {
+    const direct = clientPairs().filter(([, text]) => /\blocalStorage\b/.test(text)).map(([file]) => file).sort();
+    expect(direct).toEqual(Object.keys(DIRECT).sort());
   });
 });
