@@ -208,7 +208,8 @@ describe("the quota held across a Claude account switch", () => {
 });
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const server = readFileSync(`${web}../server/index.mjs`, "utf8");
+// The route's own module, since the accounts routes left index.mjs.
+const server = readFileSync(`${web}../server/account-routes.mjs`, "utf8");
 const handler = /async function handleClaudeAccountSwitch[\s\S]*?\n}/.exec(server)?.[0] ?? "";
 
 // These two read the handler's SOURCE, which pins one literal inside one
