@@ -38,7 +38,8 @@
 // because a share of the machine's cores IS what that section measures and the
 // strip under it is the only reading in the panel with no number of its own.
 import React, { useState } from "react";
-import { attentionFlag, bytes, thermalTone, throttleRow, uptime } from "../machine-readings";
+import { attentionFlag, thermalTone, throttleRow, uptime } from "../machine-readings";
+import { fmtBytes } from "../byte-format";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
@@ -289,15 +290,15 @@ function MemorySection({ memory, swap, platform }: {
       <OpensHistory group="memory" title="Memory history" action="Show memory history" label="Memory">
         <Row
           label="Physical"
-          value={<><b>{bytes(used)}</b> of {bytes(memory.total)}</>}
+          value={<><b>{fmtBytes(used)}</b> of {fmtBytes(memory.total)}</>}
           pct={memory.usedPct}
           tone={memory.usedPct >= 90 ? "warn" : "calm"}
-          note={`${bytes(memory.available)} available`}
+          note={`${fmtBytes(memory.available)} available`}
         />
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
-            value={<><b>{bytes(swap.used)}</b> of {bytes(swap.total)}</>}
+            value={<><b>{fmtBytes(swap.used)}</b> of {fmtBytes(swap.total)}</>}
             pct={swapPct}
             tone={swapPct >= 90 ? "warn" : "calm"}
           />

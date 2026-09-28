@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 
 import type { createChimePlayer } from "./chime-player";
+import { readStored, writeStored } from "./storage";
 import { useMirroredRef } from "./use-mirrored-ref";
 
 type ChimePlayer = ReturnType<typeof createChimePlayer>;
@@ -26,17 +27,16 @@ export function useSoundSwitch(chimesRef: MutableRefObject<ChimePlayer | null>) 
   // through "off" on a deck where it is on.
   const [soundOn, setSoundOn] = useState<boolean | null>(null);
   useEffect(() => {
-    let stored: string | null = null;
-    // Wrapped: a private window, or a browser set to block site data, throws
-    // out of the accessor rather than answering null.
-    try { stored = localStorage.getItem("agent-dag.sound"); } catch { /* no storage */ }
+    // Through readStored: a private window, or a browser set to block site
+    // data, throws out of the accessor rather than answering null.
+    const stored = readStored("agent-dag.sound");
     setSoundOn(stored === null ? true : stored === "on");
   }, []);
 
   const toggleSound = useCallback(() => {
     setSoundOn(prev => {
       const next = prev !== true;
-      try { localStorage.setItem("agent-dag.sound", next ? "on" : "off"); } catch { /* no storage */ }
+      writeStored("agent-dag.sound", next ? "on" : "off");
       // Turning it ON is itself the gesture the autoplay rules want, so take
       // it: otherwise the switch says "on" and the next event is still silent
       // because nothing has been pressed since the reload.

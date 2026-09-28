@@ -26,6 +26,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import MachineStrip from "./MachineStrip";
+import { fmtBytes } from "../byte-format";
 import type { LiveSource } from "../machine-live";
 
 /** `cpu` is null on a Windows first reading: a percentage needs two samples and
@@ -172,25 +173,6 @@ function useProcesses(): { procs: Proc[]; total: number } | null {
 }
 
 /**
- * Bytes as a machine reader wants them: three significant figures and a unit.
- *
- * The panel's column is a percentage of installed memory and stays one — it has
- * 40px. Here there is room for the figure itself, and "6.5 GB" answers "can I
- * close this and get something back" in a way "20.3" never did.
- *
- * Binary units, because that is what `ps` reports and what every process
- * viewer on all three platforms shows.
- */
-export function fmtBytes(n: number | undefined): string {
-  if (n == null || !Number.isFinite(n) || n < 0) return "—";
-  if (n < 1024) return `${Math.round(n)} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let v = n / 1024, i = 0;
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return `${v >= 100 ? v.toFixed(0) : v.toFixed(1)} ${units[i]}`;
-}
-
-/**
  * How long it has been up, at one unit of precision.
  *
  * "2h" and "6d" are the whole of what this column is for — telling the process
@@ -308,6 +290,11 @@ export default function ProcessListModal({ sys, onClose }: {
                         Windows first reading — a dash, never a zero, which
                         would rank it as idle. */}
                     <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
+                    {/* Bytes, and the percentage in the title. The panel's
+                        column is a percentage of installed memory and stays
+                        one — it has 40px. Here there is room for the figure
+                        itself, and "6.5 GB" answers "can I close this and get
+                        something back" in a way "20.3" never did. */}
                     <td className="sd-num sd-dim" title={`${p.mem.toFixed(1)}% of installed memory`}>
                       {fmtBytes(p.rssBytes)}
                     </td>

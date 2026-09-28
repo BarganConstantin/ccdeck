@@ -97,7 +97,7 @@
      block. The values are the ones those rules wrote. */
   --conn-wash: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
   --burst-live-wash: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));
-  --hero-core: radial-gradient(circle at 30% 30%, #f0abfc, #7dd3fc 55%, #14161b);
+  --hero-core: radial-gradient(circle at 30% 30%, #c4b5fd, #7dd3fc 55%, #14161b);
   --grid-line: #1a1d24;
   --minimap-mask: rgba(11,12,16,0.85);
   /* Per-session and per-MCP-server hues are hashed in JS (reducer.sessionHue,
@@ -253,7 +253,7 @@
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);
   --conn-wash: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
   --burst-live-wash: linear-gradient(180deg, rgba(126,34,206,0.06), transparent);
-  --hero-core: radial-gradient(circle at 30% 30%, #c084fc, #0ea5e9 55%, #1e293b);
+  --hero-core: radial-gradient(circle at 30% 30%, #a78bfa, #0ea5e9 55%, #1e293b);
   --grid-line: #d0d5dd;
   --minimap-mask: rgba(238,241,246,0.85);
   /* The same six jobs, re-tuned for a white canvas — the whole point of #330.
@@ -577,15 +577,16 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
 }
 
-/* THE GRADIENTS TWO RULES SHARE (#1287), in neither theme because they are
-   made of theme tokens already: the meter fill the context window and the
-   session summary's tool bars both draw, and the dash a LAN wire takes when
-   the link is down or the flow is cut. A shared gradient written twice is two
-   values that happen to agree; one token is one decision. A gradient only one
-   rule draws, and that no theme retunes, stays in its rule — a token with one
-   reader is indirection, not a decision. */
+/* THE GRADIENT TWO RULES SHARE (#1287), in neither theme because it is made
+   of a theme token already: the dash a LAN wire takes when the link is down or
+   the flow is cut. A shared gradient written twice is two values that happen
+   to agree; one token is one decision. A gradient only one rule draws, and
+   that no theme retunes, stays in its rule — a token with one reader is
+   indirection, not a decision. There was a second, the meter fill the context
+   window and the session summary's tool bars drew: --accent to --inflight,
+   so every finished session's bars ended in the running hue. Both fills are
+   flat --accent since #1649, as every other meter on the deck already was. */
 :root {
-  --meter-grad: linear-gradient(90deg, var(--accent), var(--inflight));
   --wire-dashed: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
 }
 
@@ -4665,13 +4666,14 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   border: 1px solid var(--line);
   overflow: hidden;
 }
-/* Full width and scaled from the left, like the quota fills (#863). The
-   gradient scales with it, so it still runs accent to inflight across the
-   filled part and not across the track. */
+/* Full width and scaled from the left, like the quota fills (#863). Flat
+   --accent, like the machine panel's and the quota's meters: it ran --accent
+   to --inflight until #1649, and a context window's fill is a quantity, not a
+   thing running. */
 .ctx-window-fill {
   position: absolute;
   inset: 0;
-  background: var(--meter-grad);
+  background: var(--accent);
   transform-origin: left center;
   transition: transform 400ms ease;
 }
@@ -7194,10 +7196,12 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-radius: 3px;
   overflow: hidden;
 }
+/* Counts of finished tool calls, so --accent and not the --accent-to-
+   --inflight gradient it drew until #1649. */
 .session-summary .ss-tt-bar-fill {
   display: block;
   height: 100%;
-  background: var(--meter-grad);
+  background: var(--accent);
   border-radius: 3px;
 }
 .session-summary .ss-tt-count {
@@ -7248,8 +7252,14 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-radius: 50%;
   border: 1px dashed rgba(125,211,252,0.18);
 }
+/* Sky, violet and green. The middle orbit was --inflight, and so were the
+   core's highlight and glow, on the one screen that shows only when nothing is
+   running (#1649). Violet is --usage-purple, 18.9 ΔE from the dark --inflight
+   and 26.4 from the light one; the dashes and the glow write its literal, as
+   they write the other two orbits'. --hero-core's highlight is that violet
+   in dark, and violet-400 on white, where violet-900 would not read as light. */
 .empty-hero .orbit.r1 { inset: 0;   animation: spin 22s linear infinite; }
-.empty-hero .orbit.r2 { inset: 30px; animation: spin 14s linear infinite reverse; border-color: rgba(240,171,252,0.20); }
+.empty-hero .orbit.r2 { inset: 30px; animation: spin 14s linear infinite reverse; border-color: rgba(196,181,253,0.20); }
 .empty-hero .orbit.r3 { inset: 60px; animation: spin 9s  linear infinite;          border-color: rgba(134,239,172,0.22); }
 .empty-hero .orbit .dot {
   position: absolute;
@@ -7258,7 +7268,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   top: -7px; left: 50%; margin-left: -7px;
 }
 .empty-hero .orbit.r1 .dot { background: var(--accent);   box-shadow: 0 0 22px var(--accent); }
-.empty-hero .orbit.r2 .dot { background: var(--inflight); box-shadow: 0 0 22px var(--inflight); width: 12px; height: 12px; margin-left: -6px; top: -6px; }
+.empty-hero .orbit.r2 .dot { background: var(--usage-purple); box-shadow: 0 0 22px var(--usage-purple); width: 12px; height: 12px; margin-left: -6px; top: -6px; }
 .empty-hero .orbit.r3 .dot { background: var(--ok);       box-shadow: 0 0 22px var(--ok);       width: 10px; height: 10px; margin-left: -5px; top: -5px; }
 .empty-hero .orbit .dot.b   { top: auto; bottom: -7px; }
 .empty-hero .orbit.r2 .dot.b { bottom: -6px; }
@@ -7272,7 +7282,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-radius: 50%;
   background: var(--hero-core);
   box-shadow:
-    0 0 28px rgba(240,171,252,0.55),
+    0 0 28px rgba(196,181,253,0.55),
     0 0 64px rgba(125,211,252,0.35);
   animation: corepulse 2.6s ease-in-out infinite;
 }
@@ -7378,10 +7388,10 @@ button.tool.clickable:last-child { border-bottom: none; }
 }
 
 :root[data-theme="light"] .empty-hero .orbit { border-color: rgba(3,105,161,0.30); }
-:root[data-theme="light"] .empty-hero .orbit.r2 { border-color: rgba(126,34,206,0.30); }
+:root[data-theme="light"] .empty-hero .orbit.r2 { border-color: rgba(76,29,149,0.30); }
 :root[data-theme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
 :root[data-theme="light"] .empty-hero .core {
-  box-shadow: 0 0 28px rgba(126,34,206,0.40), 0 0 64px rgba(3,105,161,0.25);
+  box-shadow: 0 0 28px rgba(76,29,149,0.40), 0 0 64px rgba(3,105,161,0.25);
 }
 
 :root[data-theme="light"] .conn-banner {

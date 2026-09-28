@@ -20,7 +20,7 @@ import { clearCustomAssetSelections, createCustomVoice, CUSTOM_AUDIO_KEYS, delet
          type CustomAssetSummary, type CustomSelections } from "./notification-audio";
 import type { createChimePlayer } from "./chime-player";
 import { CHIME_ORDER, DEFAULT_FIGURE_ID, DEFAULT_LEVEL, FIGURE_KEYS, type Chime } from "./sound";
-import { readStored } from "./storage";
+import { readStored, removeStored, writeStored } from "./storage";
 import { useMirroredRef } from "./use-mirrored-ref";
 import type { TonePrefsControls } from "./use-tone-prefs";
 
@@ -50,7 +50,7 @@ export function useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewT
       customSelectionsRef.current = next;
       return next;
     });
-    try { localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]); } catch { /* no storage */ }
+    removeStored(CUSTOM_AUDIO_KEYS[chime]);
   }, []);
 
   const fallbackCustom = useCallback((chime: Chime, expectedId?: string) => {
@@ -62,7 +62,7 @@ export function useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewT
       tonePrefsRef.current = next;
       return next;
     });
-    try { localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID); } catch { /* no storage */ }
+    writeStored(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID);
   }, [clearCustomOnly]);
   const fallbackCustomRef = useMirroredRef(fallbackCustom);
 
@@ -87,7 +87,7 @@ export function useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewT
     const next = { ...customSelectionsRef.current, [chime]: id };
     customSelectionsRef.current = next;
     setCustomSelections(next);
-    try { localStorage.setItem(CUSTOM_AUDIO_KEYS[chime], id); } catch { /* no storage */ }
+    writeStored(CUSTOM_AUDIO_KEYS[chime], id);
     previewTone(chime, true);
   }, [customAssets, previewTone]);
 
@@ -139,10 +139,8 @@ export function useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewT
     setCustomSelections(after);
     const affected = CHIME_ORDER.filter(chime => before[chime] === id);
     for (const chime of affected) {
-      try {
-        localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]);
-        localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID);
-      } catch { /* no storage */ }
+      removeStored(CUSTOM_AUDIO_KEYS[chime]);
+      writeStored(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID);
     }
     if (affected.length > 0) {
       setTonePrefs(prev => {

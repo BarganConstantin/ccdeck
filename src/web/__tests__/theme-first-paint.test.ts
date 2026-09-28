@@ -241,7 +241,7 @@ describe("App", () => {
     expect(app, "the toggle no longer writes data-theme")
       .toMatch(/\.dataset\.theme\s*=\s*theme/);
     expect(app, "the toggle no longer persists the choice")
-      .toMatch(/localStorage\.setItem\(\s*THEME_KEY\s*,\s*theme\s*\)/);
+      .toMatch(/writeStored\(\s*THEME_KEY\s*,\s*theme\s*\)/);
   });
 });
 

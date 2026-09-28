@@ -48,7 +48,7 @@ describe("the Claude FM volume preference", () => {
     // which App calls — so this reads the client. All matches are positive.
     const app = clientText();
     expect(app).toContain("useState(storedFmVolume)");
-    expect(app).toContain("localStorage.setItem(FM_VOLUME_KEY, String(fmVolume))");
+    expect(app).toContain("writeStored(FM_VOLUME_KEY, String(fmVolume))");
     expect(app).toContain("fmVolume={fmVolume}");
     expect(app).toContain("onFmVolume={setFmVolume}");
     expect(app).toContain("<ClaudeFm");

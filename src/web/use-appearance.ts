@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
 import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
+import { writeStored } from "./storage";
 import { THEME_KEY, type Theme, storedTheme } from "./theme";
 
 /**
@@ -69,7 +70,7 @@ export function useAppearance() {
   // Every later run is the T toggle, which is the reason the effect exists.
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try { window.localStorage.setItem(THEME_KEY, theme); } catch { /* private mode */ }
+    writeStored(THEME_KEY, theme);
     // Re-read the canvas tokens HERE, in the same effect and on the line after
     // the attribute, rather than in a `useMemo` keyed on `theme` (#613). A memo
     // runs during render, and `data-theme` is not written until this effect —
@@ -85,7 +86,7 @@ export function useAppearance() {
   }, [theme]);
 
   useEffect(() => {
-    try { window.localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0"); } catch { /* private mode */ }
+    writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0");
   }, [characterEnabled]);
 
   /**

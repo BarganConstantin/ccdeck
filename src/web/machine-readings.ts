@@ -2,8 +2,10 @@
 //
 // Lifted out of MachinePanel.tsx unchanged: which band a temperature falls
 // in, how throttling is said, the one condition worth flagging at the top,
-// how bytes, an uptime and a network path are written. None of it touches
-// React, so each can be asked what it says rather than read.
+// how an uptime and a network path are written. None of it touches React, so
+// each can be asked what it says rather than read. Bytes were written here
+// too, in a format of the panel's own, until #1128 gave the deck one:
+// byte-format.ts.
 import type { NetRoute, Snapshot } from "./machine-snapshot";
 
 /** How a bar is painted. `calm` is the resting appearance and carries no class
@@ -86,12 +88,6 @@ function sinceLabel(atMs: number, now = Date.now()): string {
   if (mins < 60) return `${mins} minutes ago`;
   const h = Math.floor(mins / 60);
   return h === 1 ? "an hour ago" : `${h} hours ago`;
-}
-
-export function bytes(n: number): string {
-  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
-  if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)} MB`;
-  return `${Math.round(n / 1024)} KB`;
 }
 
 export function uptime(sec: number): string {

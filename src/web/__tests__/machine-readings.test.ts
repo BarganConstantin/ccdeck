@@ -4,10 +4,13 @@
 // were written. The rest lived inside MachinePanel.tsx, where nothing could
 // call them: the one condition the panel flags at the top, how it writes
 // bytes and an uptime, and the words for the path traffic takes. They are in
-// machine-readings.ts now, and these call them.
+// machine-readings.ts now, bytes aside — since #1128 those are the deck's one
+// formatter in byte-format.ts — and these call them.
 import { describe, it, expect } from "vitest";
 
-import { attentionFlag, bytes, pathText, uptime } from "../machine-readings";
+import { attentionFlag, pathText, uptime } from "../machine-readings";
+import { fmtBytes } from "../byte-format";
+import { sourceOf } from "./client-source";
 
 const calm = {
   thermal: { celsius: [], throttle: { speedLimit: 100 } },
@@ -51,12 +54,20 @@ describe("the one condition worth saying at the top", () => {
   });
 });
 
-describe("bytes and an uptime, in the panel's own units", () => {
-  it("writes gigabytes to one place and anything smaller whole", () => {
-    expect(bytes(20.5 * 1024 ** 3)).toBe("20.5 GB");
-    expect(bytes(1024 ** 3)).toBe("1.0 GB");
-    expect(bytes(512.4 * 1024 ** 2)).toBe("512 MB");
-    expect(bytes(900 * 1024)).toBe("900 KB");
+describe("bytes and an uptime, in the panel's units", () => {
+  it("writes memory in the deck's one byte format, one decimal at every unit (#1128)", () => {
+    // Gigabytes kept their one place; megabytes and kilobytes were whole, and
+    // an idle swap was "0 KB", until the panel's own `bytes` went.
+    expect(fmtBytes(20.5 * 1024 ** 3)).toBe("20.5 GB");
+    expect(fmtBytes(1024 ** 3)).toBe("1.0 GB");
+    expect(fmtBytes(512.4 * 1024 ** 2)).toBe("512.4 MB");
+    expect(fmtBytes(900 * 1024)).toBe("900.0 KB");
+    expect(fmtBytes(0)).toBe("0 B");
+    const panel = sourceOf("components/MachinePanel.tsx");
+    expect(panel).toMatch(/import \{ fmtBytes \} from "\.\.\/byte-format";/);
+    for (const figure of ["used", "memory.total", "memory.available", "swap.used", "swap.total"]) {
+      expect(panel, figure).toContain(`fmtBytes(${figure})`);
+    }
   });
 
   it("writes an uptime at the two largest units it has", () => {
