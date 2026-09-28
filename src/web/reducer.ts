@@ -28,6 +28,8 @@ export {
 export { BLOCK_GUESS_WINDOW_MS } from "./waiting-block";
 // And the window a repeated prompt is one submission inside, for its tests.
 export { PROMPT_REDELIVERY_WINDOW_MS } from "./redelivery";
+// And each session's accent, which the canvas, the cards and the clusters draw.
+export { sessionHue } from "./session-hue";
 
 // NOTHING IN THIS FILE ADDS TOKENS TO AN AGENT ANY MORE, and that is the point
 // of #685 rather than an accident of it. There was one `addUsage(owner, …)`,
@@ -1066,11 +1068,4 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   }
 
   return state;
-}
-
-/** Deterministic per-session hue (0–360). Used to give each session a calm accent. */
-export function sessionHue(sessionId: string): number {
-  let h = 5381;
-  for (let i = 0; i < sessionId.length; i++) h = ((h << 5) + h) ^ sessionId.charCodeAt(i);
-  return Math.abs(h) % 360;
 }

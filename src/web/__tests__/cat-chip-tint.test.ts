@@ -360,17 +360,18 @@ describe("the chip's hue IS the bubble's hue, drawn from the same call", () => {
     // copy fails wherever somebody puts it rather than only in the one file.
     //
     // Two modules spell this arithmetic and the second is NOT the defect #374
-    // removed. `reducer.sessionHue` hashes a session id and `ToolBursts.hashHue`
-    // hashes an MCP server segment: same body, different domains, neither
-    // derived from the other, and #374's sweep (duplicated-helpers.test.ts) went
-    // through seven helper pairs without listing them. They are named here
+    // removed. `session-hue.sessionHue` hashes a session id and
+    // `ToolBursts.hashHue` hashes an MCP server segment: same body, different
+    // domains, neither derived from the other, and #374's sweep
+    // (duplicated-helpers.test.ts) went through seven helper pairs without
+    // listing them. They are named here
     // rather than pattern-allowed, so merging them stays a decision somebody
     // makes on purpose — and a THIRD spelling fails this line on arrival.
     const spelt = modulesUnder(web)
       .filter(p => /h = \(\(h << 5\) \+ h\)/.test(readFileSync(p, "utf8")))
       .map(p => p.slice(web.length).replace(/\\/g, "/"))
       .sort();
-    expect(spelt).toEqual(["components/ToolBursts.tsx", "reducer.ts"]);
+    expect(spelt).toEqual(["components/ToolBursts.tsx", "session-hue.ts"]);
     // The MCP one is private, so a second copy is the only way to get one.
     const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
     expect(bursts).toMatch(/^function hashHue\(/m);
