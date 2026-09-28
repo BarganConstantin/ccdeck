@@ -58,6 +58,12 @@
     "3.29.6",
     "3.29.7"
   ],
+  "3.29.8": [
+    {
+      "title": "🔁 Removed cards come back when their agent works again",
+      "body": "Remove from board is for finished work. If the agent behind a card you removed starts a tool call, gets a new prompt or starts a subagent, the card returns on its own, together with the card it hangs from, and it stays back after a reload. Cards whose agents stay idle stay removed."
+    }
+  ],
   "3.29.1": [
     {
       "title": "🗂️ One row per project in Projects",
