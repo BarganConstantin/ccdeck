@@ -77,9 +77,12 @@ vi.mock("../../server/claude-dir.mjs", async (importOriginal) => {
 // @ts-expect-error — a plain .mjs module, no types
 const quota = await import("../../server/quota.mjs");
 const {
-  fetchClaudeQuota, invalidateQuotaCache, forgetQuotaFailureNotice,
+  fetchClaudeQuota, invalidateQuotaCache,
   resetQuotaPollFloor, QUOTA_DEADLINE_MS,
 } = quota;
+// The notice's memory moved to quota-cli.mjs with the run that says it.
+// @ts-expect-error — a plain .mjs module, no types
+const { forgetQuotaFailureNotice } = await import("../../server/quota-cli.mjs");
 
 // Nothing here talks to a network, and a test that quietly did would be a test
 // whose result depends on the machine it ran on.

@@ -1,7 +1,7 @@
 // #553. `claudeCliCandidates` in claude-dir.mjs is one list of every place the
 // `claude` CLI is known to live, and it has two readers. `claudeCliOnDisk`,
 // behind `hasClaudeInstalled()`, reads it properly: a full path gets a stat, a
-// bare name gets a PATH walk. `quotaClaudeBin` in quota.mjs read it with
+// bare name gets a PATH walk. `quotaClaudeBin` in quota-cli.mjs read it with
 //
 //     .find(c => !c.includes(sep) || exists(c)) ?? "claude"
 //
@@ -48,7 +48,7 @@
 // it has to run on all three CI legs.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — .mjs server module, no types
-import { quotaClaudeBin } from "../../server/quota.mjs";
+import { quotaClaudeBin } from "../../server/quota-cli.mjs";
 // @ts-expect-error — .mjs server module, no types
 import { hasClaudeInstalled } from "../../server/claude-dir.mjs";
 

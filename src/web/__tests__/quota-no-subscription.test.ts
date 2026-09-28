@@ -37,6 +37,8 @@ const panel = readFileSync(fileURLToPath(new URL("../components/QuotaSections.ts
 // The quota read, and the shape its route answers in, moved to use-quota.ts.
 const quotaReads = readFileSync(fileURLToPath(new URL("../use-quota.ts", import.meta.url)), "utf8");
 const server = readFileSync(fileURLToPath(new URL("../../server/quota.mjs", import.meta.url)), "utf8");
+// One run of the CLI, and what it reports about itself, moved to quota-cli.mjs.
+const cli = readFileSync(fileURLToPath(new URL("../../server/quota-cli.mjs", import.meta.url)), "utf8");
 
 describe("whether this machine has a subscription to report on", () => {
   it("says no for Bedrock and for Vertex, whatever else is on disk", async () => {
@@ -81,12 +83,12 @@ describe("what the server publishes when the CLI prints no windows", () => {
     // Resting the <1% branch on it alone published {ok:true, 0%, 0%} for a run
     // that errored, while the deck logged `claude CLI failed` in the same
     // second. `cliRan` carries the exit status the parse deliberately ignores.
-    expect(server).toContain("return { cliOk, ran: r.ok, missing, parsed: parseUsageText(combined) };");
+    expect(cli).toContain("return { cliOk, ran: r.ok, missing, parsed: parseUsageText(combined) };");
     expect(server).toContain("cliRan = r.ran || cliRan;");
     // And the gate is on the FALLBACK only: the parse above still keeps its
     // output on a non-zero exit, because the quota lines can be printed and the
     // exit still be non-zero. quota-quiet-failure.test.ts drives both halves.
-    expect(server).toContain("const combined = r.stdout + \"\\n\" + r.stderr;");
+    expect(cli).toContain("const combined = r.stdout + \"\\n\" + r.stderr;");
   });
 });
 
