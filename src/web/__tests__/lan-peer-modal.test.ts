@@ -406,7 +406,7 @@ describe("the row is the door", () => {
     // row, and in the dialog.
     // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
     expect(MODAL).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
-    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); armedAt\.current = now; return; \}/);
+    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); setArmedTwin\(null\); armedAt\.current = now; return; \}/);
     // The row's press lives in the section's own hook for it.
     for (const src of [MODAL, ROW_UNPAIR]) {
       expect(src).toMatch(/if \(press === "ignore"\) return;/);
