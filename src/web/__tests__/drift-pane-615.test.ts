@@ -61,6 +61,12 @@ const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
+/** use-canvas-size.ts the same way. The observer and the ref it fills moved
+ *  there; the watchdog that reads the ref, and the element it observes, stayed. */
+const sizeCode = readFileSync(fileURLToPath(new URL("../use-canvas-size.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+
 /** The body of the watchdog's interval callback. */
 const watchdog = (() => {
   const at = appCode.indexOf("const id = setInterval(");
@@ -70,9 +76,9 @@ const watchdog = (() => {
 
 /** The ResizeObserver effect that measures the canvas. */
 const observer = (() => {
-  const at = appCode.indexOf("new ResizeObserver(");
-  const end = appCode.indexOf("ro.disconnect()", at);
-  return at < 0 || end < 0 ? "" : appCode.slice(at, end);
+  const at = sizeCode.indexOf("new ResizeObserver(");
+  const end = sizeCode.indexOf("ro.disconnect()", at);
+  return at < 0 || end < 0 ? "" : sizeCode.slice(at, end);
 })();
 
 /**
@@ -401,10 +407,11 @@ describe("App.tsx hands the rule the pane it measured", () => {
     // in this file may go back to measuring a grid column with `window.inner*`.
     expect(watchdog).not.toMatch(/window\.inner(Width|Height)/);
     expect(appCode).not.toMatch(/window\.inner(Width|Height)/);
+    expect(sizeCode).not.toMatch(/window\.inner(Width|Height)/);
   });
 
   it("starts that ref empty, so a tick before the first measurement decides nothing", () => {
-    expect(appCode).toMatch(/const paneSizeRef = useRef<PaneSize \| null>\(null\);/);
+    expect(sizeCode).toMatch(/const paneSizeRef = useRef<PaneSize \| null>\(null\);/);
   });
 
   it("fills that ref from the ResizeObserver on the canvas element", () => {
@@ -427,7 +434,7 @@ describe("App.tsx hands the rule the pane it measured", () => {
   });
 
   it("observes the element the canvas is drawn in", () => {
-    expect(appCode).toMatch(/const el = canvasRef\.current;/);
+    expect(sizeCode).toMatch(/const el = canvasRef\.current;/);
     expect(appCode).toMatch(/className=\{`canvas-wrap\$\{[\s\S]*?ref=\{canvasRef\}/);
   });
 });
