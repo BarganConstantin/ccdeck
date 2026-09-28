@@ -97,28 +97,46 @@ export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
   if (!episodes.length) return;
   const mk = deps.mkdir ?? mkdir;
   const add = deps.appendFile ?? appendFile;
-  // Local time, not UTC. The reader's question is "what was happening at four
-  // yesterday afternoon", and their afternoon is not UTC's — the ISO stamp this
-  // replaced was off by the offset for everyone outside London.
-  const stamp = ms => {
-    const d = new Date(ms);
-    const p = n => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
-         + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  };
-  const block = e => {
-    const span = e.endMs - e.startMs >= 60_000
-      ? ` over ${Math.round((e.endMs - e.startMs) / 60_000)}m`
-      : "";
-    const where = e.browser ? ` [${e.browser}]` : "";
-    const head = `${stamp(e.startMs)}  ${e.host}  ${e.count} page${e.count === 1 ? "" : "s"}${span}${where}`;
-    const rows = (e.urls ?? []).map(u => `    ${stamp(u.timeMs).slice(11)}  ${u.url}`);
-    return [head, ...rows].join("\n");
-  };
   await mk(storeDir(home), { recursive: true });
-  const text = episodes.map(block).join("\n") + "\n";
+  const text = episodes.map(logBlock).join("\n") + "\n";
   await rollIfFull(home, Buffer.byteLength(text, "utf8"), deps);
   await add(logPath(home), text, "utf8");
+}
+
+/**
+ * A moment as the log writes it, to the second: `2026-09-28 16:05:09`.
+ *
+ * Local time, not UTC. The reader's question is "what was happening at four
+ * yesterday afternoon", and their afternoon is not UTC's — the ISO stamp this
+ * replaced was off by the offset for everyone outside London.
+ */
+function localStamp(ms) {
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/**
+ * One episode as the log writes it, without the newline that ends it.
+ *
+ * The summary line at column zero — when it started, the host, how many pages,
+ * how long it ran once that is a minute or more, and which browser — and then
+ * every address under it, indented, each with its time of day. `appendLog`
+ * above says why the addresses are written whole and why the indent is the
+ * shape `grep` needs.
+ *
+ * Exported for its test, which can pin the exact text a person reads without
+ * going through a file.
+ */
+export function logBlock(e) {
+  const span = e.endMs - e.startMs >= 60_000
+    ? ` over ${Math.round((e.endMs - e.startMs) / 60_000)}m`
+    : "";
+  const where = e.browser ? ` [${e.browser}]` : "";
+  const head = `${localStamp(e.startMs)}  ${e.host}  ${e.count} page${e.count === 1 ? "" : "s"}${span}${where}`;
+  const rows = (e.urls ?? []).map(u => `    ${localStamp(u.timeMs).slice(11)}  ${u.url}`);
+  return [head, ...rows].join("\n");
 }
 
 /**
