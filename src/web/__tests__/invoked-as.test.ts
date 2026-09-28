@@ -37,7 +37,7 @@ import { glyphs, labelColumn, palette, statusLine, stripAnsi } from "../../serve
 // @ts-expect-error — plain JS module, no types
 import { upgradeBlock, upgradeMode } from "../../server/self-update.mjs";
 import { clientText } from "./client-source";
-import { cliSurface } from "./cli-surface";
+import { CLI_FILES, cliSurface } from "./cli-surface";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -331,6 +331,23 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // And the files that print it take it from there rather than working it out again.
     expect(cliSurface()).toMatch(/import \{[^}]*\bINVOKED_AS\b[^}]*\} from "\.\/package\.js";/);
     expect(cliSurface()).not.toContain("process.argv[1]");
+  });
+
+  it("names the command that was typed in every hint the worker prints (#1501)", () => {
+    // A hint is a command for the user to type, so it has to be one their
+    // machine has: the name they typed, or ccdeck when that cannot be told.
+    // The boot's unknown-option row and --uninstall's repair line said
+    // `ccdeck` outright, beside one-shots that already said the typed name.
+    // `--help` is the one exception: it documents the product rather than
+    // telling anybody what to type next.
+    const hints = CLI_FILES.filter(f => f !== "bin/cli/help.js")
+      .flatMap(f => read(...f.split("/")).split("\n").map(l => [f, l] as const))
+      .filter(([, l]) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .filter(([, l]) => /\\`\$\{PRODUCT\}[ \\]/.test(l))
+      .map(([f, l]) => `${f}: ${l.trim()}`);
+    expect(hints).toEqual([]);
+    // The scan is looking at the right spelling: the typed-name form is there.
+    expect(cliSurface()).toContain("\\`${INVOKED_AS ?? PRODUCT} --help\\`");
   });
 
   it("warns and returns, rather than refusing to run", () => {
