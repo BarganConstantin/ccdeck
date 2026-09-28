@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { cacheControlFor, encodedBody, pickEncoding } from "../../server/static-cache.mjs";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const server = read("../../server/index.mjs");
@@ -79,9 +80,12 @@ describe("the rarely opened dialogs load when they open (#883)", () => {
   });
 
   it("takes the topbar's unseen count from a module that does not carry the dialog", () => {
-    expect(app).toMatch(/import \{ SEEN_KEY, unseenEpisodes \} from "\.\/browser-watch-seen";/);
+    // The badge's imports moved verbatim into use-browser-watch-badge.ts, which
+    // App.tsx loads eagerly: the count still comes from the light module, and the
+    // dialog is still only a type import there, erased at compile time.
+    expect(clientText()).toMatch(/import \{ SEEN_KEY, unseenEpisodes \} from "\.\/browser-watch-seen";/);
     // A type import is erased, so it does not pull the dialog back in.
-    expect(app).toMatch(/import type \{ WatchEpisode \} from "\.\/components\/BrowserWatchModal";/);
+    expect(clientText()).toMatch(/import type \{ WatchEpisode \} from "\.\/components\/BrowserWatchModal";/);
   });
 
   it("gives each a Suspense boundary, drawing nothing while the chunk arrives", () => {

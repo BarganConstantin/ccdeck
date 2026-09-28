@@ -29,7 +29,9 @@ describe("the deck announces state that is already visible (#1016)", () => {
     // list the reader had just finished. Reading it puts the region back to the
     // silence it starts in; a clear from anywhere else still speaks.
     const app = strip(read("../App.tsx"));
-    expect(app).toMatch(/onSeen=\{ms => \{\s*setWatchSaid\(""\);\s*setWatchSeenMs\(ms\);/);
+    // `markWatchSeen` is the seen stamp and its write-through, named in the badge
+    // hook; the ORDER is what this pins — the region goes quiet first.
+    expect(app).toMatch(/onSeen=\{ms => \{\s*setWatchSaid\(""\);\s*markWatchSeen\(ms\);/);
     expect(app.match(/setWatchSaid\(""\)/g)).toHaveLength(1);
   });
 
