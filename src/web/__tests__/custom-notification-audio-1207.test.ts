@@ -156,6 +156,8 @@ const source = (rel: string) => readFileSync(fileURLToPath(new URL(`../${rel}`, 
  *  menu's custom sounds, lifted out of SoundMenu.tsx with their state and
  *  handlers. */
 const customSounds = withoutComments(source("components/CustomSoundsSection.tsx"));
+/** The section's recorder, lifted out of it into a hook. */
+const recorder = withoutComments(source("use-clip-recorder.ts"));
 /** The menu and every file lifted out of it, for the negatives, counts and lists. */
 const menuSurface = withoutComments(soundMenuSurface());
 const app = withoutComments(source("App.tsx"));
@@ -354,7 +356,7 @@ describe("the custom section of the sound menu (#1207)", () => {
     expect(customSounds).toMatch(/\{full && <p className="sm-note" id="sm-custom-full">\{fullReason\}<\/p>\}/);
     // The recording refuses before the microphone is asked for, and the voice
     // form stays shut rather than being filled in for nothing.
-    expect(customSounds).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
+    expect(recorder).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
     expect(customSounds).toMatch(/onClick=\{e => \{ if \(full\) e\.preventDefault\(\); \}\}/);
     expect(customSounds).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
     // Four controls carry the refusal: import, record, the form, Add voice.

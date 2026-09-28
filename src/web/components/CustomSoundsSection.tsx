@@ -2,13 +2,15 @@
 // line of text the browser speaks, and the list of what has been added.
 //
 // Lifted out of SoundMenu.tsx with everything only it uses — the voice form,
-// the recorder, the two-press Delete and the error they share — so the menu
-// reads as the switches and the two tones, and this as the one section that
-// adds and removes sounds. Which sound each tone plays stays with the menu's
-// own select; this is handed the library and the callbacks that change it.
+// the recorder (use-clip-recorder.ts), the two-press Delete and the error they
+// share — so the menu reads as the switches and the two tones, and this as the
+// one section that adds and removes sounds. Which sound each tone plays stays
+// with the menu's own select; this is handed the library and the callbacks
+// that change it.
 import { useEffect, useRef, useState } from "react";
 import { armedPress, focusDropped } from "../panel-press";
 import { CONFIRM_GAP_MS } from "./LanSyncSection";
+import { useClipRecorder } from "../use-clip-recorder";
 import {
   MAX_CUSTOM_ASSETS,
   deleteFocusTarget,
@@ -39,9 +41,6 @@ export default function CustomSoundsSection({
   const [voiceRate, setVoiceRate] = useState("1");
   const [voicePitch, setVoicePitch] = useState("1");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [recording, setRecording] = useState(false);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The ceiling, said where sounds are added and before any work is done. It
   // used to arrive as an error after the fact — after a 4.4-second recording,
   // or a voice form filled in — which is the person doing the work for the
@@ -108,61 +107,7 @@ export default function CustomSoundsSection({
     });
   };
 
-  const stopRecording = () => {
-    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-    recordingTimerRef.current = null;
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-  };
-
-  const startRecording = async () => {
-    if (full) return;
-    setCustomError("");
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setCustomError("Microphone recording is unavailable in this browser.");
-      return;
-    }
-    let stream: MediaStream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { setCustomError("Microphone access was denied or unavailable."); return; }
-    if (recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
-    try {
-      const format = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"]
-        .find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
-      const chunks: Blob[] = [];
-      recorderRef.current = recorder;
-      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => setCustomError("Recording failed. Please try again.");
-      recorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-        if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-        const shouldSave = recorderRef.current === recorder;
-        if (shouldSave) recorderRef.current = null;
-        setRecording(false);
-        if (!shouldSave || !chunks.length) return;
-        const mime = recorder.mimeType.split(";")[0];
-        const extension = mime === "audio/mp4" ? "m4a" : mime === "audio/ogg" ? "ogg" : "webm";
-        const file = new File(chunks, `Recorded voice.${extension}`, { type: mime });
-        void runCustom(() => onImportCustom(file));
-      };
-      recorder.start(200);
-      setRecording(true);
-      // Stop just before the five-second limit to allow encoder/container overhead.
-      recordingTimerRef.current = setTimeout(stopRecording, 4400);
-    } catch {
-      recorderRef.current = null;
-      stream.getTracks().forEach(track => track.stop());
-      setCustomError("This browser cannot record a supported audio format.");
-    }
-  };
-
-  useEffect(() => () => {
-    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-    const recorder = recorderRef.current;
-    recorderRef.current = null;
-    if (recorder?.state === "recording") recorder.stop();
-  }, []);
+  const { recording, startRecording, stopRecording } = useClipRecorder({ full, setCustomError, runCustom, onImportCustom });
 
   return (
     <section className="sm-custom" aria-labelledby="sm-custom-title">
