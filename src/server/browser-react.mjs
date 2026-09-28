@@ -20,6 +20,7 @@
 // The session that opened it is still attached and can still read every other
 // tab. Only quitting takes anything back.
 import { run } from "./exec.mjs";
+import { notificationsVetoed } from "./deck-prefs.mjs";
 // The one table of process names, shared with the presence probe so the reaction
 // and the "is it running" answer can never disagree about what to look for —
 // and, with it, the two questions that table cannot answer on its own: which
@@ -405,11 +406,18 @@ async function closeByImage(proc, exec, reason) {
  * Always notifies, whatever else it does. A tab that closed itself with no
  * explanation is a mystery rather than a warning, and the point of the feature
  * is that the user finds out.
+ *
+ * Unless the deck was launched with AGENTS_DECK_NO_NOTIFY=1, which keeps it
+ * off the desktop entirely (#1677). The finding is still in the panel and the
+ * log, and the feed line says why no notification came, so a reaction that
+ * closed a tab is still explained where the reader looks for it.
  */
-export async function react(reaction, episode, { platform = process.platform, deps = {} } = {}) {
+export async function react(reaction, episode, { platform = process.platform, deps = {}, env = process.env } = {}) {
   const done = [];
   const pages = `${episode.count} page${episode.count === 1 ? "" : "s"}`;
-  if (await notify("Browser watch", `${episode.host} — ${pages} while you were away`, platform, deps)) {
+  if (notificationsVetoed(env)) {
+    done.push("not notified — AGENTS_DECK_NO_NOTIFY=1");
+  } else if (await notify("Browser watch", `${episode.host} — ${pages} while you were away`, platform, deps)) {
     done.push("notified");
   } else {
     done.push("could not notify");
