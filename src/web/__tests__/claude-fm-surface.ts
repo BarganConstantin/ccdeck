@@ -22,6 +22,7 @@ import { WEB_DIR } from "./client-source";
 export const CLAUDE_FM_FILES = [
   "components/ClaudeFm.tsx",
   "use-fm-player.ts",
+  "use-fm-scene.ts",
 ] as const;
 
 let joined: string | null = null;

@@ -46,8 +46,9 @@ function withoutProse(src: string): string {
 }
 
 const css = code("../styles.css");
-// The component and the files lifted out of it (the player is use-fm-player.ts),
-// read as one, so a negative asked of "the component" still sees all of it.
+// The component and the files lifted out of it (the player is use-fm-player.ts,
+// the character's errands use-fm-scene.ts), read as one, so a negative asked of
+// "the component" still sees all of it.
 const component = withoutProse(claudeFmSurface());
 const probeSrc = code("../../server/claude-fm.mjs");
 const server = code("../../server/index.mjs");
