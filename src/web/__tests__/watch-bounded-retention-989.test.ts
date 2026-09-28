@@ -35,6 +35,7 @@ import { browserWatchSnapshot, invalidateBrowserWatchCache } from "../../server/
 import { msToChromeTime } from "../../server/browser-history.mjs";
 import { appendLog, logPath, logSize, rolledLogPath } from "../../server/browser-watch-log.mjs";
 import { logBytesLabel } from "../browser-watch-model";
+import { fmtBytes } from "../byte-format";
 
 const FROM_API = 0x08000000;
 const PROFILE = {
@@ -356,8 +357,16 @@ describe("what watch.log is allowed to grow to", () => {
 
   it("never labels a file that holds addresses as zero", () => {
     expect(logBytesLabel(0)).toBe("empty");
-    expect(logBytesLabel(1)).toBe("1 B");
-    expect(logBytesLabel(1100)).toBe("1 KB");
+    expect(logBytesLabel(1)).toBe("1.0 B");
+    expect(logBytesLabel(1100)).toBe("1.1 KB");
     expect(logBytesLabel(2 * 1024 * 1024)).toBe("2.0 MB");
+  });
+
+  it("prints every other size the way the rest of the deck does (#1663)", () => {
+    // It had whole kilobytes of its own, so 1,100 bytes read "1 KB" here and
+    // "1.1 KB" in the process list, the machine panel and the context modal.
+    for (const n of [1, 512, 1023, 1024, 1100, 1536, 1_048_575, 1_048_576, 5_000_000, 3 * 1024 ** 3]) {
+      expect(logBytesLabel(n), String(n)).toBe(fmtBytes(n));
+    }
   });
 });

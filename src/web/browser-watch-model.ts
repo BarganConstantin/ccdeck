@@ -6,6 +6,8 @@
 // renders anything, so they live apart from the dialog: the dialog imports
 // them, and so does the suite, without loading a component to reach a sum.
 
+import { fmtBytes } from "./byte-format";
+
 export interface WatchEpisode {
   host: string;
   /** Which browser it happened in — a reaction has to tell one application to
@@ -150,12 +152,15 @@ export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrow
  * NEVER A ZERO FOR A FILE WITH SOMETHING IN IT. The sentence this sits in says
  * every address is written in full, and "0 KB" beside a file holding four of
  * them would contradict it. A log never written says "empty".
+ *
+ * Every other size is the deck's one byte format (#1663). This printed whole
+ * kilobytes of its own, so 1,100 bytes read "1 KB" here and "1.1 KB" in every
+ * other panel. fmtBytes keeps the rule above without help: it goes down to
+ * bytes, and a count of one reads "1.0 B".
  */
 export function logBytesLabel(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "empty";
-  if (bytes < 1024) return `${Math.round(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return fmtBytes(bytes);
 }
 
 /** What the watch actually reads: visits per browser, summed across its
