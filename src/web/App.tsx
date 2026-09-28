@@ -467,9 +467,10 @@ function Inner() {
 
   // The board's arrangement — the stored positions and pins it was restored
   // from, the placeholders, the layout signature, the epoch R and the reframe
-  // move, and the frame it was packed for — in use-board-layout.ts.
-  const { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef }
-    = useBoardLayout();
+  // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
+  const { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
+          handleRelayout }
+    = useBoardLayout(fitLeft);
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -1008,27 +1009,6 @@ function Inner() {
     setDragging, setDragMoveTick, setDragTick, endBubble, markInteract, disableAutoFit,
     beginTrashDrag, trackTrashDrag, endTrashDrag, removeNode,
   });
-
-  const handleRelayout = useCallback(() => {
-    pinnedRef.current.clear();
-    positionsRef.current.clear();
-    lastLayoutSigRef.current = "";
-    clearStoredLayout();
-    setLayoutEpoch(e => e + 1);
-    // After dagre runs on the next render, fit-view so the user sees the
-    // result. 80ms gives React + RF one paint to settle the new positions.
-    window.setTimeout(() => {
-      // And store it, for the reason the reframe above does: the debounced save
-      // is keyed on layoutSig, which R does not move, so the board R drew was
-      // never written — the storage it had just emptied stayed empty, and a
-      // reload rebuilt the board from the replay instead (#1331). With it goes
-      // the frame it was packed for, which clearStoredLayout removed with the
-      // arrangement it described.
-      saveLayout(positionsRef.current, pinnedRef.current);
-      if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
-      fitLeft(500);
-    }, 80);
-  }, [rf, fitLeft]);
 
   // Same anchoring as relayout — F and the fit button land where it does.
   const handleFit = useCallback(() => fitLeft(500), [fitLeft]);
