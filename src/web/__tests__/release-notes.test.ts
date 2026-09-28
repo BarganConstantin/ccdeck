@@ -813,7 +813,8 @@ describe("how App.tsx wires it up", () => {
   // client — six cases here are negatives, and asking them of release-notes.ts
   // (the pure rules) would be asking the wrong file. The slices taken by indexOf
   // land in the hook's half, where the decision effect is.
-  const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts");
+  // The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
+  const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts") + "\n" + src("../components/EmptyHero.tsx");
   const modal = src("../components/ReleaseNotesModal.tsx");
 
   it("decides from the version the SERVER is running, not the bundle's", () => {

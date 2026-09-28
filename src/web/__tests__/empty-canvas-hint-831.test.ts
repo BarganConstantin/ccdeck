@@ -11,14 +11,17 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/EmptyHero.tsx", import.meta.url)), "utf8");
 const code = app
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
-/** The live empty-canvas copy, from its signature to the next function. */
-const copy = /function agentNoneCopy[\s\S]*?\nfunction /.exec(code)?.[0] ?? "";
+/** The live empty-canvas copy, from its signature to the next function — or
+ *  to the end of the file, where it is the last one. */
+const copy = /function agentNoneCopy[\s\S]*?(?:\n(?:export )?function |$)/.exec(code)?.[0] ?? "";
 
 describe("the empty canvas does not ask a connected reader to check the connection (#831)", () => {
   it("has no running-check hint", () => {
