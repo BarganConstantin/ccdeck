@@ -5,6 +5,8 @@
 // that a row whose shape moved upstream reads as empty rather than throwing is
 // a function the suite can call instead of a copy of one.
 
+import { dayAgentSummary } from "./usage-agents";
+
 // ── ccusage data shapes (subset we use) ────────────────────────────────────
 export interface ModelBreakdown {
   modelName: string;
@@ -155,4 +157,64 @@ export function modelColor(m: string): string {
   if (s.includes("gemini")) return "var(--usage-indigo)";
   if (s.includes("codex")) return "var(--usage-orange)";
   return "var(--usage-zinc)";
+}
+
+// ── the range, rolled up ────────────────────────────────────────────────────
+
+/** A range's totals strip, and what each model cost across the range. */
+export interface HistoryTotals {
+  totalCost: number;
+  totalTok: number;
+  inOut: number;
+  cacheRead: number;
+  modelCosts: Map<string, number>;
+}
+
+/** Aggregate totals + per-model cost across the range. */
+export function historyTotals(days: readonly DayEntry[]): HistoryTotals {
+  let totalCost = 0, totalTok = 0, inOut = 0, cacheRead = 0;
+  const modelCosts = new Map<string, number>();
+  for (const d of days) {
+    totalCost += d.totalCost;
+    totalTok  += d.totalTokens;
+    inOut     += d.inputTokens + d.outputTokens;
+    cacheRead += d.cacheReadTokens;
+    for (const mb of d.modelBreakdowns) {
+      modelCosts.set(mb.modelName, (modelCosts.get(mb.modelName) ?? 0) + mb.cost);
+    }
+  }
+  return { totalCost, totalTok, inOut, cacheRead, modelCosts };
+}
+
+/** The legend under the chart: every model the range ran, dearest first. */
+export function legendOf(modelCosts: ReadonlyMap<string, number>): [string, number][] {
+  return Array.from(modelCosts.entries()).sort((a, b) => b[1] - a[1]);
+}
+
+/** A day's models dearest first — the order its bar stacks them in and its
+ *  breakdown lists them in, which were two copies of this sort. A copy, so the
+ *  row keeps ccusage's own order. */
+export function byCost(breakdowns: readonly ModelBreakdown[]): ModelBreakdown[] {
+  return breakdowns.slice().sort((a, b) => b.cost - a.cost);
+}
+
+/** `part` as a percentage of `whole`, and 0 of nothing — the height of a day's
+ *  bar against the dearest day, a model's band and row against its day, and a
+ *  CLI's share of the range, which each wrote the guard out for themselves. */
+export function percentOf(part: number, whole: number): number {
+  return whole > 0 ? (part / whole) * 100 : 0;
+}
+
+/** Which CLIs ran on a selected day, for the line in its header.
+ *
+ *  Priced when this day ran more than one CLI, and the bare id list it has
+ *  always shown otherwise. The fallback is not dead weight: `metadata.agents`
+ *  arrives with or without `--by-agent`, so it is the only thing a ccusage too
+ *  old for the flag can put here, and it is what a single-CLI day keeps — see
+ *  dayAgentSummary for why one CLI gets no figure. */
+export function dayAgentsLine(day: DayEntry): string | null {
+  const priced = dayAgentSummary(day.agents);
+  return priced ?? (day.metadata?.agents?.length
+    ? day.metadata.agents.join(" · ")
+    : null);
 }

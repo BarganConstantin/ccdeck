@@ -14,11 +14,11 @@ import { usageView } from "../usage-view";
 import { fmtTokens } from "../token-format";
 import { shortModel } from "../model-label";
 import { agentLabel, usageSubtitle } from "../provider-copy";
-import { agentColor, agentTotals, dayAgentSummary, sharePct } from "../usage-agents";
+import { agentColor, agentTotals, sharePct } from "../usage-agents";
 import type { Providers } from "../providers";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { asResp, modelColor, type CcusageResp } from "../usage-history";
+import { asResp, byCost, dayAgentsLine, historyTotals, legendOf, modelColor, percentOf, type CcusageResp } from "../usage-history";
 
 /** A landed response together with the preset it was requested for. The tag is
  *  what lets the view refuse to show one range's numbers under another's tab. */
@@ -122,25 +122,9 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   }, [days]);
 
   // Aggregate totals + per-model cost across the range.
-  const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => {
-    let totalCost = 0, totalTok = 0, inOut = 0, cacheRead = 0;
-    const modelCosts = new Map<string, number>();
-    for (const d of days) {
-      totalCost += d.totalCost;
-      totalTok  += d.totalTokens;
-      inOut     += d.inputTokens + d.outputTokens;
-      cacheRead += d.cacheReadTokens;
-      for (const mb of d.modelBreakdowns) {
-        modelCosts.set(mb.modelName, (modelCosts.get(mb.modelName) ?? 0) + mb.cost);
-      }
-    }
-    return { totalCost, totalTok, inOut, cacheRead, modelCosts };
-  }, [days]);
+  const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => historyTotals(days), [days]);
 
-  const legend = useMemo(
-    () => Array.from(modelCosts.entries()).sort((a, b) => b[1] - a[1]),
-    [modelCosts],
-  );
+  const legend = useMemo(() => legendOf(modelCosts), [modelCosts]);
 
   // Who spent it, across the whole range. Empty on a ccusage too old to answer
   // `--by-agent`, and one entry long on a machine that only runs one CLI —
@@ -150,6 +134,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   const split = agents.length > 1;
 
   const selectedDay = selected ? days.find(d => d.period === selected) ?? null : null;
+  const agentsLine = selectedDay && dayAgentsLine(selectedDay);
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -306,7 +291,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     <span
                       key={a.id}
                       className="uh-agent-seg"
-                      style={{ width: `${totalCost > 0 ? (a.cost / totalCost) * 100 : 0}%`, background: agentColor(a.id) }}
+                      style={{ width: `${percentOf(a.cost, totalCost)}%`, background: agentColor(a.id) }}
                     />
                   ))}
                 </div>
@@ -347,7 +332,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 and leaves each day to speak for itself below. */}
             <div ref={chartRef} className="uh-chart" role="group" aria-label="Daily cost by model">
               {days.map((d, i) => {
-                const h = maxCost > 0 ? (d.totalCost / maxCost) * 100 : 0;
+                const h = percentOf(d.totalCost, maxCost);
                 const isSel = d.period === selected;
                 // The bar's only text is `06-14`, a day with no month and no
                 // figure. The tooltip has carried the whole answer all along;
@@ -385,19 +370,16 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     } as CSSProperties}
                   >
                     <div className="uh-bar" style={{ height: `${Math.max(h, d.totalCost > 0 ? 2 : 0)}%` }}>
-                      {d.modelBreakdowns
-                        .slice()
-                        .sort((a, b) => b.cost - a.cost)
-                        .map(mb => {
-                          const seg = d.totalCost > 0 ? (mb.cost / d.totalCost) * 100 : 0;
-                          return (
-                            <div
-                              key={mb.modelName}
-                              className="uh-bar-seg"
-                              style={{ height: `${seg}%`, background: modelColor(mb.modelName) }}
-                            />
-                          );
-                        })}
+                      {byCost(d.modelBreakdowns).map(mb => {
+                        const seg = percentOf(mb.cost, d.totalCost);
+                        return (
+                          <div
+                            key={mb.modelName}
+                            className="uh-bar-seg"
+                            style={{ height: `${seg}%`, background: modelColor(mb.modelName) }}
+                          />
+                        );
+                      })}
                     </div>
                     <span className="uh-bar-label">{d.period.slice(5)}</span>
                   </button>
@@ -427,26 +409,15 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 <div className="uh-detail-head">
                   <span className="uh-detail-date">{selectedDay.period}</span>
                   <span className="uh-detail-cost">{fmtCost(selectedDay.totalCost)}</span>
-                  {/* Priced when this day ran more than one CLI, and the bare
-                      id list it has always shown otherwise. The fallback is not
-                      dead weight: `metadata.agents` arrives with or without
-                      `--by-agent`, so it is the only thing a ccusage too old
-                      for the flag can put here, and it is what a single-CLI day
-                      keeps — see dayAgentSummary for why one CLI gets no
-                      figure. The `title` carries the same text because this
-                      cell now ellipsises; the column is whatever the date and
-                      the cost leave of the row, which is roughly 88 monospace
-                      characters, and two named CLIs spend about thirty of them.
-                      #462 is the precedent — the model label overflowed a hard
-                      column here for exactly one build before anyone noticed,
-                      because nothing failed, it just wrapped. */}
-                  {(() => {
-                    const priced = dayAgentSummary(selectedDay.agents);
-                    const text = priced ?? (selectedDay.metadata?.agents?.length
-                      ? selectedDay.metadata.agents.join(" · ")
-                      : null);
-                    return text ? <span className="uh-detail-agents" title={text}>{text}</span> : null;
-                  })()}
+                  {/* Which CLIs ran that day — see dayAgentsLine. The `title`
+                      carries the same text because this cell now ellipsises;
+                      the column is whatever the date and the cost leave of the
+                      row, which is roughly 88 monospace characters, and two
+                      named CLIs spend about thirty of them. #462 is the
+                      precedent — the model label overflowed a hard column here
+                      for exactly one build before anyone noticed, because
+                      nothing failed, it just wrapped. */}
+                  {agentsLine && <span className="uh-detail-agents" title={agentsLine}>{agentsLine}</span>}
                 </div>
                 <div className="uh-detail-mini">
                   <MiniStat label="input"       val={fmtTokens(selectedDay.inputTokens)} />
@@ -455,34 +426,31 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                   <MiniStat label="cache read"  val={fmtTokens(selectedDay.cacheReadTokens)} />
                 </div>
                 <div className="uh-detail-models">
-                  {selectedDay.modelBreakdowns
-                    .slice()
-                    .sort((a, b) => b.cost - a.cost)
-                    .map(mb => {
-                      const pct = selectedDay.totalCost > 0 ? (mb.cost / selectedDay.totalCost) * 100 : 0;
-                      return (
-                        <div key={mb.modelName} className="uh-model-row" title={mb.modelName}>
-                          <span className="uh-model-name">
-                            <span className="uh-legend-dot" style={{ background: modelColor(mb.modelName) }} />
-                            {/* The label is in a span of its own so it can
-                                ellipsise: this column is a hard 130px and the
-                                text used to be an anonymous flex item, which
-                                `text-overflow` cannot reach — a label wider than
-                                the column wrapped onto a second line and pushed
-                                the bar out of the row. Nothing in the known
-                                corpus is that wide (see model-label.ts), and the
-                                point is that the next qualifier to arrive
-                                degrades to an ellipsis over a `title` rather
-                                than to a broken row. */}
-                            <span className="uh-model-label">{shortModel(mb.modelName)}</span>
-                          </span>
-                          <span className="uh-model-bar">
-                            <span className="uh-model-bar-fill" style={{ width: `${pct}%`, background: modelColor(mb.modelName) }} />
-                          </span>
-                          <span className="uh-model-cost">{fmtCost(mb.cost)}</span>
-                        </div>
-                      );
-                    })}
+                  {byCost(selectedDay.modelBreakdowns).map(mb => {
+                    const pct = percentOf(mb.cost, selectedDay.totalCost);
+                    return (
+                      <div key={mb.modelName} className="uh-model-row" title={mb.modelName}>
+                        <span className="uh-model-name">
+                          <span className="uh-legend-dot" style={{ background: modelColor(mb.modelName) }} />
+                          {/* The label is in a span of its own so it can
+                              ellipsise: this column is a hard 130px and the
+                              text used to be an anonymous flex item, which
+                              `text-overflow` cannot reach — a label wider than
+                              the column wrapped onto a second line and pushed
+                              the bar out of the row. Nothing in the known
+                              corpus is that wide (see model-label.ts), and the
+                              point is that the next qualifier to arrive
+                              degrades to an ellipsis over a `title` rather
+                              than to a broken row. */}
+                          <span className="uh-model-label">{shortModel(mb.modelName)}</span>
+                        </span>
+                        <span className="uh-model-bar">
+                          <span className="uh-model-bar-fill" style={{ width: `${pct}%`, background: modelColor(mb.modelName) }} />
+                        </span>
+                        <span className="uh-model-cost">{fmtCost(mb.cost)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
