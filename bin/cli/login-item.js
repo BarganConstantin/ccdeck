@@ -1,13 +1,14 @@
 // The login item, from the command line: `--install`, `--install-service` and
 // `--uninstall-service`.
 //
-// Lifted out of the one-shot block in bin/deck.js, which still answers all
-// three before the registry is read and before anything else in the boot has
-// run. Each resolves to the exit code, and deck.js exits with it.
+// Lifted out of the one-shot block in bin/deck.js — oneShot in
+// bin/cli/one-shot.js now — which still answers all three before the registry
+// is read and before anything else in the boot has run. Each resolves to the
+// exit code, and deck.js exits with it.
 //
-// The block's own voice comes in with every call — its glyphs, its palette and
-// `say` — for the reason the block builds them for itself: this runs long before
-// deck.js declares `G` and `P` (#797).
+// The one-shots' own voice comes in with every call — their glyphs, their
+// palette and `say` — for the reason oneShot builds them for itself: this runs
+// long before deck.js declares `G` and `P` (#797).
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
