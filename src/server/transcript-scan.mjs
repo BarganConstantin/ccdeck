@@ -309,14 +309,14 @@ function foldTranscriptLine(state, line) {
   // line two substring tests. See session-recap.mjs.
   foldRecapLine(state, line);
   // Parsed once, and only when the line mentions a model: no other line can
-  // change the model, and every assistant line that carries a usage block names
-  // its model, so the usage fold reads the record off this same parse.
+  // change the model, and every assistant line names its model, so the usage
+  // and context folds read the record off this same parse.
   const record = line.includes('"model"') ? parseRecord(line) : null;
   // Model before usage, always: a usage block is charged to the model the same
   // line names, which is the one foldModelLine has just read off it.
   foldModelLine(state, record);
   foldUsageLine(state, line, record);
-  foldContextLine(state, line);
+  foldContextLine(state, line, record);
 }
 
 /** One transcript line as the object it records, or null when it is not JSON. */
@@ -355,6 +355,9 @@ function foldModelLine(state, obj) {
  * total. This is the rule the Projects report (account-projects.mjs) and
  * ccusage already count by. A record without the field was written before
  * Claude Code marked its blocks, and is counted as it always was.
+ *
+ * The same lines are one reply, so the context breakdown asks this too before
+ * it counts an assistant message (#1650).
  */
 function repeatsRequestUsage(record) {
   return record?.apiBlockIndex !== undefined && record.apiBlockIndex !== 0;
@@ -398,8 +401,9 @@ function foldUsageLine(state, line, record) {
 }
 
 /** The line's share of the context breakdown. Context counts only what follows
- *  the most recent /clear or /compact. */
-function foldContextLine(state, line) {
+ *  the most recent /clear or /compact. `record` is the line parsed, or null
+ *  when it names no model — see foldTranscriptLine. */
+function foldContextLine(state, line, record) {
   let ctxText = line;
   let resetEnd = -1;
   for (const m of line.matchAll(CONTEXT_RESET_RE)) resetEnd = (m.index ?? -1) + m[0].length;
@@ -409,7 +413,10 @@ function foldContextLine(state, line) {
   }
   const ctx = state.ctx;
   ctx.msgsUser += (ctxText.match(TYPE_USER_RE) ?? []).length;
-  ctx.msgsAssistant += (ctxText.match(TYPE_ASSISTANT_RE) ?? []).length;
+  // One reply is one message, however many content blocks it was written in:
+  // a later block's line is a reply block 0 has already counted — see
+  // repeatsRequestUsage. Its tool call is its own, and is counted below.
+  if (!repeatsRequestUsage(record)) ctx.msgsAssistant += (ctxText.match(TYPE_ASSISTANT_RE) ?? []).length;
   ctx.toolUses += (ctxText.match(TYPE_TOOL_USE_RE) ?? []).length;
   ctx.toolResults += (ctxText.match(TYPE_TOOL_RESULT_RE) ?? []).length;
   ctx.systemReminders += (ctxText.match(SYSTEM_REMINDER_RE) ?? []).length;
