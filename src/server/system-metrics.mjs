@@ -64,30 +64,38 @@ const history = [];
 /** When sampling started, so a modal can say what "since" means. */
 let historySince = 0;
 
-/** Total and idle jiffies across every core, as one pair. */
+/** Total and idle jiffies for one entry of `os.cpus()`. */
+function ticksOf(cpu) {
+  let idle = 0;
+  let total = 0;
+  for (const [kind, ms] of Object.entries(cpu.times)) {
+    total += ms;
+    if (kind === "idle") idle += ms;
+  }
+  return { idle, total };
+}
+
+/**
+ * Total and idle jiffies across every core, as one pair.
+ *
+ * Summed core by core rather than field by field, and that is the same
+ * number: the counters are integer milliseconds, and a machine's total is
+ * nowhere near 2^53, where adding them in another order could round.
+ */
 function readTicks() {
   let idle = 0;
   let total = 0;
   for (const cpu of os.cpus()) {
-    for (const [kind, ms] of Object.entries(cpu.times)) {
-      total += ms;
-      if (kind === "idle") idle += ms;
-    }
+    const t = ticksOf(cpu);
+    idle += t.idle;
+    total += t.total;
   }
   return { idle, total };
 }
 
 /** The same pair, per core, in `os.cpus()` order. */
 function readCoreTicks() {
-  return os.cpus().map(cpu => {
-    let idle = 0;
-    let total = 0;
-    for (const [kind, ms] of Object.entries(cpu.times)) {
-      total += ms;
-      if (kind === "idle") idle += ms;
-    }
-    return { idle, total };
-  });
+  return os.cpus().map(ticksOf);
 }
 
 /**
