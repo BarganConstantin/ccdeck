@@ -53,10 +53,10 @@ export function killTree(child, signal) {
 }
 
 /**
- * Every child this module started and has not yet seen the end of.
+ * Every child exec.mjs started and has not yet seen the end of.
  *
  * A deadline is not a promise unless something is alive to enforce it, and the
- * deadlines in this file all live in the parent: `run` states the outcome on a
+ * deadlines in exec.mjs all live in the parent: `run` states the outcome on a
  * timer and only then kills, `runInteractive` does the same. Kill the parent
  * and the timer dies with it, so the very case a deadline exists for — a tool
  * that has hung — is the one case where nothing is left to stop it.
@@ -78,7 +78,7 @@ export function killTree(child, signal) {
  * that is still running and still reachable. 'error' is the third way a child
  * ends, and the only one after which 'close' may never come at all.
  *
- * `runDetached` is deliberately absent. It is the one function here named for
+ * `runDetached` is deliberately absent. It is the one function there named for
  * outliving its call — a sound, or a collection whose result lands in a file
  * the next poll reads — it holds no deadline, and it unrefs its child on
  * purpose. Killing those on the way out would be this set overreaching.
@@ -107,7 +107,7 @@ export function watchChild(cp) {
 export const liveChildPids = () => [...live].map(c => c?.pid).filter(Boolean);
 
 /**
- * Stop every child this module started, and everything they started.
+ * Stop every child exec.mjs started, and everything they started.
  *
  * Called from shutdown(), where the alternative is the orphan above. It does
  * not WAIT for the corpses, on purpose: a signal is delivered synchronously on
