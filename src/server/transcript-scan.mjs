@@ -308,38 +308,66 @@ function foldTranscriptLine(state, line) {
   // The recap rides the same pass for the same reason, and costs the ordinary
   // line two substring tests. See session-recap.mjs.
   foldRecapLine(state, line);
+  // Parsed once, and only when the line mentions a model: no other line can
+  // change the model, and every assistant line that carries a usage block names
+  // its model, so the usage fold reads the record off this same parse.
+  const record = line.includes('"model"') ? parseRecord(line) : null;
   // Model before usage, always: a usage block is charged to the model the same
   // line names, which is the one foldModelLine has just read off it.
-  foldModelLine(state, line);
-  foldUsageLine(state, line);
+  foldModelLine(state, record);
+  foldUsageLine(state, line, record);
   foldContextLine(state, line);
 }
 
-/** The model a line names, folded in: the newest one seen, and the root's or a
- *  legacy inline subagent's. Only a line that mentions a model can change it,
- *  and parsing the rest is what made the full rescan expensive. */
-function foldModelLine(state, line) {
-  if (line.includes('"model"')) {
-    let obj = null;
-    try { obj = JSON.parse(line); } catch {}
-    const msg = obj && obj.message;
-    const model = (msg && typeof msg.model === "string" && MODEL_ID_RE.test(msg.model)) ? msg.model
-                : (obj && typeof obj.model === "string" && MODEL_ID_RE.test(obj.model)) ? obj.model
-                : null;
-    if (model) {
-      state.lastModel = model;
-      const isSide = obj.isSidechain === true || obj.is_sidechain === true;
-      const ptid = obj.parentToolUseID || obj.parent_tool_use_id || obj.parentToolUseId || null;
-      if (isSide && ptid) state.subagentModels[ptid] = model;
-      else if (!isSide) state.rootModel = model;
-    }
+/** One transcript line as the object it records, or null when it is not JSON. */
+function parseRecord(line) {
+  try { return JSON.parse(line); } catch { return null; }
+}
+
+/** The model a line's record names, folded in: the newest one seen, and the
+ *  root's or a legacy inline subagent's. `obj` is null for a line that names no
+ *  model — only a line that mentions one can change it, and parsing the rest is
+ *  what made the full rescan expensive. */
+function foldModelLine(state, obj) {
+  const msg = obj && obj.message;
+  const model = (msg && typeof msg.model === "string" && MODEL_ID_RE.test(msg.model)) ? msg.model
+              : (obj && typeof obj.model === "string" && MODEL_ID_RE.test(obj.model)) ? obj.model
+              : null;
+  if (model) {
+    state.lastModel = model;
+    const isSide = obj.isSidechain === true || obj.is_sidechain === true;
+    const ptid = obj.parentToolUseID || obj.parent_tool_use_id || obj.parentToolUseId || null;
+    if (isSide && ptid) state.subagentModels[ptid] = model;
+    else if (!isSide) state.rootModel = model;
   }
+}
+
+/**
+ * Does this record repeat the usage an earlier line of the same API request
+ * already carried?
+ *
+ * Claude Code writes one assistant line per content block of a response —
+ * thinking, text, each tool call — and every one of them carries the whole
+ * request's `usage`. Only the first, `apiBlockIndex` 0, bills it (#1641).
+ * Measured across the forty most recent transcripts on one machine: 6,765 of
+ * 14,138 assistant usage records were such repeats, identical to the block 0
+ * before them, and summing them all came to 1.94x the request-by-request
+ * total. This is the rule the Projects report (account-projects.mjs) and
+ * ccusage already count by. A record without the field was written before
+ * Claude Code marked its blocks, and is counted as it always was.
+ */
+function repeatsRequestUsage(record) {
+  return record?.apiBlockIndex !== undefined && record.apiBlockIndex !== 0;
 }
 
 /** The usage blocks a line was billed for, charged to the file's totals and to
  *  their model's bucket. Runs after foldModelLine on the same line — see
- *  below for why the order is the attribution. */
-function foldUsageLine(state, line) {
+ *  below for why the order is the attribution. `record` is the line parsed,
+ *  or null when it names no model. */
+function foldUsageLine(state, line, record) {
+  // A later content block of a request already charged — see
+  // repeatsRequestUsage.
+  if (repeatsRequestUsage(record)) return;
   // Usage totals sum every block in the file, resets included — every block the
   // model was actually billed for, which is why the `toolUseResult` tail is cut
   // off first (see billedUsageText) — and are summed a second time into the
