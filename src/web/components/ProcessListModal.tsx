@@ -45,7 +45,7 @@ export interface Proc {
   uptimeSec?: number;
   user?: string;
   /** The argument vector with the executable and any secret-shaped value taken
-   *  off it, capped at 180 characters — see redactCommand in system-metrics. */
+   *  off it, capped at 180 characters — see redactCommand in process-list.mjs. */
   cmd?: string;
 }
 

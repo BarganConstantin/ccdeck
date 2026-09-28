@@ -4795,8 +4795,9 @@ const PINNED_MODULES = [
   "best-of-nostalgia.mjs",
   "good-life-radio.mjs",
   "cafe-music-bgm.mjs",
-  // system-metrics.mjs's two, on the platforms that have them, and the one
-  // installer.mjs reaches for while it rewrites the hooks.
+  // The thermal readers' two (thermal-metrics.mjs imports both; macmon's
+  // download is still started from system-metrics.mjs), on the platforms that
+  // have them, and the one installer.mjs reaches for while it rewrites the hooks.
   "macmon.mjs",
   "hwmonitor.mjs",
   "retire-sound-hook.mjs",
