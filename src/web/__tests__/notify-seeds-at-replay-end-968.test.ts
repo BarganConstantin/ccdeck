@@ -38,9 +38,6 @@
 // swallow a block raised while the tab was disconnected, which is the single
 // notification a user who walked away most wants to come back to.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import {
   blockKey,
   mayRaise,
@@ -54,6 +51,7 @@ import {
 } from "../notify";
 import type { BlockedSession } from "../ambient-counts";
 import type { WaitingBlock } from "../types";
+import { sourceOf } from "./client-source";
 
 function block(over: Partial<WaitingBlock> = {}): WaitingBlock {
   return { kind: "permission", message: "Claude needs your permission", since: 1_000, ...over };
@@ -64,7 +62,8 @@ function session(id: string, over: Partial<WaitingBlock> = {}, label = id): Bloc
 }
 
 /**
- * App.tsx's notifier, as three effects in their declaration order.
+ * The deck's notifier (use-os-notifications.ts), as three effects in their
+ * declaration order.
  *
  * This calls the REAL rules — `shouldReseed`, `shouldSeedFromWorld`,
  * `mayRaise`, `noticesFor`, `seedRaised`, `nextRaised` — and owns only the
@@ -72,7 +71,7 @@ function session(id: string, over: Partial<WaitingBlock> = {}, label = id): Bloc
  * changed), and in what order. That split is the whole point. A harness that
  * restated the rules would pass against a component that had stopped obeying
  * them; the source assertions at the bottom of this file are the other half,
- * and pin that App.tsx still wires these exact rules in this exact order.
+ * and pin that the notifier still wires these exact rules in this exact order.
  */
 function deck({ permission = "granted" as NotifyPermission, visible = false } = {}) {
   let seededAt: NotifyPermission | null = null;
@@ -299,17 +298,20 @@ describe("the permission seed this did not replace", () => {
   });
 });
 
-// ── that App.tsx is actually wired the way the harness above models ──────────
+// ── that the notifier is actually wired the way the harness above models ─────
 //
 // Read as text, the way this repo makes every other assertion about a file it
 // cannot import. The harness is only worth what this section is worth: it
 // proves the rules behave, and this proves the component still calls them, in
 // the order the behaviour depends on.
 
-const appSrc = () =>
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "App.tsx"), "utf8");
+// The notifier moved out of App.tsx into use-os-notifications.ts, which is the
+// one file read here — not the whole client. Declaration ORDER is what the
+// second case pins, and order only means anything within one function; an
+// indexOf across concatenated files would compare positions in the walk.
+const appSrc = () => sourceOf("use-os-notifications.ts");
 
-describe("App.tsx's wiring", () => {
+describe("the notifier's wiring", () => {
   it("seeds from the world on an effect keyed on liveSince", () => {
     const src = appSrc();
     expect(src).toMatch(/shouldSeedFromWorld\(notifySeededReplayRef\.current, liveSince\)/);
