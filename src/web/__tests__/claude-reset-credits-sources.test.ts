@@ -128,7 +128,11 @@ type QuotaModule = {
 
 async function freshQuota(): Promise<QuotaModule> {
   vi.resetModules();
-  return await import("../../server/quota.mjs") as unknown as QuotaModule;
+  const quota = await import("../../server/quota.mjs");
+  // The inventory read and its rules moved to quota-store-resets.mjs; imported
+  // after the reset, it is the instance quota.mjs uses.
+  const resets = await import("../../server/quota-store-resets.mjs");
+  return { ...quota, ...resets } as unknown as QuotaModule;
 }
 
 /** A read, and the inventory read it may have started, both landed. */

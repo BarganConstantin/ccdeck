@@ -1,6 +1,7 @@
 // Claude Code's OAuth token, as quota.mjs borrows it: where it is kept, whether
 // this machine has one at all, how a request made with it introduces itself,
-// and the one cooldown every such request shares.
+// and the two limits every such request is under — the floor between two the
+// deck pays for, and the 429 cooldown they all share.
 //
 // Source 2 of the chain lives here too — one GET of the usage endpoint, mapped
 // by quota-shape.mjs — because it is nothing more than a request with this
@@ -35,6 +36,11 @@ const USAGE_WITH_RESETS_URL = `${USAGE_URL}?cedar_ember=1`;
  * on the panel is wrong. Raising it is the fix when that happens.
  */
 const USER_AGENT  = "claude-cli/2.1.283 (external, cli)";
+
+// Floor between two polls WE pay for. Twelve an hour against a budget of
+// ~28-30 leaves claude-swap room to collect for every account, which is what
+// the accounts panel is made of. Only reached when the store cannot answer.
+export const SELF_POLL_MS = 5 * 60_000;
 
 // 429 cooldown gate — after a rate-limit, skip the API until this passes.
 let _rateLimitedUntil = 0;

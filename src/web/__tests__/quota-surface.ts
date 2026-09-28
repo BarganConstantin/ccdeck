@@ -28,6 +28,7 @@ export const QUOTA_FILES = [
   "quota-shape.mjs",
   "quota-cli.mjs",
   "quota-oauth.mjs",
+  "quota-store-resets.mjs",
 ] as const;
 
 let joined: string | null = null;
