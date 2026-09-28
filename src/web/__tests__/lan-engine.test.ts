@@ -1070,8 +1070,9 @@ describe("the gap between rounds", () => {
     expect(src).toMatch(/createRoundTimer\(\{ round, waiting: lastRound\.waitingOnSomebody \}\)/);
     const timer = readFileSync(fileURLToPath(new URL("../../server/lan-round-timer.mjs", import.meta.url)), "utf8");
     expect(timer).toMatch(/waiting\(\) \? ASKING_MS : SYNC_MS/);
-    const socket = readFileSync(fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
-    expect(socket).toContain("waiting for the other deck to accept this one");
+    // The sentence a dialler reads "pending" as — see REFUSALS in lan-call.mjs.
+    const call = readFileSync(fileURLToPath(new URL("../../server/lan-call.mjs", import.meta.url)), "utf8");
+    expect(call).toContain("waiting for the other deck to accept this one");
   });
 });
 

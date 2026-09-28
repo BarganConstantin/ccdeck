@@ -212,6 +212,67 @@ export function fixSteps({ category, alias, exePath, rules = [] }) {
   return steps;
 }
 
+/**
+ * Whether other decks can reach this Windows machine, from what the probe read:
+ * the network the deck is on, the firewall profile that network answers to,
+ * and the rules for this program.
+ *
+ * Null for a probe that did not come back, for a network that is not Public,
+ * Private or Domain, and for rules that could not be read on a network that is
+ * not Public — see below for why that last one is silence rather than a guess.
+ */
+function windowsReach({ probe = null, aliases = [], exePath = "", inbound = null } = {}) {
+  if (!probe) return null;
+  // The broadcast route first, then the interfaces the deck holds an address
+  // on. The routing table is the authority on where a beacon goes; the deck's
+  // own addresses are the fallback for a machine where that read came back
+  // empty, and the probe's first connected network is the fallback for that.
+  const net = lanNet(probe.nets, [probe.bcast, ...aliases]);
+  const category = net?.category ?? "";
+  const name = profileFor(category);
+  if (!name) return null;
+  // MEASURED BEATS READ, here as on Linux: a connection from another machine
+  // has arrived on the sync listener, so the path is open whatever rule this
+  // was about to fail to find. See inboundAt in lan-inbound.mjs.
+  if (inbound) return { blocked: false, why: "inbound seen", category, alias: net?.alias ?? "" };
+  const prof = probe.profiles.find(p => p.name.toLowerCase() === name.toLowerCase());
+  // A firewall that is off blocks nothing, and saying otherwise would send
+  // somebody to add a rule that changes nothing.
+  if (prof && !prof.enabled) return { blocked: false, why: "firewall off", category, alias: net?.alias ?? "" };
+  if (ruleCovers(probe.rules, name)) {
+    return { blocked: false, why: "rule present", category, alias: net?.alias ?? "" };
+  }
+  // COULD NOT READ THE RULES, SO CANNOT SAY THERE IS NONE. An empty list here
+  // is "Access is denied", not "no rule" (see PROBE_PS), so claiming a missing
+  // rule would be a guess dressed as a read — and the command that guess hands
+  // over adds a duplicate rule on a machine that may already be covered. On a
+  // Public network the fix is the category, which was read reliably, so that
+  // verdict still stands; anywhere else the honest answer is the measurement,
+  // which `refreshReach` falls back to when this returns null.
+  // Only an EMPTY list is ambiguous — a rule in hand was plainly readable,
+  // whatever the flag says.
+  if (!probe.rulesReadable && probe.rules.length === 0 && name !== "Public") return null;
+  return {
+    blocked: true,
+    why: "no inbound rule",
+    category,
+    alias: net?.alias ?? "",
+    // Which shell the steps are written in, so the panel says where to paste
+    // them without asking what platform it is drawing for. Every other field
+    // here is already the verdict's to choose; this is one more.
+    shell: "powershell",
+    // The reason in the reader's terms, not the registry's. What they need to
+    // know is which half is broken, because the other half is what makes the
+    // workaround below obvious rather than magic.
+    text: name === "Public"
+      ? "This network is set to Public, and Windows drops what other decks send. They can still hear this deck — that is why one of them may already show it."
+      : name === "Domain" && probe.rules.length
+        ? "Windows lets this deck in on Private networks only, and this one is a company (Domain) network, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine."
+        : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
+    steps: fixSteps({ category, alias: net?.alias ?? "", exePath, rules: probe.rules }),
+  };
+}
+
 // ── linux ───────────────────────────────────────────────────────────────────
 //
 // THE SAME FAILURE, ONE DISTRIBUTION FURTHER. Reported from a pair of decks on
@@ -472,75 +533,9 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   if (platform === "linux") return linux ? linuxReach({ ...linux, inbound }) : null;
   if (platform === "darwin") return mac ? macReach({ probe: mac, exePath, inbound }) : null;
   if (platform !== "win32") return null;
-  if (!probe) return null;
-  // The broadcast route first, then the interfaces the deck holds an address
-  // on. The routing table is the authority on where a beacon goes; the deck's
-  // own addresses are the fallback for a machine where that read came back
-  // empty, and the probe's first connected network is the fallback for that.
-  const net = lanNet(probe.nets, [probe.bcast, ...aliases]);
-  const category = net?.category ?? "";
-  const name = profileFor(category);
-  if (!name) return null;
-  // MEASURED BEATS READ, here as on Linux: a connection from another machine
-  // has arrived on the sync listener, so the path is open whatever rule this
-  // was about to fail to find. See inboundAt in lan-inbound.mjs.
-  if (inbound) return { blocked: false, why: "inbound seen", category, alias: net?.alias ?? "" };
-  const prof = probe.profiles.find(p => p.name.toLowerCase() === name.toLowerCase());
-  // A firewall that is off blocks nothing, and saying otherwise would send
-  // somebody to add a rule that changes nothing.
-  if (prof && !prof.enabled) return { blocked: false, why: "firewall off", category, alias: net?.alias ?? "" };
-  if (ruleCovers(probe.rules, name)) {
-    return { blocked: false, why: "rule present", category, alias: net?.alias ?? "" };
-  }
-  // COULD NOT READ THE RULES, SO CANNOT SAY THERE IS NONE. An empty list here
-  // is "Access is denied", not "no rule" (see PROBE_PS), so claiming a missing
-  // rule would be a guess dressed as a read — and the command that guess hands
-  // over adds a duplicate rule on a machine that may already be covered. On a
-  // Public network the fix is the category, which was read reliably, so that
-  // verdict still stands; anywhere else the honest answer is the measurement,
-  // which `refreshReach` falls back to when this returns null.
-  // Only an EMPTY list is ambiguous — a rule in hand was plainly readable,
-  // whatever the flag says.
-  if (!probe.rulesReadable && probe.rules.length === 0 && name !== "Public") return null;
-  return {
-    blocked: true,
-    why: "no inbound rule",
-    category,
-    alias: net?.alias ?? "",
-    // Which shell the steps are written in, so the panel says where to paste
-    // them without asking what platform it is drawing for. Every other field
-    // here is already the verdict's to choose; this is one more.
-    shell: "powershell",
-    // The reason in the reader's terms, not the registry's. What they need to
-    // know is which half is broken, because the other half is what makes the
-    // workaround below obvious rather than magic.
-    text: name === "Public"
-      ? "This network is set to Public, and Windows drops what other decks send. They can still hear this deck — that is why one of them may already show it."
-      : name === "Domain" && probe.rules.length
-        ? "Windows lets this deck in on Private networks only, and this one is a company (Domain) network, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine."
-        : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
-    steps: fixSteps({ category, alias: net?.alias ?? "", exePath, rules: probe.rules }),
-  };
+  return windowsReach({ probe, aliases, exePath, inbound });
 }
 
-/**
- * The way out that needs no rule at all, and the reason this module is not the
- * whole answer.
- *
- * A round is one OUTBOUND connection — `roundWith` dials, both sides prove
- * themselves over that socket, and the manifest and any transfer ride it home.
- * Nothing in a round needs this machine to accept a connection. So a deck that
- * cannot be reached can still do every part of this by dialling first, and the
- * two controls that make it dial are an address somebody typed and an invite
- * somebody else minted.
- *
- * WHICH WAY THE INVITE GOES IS THE WHOLE OF IT, and nothing said so before.
- * An invite carries the addresses of the deck that MINTED it, and the deck that
- * PASTES it dials them. So a blocked machine that mints an invite is asking to
- * be called, which is the one thing it cannot receive; the same pair works on
- * the first try if the invite is minted at the other end and pasted here. Same
- * two controls, opposite order, and only one of the orders works.
- */
 // ── the machine nothing can be asked about ──────────────────────────────────
 //
 // Every block above depends on the operating system answering a question.
@@ -598,6 +593,24 @@ export function silentInbound({ heard = 0, listeningSince = null, inbound = null
   };
 }
 
+/**
+ * The way out that needs no rule at all, and the reason this module is not the
+ * whole answer.
+ *
+ * A round is one OUTBOUND connection — `roundWith` dials, both sides prove
+ * themselves over that socket, and the manifest and any transfer ride it home.
+ * Nothing in a round needs this machine to accept a connection. So a deck that
+ * cannot be reached can still do every part of this by dialling first, and the
+ * two controls that make it dial are an address somebody typed and an invite
+ * somebody else minted.
+ *
+ * WHICH WAY THE INVITE GOES IS THE WHOLE OF IT, and nothing said so before.
+ * An invite carries the addresses of the deck that MINTED it, and the deck that
+ * PASTES it dials them. So a blocked machine that mints an invite is asking to
+ * be called, which is the one thing it cannot receive; the same pair works on
+ * the first try if the invite is minted at the other end and pasted here. Same
+ * two controls, opposite order, and only one of the orders works.
+ */
 export function workaround(blocked) {
   if (!blocked) return null;
   return {

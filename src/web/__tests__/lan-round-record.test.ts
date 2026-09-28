@@ -12,8 +12,8 @@ import { describe, it, expect } from "vitest";
 import { createRoundRecord } from "../../server/lan-round-record.mjs";
 
 const T0 = 1_790_550_000_000;
-/** The sentence lan-socket.mjs refuses with while nobody there has accepted
- *  this deck yet. */
+/** The sentence a dialler reads the far deck's refusal as while nobody there
+ *  has accepted this deck yet — see REFUSALS in lan-call.mjs. */
 const NOT_YET = "waiting for the other deck to accept this one";
 
 function rig() {

@@ -2,7 +2,9 @@
 // lan-wire.mjs, or for an invite in lan-invite.mjs; what is here is the
 // plumbing that decision layer refuses to own — a UDP socket that shouts, a TCP
 // listener that answers, and the deadlines around both. The shouting half is
-// lan-beacon.mjs; this file is the answering and the calling.
+// lan-beacon.mjs and the calling half lan-call.mjs, and the line a dialler and
+// this listener speak is lan-lines.mjs's; this file is the answering, and it
+// re-exports the other two, so what imports them from here still does.
 //
 // TWO SOCKETS, AND NEITHER IS THE DECK'S HTTP SERVER. That server binds
 // 127.0.0.1 and stays there. It has a mutation guard that deliberately trusts a
@@ -20,24 +22,16 @@ import net from "node:net";
 import {
   challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript, mixesEphemeral, proof, proofOk,
   readChallenge, readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
-  MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
 import { inviteProof, inviteProofBack } from "./lan-invite.mjs";
-
-/** How long a connection has to finish the handshake before it is dropped. A
- *  handshake is two round trips on a local network — single-digit
- *  milliseconds — so five seconds is generous for a slow machine and short
- *  enough that holding sockets open costs an attacker something. */
-export const HANDSHAKE_MS = 5_000;
-
-/** The most one frame may be, and the most a peer may hold open.
- *
- *  Frames are JSON lines. The largest legitimate one is a manifest; the cap is
- *  an order of magnitude over the biggest real store, and the buffer is
- *  ABANDONED rather than grown past it — a socket that keeps sending without a
- *  newline is trying to make this allocate, and the answer is to stop reading
- *  rather than to read faster. */
-export const MAX_FRAME_BYTES = MAX_MANIFEST_BYTES;
+// The line both halves speak — the reader, the writer, the cap on a frame and
+// the deadline on a handshake — is lan-lines.mjs's. Re-exported, so what
+// imports it from here still does.
+import { frameReader, sendFrame, HANDSHAKE_MS } from "./lan-lines.mjs";
+export { frameReader, sendFrame, HANDSHAKE_MS, MAX_FRAME_BYTES } from "./lan-lines.mjs";
+// The calling half — dialling, proving, and reading a refusal — is
+// lan-call.mjs's. Re-exported, so what dials through this file still does.
+export { connectToPeer } from "./lan-call.mjs";
 
 /** Concurrent connections from all peers together. Small on purpose: the real
  *  number is one per peer per minute, and anything above this is either a bug
@@ -89,57 +83,6 @@ export const MAX_SOCKETS_PER_HOST = 4;
  * its own `finally`.
  */
 export const IDLE_MS = 30_000;
-
-/**
- * Read newline-delimited JSON off a socket, refusing to be made to allocate.
- *
- * The cap is on the UNTERMINATED buffer rather than on a frame that arrived,
- * which is the distinction that matters: a peer that sends a megabyte with no
- * newline in it is not sending a large frame, it is sending nothing at all,
- * expensively. Past the cap this stops reading and hands the caller a refusal
- * — it does not keep buffering in the hope a newline turns up.
- */
-export function frameReader(onFrame, onRefuse, max = MAX_FRAME_BYTES) {
-  let buf = "";
-  let dead = false;
-  return chunk => {
-    if (dead) return;
-    buf += chunk;
-    if (buf.length > max) { dead = true; buf = ""; onRefuse("frame too large"); return; }
-    let i;
-    while ((i = buf.indexOf("\n")) !== -1) {
-      const line = buf.slice(0, i);
-      buf = buf.slice(i + 1);
-      if (!line.trim()) continue;
-      let msg;
-      try { msg = JSON.parse(line); }
-      catch { dead = true; buf = ""; onRefuse("not json"); return; }
-      // `typeof [] === "object"`, so an array walks straight past the obvious
-      // check and reaches a handler that reads `msg.t` off it — undefined, and
-      // then whatever that handler does with a frame that has no type. A frame
-      // is a record; anything else is refused.
-      if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
-        dead = true; buf = ""; onRefuse("not an object"); return;
-      }
-      // A HANDLER THAT THROWS ENDS ITS CONNECTION, NOT THE PROCESS. This runs
-      // inside the socket's `data` event, where nothing above catches, so a
-      // throw from a frame handler took the whole deck down — and every frame
-      // read here has come off the network before anybody is trusted. The
-      // handlers are meant never to throw; this is what holds when one does.
-      // The error goes on with the refusal, so the next one that hides here is
-      // logged with its stack rather than as two words.
-      try { onFrame(msg); }
-      catch (err) { dead = true; buf = ""; onRefuse("bad frame", err); return; }
-      if (dead) return;
-    }
-  };
-}
-
-/** One line out. Kept in one place so nothing forgets the newline the reader
- *  above is waiting for. */
-export function sendFrame(sock, obj) {
-  try { sock.write(`${JSON.stringify(obj)}\n`); } catch { /* peer went away */ }
-}
 
 /**
  * The answering half.
@@ -677,231 +620,4 @@ export function createSyncServer({
       server = null;
     },
   };
-}
-
-/**
- * What each refusal reason means, in a sentence the LAN panel can print.
- *
- * At module scope so it is one object rather than one per frame, and named so
- * the `Object.hasOwn` guard below reads as the rule it is rather than as
- * punctuation. The keys are the protocol's, not a user's.
- */
-const REFUSALS = Object.freeze({
-  pending: "waiting for the other deck to accept this one",
-  declined: "that deck said no",
-  "invite only": "that deck pairs only by invite",
-  // Sent back to a caller that said it was not asking, so the far end's answer
-  // is about the caller's own setting — the same words its own round uses.
-  "not asking": "this deck pairs only by invite",
-  impostor: "that deck has this one pinned under a different key",
-  "wrong invite": "that deck did not take this invite — ask them for a new one",
-  "bad proof": "the other deck refused this one's proof",
-});
-
-/**
- * The calling half: connect, prove, be proved to, then talk.
- *
- * BOTH SIDES PROVE, and the second half is the one that is easy to skip. A
- * handshake where only the caller proves itself stops a stranger reading a
- * manifest and stops nothing else — a stranger can still stand up a listener on
- * the announced port, wait for a real deck to dial it, and be handed whatever
- * that deck was going to say. So this checks the reply with the same care the
- * server checks the hello, and gives up if it does not hold.
- */
-export function connectToPeer({
-  host, port, fp, pub, secret, name, myPort = null, code = null, timeoutMs = HANDSHAKE_MS,
-  /** False when this deck is reaching an address it already had WITHOUT asking
-   *  to pair — an invite-only deck's round. Sent only when false, so every other
-   *  hello is byte-for-byte what it was, and a deck that predates the field
-   *  reads past it the way it reads past `epk`. */
-  ask = true,
-  /** The public key we pinned for this deck the first time, or null for a deck
-   *  we are meeting — an address somebody typed. */
-  expectPub = null,
-  /** Whether the deck that minted `code` said it will prove it holds one too.
-   *  From the token's own `pb`, which is the only way to tell a deck that will
-   *  not from a deck that cannot — see mintInvite. False leaves this path
-   *  exactly as it shipped, for a token minted by an older deck. */
-  inviteProvesBack = false,
-  /** Whether this deck seals every frame after the handshake with a deck that
-   *  says it does too — see frameChannel. False announces nothing and seals
-   *  nothing, exactly as every deck before #810 dials; only the suite asks. */
-  sealFrames = true,
-  /** Whether this deck mixes a key pair made for the connection into its key,
-   *  with a deck that says it does too — see sessionKey. False dials exactly
-   *  as a deck of #810's version does; only the suite asks. */
-  ephemeral = true,
-}) {
-  return new Promise((resolve, reject) => {
-    const myChallenge = challengeFor({ seals: sealFrames, ephemeral });
-    // Made before the other deck is heard from, because the public half goes
-    // in the hello. Let go of once the key is derived — unused, when the deck
-    // that answers turns out not to mix — and on every way out below.
-    let mine = mixesEphemeral(myChallenge) ? ephemeralPair() : null;
-    const myEpk = mine?.pub;
-    const sock = net.createConnection({ host, port });
-    sock.setEncoding("utf8");
-    let settled = false;
-    const fail = err => {
-      if (settled) return;
-      settled = true;
-      mine = null;
-      sock.destroy();
-      reject(err instanceof Error ? err : new Error(String(err)));
-    };
-    const timer = setTimeout(() => fail(new Error("handshake timed out")), timeoutMs);
-    timer.unref?.();
-
-    sock.on("error", fail);
-    sock.on("close", () => fail(new Error("peer closed the connection")));
-    sock.on("connect", () => {
-      // No proof in the hello: the caller cannot cover a challenge it has not
-      // been given, and a proof over an empty one would be a proof that means
-      // nothing. It goes in message three.
-      // `port` is where WE listen, which is not the port this socket came from
-      // — that one is ephemeral and useless to dial. Without it a deck can
-      // accept an incoming request and still have no way to reach back, so the
-      // pairing is mutual on paper and one-way in fact.
-      // `epk` is this connection's key pair, offered: a deck from before #1120
-      // reads past a field it does not know, and one of this version answers.
-      sendFrame(sock, {
-        t: "hello", fp, pub, name, port: myPort, challenge: myChallenge, ...(myEpk ? { epk: myEpk } : {}),
-        ...(ask === false ? { ask: false } : {}),
-      });
-    });
-
-    let theirChallenge = null;
-    let theirFp = null;
-    let theirPub = null;
-    let key = null;
-    /** What the key was derived over; the invite proofs are made over it too. */
-    let transcript = null;
-
-    /** Step 2, answered: the listener's challenge, checked against the pin,
-     *  and this deck's proof back — with the connection's key derived first. */
-    const challenge = msg => {
-      if (theirFp || !readChallenge(msg.challenge)) return fail(new Error("bad challenge"));
-      const them = readPub(msg.pub);
-      if (!them || them.fp !== msg.fp) return fail(new Error("bad challenge"));
-      // THE PIN, CHECKED BEFORE ANYTHING ELSE. A deck we have paired with is
-      // this key and no other; a key that does not match is not a peer whose
-      // details changed, it is a different machine at the same address.
-      if (expectPub && expectPub !== them.pub) {
-        return fail(new Error("a different deck is answering at that address"));
-      }
-      theirChallenge = msg.challenge;
-      theirFp = them.fp;
-      theirPub = them.pub;
-      // Mixed when both challenges say so, as at the listener, and then the
-      // listener's key is required: a deck of this version that says it
-      // mixes and sends no key is not an older deck, it is a deck whose key
-      // was taken out on the way. Refused, and never read the old way.
-      const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
-      const theirEphemeral = mixing ? readEphemeral(msg.epk) : null;
-      if (mixing && !theirEphemeral) return fail(new Error("bad challenge"));
-      transcript = mixing
-        ? handshakeTranscript(fp, theirFp, myChallenge, theirChallenge, myEpk, theirEphemeral)
-        : handshakeTranscript(fp, theirFp, myChallenge, theirChallenge);
-      try {
-        key = sessionKey(secret, theirPub, transcript,
-          mixing ? { role: "caller", priv: mine.priv, peer: theirEphemeral } : null);
-      } catch {
-        return fail(new Error("bad challenge"));
-      } finally {
-        // Used or not, the private half goes now.
-        mine = null;
-      }
-      sendFrame(sock, {
-        t: "auth",
-        proof: proof(key, {
-          challenge: myChallenge, peerChallenge: theirChallenge,
-          fromFp: fp, toFp: theirFp, direction: "hello",
-        }),
-        // Only when joining on an invite. Sent in the same frame as the
-        // session proof so a deck that holds a token is paired in one round
-        // trip rather than being queued behind somebody else's press.
-        ...(code ? { invite: inviteProof(code, transcript) } : {}),
-      });
-    };
-
-    /** Step 4: the listener's own proof — and the invite's, when this deck is
-     *  joining on one — and then the connection, handed to whoever dialled. */
-    const ok = msg => {
-      // The same deck that gave us the challenge, or nothing: a reply naming a
-      // different fingerprint is a second party in the middle of this.
-      //
-      // AND A CHALLENGE FIRST. `theirFp` is null until one is accepted, so an
-      // `ok` sent as the very first frame with `fp: null` matched it — null is
-      // null — and walked into `proof` with no key, which throws. Before #1146
-      // that throw ended the deck, and this end dials whatever address a beacon
-      // announces; since #1146 the reader catches it as "bad frame". Neither is
-      // the answer: an `ok` before a challenge is out of order, and says so.
-      if (msg.t !== "ok" || !theirFp || !key || msg.fp !== theirFp) return fail(new Error("expected ok"));
-      const want = proof(key, {
-        challenge: theirChallenge, peerChallenge: myChallenge,
-        fromFp: theirFp, toFp: fp, direction: "reply",
-      });
-      if (!proofOk(want, msg.proof)) return fail(new Error("that deck could not prove its own key"));
-      // AND THAT IT IS THE DECK THE INVITE NAMED. The proof above is about a
-      // key the responder chose a moment ago; this one is about a code it had
-      // to have been given. `join` has no pin to pass, so `expectPub` above is
-      // null on this path and this is the only check that distinguishes the
-      // deck whose owner minted the token from whatever else is reachable at
-      // one of the ten addresses the token happens to carry.
-      //
-      // The caller giving up here is not the end of the attempt: `join` walks
-      // the rest of the list, so a deck answering at a stale or borrowed
-      // address costs one failed address instead of winning the whole token.
-      if (code && inviteProvesBack) {
-        const back = inviteProofBack(code, transcript);
-        if (!proofOk(back, msg.inviteProof)) {
-          return fail(new Error("that deck does not hold the invite"));
-        }
-      }
-      // Sealed from here when both challenges said so. The listener decided
-      // the same at the same moment from the same two strings, and the proof
-      // just checked is what says it saw the same two. See frameChannel.
-      const chan = sealsFrames(myChallenge) && sealsFrames(theirChallenge) ? frameChannel(key, "caller") : null;
-      settled = true;
-      clearTimeout(timer);
-      sock.removeAllListeners("close");
-      resolve({
-        sock, key, sealed: !!chan,
-        peerFp: theirFp, peerPub: theirPub, peerName: cleanName(msg.name, ""),
-        send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
-        /** What a frame from the other end says — or null on a sealed
-         *  connection when it does not open, which ends the connection: every
-         *  frame after it would fail too. On a connection to a deck from before
-         *  #810, a plain frame passes through as it arrived. */
-        read: frame => (chan ? chan.unwrap(frame) : frame),
-      });
-    };
-
-    sock.on("data", frameReader(msg => {
-      if (settled) return;
-      // A deck that heard us and said no. Each reason is a different problem
-      // with a different fix, and until this frame existed they were all one
-      // silent close that read as a firewall. See REFUSALS.
-      if (msg.t === "no") {
-        // `Object.hasOwn`, and here more than anywhere: `msg.why` is a field in
-        // a frame written by the OTHER MACHINE, which is the case admin-failure
-        // states the rule for (#474). Every member of Object.prototype answers
-        // a plain bracket read with an inherited value that is neither nullish
-        // nor falsy, so `?? "the other deck refused this handshake"` never
-        // fired for one — `{...}["constructor"]` is the Object function itself,
-        // and `new Error(Object).message` is the string "function Object() {
-        // [native code] }". lan-engine files that as `lastRound.error` and the
-        // LAN panel prints it verbatim, so a peer chose what appeared in the
-        // user's interface. Asking whether the map has a ROW is the question
-        // this read was always trying to ask; no real reason moves.
-        return fail(new Error(Object.hasOwn(REFUSALS, msg.why) ? REFUSALS[msg.why]
-          : "the other deck refused this handshake"));
-      }
-      if (msg.t === "challenge") return challenge(msg);
-      return ok(msg);
-    // A refusal from the reader, with the thrown error as its cause when there
-    // was one: the message is the one it always was, and whatever logs the
-    // rejection can reach what actually threw.
-    }, (why, cause) => fail(cause ? new Error(why, { cause }) : new Error(why))));
-  });
 }
