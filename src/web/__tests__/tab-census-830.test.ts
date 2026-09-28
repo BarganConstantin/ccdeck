@@ -81,7 +81,10 @@ describe("a queued tab says so instead of blaming the server (#830)", () => {
 
   it("tells the reader to close a tab, not to check the server", () => {
     expect(app).toMatch(/\{agentCount === 0 && \(!live && tabCapped\s*\? <TabCapHero \/>\s*: <EmptyHero live=\{live\}/);
-    const hero = /function TabCapHero\(\) \{[\s\S]*?\n\}/.exec(app)?.[0] ?? "";
+    // The hero itself is components/EmptyHero.tsx's; App.tsx picks it.
+    const heroes = readFileSync(fileURLToPath(new URL("../components/EmptyHero.tsx", import.meta.url)), "utf8");
+    const hero = /function TabCapHero\(\) \{[\s\S]*?\n\}/.exec(heroes)?.[0] ?? "";
+    expect(hero, "TabCapHero is not in components/EmptyHero.tsx").not.toBe("");
     const said = /<p>([\s\S]*?)<\/p>/.exec(hero)?.[1].replace(/\s+/g, " ").trim() ?? "";
     expect(said).toBe("This browser keeps at most six live connections to one address, and other <code>{PRODUCT}</code> tabs are holding them. Close one and this tab connects on its own.");
     expect(hero).toMatch(/<h2>Too many \{PRODUCT\} tabs are open<\/h2>/);

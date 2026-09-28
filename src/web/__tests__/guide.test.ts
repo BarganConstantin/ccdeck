@@ -24,7 +24,8 @@ const modal = bare(read("components/GuideModal.tsx"));
 const lan = bare(read("components/LanSyncSection.tsx"));
 /** The section's poll and its writes, which moved into a hook of their own. */
 const lanHook = bare(read("use-lan-section.ts"));
-const app = bare(read("App.tsx"));
+// The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
+const app = bare(read("App.tsx")) + "\n" + bare(read("components/EmptyHero.tsx"));
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 

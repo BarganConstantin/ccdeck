@@ -227,6 +227,9 @@ describe("#801 — what the Notifications switch is saying", () => {
 });
 
 describe("#802 — the empty hero and the scope it was started with", () => {
+  // The hero and the copy it is built from moved to components/EmptyHero.tsx;
+  // the call site that hands it the workspace stayed in App.tsx.
+  const hero = read("../components/EmptyHero.tsx");
   it("renders the scoped sentence instead of 'any folder'", () => {
     // The one user for whom the canvas stays empty is exactly the one who
     // started the deck with --scope or --workspace and then ran an agent
@@ -235,8 +238,8 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     expect(scoped.kind).toBe("scoped");
     expect(scoped.workspace).toBe("/w/paycore");
     expect(scoped.tail).toContain("--workspace/--scope");
-    expect(app).toContain("const scope = emptyScope(workspace);");
-    expect(app).toContain('{scope.kind === "scoped" ? (');
+    expect(hero).toContain("const scope = emptyScope(workspace);");
+    expect(hero).toContain('{scope.kind === "scoped" ? (');
   });
 
   it("keeps the 'any folder' sentence for a deck that is not scoped", () => {
@@ -244,12 +247,12 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     // must survive.
     expect(emptyScope("").kind).toBe("machine");
     expect(emptyScope(null).kind).toBe("unknown");
-    expect(app).toContain("Run <code>claude</code> or <code>codex</code> in any folder.");
+    expect(hero).toContain("Run <code>claude</code> or <code>codex</code> in any folder.");
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {
     expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} />");
-    expect(app).toContain("function agentNoneCopy(providers: Providers, workspace: string | null) {");
+    expect(hero).toContain("function agentNoneCopy(providers: Providers, workspace: string | null) {");
   });
 });
 
