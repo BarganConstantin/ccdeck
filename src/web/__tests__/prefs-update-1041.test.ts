@@ -123,8 +123,14 @@ describe("the tick an account gets when it arrives", () => {
     // unoffered until the next restart.
     const source = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
     const onShared = source.match(/onShared: async key => \{[\s\S]*?\n {2}\},/)?.[0] ?? "";
-    expect(onShared).toMatch(/updatePrefs\(withShared\(key\)\)/);
-    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: _prefs\.lan\.shared \}\)/);
+    expect(onShared, "onShared was not found in the server source").not.toBe("");
+    // Through the held prefs, which prefs-state.mjs keeps, and whose `update`
+    // is updatePrefs — so the tick is still computed inside the job — and the
+    // engine is handed the list that write returned.
+    expect(onShared).toMatch(/const after = await heldPrefs\.update\(withShared\(key\)\)/);
+    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: after\.lan\.shared \}\)/);
+    const held = readFileSync(fileURLToPath(new URL("../../server/prefs-state.mjs", import.meta.url)), "utf8");
+    expect(held).toMatch(/update: async mutate => \(_prefs = await updatePrefs\(mutate\)\)/);
   });
 
   it("writes nothing for an account with no key", async () => {

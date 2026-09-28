@@ -425,8 +425,13 @@ describe("a newer deck kept on the port is said out loud", () => {
 });
 
 describe("what a launcher that only asks never does", () => {
-  const index = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8")
+  const code = (name: string) => readFileSync(fileURLToPath(new URL(`../../server/${name}`, import.meta.url)), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+  const index = code("index.mjs");
+  // The read at import is prefs-state.mjs's, which holds what it returns. The
+  // negative and the count read both files, since either could grow the call.
+  const held = code("prefs-state.mjs");
+  const both = `${index}\n${held}`;
 
   it("does not start LAN sync from the import, only from a listen that succeeded", () => {
     // Reported from a terminal, the day 3.21.0 shipped: `npx ccdeck` beside a
@@ -435,15 +440,15 @@ describe("what a launcher that only asks never does", () => {
     // ask the registry, and the module bound the beacon and the sync listener
     // on the way in — a port grabbed by a process about to exit, and a line
     // about it in front of the one answer the person wanted.
-    expect(index).not.toMatch(/readPrefs\(\)\.then\([^)]*applyLanPrefs/);
-    expect(index).toMatch(/const _prefsRead = readPrefs\(\)\.then\(p => \{ _prefs = p; \}\)/);
+    expect(both).not.toMatch(/readPrefs\(\)\.then\([^)]*applyLanPrefs/);
+    expect(held).toMatch(/export const prefsRead = readPrefs\(\)\.then\(p => \{ _prefs = p; \}\)/);
     // In the listen loop, after the bind that took, beside the other things a
     // serving process starts and an asking one must not.
     const loop = /for \(const candidate of candidates\) \{([\s\S]*?)\n  \}\n  throw listenFailure/.exec(index)?.[1] ?? "";
     // The metrics carry `probe: true` here and nowhere else: the network
     // section may reach out only from a process that is actually serving.
-    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\{ probe: true \}\);[\s\S]*_prefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
+    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\{ probe: true \}\);[\s\S]*\bprefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
     // And once: a second call site would be a second boot.
-    expect([...index.matchAll(/_prefsRead\.then/g)]).toHaveLength(1);
+    expect([...both.matchAll(/\bprefsRead\.then/g)]).toHaveLength(1);
   });
 });

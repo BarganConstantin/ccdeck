@@ -401,11 +401,11 @@ export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
  * already merges field by field, so two writes naming two different fields
  * cannot lose each other. What it cannot do is merge two writes of the SAME
  * field, and three callers compute one whole field — `lan.manual` twice and
- * `lan.aliases` once — out of `index.mjs`'s module-level `_prefs`, which is
- * refreshed only when a previous write resolves. Two of them in one turn both
- * read before either job runs, and the second patch is a whole array or a whole
- * map without the first's entry in it: both answer 200, both panels redraw, one
- * change is never written.
+ * `lan.aliases` once. Computed out of the in-memory copy prefs-state.mjs holds,
+ * which is refreshed only when a previous write resolves, two of them in one
+ * turn both read before either job runs, and the second patch is a whole array
+ * or a whole map without the first's entry in it: both answer 200, both panels
+ * redraw, one change is never written.
  *
  * Measured against this file in a temp directory, with those exact call shapes,
  * starting from `manual: ["10.0.0.1:5000"]`:
