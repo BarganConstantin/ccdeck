@@ -42,3 +42,33 @@ describe("the mono stack, written once (#1286)", () => {
     expect(names[names.length - 1]).toBe("monospace");
   });
 });
+
+/** What each peer platform ships, by the family name a stack has to spell. */
+const SHIPPED: Record<string, string[]> = {
+  macOS: ["ui-monospace", "SFMono-Regular", "Menlo"],
+  Windows: ["Cascadia Mono", "Consolas"],
+  Linux: ["DejaVu Sans Mono", "Liberation Mono"],
+};
+
+describe("the mono stack names a font on every peer platform (#1286)", () => {
+  const named = names.slice(0, -1);
+
+  it("names one font each platform ships, ahead of the generic", () => {
+    // The defect: the stack stopped at Menlo, so on Windows and Linux the
+    // deck's type was the browser's pick of `monospace`, not ours.
+    for (const [platform, fonts] of Object.entries(SHIPPED)) {
+      expect(named.filter(n => fonts.includes(n)), platform).not.toEqual([]);
+    }
+  });
+
+  it("keeps the macOS three first and in order, so nothing moves on a Mac", () => {
+    // A developer's Mac often has Cascadia installed; Menlo ahead of it is
+    // what keeps that machine drawing what it drew before.
+    expect(names.slice(0, 3)).toEqual(SHIPPED.macOS);
+  });
+
+  it("names nothing a platform does not ship, so the list stays a list of fallbacks", () => {
+    const known = Object.values(SHIPPED).flat();
+    expect(named.filter(n => !known.includes(n))).toEqual([]);
+  });
+});

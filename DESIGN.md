@@ -41,16 +41,16 @@ typography:
     fontSize: "13px"
     lineHeight: 1.45
   data:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace"
     fontSize: "12px"
     lineHeight: 1.45
   label:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace"
     fontSize: "11px"
     fontWeight: 600
     lineHeight: 1.3
   micro:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace"
     fontSize: "9px"
     letterSpacing: "0.06em"
 rounded:
@@ -311,13 +311,13 @@ One sans stack and one mono stack. No webfonts, no font loading, ever — the de
 opens instantly and a FOUT on a dashboard is unacceptable.
 
 - **Body / UI:** `13px/1.45` system sans, the base on `html, body, #root`.
-- **Data:** `ui-monospace, SFMono-Regular, Menlo, monospace` — every number, id,
-  path, token count, model name, duration and dollar figure. If it is a value
-  rather than a sentence, it is monospaced. This is the single strongest carrier of
-  the product's character. **On Windows and Linux it names no font:**
-  `ui-monospace` resolves only in Safari and the other two are macOS fonts, so on
-  two of three peer platforms the browser picks. Accepted for now, tracked in
-  #1286.
+- **Data:** `var(--font-mono)` — every number, id, path, token count, model name,
+  duration and dollar figure. If it is a value rather than a sentence, it is
+  monospaced. This is the single strongest carrier of the product's character, so
+  the stack names a font on every peer platform (#1286): `ui-monospace,
+  SFMono-Regular, Menlo` for macOS, first and unchanged; `"Cascadia Mono", Consolas`
+  for Windows; `"DejaVu Sans Mono", "Liberation Mono"` for Linux; then the generic.
+  Declared once — never write the stack out in a rule.
 - **Every live number is `font-variant-numeric: tabular-nums`** — 72 declarations.
   On a panel whose numbers tick every second, proportional digits jitter. This is
   as much the character as the monospace is.
@@ -332,7 +332,7 @@ one-off hero sizes and using them as steps will look wrong:
 
 | Size | Uses | Role |
 |---|---|---|
-| 9px | 13 | Micro-labels: chart axis labels, stat captions. Uppercase with tracking. Readable text, which is why #1286 also asks about it on Windows. |
+| 9px | 13 | Micro-labels: chart axis labels, stat captions. Uppercase with tracking. Readable text — #1286 asked whether 9px holds up under ClearType at 100%; it stayed 9px when the stack was fixed, so check it on Windows before adding more. |
 | 10px | 109 | Chips, tags, node metadata. |
 | 11px | 166 | The workhorse label. |
 | 12px | 101 | Control and button text, dense body. |

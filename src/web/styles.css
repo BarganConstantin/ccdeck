@@ -482,9 +482,19 @@
    declarations, and it was sixty-two copies of the same literal: a stack is
    a list of fallbacks, and the day it needs one more name that is sixty-two
    edits or sixty-two chances to miss one (#1286). In neither theme, because a
-   font is the same on white as it is on black. */
+   font is the same on white as it is on black.
+   AND IT NAMES A FONT ON EVERY PLATFORM THE DECK RUNS ON (#1286). It used to
+   stop at Menlo: `ui-monospace` resolves only in Safari and the next two are
+   macOS fonts, so on Windows and Linux — Chrome, Firefox and the desktop shell
+   alike — the product's most characteristic type was whatever the browser's
+   generic `monospace` happened to be. Now: Cascadia Mono then Consolas for
+   Windows, DejaVu Sans Mono then Liberation Mono for Linux. The macOS three
+   stay first and unchanged, so a Mac with Cascadia installed still draws
+   Menlo, and nothing moves there. On a Linux machine whose generic already
+   was DejaVu Sans Mono — the common case, and the one this was checked on —
+   nothing moves either; what changes is that it is our choice now. */
 :root {
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
 }
 
 * { box-sizing: border-box; }
