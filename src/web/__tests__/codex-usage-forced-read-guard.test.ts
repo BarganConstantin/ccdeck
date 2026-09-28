@@ -75,7 +75,7 @@
 // file, and both home variables are redirected before the module loads, so no
 // case here can reach the real ~/.codex of whoever is running the suite.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -370,10 +370,11 @@ describe("the unforced background poll, which the guard must not break", () => {
 // them was a route nobody had counted.
 //
 // So this block enumerates instead of asserting about the endpoints somebody
-// happened to name. It reads index.mjs, finds every handler that turns
-// `?refresh=1` into a `force` argument, resolves the module and the exported
-// function each one forces, and then reads those modules and records what each
-// keeps between a forced caller and the work.
+// happened to name. It reads the router in index.mjs and every server module
+// that declares a route handler, finds every handler that turns `?refresh=1`
+// into a `force` argument, resolves the module and the exported function each
+// one forces, and then reads those modules and records what each keeps between
+// a forced caller and the work.
 //
 // The table below is a census of what IS, not a list of what is permitted — with
 // one rule on top of it, which is the part that stands in for the helper: a
@@ -412,25 +413,43 @@ function guardsSurvivingForce(source: string): string[] {
   return found.sort();
 }
 
-/** Every route that lets its caller say `?refresh=1`, read out of the router. */
-function forcedReadRoutes(indexSource: string) {
-  const code = withoutComments(indexSource);
-  // Handler bodies, sliced between one `async function handleX(` and the next.
-  const marks = [...code.matchAll(/\basync function (handle[A-Za-z0-9_]*)\s*\(/g)]
-    .map(m => ({ name: m[1], at: m.index! }));
-  const rows = [];
-  for (let i = 0; i < marks.length; i++) {
-    const body = code.slice(marks[i].at, i + 1 < marks.length ? marks[i + 1].at : code.length);
-    if (!/searchParams\.get\("refresh"\)\s*===\s*"1"/.test(body)) continue;
+/**
+ * Every server module that declares a route handler, index.mjs among them.
+ *
+ * Read off the directory rather than listed, because route handlers move out of
+ * index.mjs into modules of their own, and a list kept here would be one more
+ * place a moved route could quietly drop out of the census below.
+ */
+function handlerModules(): string[] {
+  return readdirSync(new URL("../../server/", import.meta.url))
+    .filter(name => name.endsWith(".mjs"))
+    .filter(name => /\basync function handle[A-Za-z0-9_]*\s*\(/.test(withoutComments(serverSource(name))))
+    .sort();
+}
 
-    const modules = [...body.matchAll(/src\/server\/([A-Za-z0-9-]+\.mjs)/g)].map(m => m[1]);
-    // The function the handler hands `force` to, whether that is written as its
-    // own statement or inline inside a `send(…)`.
-    const forced = [...body.matchAll(/\b([A-Za-z0-9_]+)\(\s*\{[^}]*\bforce\b/g)].map(m => m[1]);
-    const route = [...code.matchAll(
-      new RegExp(`req\\.method === "(\\w+)"\\s*&& url\\.pathname === "([^"]+)"[^\\n]*\\b${marks[i].name}\\(`, "g"),
-    )].map(m => ({ method: m[1], path: m[2] }));
-    rows.push({ handler: marks[i].name, modules, forced, route });
+/** Every route that lets its caller say `?refresh=1`: routed in index.mjs, and
+ *  handled wherever its handler is declared. */
+function forcedReadRoutes(routerSource: string, handlerSources: string[]) {
+  const router = withoutComments(routerSource);
+  const rows = [];
+  for (const source of handlerSources) {
+    const code = withoutComments(source);
+    // Handler bodies, sliced between one `async function handleX(` and the next.
+    const marks = [...code.matchAll(/\basync function (handle[A-Za-z0-9_]*)\s*\(/g)]
+      .map(m => ({ name: m[1], at: m.index! }));
+    for (let i = 0; i < marks.length; i++) {
+      const body = code.slice(marks[i].at, i + 1 < marks.length ? marks[i + 1].at : code.length);
+      if (!/searchParams\.get\("refresh"\)\s*===\s*"1"/.test(body)) continue;
+
+      const modules = [...body.matchAll(/src\/server\/([A-Za-z0-9-]+\.mjs)/g)].map(m => m[1]);
+      // The function the handler hands `force` to, whether that is written as its
+      // own statement or inline inside a `send(…)`.
+      const forced = [...body.matchAll(/\b([A-Za-z0-9_]+)\(\s*\{[^}]*\bforce\b/g)].map(m => m[1]);
+      const route = [...router.matchAll(
+        new RegExp(`req\\.method === "(\\w+)"\\s*&& url\\.pathname === "([^"]+)"[^\\n]*\\b${marks[i].name}\\(`, "g"),
+      )].map(m => ({ method: m[1], path: m[2] }));
+      rows.push({ handler: marks[i].name, modules, forced, route });
+    }
   }
   return rows;
 }
@@ -521,7 +540,7 @@ const CENSUS: Record<string, {
 };
 
 describe("every route that lets a caller force a read", () => {
-  const discovered = forcedReadRoutes(serverSource("index.mjs"));
+  const discovered = forcedReadRoutes(serverSource("index.mjs"), handlerModules().map(serverSource));
 
   it("is one of exactly eight, and a ninth has to be named here before it ships", () => {
     // The assertion #600 is really about. Nobody was counting: `?refresh=1` was
