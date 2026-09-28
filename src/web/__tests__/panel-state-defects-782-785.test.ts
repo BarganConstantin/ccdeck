@@ -79,7 +79,8 @@ describe("#784 — the reading and the point it is measured from", () => {
   });
 
   it("is wired that way in the panel, with no effect left to be one render late", () => {
-    expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
+    // The reading is stored by the range hook, lifted out of the panel.
+    expect(read("../use-usage-range.ts")).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
     expect(panel).toContain("liveDelta(baseline, boardBySession(state.agents.values(), now))");
     expect(usageSurface(), "the baseline is back in a ref an effect writes").not.toContain("baselineRef.current =");
     // And the snapshot handed to the hook must be stable, or the fetch re-runs

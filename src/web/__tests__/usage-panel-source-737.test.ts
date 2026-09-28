@@ -51,6 +51,8 @@ const panel = read("../components/UsagePanel.tsx");
 /** The panel and every file lifted out of it: what the negatives read, so a
  *  move cannot empty one. */
 const surface = usageSurface();
+/** The ccusage read, lifted out of the panel into a hook of its own. */
+const rangeHook = read("../use-usage-range.ts");
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -247,8 +249,8 @@ describe("what the panel asks the server for", () => {
     // `refreshKey > 0` was true for the rest of the panel's life once the ↻ had
     // been pressed, so every poll after it spawned a ccusage child to re-read
     // what the server had cached. Keyed on the value changing instead.
-    expect(panel).toContain("const force = refreshKey !== forcedRef.current;");
-    expect(panel).toContain("`/api/ccusage?since=${since}${force ? \"&refresh=1\" : \"\"}`");
+    expect(rangeHook).toContain("const force = refreshKey !== forcedRef.current;");
+    expect(rangeHook).toContain("`/api/ccusage?since=${since}${force ? \"&refresh=1\" : \"\"}`");
     expect(surface).not.toContain('refreshKey > 0 ? "&refresh=1"');
   });
 
@@ -262,15 +264,15 @@ describe("what the panel asks the server for", () => {
     const server = read("../../server/ccusage.mjs");
     const cacheMs = Number(/const CACHE_MS = ([\d_]+)/.exec(server)?.[1]?.replace(/_/g, ""));
     expect(cacheMs).toBe(60_000);
-    expect(panel).toContain("const POLL_MS = 60_000;");
-    expect(panel).toContain("window.setInterval(beat, POLL_MS)");
+    expect(rangeHook).toContain("const POLL_MS = 60_000;");
+    expect(rangeHook).toContain("window.setInterval(beat, POLL_MS)");
     // And returning to the tab is gated on the reading's AGE, not on the tab
     // merely coming forward: flicking between two tabs three times must not
     // spend three runs at 7.8 CPU-seconds each.
-    expect(panel).toContain("if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);");
-    expect(panel).toContain('const visible = () => document.visibilityState === "visible";');
-    expect(panel).toContain('document.addEventListener("visibilitychange", wake)');
-    expect(panel).toContain('document.removeEventListener("visibilitychange", wake)');
+    expect(rangeHook).toContain("if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);");
+    expect(rangeHook).toContain('const visible = () => document.visibilityState === "visible";');
+    expect(rangeHook).toContain('document.addEventListener("visibilitychange", wake)');
+    expect(rangeHook).toContain('document.removeEventListener("visibilitychange", wake)');
   });
 
   it("keeps a failed or absent ccusage silent rather than loud", () => {
@@ -278,7 +280,7 @@ describe("what the panel asks the server for", () => {
     // fails on the third poll still has the reading from the second. Neither is
     // an error banner over numbers the panel still holds. The consequence is
     // checked above, against `rangeView`; this is the catch that produces it.
-    expect(panel).toContain(".catch(() => {})");
+    expect(rangeHook).toContain(".catch(() => {})");
   });
 
   it("makes the header's ↻ mean the range too", () => {
@@ -461,7 +463,7 @@ describe("markup, read as source", () => {
     // test can reach it, and every case above would still pass.
     expect(panel).toContain("const figures = panelFigures(range,");
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(panel).toContain("return { ...rangeView(landed, period), loading };");
+    expect(rangeHook).toContain("return { ...rangeView(landed, period), loading };");
     for (const gone of ["fromRange ? rangeSum.cost +", "fromRange ? rangeSum.tokens", "landed.period !== period,"]) {
       expect(surface, `${gone} is decided in the component again`).not.toContain(gone);
     }
