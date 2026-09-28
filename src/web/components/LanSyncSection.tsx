@@ -108,6 +108,16 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   /** When `armed` was set, so a double-click cannot be its own confirmation —
    *  see CONFIRM_GAP_MS. */
   const armedAt = useRef(0);
+  // An armed unpair stands down on its own, four seconds after THAT arm (#1539).
+  // The timer used to be set by the press and left running, and it only asked
+  // whether the same row was still armed — so a row armed, left for another,
+  // and armed again was stood down by the first arm's timer, a second or two
+  // into its own four. Keyed on the arm, a new arm clears the old timer.
+  useEffect(() => {
+    if (armed == null) return;
+    const t = window.setTimeout(() => setArmed(null), 4_000);
+    return () => window.clearTimeout(t);
+  }, [armed]);
   /** The dialog that holds the two ways of reaching a deck the network could
    *  not offer. A DIALOG RATHER THAN A DRAWER IN THIS COLUMN: an address is
    *  monospace, an invite is 140 characters and the firewall block is a
@@ -145,7 +155,6 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
     if (press === "arm") {
       setArmed(p.fp);
       armedAt.current = now;
-      window.setTimeout(() => setArmed(a => (a === p.fp ? null : a)), 4_000);
       return;
     }
     // A double-click is one decision, not two: its second
