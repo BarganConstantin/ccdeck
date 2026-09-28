@@ -36,12 +36,12 @@ import { fileURLToPath } from "node:url";
 import {
   redactCommand, commandTail, elapsedSeconds,
   parsePsThreadsBsd, parsePsThreadsProcps, psDetailArgs, CMD_MAX,
-} from "../../server/system-metrics.mjs";
+} from "../../server/process-list.mjs";
 import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/ProcessListModal";
 import { fmtBytes, fmtUptime } from "../components/ProcessListModal";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const server = read("../../server/system-metrics.mjs");
+const server = read("../../server/process-list.mjs");
 const route = read("../../server/index.mjs");
 const meter = read("../components/MachinePanel.tsx");
 const modal = read("../components/ProcessListModal.tsx");
@@ -269,7 +269,9 @@ describe("the second child is the modal's, not the panel's", () => {
   it("keeps the list standing when only the second call fails", () => {
     // `ps -M` can lose a race with an exit or be refused outright, and neither
     // is a reason to blank a table whose CPU and memory columns are correct.
-    const block = server.slice(server.indexOf("async function attachDetail"));
+    const at = server.indexOf("async function attachDetail");
+    expect(at, "attachDetail is not in process-list.mjs").toBeGreaterThan(-1);
+    const block = server.slice(at);
     expect(block.slice(0, block.indexOf("\n}"))).toMatch(/catch \{ return; \}/);
   });
 });

@@ -55,7 +55,9 @@ vi.mock("node:child_process", async () => {
 });
 
 // @ts-expect-error — plain .mjs server module, no types
-import { parsePsProcesses, readProcesses, stopSystemMetrics, swapFromSysctl } from "../../server/system-metrics.mjs";
+import { readProcesses, stopSystemMetrics, swapFromSysctl } from "../../server/system-metrics.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { parsePsProcesses } from "../../server/process-list.mjs";
 
 // The reading goes with the recorded spawns. Since #544 readProcesses holds the
 // last list it produced for PROC_MIN_GAP_MS and answers anyone who arrives

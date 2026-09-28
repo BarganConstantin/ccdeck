@@ -106,8 +106,9 @@ vi.mock("node:child_process", async (importOriginal) => {
 });
 
 // @ts-expect-error — a plain .mjs module, no types
-const { readProcesses, stopSystemMetrics, parseGetProcessJson, WIN_PROCESS_PS } =
-  await import("../../server/system-metrics.mjs");
+const { readProcesses, stopSystemMetrics } = await import("../../server/system-metrics.mjs");
+// @ts-expect-error — a plain .mjs module, no types
+const { parseGetProcessJson, WIN_PROCESS_PS } = await import("../../server/process-list.mjs");
 
 /**
  * The fields the dialog reads off a row, minus the two Windows documents as
