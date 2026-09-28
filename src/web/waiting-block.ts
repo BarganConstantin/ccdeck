@@ -49,6 +49,13 @@ export const WAITING_KEEPERS = new Set([
   // minutes after a turn ended, with the "Your turn" badge already up. It is
   // the badge's explanation, not the end of it.
   "SessionRecapped",
+  // And the output watch, the fifth scanner (#1444). It polls the transcript
+  // every 1.5s and reports each block the model finished writing, and the block
+  // that raises a prompt — the tool call being asked about, the question itself
+  // — is written just BEFORE the prompt, so the next tick usually reports it
+  // after the badge is up. Nothing the model writes can mean the human answered
+  // unless a hook says so first: the tool's result, the next prompt, a Stop.
+  "OutputObserved",
 ]);
 
 /**
