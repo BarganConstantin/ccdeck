@@ -29,6 +29,8 @@ import { resetLabel, resetLabelIso } from "../../server/reset-label.mjs";
 import CostBar from "../components/CostBar";
 import type { CostBreakdown } from "../pricing";
 import type { ToolCall } from "../types";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -399,9 +401,13 @@ describe("how long ago something happened", () => {
   });
 
   it("leaves no second dialect in the accounts panel", () => {
-    expect(accountsPanel).toMatch(/import \{ resetCountdown, shortAgoSec \} from "\.\.\/relative-time";/);
-    expect(code(accountsPanel)).not.toMatch(/return "just now"/);
-    expect(code(accountsPanel)).toMatch(/return shortAgoSec\(nowSec - Math\.floor\(ms \/ 1000\)\);/);
+    // Two links, each in the file that holds it now: the panel's ages moved to
+    // account-freshness.ts, and its reset countdown stayed in the panel.
+    expect(src("../account-freshness.ts")).toMatch(/import \{ shortAgoSec \} from "\.\/relative-time";/);
+    expect(accountsPanel).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
+    // No second dialect anywhere the panel has been split into.
+    expect(code(accountsSurface())).not.toMatch(/return "just now"/);
+    expect(clientText()).toMatch(/return shortAgoSec\(nowSec - Math\.floor\(ms \/ 1000\)\);/);
   });
 
   it("left the usage panel's age label alone, because it is a different rule", () => {
@@ -465,7 +471,7 @@ describe("the countdown to a quota reset", () => {
     expect(usagePanel).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
     expect(accountsPanel).toMatch(/\bresetCountdown\b/);
     expect(code(usagePanel)).not.toMatch(/function fmtCountdown\b/);
-    expect(code(accountsPanel)).not.toMatch(/function countdown\b/);
+    expect(code(accountsSurface())).not.toMatch(/function countdown\b/);
   });
 });
 
@@ -651,7 +657,7 @@ describe("the shapes these helpers replaced", () => {
     ["App.tsx", app],
     ["AgentNode.tsx", agentNode],
     ["UsagePanel.tsx", usagePanel],
-    ["AccountsPanel.tsx", accountsPanel],
+    ["AccountsPanel.tsx and the files lifted out of it", accountsSurface()],
     ["SessionSummary.tsx", sessionSummary],
     ["ToolModal.tsx", toolModal],
     ["CostBar.tsx", costBarSrc],

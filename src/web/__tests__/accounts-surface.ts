@@ -23,6 +23,7 @@ import { WEB_DIR } from "./client-source";
 export const ACCOUNTS_FILES = [
   "components/AccountsPanel.tsx",
   "account-issue.ts",
+  "account-freshness.ts",
   "use-request-slot.ts",
 ] as const;
 
