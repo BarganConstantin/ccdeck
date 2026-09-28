@@ -84,7 +84,7 @@ export function psArgs(platform = process.platform) {
   // SEVEN FIELDS, THE SAME SEVEN ON BOTH, and `args` last because it is the one
   // that contains spaces. `etime` is `[[DD-]HH:]MM:SS` on both and `rss` is
   // kibibytes on both, so one parser still reads both — which is why the thread
-  // count is fetched separately (readThreads) rather than as an eighth column:
+  // count is fetched separately (attachDetail) rather than as an eighth column:
   // procps spells it `nlwp` and BSD has no keyword for it at all, and one
   // divergent column would have cost the shared parser this list is built on.
   //
@@ -115,8 +115,7 @@ export function psArgs(platform = process.platform) {
  * Scoped to the candidate pids rather than to the machine, which is what makes
  * it cheap: measured here, `ps -M -p` over forty pids is 0.15s against 0.10s
  * for the whole-machine call it follows. `top -stats th,ports` would have
- * answered both in one go and takes 4.25s on an idle machine — see readThreads'
- * note on why ports is not a column at all.
+ * answered both in one go and takes 4.25s on an idle machine.
  */
 export function psDetailArgs(pids, platform = process.platform) {
   const list = pids.join(",");
