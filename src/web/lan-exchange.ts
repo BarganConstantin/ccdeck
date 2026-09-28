@@ -126,7 +126,7 @@ export function exchangeLanes(
   current: string | null = null,
 ): Lane[] {
   // Two slots for one login read as the live one, as the engine's onePerKey
-  // picks it (lan-sync.mjs): an expired duplicate after it must not paint this
+  // picks it (lan-copies.mjs): an expired duplicate after it must not paint this
   // end "expired" while the deck is offering a working copy.
   const byKey = new Map<string, LanAccount>();
   for (const a of accounts) if (!byKey.get(a.key)?.alive) byKey.set(a.key, a);

@@ -11,9 +11,9 @@ import { cswapBin } from "./cswap-install.mjs";
 import { run } from "./exec.mjs";
 // The identity of one account, spelled once. claude-swap keys on `(email,
 // organizationUuid)`; the verdict cache files each verdict under the pair it was
-// collected for, and lan-sync.mjs matches accounts across two stores on the same
-// pair. lan-sync.mjs imports nothing of this project's, so the edge closes no
-// cycle.
+// collected for, and lan-copies.mjs (which lan-sync.mjs re-exports) matches
+// accounts across two stores on the same pair. Nothing either of them imports
+// reaches this file, so the edge closes no cycle.
 import { accountKey } from "./lan-sync.mjs";
 
 /**

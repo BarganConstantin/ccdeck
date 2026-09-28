@@ -18,14 +18,17 @@ import { isOnline, ONLINE_MS } from "../lan-roster";
 import type { Peer } from "../lan-types";
 // @ts-expect-error — plain .mjs server module, no types
 import * as lanSync from "../../server/lan-sync.mjs";
+import { lanSyncSurface } from "./lan-sync-surface";
 
 const source = readFileSync(fileURLToPath(new URL("../../server/lan-sync.mjs", import.meta.url)), "utf8");
 
 describe("isPresent and peerRows", () => {
   it("are neither exported nor declared by lan-sync.mjs", () => {
+    // Declared: asked of lan-sync.mjs and every file lifted out of it, so a
+    // move cannot let either come back unnoticed — see lan-sync-surface.ts.
     for (const name of ["isPresent", "peerRows"]) {
       expect(Object.keys(lanSync), name).not.toContain(name);
-      expect(source, `${name} is declared again`).not.toMatch(new RegExp(`function ${name}\\b`));
+      expect(lanSyncSurface(), `${name} is declared again`).not.toMatch(new RegExp(`function ${name}\\b`));
     }
   });
 });

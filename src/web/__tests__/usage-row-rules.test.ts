@@ -9,8 +9,9 @@
 //                 slot is reused while the removed account's row stays behind.
 //                 The roster and activeAccountUsage each carried a copy.
 //   accountKey    the identity a cached verdict is filed under, which is the
-//                 one lan-sync.mjs matches accounts on. The verdict cache wrote
-//                 it and read it back in two more hand-written spellings.
+//                 one lan-copies.mjs matches accounts on (lan-sync.mjs
+//                 re-exports it). The verdict cache wrote it and read it back
+//                 in two more hand-written spellings.
 //
 // The verdict cache lives in claude-verdicts.mjs now, which is why the last
 // rule is checked across both modules.

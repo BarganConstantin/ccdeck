@@ -3,7 +3,7 @@
 // Lifted out of LanSyncSection.tsx unchanged. A round comes back from the
 // engine as `last` — a sentence off the wire, an errno Node put in front of an
 // address, or the logins it moved and what was wrong with each — and this is
-// where each of those becomes a line and a tone: the codes lan-sync.mjs and
+// where each of those becomes a line and a tone: the codes lan-copies.mjs and
 // lan-socket.mjs define on one side, the words the deck list and a deck's own
 // dialog draw on the other. silenceNote is here for the same reason. It is
 // what a round that timed out means when a beacon from the same machine says
@@ -32,7 +32,7 @@ export interface RoundLine { text: string; tone: "bad" | "warn" | "idle" | "ok";
 type DoneRow = NonNullable<NonNullable<Peer["last"]>["done"]>[number];
 
 /**
- * The reasons a round names, keyed by the codes lan-sync.mjs defines: a few
+ * The reasons a round names, keyed by the codes lan-copies.mjs defines: a few
  * words for the row and the sentence with the remedy for the dialog. Looked up
  * with Object.hasOwn, so a code this build does not know names nothing rather
  * than something from the prototype.

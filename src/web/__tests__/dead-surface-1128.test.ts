@@ -42,7 +42,9 @@ const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegEx
   [SERVER, "deck-probe.mjs", "DECK_CHALLENGE_TIMEOUT_MS", /^const DECK_CHALLENGE_TIMEOUT_MS = 400;$/m, /timeout: DECK_CHALLENGE_TIMEOUT_MS,/],
   [SERVER, "lan-engine.mjs", "ROUND_MS",                  /^const ROUND_MS = 10_000;$/m,               /timeoutMs: ROUND_MS/],
   [SERVER, "lan-beacon.mjs", "REPLY_COOLDOWN_MS",         /^const REPLY_COOLDOWN_MS = 2_000;$/m,       /now\(\) - repliedAt > REPLY_COOLDOWN_MS/],
-  [SERVER, "lan-sync.mjs",   "newKeypair",                /^function newKeypair\(\) \{$/m,             /const made = newKeypair\(\);/],
+  // Moved to lan-wire.mjs with the rest of the channel; lan-sync.mjs re-exports
+  // that file, and the case after this loop holds it to the same negative.
+  [SERVER, "lan-wire.mjs",   "newKeypair",                /^function newKeypair\(\) \{$/m,             /const made = newKeypair\(\);/],
   // Moved out of LanSyncSection.tsx with deckRows, its one reader.
   [WEB, "lan-roster.ts", "presenceLabel",
     /^function presenceLabel\(p: Peer, here: boolean, now: number\): string \{$/m, /presenceLabel\(p, present, now\)/],
@@ -62,6 +64,15 @@ describe("the in-file-only exports #1128 took off their modules' public surface"
       expect(Object.keys(await import(/* @vite-ignore */ join(dir, file)))).not.toContain(symbol);
     });
   }
+
+  it("lan-sync.mjs, which re-exports lan-wire.mjs, does not hand newKeypair out either", async () => {
+    const text = src(SERVER, "lan-sync.mjs");
+    expect(text).not.toMatch(/^export (?:const|let|var|function|async function|class) newKeypair\b/m);
+    for (const list of text.matchAll(/^export \{([^}]*)\}/gm)) {
+      expect(list[1].split(",").map(s => s.trim()), "lan-sync.mjs re-exports newKeypair").not.toContain("newKeypair");
+    }
+    expect(Object.keys(await import(/* @vite-ignore */ join(SERVER, "lan-sync.mjs")))).not.toContain("newKeypair");
+  });
 });
 
 describe("dismissedSummaries — a Set App.tsx wrote on every recap close and nothing read", () => {

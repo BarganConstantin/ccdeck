@@ -169,7 +169,8 @@ describe("a collector that has simply stopped", () => {
     // into account, so a genuine lost copy remains healable.
     const server = src("../../server/claude-accounts.mjs");
     expect(server).toContain("alive:    storedCopyAlive(trouble == null, collector),");
-    const lan = src("../../server/lan-sync.mjs");
+    // Which copy wins is lan-copies.mjs's (re-exported by lan-sync.mjs).
+    const lan = src("../../server/lan-copies.mjs");
     // A peer heals only what this deck calls dead …
     expect(lan).toContain("return mine.alive ? null : \"heal\";");
     // … and publishes only what it calls alive. A copy this process cannot

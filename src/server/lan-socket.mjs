@@ -1,8 +1,8 @@
-// The sockets. Every decision this makes lives in lan-sync.mjs, or for an
-// invite in lan-invite.mjs; what is here is the plumbing that decision layer
-// refuses to own — a UDP socket that shouts, a TCP listener that answers, and
-// the deadlines around both. The shouting half is lan-beacon.mjs; this file
-// is the answering and the calling.
+// The sockets. Every decision this makes lives in lan-sync.mjs and
+// lan-wire.mjs, or for an invite in lan-invite.mjs; what is here is the
+// plumbing that decision layer refuses to own — a UDP socket that shouts, a TCP
+// listener that answers, and the deadlines around both. The shouting half is
+// lan-beacon.mjs; this file is the answering and the calling.
 //
 // TWO SOCKETS, AND NEITHER IS THE DECK'S HTTP SERVER. That server binds
 // 127.0.0.1 and stays there. It has a mutation guard that deliberately trusts a
@@ -278,7 +278,7 @@ export function createSyncServer({
     // Carrying this deck's marks — that it seals, and that it mixes a key pair
     // of its own into the key — inside the one field the handshake already
     // binds. See "THE ANNOUNCEMENT RIDES INSIDE THE CHALLENGE" and EPHEMERAL
-    // in lan-sync.mjs.
+    // in lan-wire.mjs.
     const myChallenge = challengeFor({ seals: sealFrames, ephemeral });
     let theirChallenge = null;
     /** What the key was derived over, kept so the invite proofs below are made
@@ -378,7 +378,7 @@ export function createSyncServer({
       // the proofs bind decide it, never whether a field turned up. Once
       // both say so, a hello with no usable key is refused rather than
       // answered the old way, because answering the old way is the
-      // downgrade. See EPHEMERAL in lan-sync.mjs.
+      // downgrade. See EPHEMERAL in lan-wire.mjs.
       //
       // A KEY OFFERED IS A KEY ANSWERED, whatever the challenges say, so
       // what this end sends depends only on what it was sent. When the two
