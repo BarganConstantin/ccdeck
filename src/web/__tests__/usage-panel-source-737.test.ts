@@ -475,19 +475,25 @@ describe("markup, read as source", () => {
     expect(toolbar).toContain("onClick={() => setPeriod(p.key)}");
   });
 
-  it("dims the figures, not the control, and with the token that means stale", () => {
-    // The sheet declares both: --dim-off is "this control cannot be operated",
-    // --dim-stale is "a newer reading is on its way and this one was true a
-    // moment ago". The second is the state, and it belongs to the numbers.
-    expect(panel).toContain('const staleCls = rangeStale ? " up-stale" : "";');
-    expect(panel).toContain("<div className={`up-total${staleCls}`}");
-    expect(panel).toContain("<div className={`up-tokens-row${staleCls}`}");
-    // The two tables are lifted out of the panel, which hands each the class:
-    // one link per file.
-    expect([...panel.matchAll(/staleCls=\{staleCls\}/g)]).toHaveLength(2);
-    expect(models).toContain("<section className={`up-section${staleCls}`}>");
-    expect(sessions).toContain("<section className={`up-section${staleCls}`}>");
-    expect(css).toMatch(/\.up-stale \{ opacity: var\(--dim-stale\)/);
+  it("dims neither the control nor the figures, and says the figures are stale in words (#1289)", () => {
+    // The sheet declares both dims: --dim-off is "this control cannot be
+    // operated", --dim-stale is "a newer reading is on its way and this one was
+    // true a moment ago". The strip stays pressable, so the first never applied;
+    // the second did, to the numbers, until #1289 measured what it cost them —
+    // 3.55:1 for --text and 1.95:1 for --muted on the dark panel. Every figure
+    // here is a word, so the panel says the state instead: the headline's noun
+    // names the period the figures are FROM.
+    expect(panel).not.toMatch(/staleCls|up-stale/);
+    expect(models).not.toMatch(/staleCls|up-stale/);
+    expect(sessions).not.toMatch(/staleCls|up-stale/);
+    expect(css).not.toMatch(/\.up-stale\b/);
+    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    expect(models).toContain('<section className="up-section">');
+    expect(sessions).toContain('<section className="up-section">');
+    // The words that carry it: the noun of the period SHOWN, not the one pressed.
+    expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
+    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
   });
 
   it("reads the seam through the functions rather than re-deciding it here", () => {

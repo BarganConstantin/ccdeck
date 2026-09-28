@@ -98,7 +98,14 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 and from `providers` until then. Both halves matter: the deck
                 must not tell a Claude-only machine about Codex before any data
                 exists, and it must not deny a CLI whose spend is on screen. */}
-            <div className="uh-sub">{usageSubtitle(providers, agents.map(a => a.id))}</div>
+            {/* While a re-run of the range on screen is out, the line says so
+                in words (#1289). The answer under it used to fade to
+                --dim-stale, every total and label with it; only the chart's
+                marks dim now, so the state needs a word, and this line is the
+                one that already says where the figures come from. The same
+                words the busy branch prints, so a reader meets one phrase for
+                one wait. */}
+            <div className="uh-sub">{view.stale ? "running ccusage…" : usageSubtitle(providers, agents.map(a => a.id))}</div>
           </div>
           {/* Not a tablist (#381). role="tab" is a promise about keyboard
               behaviour — one tab stop for the whole strip, arrow keys between
@@ -187,9 +194,11 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
             no usage in this range
           </div>
         ) : (
-          // One wrapper so the whole answer dims together while a newer run for
+          // One wrapper so the whole chart dims together while a newer run for
           // this same range is in flight: these are the right range's numbers,
-          // but they are not the final word yet.
+          // but they are not the final word yet. What dims is the marks inside
+          // it — bars, segments, swatches — and never the words (#1289); the
+          // subtitle above says what is running.
           <div className={view.stale ? "uh-stale" : undefined} aria-busy={view.stale || undefined}>
             <div className="uh-totals">
               <Stat label="total cost"   val={fmtCost(totalCost)} accent />

@@ -340,14 +340,23 @@
    exactly what a token is for and what fourteen literals could not promise.
 
    --dim-stale is deliberately NOT that token, at a deliberately different value.
-   `.uh-stale` and `.ap-share.expired` do not say "you cannot use this", they say
-   "this is no longer current" — a newer ccusage run is in flight for the range
-   you are looking at, a share link is past its expiry. Both are still readable,
-   still selectable, still true a moment ago. Folding them into --dim-off would
-   be the mistake this block is meant to prevent: it would make a later decision
-   about disabled controls silently restate itself about stale data. Naming them
-   apart is how the two stay free to differ, and the 0.45 they share is the value
-   they already had.
+   It does not say "you cannot use this", it says "this is no longer current" —
+   a newer ccusage run is in flight for the range you are looking at. Folding it
+   into --dim-off would be the mistake this block is meant to prevent: it would
+   make a later decision about disabled controls silently restate itself about
+   stale data. Naming them apart is how the two stay free to differ.
+   IT GOES ON MARKS AND FILLS, NEVER ON TEXT (#1289). It used to dim four blocks
+   of words — the usage panel's figures, the history modal's whole answer, and
+   an expired share's text in two places — and 0.45 over --panel takes --text to
+   3.55:1 in dark and 3.04:1 in light, --muted to 1.95:1 and 2.15:1. No readable
+   tier survives it on any surface in either theme, so there is no text it could
+   ever be right for. What is stale now dims its bars, segments and swatches,
+   and SAYS it is stale in words at full contrast: the history modal's subtitle
+   reads "running ccusage…", the usage panel's headline names the period its
+   figures are from, and an expired share says "expired" beside the text.
+   contrast-floors.test.ts holds every rule reading this token to an element
+   that has no children to put a word in. --dim-off needs no such rule: every
+   use is a control that cannot be operated, which 1.4.3 exempts.
 
    Not tokenised, on purpose, and all of them currently spell some value this
    block also spells: the two search-dim hovers rest at 0.6 and lift to 1 under
@@ -7506,14 +7515,6 @@ button.tool.clickable:last-child { border-bottom: none; }
   outline-offset: -4px;
   border-radius: 4px;
 }
-/* A pressed chip answers instantly and the answer takes a second or two to
-   arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,
-   not the control: --dim-stale is this sheet's token for "a newer reading is on
-   its way and this one was true a moment ago", which is exactly the state, and
-   --dim-off would have said "cannot be operated" about chips that stay
-   pressable. The heading keeps its weight so the panel does not appear to empty
-   out; the numbers under it recede until they are the ones being asked for. */
-.up-stale { opacity: var(--dim-stale); transition: opacity 140ms ease-out; }
 
 /* A session ccusage remembers and the canvas is not drawing. The dot keeps its
    box so every label in the list starts at the same x — a ragged left edge
@@ -8131,11 +8132,19 @@ button.qb-pace::after {
 .uh-retry { margin-top: 14px; }
 .uh-retry:disabled { opacity: var(--dim-off); cursor: default; }
 
-/* Everything the selected range answered, dimmed while a newer run for that
-   same range is still going. --dim-stale rather than --dim-off: these numbers
-   are not unusable, they are one refresh out of date, and the reader is meant to
-   keep reading them until the new ones land. */
-.uh-stale { opacity: var(--dim-stale); transition: opacity 120ms; }
+/* The chart the selected range answered, dimmed while a newer run for that same
+   range is still going. --dim-stale rather than --dim-off: these numbers are not
+   unusable, they are one refresh out of date, and the reader is meant to keep
+   reading them until the new ones land — which is why it is the MARKS that dim
+   and not the answer (#1289). This used to fade the whole wrapper, every total
+   and label in it, to 3.55:1 at best. The day bars, the by-CLI strip, the
+   day-detail meters and the legend swatches recede; every word stays at full
+   contrast, and the header's subtitle says "running ccusage…" in words. Each
+   of the four is a childless element, which contrast-floors.test.ts checks. */
+.uh-stale .uh-bar-seg,
+.uh-stale .uh-agent-seg,
+.uh-stale .uh-model-bar-fill,
+.uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity 120ms; }
 
 .uh-totals {
   display: grid; grid-template-columns: repeat(4, 1fr);
@@ -10745,9 +10754,6 @@ button.qb-pace::after {
   text-overflow: ellipsis;
   color: var(--text-dim);
 }
-/* Past its expiry the blob is inert — not hidden, because the countdown next to
-   it has to stay legible enough to explain why. */
-.ap-share.expired .ap-share-blob { opacity: var(--dim-stale); }
 /* The warning belongs to what the text IS, not to the timer beside it. The
    countdown says when another deck stops accepting the share; it is not a lock
    winding down, and colouring it as the loudest thing in the block was the UI
@@ -11809,9 +11815,6 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .sa-failed .sa-list { gap: 4px; }
 .sa-failed li { display: flex; flex-direction: column; }
 .sa-why { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
-/* Past its expiry the text is refused by the other deck's import dialog, so the
-   block reads as spent rather than as something still worth copying. */
-.sa-dead { opacity: var(--dim-stale); }
 
 /* ---------------- what an import did, per account ---------------- */
 /* One row per account in the bundle. Left-aligned inside a centred success

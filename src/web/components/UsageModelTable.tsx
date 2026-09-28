@@ -13,18 +13,16 @@ import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { fmtTokens } from "../token-format";
 import type { ModelRow } from "../usage-from-ccusage";
 
-export default function UsageModelTable({ fromRange, rangeModelRows, boardModelRows, staleCls }: {
+export default function UsageModelTable({ fromRange, rangeModelRows, boardModelRows }: {
   /** ccusage answered, so the rows are its models for the period. */
   fromRange: boolean;
   /** ccusage's models, summed across the days in the range. */
   rangeModelRows: ModelRow[];
   /** The board's models, when ccusage has not answered. */
   boardModelRows: BoardModelRow[];
-  /** " up-stale" while a slower period loads, or "". */
-  staleCls: string;
 }) {
   return (
-    <section className={`up-section${staleCls}`}>
+    <section className="up-section">
       <h3 className="up-section-title">By model</h3>
       <table className="up-table">
         <thead>

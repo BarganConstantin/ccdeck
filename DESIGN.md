@@ -168,9 +168,10 @@ before the build does it:
 | Control edges, strokes, series bands, meter fills | 3:1 | 1.4.11 |
 | Decorative marks, and disabled or non-operable controls | exempt | 1.4.3 |
 
-**The tests measure token values, not composited opacity.** A token that passes
-can still fail once an `opacity` is multiplied over it — see `--dim-stale` under
-Shapes, and #1289.
+**An opacity is a contrast ratio too.** A token that passes can still fail once an
+`opacity` is multiplied over it, so `contrast-floors.test.ts` composites the stale
+dim over every readable tier and holds every rule that reads it to an element with
+no children (#1289) — see `--dim-stale` under Shapes.
 
 ## Colors
 
@@ -434,12 +435,14 @@ Control height is `--ctl-h: 30px`. Panel padding is `--panel-inset: 14px`.
   today, because every use is a disabled or non-operable control, which 1.4.3
   exempts.
 - **`--dim-stale: 0.45`** — **marks and fills only.** Over text it drops below AA
-  (3.55:1 on `--text` in dark, 2.15:1 on `--muted` in light) and the contrast tests
-  cannot see it, because they measure tokens rather than composited opacity. Stale
-  *text* says so in words — `updated 6m ago` — at full contrast. The four rules
-  that currently break this are #1289. The sheet already learned this once: the
-  comment at `styles.css:8539` explains why `.ap-account.disabled` stopped using
-  `--dim-off`.
+  (3.55:1 on `--text` in dark, 2.15:1 on `--muted` in light), and no readable tier
+  survives it on any surface in either theme. Stale *text* says so in words at full
+  contrast: the history modal's subtitle reads `running ccusage…` while a re-run is
+  out and only the chart's bars, segments and swatches dim; the usage panel's
+  headline names the period its figures are from; an expired share says `expired`.
+  `contrast-floors.test.ts` fails any rule that puts it on an element the markup
+  gives children (#1289). The sheet had learned this once before: the comment above
+  `.ap-account.active` explains why `.ap-account.disabled` stopped using `--dim-off`.
 
 ## Components
 
@@ -542,7 +545,7 @@ rather than scattered through the sections above.
 | Done | `--ok` | node border, state pill | `done` | edge fades to settled |
 | Error | `--err` | node border, state pill | `err` | none |
 | Switched off / disabled | `--dim-off` | the whole control dims | — | none |
-| Stale data | `--dim-stale` | marks and fills only | `updated 6m ago` at full contrast | none |
+| Stale data | `--dim-stale` | marks and fills only | `running ccusage…`, the period's noun, `expired` — at full contrast | none |
 | Disconnected | `--warn` | `.conn-banner` row | — | none |
 | Update ready | `--accent` | `.ver-banner` row | — | none |
 | Empty canvas | `--muted` | — | the tour offer | none |

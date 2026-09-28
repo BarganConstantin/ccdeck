@@ -21,7 +21,7 @@
 // So the ratios are computed here from the stylesheet's own token values, and a
 // palette edit that walks any of them back under its floor fails the build.
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops as readStops } from "./gradient-stops";
@@ -1060,5 +1060,185 @@ describe("the scrollbar thumb, in every state it has (#1290)", () => {
     expect(firstColour(declFor("*", "scrollbar-color")!)).toBe("transparent");
     expect(firstColour(declFor(":hover", "scrollbar-color")!)).toBe(THUMB.pointer);
     expect(firstColour(declFor(":focus-within", "scrollbar-color")!)).toBe(THUMB.keyboard);
+  });
+});
+
+// ── #1289: an opacity is a colour too ──────────────────────────────────────
+//
+// Every sweep in this file measures a token against a surface, and an opacity
+// is neither: it multiplies whatever colour lands under it, so a rule can take
+// a tier this file has just proved at 4.5:1 and composite it to 3.55:1 without
+// naming a single colour. --dim-stale did exactly that to four blocks of words —
+// the usage panel's figures, the history modal's whole answer, an expired
+// share's text twice — and the build passed, because nothing here composited
+// an opacity over anything. The sheet had learned this once already, at
+// `.ap-account.disabled`, and the lesson lived in a comment.
+//
+// So the maths goes first: no readable tier survives --dim-stale on any surface
+// in either theme, which makes "never on text" arithmetic rather than taste.
+// Then the sweep that follows from it: every rule reading the token must dim an
+// element that CANNOT hold a word — one the markup only ever writes as a
+// self-closing tag. That is a structural question the stylesheet cannot answer
+// alone, so it reads the components, the way usage-series-contrast.test.ts does.
+
+/** Every .tsx in the bundle, tests excluded. */
+const WEB = fileURLToPath(new URL("..", import.meta.url));
+function tsxUnder(dir: string): string[] {
+  return readdirSync(dir).flatMap(name => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : tsxUnder(path);
+    return path.endsWith(".tsx") ? [path] : [];
+  });
+}
+const MARKUP = tsxUnder(WEB).map(path => ({
+  file: path.slice(WEB.length).replace(/\\/g, "/"),
+  src: readFileSync(path, "utf8"),
+}));
+
+/** The index just past a string literal opened at `i`, `${…}` in a template
+ *  counted out so a nested brace or quote cannot end it early. */
+function pastString(src: string, i: number): number {
+  const q = src[i];
+  for (let j = i + 1; j < src.length; j++) {
+    if (src[j] === "\\") { j++; continue; }
+    if (q === "`" && src[j] === "$" && src[j + 1] === "{") {
+      let depth = 1;
+      for (j += 2; j < src.length && depth > 0; j++) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}") depth--;
+      }
+      j--;
+      continue;
+    }
+    if (src[j] === q) return j + 1;
+  }
+  return src.length;
+}
+
+/** Where the opening tag that starts at `start` closes: the first `>` outside
+ *  every brace and string, so an arrow function in an attribute is not it. */
+function tagEnd(src: string, start: number): number {
+  let depth = 0;
+  for (let i = start; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'" || c === "`") { i = pastString(src, i) - 1; continue; }
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth === 0) return i;
+  }
+  return -1;
+}
+
+/** The class names an attribute value can spell literally, interpolations
+ *  dropped — `ap-share-blob${dead ? " sa-dead" : ""}` spells both. */
+function classTokens(value: string): string[] {
+  const literals = [...value.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)]
+    .map(m => (m[1] ?? m[2] ?? m[3]).replace(/\$\{[^}]*\}/g, " "));
+  return literals.flatMap(l => l.split(/\s+/)).filter(Boolean);
+}
+
+/** Every JSX element whose className names `cls`, and whether it closes itself.
+ *  A self-closing element has no children, so nothing it paints can be a word. */
+function elementsWithClass(cls: string): Array<{ file: string; selfClosing: boolean }> {
+  const out: Array<{ file: string; selfClosing: boolean }> = [];
+  for (const { file, src } of MARKUP) {
+    for (const m of src.matchAll(/<([A-Za-z][\w.]*)(?=[\s>])/g)) {
+      const end = tagEnd(src, m.index!);
+      if (end < 0) continue;
+      const tag = src.slice(m.index!, end + 1);
+      const at = tag.indexOf("className=");
+      if (at < 0) continue;
+      const rest = tag.slice(at + "className=".length);
+      const value = rest[0] === "{" ? rest.slice(0, tagEnd(rest, 0) + 1) : rest.slice(0, rest.indexOf('"', 1) + 1);
+      if (classTokens(value).includes(cls)) out.push({ file, selfClosing: tag.endsWith("/>") });
+    }
+  }
+  return out;
+}
+
+/** The class a selector finally styles: the last class of its last compound. */
+const subjectClass = (selector: string) => [...selector.trim().split(/[\s>+~]+/).pop()!.matchAll(/\.([\w-]+)/g)].pop()?.[1] ?? null;
+
+/** Whether the markup proves `selector` lands only on childless elements. */
+function dimsOnlyMarks(selector: string): boolean {
+  const cls = subjectClass(selector);
+  if (!cls) return false;
+  const found = elementsWithClass(cls);
+  return found.length > 0 && found.every(e => e.selfClosing);
+}
+
+describe("an opacity over text is a contrast ratio too (#1289)", () => {
+  const STALE = parseFloat(declFor(":root", "--dim-stale")!);
+  /** The tiers this file holds to 4.5:1 — the four a reader is meant to read. */
+  const READABLE = ["--text", "--text-secondary", "--muted", "--text-dim"];
+  const through = (fg: Rgba, alpha: number, bed: Rgba) => over([fg[0], fg[1], fg[2], fg[3] * alpha], bed);
+  const dimmed = (tier: string, theme: Theme, bed: Rgba) => contrastRatio(through(parseColor(TOK[theme][tier]), STALE, bed), bed);
+
+  it("reproduces the table #1289 measured, from the token as it ships", () => {
+    expect(STALE).toBe(0.45);
+    const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+    expect(dimmed("--text", "dark", panel("dark"))).toBeCloseTo(3.55, 1);
+    expect(dimmed("--muted", "dark", panel("dark"))).toBeCloseTo(1.95, 1);
+    expect(dimmed("--text", "light", panel("light"))).toBeCloseTo(3.04, 1);
+    expect(dimmed("--muted", "light", panel("light"))).toBeCloseTo(2.15, 1);
+  });
+
+  it("leaves no readable tier at 4.5:1 on any surface in either theme, so it can never dim a word", () => {
+    for (const theme of themes) {
+      for (const [name, bed] of surfaces(theme)) {
+        for (const tier of READABLE) {
+          const r = dimmed(tier, theme, bed);
+          expect(r, `${theme} ${tier} through --dim-stale on ${name} — ${r.toFixed(2)}:1`).toBeLessThan(BODY);
+        }
+      }
+    }
+  });
+
+  it("tells a mark from a box that can hold a word, so the sweep below means something", () => {
+    // Childless: the day bar's segments, the legend swatch, the meter fill.
+    for (const mark of [".uh-bar-seg", ".uh-legend-dot", ".uh-model-bar-fill", ".uh-agent-seg"]) {
+      expect(dimsOnlyMarks(mark), mark).toBe(true);
+    }
+    // Word-bearing: the status line, a share's text, the modal's own wrapper.
+    for (const box of [".uh-status", ".ap-share-blob", ".uh-stale", ".up-section"]) {
+      expect(dimsOnlyMarks(box), box).toBe(false);
+    }
+    // And a class nothing in the markup writes proves nothing, so it fails too.
+    expect(dimsOnlyMarks(".no-such-class-anywhere")).toBe(false);
+  });
+
+  it("would have failed every one of the four rules #1289 found", () => {
+    for (const was of [".up-stale", ".uh-stale", ".sa-dead", ".ap-share.expired .ap-share-blob"]) {
+      expect(dimsOnlyMarks(was), was).toBe(false);
+    }
+  });
+
+  it("puts --dim-stale on marks and fills only — elements with no children to hold a word", () => {
+    const readers = SHEET.filter(r => decl(r.body, "opacity") === "var(--dim-stale)").flatMap(r => r.selectors);
+    expect(readers.length, "nothing reads --dim-stale, so the sweep is over nothing").toBeGreaterThan(0);
+    for (const sel of readers) expect(dimsOnlyMarks(sel), `${sel} dims something that can hold a word`).toBe(true);
+    // Nor through a literal. The same number written out is held to the same
+    // rule — it composites exactly as far — which today is one SVG ring.
+    const literal = SHEET.filter(r => decl(r.body, "opacity") === String(STALE)).flatMap(r => r.selectors);
+    expect(literal).toEqual([".aa-mark-ring"]);
+    for (const sel of literal) expect(dimsOnlyMarks(sel), `${sel} dims something that can hold a word at ${STALE}`).toBe(true);
+  });
+
+  it("says stale in words where the dim came off, and those words are at full contrast", () => {
+    const src = (file: string) => MARKUP.find(m => m.file === file)!.src;
+    // The history modal: the subtitle says what is running while a re-run is out.
+    expect(src("components/UsageHistoryModal.tsx"))
+      .toContain('<div className="uh-sub">{view.stale ? "running ccusage…" : usageSubtitle(');
+    expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
+    // The usage panel: the headline names the period its figures are from.
+    expect(src("components/UsagePanel.tsx"))
+      .toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
+    // The share dialog's heading, and the popover's countdown.
+    expect(src("components/ShareAccountsDialog.tsx")).toContain('"This share has expired"');
+    expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");
+    // And none of those words sits inside anything that still dims.
+    for (const box of [".uh-sub", ".up-total", ".ap-share-blob", ".ap-share-expiry"]) {
+      expect(SHEET.filter(r => r.selectors.includes(box)).map(r => decl(r.body, "opacity")).filter(Boolean), box).toEqual([]);
+    }
   });
 });
