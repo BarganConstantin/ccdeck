@@ -16,9 +16,17 @@
 // names stop being visible to the other five thousand lines. `setVersion`,
 // `setVersionChecking`, `forceVersionIfStale` and the forced-check timestamp are
 // this hook's business, and nothing outside it should be able to reach them.
+// The banner's show and dismiss joined it afterwards. They had been left in
+// `Inner` and were the only reason `setVersionDismissed` and the storage key it
+// writes had to leave this file at all. With them here, the dismissal — which
+// version was put away, and where that is remembered — is private too, and
+// App.tsx asks for exactly four things about the notice: what it is, whether it
+// is showing, and the two ways to change that.
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
+import { noticeIsOpen, noticeKeyFor } from "./version-chip";
+
+const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
 
 // Long enough that a run of forced checks cannot turn the ~20-byte registry GET
 // into traffic, short enough that a release published while somebody is looking
@@ -95,10 +103,15 @@ export type VersionInfo = {
 export interface VersionCheck {
   /** The server's answer, or null until the first one lands. */
   version: VersionInfo | null;
-  /** Which notice the user has already dismissed — a version string, not a
-   *  boolean, so a later release brings the banner back. */
-  versionDismissed: string;
-  setVersionDismissed: (key: string) => void;
+  /** The banner the server decided to offer, or null. */
+  notice: VersionNotice | null;
+  /** Whether that banner is showing. Dismissal is kept per version, so a later
+   *  release brings it back rather than staying silenced for good (#804). */
+  noticeOpen: boolean;
+  /** Reveal the banner. Idempotent — the chip only ever reveals (#715). */
+  showNotice: () => void;
+  /** Put the banner away for this version, persistently. */
+  dismissNotice: () => void;
   cmdCopied: boolean;
   setCmdCopied: (copied: boolean) => void;
   /** True only during a FORCED check, which is the only one slow enough to be
@@ -171,5 +184,29 @@ export function useVersionCheck(live: boolean): VersionCheck {
   }, [loadVersion, forceVersionIfStale]);
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
 
-  return { version, versionDismissed, setVersionDismissed, cmdCopied, setCmdCopied, versionChecking, loadVersion };
+  const notice = version?.notice ?? null;
+  // Keyed to the version it is about, so dismissing today's notice does not
+  // silence next month's release — and, through `noticeOpen`, does not turn
+  // off restart-to-update for good either (#804). The rule is version-chip.ts's
+  // so it can be driven (#1175).
+  const noticeKey = noticeKeyFor(notice);
+  const noticeOpen = noticeIsOpen(notice, versionDismissed);
+  // Two idempotent halves rather than one toggle (#715). The chip used to flip
+  // this, which was fine while flipping it was all the chip did; it now opens
+  // the release notes as well, and a click that opens a modal AND silently
+  // reverses the state of the strip behind it is a click nobody can predict the
+  // second time. So the chip only ever reveals — press it twice and the banner
+  // is shown twice — and putting the banner away moved entirely to the × that
+  // always spelled it.
+  const showNotice = useCallback(() => {
+    setVersionDismissed("");
+    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, ""); } catch { /* private mode */ }
+  }, []);
+  const dismissNotice = useCallback(() => {
+    if (!notice) return;
+    setVersionDismissed(noticeKey);
+    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, noticeKey); } catch { /* private mode */ }
+  }, [notice, noticeKey]);
+
+  return { version, notice, noticeOpen, showNotice, dismissNotice, cmdCopied, setCmdCopied, versionChecking, loadVersion };
 }

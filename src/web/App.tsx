@@ -67,7 +67,7 @@ import { useMirroredRef } from "./use-mirrored-ref";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
-import { useVersionCheck, VERSION_DISMISSED_KEY } from "./use-version-check";
+import { useVersionCheck } from "./use-version-check";
 import { readStored } from "./storage";
 import { THEME_KEY, storedTheme, type Theme } from "./theme";
 import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
@@ -133,7 +133,7 @@ import {
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
-import { noticeIsOpen, noticeKeyFor, versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
+import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
 // pure function over what the store said, what is running and what shipped
@@ -912,7 +912,7 @@ function Inner() {
   const [tabCapped, setTabCapped] = useState(false);
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
-  const { version, versionDismissed, setVersionDismissed, cmdCopied, setCmdCopied,
+  const { version, notice, noticeOpen, showNotice, dismissNotice, cmdCopied, setCmdCopied,
           versionChecking, loadVersion } = useVersionCheck(live);
   // Everything about the desktop app's own updater — its state, the press rule
   // behind Restart to update, and the stream event that releases a press — is in
@@ -924,7 +924,6 @@ function Inner() {
   // use-presence-beacon.ts. It takes nothing and returns nothing.
   usePresenceBeacon();
 
-  const notice = version?.notice ?? null;
 
   // ── what changed since you last looked (#712) ─────────────────────────────
   // Most releases put nothing here and this stays shut for months at a time.
@@ -1064,28 +1063,6 @@ function Inner() {
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
   const { workspace, providers, providersRef } = useDeckScope(live);
-  // Keyed to the version it is about, so dismissing today's notice does not
-  // silence next month's release — and, through `noticeOpen`, does not turn
-  // off restart-to-update for good either (#804). The rule is version-chip.ts's
-  // so it can be driven (#1175).
-  const noticeKey = noticeKeyFor(notice);
-  const noticeOpen = noticeIsOpen(notice, versionDismissed);
-  // Two idempotent halves rather than one toggle (#715). The chip used to flip
-  // this, which was fine while flipping it was all the chip did; it now opens
-  // the release notes as well, and a click that opens a modal AND silently
-  // reverses the state of the strip behind it is a click nobody can predict the
-  // second time. So the chip only ever reveals — press it twice and the banner
-  // is shown twice — and putting the banner away moved entirely to the × that
-  // always spelled it.
-  const showNotice = useCallback(() => {
-    setVersionDismissed("");
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, ""); } catch { /* private mode */ }
-  }, []);
-  const dismissNotice = useCallback(() => {
-    if (!notice) return;
-    setVersionDismissed(noticeKey);
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, noticeKey); } catch { /* private mode */ }
-  }, [notice, noticeKey]);
 
   // ── the name this deck was started under ──────────────────────────────────
   // Three npm names reach this same deck, every surface it draws says ccdeck,
