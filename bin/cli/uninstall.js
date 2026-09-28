@@ -98,7 +98,8 @@ export async function uninstall(flags) {
     if (sound.reason === "settings_unreadable") {
       console.error(named.has(sound.settingsPath)
         ? `${PRODUCT}: the sound hook is still in that file too.`
-        : `${PRODUCT}: sound hook left in place — ${sound.message}`);
+        // `gDash`, like every other line here (#797, #1431).
+        : `${PRODUCT}: sound hook left in place ${gDash} ${sound.message}`);
       named.add(sound.settingsPath);
     } else {
       console.error(`${PRODUCT}: your own sound hooks were NOT restored ${gDash} ${sound.message}`);

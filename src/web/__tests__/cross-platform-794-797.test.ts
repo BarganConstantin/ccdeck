@@ -180,4 +180,49 @@ describe("#797 — punctuation the console may not have", () => {
       expect(offending, `hardcoded dash in a printed string: ${offending.join(" | ")}`).toEqual([]);
     }
   });
+
+  it("nor anywhere inside a console call, a ternary's branches included (#1431)", () => {
+    // The pattern above only sees a template that is the call's FIRST token, so
+    // `console.error(ok ? `…` : `… — …`)` walked straight past it: --uninstall
+    // printed "sound hook left in place —" on exactly the console #797 is for.
+    // So every console call is read whole, parentheses balanced and strings
+    // skipped, and every template inside it is checked.
+    const calls = (code: string) => {
+      const out: string[] = [];
+      for (const m of code.matchAll(/console\.(?:error|log|warn)\(/g)) {
+        let i = (m.index ?? 0) + m[0].length;
+        let depth = 1;
+        let quote: string | null = null;
+        for (; i < code.length && depth > 0; i++) {
+          const c = code[i];
+          if (quote) {
+            if (c === "\\") i++;
+            else if (c === quote) quote = null;
+          } else if (c === '"' || c === "'" || c === "`") quote = c;
+          else if (c === "(") depth++;
+          else if (c === ")") depth--;
+        }
+        out.push(code.slice(m.index, i));
+      }
+      return out;
+    };
+    const seen: string[] = [];
+    const offending: string[] = [];
+    for (const rel of [...CLI_FILES.map(f => `../../../${f}`), "../../../bin/agent-dag.js", "../../server/supervisor.mjs"]) {
+      const code = read(rel)
+        .split("\n")
+        .filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join("\n");
+      for (const call of calls(code)) {
+        seen.push(call);
+        for (const [tpl] of call.matchAll(/`[^`]*`/g)) {
+          if (/[—–]/.test(tpl)) offending.push(`${rel}: ${tpl.slice(0, 80)}`);
+        }
+      }
+    }
+    // The scanner has to be reading something, or the assertion below is about
+    // an empty list and can never fail.
+    expect(seen.some(c => c.includes("? `")), "no console call with a ternary was found").toBe(true);
+    expect(offending, `hardcoded dash in a printed string: ${offending.join(" | ")}`).toEqual([]);
+  });
 });
