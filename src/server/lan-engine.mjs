@@ -384,9 +384,10 @@ export function createEngine({
   let server = null;
   let timer = null;
   /** This engine, for the helpers below `apply` that need to press its own
-   *  accept — see askToAccept. Set on the first apply, which is the only thing
-   *  that can start a round or a listener, so nothing reads it before it is
-   *  there. */
+   *  accept or add its own peer — askToAccept, and the callbacks apply hands
+   *  the listener and the beacon. Set on the first apply, which is the only
+   *  thing that can start a round or a listener, so nothing reads it before it
+   *  is there. */
   let engine = null;
   /**
    * Decks that finished a handshake and that nobody here has accepted yet, and
@@ -828,6 +829,84 @@ export function createEngine({
       return;
     }
     if (!had) onChange?.();
+  };
+
+  /** Somebody used the token. They are pinned, and the token is retired —
+   *  one that pairs twice is one worth stealing twice. */
+  const inviteUsed = entry => {
+    const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name, at: now() });
+    cfg = { ...cfg, trusted: list };
+    markUnpaired(entry.fp, false);
+    invite = null;
+    // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
+    // deck with no way to reach it: an inbound connection puts nothing in
+    // the dial list. Without this the pairing is mutual in the trusted
+    // list and one-way in fact — and `addPeer` alone lives in memory, so
+    // it would be one-way again after the next restart.
+    if (entry.addr && entry.port) {
+      engine.addPeer(entry.addr, entry.port);
+      onDial?.(`${entry.addr}:${entry.port}`);
+      // AND SAY WHO IS THERE, NOW. `learned` is what joins a dialled row
+      // to a heard one, and it was only ever filled by a round that
+      // succeeded — so between accepting a deck and the next round, one
+      // machine appeared as two rows. We already know the answer here:
+      // the handshake that just finished said so.
+      learned.set(`${entry.addr}:${entry.port}`, { fp: entry.fp, name: entry.name || "" });
+    }
+    onTrust?.(list);
+    onChange?.();
+  };
+
+  /** A deck the beacon heard that nobody here has accepted: a row somebody
+   *  can accept, and — when the ask switch for its route is on — asked. */
+  const heardStranger = entry => {
+    const had = strangers.get(entry.fp);
+    // KEYED BY MACHINE WHEN IT SAYS WHICH ONE IT IS. A computer that took
+    // a fresh key — a second deck sharing one config directory does, by
+    // design — used to leave its old key in this map for a day, and every
+    // one of them drew a row offering to pair with the same machine.
+    if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
+    const own = entry.via === "tailscale" && !!routeTo(entry.addr)?.own;
+    strangers.set(entry.fp, { ...entry, own });
+    // ASK IT, which is what the `ask` verb on its row does and nothing
+    // more: the address goes on the dial list and the next round sends a
+    // request that somebody over there still has to answer. A beacon
+    // carries a fingerprint and no key, so nothing is pinned here — see
+    // accept, which is deliberate about the difference.
+    //
+    // Only a deck that is NEW is asked, or a beacon every thirty seconds
+    // would be thirty seconds of asking; and never one this deck's owner
+    // already turned away.
+    // Never `byHand`: a beacon is a shout from an address nobody here
+    // named, and the row it leaves may ask rather than pin.
+    // Over the tailnet only a machine on this person's own account is
+    // asked unprompted; any other is a row for somebody to decide on.
+    const mayAsk = asksOn(cfg, entry.via) && (entry.via !== "tailscale" || own);
+    if (mayAsk && !had && !declined.has(entry.fp) && !wasUnpaired(entry.fp)) { engine.accept(entry.fp, { byHand: false }); return; }
+    // Only a deck that is new to us is news. A beacon every thirty
+    // seconds from one already on the list is not a reason to redraw.
+    if (!had) onChange?.();
+  };
+
+  /** The beacon took the discovery port, or lost it: say so, and while it
+   *  cannot hear, ask once which program is holding the port. See deafLine. */
+  const hearingChanged = now => {
+    if (now) { holder = undefined; onChange?.(); return; }
+    if (holder === undefined && portHolder && beacon?.deafError?.()?.code === "EADDRINUSE") {
+      holder = null;
+      void Promise.resolve().then(() => portHolder()).then(who => { holder = who ?? null; onChange?.(); }, () => {});
+    }
+    onChange?.();
+  };
+
+  /** Another deck is using this one's key. Take a new key and keep it. Two
+   *  decks with one identity are invisible to each other forever otherwise,
+   *  and the second one to notice moving is enough — whichever notices
+   *  first, moves. */
+  const idClash = () => {
+    const fresh = identityFrom("");
+    onIdentity?.(fresh.secret);
+    onError?.("id-clash", new Error("another deck was using this one's key; taking a new one"));
   };
 
   /**
@@ -1317,9 +1396,6 @@ export function createEngine({
 
   return {
     async apply(next) {
-      /** The engine itself, for the callbacks handed to the socket below: they
-       *  outlive this call and `this` is not theirs to keep. */
-      const self = this;
       engine = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
@@ -1377,31 +1453,7 @@ export function createEngine({
         onInbound: from => { if (anotherMachine(from, localAddresses())) inboundAt = now(); },
         trusted: () => cfg.trusted,
         invite: () => (invite && invite.expiresAt > now() ? invite : null),
-        // Somebody used the token. They are pinned, and the token is retired —
-        // one that pairs twice is one worth stealing twice.
-        onInviteUsed: entry => {
-          const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name, at: now() });
-          cfg = { ...cfg, trusted: list };
-          markUnpaired(entry.fp, false);
-          invite = null;
-          // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
-          // deck with no way to reach it: an inbound connection puts nothing in
-          // the dial list. Without this the pairing is mutual in the trusted
-          // list and one-way in fact — and `addPeer` alone lives in memory, so
-          // it would be one-way again after the next restart.
-          if (entry.addr && entry.port) {
-            this.addPeer(entry.addr, entry.port);
-            onDial?.(`${entry.addr}:${entry.port}`);
-            // AND SAY WHO IS THERE, NOW. `learned` is what joins a dialled row
-            // to a heard one, and it was only ever filled by a round that
-            // succeeded — so between accepting a deck and the next round, one
-            // machine appeared as two rows. We already know the answer here:
-            // the handshake that just finished said so.
-            learned.set(`${entry.addr}:${entry.port}`, { fp: entry.fp, name: entry.name || "" });
-          }
-          onTrust?.(list);
-          onChange?.();
-        },
+        onInviteUsed: inviteUsed,
         // Asked before the request is drawn, so a deck that was told no is
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
@@ -1446,50 +1498,9 @@ export function createEngine({
         // spell, behind the sentence that does not need the name.
         rebindMs: bindRetryMs,
         routes,
-        onHearing: now => {
-          if (now) { holder = undefined; onChange?.(); return; }
-          if (holder === undefined && portHolder && beacon?.deafError?.()?.code === "EADDRINUSE") {
-            holder = null;
-            void Promise.resolve().then(() => portHolder()).then(who => { holder = who ?? null; onChange?.(); }, () => {});
-          }
-          onChange?.();
-        },
-        onStranger: entry => {
-          const had = strangers.get(entry.fp);
-          // KEYED BY MACHINE WHEN IT SAYS WHICH ONE IT IS. A computer that took
-          // a fresh key — a second deck sharing one config directory does, by
-          // design — used to leave its old key in this map for a day, and every
-          // one of them drew a row offering to pair with the same machine.
-          if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
-          const own = entry.via === "tailscale" && !!routeTo(entry.addr)?.own;
-          strangers.set(entry.fp, { ...entry, own });
-          // ASK IT, which is what the `ask` verb on its row does and nothing
-          // more: the address goes on the dial list and the next round sends a
-          // request that somebody over there still has to answer. A beacon
-          // carries a fingerprint and no key, so nothing is pinned here — see
-          // accept, which is deliberate about the difference.
-          //
-          // Only a deck that is NEW is asked, or a beacon every thirty seconds
-          // would be thirty seconds of asking; and never one this deck's owner
-          // already turned away.
-          // Never `byHand`: a beacon is a shout from an address nobody here
-          // named, and the row it leaves may ask rather than pin.
-          // Over the tailnet only a machine on this person's own account is
-          // asked unprompted; any other is a row for somebody to decide on.
-          const mayAsk = asksOn(cfg, entry.via) && (entry.via !== "tailscale" || own);
-          if (mayAsk && !had && !declined.has(entry.fp) && !wasUnpaired(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
-          // Only a deck that is new to us is news. A beacon every thirty
-          // seconds from one already on the list is not a reason to redraw.
-          if (!had) onChange?.();
-        },
-        // Take a new key and keep it. Two decks with one identity are invisible
-        // to each other forever otherwise, and the second one to notice moving
-        // is enough — whichever notices first, moves.
-        onIdClash: () => {
-          const fresh = identityFrom("");
-          onIdentity?.(fresh.secret);
-          onError?.("id-clash", new Error("another deck was using this one's key; taking a new one"));
-        },
+        onHearing: hearingChanged,
+        onStranger: heardStranger,
+        onIdClash: idClash,
         onError, now,
         ...(createSocket ? { createSocket } : {}),
       });
