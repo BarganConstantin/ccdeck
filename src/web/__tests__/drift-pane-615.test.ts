@@ -209,7 +209,9 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     // The accounts panel's default moved with the left column; the detail
     // panel's below is still App.tsx's.
     expect(clientText()).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
-    expect(appCode).toMatch(/function loadDetailOpen\(\): boolean \{[\s\S]*?return false;\s*\}/);
+    // Open only on a stored "1": nothing stored, and a store that refuses, both
+    // read as null through readStored, and null is closed.
+    expect(appCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
   });
 });
 

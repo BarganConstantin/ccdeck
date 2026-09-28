@@ -99,7 +99,7 @@ import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
-import { readStored } from "./storage";
+import { readStored, writeStored } from "./storage";
 import { PRODUCT } from "./brand";
 import { blockedSessions } from "./ambient-counts";
 import { canAsk } from "./notify";
@@ -176,24 +176,23 @@ const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
 // have before you have a graph worth looking at. The session list and detail
 // panel are for navigating work that already exists, so they stay shut until
 // asked for, and the canvas gets the width.
+//
+// All three panels read and write through storage.ts rather than
+// window.localStorage directly: the loaders run inside useState initialisers,
+// and the property read throws outright on a browser that blocks site data,
+// which takes App's first render with it.
 function loadDetailOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  try { return window.localStorage.getItem(DETAIL_OPEN_KEY) === "1"; } catch { return false; }
+  return readStored(DETAIL_OPEN_KEY) === "1";
 }
 function saveDetailOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(DETAIL_OPEN_KEY, open ? "1" : "0"); } catch {}
+  writeStored(DETAIL_OPEN_KEY, open ? "1" : "0");
 }
-// Reads through storage.ts rather than window.localStorage directly: this runs
-// inside a useState initialiser, and the property read throws outright on a
-// browser that blocks site data, which takes App's first render with it.
 function loadUsagePanelOpen(): boolean {
   const stored = readStored(USAGE_PANEL_OPEN_KEY);
   return stored === null ? true : stored === "1";
 }
 function saveUsagePanelOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(USAGE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
+  writeStored(USAGE_PANEL_OPEN_KEY, open ? "1" : "0");
 }
 /**
  * Whether the machine panel was open when this tab was last looked at.
@@ -217,8 +216,7 @@ function loadMachinePanelOpen(): boolean {
   return stored === null ? true : stored === "1";
 }
 function saveMachinePanelOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
+  writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
 }
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
