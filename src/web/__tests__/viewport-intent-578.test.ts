@@ -238,7 +238,9 @@ describe("every control that moves the viewport reaches that rule", () => {
   it("puts the Controls stack and the minimap inside the element it marks", () => {
     // This is what makes one listener enough, and what makes the next control
     // added to this canvas covered before anyone remembers to wire it.
-    expect(canvasBody).toMatch(/<Controls\b/);
+    // The stack is components/CanvasControls.tsx, mounted inside it: two links.
+    expect(canvasBody).toMatch(/<CanvasControls\b/);
+    expect(readFileSync(fileURLToPath(new URL("../components/CanvasControls.tsx", import.meta.url)), "utf8")).toMatch(/<Controls\b/);
     expect(canvasBody).toMatch(/<MiniMap\b/);
   });
 
