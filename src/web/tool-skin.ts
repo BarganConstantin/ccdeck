@@ -15,6 +15,7 @@ import {
   CODEX_TOOL_LABEL,
   type ToolCategory,
 } from "./tool-taxonomy";
+import { ownRow } from "./own-row";
 
 // Distinct emojis for every CC built-in I know about + sensible fallback.
 const TOOL_EMOJI: Record<string, string> = {
@@ -56,13 +57,14 @@ const TOOL_EMOJI: Record<string, string> = {
   ...CODEX_TOOL_EMOJI,
 };
 
-/** The bubble's emoji. `Object.hasOwn` for the same reason categoryFor uses it
- *  (#474) — a tool name is outside data, and `TOOL_EMOJI["toString"]` is an
- *  inherited function that `??` cannot see past, so React would be handed a
- *  function where it expects a node. Every name with a row is untouched. */
+/** The bubble's emoji. An own row only, for the same reason categoryFor asks
+ *  for one (#474) — a tool name is outside data, and `TOOL_EMOJI["toString"]`
+ *  is an inherited function that `??` cannot see past, so React would be
+ *  handed a function where it expects a node. Every name with a row is
+ *  untouched. See own-row.ts. */
 function emojiFor(name: string): string {
   if (name.startsWith("mcp__")) return "🔌";
-  return Object.hasOwn(TOOL_EMOJI, name) ? TOOL_EMOJI[name] : "✨";
+  return ownRow(TOOL_EMOJI, name) ?? "✨";
 }
 
 // ─── Shell-command introspection ──────────────────────────────────────────
@@ -242,9 +244,10 @@ function skinForShellCall(toolName: string, input: unknown): CommandSkin | null 
   // Always render a sub-bubble for parseable shell calls. If the command
   // isn't in our curated emoji map, use a generic gear so the user can
   // still see "agent → Bash → <whatever-the-command-was>".
-  // `hasOwn`, because `cmd` is the first word of a command the agent ran and
-  // `COMMAND_EMOJI["toString"]` is an inherited function, not a gear (#474).
-  const emoji = Object.hasOwn(COMMAND_EMOJI, cmd) ? COMMAND_EMOJI[cmd] : "⚙️";
+  // An own row only, because `cmd` is the first word of a command the agent
+  // ran and `COMMAND_EMOJI["toString"]` is an inherited function, not a gear
+  // (#474).
+  const emoji = ownRow(COMMAND_EMOJI, cmd) ?? "⚙️";
   return { emoji, label: cmd, category: "shell", detail: raw };
 }
 
@@ -317,21 +320,23 @@ function basenameOf(p: string): string {
   return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
 }
 
-/** Both lookups are `hasOwn` rather than truthiness (#474): a filename and an
- *  extension are outside data too, and an inherited member is truthy — a file
- *  called `constructor`, or one ending `.__proto__`, would otherwise take the
- *  early return and hand a function (or `Object.prototype`) back as its emoji. */
+/** Both lookups ask for an own row rather than a truthy value (#474): a
+ *  filename and an extension are outside data too, and an inherited member is
+ *  truthy — a file called `constructor`, or one ending `.__proto__`, would
+ *  otherwise take the early return and hand a function (or `Object.prototype`)
+ *  back as its emoji. */
 function emojiForFilename(name: string): string {
   const lc = name.toLowerCase();
-  if (Object.hasOwn(SPECIAL_FILES, lc)) return SPECIAL_FILES[lc];
+  const special = ownRow(SPECIAL_FILES, lc);
+  if (special !== undefined) return special;
   if (lc.startsWith("dockerfile.")) return "🐳";
   // Test files
   if (/\.(test|spec)\.[a-z]+$/.test(lc)) return "🧪";
   // Extension lookup
   const dot = lc.lastIndexOf(".");
   if (dot > 0 && dot < lc.length - 1) {
-    const ext = lc.slice(dot + 1);
-    if (Object.hasOwn(EXT_EMOJI, ext)) return EXT_EMOJI[ext];
+    const byExt = ownRow(EXT_EMOJI, lc.slice(dot + 1));
+    if (byExt !== undefined) return byExt;
   }
   return "📄";
 }
@@ -448,13 +453,12 @@ function hashHue(s: string): number {
 
 /** The branded identity for a server segment, or undefined when the deck has no
  *  row for it — the two callers below both branch on "do we know this one".
- *  `hasOwn` because the segment comes out of the tool name (#474): every server
- *  in `mcp__<server>__<method>` is named by whoever wrote the MCP config, so
- *  `mcp__constructor__query` would otherwise be "known", with a function for its
- *  emoji and `undefined` for its name. */
+ *  An own row only, because the segment comes out of the tool name (#474):
+ *  every server in `mcp__<server>__<method>` is named by whoever wrote the MCP
+ *  config, so `mcp__constructor__query` would otherwise be "known", with a
+ *  function for its emoji and `undefined` for its name. */
 function knownMcpServer(server: string): { emoji: string; name: string } | undefined {
-  const key = server.toLowerCase();
-  return Object.hasOwn(MCP_SERVERS, key) ? MCP_SERVERS[key] : undefined;
+  return ownRow(MCP_SERVERS, server.toLowerCase());
 }
 
 function skinForMcpCall(toolName: string, _input: unknown): CommandSkin | null {
@@ -569,10 +573,10 @@ export function primaryDisplayFor(toolName: string): PrimaryDisplay {
     // servers that share their first characters still get different colours.
     return { emoji: "🔌", label: cutLabel(mcp.server), hue: hashHue(mcp.server) };
   }
-  // `hasOwn` (#474): the raw tool name is outside data, and an inherited member
-  // is truthy, so `CODEX_PRIMARY_LABEL["toString"]` would put a function on the
-  // bubble where the tool's own name belongs.
-  const codexLabel = Object.hasOwn(CODEX_PRIMARY_LABEL, toolName) ? CODEX_PRIMARY_LABEL[toolName] : "";
+  // An own row only (#474): the raw tool name is outside data, and an inherited
+  // member is truthy, so `CODEX_PRIMARY_LABEL["toString"]` would put a function
+  // on the bubble where the tool's own name belongs.
+  const codexLabel = ownRow(CODEX_PRIMARY_LABEL, toolName) ?? "";
   if (codexLabel) return { emoji: emojiFor(toolName), label: cutLabel(codexLabel) };
   return { emoji: emojiFor(toolName), label: cutLabel(toolName) };
 }
