@@ -1,12 +1,11 @@
 import React, { memo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
-import { fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL } from "../pricing";
-// Tokens are priced at the model that produced them. See usage-models.ts for
-// what the last-wins multiplication this replaces was measured to cost (#686).
-import { agentCost, agentUnpricedTokens, otherModelIds } from "../usage-models";
-// The cost chip's tooltip, the multiplication written out. See card-cost.ts.
-import { agentCostTooltip } from "../card-cost";
+import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { otherModelIds } from "../usage-models";
+// What the cost chip holds, and its tooltip with the multiplication written
+// out. See card-cost.ts.
+import { costChip } from "../card-cost";
 import { codexApprovalTell } from "../codex-approval";
 // The chip's labeller, which used to be declared in this file and moved out in
 // #462 so that a pure matcher and a bare-node suite could reach it without a
@@ -99,6 +98,8 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
   const noteKey = recap ? recapKey(data.sessionId, recap.at) : null;
   const noteDismissed = useRecapDismissed(noteKey);
   const noteOpen = recap != null && !noteDismissed;
+  // The cost slot at the end of the meta row, decided once (card-cost.ts).
+  const cost = costChip(data);
 
   return (
     // --accent itself is built in styles.css from this hue: the token that
@@ -268,59 +269,16 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
             <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> tok
           </span>
         )}
-        {data.model && (() => {
-          // An unpriced model says so, in the slot the money would have used.
-          // The gate here used to be `ratesForModel(data.model) &&`, which took
-          // the whole element away the moment the lookup failed: a gpt-5.1-codex
-          // card showed `412.3k tok` and then nothing, indistinguishable from a
-          // session that had spent nothing, and the tooltip written for exactly
-          // this case sat behind the failing call. The marker only appears once
-          // there are tokens to price — a card with no usage yet has nothing to
-          // be unpriced about, and would otherwise carry this the whole time it
-          // was starting up.
-          const rates = ratesForModel(data.model);
-          const c = agentCost(data);
-          // The two questions this branch asks have come apart (#686). `rates`
-          // is about the model the card is ON — the one in the chip, the one the
-          // next turn will use. `c.total` is about money already spent, which can
-          // be real on a card whose current model has no published rate, and
-          // zero on a card whose current model has one. So the marker is for the
-          // agent with no priced spend AT ALL; an agent with some gets its
-          // figure, and the `+` beside it says the figure is a floor because
-          // some of its tokens reached no rate card — the same thing the "+" on
-          // the usage panel's session rows has always meant.
-          const unpricedTok = agentUnpricedTokens(data);
-          if (!rates && c.total <= 0) {
-            if ((data.usage.inputTokens + data.usage.outputTokens) <= 0) return null;
-            return (
-              <span className="cost-unpriced" title={agentCostTooltip(data)}>
-                {UNPRICED_LABEL}
-              </span>
-            );
-          }
-          if (c.total <= 0) return null;
-          // As of this render (#873). The card re-renders on its agent's events
-          // and the rate lives in a tooltip, so it is at most one event stale.
-          const elapsedSec = Math.max(0, ((data.endedAt ?? Date.now()) - data.startedAt) / 1000);
-          // Not for a session the deck joined late (#822): its cost is the whole
-          // session's and its clock only the part this page saw, so the quotient
-          // would overstate the burn by however much of the session was missed.
-          const rate = data.state === "active" && !data.synthetic ? fmtCostRate(c.total, elapsedSec) : null;
-          const tt = agentCostTooltip(data) + (rate ? `\nburn: ${rate}` : "");
-          // THE BURN RATE IS IN THE TOOLTIP AND NOWHERE ELSE NOW. The row is
-          // flex, no-wrap, inside `overflow: hidden`, with 232px of content;
-          // five items at 11px measure about 290px, so the live card — the one
-          // case where a rate means anything — pushed its last item off the
-          // right edge and said nothing about it. The rate was that item. It is
-          // also derived from two figures printed 20px away, so of the five it
-          // is the one whose removal costs a reader the least: the row now fits
-          // in the state it used to break in, and the card loses a type size.
-          return (
-            <span className="cost-meta" title={tt}>
-              <b>{fmtCost(c.total)}{unpricedTok > 0 ? "+" : ""}</b>
-            </span>
-          );
-        })()}
+        {cost?.kind === "unpriced" && (
+          <span className="cost-unpriced" title={cost.tt}>
+            {UNPRICED_LABEL}
+          </span>
+        )}
+        {cost?.kind === "spent" && (
+          <span className="cost-meta" title={cost.tt}>
+            <b>{fmtCost(cost.total)}{cost.floor ? "+" : ""}</b>
+          </span>
+        )}
       </div>
 
       <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />

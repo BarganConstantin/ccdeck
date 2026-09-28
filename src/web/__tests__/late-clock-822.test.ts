@@ -24,6 +24,8 @@ const code = (src: string) => src
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 const card = read("../components/AgentNode.tsx");
+/** The card's cost slot, whose tooltip carries the burn, is decided in card-cost.ts. */
+const cardCost = read("../card-cost.ts");
 // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
 const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
 
@@ -43,6 +45,6 @@ describe("a clock whose start the deck did not see reads as a floor (#822)", () 
   });
 
   it("leaves the per-minute burn out of the card's tooltip when the start is unknown", () => {
-    expect(code(card)).toMatch(/const rate = data\.state === "active" && !data\.synthetic \? fmtCostRate\(/);
+    expect(code(cardCost)).toMatch(/const rate = data\.state === "active" && !data\.synthetic \? fmtCostRate\(/);
   });
 });
