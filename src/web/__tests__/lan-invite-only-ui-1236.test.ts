@@ -14,7 +14,9 @@ import { normalise } from "../../server/deck-prefs.mjs";
 
 const read = (file: string) => readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
 const setup = read("../components/LanSetupModal.tsx");
-const peerModal = read("../components/LanPeerModal.tsx");
+/** The deck dialog's foot, where its verbs are drawn, which moved out of
+ *  LanPeerModal.tsx into a component of its own. */
+const peerModal = read("../components/LanPeerFoot.tsx");
 const addModal = read("../components/LanAddDeckModal.tsx");
 const section = read("../components/LanSyncSection.tsx");
 /** The rows, which the section draws through a list of their own. */
