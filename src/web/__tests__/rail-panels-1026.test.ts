@@ -29,11 +29,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const raw = at("../styles.css");
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
-const machinePanel = at("../components/MachinePanel.tsx");
 const soundMenu = at("../components/SoundMenu.tsx");
 const toneSection = at("../components/ToneSection.tsx");
 const processList = at("../components/ProcessListModal.tsx");
@@ -151,7 +151,7 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // --n was `os.cpus().length` with no cap anywhere in the chain, which is
     // how the strip came to have a column count it could not fit.
     expect(css).not.toMatch(/var\(--n\)/);
-    expect(machinePanel).not.toMatch(/"--n"/);
+    expect(machinePanelSurface()).not.toMatch(/"--n"/);
   });
 });
 

@@ -41,6 +41,7 @@ import { cliSurface } from "./cli-surface";
 import { ASSUMED, type Providers } from "../providers";
 import { captureHints } from "../provider-copy";
 import { emptyScope } from "../scope";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 // @ts-expect-error — .mjs server module, no types
 const { pulseText, unregisteredDetail } = await import("../../server/term.mjs");
@@ -155,7 +156,8 @@ describe("the topbar readouts", () => {
   const strip = stripAt === -1 ? "" : readoutsCode.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
   const readouts = strip
     + codeOf(read("src", "web", "status-pill.ts"))
-    + codeOf(read("src", "web", "components", "MachinePanel.tsx"));
+    // The machine panel as a whole: the component and every file lifted out of it.
+    + codeOf(machinePanelSurface());
 
   it("still has a strip with tooltipped readouts in it, so this block is not vacuous", () => {
     expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
