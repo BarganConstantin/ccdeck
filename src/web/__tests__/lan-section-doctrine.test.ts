@@ -1130,7 +1130,7 @@ describe("who is here, which is what the panel is for now", () => {
 
 describe("the invite, which is one piece of text and every address", () => {
   it("carries all of them, because nobody knows which one routes", async () => {
-    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
     const made = mintInvite({ addrs: ["100.67.32.58:49336", "192.168.1.82:49336"], name: "Constantins-iMac" });
     const read = readInvite(made.token);
     expect(read.addrs).toEqual([
@@ -1144,7 +1144,7 @@ describe("the invite, which is one piece of text and every address", () => {
   it("tells an expired one apart from a thing that is not an invite", async () => {
     // Two different instructions for the reader: ask for a new one, or paste
     // the whole thing. A reader who cannot tell them apart retypes the same.
-    const { mintInvite, readInvite, INVITE_MS } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_MS } = await import("../../server/lan-invite.mjs");
     const made = mintInvite({ addrs: ["1.2.3.4:5"], name: "x", now: 1_000 });
     expect(readInvite(made.token, 1_000).expired).toBe(false);
     expect(readInvite(made.token, 1_000 + INVITE_MS + 1).expired).toBe(true);
@@ -1156,7 +1156,7 @@ describe("the invite, which is one piece of text and every address", () => {
   it("has a code that is six digits and evenly drawn", async () => {
     // A modulo over a byte would make 0-5 likelier than 6-9, in the one number
     // that decides whether a stranger can pair.
-    const { inviteCode } = await import("../../server/lan-sync.mjs");
+    const { inviteCode } = await import("../../server/lan-invite.mjs");
     const seen = new Map<string, number>();
     for (let i = 0; i < 400; i++) {
       const c = inviteCode();
@@ -1168,7 +1168,7 @@ describe("the invite, which is one piece of text and every address", () => {
   });
 
   it("proves the holder without ever sending the code", async () => {
-    const { inviteProof } = await import("../../server/lan-sync.mjs");
+    const { inviteProof } = await import("../../server/lan-invite.mjs");
     const a = inviteProof("482100", "fpA|fpB|c1|c2");
     expect(a).not.toContain("482100");
     // Bound to the transcript, so a recording of one exchange is worth nothing.
@@ -1177,7 +1177,7 @@ describe("the invite, which is one piece of text and every address", () => {
   });
 
   it("refuses a token built to make this deck dial a list", async () => {
-    const { mintInvite, MAX_INVITE_ADDRS, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, MAX_INVITE_ADDRS, readInvite } = await import("../../server/lan-invite.mjs");
     const many = Array.from({ length: 50 }, (_, i) => `10.0.0.${i}:5000`);
     const made = mintInvite({ addrs: many, name: "x" });
     expect(readInvite(made.token).addrs).toHaveLength(MAX_INVITE_ADDRS);
@@ -1195,7 +1195,7 @@ describe("the invite, which is one piece of text and every address", () => {
     // So a second key string rather than a direction field inside one. Checked
     // here rather than inferred from the source, because "these two HMACs
     // differ" is the entire security content of the choice.
-    const { inviteProof, inviteProofBack } = await import("../../server/lan-sync.mjs");
+    const { inviteProof, inviteProofBack } = await import("../../server/lan-invite.mjs");
     const transcript = "fpA|fpB|c1|c2";
     const back = inviteProofBack("482100", transcript);
     expect(back).not.toBe(inviteProof("482100", transcript));
@@ -1216,7 +1216,7 @@ describe("the invite, which is one piece of text and every address", () => {
     // It is not a decision the far end gets to make. The token is text the
     // minter handed over out of band in the same breath as the code; anybody
     // who can rewrite it already holds the code.
-    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
     const made = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
     expect(readInvite(made.token).provesBack).toBe(true);
 
@@ -1234,7 +1234,8 @@ describe("the invite, which is one piece of text and every address", () => {
   // it and pins whatever answers. Anything that gets past this reader is a
   // machine somebody else chose.
   it("refuses a token that decodes into something this deck must not act on", async () => {
-    const { mintInvite, readInvite, INVITE_PREFIX, PROTOCOL } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
+    const { PROTOCOL } = await import("../../server/lan-sync.mjs");
     const good = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
     const body = JSON.parse(Buffer.from(good.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
     const token = (o: unknown) => INVITE_PREFIX + Buffer.from(JSON.stringify(o), "utf8").toString("base64url");

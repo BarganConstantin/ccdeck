@@ -2,8 +2,9 @@
 // claude-swap, wired together.
 //
 // The files under this one hold everything that can be reasoned about without
-// a network — lan-sync.mjs decides, lan-beacon.mjs and lan-socket.mjs carry —
-// and what is left here is the part that has to touch the store.
+// a network — lan-sync.mjs and lan-invite.mjs decide, lan-beacon.mjs and
+// lan-socket.mjs carry — and what is left here is the part that has to touch
+// the store.
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
 //
@@ -28,10 +29,11 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  accountKey, addTrusted, credentialAad, currentFor, dropTrusted, identityFrom, manifestFor, mintInvite,
-  onePerKey, open, pairable, peerWhy, plan, readInvite, seal, SENDER_UNREADABLE, slotFor, stillListed,
-  transferChallenge, trustedPeer,
+  accountKey, addTrusted, credentialAad, currentFor, dropTrusted, identityFrom, manifestFor, onePerKey,
+  open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
+  trustedPeer,
 } from "./lan-sync.mjs";
+import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
