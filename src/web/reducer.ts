@@ -2,19 +2,18 @@
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, promptAlreadyRecorded, sessionEvidenceAt } from "./redelivery";
 import { extractModel } from "./payload-model";
-import { extractUsage } from "./usage-wire";
 import { initialState, rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-state";
 import {
   basename, ensureRoot, ensureSubagent, explicitSubagentKey, lookupSubagent, popActive, pushActive, resolveOwner,
   subagentLabel,
 } from "./agent-attribution";
-import { findTool, shortPreview, trimTools } from "./tool-calls";
+import { applyPreToolUse, applyToolOutcome, shortPreview } from "./tool-calls";
 import {
   applyContextObserved, applyModelObserved, applyOutputObserved, applySessionNamed, applySessionRecapped,
   applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { clearsWaiting, WAITING_KEEPERS, waitingBlock, waitingKind } from "./waiting-block";
-import type { AgentNodeData, HookEnvelope, ToolCall } from "./types";
+import type { HookEnvelope } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
 // the modules this file applies events through can read them too. The rest of
@@ -279,162 +278,9 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       }
       break;
     }
-    case "PreToolUse": {
-      // The same tool_use_id can be delivered more than once — several live
-      // decks appending to one events.jsonl, a hook retry, a log replay after a
-      // restart. The seq/epoch guard at the top only rejects a replay of the
-      // *same* seq, so those re-deliveries used to append a second ToolCall
-      // under an id the agent already had, and the damage was permanent:
-      // `toolIndex` kept only the newest copy, so PostToolUse could never
-      // settle the earlier ones, `sweepStaleTools` later stamped them failed
-      // (a red × on calls that actually succeeded), and both `toolCount` and
-      // the in-flight backlog counted every copy. Treat a known id as the call
-      // we already have and refresh it in place instead.
-      const known = p.tool_use_id ? findTool(state, owner, p.tool_use_id) : null;
-      if (known) {
-        if (p.tool_name && known.name === "?") known.name = p.tool_name;
-        // Never reopen a call that has already settled, and never re-attach a
-        // payload `trimTools` released — nothing would ever drop it again.
-        if (known.endedAt == null && !known.trimmed && p.tool_input !== undefined) {
-          known.input = p.tool_input;
-          known.inputPreview = shortPreview(p.tool_input);
-        }
-        break;
-      }
-      // Only a genuinely new call gets past here, so `toolCount` still advances
-      // exactly once per pushed entry and the synthesised id below stays unique.
-      const id = p.tool_use_id ?? `${owner.id}:${owner.toolCount}`;
-      // `explicitSubagentId` records what the payload said rather than where
-      // `owner` came from, and is derived from the key rather than from the
-      // resolved node so it still names the right subagent when that subagent
-      // never announced itself — which is the same id `clearsWaiting` compares
-      // against. See its declaration in types.ts.
-      const explicit = explicitSubagentKey(p);
-      const tc: ToolCall = {
-        id,
-        name: p.tool_name ?? "?",
-        input: p.tool_input,
-        inputPreview: shortPreview(p.tool_input),
-        agentId: owner.id,
-        explicitSubagentId: explicit ? subagentIdFor(sessionId, explicit) : undefined,
-        startedAt: now,
-      };
-      owner.tools.push(tc);
-      owner.toolCount += 1;
-      owner.state = "active";
-      // Filed under this session's name (#1009). `owner.sessionId` rather than
-      // the local `sessionId` so the write and every later read — `findTool`,
-      // `trimTools`, `releaseToolIds`, the sweep — all spell the key off the
-      // same field on the same node. They are the same string: `resolveOwner`
-      // only ever returns a node of `p.session_id ?? "unknown"`.
-      state.toolIndex.set(toolKey(owner.sessionId, id), tc);
-      trimTools(state, owner);
-      break;
-    }
+    case "PreToolUse": applyPreToolUse(state, p, sessionId, owner, now); break;
     case "PostToolUse":
-    case "PostToolUseFailure": {
-      const id = p.tool_use_id;
-      if (!id) break;
-      const key = toolKey(sessionId, id);
-      let tc = state.toolIndex.get(key);
-      let resurrected = false;
-      // If the tool isn't in the live index it may have been swept stale
-      // — look it up in its owner's tools array and resurrect it. Without
-      // this, a slow PostToolUse arriving after the 90s stale cutoff was
-      // silently dropped and the tool stayed marked failed forever even
-      // when it actually completed.
-      //
-      // THIS SESSION'S agents only (#1009). The scan used to walk every agent on
-      // the board and settle the first `tools` entry whose bare id matched, so a
-      // session whose own copy of the id had already settled reached across and
-      // stamped its result — response, `ok`, `endedAt`, and the sweep's un-reap
-      // — onto an unrelated session's live bubble. That is the same collision
-      // the key above closes, arriving by the other door: keying the map alone
-      // would have left this scan as a second, slower path to the same wrong
-      // call. A subagent carries its root's `sessionId`, so a root's late
-      // outcome still finds a call drawn under a subagent of the same session,
-      // which is the case the resurrection exists for.
-      if (!tc) {
-        for (const a of state.agents.values()) {
-          if (a.sessionId !== sessionId) continue;
-          const found = a.tools.find(x => x.id === id);
-          if (found) { tc = found; resurrected = true; break; }
-        }
-      }
-      if (!tc) break;
-      // Everything below this line runs exactly once per call, because a second
-      // copy of one outcome is not a second outcome.
-      //
-      // This event USED TO BE the only one of the four the file hardens against
-      // re-delivery that did ARITHMETIC. `PreToolUse` refreshes a known id in
-      // place so `toolCount` advances once, `UserPromptSubmit` declines to
-      // re-append a prompt it already has, and `pushActive` declines to re-push
-      // a key — but the bottom of this block ran `addUsage(owner.usage, …)`,
-      // which is `+=`, so every surplus copy added the call's tokens to its
-      // owner again and cost is computed from those tokens. #685 took that
-      // addition out entirely: a session's tokens now have exactly one writer,
-      // the transcript pass, and it assigns. What is left here is still not
-      // idempotent for free — `endedAt`, `ok` and the sweep's un-reaping all
-      // have to happen once — so the guard stays and is checked below.
-      //
-      // The discriminator is `outcomeApplied` and it has to be, because every
-      // cheaper test is wrong. `endedAt != null` is what the sweep writes too,
-      // so refusing on it would delete the whole resurrection path #436 depends
-      // on: a call the sweep gave up on is the case where a late outcome MUST
-      // land and un-say the failure. Absence from `toolIndex` is what both the
-      // sweep and the first delivery of this event leave behind, so `resurrected`
-      // is true for a late outcome and for a duplicate alike and separates
-      // nothing. Keeping the entry in `toolIndex` to recognise the second copy is
-      // not available either — #361 reads that map as "exactly the calls that
-      // have not settled" to decide which subagent a permission prompt belongs
-      // to, and a settled call left in it outranks the blocked one. What is left
-      // is to record that an outcome was applied, on the call, at the moment it
-      // is applied, which is what the sweep by construction never does.
-      //
-      // It is the OBJECT that carries the flag and not the id, which matters
-      // because one `tool_use_id` can name two `ToolCall`s: a `PreToolUse`
-      // re-delivered after its call settled finds nothing in `toolIndex` and
-      // pushes a fresh call on whichever agent is live by then (#443). An id-keyed
-      // "already seen" set would swallow the second object's first real outcome;
-      // a flag on the object cannot.
-      if (tc.outcomeApplied) break;
-      tc.outcomeApplied = true;
-      // An outcome landed, so whatever the deck dropped while this call was
-      // open, it was not this call's answer (#676). The flag is a statement
-      // about not knowing, and this is the event that ends the not knowing —
-      // left standing it would eventually have the sweep describing a gap on a
-      // call that has been settled since, and would survive `sweepStaleTools`
-      // un-reaping the call when a late outcome overturns its guess.
-      tc.outcomeGap = undefined;
-      tc.endedAt = now;
-      tc.ok = name === "PostToolUse";
-      // A response arriving for an already-trimmed call must not re-attach the
-      // blob we just released — nothing would ever drop it again.
-      if (!tc.trimmed) tc.response = p.tool_response;
-      if (name === "PostToolUseFailure") {
-        tc.errorPreview = shortPreview(p.tool_response);
-      } else if (resurrected) {
-        // A late success — clear the "stale" marker the sweep wrote.
-        tc.errorPreview = undefined;
-      }
-      // Recorded ON THE CALL and added to nobody (#685). A finished Task is the
-      // one tool result that carries a `usage` object, and it is tempting to
-      // read it as what the subagent spent — it is not. It is the subagent's
-      // LAST API turn: measured against the subagent's own transcript, 181,387
-      // cache-read tokens here against 13,410,312 in the file, 1.4% of the
-      // bill. Adding it to the parent therefore did two wrong things at once —
-      // it charged the parent for tokens the transcript pass already counts
-      // under `subagents/`, and it charged 1.4% of them — and because
-      // `UsageObserved` assigns, the next pass 2.5 s later took the number
-      // away again. That oscillation, $0.4675 → $0.0175, is what #685 reported.
-      const usage = extractUsage(p.tool_response);
-      if (usage) tc.usage = usage;
-      // The key this handler looked the call up by, which is also the key
-      // `PreToolUse` filed it under: the resurrection path above only accepts a
-      // call off an agent of this same session, so the two agree on both halves.
-      state.toolIndex.delete(key);
-      break;
-    }
+    case "PostToolUseFailure": applyToolOutcome(state, p, name, sessionId, now); break;
     case "SubagentStart": {
       const key = explicitSubagentKey(p);
       if (!key) break;
