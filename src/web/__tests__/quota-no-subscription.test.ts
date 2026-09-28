@@ -33,6 +33,8 @@ afterAll(() => rmTempDir(DIR));
 const { hasSubscriptionCredential, credentialsPath } = await import("../../server/quota.mjs");
 
 const panel = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+// The quota read, and the shape its route answers in, moved to use-quota.ts.
+const quotaReads = readFileSync(fileURLToPath(new URL("../use-quota.ts", import.meta.url)), "utf8");
 const server = readFileSync(fileURLToPath(new URL("../../server/quota.mjs", import.meta.url)), "utf8");
 
 describe("whether this machine has a subscription to report on", () => {
@@ -89,7 +91,7 @@ describe("what the server publishes when the CLI prints no windows", () => {
 
 describe("what the panel says about it", () => {
   it("carries the reason it used to drop on the floor", () => {
-    expect(panel).toMatch(/reason\?: string;/);
+    expect(quotaReads).toMatch(/reason\?: string;/);
     expect(panel).toContain('<span className="up-quota-hint">{claudeQuotaHint(quota.reason)}</span>');
   });
 

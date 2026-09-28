@@ -492,7 +492,8 @@ describe("the 7-day token line does not wait on an authenticated round trip", ()
     // is only that the line has a hook of its own rather than riding on the
     // authenticated quota call.
     expect(panel).toMatch(/const \{ data: codexUsage \} = useCodexUsage\([^)]*\);/);
-    expect(panel).toMatch(/fetch\("\/api\/codex-usage"\)/);
+    // The hook itself is use-quota.ts's, with the other two quota reads.
+    expect(strip(read("../use-quota.ts"))).toMatch(/fetch\("\/api\/codex-usage"\)/);
   });
 
   it("finally reads the 5-hour window the server has always computed", () => {

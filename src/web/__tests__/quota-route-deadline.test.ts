@@ -278,8 +278,9 @@ describe("the budget the route spends", () => {
     // comfortably above the server's five seconds rather than racing it, since
     // a client deadline that beat the answer would turn a slow success into a
     // failure.
-    const panel = readFileSync(
-      fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
-    expect(panel).toContain("await fetch(url, { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) })");
+    // The hook moved out of UsagePanel.tsx into use-quota.ts.
+    const reads = readFileSync(
+      fileURLToPath(new URL("../use-quota.ts", import.meta.url)), "utf8");
+    expect(reads).toContain("await fetch(url, { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) })");
   });
 });

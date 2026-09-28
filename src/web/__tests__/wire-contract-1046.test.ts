@@ -29,6 +29,8 @@ const selfUpdate = read("../../server/self-update.mjs");
 // The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.
 const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx");
 const panel = read("../components/UsagePanel.tsx");
+// The quota reads, and the shapes their routes answer in, moved to use-quota.ts.
+const quotaReads = read("../use-quota.ts");
 const chip = read("../version-chip.ts");
 const sound = read("../sound.ts");
 const lanSocket = read("../../server/lan-socket.mjs");
@@ -147,7 +149,7 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // this panel with a hard financial edge.
     for (const f of ["extraEnabled", "extraUsedCredits", "extraMonthlyLimit", "extraCurrency"]) {
       expect(quota, `the server no longer sends ${f}`).toContain(`result.${f}`);
-      expect(declares(decl(panel, "QuotaData"), f), `${f} is still dropped`).toBe(true);
+      expect(declares(decl(quotaReads, "QuotaData"), f), `${f} is still dropped`).toBe(true);
     }
   });
 
