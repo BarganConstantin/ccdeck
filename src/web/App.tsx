@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -53,6 +53,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useLeftColumn } from "./use-left-column";
+import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
 import { useMirroredRef } from "./use-mirrored-ref";
@@ -65,7 +66,6 @@ import { usePresenceBeacon } from "./use-presence-beacon";
 import { usePrefsRead } from "./use-prefs-read";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
-import { readStored, writeStored } from "./storage";
 import { PRODUCT } from "./brand";
 import { blockedSessions } from "./ambient-counts";
 import { initialState } from "./reducer";
@@ -74,61 +74,6 @@ import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { createChimePlayer } from "./chime-player";
-
-const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
-const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
-/** Named for the panel it opens rather than for the button, which is how it
- *  survived the button changing: this key was written by a topbar meter that
- *  no longer exists, and a tab that had the panel open still finds it open. */
-const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
-// First-run layout: Usage and Accounts open, everything else closed. Those two
-// answer "how much have I got left, and on which account" — the questions you
-// have before you have a graph worth looking at. The session list and detail
-// panel are for navigating work that already exists, so they stay shut until
-// asked for, and the canvas gets the width.
-//
-// All three panels read and write through storage.ts rather than
-// window.localStorage directly: the loaders run inside useState initialisers,
-// and the property read throws outright on a browser that blocks site data,
-// which takes App's first render with it.
-function loadDetailOpen(): boolean {
-  return readStored(DETAIL_OPEN_KEY) === "1";
-}
-function saveDetailOpen(open: boolean): void {
-  writeStored(DETAIL_OPEN_KEY, open ? "1" : "0");
-}
-function loadUsagePanelOpen(): boolean {
-  const stored = readStored(USAGE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
-}
-function saveUsagePanelOpen(open: boolean): void {
-  writeStored(USAGE_PANEL_OPEN_KEY, open ? "1" : "0");
-}
-/**
- * Whether the machine panel was open when this tab was last looked at.
- *
- * OPEN ON A FIRST RUN, and never reopened after that — the same shape the
- * usage and accounts panels already use. This used to default to closed, on
- * the argument that "a machine readout that reopens itself on every refresh
- * would be occupying the rail on behalf of a decision nobody made". That
- * argument is about REOPENING, and the null check is exactly what prevents it:
- * a tab that has never expressed a preference gets the panel, and a tab that
- * has closed it once has expressed one and keeps it closed for good.
- *
- * The two cases were worth separating because they answer different people. A
- * first run is somebody who has not met the deck yet and cannot ask for a
- * panel they do not know is there; every run after that is somebody who has,
- * and whose answer is on record. Opening it starts the /api/system poll, which
- * stops with the panel and while the tab is hidden.
- */
-function loadMachinePanelOpen(): boolean {
-  const stored = readStored(MACHINE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
-}
-function saveMachinePanelOpen(open: boolean): void {
-  writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
-}
-
 
 export default function App() {
   return (
@@ -151,10 +96,11 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
-  /** Right detail panel visibility — persisted across refresh. Declared ahead
-   *  of the selection below, because a plain selection opens it (#814). */
-  const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
-  useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
+  // The detail, Usage and Machine panels' open flags, each kept in the browser
+  // across a refresh — use-right-panels.ts. Called ahead of the selection
+  // below, because a plain selection opens the detail panel (#814).
+  const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
+    = useRightPanels();
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
@@ -163,12 +109,7 @@ function Inner() {
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
-  /** Usage panel visibility — persisted across refresh. */
-  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
-  useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
   const { monthlyUsage, monthlyUsageUnavailable, monthUsageRef } = useMonthlyUsage();
-  const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
-  useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */

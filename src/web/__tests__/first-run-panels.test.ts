@@ -16,10 +16,10 @@ import { clientText } from "./client-source";
 
 /** Comments stripped, so a rule cannot be satisfied by a paragraph that
  *  describes it. */
-// Two of the three panels are still decided in App.tsx; the accounts panel's
-// first-run default moved with the left column into use-left-column.ts. The
-// rule is about the client, so it reads the client — comment-stripped, as this
-// file always read it. All matches are positive.
+// The machine and usage panels are decided in use-right-panels.ts and the
+// accounts panel in use-left-column.ts, both lifted out of App.tsx. The rule is
+// about the client, so it reads the client — comment-stripped, as this file
+// always read it. All matches are positive.
 const app = clientText();
 
 /** The one decision, spelled the one way, for each key that carries it. */
@@ -44,8 +44,8 @@ describe("a first run opens the panels that answer its questions", () => {
 
   it("writes the answer down, so it survives a reload", () => {
     for (const [name, key] of PANELS) {
-      // localStorage.setItem where the panel's state lives in App.tsx, storage.ts's
-      // writeStored where it moved out to a hook: the same write either way.
+      // localStorage.setItem where a panel's state lived in App.tsx, storage.ts's
+      // writeStored in the hooks it moved out to: the same write either way.
       expect(app, name).toMatch(new RegExp(`(?:setItem|writeStored)\\(${key}, [^)]*\\? "1" : "0"\\)`));
     }
   });

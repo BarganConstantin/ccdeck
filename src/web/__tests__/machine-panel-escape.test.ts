@@ -208,8 +208,9 @@ describe("the panel's label and the panel's behaviour agree", () => {
   it("keeps the two ways out that are the two ways in", () => {
     // The topbar button is a toggle, so the control that opened the panel
     // closes it — and the panel's × calls the same setter. Read from App.tsx
-    // because that is where the button and the open state live: the meter that
-    // used to own both is gone, and the panel is a controlled component now.
+    // and the run it draws, because that is where the button and the mount
+    // live (the open state is use-right-panels.ts's): the meter that used to
+    // own both is gone, and the panel is a controlled component now.
     expect(app, "the topbar button no longer toggles")
       .toMatch(/onClick=\{\(\) => setMachinePanelOpen\(o => !o\)\}/);
     expect(app, "the button does not say whether the panel is open")
