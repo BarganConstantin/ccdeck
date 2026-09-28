@@ -54,6 +54,20 @@ const SOURCES = tsxFiles().map(rel => {
   return { rel, raw, code: withoutComments(raw) };
 });
 
+/** A file's code plus the `use-*` hooks it imports, comments stripped — the
+ *  surface its buttons' handlers can come from. Resolved relative to the file,
+ *  so `components/` imports of `../use-x` land where they point. */
+function surfaceOf(rel: string, code: string): string {
+  const dir = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
+  const hooks = [...code.matchAll(/from "((?:\.{1,2}\/)+(?:[\w-]+\/)*use-[\w-]+)"/g)].map(m => {
+    const parts = [...(dir ? dir.split("/") : []), ...m[1].split("/")];
+    const out: string[] = [];
+    for (const p of parts) { if (p === "..") out.pop(); else if (p !== ".") out.push(p); }
+    try { return withoutComments(readFileSync(`${WEB}/${out.join("/")}.ts`, "utf8")); } catch { return ""; }
+  });
+  return [code, ...hooks].join("\n");
+}
+
 const lineText = (raw: string, line: number) => raw.split("\n")[line - 1] ?? "";
 
 /** The whole of one `attr={…}` value, brace-balanced rather than up to the
@@ -227,11 +241,18 @@ describe("no control in the client disables itself on press (#620)", () => {
     // and put nothing in its place.
     for (const { rel, code } of SOURCES) {
       if (!code.includes("selfPressProps(")) continue;
-      expect(code, `${rel} spreads selfPressProps without guarding a second press`)
+      // A component's handlers live in the component or in the `use-*` hooks it
+      // composes — App.tsx spreads the props on its buttons while their pressed
+      // handlers (askRestart, startUpgrade, askDesktopUpdateRestart) live in
+      // hooks it calls. So the guard may sit in either, but ONLY in a hook this
+      // file itself imports: a guard somewhere else in the client does not
+      // protect this file's buttons, and must not let it pass.
+      const surface = surfaceOf(rel, code);
+      expect(surface, `${rel} spreads selfPressProps without guarding a second press`)
         .toMatch(/!selfPressAccepted\(/);
       // Off a ref, never the state: the state a handler closed over is a render
       // old, and the second press happens before the next render.
-      for (const m of code.matchAll(/!selfPressAccepted\(([^)]*)\)/g)) {
+      for (const m of surface.matchAll(/!selfPressAccepted\(([^)]*)\)/g)) {
         expect(m[1], `${rel}: selfPressAccepted(${m[1]}) reads state, not a ref`)
           .toMatch(/Ref\.current/);
       }
@@ -328,7 +349,8 @@ describe("a second press is refused by the handler, not by the browser", () => {
   it("holds one restart ask at a time", () => {
     // This guard predates #620 — it was `if (restartAskedRef.current) return`.
     // What changed is that it is now the ONLY thing refusing the second press.
-    expect(codeOf("App.tsx")).toMatch(/if \(!selfPressAccepted\(restartAskedRef\.current\)\) return;/);
+    // askRestart lives in use-auto-restart.ts now.
+    expect(clientText()).toMatch(/if \(!selfPressAccepted\(restartAskedRef\.current\)\) return;/);
   });
 
   it("holds one upgrade at a time, across the gap before the poll answers", () => {
