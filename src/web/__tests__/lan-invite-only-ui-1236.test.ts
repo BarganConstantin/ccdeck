@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { deckRows } from "../components/LanSyncSection";
+import { deckRows } from "../lan-roster";
 import { roundLabel } from "../lan-round";
 import { normalise } from "../../server/deck-prefs.mjs";
 

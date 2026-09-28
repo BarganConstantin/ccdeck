@@ -34,7 +34,8 @@ const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegEx
   [SERVER, "lan-engine.mjs", "ROUND_MS",                  /^const ROUND_MS = 10_000;$/m,               /timeoutMs: ROUND_MS/],
   [SERVER, "lan-socket.mjs", "REPLY_COOLDOWN_MS",         /^const REPLY_COOLDOWN_MS = 2_000;$/m,       /now\(\) - repliedAt > REPLY_COOLDOWN_MS/],
   [SERVER, "lan-sync.mjs",   "newKeypair",                /^function newKeypair\(\) \{$/m,             /const made = newKeypair\(\);/],
-  [WEB, "components/LanSyncSection.tsx", "presenceLabel",
+  // Moved out of LanSyncSection.tsx with deckRows, its one reader.
+  [WEB, "lan-roster.ts", "presenceLabel",
     /^function presenceLabel\(p: Peer, here: boolean, now: number\): string \{$/m, /presenceLabel\(p, present, now\)/],
 ];
 

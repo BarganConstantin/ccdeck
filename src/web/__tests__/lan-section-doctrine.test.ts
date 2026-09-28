@@ -14,10 +14,10 @@ import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
 import { clientText } from "./client-source";
 import {
-  askedLabel, checkedLabel, deckRows, isOnline, leftLabel, parseAddress,
-  nextShared, rosterSplit, sameKeys, sectionState, settlePending, writeFailure, ONLINE_MS,
+  leftLabel, parseAddress, nextShared, sameKeys, settlePending, writeFailure,
 } from "../components/LanSyncSection";
 import { faultText, roundLabel } from "../lan-round";
+import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
