@@ -26,7 +26,7 @@
 //     satisfied by `@` as readily as by `-`.
 //
 // WHY A STRIP AND NOT A LOOSER PATTERN. Every model regex in this codebase is
-// `^`-anchored, and the anchors are load-bearing: pricing.ts holds `gpt-5`,
+// `^`-anchored, and the anchors are load-bearing: rate-table.ts holds `gpt-5`,
 // `gpt-5-mini` and `gpt-5.1` as separate rows that depend on anchoring plus
 // list order to pick the right one, and a 300x price step sits inside that
 // family. Unanchoring thirty patterns to admit a ten-character prefix would

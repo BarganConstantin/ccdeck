@@ -25,7 +25,7 @@
 // three ids that had no row. A number in this file that nobody can point at a
 // page for is the defect #690 is about, not a fix for it.
 //
-// Plain node, no fixtures, no filesystem except reading pricing.ts as text —
+// Plain node, no fixtures, no filesystem except reading rate-table.ts as text —
 // identical on Linux, macOS and Windows.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -184,7 +184,7 @@ describe("the tail and the separator a real o-series id carries still price", ()
  *  rather than inferred from behaviour: a reorder that reintroduces the bug is
  *  caught by the tests above too, but only this one says what went wrong. */
 describe("each new row sits above the row it was being swallowed by", () => {
-  const text = readFileSync(fileURLToPath(new URL("../pricing.ts", import.meta.url)), "utf8");
+  const text = readFileSync(fileURLToPath(new URL("../rate-table.ts", import.meta.url)), "utf8");
   const start = text.indexOf("const RATES");
   const end = text.indexOf("\n];", start);
   const block = text.slice(start, end);
@@ -212,7 +212,7 @@ describe("each new row sits above the row it was being swallowed by", () => {
  *  number from a remembered one, so it is required to be there. */
 describe("the o-series rates say when they were last read off the vendor's page", () => {
   it("carries a dated source note in the o-series block", () => {
-    const text = readFileSync(fileURLToPath(new URL("../pricing.ts", import.meta.url)), "utf8");
+    const text = readFileSync(fileURLToPath(new URL("../rate-table.ts", import.meta.url)), "utf8");
     const at = text.indexOf("o-series reasoning models");
     expect(at, "the o-series block header").toBeGreaterThan(-1);
     const head = text.slice(at, at + 1200);

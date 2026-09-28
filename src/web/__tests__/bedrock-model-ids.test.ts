@@ -147,7 +147,7 @@ describe("every rate the table already gave, unchanged", () => {
   }
 
   it("still refuses the ids it always refused", () => {
-    // The `not priced` answers pricing.ts argues for at length: an unrecognised
+    // The `not priced` answers rate-table.ts argues for at length: an unrecognised
     // member of a known family must NOT inherit a sibling's price.
     for (const id of ["gpt-5.7", "gpt-5.10", "gpt-4o", "claude-opus-9", "claude-3-opus", "o5", "llama-3"]) {
       expect(ratesForModel(id, NOW), id).toBeNull();
@@ -170,7 +170,7 @@ describe("every rate the table already gave, unchanged", () => {
  *  is what makes the sweep above a COVERAGE claim: a row added tomorrow with no
  *  pinned id fails here instead of quietly going unproven. */
 function ratesRowPatterns(): RegExp[] {
-  const text = src("../pricing.ts");
+  const text = src("../rate-table.ts");
   const start = text.indexOf("const RATES");
   expect(start, "RATES declaration").toBeGreaterThan(-1);
   const end = text.indexOf("\n];", start);

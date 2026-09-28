@@ -1,6 +1,6 @@
 // A FAMILY PREFIX MAY ONLY PRICE THE IDS IT HAS READ A NUMBER FOR.
 //
-// pricing.ts states that rule at its o-series block and answers it there with
+// rate-table.ts states that rule at its o-series block and answers it there with
 // rows — those siblings have published numbers, and refusing to price them
 // would invent a gap. The two newest bare rows had neither: `\b` is satisfied
 // by the `-` of any suffix, so gpt-5.6's row priced -pro, -mini and -nano at

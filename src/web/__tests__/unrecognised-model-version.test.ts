@@ -228,7 +228,7 @@ describe("the guard is on every Claude row, not just the one the issue named", (
     // reason bedrock-model-ids.test.ts reads RATES the same way: a family added
     // tomorrow without the guard has no id in the table above to fail on, so the
     // only thing that can catch it is the shape of the row itself.
-    const text = readFileSync(fileURLToPath(new URL("../pricing.ts", import.meta.url)), "utf8");
+    const text = readFileSync(fileURLToPath(new URL("../rate-table.ts", import.meta.url)), "utf8");
     const start = text.indexOf("const RATES");
     const end = text.indexOf("\n];", start);
     expect(start, "RATES declaration").toBeGreaterThan(-1);
