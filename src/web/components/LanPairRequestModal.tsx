@@ -27,6 +27,7 @@ import { pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { askedLabel } from "./LanSyncSection";
 import type { LanStranger } from "./LanSyncSection";
+import type { useLanPairRequests } from "../use-lan-pair-requests";
 
 /** Which request to put in front of somebody, and how many are behind it.
  *
@@ -135,5 +136,25 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
         </section>
       </div>
     </div>
+  );
+}
+
+/** What App.tsx mounts: the request to ask about now, if any — the oldest not
+ *  put off this session, see nextRequest — with its answers wired to the hook
+ *  that holds them (use-lan-pair-requests.ts). Moved out of App.tsx's markup,
+ *  where it was an inline function, unchanged. */
+export function LanPairRequests({ lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair }: ReturnType<typeof useLanPairRequests>) {
+  const { request, waiting } = nextRequest(lanPending, lanDeferred.current);
+  if (!request) return null;
+  return (
+    <LanPairRequestModal
+      request={request}
+      waiting={waiting}
+      busy={lanBusy}
+      now={Date.now()}
+      onAccept={() => void answerLanPair("accept", request.fp)}
+      onDecline={() => void answerLanPair("dismiss", request.fp)}
+      onLater={() => deferLanPair(request.fp)}
+    />
   );
 }

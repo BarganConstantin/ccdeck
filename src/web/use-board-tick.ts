@@ -49,14 +49,14 @@ export function useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setCon
       pruneSelectionToBoard();
       // AND THE TWO MODALS THAT NAME AN AGENT, for a reason worse than the
       // selection's (#781). Both render nothing once their subject is gone —
-      // the context modal returns null on `if (!root)`, and buildSummary
-      // returns null on the same `agents.get(sessionId)` — but `modalOpenRef`
-      // is computed from the ID rather than from what rendered, so it stayed
-      // true with no dialog on screen. From there `shortcutBlocked` refused
-      // every key but `?` and `clearActionFor` answered "ignore" for both the
-      // trash button and C: every shortcut in the deck dead for the life of the
-      // tab, recoverable only by reloading. A session finishing and being
-      // evicted two minutes later is all it took.
+      // App.tsx mounts the context modal only while `contextAgent` resolves,
+      // and buildSummary returns null on the same `agents.get(sessionId)` — but
+      // `modalOpenRef` is computed from the ID rather than from what rendered,
+      // so it stayed true with no dialog on screen. From there
+      // `shortcutBlocked` refused every key but `?` and `clearActionFor`
+      // answered "ignore" for both the trash button and C: every shortcut in
+      // the deck dead for the life of the tab, recoverable only by reloading. A
+      // session finishing and being evicted two minutes later is all it took.
       //
       // Cleared here rather than fixing the flag to match the render, because a
       // modal whose subject has been evicted should CLOSE rather than sit there

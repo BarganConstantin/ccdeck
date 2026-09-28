@@ -110,7 +110,7 @@ import type { NotifyPermission } from "./notify";
 // needs only Browser Watch's unseen count, which lives in browser-watch-seen.
 const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
-import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
+import { LanPairRequests } from "./components/LanPairRequestModal";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
 import { computeVisibleIds } from "./visibility";
 import { sessionGroupNodes } from "./session-group-nodes";
@@ -414,7 +414,7 @@ function Inner() {
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
   // use-lan-pair-requests.ts.
-  const { lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair } = useLanPairRequests();
+  const lanPairs = useLanPairRequests();
 
   /** Bumped on each group-drag move so snapshotToFlow recomputes immediately
    *  (reads the freshly-pinned positions) rather than waiting for the 250ms
@@ -718,6 +718,9 @@ function Inner() {
   // tick is why the walk lives in the reducer; see findToolOnBoard.
   const openedTool: ToolCall | null =
     openedToolKey ? findToolOnBoard(stateRef.current.agents, openedToolKey.agentId, openedToolKey.toolId) : null;
+  // The agent the context modal is about, while it is still on the board: once
+  // it is evicted the modal draws nothing, and the tick closes it (#781).
+  const contextAgent = contextFor ? stateRef.current.agents.get(contextFor) : undefined;
 
   const handleClear = useCallback(async () => {
     try { await fetch("/api/clear", { method: "POST" }); } catch {}
@@ -1634,11 +1637,7 @@ function Inner() {
         />
         </Suspense>
       )}
-      {contextFor && (() => {
-        const root = stateRef.current.agents.get(contextFor);
-        if (!root) return null;
-        return <ContextModal agent={root} onClose={() => setContextFor(null)} />;
-      })()}
+      {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
       {summaryFor && (
         <SessionSummary
           state={stateRef.current}
@@ -1686,21 +1685,7 @@ function Inner() {
           machine up outranks an announcement about this one, and neither
           outranks the prompt somebody is standing in front of deciding
           whether to truncate a log. */}
-      {(() => {
-        const { request, waiting } = nextRequest(lanPending, lanDeferred.current);
-        if (!request) return null;
-        return (
-          <LanPairRequestModal
-            request={request}
-            waiting={waiting}
-            busy={lanBusy}
-            now={Date.now()}
-            onAccept={() => void answerLanPair("accept", request.fp)}
-            onDecline={() => void answerLanPair("dismiss", request.fp)}
-            onLater={() => deferLanPair(request.fp)}
-          />
-        );
-      })()}
+      <LanPairRequests {...lanPairs} />
       {/* Before the clear prompt and after everything else, which is where a
           reference belongs: it may paint over a tool inspector somebody opened
           the sheet on top of, and it must not paint over the one dialog that is
