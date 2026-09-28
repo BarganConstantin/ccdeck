@@ -34,6 +34,7 @@ export const ACCOUNTS_FILES = [
   "use-account-menu.ts",
   "components/AccountMenuPopover.tsx",
   "components/AccountsHeader.tsx",
+  "use-account-roster.ts",
 ] as const;
 
 let joined: string | null = null;
