@@ -15,10 +15,36 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — .mjs server module, no types
 import { spawnSpec } from "../../server/exec.mjs";
+// @ts-expect-error — .mjs server module, no types
+import { withoutPortAndOpen } from "../../server/supervisor.mjs";
 
-/** What launchNpx builds: its own flags around the user's forwarded argv. */
+/** What launchNpx builds: its own flags around the user's forwarded argv, with
+ *  the two it sets itself dropped from the user's copy first. */
 const relaunch = (forwarded: string[]) =>
-  ["-y", "ccdeck@latest", ...forwarded, "--port", "4317", "--no-open"];
+  ["-y", "ccdeck@latest", ...withoutPortAndOpen(forwarded), "--port", "4317", "--no-open"];
+
+describe("what the relaunch keeps of the user's own argv", () => {
+  it("drops --no-open and --port in both spellings, and keeps the rest in order", () => {
+    // Appended again by launchNpx, so a copy left in the user's argv would be
+    // `--port 4317 --no-open --port 4317 --no-open` in `ps`.
+    expect(withoutPortAndOpen(["--workspace", "/a b", "--port", "4317", "--no-open", "--port=4400", "--no-codex"]))
+      .toEqual(["--workspace", "/a b", "--no-codex"]);
+  });
+
+  it("takes --port's value with it, so the number is not left behind as an argument", () => {
+    expect(withoutPortAndOpen(["--port", "4317", "--history", "/h.jsonl"])).toEqual(["--history", "/h.jsonl"]);
+  });
+
+  it("drops a --port at the end that never got its value", () => {
+    expect(withoutPortAndOpen(["--no-codex", "--port"])).toEqual(["--no-codex"]);
+  });
+
+  it("answers with a copy, leaving the argv it was handed alone", () => {
+    const argv = ["--port", "1", "--no-open"];
+    expect(withoutPortAndOpen(argv)).toEqual([]);
+    expect(argv).toEqual(["--port", "1", "--no-open"]);
+  });
+});
 
 describe("the npx upgrade relaunch on Windows", () => {
   it("goes through cmd.exe verbatim, the same way Node's own shell does", () => {

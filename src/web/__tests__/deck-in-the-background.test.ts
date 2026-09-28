@@ -24,9 +24,12 @@ import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
-const { DECK_LOG, DETACHED_ENV, detachAndWatch, detachEnv, logMode, stopCommand, tailFile } = detach as {
+const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMode, stopCommand, tailFile } = detach as {
   DECK_LOG: string;
   DETACHED_ENV: string;
+  backgroundNote: (o: {
+    npx?: boolean; invokedAs?: string | null; product?: string; tone: Record<string, string>; g: Record<string, string>;
+  }) => string;
   detachAndWatch: (o: Record<string, unknown>) => Promise<{ ok: false; reason: string }>;
   detachEnv: (o?: { isTTY?: boolean; profile?: string; columns?: number }) => Record<string, string>;
   logMode: (n: number) => string;
@@ -37,7 +40,7 @@ const { DECK_LOG, DETACHED_ENV, detachAndWatch, detachEnv, logMode, stopCommand,
 // @ts-expect-error — plain .mjs module, no types
 const { ONE_SHOT, isOneShot, parseArgs } = await import("../../server/args.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { termColumns } = await import("../../server/term.mjs");
+const { glyphs, palette, termColumns } = await import("../../server/term.mjs");
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const SUPERVISOR = read("../../../bin/agent-dag.js");
@@ -250,8 +253,13 @@ describe("the command that ends it", () => {
   });
 
   it("is what the launcher actually prints", () => {
-    expect(SUPERVISOR).toContain("running in the background");
-    expect(SUPERVISOR).toContain("stopCommand({");
+    const plain = { tone: palette("none"), g: glyphs(true) };
+    expect(backgroundNote({ npx: true, invokedAs: "ccdeck", ...plain }))
+      .toContain("running in the background · `npx ccdeck --stop` ends it");
+    expect(backgroundNote({ npx: false, invokedAs: null, product: "ccdeck", ...plain }))
+      .toContain("`ccdeck --stop` ends it");
+    // Handed to the launcher as the line it prints once the deck has left.
+    expect(SUPERVISOR).toContain("backgroundLine: backgroundNote({");
   });
 });
 
@@ -285,23 +293,35 @@ describe("tailing a file that is still being written", () => {
 describe("what an npx run is told it is missing", () => {
   const SRC_SUP = SUPERVISOR;
 
+  const plain = { tone: palette("none"), g: glyphs(true) };
+
   it("offers the install rather than performing it", () => {
     // `npx` means "run without installing". A tool that installs itself anyway
     // is the tool people uninstall — and the global prefix is root-owned on
     // plenty of machines, so it would be a sudo prompt out of a command that
     // was only supposed to start a deck.
-    // The backtick is escaped in the source: the line lives inside a template
-    // literal and the flag is quoted for the shell in the message itself.
-    expect(SRC_SUP).toContain("--install\\` also starts it at login");
+    expect(backgroundNote({ npx: true, invokedAs: "ccdeck", ...plain }))
+      .toContain("\n     `ccdeck --install` also starts it at login\n");
+    // Named the way the user typed it, like the stop command above it.
+    expect(backgroundNote({ npx: true, invokedAs: "agents-deck", ...plain }))
+      .toContain("`agents-deck --install` also starts it at login");
+    // And the launcher asks the install where it was started from.
     expect(SRC_SUP).toContain('const npx = isNpxInstall(PKG_ROOT);');
-    // Offered only where it is true: a global install already starts at login
-    // on its first run, so the line would be noise there.
-    expect(SRC_SUP).toMatch(/const offer = npx\s*\n?\s*\?/);
+    expect(SRC_SUP).toMatch(/backgroundNote\(\{ npx, /);
   });
 
   it("says nothing extra when the deck was installed normally", () => {
-    const at = SRC_SUP.indexOf("const offer = npx");
-    expect(SRC_SUP.slice(at, at + 400)).toContain(': "";');
+    // Offered only where it is true: a global install already starts at login
+    // on its first run, so the line would be noise there.
+    expect(backgroundNote({ npx: false, invokedAs: "ccdeck", ...plain }))
+      .toBe("  —  running in the background · `ccdeck --stop` ends it\n\n");
+  });
+
+  it("spells the dash and the bullet the terminal can draw, and nothing else in a pipe", () => {
+    const said = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("none"), g: glyphs(false) });
+    expect(said).toBe("  -  running in the background - `npx ccdeck --stop` ends it\n     `ccdeck --install` also starts it at login\n\n");
+    const painted = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("ansi16"), g: glyphs(true) });
+    expect(painted).toContain("\x1b[");
   });
 });
 
