@@ -451,10 +451,10 @@ function onRecapTail(sid, text, path) {
 const CONTEXT_READ_THROTTLE_MS = 4000;
 const contextReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 
-// The counts reset at every `/clear` or `/compact` marker (see
-// foldTranscriptLine): CC resets its in-memory window there while the JSONL
-// keeps growing, and reading the pre-reset blocks made the donut report ~100%
-// on an empty context.
+// The counts reset at every `/clear` or `/compact` marker (see foldContextLine
+// in transcript-scan.mjs): CC resets its in-memory window there while the
+// JSONL keeps growing, and reading the pre-reset blocks made the donut report
+// ~100% on an empty context.
 export async function readContextFromTranscript(path) {
   const state = await scanTranscript(path);
   // Nothing folded yet — the file is empty, unreadable, or has no complete
