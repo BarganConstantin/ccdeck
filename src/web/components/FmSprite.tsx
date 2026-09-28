@@ -8,10 +8,10 @@
 // the character is doing and which way it faces — so a step along the ledge
 // re-renders the walker around it and not these rects.
 import { memo } from "react";
+import type { Act, Facing } from "../claude-fm";
 import {
   GEAR_CELLS, HAT, HAT_X, HAT_Y, LEG_SPLIT_COL, LEG_TOP_ROW, spriteRects, SPRITE_H, SPRITE_W,
-  type Act, type Facing,
-} from "../claude-fm";
+} from "../claude-fm-sprite";
 
 /** What each grid cell is drawn as. A map here rather than a chain of
  *  comparisons in the markup below, because unstyled-class.test.ts reads every

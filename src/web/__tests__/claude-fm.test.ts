@@ -20,14 +20,16 @@ import {
   listenCommand, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
 } from "../claude-fm-player";
 import {
+  HAT, HAT_X, HAT_Y, LEG_TOP_ROW, PROP_ART, SPRITE, SPRITE_H, SPRITE_W, spriteRects,
+} from "../claude-fm-sprite";
+import {
   nextIdleMs, nextWalk,
-  SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps, fishSteps, skipSteps, SKIP_BEAT_MS, ballRollTo,
   STOOP_MS, TOSS_MS,
-  tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
+  tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
-  facingFor, isFocused, LEG_TOP_ROW, MOVING_ACTS, nextDance, nextDanceMs,
+  facingFor, isFocused, MOVING_ACTS, nextDance, nextDanceMs,
   type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
@@ -246,7 +248,7 @@ describe("the embed", () => {
   });
 
   it("loads no third-party script to do it", () => {
-    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-player.ts")]) {
+    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-player.ts"), code("../claude-fm-sprite.ts")]) {
       expect(src2).not.toContain("iframe_api");
       expect(src2).not.toContain("<script");
     }
@@ -787,7 +789,7 @@ describe("the character", () => {
     // The player is a cross-origin iframe: the page cannot reach its audio
     // element, and a tainted source hands an analyser silence. Anything here
     // claiming to react to sound would be a lie told with a timer.
-    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-player.ts")]) {
+    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-player.ts"), code("../claude-fm-sprite.ts")]) {
       expect(src2).not.toMatch(/AnalyserNode|createMediaElementSource|getByteFrequency|getDisplayMedia/);
     }
   });
