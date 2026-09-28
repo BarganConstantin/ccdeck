@@ -55,7 +55,9 @@ vi.mock("node:child_process", async () => {
 });
 
 // @ts-expect-error — plain .mjs server module, no types
-import { readProcesses, stopSystemMetrics, swapFromSysctl } from "../../server/system-metrics.mjs";
+import { readProcesses, stopSystemMetrics } from "../../server/system-metrics.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { swapFromSysctl } from "../../server/memory-metrics.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { parsePsProcesses } from "../../server/process-list.mjs";
 

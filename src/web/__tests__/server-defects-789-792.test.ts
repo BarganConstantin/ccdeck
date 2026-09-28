@@ -44,7 +44,10 @@ describe("#789 — a memory poll that could not measure", () => {
     // idle 32 GB Mac, which is exactly the 99.5% reading the function's own
     // header says this readout exists to prevent. Substituting it turned a
     // failed measurement into the worst possible measurement.
-    const src = read("../../server/system-metrics.mjs");
+    //
+    // The sampler and the memory sources it moved out into, together: a
+    // substitute written back into either file is the same regression.
+    const src = read("../../server/system-metrics.mjs") + read("../../server/memory-metrics.mjs");
     expect(src, "darwin substitutes freemem again")
       .not.toMatch(/return parsed \?\? os\.freemem\(\);/);
     // Both real sources answer null when they could not be read; the last
