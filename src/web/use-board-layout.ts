@@ -6,7 +6,7 @@
 // Moved out of App.tsx unchanged, with R (handleRelayout), which touches
 // nothing else. App.tsx still does the rest — snapshotToFlow reads and fills
 // them, the reframe throws them away, the drag handlers pin.
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Frame } from "./layout";
 import { clearStoredLayout, loadLayout, loadLayoutFrame, saveLayout, saveLayoutFrame } from "./layout-storage";
 import type { Provisional } from "./placement";
@@ -96,4 +96,22 @@ export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"])
 
   return { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
            handleRelayout };
+}
+
+/** Keeps the stored layout in step with the board: moved out of App.tsx
+ *  unchanged, and called there once layoutSig has been worked out. */
+export function useLayoutAutosave(layoutSig: string, layout: ReturnType<typeof useBoardLayout>): void {
+  // Persist the arrangement whenever it changes, not only when the user drags.
+  // Auto-placed nodes are part of what gets restored on reload, so a session
+  // that was never touched still comes back where it was. Debounced: layoutSig
+  // moves on every structural change and localStorage writes are synchronous.
+  const { positionsRef, pinnedRef } = layout;
+  const layoutSaveTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current);
+    layoutSaveTimerRef.current = window.setTimeout(() => {
+      saveLayout(positionsRef.current, pinnedRef.current);
+    }, 1500);
+    return () => { if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current); };
+  }, [layoutSig]);
 }

@@ -23,7 +23,7 @@ import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { laneMap, snapshotToFlow, type FlowNodeData } from "./canvas-flow";
+import { snapshotToFlow, type FlowNodeData } from "./canvas-flow";
 import { exportFileName, sessionExport } from "./session-export";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
@@ -47,13 +47,16 @@ import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
 import { useAgentFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
-import { useBoardLayout } from "./use-board-layout";
+import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
+import { useReframe } from "./use-reframe";
+import { useAutoFit } from "./use-auto-fit";
+import { layoutSignature } from "./layout-signature";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { clearStoredLayout, loadViewport, saveLayout, saveLayoutFrame, saveViewport } from "./layout-storage";
+import { clearStoredLayout, loadViewport, saveViewport } from "./layout-storage";
 import { isCanvasNodeElement } from "./canvas-node-element";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
@@ -105,15 +108,13 @@ import type { NotifyPermission } from "./notify";
 const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
-import { columnsWouldChange, type Frame } from "./layout";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { isAgentVisible, computeVisibleIds } from "./visibility";
+import { computeVisibleIds } from "./visibility";
 import { sessionGroupNodes } from "./session-group-nodes";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
-import { shouldRefit, type NodeBox } from "./drift";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
@@ -158,7 +159,6 @@ const FOCUS_CANDIDATES = [
   "summary",
   "[tabindex]",
 ].join(",");
-
 
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
@@ -466,14 +466,15 @@ function Inner() {
   // The camera's primitives — the one door every viewport the deck sets goes
   // through, the fit every structural change runs, and the bookkeeping that
   // lets a move tell it has been superseded: see use-camera.ts.
-  const { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef } = useCamera();
+  const camera = useCamera();
+  const { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef } = camera;
 
   // The board's arrangement — the stored positions and pins it was restored
   // from, the placeholders, the layout signature, the epoch R and the reframe
   // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
+  const layout = useBoardLayout(fitLeft);
   const { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
-          handleRelayout }
-    = useBoardLayout(fitLeft);
+          handleRelayout } = layout;
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -504,20 +505,9 @@ function Inner() {
    *  storage are only pruned against the agents once all of them are back. */
   const historyReplayed = liveSince !== null;
 
-
-  // The auto-fit's trailing timer (see effect after layoutSig is computed below).
-  const fitTimerRef = useRef<number | null>(null);
-
-  const lastLayoutSigForFitRef = useRef("");
   // Debounce timer for persisting the viewport on pan/zoom.
   const vpSaveTimerRef = useRef<number | null>(null);
 
-  // Auto-recover from "drifted off-screen": every 1.5s check whether ANY
-  // agent's bounding box intersects the visible viewport. If none have at
-  // all, fit-view immediately. Skipped only when the user is actively
-  // interacting (pan/zoom/drag in the last 800ms) so we don't yank the view
-  // mid-gesture. This is the failsafe that recovers from layout reflows
-  // when a new session arrives and dagre shifts everything off-screen.
   const lastInteractRef = useRef(0);
   const markInteract = useCallback(() => { lastInteractRef.current = Date.now(); }, []);
   // How big the canvas is, measured once by one observer and kept two ways:
@@ -544,45 +534,6 @@ function Inner() {
     lastCanvasInputAt: lastCanvasInputRef.current,
   }), []);
   const { autoFitDisabled, autoFitDisabledRef, disableAutoFit, enableAutoFitAndRefit } = useAutoFitSwitch(fitLeft);
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (autoFitDisabledRef.current) return;
-      if (Date.now() - lastInteractRef.current < 800) return;
-      const state = stateRef.current;
-      const t = Date.now();
-      const liveAgents: { id: string }[] = [];
-      for (const a of state.agents.values()) {
-        // Mirror isAgentVisible — was inline `exitAt + EXIT_ANIM_MS` only,
-        // which skipped the ghost-session filter and disagreed with the node
-        // renderer when stale-exitAt replays excluded subagents that the
-        // canvas was still showing. Use the single source of truth.
-        if (!isAgentVisible(a, t)) continue;
-        liveAgents.push({ id: a.id });
-      }
-      if (liveAgents.length === 0) return;
-      const boxes: NodeBox[] = [];
-      for (const { id } of liveAgents) {
-        const size = measuredRef.current.get(id);
-        const pos = pinnedRef.current.get(id) ?? positionsRef.current.get(id);
-        // An agent with no measurement or no position is not evidence either
-        // way, so it is left out rather than counted as off-screen.
-        if (!size || !pos) continue;
-        boxes.push({ x: pos.x, y: pos.y, width: size.width, height: size.height });
-      }
-      // The decision itself lives in drift.ts, against the pane the deck
-      // measured rather than a rectangle guessed from the window. `getViewport`
-      // returns the pane's transform, so a node projected through it is in
-      // pane-relative pixels — and the only rectangle in the same coordinate
-      // space is the pane's own size. It used to be tested against
-      // `innerWidth - 360`, which is the window minus a detail panel assumed
-      // always open: right in one of the six layouts `.app` grids itself into,
-      // wrong in the five others including the one the deck starts in (#615).
-      if (shouldRefit({ pane: paneSizeRef.current, viewport: rf.getViewport(), boxes })) {
-        fitLeft(600);
-      }
-    }, 1500);
-    return () => clearInterval(id);
-  }, [rf]);
 
   // True for the length of a drag gesture. A ref as well as state: the
   // measurement effect below reads it without wanting to re-run when it
@@ -601,54 +552,23 @@ function Inner() {
     () => removalHiddenIds(stateRef.current.agents.values(), removedNodes),
     [stateRef.current, stateRef.current.revision, removedNodes],
   );
-  const layoutSig = useMemo(() => {
-    const ids: string[] = [];
-    for (const a of stateRef.current.agents.values()) {
-      // Mirror isAgentVisible exactly — layoutSig and visibleAgentIds must
-      // agree, otherwise dagre re-runs for agents that never render and
-      // the cached positions drift relative to what's actually on canvas.
-      if (!isAgentVisible(a, now) || removedAgentIds.has(a.id)) continue;
-      ids.push(a.id + (a.parentId ? `>${a.parentId}` : ""));
-    }
-    ids.sort();
-    return `${ids.join("|")}#sv${sizeVersion}.${domSizeVersion}`;
-  }, [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds]);
+  // What the layout keys off: the visible, not-removed agents and their
+  // parents, plus the two size versions — layout-signature.ts.
+  const layoutSig = useMemo(
+    () => layoutSignature(stateRef.current.agents.values(), now, removedAgentIds, sizeVersion, domSizeVersion),
+    [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds],
+  );
 
-  // Persist the arrangement whenever it changes, not only when the user drags.
-  // Auto-placed nodes are part of what gets restored on reload, so a session
-  // that was never touched still comes back where it was. Debounced: layoutSig
-  // moves on every structural change and localStorage writes are synchronous.
-  const layoutSaveTimerRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current);
-    layoutSaveTimerRef.current = window.setTimeout(() => {
-      saveLayout(positionsRef.current, pinnedRef.current);
-    }, 1500);
-    return () => { if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current); };
-  }, [layoutSig]);
+  // Stored whenever the arrangement's signature moves — use-board-layout.ts.
+  useLayoutAutosave(layoutSig, layout);
 
-  // Auto-fit on layout-signature changes — the single source of truth for
-  // structural shifts: agent added/removed, parent relationship changed, or
-  // a measurement that moved a node. Catches the "14 agents in state but
-  // none visible" case where count is stable but the layout reflowed.
-  // Suspended entirely when the user has taken manual control of the
-  // viewport (see autoFitDisabledRef + recenter button in Controls).
-  useEffect(() => {
-    if (lastLayoutSigForFitRef.current === layoutSig) return;
-    const prev = lastLayoutSigForFitRef.current;
-    lastLayoutSigForFitRef.current = layoutSig;
-    if (!prev) return; // first render — let initial fitView prop handle it
-    if (autoFitDisabledRef.current) return;
-    const tnow = Date.now();
-    if (tnow - lastFitTimeRef.current > 1200) {
-      fitLeft(400);
-    }
-    if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
-    fitTimerRef.current = window.setTimeout(() => {
-      if (autoFitDisabledRef.current) return;
-      fitLeft(500);
-    }, 280);
-  }, [layoutSig, rf, fitLeft]);
+  // The two things that bring the board back into view on their own — a
+  // layout that changed shape, and a board that drifted off the pane — both
+  // stand down while the user has the wheel: use-auto-fit.ts.
+  useAutoFit({
+    layoutSig, rf, stateRef, measuredRef, pinnedRef, positionsRef, paneSizeRef, lastInteractRef,
+    autoFitDisabledRef, lastFitTimeRef, fitLeft,
+  });
 
   // Union spotlight set — lineage of every selected agent merged. Multi-
   // select widens the spotlight without losing the "follow the chain"
@@ -785,91 +705,13 @@ function Inner() {
     [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch, historyReplayed],
   );
 
-  // Re-column when the frame changes ENOUGH TO CHANGE THE ANSWER.
-  //
-  // autoLayout picks the column count by scoring each arrangement against the
-  // frame a fit will show it in, but the key that decides whether it runs again
-  // — visible agent ids plus the two size versions — says nothing about the
-  // frame. Closing the accounts and usage panels on a 1280px window takes the
-  // frame from 457.5 to 963.2 flow units (measured in Firefox against this
-  // sheet), which is the difference between one column and two for a board of
-  // four to six sessions. Nothing reconsidered it, so the board stayed a tall
-  // strip beside empty canvas until the user pressed R.
-  //
-  // Adding the frame to `layoutSig` would not have done this: the branch that
-  // re-columns is inside `if (missing.length > 0)`, and with every node already
-  // placed a signature change reaches only separateOverlaps. Re-columning means
-  // dropping the cached positions, which is what R does — minus the pins, which
-  // are the user's own placements and survive here as they do in joinSessions.
-  //
-  // Gated on the ANSWER changing rather than on the frame moving. The frame
-  // steps on every 40px of a window drag; the column count changes at a handful
-  // of widths, and re-laying out on anything less would throw away the
-  // arrangement fillGapsWithNewSessions built for a change that moves nothing.
-  useEffect(() => {
-    if (!settled || dragging) return;
-    const frame: Frame = { width: availableWidth, height: availableHeight };
-    if (!(frame.width > 0 && frame.height > 0)) return;
-    const prev = lastLayoutFrameRef.current;
-    lastLayoutFrameRef.current = frame;
-    saveLayoutFrame(frame);
-    if (!prev || (prev.width === frame.width && prev.height === frame.height)) return;
-    const opts = {
-      direction: "LR" as const,
-      pinned: pinnedRef.current,
-      measured: measuredRef.current,
-      lanes: laneMap(stateRef.current),
-    };
-    if (!columnsWouldChange(nodes, edges, opts, prev, frame)) return;
-    // WHAT THE READER IS LOOKING AT, BEFORE THE BOARD MOVES UNDER IT. With the
-    // auto-fit on, the fit below frames the new arrangement and nothing needs
-    // keeping. With it off — a pan, or a focus — the camera used to stay where
-    // it was while every session moved to a new column, so selecting a card
-    // (which opens the detail panel, which narrows the canvas, which is this
-    // frame change) sent the card the reader had just clicked somewhere off
-    // the screen they were reading. A double-click to focus lost its session
-    // the same way: the focus framed where the card was a paint before the
-    // re-pack moved it.
-    const focused = lastFocusRef.current && Date.now() - lastFocusRef.current.at < 1500 ? lastFocusRef.current.id : null;
-    const keepId = focused ?? primarySelectedIdRef.current;
-    const keptAt = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
-    for (const id of Array.from(positionsRef.current.keys())) {
-      if (!pinnedRef.current.has(id)) positionsRef.current.delete(id);
-    }
-    provisionalRef.current.clear();
-    lastLayoutSigRef.current = "";
-    setLayoutEpoch(e => e + 1);
-    // Same 80ms handleRelayout waits: React and React Flow get one paint to
-    // settle the new positions before the camera is asked to frame them.
-    window.setTimeout(() => {
-      // The board is only rebuilt during the render the epoch schedules —
-      // positionsRef holds nothing but the pins until then — so this is the
-      // first moment there is a new arrangement to store. It has to be stored
-      // here because the debounced save is keyed on layoutSig, which a frame
-      // change does not move: without this the next reload would restore the
-      // arrangement this pass just replaced, beside a frame record saying it
-      // was packed for the new window.
-      saveLayout(positionsRef.current, pinnedRef.current);
-      if (autoFitDisabledRef.current) {
-        // A focus this recent is framed again, from the new arrangement.
-        if (focused) { focusAgentRef.current(focused); return; }
-        // Otherwise the selected card stays where it was on screen: the view
-        // moves by exactly as far as the re-pack moved the card.
-        const movedTo = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
-        if (keptAt && movedTo && (movedTo.x !== keptAt.x || movedTo.y !== keptAt.y)) {
-          const vp = rf.getViewport();
-          cameraEpochRef.current += 1;
-          applyViewport({ x: vp.x - (movedTo.x - keptAt.x) * vp.zoom, y: vp.y - (movedTo.y - keptAt.y) * vp.zoom, zoom: vp.zoom }, 0);
-          lastFitTimeRef.current = Date.now();
-        }
-        return;
-      }
-      fitLeft(500);
-    }, 80);
-    // `nodes` and `edges` are read, not watched: they are rebuilt four times a
-    // second and this has to run when the FRAME moves, on whatever board was on
-    // screen at that moment.
-  }, [availableWidth, availableHeight, settled, dragging, fitLeft, rf, applyViewport]);
+  // Re-column when the frame changes enough to change the answer, keeping what
+  // the reader was looking at — use-reframe.ts.
+  const primarySelectedIdRef = useMirroredRef(primarySelectedId);
+  useReframe({
+    nodes, edges, settled, dragging, availableWidth, availableHeight, layout, camera, rf,
+    measuredRef, stateRef, lastFocusRef, primarySelectedIdRef, focusAgentRef, autoFitDisabledRef,
+  });
 
   // Invisible per-session drag-handle nodes, one behind each session's cards;
   // see session-group-nodes.ts.
@@ -1025,7 +867,6 @@ function Inner() {
   // registered once. Assigned during render so a keystroke in the same commit
   // sees the array that was just drawn.
   const nodesRef = useMirroredRef(nodes);
-  const primarySelectedIdRef = useMirroredRef(primarySelectedId);
 
   // Bringing a card and its session into view, and stepping between cards —
   // use-agent-focus.ts.
@@ -1033,7 +874,6 @@ function Inner() {
     canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
   });
-
 
   // What the peek reads, made once — use-peek-readers.ts.
   const { peekAgent, peekLabel, peekRecap, peekBounds } = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });

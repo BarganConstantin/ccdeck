@@ -63,15 +63,20 @@ const appCode = app
 
 /** use-canvas-size.ts the same way. The observer and the ref it fills moved
  *  there; the watchdog that reads the ref, and the element it observes, stayed. */
+/** use-auto-fit.ts the same way: the drift watchdog lives there. */
+const fitCode = readFileSync(fileURLToPath(new URL("../use-auto-fit.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 const sizeCode = readFileSync(fileURLToPath(new URL("../use-canvas-size.ts", import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 /** The body of the watchdog's interval callback. */
 const watchdog = (() => {
-  const at = appCode.indexOf("const id = setInterval(");
-  const end = appCode.indexOf("}, 1500);", at);
-  return at < 0 || end < 0 ? "" : appCode.slice(at, end);
+  // The watchdog is use-auto-fit.ts's, which App.tsx calls.
+  const at = fitCode.indexOf("const id = setInterval(");
+  const end = fitCode.indexOf("}, 1500);", at);
+  return at < 0 || end < 0 ? "" : fitCode.slice(at, end);
 })();
 
 /** The ResizeObserver effect that measures the canvas. */
@@ -407,6 +412,7 @@ describe("App.tsx hands the rule the pane it measured", () => {
     // in this file may go back to measuring a grid column with `window.inner*`.
     expect(watchdog).not.toMatch(/window\.inner(Width|Height)/);
     expect(appCode).not.toMatch(/window\.inner(Width|Height)/);
+    expect(fitCode).not.toMatch(/window\.inner(Width|Height)/);
     expect(sizeCode).not.toMatch(/window\.inner(Width|Height)/);
   });
 
