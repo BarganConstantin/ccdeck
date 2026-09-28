@@ -73,6 +73,8 @@ const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-
 // `app` stays App.tsx for the rest, including the one negative case.
 const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
+// Each tone's row — its preview, volume and sound — moved to ToneSection.tsx.
+const toneSection = withoutComments(read("components/ToneSection.tsx"));
 // The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
 // that file; the negatives read the menu and every file lifted out of it.
 const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"));
@@ -125,10 +127,10 @@ describe("what a tone can be set to", () => {
     // was written: the catalogue was checked and what the MENU does with it was
     // not. A sound the user cannot select is a sound that does not exist, and
     // that gap grows with the list rather than shrinking.
-    expect(menu).toMatch(/\{FIGURE_SETS\[chime\]\.map\(f => \(/);
-    expect(menu).toMatch(/<option key=\{f\.id\} value=\{f\.id\}>\{f\.label\}<\/option>/);
+    expect(toneSection).toMatch(/\{FIGURE_SETS\[chime\]\.map\(f => \(/);
+    expect(toneSection).toMatch(/<option key=\{f\.id\} value=\{f\.id\}>\{f\.label\}<\/option>/);
     // Nothing between the set and the options — no slice, no filter, no cap.
-    const rendered = menu.slice(menu.indexOf("FIGURE_SETS[chime]"), menu.indexOf("</select>"));
+    const rendered = toneSection.slice(toneSection.indexOf("FIGURE_SETS[chime]"), toneSection.indexOf("</select>"));
     expect(rendered, "the select narrows the set before rendering it").not.toMatch(/slice|filter|splice/);
   });
 
@@ -882,17 +884,27 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // `soundOn` and nothing is disabled or dimmed. A later, legitimate use of
     // `soundOn` anywhere else in this component is untouched by this; a use
     // INSIDE the tone groups is exactly the thing worth stopping to look at.
+    //
+    // The tone groups are ToneSection.tsx now, rendered once per tone inside
+    // `.sm-tones`; the menu's own slice holds the loop that renders them and
+    // hands each the switch, and the row's markup holds the rest.
     const tones = menu.slice(menu.indexOf('<div className="sm-tones">'));
     const inside = tones.slice(0, tones.lastIndexOf("</div>"));
-    expect(inside).toContain("TONE_NOTE[chime]");            // the right slice
+    expect(inside).toContain("<ToneSection");                // the right slice
     expect(inside, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
     expect(inside, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
+    // The menu passes the switch on and does nothing else with it there.
+    expect(inside.replace("soundOn={soundOn}", "")).not.toMatch(/\bsoundOn\b/);
+    const row = toneSection.slice(toneSection.indexOf("  return ("));
+    expect(row).toContain("TONE_NOTE[chime]");               // the right slice
+    expect(row, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
+    expect(row, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
     // Two uses of `soundOn` in there, and they are the sentence rather than a
     // state: the tooltip and the description that says the preview will sound.
-    expect([...inside.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
-    expect(inside).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
-    expect(inside).toMatch(/: "Plays even when Sounds is off"\}/);
-    expect(inside).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
+    expect([...row.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
+    expect(row).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
+    expect(row).toMatch(/: "Plays even when Sounds is off"\}/);
+    expect(row).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
     // The slice above ran to the menu's last </div>, so it also held the custom
     // sounds, which moved to CustomSoundsSection.tsx. Their markup is held to the
     // same three there.
@@ -908,7 +920,7 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // read in the half-second before a press, so it states the exception and
     // stops; the description is read in sequence by somebody who cannot see the
     // switch above it, and carries why the exception is useful.
-    const tip = menu.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
+    const tip = toneSection.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
     const said = menu.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
     expect(tip).toBe("Plays even when Sounds is off");
     expect(said.length).toBeGreaterThan(tip.length);
@@ -1001,8 +1013,8 @@ describe("the popover, built out of the parts the six dialogs already use", () =
 describe("hearing it is the point, not a nicety", () => {
   it("gives each tone its own preview, and auditions rather than reports", () => {
     // Two buttons, one per tone, each playing THAT tone.
-    expect(menu).toMatch(/onClick=\{\(\) => onPreview\(chime\)\}/);
-    expect(menu).toMatch(/aria-label=\{`Hear the \$\{TONE_LABEL\[chime\]\.toLowerCase\(\)\} tone`\}/);
+    expect(toneSection).toMatch(/onClick=\{\(\) => onPreview\(chime\)\}/);
+    expect(toneSection).toMatch(/aria-label=\{`Hear the \$\{TONE_LABEL\[chime\]\.toLowerCase\(\)\} tone`\}/);
     expect(client).toMatch(/onPreview=\{chime => previewTone\(chime\)\}/);
     expect(client).toMatch(/chimesRef\.current\?\.play\(chime, true\)/);
   });

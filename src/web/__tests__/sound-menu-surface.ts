@@ -20,6 +20,7 @@ import { WEB_DIR } from "./client-source";
  *  it, is added here in the same change. */
 export const SOUND_MENU_FILES = [
   "components/SoundMenu.tsx",
+  "components/ToneSection.tsx",
   "components/CustomSoundsSection.tsx",
   "use-clip-recorder.ts",
 ] as const;
