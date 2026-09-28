@@ -37,6 +37,9 @@ const COMPONENTS: Record<string, string> = {
   // that hand a session's hue across the boundary moved with them.
   "canvas-flow.ts": src("../canvas-flow.ts"),
   "SessionClusters.tsx": src("../components/SessionClusters.tsx"),
+  // The cluster box's and label's inline styles, out of SessionClusters.tsx's
+  // render — the hue crosses the boundary where they are built.
+  "cluster-bounds.ts": src("../cluster-bounds.ts"),
   "AgentNode.tsx": src("../components/AgentNode.tsx"),
   "ToolBursts.tsx": src("../components/ToolBursts.tsx"),
 };
@@ -554,7 +557,7 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
   });
 
   it("hands each site its hue as a custom property and nothing else", () => {
-    expect(COMPONENTS["SessionClusters.tsx"]).toMatch(/"--session-hue": hue/);
+    expect(COMPONENTS["cluster-bounds.ts"]).toMatch(/"--session-hue": hue/);
     expect(COMPONENTS["AgentNode.tsx"]).toMatch(/"--session-hue": hue/);
     expect(COMPONENTS["canvas-flow.ts"]).toMatch(/"--session-hue": hue/);
     // App's --mcp-hue was the topbar legend's dot until that row was removed;

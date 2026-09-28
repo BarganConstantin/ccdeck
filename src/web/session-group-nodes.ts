@@ -10,7 +10,7 @@ import type { Node } from "reactflow";
 import { SESSION_GROUP_TYPE } from "./minimap";
 import type { AgentNodeData } from "./types";
 
-// Padding of the invisible session drag-handle node. Matches SessionClusters'
+// Padding of the invisible session drag-handle node. Matches cluster-bounds.ts'
 // PAD so the handle lines up with the card's body (the card's header strip is
 // left uncovered so its label stays clickable).
 export const GROUP_PAD = 18;

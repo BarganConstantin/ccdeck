@@ -38,7 +38,8 @@
 // There is no jsdom here and no layout engine, so none of the pixel numbers
 // above can be re-measured. What this file does instead is pin the two SOURCES
 // that produced them: the stylesheet rules, and the geometry the component
-// writes into the inline style. Both are read with a parser of this file's own —
+// writes into the inline style — the camera it builds itself, and the box and
+// the label it asks cluster-bounds.ts for. Both are read with a parser of this file's own —
 // borrowing another suite's collector would go green the moment that one was
 // loosened.
 import { describe, it, expect } from "vitest";
@@ -51,6 +52,9 @@ const read = (name: string) => readFileSync(join(web, name), "utf8");
 
 const rawCss = read("styles.css");
 const rawTsx = read("components/SessionClusters.tsx");
+/** Where the box's and the label's inline styles are built since they left the
+ *  component's render. */
+const rawGeometry = read("cluster-bounds.ts");
 
 /** Comments in both files quote the declarations they explain — this one quotes
  *  `c.x * zoom + x` and `.cluster-card.dragging` while explaining why neither is
@@ -60,10 +64,13 @@ const rawTsx = read("components/SessionClusters.tsx");
 const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
 const lineOf = (at: number) => css.slice(0, at).split("\n").length;
 
-/** Every comment in the component is a full-line `//` or a `/* *\/` block. */
-const tsx = rawTsx
+/** Every comment in the component is a full-line `//` or a `/* *\/` block —
+ *  and in cluster-bounds.ts too, whose notes quote `c.x * zoom + x` as well. */
+const uncomment = (src: string) => src
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+const tsx = uncomment(rawTsx);
+const geometry = uncomment(rawGeometry);
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────
 
@@ -234,8 +241,23 @@ const prop = (object: string, key: string): string | null => {
   return rest.trim();
 };
 
-const boxStyle = () => styleObject("boxStyle");
-const labelStyle = () => styleObject("labelStyle");
+/** The body of the style literal a cluster-bounds.ts builder returns — the same
+ *  brace-depth scan as styleObject, started at the builder's `return {`. Empty
+ *  for a builder that is not there, for the same reason styleObject is. */
+const returnedStyle = (fn: string): string => {
+  const open = new RegExp(`export function ${fn}\\([^)]*\\): React\\.CSSProperties \\{\\s*return \\{`).exec(geometry);
+  if (!open) return "";
+  const from = open.index + open[0].length - 1;
+  let depth = 0;
+  for (let i = from; i < geometry.length; i++) {
+    if (geometry[i] === "{") depth++;
+    else if (geometry[i] === "}" && --depth === 0) return geometry.slice(from + 1, i).replace(/\s+/g, " ").trim();
+  }
+  throw new Error(`unbalanced braces in ${fn}`);
+};
+
+const boxStyle = () => returnedStyle("clusterBoxStyle");
+const labelStyle = () => returnedStyle("clusterLabelStyle");
 const cameraStyle = () => styleObject("cameraStyle");
 
 // ── the camera ──────────────────────────────────────────────────────────────
@@ -301,6 +323,14 @@ describe("the eased geometry carries layout coordinates, not screen ones", () =>
       expect(value.split(/[^\w.]+/), css).not.toContain("x");
       expect(value.split(/[^\w.]+/), css).not.toContain("y");
     }
+  });
+
+  it("is what the component puts on the box and the label", () => {
+    // The two literals above are built in cluster-bounds.ts; this is the wire
+    // that makes them the ones on screen. The box is handed no zoom at all, so
+    // the camera cannot reach it through this call either.
+    expect(tsx).toContain("const boxStyle = clusterBoxStyle(c, hue);");
+    expect(tsx).toContain("const labelStyle = clusterLabelStyle(c, zoom, hue);");
   });
 
   it("keeps the label in the same space, so the two cannot disagree", () => {

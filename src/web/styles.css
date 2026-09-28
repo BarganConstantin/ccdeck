@@ -5067,7 +5067,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    than a kebab slug. #520 justified the face by the slug it drew, which was
    already only half true — five of the ten distinct agent-names on this machine
    are sentences too. The reason that survives is the column: NAME_COLUMNS in
-   SessionClusters.tsx is 32 because 210px of text at this size is 31.7 monospace
+   cluster-header.ts is 32 because 210px of text at this size is 31.7 monospace
    columns, and that is what lets the cluster header promise never to show more
    of the field than this row does. A proportional face makes that promise
    unmeasurable, for a legibility gain a 240px card at 11px will not show. */

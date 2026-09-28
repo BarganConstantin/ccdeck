@@ -13,7 +13,7 @@ export const NODE_H = 130;
 
 // Chrome drawn around a session beyond its cards: outer padding on both sides,
 // the label header, and the label tab that sits above the box's top edge
-// (PAD 18, HEADER_H 26, LABEL_LIFT 12 in SessionClusters.tsx).
+// (PAD 18, HEADER_H 26, LABEL_LIFT 12 in cluster-bounds.ts).
 export const SESSION_CHROME = 18 * 2 + 26 + 12;
 
 // Clear space wanted between one session's box and the next one's label tab.

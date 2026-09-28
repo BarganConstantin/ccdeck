@@ -12,7 +12,7 @@
 // grew to 110, so the 72px of designed breathing room read as half that.
 import { describe, it, expect } from "vitest";
 import type { Node } from "reactflow";
-import { clusterBounds, type ClusterNode } from "../components/SessionClusters";
+import { clusterBounds, type ClusterNode } from "../cluster-bounds";
 import { sessionGroupNodes } from "../session-group-nodes";
 import type { AgentNodeData } from "../types";
 
@@ -96,5 +96,60 @@ describe("cluster bounds ignore the per-session drag handle", () => {
     expect(boxes.map(c => c.sessionId)).toEqual(["s1", "s2"]);
     expect(boxes[0].y + boxes[0].h).toBe(H + PAD);
     expect(boxes[1].y).toBe(900 - PAD - HEADER_H);
+  });
+});
+
+// Only a session's root speaks for its header: the workspace label, the name,
+// whether it is stopped on a human and what its subagents add up to. A
+// subagent carries the same sessionId, so whichever card the store happens to
+// hand over first must not decide any of the four.
+describe("the header fields come from the session's root and nowhere else", () => {
+  const WAITING = { kind: "permission", message: "Run tests?", since: 1 } as const;
+  const BRANCH = { total: 3, live: 2, done: 1, err: 0, failed: 0 };
+
+  function node(sessionId: string, data: Partial<AgentNodeData> & Record<string, unknown>): ClusterNode {
+    return {
+      type: "agent",
+      position: { x: 0, y: 0 },
+      width: W,
+      height: H,
+      data: { sessionId, state: "active", ...data } as AgentNodeData,
+    };
+  }
+
+  const root = node("s1", { kind: "root", label: "vcrm-core", sessionName: "oauth-flow", waiting: WAITING, branch: BRANCH });
+  const sub = node("s1", { kind: "subagent", label: "Explore", sessionName: "not-the-session", waiting: WAITING, branch: BRANCH });
+
+  it("takes all four from the root whichever card arrives first", () => {
+    for (const order of [[root, sub], [sub, root]]) {
+      const [c] = clusterBounds(order);
+      expect(c.label).toBe("vcrm-core");
+      expect(c.name).toBe("oauth-flow");
+      expect(c.alarm).toBe(true);
+      expect(c.branch).toBe("→ 3 · 2 live");
+    }
+  });
+
+  it("lets a root that is not stopped clear an alarm a subagent would have raised", () => {
+    const calm = node("s1", { kind: "root", label: "vcrm-core" });
+    for (const order of [[calm, sub], [sub, calm]]) {
+      const [c] = clusterBounds(order);
+      expect(c.alarm).toBeUndefined();
+      expect(c.branch).toBeUndefined();
+      expect(c.name).toBeUndefined();
+    }
+  });
+
+  it("falls back to the session id, with nothing else, while only subagents are on the canvas", () => {
+    const [c] = clusterBounds([sub]);
+    expect(c.label).toBe("s1");
+    expect(c.name).toBeUndefined();
+    expect(c.alarm).toBeUndefined();
+    expect(c.branch).toBeUndefined();
+  });
+
+  it("keeps the label it has when a later root card carries none", () => {
+    const unlabelled = node("s1", { kind: "root" });
+    expect(clusterBounds([root, unlabelled])[0].label).toBe("vcrm-core");
   });
 });
