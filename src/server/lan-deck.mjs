@@ -12,8 +12,8 @@
 // Still built at import, and at the same moment: index.mjs imports this
 // statically, and neither the engine nor the tailnet reader opens anything
 // until applyLanPrefs says so — which startServer does only from a listen that
-// succeeded. The routes that drive the engine stay in index.mjs and import it
-// from here, as do the settings route and startServer, for applyLanPrefs,
+// succeeded. The panel's routes, in lan-routes.mjs, drive the engine from
+// here; the settings route and startServer, in index.mjs, import applyLanPrefs,
 // forgetReach and resetLanLoaded.
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";

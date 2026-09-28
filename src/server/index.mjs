@@ -42,15 +42,16 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, withAlias, withManualEntry } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, publicPrefs } from "./deck-prefs.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 // This deck's LAN engine, what the settings may tell it, and the probe that
-// asks whether other decks can reach it — see lan-deck.mjs. The routes below
-// drive the engine; the settings route and startServer apply the prefs to it.
-import { applyLanPrefs, forgetReach, lanEngine, lastReach, refreshReach, resetLanLoaded, tailnet } from "./lan-deck.mjs";
-import { IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
+// asks whether other decks can reach it — see lan-deck.mjs. The settings route
+// and startServer apply the prefs to it.
+import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
+// The Local network panel's four routes — see lan-routes.mjs.
+import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
@@ -3522,134 +3523,6 @@ async function handlePresence(req, res) {
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
   const ok = presence.report(body.tab, body.looking === true, Date.now());
   return send(res, ok ? 200 : 400, { ok });
-}
-
-/** What the panel draws: the switch, this deck's own name and address, and who
- *  else is in the group. No passphrase, for the reason prefsPayload gives. */
-function handleLanStatus(req, res) {
-  refreshReach();
-  // Behind the answer, like the reach probe: the dialog's poll is what finds a
-  // Tailscale somebody installed while the deck was running.
-  if (lanEnabled(heldPrefs.current())) void tailnet.freshen(TAILNET_IDLE_MS);
-  return send(res, 200, { ok: true, ...lanEngine.status(), reach: lastReach() });
-}
-
-/**
- * Accept a deck, dismiss a request, or unpair one.
- *
- * ONE ROUTE, THREE VERBS, in the shape the accounts panel already uses for its
- * own multi-verb writes. Each one takes a fingerprint and nothing else: the key
- * being pinned comes from what this deck actually saw on the wire, never from
- * the page, so a page cannot pair this deck with a key nobody has met.
- */
-/**
- * Make an invite, put one away, or join on somebody else's.
- *
- * The token is the secret and it is never stored: minted on request, held in
- * memory until it expires or is used, and gone with the process. Nothing about
- * it reaches prefs.json, so a deck that restarts is offering nothing rather
- * than offering something its owner has forgotten they sent.
- */
-async function handleLanInvite(req, res) {
-  const raw = await readBody(req, res).catch(() => null);
-  let body = null;
-  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
-  switch (body?.action) {
-    case "make": {
-      const made = lanEngine.invite();
-      if (!made) return send(res, 409, { ok: false, reason: "not_running" });
-      // AFTER the spread, not before: status carries its own `invite` — the
-      // token and its expiry, which is all a panel needs — and letting that
-      // overwrite this one dropped the address list the caller asked for.
-      return send(res, 200, { ok: true, ...lanEngine.status(), invite: made });
-    }
-    case "withdraw":
-      lanEngine.withdraw();
-      return send(res, 200, { ok: true, ...lanEngine.status() });
-    case "join": {
-      const out = await lanEngine.join(body.token);
-      if (!out.ok) return send(res, 200, { ok: false, ...out, ...lanEngine.status() });
-      return send(res, 200, { ok: true, ...out, ...lanEngine.status() });
-    }
-    default:
-      return send(res, 400, { ok: false, reason: "unknown_action" });
-  }
-}
-
-async function handleLanPeer(req, res) {
-  const raw = await readBody(req, res).catch(() => null);
-  let body = null;
-  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
-  const fp = body && typeof body.fp === "string" ? body.fp : null;
-  if (!fp) return send(res, 400, { ok: false, reason: "bad_request" });
-  switch (body.action) {
-    case "accept": {
-      const added = lanEngine.accept(fp);
-      if (!added) return send(res, 409, { ok: false, reason: "not_seen" });
-      // A deck we only HEARD is not pinned, it is dialled — see accept. The
-      // address has to reach prefs or the next write of the settings wipes it:
-      // setPeers replaces the dial list wholesale, on purpose, so an address
-      // that lives only in memory disappears the first time anything else is
-      // saved.
-      if (added.dialled) {
-        const entry = `${added.addr}:${added.port}`;
-        // Inside the job, like `onDial` — the same whole-array patch computed
-        // from the same stale copy, and the same address lost when two of them
-        // land in one turn.
-        try { await heldPrefs.update(withManualEntry(entry)); }
-        catch { /* it is dialled this session; the next accept re-adds it */ }
-      }
-      return send(res, 200, { ok: true, added, ...lanEngine.status() });
-    }
-    case "dismiss":
-      return send(res, 200, { ok: lanEngine.dismiss(fp), ...lanEngine.status() });
-    // The undo for the one above. A deck that was told no stops asking; this is
-    // how somebody who changed their mind lets it ask again.
-    case "allow":
-      return send(res, 200, { ok: lanEngine.allow(fp), ...lanEngine.status() });
-    case "unpair":
-      return send(res, 200, { ok: lanEngine.unpair(fp), ...lanEngine.status() });
-    // WHAT THIS DECK CALLS THAT ONE, and nobody else sees it. Keyed by the
-    // fingerprint, so it follows the machine across a new address or a new
-    // name of its own choosing. An empty name takes the alias away.
-    //
-    // The whole map is rebuilt from the one on disk rather than sent by the
-    // page, so two tabs renaming two decks cannot undo each other. It is
-    // rebuilt inside the write's own job for that to be true: the held prefs
-    // are an in-memory copy refreshed only when a previous write resolves, and
-    // the patch is the whole map — so two renames in one turn both read before
-    // either job ran, both answered 200, and the first name was never written.
-    case "alias": {
-      if (!isAliasKey(fp)) return send(res, 400, { ok: false, reason: "bad_request" });
-      const name = cleanAlias(body.name);
-      const next = await heldPrefs.update(withAlias(fp, name));
-      await lanEngine.apply({ aliases: next.lan.aliases });
-      return send(res, 200, { ok: true, ...lanEngine.status() });
-    }
-    default:
-      return send(res, 400, { ok: false, reason: "unknown_action" });
-  }
-}
-
-/** Ask every peer now rather than at the next tick — the button beside the
- *  list, for somebody who has just fixed a login on the other machine and does
- *  not want to wait a minute to see it arrive.
- *
- *  Or ONE peer, when the body names it: the `check now` in a deck's own
- *  dialog. A deck that only calls in has no address here, and says so rather
- *  than reporting a round that asked nobody. */
-async function handleLanSync(req, res) {
-  const raw = await readBody(req, res).catch(() => null);
-  let body = null;
-  try { body = JSON.parse(raw ?? ""); } catch { /* the whole-list press sends nothing to read */ }
-  const fp = body && typeof body.fp === "string" ? body.fp : null;
-  if (fp) {
-    const done = await lanEngine.roundOne(fp);
-    if (done == null) return send(res, 409, { ok: false, reason: "no_address" });
-    return send(res, 200, { ok: true, done, ...lanEngine.status() });
-  }
-  const done = await lanEngine.round();
-  return send(res, 200, { ok: true, done, ...lanEngine.status() });
 }
 
 function pushEvent(raw, source, opts = {}) {
