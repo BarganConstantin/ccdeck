@@ -49,6 +49,7 @@ import { useAgentFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
+import { useAutoFit } from "./use-auto-fit";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
@@ -113,7 +114,6 @@ import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
-import { shouldRefit, type NodeBox } from "./drift";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
@@ -158,7 +158,6 @@ const FOCUS_CANDIDATES = [
   "summary",
   "[tabindex]",
 ].join(",");
-
 
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
@@ -505,20 +504,9 @@ function Inner() {
    *  storage are only pruned against the agents once all of them are back. */
   const historyReplayed = liveSince !== null;
 
-
-  // The auto-fit's trailing timer (see effect after layoutSig is computed below).
-  const fitTimerRef = useRef<number | null>(null);
-
-  const lastLayoutSigForFitRef = useRef("");
   // Debounce timer for persisting the viewport on pan/zoom.
   const vpSaveTimerRef = useRef<number | null>(null);
 
-  // Auto-recover from "drifted off-screen": every 1.5s check whether ANY
-  // agent's bounding box intersects the visible viewport. If none have at
-  // all, fit-view immediately. Skipped only when the user is actively
-  // interacting (pan/zoom/drag in the last 800ms) so we don't yank the view
-  // mid-gesture. This is the failsafe that recovers from layout reflows
-  // when a new session arrives and dagre shifts everything off-screen.
   const lastInteractRef = useRef(0);
   const markInteract = useCallback(() => { lastInteractRef.current = Date.now(); }, []);
   // How big the canvas is, measured once by one observer and kept two ways:
@@ -545,45 +533,6 @@ function Inner() {
     lastCanvasInputAt: lastCanvasInputRef.current,
   }), []);
   const { autoFitDisabled, autoFitDisabledRef, disableAutoFit, enableAutoFitAndRefit } = useAutoFitSwitch(fitLeft);
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (autoFitDisabledRef.current) return;
-      if (Date.now() - lastInteractRef.current < 800) return;
-      const state = stateRef.current;
-      const t = Date.now();
-      const liveAgents: { id: string }[] = [];
-      for (const a of state.agents.values()) {
-        // Mirror isAgentVisible — was inline `exitAt + EXIT_ANIM_MS` only,
-        // which skipped the ghost-session filter and disagreed with the node
-        // renderer when stale-exitAt replays excluded subagents that the
-        // canvas was still showing. Use the single source of truth.
-        if (!isAgentVisible(a, t)) continue;
-        liveAgents.push({ id: a.id });
-      }
-      if (liveAgents.length === 0) return;
-      const boxes: NodeBox[] = [];
-      for (const { id } of liveAgents) {
-        const size = measuredRef.current.get(id);
-        const pos = pinnedRef.current.get(id) ?? positionsRef.current.get(id);
-        // An agent with no measurement or no position is not evidence either
-        // way, so it is left out rather than counted as off-screen.
-        if (!size || !pos) continue;
-        boxes.push({ x: pos.x, y: pos.y, width: size.width, height: size.height });
-      }
-      // The decision itself lives in drift.ts, against the pane the deck
-      // measured rather than a rectangle guessed from the window. `getViewport`
-      // returns the pane's transform, so a node projected through it is in
-      // pane-relative pixels — and the only rectangle in the same coordinate
-      // space is the pane's own size. It used to be tested against
-      // `innerWidth - 360`, which is the window minus a detail panel assumed
-      // always open: right in one of the six layouts `.app` grids itself into,
-      // wrong in the five others including the one the deck starts in (#615).
-      if (shouldRefit({ pane: paneSizeRef.current, viewport: rf.getViewport(), boxes })) {
-        fitLeft(600);
-      }
-    }, 1500);
-    return () => clearInterval(id);
-  }, [rf]);
 
   // True for the length of a drag gesture. A ref as well as state: the
   // measurement effect below reads it without wanting to re-run when it
@@ -628,28 +577,13 @@ function Inner() {
     return () => { if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current); };
   }, [layoutSig]);
 
-  // Auto-fit on layout-signature changes — the single source of truth for
-  // structural shifts: agent added/removed, parent relationship changed, or
-  // a measurement that moved a node. Catches the "14 agents in state but
-  // none visible" case where count is stable but the layout reflowed.
-  // Suspended entirely when the user has taken manual control of the
-  // viewport (see autoFitDisabledRef + recenter button in Controls).
-  useEffect(() => {
-    if (lastLayoutSigForFitRef.current === layoutSig) return;
-    const prev = lastLayoutSigForFitRef.current;
-    lastLayoutSigForFitRef.current = layoutSig;
-    if (!prev) return; // first render — let initial fitView prop handle it
-    if (autoFitDisabledRef.current) return;
-    const tnow = Date.now();
-    if (tnow - lastFitTimeRef.current > 1200) {
-      fitLeft(400);
-    }
-    if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
-    fitTimerRef.current = window.setTimeout(() => {
-      if (autoFitDisabledRef.current) return;
-      fitLeft(500);
-    }, 280);
-  }, [layoutSig, rf, fitLeft]);
+  // The two things that bring the board back into view on their own — a
+  // layout that changed shape, and a board that drifted off the pane — both
+  // stand down while the user has the wheel: use-auto-fit.ts.
+  useAutoFit({
+    layoutSig, rf, stateRef, measuredRef, pinnedRef, positionsRef, paneSizeRef, lastInteractRef,
+    autoFitDisabledRef, lastFitTimeRef, fitLeft,
+  });
 
   // Union spotlight set — lineage of every selected agent merged. Multi-
   // select widens the spotlight without losing the "follow the chain"
@@ -955,7 +889,6 @@ function Inner() {
     canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
   });
-
 
   // What the peek reads, made once — use-peek-readers.ts.
   const { peekAgent, peekLabel, peekRecap, peekBounds } = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
