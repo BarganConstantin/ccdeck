@@ -236,7 +236,9 @@ export function heardCurrent(raw, list) {
  */
 export const SENDER_UNREADABLE = "keychain_unavailable";
 
-/** Every reason `serve` answers a `want` with. */
+/** The reasons `serve` gives for a login it will not send. Its other answer to
+ *  a `want`, "not paired", is not in the set, so a deck that gets it records
+ *  "refused". */
 const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]);
 
 /**

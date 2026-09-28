@@ -151,7 +151,7 @@ export { asksOn, saysYesOn };
 function askOver(conn, frame) {
   // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
   //
-  // lan-socket.mjs states the rule, on frameReader and MAX_FRAME_BYTES: "a
+  // lan-lines.mjs states the rule, on frameReader and MAX_FRAME_BYTES: "a
   // peer that sends a megabyte with no newline in it is not sending a large
   // frame, it is sending nothing at all, expensively... the buffer is
   // ABANDONED rather than grown past it." frameReader enforces it; this
@@ -245,13 +245,13 @@ export function createEngine({
    *  paired deck and to nobody else. See lan-about.mjs. */
   about = null,
   /** Whether this deck seals every frame after the handshake with a deck that
-   *  says it does too — see frameChannel in lan-sync.mjs. Nothing in the deck
+   *  says it does too — see frameChannel in lan-wire.mjs. Nothing in the deck
    *  turns it off; the suite does, to play a deck from before #810, which is
    *  the only way to show that one still heals. */
   sealFrames = true,
   /** Whether this deck mixes a key pair made for each connection into that
    *  connection's key, with a deck that says it does too — see sessionKey in
-   *  lan-sync.mjs. Nothing in the deck turns this off either; the suite does,
+   *  lan-wire.mjs. Nothing in the deck turns this off either; the suite does,
    *  to play a deck of #810's version, which seals and does not mix. It rides
    *  on `sealFrames`: with that off, this deck says neither. */
   ephemeral = true,

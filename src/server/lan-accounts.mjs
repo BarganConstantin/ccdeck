@@ -7,7 +7,7 @@ import { accountKey, SENDER_UNREADABLE } from "./lan-sync.mjs";
 import { storedCopyAlive, cachedExportReadable } from "./account-health.mjs";
 
 /** Every account in `got` — what the deck's account reader returns, or
- *  nothing — as the rules in lan-sync.mjs read one. */
+ *  nothing — as the rules in lan-copies.mjs read one. */
 export function syncAccounts(got) {
   return (got?.accounts ?? []).map(a => ({
     key: accountKey(a.email, a.orgUuid),
