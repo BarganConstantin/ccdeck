@@ -477,6 +477,16 @@
   --pulse-live: 1.2s ease-in-out;
 }
 
+/* THE MONO STACK, written once. Every value on this deck — a number, an id, a
+   path, a token count, a model name, a dollar figure — is set in it, sixty-two
+   declarations, and it was sixty-two copies of the same literal: a stack is
+   a list of fallbacks, and the day it needs one more name that is sixty-two
+   edits or sixty-two chances to miss one (#1286). In neither theme, because a
+   font is the same on white as it is on black. */
+:root {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 * { box-sizing: border-box; }
 
 html, body, #root {
@@ -1107,7 +1117,7 @@ button:focus-visible { outline-offset: 1px; }
 /* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
    where the panels put a caption's one piece of metadata. */
 .appearance-key {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   line-height: 12px;
@@ -1979,7 +1989,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 /* The shortcuts sheet's cap, without the 38px column width that sheet's grid
    needs — inline in a sentence, a letter box that wide reads as a button. */
 .sm-foot kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   color: var(--text);
@@ -2058,7 +2068,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .selected-ribbon .selected-cost {
   color: var(--ok);
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -2072,7 +2082,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   color: var(--text);
   font-size: 10px;
   font-weight: 600;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 /* 24 x 24 of target around an 18px glyph (#509).
    It measured 18 x 18, under the floor SC 2.5.8 sets and this sheet argues for
@@ -3442,7 +3452,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .ver-banner .ver-cmd:hover { border-color: var(--text); background: var(--panel); }
 .ver-banner .ver-cmd:active { transform: scale(0.97); }
 .ver-banner .ver-cmd code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   /* Stated, not assumed: if the copy button ever fails, selecting this by hand
      is the fallback, and it must survive any future user-select:none above. */
@@ -3818,7 +3828,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   color: var(--text-secondary);
   font: inherit;
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: background 120ms, color 120ms,
@@ -3947,7 +3957,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .detail .row .k { color: var(--muted); }
 .detail .row .v {
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3955,7 +3965,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   white-space: nowrap;
 }
 .detail .tool {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   padding: 5px 0;
   color: var(--text);
@@ -4395,7 +4405,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
 /* The title in the voice the card's own session-name row uses for it. */
 .lod-title {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--text);
 }
 .lod-signal { color: var(--muted); }
@@ -4578,7 +4588,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .ctx-window-meta {
   display: flex; justify-content: space-between;
   font-size: 11px; margin-top: 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--muted);
 }
 .ctx-window-pct { color: var(--text); font-weight: 600; }
@@ -4605,7 +4615,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .ctx-row.accent .ctx-row-val { color: var(--accent); font-weight: 600; }
 .ctx-row-label { color: var(--muted); }
 .ctx-row-val {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .ctx-empty {
@@ -4636,7 +4646,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    truncatePathStart() instead; the ellipsis here is only the backstop for a
    modal narrower than the character budget. */
 .ctx-md-path {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4663,7 +4673,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .state-pill {
@@ -4943,7 +4953,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   color: var(--muted);
   font-size: 11px;
   margin-top: 3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4972,7 +4982,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .agent-node .session-name {
   margin-top: 4px;
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -5038,7 +5048,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .tool-spark-label {
   color: var(--muted);
   font-size: 9px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -5131,7 +5141,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 .tokens-grid > div {
@@ -5171,7 +5181,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   color: var(--accent);
   background: var(--bg-soft);
   font-size: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 
@@ -5187,7 +5197,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   color: var(--text);
   background: var(--bg-soft);
   font-size: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -5214,7 +5224,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 
 /* React Flow edge label background — match theme */
 .react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }
-.react-flow__edge-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; fill: var(--text); }
+.react-flow__edge-text { font-family: var(--font-mono); font-size: 10px; fill: var(--text); }
 
 /* ---------------- session clusters ---------------- */
 
@@ -5310,7 +5320,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    pressing it, which is true of every button here whether or not anything
    drags. */
 .cluster-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -5523,7 +5533,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   background: var(--panel);
   border: 1px solid var(--line);
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
   white-space: nowrap;
   color: var(--text);
@@ -5991,7 +6001,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .session-list .sl-live-count {
   font-size: 10px;
@@ -6207,7 +6217,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   gap: 8px;
   font-size: 11px;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .session-list .sl-row-meta b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .session-list .sl-cost b { color: var(--ok); }
@@ -6292,7 +6302,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   gap: 8px;
   font-size: 11px;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   flex-wrap: wrap;
 }
 .detail-hero .hero-meta-item { letter-spacing: 0.03em; }
@@ -6424,7 +6434,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 /* Activity row — counters on the left, category chips on the right */
@@ -6459,7 +6469,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   border: 1px solid var(--line);
   background: var(--bg-soft);
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .cat-chip .cat-emoji { font-size: 12px; line-height: 1; }
 .cat-chip .cat-count { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -6526,7 +6536,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .prompt-time {
   color: var(--muted);
   font-size: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   margin-bottom: 4px;
@@ -6603,7 +6613,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 }
 .shortcuts .sc { display: contents; }
 .shortcuts .sc kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   color: var(--text);
@@ -6686,12 +6696,12 @@ button.tool.clickable:last-child { border-bottom: none; }
 .modal-tool-name {
   font-weight: 600;
   font-size: 14px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .modal-tool-id {
   color: var(--muted);
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .modal-actions {
   display: flex;
@@ -6701,7 +6711,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .modal-dur {
   color: var(--muted);
   font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .modal-body {
@@ -6750,7 +6760,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -6776,7 +6786,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .tm-label { display: block; margin: 0 0 3px; font-size: 10px; color: var(--muted); }
 .tm-inline { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12px; color: var(--text); }
 .tm-inline .tm-label { display: inline; margin: 0; flex: none; }
-.tm-inline code { min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.tm-inline code { min-width: 0; font-family: var(--font-mono); word-break: break-all; }
 .tm-del { color: var(--err); }
 .tm-add { color: var(--ok); }
 .tm-ctx { color: var(--muted); }
@@ -6874,7 +6884,7 @@ button.tool.clickable:last-child { border-bottom: none; }
    version chip it echoes in the topbar is set the same way. */
 .release-notes .rn-version {
   margin: 0 0 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -6952,7 +6962,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   color: var(--text);
   padding: 0 3px;
   border-radius: 3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   white-space: pre-wrap;
 }
@@ -6994,7 +7004,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   gap: 6px 16px;
   font-size: 11px;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .session-summary .ssl { display: inline-flex; align-items: baseline; gap: 5px; }
 .session-summary .ssl b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -7058,7 +7068,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   align-items: center;
 }
 .session-summary .ss-tt-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text);
   white-space: nowrap;
@@ -7335,7 +7345,7 @@ button.tool.clickable:last-child { border-bottom: none; }
    sat in made it the one boxed thing in the header. */
 .up-rate {
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
@@ -7527,7 +7537,7 @@ button.tool.clickable:last-child { border-bottom: none; }
    better one the first segment is shown, and it is marked as the machine
    string it is rather than dressed up as a project name. */
 .up-session-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--text-dim);
 }
 
@@ -7541,7 +7551,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-size: 26px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--ok);
   line-height: 1;
 }
@@ -7587,7 +7597,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   gap: 5px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 /* 11px, the usage panel's floor for content (#858): this is a monitor read all
    day, and --muted, not a smaller size, is what makes a key secondary. */
@@ -7728,7 +7738,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .up-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--muted);
   font-size: 11px;
 }
@@ -7764,13 +7774,13 @@ button.tool.clickable:last-child { border-bottom: none; }
 }
 .up-session-tokens {
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--muted);
 }
 .up-session-cost {
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--ok);
   min-width: 36px;
@@ -7830,7 +7840,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .qb-label { color: var(--muted); }
 .qb-pct {
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
 }
@@ -8014,11 +8024,11 @@ button.qb-pace::after {
 }
 .uh-titlewrap { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
 .uh-title { font-size: 14px; font-weight: 600; }
-.uh-sub { font-size: 10px; color: var(--text-dim); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.uh-sub { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
 .uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .uh-range-btn {
   font: inherit; font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   padding: 2px 10px; border: none; border-radius: 999px;
   color: var(--muted); background: transparent; cursor: pointer;
   transition: background 120ms, color 120ms,
@@ -8307,7 +8317,7 @@ button.qb-pace::after {
 .uh-bar-label {
   position: absolute; bottom: -15px;
   font-size: 9px; color: var(--text-dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   white-space: nowrap; transform: rotate(0deg);
   overflow: hidden; max-width: 100%; text-overflow: ellipsis;
 }
@@ -8334,7 +8344,7 @@ button.qb-pace::after {
 .uh-detail-agents {
   margin-left: auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 10px; color: var(--text-dim); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);
 }
 .uh-detail-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
 .uh-ministat { display: flex; flex-direction: column; gap: 1px; }
@@ -8884,7 +8894,7 @@ button.qb-pace::after {
   border-radius: 6px;
   background: color-mix(in srgb, var(--accent) 7%, transparent);
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -9307,7 +9317,7 @@ button.qb-pace::after {
 }
 .node-peek-time {
   flex: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -9740,7 +9750,7 @@ button.qb-pace::after {
   padding: 8px 8px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--text) 6%, transparent);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1.5;
   color: var(--text);
@@ -9798,7 +9808,7 @@ button.qb-pace::after {
 .ap-lan-ask-acts { display: flex; gap: 6px; }
 
 .ap-lan-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text);
   user-select: all;
@@ -9860,7 +9870,7 @@ button.qb-pace::after {
   color: var(--accent);
 }
 .ap-auto-note code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   color: var(--text);
   white-space: nowrap;   /* "cswap auto" is one name; never break it in half */
@@ -10434,7 +10444,7 @@ button.qb-pace::after {
   border-radius: 6px;
   background: var(--bg-soft);
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   line-height: 1.4;
   user-select: all;
@@ -10503,7 +10513,7 @@ button.qb-pace::after {
   border-radius: 8px;
   background: var(--ctl-fill);
   color: var(--accent);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
   text-decoration: none;
@@ -10523,7 +10533,7 @@ button.qb-pace::after {
   color: var(--text);
   font: inherit;
   font-size: 13px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .aa-field input::placeholder { color: var(--text-dim); }
 .aa-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -11251,7 +11261,7 @@ button.qb-pace::after {
   to { background: transparent; }
 }
 .bw-log-time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -11263,7 +11273,7 @@ button.qb-pace::after {
    heads, the counts' captions and the status bar are the panel's voice and
    inherit the deck's sans. */
 .bw-log-line {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1.6;
   color: var(--muted);
@@ -13010,7 +13020,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-fact-raw {
   display: block;
   margin-top: 2px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   color: var(--muted);
 }
@@ -13482,7 +13492,7 @@ input, textarea { caret-color: var(--accent); }
 .ga-cap { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
 .ga-big { font-size: 26px; font-weight: 600; fill: var(--text); }
 .ga-strong { font-weight: 600; }
-.ga-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ga-mono { font-family: var(--font-mono); }
 /* The four states, after the text rules so a coloured line wins the tie. */
 .ga-ok { fill: var(--ok); }
 .ga-warn { fill: var(--warn); }
