@@ -10,15 +10,17 @@
 // Activity Monitor, which is the one outcome this readout exists to prevent.
 import { describe, expect, it } from "vitest";
 import {
-  availableFromMeminfo,
-  availableFromVmStat,
   startSystemMetrics,
   stopSystemMetrics,
+  systemSnapshot,
+} from "../../server/system-metrics.mjs";
+import {
+  availableFromMeminfo,
+  availableFromVmStat,
   swapFromMeminfo,
   swapFromSysctl,
   swapFromWmicJson,
-  systemSnapshot,
-} from "../../server/system-metrics.mjs";
+} from "../../server/memory-metrics.mjs";
 import {
   parsePsProcesses,
   psArgs,
