@@ -124,7 +124,7 @@ describe("the fit keeps room for the bubbles only where they are drawn", () => {
   });
 
   it("is what fitLeft frames with", () => {
-    expect(app).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));");
+    expect(read("../use-camera.ts")).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));");
   });
 });
 
@@ -347,8 +347,10 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("lets no fit's late correction undo a newer camera move", () => {
-    expect(app).toMatch(/const epoch = \+\+cameraEpochRef\.current;\s*applyViewport\(want, duration\);/);
-    expect(app).toMatch(/if \(cameraEpochRef\.current !== epoch\) return;/);
+    // fitLeft, and its trailing correction, are use-camera.ts's.
+    const camera = read("../use-camera.ts");
+    expect(camera).toMatch(/const epoch = \+\+cameraEpochRef\.current;\s*applyViewport\(want, duration\);/);
+    expect(camera).toMatch(/if \(cameraEpochRef\.current !== epoch\) return;/);
   });
 
   it("opens the peek only where the card cannot say it itself", () => {

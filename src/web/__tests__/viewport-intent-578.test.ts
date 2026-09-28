@@ -185,6 +185,11 @@ const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
+/** use-camera.ts the same way: fitLeft and the door it frames through. */
+const cameraCode = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+
 /** The opening tag of the canvas element, attributes and all. */
 const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(appCode)?.[0] ?? "";
 
@@ -255,7 +260,8 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // switches itself off the first time anyone clicks a session in the list.
     // A focus turns auto-fit off on purpose (see focusAgent); it still stamps,
     // so its move is never ALSO read as a drag.
-    const lines = appCode.split("\n");
+    // Both files that make fits: the focus in App.tsx, fitLeft in use-camera.ts.
+    const lines = (appCode + "\n" + cameraCode).split("\n");
     const calls = lines
       .map((line, i) => ({ line, i }))
       .filter(({ line }) => /\brf\.fitView\(|\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
@@ -281,7 +287,8 @@ describe("the fits the deck asks for stay marked as its own", () => {
   });
 
   it("stamps fitLeft, the fit every structural change runs", () => {
-    const fitLeft = appCode.slice(appCode.indexOf("const fitLeft = useCallback"));
+    const fitLeft = cameraCode.slice(cameraCode.indexOf("const fitLeft = useCallback"));
+    expect(fitLeft).not.toBe("");
     expect(fitLeft.slice(0, 3_000)).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
   });
 });

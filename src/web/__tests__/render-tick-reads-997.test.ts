@@ -194,7 +194,9 @@ describe("the rail inset is measured when something can have moved it", () => {
     // not per tick — and the effect above. A third call added to the render body
     // would reintroduce the document-wide query this removed, under another
     // name, and nothing else in the file would notice.
-    // Counted across both files, which between them are the whole of it.
-    expect([...(app + "\n" + frame).matchAll(/\brailCover\(/g)].length).toBe(3);
+    // Counted across the three files that hold them — App.tsx, the frame and
+    // the camera (where fitLeft went) — which between them are the whole of it.
+    const camera = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8");
+    expect([...(app + "\n" + frame + "\n" + camera).matchAll(/\brailCover\(/g)].length).toBe(3);
   });
 });
