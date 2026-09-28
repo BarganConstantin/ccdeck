@@ -47,7 +47,7 @@ export interface ModelRates {
 // the failure mode of a scheduled change nobody re-checked is silent.
 //
 // A constant again, and no clock. Should a real increase ever be announced, the
-// function above is in the history and the shape is still supported by
+// function this replaced is in the history and the shape is still supported by
 // `ratesForModel` — but a date that has passed is not a thing to keep guessing
 // at, and the introductory rate is now simply the rate.
 const SONNET_5: ModelRates =
@@ -90,7 +90,8 @@ const SONNET_5: ModelRates =
 // none of them is affected either way.
 //
 // `rates` is either a fixed table entry or a function of the current time, for
-// the handful of models whose published price changes on a known date.
+// a model whose published price changes on a known date. No row is a function
+// today — Sonnet 5's was, until its increase was cancelled (see SONNET_5).
 const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelRates) }> = [
   // Fable 5.1 / Mythos 5.1 — $10 / $50, and a cache read of $0.25.
   //
@@ -139,9 +140,9 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   { match: /^claude[-_]opus[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, cacheWrite1h: 10 } },
 
-  // Sonnet 5 — $3 / $15, or $2 / $10 until 2026-08-31 (see above). The version
-  // guard earns its keep twice here: an unrecognised Sonnet 5.1 would not just
-  // inherit a price it was never quoted, it would inherit an INTRODUCTORY one.
+  // Sonnet 5 — $2 / $10, the introductory rate that became the standard one
+  // (see SONNET_5 above). The version guard keeps an unrecognised Sonnet 5.1
+  // from inheriting a price it was never quoted.
   { match: /^claude[-_]sonnet[-_]5\b(?![-_.]\d{1,7}(?!\d))/i, rates: SONNET_5 },
 
   // Opus 4.5 - 4.8 — $5 / $25 (the "new" Opus tier introduced with 4.5)
@@ -538,8 +539,8 @@ export function cacheWriteBreakdown(usage: TokenUsage, rates: ModelRates): Cache
  *  the cache-write rate WITHOUT taking it off the input line would charge those
  *  tokens twice, at input + cache-write together. Subtracting it only when a
  *  non-zero cache-write rate exists is what keeps every token billed exactly
- *  once in both directions: gpt-5.6 charges its written tokens at $6.25/Mtok
- *  instead of $5, and every other Codex family — where a zero rate means
+ *  once in both directions: gpt-5.6 charges its written tokens at $5/Mtok
+ *  instead of $4, and every other Codex family — where a zero rate means
  *  "writes cost nothing extra", not "writes are free of the input charge" —
  *  leaves them on the input line where they were always billed correctly.
  *
