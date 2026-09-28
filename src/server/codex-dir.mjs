@@ -190,3 +190,26 @@ export function sidFromRolloutName(path) {
   const m = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(basename(String(path ?? "")));
   return m ? m[1] : null;
 }
+
+/**
+ * The id segment of a rollout's file name, or null for a name not built the way
+ * Codex builds one.
+ *
+ * Codex writes `rollout-<YYYY-MM-DDTHH-MM-SS>-<id>.jsonl`: a fixed-width
+ * timestamp, then the session's id, then the extension. So the id is exactly
+ * what lies between the timestamp's trailing `-` and `.jsonl`, and a session's
+ * rollout is the file whose segment EQUALS its id — the test findCodexRolloutPath
+ * in codex-enrichment.mjs finds a rollout by (#1653). It used to ask whether the
+ * name contained the id anywhere, which a prefix of another session's id, its
+ * last group or a piece of the timestamp all pass.
+ *
+ * Deliberately not sidFromRolloutName above, which answers a different
+ * question: what uuid a name ends in, for a watcher that has no other id to go
+ * on. This one is handed the id and asks only whether the name is built around
+ * it, so it asks nothing of the id's shape — the lookup never has — and for
+ * every name Codex writes the two agree.
+ */
+export function rolloutNameId(name) {
+  const m = /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$/.exec(String(name ?? ""));
+  return m ? m[1] : null;
+}

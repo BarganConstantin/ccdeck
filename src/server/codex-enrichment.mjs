@@ -12,7 +12,7 @@
 // bodies are unchanged.
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import { STOP, walkRolloutDays } from "./codex-dir.mjs";
+import { STOP, rolloutNameId, walkRolloutDays } from "./codex-dir.mjs";
 // The per-session model and approval policy the translation remembers, which
 // forgetCodexSession drops with the rest — see codex-translate.mjs.
 import { codexSessionApproval, codexSessionModel } from "./codex-translate.mjs";
@@ -27,8 +27,8 @@ import { sessionReadGate } from "./session-read-gate.mjs";
 
 // ─── Codex transcript enrichment ──────────────────────────────────────────
 // Codex CLI hook payloads carry `session_id` but no transcript path. Sessions
-// are persisted to ~/.codex/sessions/YYYY/MM/DD/rollout-<sid>.jsonl with one
-// JSON object per line: {type, payload}. Token usage shows up in
+// are persisted to ~/.codex/sessions/YYYY/MM/DD/rollout-<timestamp>-<sid>.jsonl
+// with one JSON object per line: {type, payload}. Token usage shows up in
 //   {type:"event_msg", payload:{type:"token_count",
 //     info:{total_token_usage:{input_tokens, cached_input_tokens,
 //                              output_tokens, reasoning_output_tokens,
@@ -131,16 +131,23 @@ async function findCodexRolloutPath(sid) {
   const missHolds = age >= 0 && age < CODEX_MISS_TTL_MS;
   const whole = !missHolds && !codexWholeTreeWalk;
   if (whole) codexWholeTreeWalk = true;
-  // Walk year → month → day → files, newest first. Codex includes the sid in the
-  // filename (rollout-...-<sid>.jsonl) so a directory-scoped match is enough.
+  // Walk year → month → day → files, newest first. Codex names the file for the
+  // sid (rollout-<timestamp>-<sid>.jsonl) so a directory-scoped match is enough.
   // The walk itself lives in codex-dir.mjs, shared with the watcher's listing
   // in codex-watch.mjs and with codex-usage.mjs, so all three read one tree the
   // same way.
+  //
+  // The name's WHOLE id segment, never a substring of the name (#1653).
+  // `includes` took the first file whose name contained the id anywhere, so an
+  // id shorter than a whole one — a prefix of another session's id, its last
+  // group, a piece of the timestamp — found that other session's rollout, and
+  // the hit below kept it: the short id's card showed another session's usage,
+  // model and window from then on. See rolloutNameId in codex-dir.mjs.
   let found = null;
   let dayDirs = 0;
   try {
     await walkRolloutDays((dayDir, files) => {
-      const hit = files.find(f => f.includes(sid) && f.endsWith(".jsonl"));
+      const hit = files.find(f => rolloutNameId(f) === sid);
       if (hit) {
         found = join(dayDir, hit);
         return STOP;
@@ -293,6 +300,8 @@ function forgetCodexSession(sid) {
 }
 
 // What event-pipeline.mjs and session-tracking.mjs call besides readCodexRollout
-// above. Listed rather than marked at each declaration, so the declarations read
-// as they did where they came from.
-export { forgetCodexSession, maybeResolveCodex };
+// above, and findCodexRolloutPath for the suite, which pins the id it matches
+// against file names without a server in front of it. Listed rather than marked
+// at each declaration, so the declarations read as they did where they came
+// from.
+export { findCodexRolloutPath, forgetCodexSession, maybeResolveCodex };
