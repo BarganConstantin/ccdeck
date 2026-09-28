@@ -101,15 +101,16 @@ describe("every class the markup hard-codes", () => {
     // It composed `ap-auto-state${…" live"}` and the banner `ver-auto${…" on"}`:
     // a class restating an ARIA state the sheet can read for itself. Both are
     // the one `.switch` now, and `ap-auto-state` is left saying where it sits.
-    const panel = readFileSync(join(web, "components/AccountsPanel.tsx"), "utf8");
-    expect(panel).toContain('className="switch ap-auto-state"');
+    // The switch is the policy row's, which is its own component now.
+    const policy = readFileSync(join(web, "components/AutoSwitchPolicy.tsx"), "utf8");
+    expect(policy).toContain('className="switch ap-auto-state"');
     expect(accountsSurface()).not.toMatch(/ap-auto-state\$\{/);
     expect(readFileSync(join(web, "App.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
   });
 
   it("is read from enough files, and enough of them, for the sweep to mean something", () => {
     expect(files.length).toBeGreaterThan(10);
-    expect(tokens.get("components/AccountsPanel.tsx")).toContain("ap-auto-state");
+    expect(tokens.get("components/AutoSwitchPolicy.tsx")).toContain("ap-auto-state");
     expect(tokens.get("components/AccountsPanel.tsx")).toContain("ap-refresh");
     expect(tokens.get("App.tsx")).toContain("topbar");
   });

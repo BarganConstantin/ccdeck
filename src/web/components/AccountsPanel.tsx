@@ -12,6 +12,7 @@ import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
+import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -38,7 +39,6 @@ import {
 import { shareExpiry } from "../share-bundle";
 import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
-import { thresholdChoices } from "../auto-switch-threshold";
 import { type Account, type AccountsData, type AutoStatus } from "../claude-accounts";
 
 /** What an account's ⋯ is showing. Rename and Move are forms; Share is its
@@ -652,74 +652,15 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    * disclosure is a control whose state has to be readable without opening it,
    * or the disclosure has hidden a fact rather than a form. See restLine.
    *
-   * ONE POLICY, ONE ROW: its name, where it trips, and whether it is armed. The
-   * live percentage it used to print beside the threshold is the active row's
-   * own number, one glance up, and the clock of its last check under a rule was
-   * diagnostics — the switch being on is the state, and a terminal loop taking
-   * over is the one thing still said under it.
+   * What the row says is AutoSwitchPolicy's; the draft it proposes is held
+   * here, so folding the list away does not drop a pick nobody saved.
    */
   const policyBlock = data?.ok && auto?.ok ? (
-    <div className="ap-policy-block">
-      <div className="ap-policy">
-        {/* A real h3, under the panel header's h2: a reader walking headings
-            should find the policy. It says what the switch's name says
-            (#546), so what is heard and what a voice-control user has to
-            pronounce are the words on the screen. */}
-        <h3 className="ap-auto-title">Auto-switch</h3>
-        {/* The picker proposes and `save` stores (#516): a select fires
-            `change` on a keystroke, and one letter used to write a setting.
-            A value set from the terminal that is not one of the five is kept
-            as an option of its own, so the picker never shows a number the
-            store does not hold. */}
-        <span className="ap-field" title="Switch once the active account passes this much of its limit">
-          <select
-            ref={thresholdRef}
-            aria-label="Switch threshold"
-            value={thresholdPick}
-            {...pressProps("threshold")}
-            onChange={e => setThresholdDraft(e.target.value)}
-          >
-            {thresholdChoices(threshold).map(t => <option key={t} value={t}>{t}%</option>)}
-          </select>
-        </span>
-        {/* ONLY WHILE THERE IS SOMETHING TO SAVE, after the picker so that
-            arriving moves nothing the reader just pressed. `saved` only
-            while the pick is the stored one. */}
-        {(thresholdCtl.sends || thresholdSaved) && (
-          <button ref={thresholdSaveRef} type="button" className="ap-manage-btn" {...pressProps("threshold")}
-            title={thresholdCtl.title}
-            onClick={() => doThreshold(thresholdPick, thresholdCtl)}
-          >{thresholdSaved && !thresholdCtl.sends ? thresholdCtl.done : thresholdCtl.label}</button>
-        )}
-        {/* Always a control, never a read-out: a terminal loop's state is
-            said beside it, not instead of it. Named in aria-label because
-            the contents cannot carry it (#546). */}
-        <button
-          type="button"
-          className="switch ap-auto-state"
-          role="switch"
-          aria-checked={auto.enabled}
-          aria-label="Auto-switch"
-          {...pressProps("enable")}
-          onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
-          title={auto.enabled
-            ? "Stop switching accounts automatically"
-            : "Switch accounts automatically when the active one nears its limit"}
-        >
-          <span className="switch-knob" />
-        </button>
-      </div>
-
-      {/* Which engine is actually switching right now. The deck stands down
-          while a terminal loop runs, and says so. */}
-      {auto.external && (
-        <p className="ap-auto-note">
-          <i className="ap-pulse" aria-hidden /> A <code>cswap auto</code> loop in your terminal is
-          doing the switching. The deck stands down while it runs
-          {auto.enabled ? " — this toggle takes over when you stop it." : "."}
-        </p>
-      )}
-    </div>
+    <AutoSwitchPolicy auto={auto} threshold={threshold} thresholdPick={thresholdPick}
+      thresholdCtl={thresholdCtl} thresholdSaved={thresholdSaved}
+      thresholdRef={thresholdRef} thresholdSaveRef={thresholdSaveRef}
+      setThresholdDraft={setThresholdDraft} doThreshold={doThreshold}
+      pressProps={pressProps} post={post} load={load} />
   ) : null;
   return (
     // Named for the topbar toggle's aria-controls — see UsagePanel, which also

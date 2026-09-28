@@ -32,6 +32,7 @@ import { slotChoices } from "../account-move";
 import { slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { withoutComments } from "./tsx-scan";
 import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 
@@ -44,11 +45,16 @@ const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.ts
  *  line, and `handlers` below is the same character walk that file had — brace
  *  counting with quote tracking and no notion of a comment — so an apostrophe
  *  in one of those trailing comments opens a string that nothing closes and the
- *  scan runs to the end of the file. `AccountsPanel.tsx` has exactly one such
- *  comment (`// unix ms — claude-swap's next planned read`) and it is harmless
- *  only because it sits above every handler in the file, which is a fact about
- *  today's markup rather than about this test. */
+ *  scan runs to the end of the file. `AccountsPanel.tsx` had exactly one such
+ *  comment (`// unix ms — claude-swap's next planned read`), harmless only
+ *  because it sat above every handler in the file — a fact about that day's
+ *  markup rather than about this test, and the comment has since gone with the
+ *  account types to claude-accounts.ts. */
 const panelCode = withoutComments(panel);
+/** The same for the panel and every file lifted out of it. The sweeps below ask
+ *  about EVERY handler in the panel, and the rows' and the policy's are in
+ *  their own components now. */
+const surfaceCode = withoutComments(accountsSurface());
 
 /**
  * The body of every `attr={…}` in the source, brace-matched.
@@ -180,7 +186,7 @@ describe("nothing in the accounts panel acts on a `change`", () => {
   it("reads enough handlers for the sweep to mean anything", () => {
     // The alias field, the slot picker and the threshold picker. If this drops,
     // the assertion below is passing over markup it never found.
-    expect(handlers(panelCode, "onChange").length).toBeGreaterThanOrEqual(3);
+    expect(handlers(surfaceCode, "onChange").length).toBeGreaterThanOrEqual(3);
   });
 
   it("leaves every onChange setting state and nothing else", () => {
@@ -188,21 +194,21 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // keystroke, so no onChange in this panel may reach the server — not the
     // admin route, not the auto route, not fetch, and not the two helpers that
     // wrap them.
-    for (const body of handlers(panelCode, "onChange")) {
+    for (const body of handlers(surfaceCode, "onChange")) {
       expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|load|fetch)\s*\(/);
       expect(body, body).toMatch(/\bset[A-Z]/);
     }
   });
 
   it("commits both pickers from a press instead", () => {
-    const clicks = handlers(panelCode, "onClick").join("\n");
+    const clicks = handlers(surfaceCode, "onClick").join("\n");
     expect(clicks).toMatch(/doSlot\(a\.num, picked, commit\)/);
     expect(clicks).toMatch(/doThreshold\(thresholdPick, thresholdCtl\)/);
     // And the move has exactly one caller, which is that press. `doMove` is
     // declared as `const doMove = async (…)`, so the only `doMove(` in the file
     // is the call — one of them, inside doSlot, reachable from nowhere a
     // keystroke can get to.
-    expect([...panelCode.matchAll(/doMove\(/g)]).toHaveLength(1);
+    expect([...surfaceCode.matchAll(/doMove\(/g)]).toHaveLength(1);
     expect(panelCode).toMatch(/const doSlot = async[\s\S]*?doMove\(from, to\)/);
   });
 
@@ -211,13 +217,13 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
     expect(panelCode).toMatch(/onChange=\{e => setSlotDraft\(Number\(e\.target\.value\)\)\}/);
-    expect(panelCode).toMatch(/onChange=\{e => setThresholdDraft\(e\.target\.value\)\}/);
+    expect(clientText()).toMatch(/onChange=\{e => setThresholdDraft\(e\.target\.value\)\}/);
   });
 
   it("shows the pending pick in the picker, so the button and the box agree", () => {
     expect(panelCode).toMatch(/const picked = slotShowing\(choices, slotDraft, a\.num\)/);
     expect(panelCode).toMatch(/value=\{String\(picked\)\}/);
-    expect(panelCode).toMatch(/value=\{thresholdPick\}/);
+    expect(clientText()).toMatch(/value=\{thresholdPick\}/);
   });
 
   it("drops the pending pick when the block moves or is opened afresh", () => {
@@ -225,7 +231,7 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // they chose for somebody else — the shape #327 fixed for the alias draft,
     // the armed remove and the share blob.
     expect(panelCode).toMatch(/setSlotDraft\(null\)/);
-    expect([...panelCode.matchAll(/setSlotDraft\(null\)/g)].length).toBeGreaterThanOrEqual(2);
+    expect([...surfaceCode.matchAll(/setSlotDraft\(null\)/g)].length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -240,14 +246,14 @@ describe("both commit controls are reachable and named", () => {
     expect(panelCode).toMatch(/>\{busy === `move-\$\{a\.num\}` \? "…" : sentence\(commit\.label\)\}<\/button>/);
     // `saved` only while the pick is the stored one: a second pick inside the
     // confirmation would otherwise sit behind a button claiming it was stored.
-    expect(panelCode).toMatch(/>\{thresholdSaved && !thresholdCtl\.sends \? thresholdCtl\.done : thresholdCtl\.label\}<\/button>/);
+    expect(clientText()).toMatch(/>\{thresholdSaved && !thresholdCtl\.sends \? thresholdCtl\.done : thresholdCtl\.label\}<\/button>/);
   });
 
   it("keeps the picker itself named by a real label", () => {
     // Visible now. The row's block had no room for a label and hid it; the
     // popover's form has a title, and the title is the label.
     expect(panelCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
-    expect(panelCode).toMatch(/aria-label="Switch threshold"/);
+    expect(clientText()).toMatch(/aria-label="Switch threshold"/);
   });
 
   it("dims both only while a request is out, never at rest", () => {
@@ -263,7 +269,7 @@ describe("both commit controls are reachable and named", () => {
     // somebody else is working, `aria-busy` while the request is your own — so
     // what is asserted is that both commit controls take it from there and that
     // neither of them has grown an opinion about `sends`.
-    for (const attrs of panelCode.split("<button").slice(1)) {
+    for (const attrs of surfaceCode.split("<button").slice(1)) {
       if (!/commit\.label|thresholdCtl\.label/.test(attrs.slice(0, 600))) continue;
       expect(attrs.slice(0, 600)).toMatch(/\{\.\.\.pressProps\(/);
       expect(attrs.slice(0, 600)).not.toMatch(/disabled=/);
@@ -280,7 +286,7 @@ describe("the threshold's commit control exists only while there is a pick to st
   // the reader asked for, and every pick in it is one press from moving an
   // account.
   it("renders for a pick the store does not hold, and for the `saved` after it", () => {
-    expect(panelCode).toMatch(/\{\(thresholdCtl\.sends \|\| thresholdSaved\) && \(\s*<button ref=\{thresholdSaveRef\}/);
+    expect(clientText()).toMatch(/\{\(thresholdCtl\.sends \|\| thresholdSaved\) && \(\s*<button ref=\{thresholdSaveRef\}/);
   });
 
   it("hands focus to the picker before it leaves", () => {
@@ -290,6 +296,6 @@ describe("the threshold's commit control exists only while there is a pick to st
     const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(panelCode)?.[0] ?? "";
     expect(commit).toMatch(/document\.activeElement === thresholdSaveRef\.current\) thresholdRef\.current\?\.focus\(\)/);
     expect(commit.indexOf("thresholdRef.current?.focus()")).toBeLessThan(commit.indexOf("setThresholdSaved(false)"));
-    expect(panelCode).toMatch(/<select\s+ref=\{thresholdRef\}/);
+    expect(clientText()).toMatch(/<select\s+ref=\{thresholdRef\}/);
   });
 });

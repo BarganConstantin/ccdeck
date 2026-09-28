@@ -29,6 +29,7 @@ export const ACCOUNTS_FILES = [
   "components/AccountRow.tsx",
   "components/AccountsEmptyState.tsx",
   "auto-switch-threshold.ts",
+  "components/AutoSwitchPolicy.tsx",
   "use-request-slot.ts",
 ] as const;
 
