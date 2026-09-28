@@ -36,7 +36,7 @@
 // only real revocation is a re-login at Anthropic, which kills the session on
 // every machine at once.
 import { useEffect, useState, type ReactNode } from "react";
-import { checkedLabel, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
+import { checkedLabel, deckRows, entryLine, rowSource, sectionState, viewRows } from "../lan-roster";
 import type { LanAccount, LanTailscale } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
@@ -152,26 +152,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   useEffect(() => {
     if (peerOpen && status && !openRow) setPeerOpen(null);
   }, [peerOpen, status, openRow]);
-  const asks = rows.filter(r => r.kind === "asks");
-  const rest = rows.filter(r => r.kind !== "asks");
-  // WHAT IS ON, AND THEN EVERYTHING ELSE. The list answers "who can I use right
-  // now", and a machine that is off, or nearby and unpaired, or one somebody
-  // said no to, is not an answer to that — it is context, and context does not
-  // belong at the same size as the thing itself.
-  //
-  // WHAT IS NOT HIDDEN IS A PROBLEM. A deck that cannot be reached is exactly
-  // the row a reader is scanning for, so folding it away silently would undo
-  // the whole point of the tone: the fold COUNTS them, in the warning ink, and
-  // one press opens it. A count in the right colour is a smaller lie than no
-  // count at all — it is not a lie at all.
-  const live = rest.filter(r => r.here);
-  const folded = rest.filter(r => !r.here);
-  const troubled = folded.filter(r => r.tone === "bad").length;
-  // Nothing to lead with means nothing to fold behind: an empty list over a
-  // `3 more` is a list that has hidden all of itself.
-  const showFolded = foldOpen || live.length === 0;
+  // The requests, and the rest split at the fold — see viewRows.
+  const { asks, rest, live, folded, troubled, shown, paired } = viewRows(rows, foldOpen);
   const state = sectionState(status, now);
-  const paired = rest.filter(r => r.kind === "paired").length;
   // What the way in says, from the same rows the list is drawn from.
   const entry = entryLine(status, rows);
 
@@ -387,13 +370,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                     what is happening and the one control that changes it. They were
                     three lists in two surfaces, and the question a reader has is one
                     question. See deckRows. */}
-                {(showFolded ? [...live, ...folded] : live).length > 0 && (
+                {shown.length > 0 && (
                   <LanDeckList
-                    // The ones that are on stay at the top when the fold opens.
-                    // Sorting the whole list by presence would move a row between
-                    // two five-second polls on a lost beacon; sorting the two GROUPS
-                    // moves a row only when the thing it reports actually changed.
-                    rows={showFolded ? [...live, ...folded] : live}
+                    rows={shown}
                     pairingMode={status?.pairingMode}
                     armed={armed}
                     pressProps={pressProps}

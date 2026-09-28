@@ -585,3 +585,40 @@ export function entryLine(
   if (online === paired.length) return { text: `${online} online`, tone: "ok", live: true };
   return { text: `${online} of ${paired.length} online`, tone: "ok", live: true };
 }
+
+/**
+ * The view's rows, split the way the view draws them: the requests, which it
+ * answers first and on their own, and the rest — the machines that are on,
+ * then behind a fold that counts them, every one that is not.
+ *
+ * WHAT IS ON, AND THEN EVERYTHING ELSE. The list answers "who can I use right
+ * now", and a machine that is off, or nearby and unpaired, or one somebody
+ * said no to, is not an answer to that — it is context, and context does not
+ * belong at the same size as the thing itself.
+ *
+ * WHAT IS NOT HIDDEN IS A PROBLEM. A deck that cannot be reached is exactly
+ * the row a reader is scanning for, so folding it away silently would undo
+ * the whole point of the tone: the fold COUNTS them, in the warning ink, and
+ * one press opens it. A count in the right colour is a smaller lie than no
+ * count at all — it is not a lie at all.
+ *
+ * Lifted out of LanSyncSection.tsx unchanged, so the fold can be asked what it
+ * does rather than read.
+ */
+export function viewRows(rows: DeckRow[], foldOpen: boolean) {
+  const asks = rows.filter(r => r.kind === "asks");
+  const rest = rows.filter(r => r.kind !== "asks");
+  const live = rest.filter(r => r.here);
+  const folded = rest.filter(r => !r.here);
+  const troubled = folded.filter(r => r.tone === "bad").length;
+  // Nothing to lead with means nothing to fold behind: an empty list over a
+  // `3 more` is a list that has hidden all of itself.
+  const showFolded = foldOpen || live.length === 0;
+  // The ones that are on stay at the top when the fold opens. Sorting the
+  // whole list by presence would move a row between two five-second polls on
+  // a lost beacon; sorting the two GROUPS moves a row only when the thing it
+  // reports actually changed.
+  const shown = showFolded ? [...live, ...folded] : live;
+  const paired = rest.filter(r => r.kind === "paired").length;
+  return { asks, rest, live, folded, troubled, showFolded, shown, paired };
+}
