@@ -54,6 +54,8 @@ const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + 
   + "\n" + markup("components/TopbarReadouts.tsx") + "\n" + markup("components/ConnectionBanner.tsx")
   + "\n" + markup("components/CanvasControls.tsx");
 const systemMeter = markup("components", "MachinePanel.tsx");
+/** The panel's bar, which moved out of it with the other drawing primitives. */
+const systemReadout = markup("components", "MachineReadout.tsx");
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────
 
@@ -454,7 +456,7 @@ describe("the machine panel's core fills are composited, not laid out (#505)", (
       expect(transitioned(declIn(bodyOf(sel), "transition")), sel).toContain("transform");
       expect(declIn(bodyOf(sel), "height"), sel).toBe("100%");
     }
-    expect(systemMeter).toMatch(/transform: `scaleX\(/);
+    expect(systemReadout).toMatch(/transform: `scaleX\(/);
   });
 
   it("keeps the reduced-motion answer that covered the property it replaced", () => {
