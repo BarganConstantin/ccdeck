@@ -99,9 +99,11 @@ describe("what a removal takes off the canvas's visibility set (#1237)", () => {
 
 describe("the canvas wiring (#1237)", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The removal state and its operations are use-removals.ts's, which App.tsx calls.
+  const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
 
   it("works the removal out once, from the removed-node store", () => {
-    expect(app).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
+    expect(removals).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
   });
 
   it("subtracts it from the visibility set the cards AND the tool bubbles both gate on", () => {
@@ -487,6 +489,8 @@ describe("drag-to-trash hit testing", () => {
 
 describe("where Remove lives and what follows it", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The removal state and its operations are use-removals.ts's, which App.tsx calls.
+  const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
   const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
   const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
@@ -515,9 +519,9 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("draws nothing after a removal, and keeps focus on the board", () => {
-    expect(app).not.toMatch(/is off the board\.<\/strong>/);
-    expect(app).not.toMatch(/undoRemoval/);
-    expect(app).toMatch(/if \(lastRemoval\) canvasRef\.current\?\.focus\(\);/);
+    expect(app + "\n" + removals).not.toMatch(/is off the board\.<\/strong>/);
+    expect(app + "\n" + removals).not.toMatch(/undoRemoval/);
+    expect(removals).toMatch(/if \(lastRemoval\) canvasRef\.current\?\.focus\(\);/);
   });
 
   it("says the removal through a region that is mounted before the words arrive", () => {

@@ -38,7 +38,7 @@ import {
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { sweepTick } from "./prune";
-import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
+import { REMOVED_NODES_KEY, removalsLiftedByWork, removalTimes, sessionsCalledBack, visibleBoard } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -51,6 +51,7 @@ import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
 import { useAutoFit } from "./use-auto-fit";
 import { layoutSignature } from "./layout-signature";
+import { useRemovals } from "./use-removals";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
@@ -259,11 +260,6 @@ function Inner() {
   // ref stays.
   const initialGraph = useState(initialState)[0];
   const stateRef = useRef(initialGraph);
-  const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
-    readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
-  /** The last card taken off the board, for the sentence a screen reader
-   *  hears. Nothing is drawn for it: the session list (L) is the way back. */
-  const [lastRemoval, setLastRemoval] = useState<{ id: string; label: string } | null>(null);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   /** Right detail panel visibility — persisted across refresh. Declared ahead
@@ -544,14 +540,11 @@ function Inner() {
   // counters the layout keys off: see use-node-measurements.ts.
   const { measuredRef, measuredVersionRef, sizeVersion, domSizeVersion } = useNodeMeasurements(draggingRef);
 
-  // Everything "Remove node" has taken off the board: the removed agents, what
-  // descends from them, and every agent of a removed session. Worked out once
-  // and subtracted from BOTH layoutSig and visibleAgentIds below, so the cards,
-  // the tool bubbles and the layout drop a removed agent together.
-  const removedAgentIds = useMemo(
-    () => removalHiddenIds(stateRef.current.agents.values(), removedNodes),
-    [stateRef.current, stateRef.current.revision, removedNodes],
-  );
+  // What Remove node has taken off the board, the way back, and the sentence
+  // that says so — use-removals.ts.
+  const { removedNodes, setRemovedNodes, lastRemoval, setLastRemoval, removedAgentIds,
+          removeNode, removeSelectedNode, removalNotice, bringBack }
+    = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
   // What the layout keys off: the visible, not-removed agents and their
   // parents, plus the two size versions — layout-signature.ts.
   const layoutSig = useMemo(
@@ -775,44 +768,8 @@ function Inner() {
     rerender();
   }, [rerender, clearSelection]);
 
-  const removeNode = useCallback((id: string) => {
-    const agent = stateRef.current.agents.get(id);
-    if (!agent) return;
-    setRemovedNodes(previous => {
-      const next = new Set(previous);
-      next.add(id);
-      saveRemovedNodes(window.localStorage, next);
-      return next;
-    });
-    setLastRemoval({ id, label: agent.label });
-    pinnedRef.current.delete(id);
-    positionsRef.current.delete(id);
-    clearSelection();
-  }, [clearSelection]);
 
-  const removeSelectedNode = useCallback(() => {
-    if (primarySelectedId) removeNode(primarySelectedId);
-  }, [primarySelectedId, removeNode]);
 
-  // Said for as long as the card is still off the board: one that came back
-  // through the session list or by starting to wait has nothing left to say.
-  const removalNotice = lastRemoval && removedNodes.has(lastRemoval.id) ? lastRemoval : null;
-  // The button that was pressed sat in the detail panel, which unmounts with
-  // the selection, so focus would otherwise fall to <body> and a keyboard user
-  // would start again from the top. <main> takes focus without taking the
-  // single-key shortcuts (#367).
-  useEffect(() => {
-    if (lastRemoval) canvasRef.current?.focus();
-  }, [lastRemoval]);
-
-  const bringBack = useCallback((ids: Iterable<string>) => {
-    const list = [...ids];
-    setRemovedNodes(previous => {
-      const next = withoutRemovals(previous, list);
-      if (next !== previous) saveRemovedNodes(window.localStorage, next);
-      return next;
-    });
-  }, []);
 
   // The keydown listener below is registered once and must stay that way, so
   // the gate reads what is on screen through refs rather than closing over it.
