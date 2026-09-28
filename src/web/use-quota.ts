@@ -18,7 +18,9 @@ export interface QuotaData {
   session5hReset?: string;
   session5hResetAt?: number;   // unix seconds
   session5hWindowSec?: number;
-  week7dPct?: number;
+  /** Null, or absent from a CLI reading, when the source said nothing about
+   *  the 7-day window — which is not 0%, and the bar says so (#1627). */
+  week7dPct?: number | null;
   week7dReset?: string;
   week7dResetAt?: number;      // unix seconds
   week7dWindowSec?: number;

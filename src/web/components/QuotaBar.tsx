@@ -55,7 +55,10 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
 
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
-  pct: number;
+  /** How full the window is, or null when the source sent no reading for it.
+   *  Null is drawn as "no reading" over an empty track (#1627): a zero here
+   *  printed "< 1%", which is a measurement nobody took. */
+  pct: number | null;
   label: string;
   reset?: string;
   resetAt?: number;    // unix seconds — enables live countdown
@@ -64,15 +67,18 @@ interface QuotaBarProps {
   nowSec: number;      // current time in seconds (for countdown + pace)
 }
 export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec }: QuotaBarProps) {
-  const capped   = Math.min(100, Math.max(0, pct));
+  // No reading draws no fill, no level colour and no pace: every one of those
+  // is a statement about a number, and there is none (#1627).
+  const known    = pct != null;
+  const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const isErr    = limitReached || capped >= 90;
   const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
-  const pctLabel = capped === 0 ? "< 1%" : `${capped}%`;
+  const pctLabel = !known ? "no reading" : capped === 0 ? "< 1%" : `${capped}%`;
   // minimum 2% visual fill so a 0% bar is still visible as a thin sliver
   const fillW    = capped === 0 ? 2 : capped;
 
   const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
-  const pace = (resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
+  const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
   // The note opens the number it is measured against (#856).
   const [why, setWhy] = useState(false);
   const whyId = useId();
@@ -84,10 +90,10 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           {label}
           {limitReached && <span className="qb-limit-badge" title="Rate limit reached">⛔</span>}
         </span>
-        <span className="qb-pct" style={{ color }}>{pctLabel}</span>
+        <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
       </div>
       <div className="qb-track">
-        <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />
+        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}

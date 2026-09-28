@@ -55,6 +55,12 @@ function isoToSec(iso) {
 
 // Map the OAuth usage JSON to our quota result shape.
 // utilization is already a 0–100 percentage. 5h falls back to 7d if absent.
+//
+// A 7d window that is absent is UNKNOWN, and published as null (#1627). The
+// endpoint can send `seven_day: null`, and this used to fill in a zero there —
+// which the bar prints as "< 1%", a week nobody measured and a reader takes as
+// almost all of it left. The same kind of zero #765 removed; the CLI's parse
+// below already leaves the field out for a week line it did not see.
 export function mapOAuthUsage(data) {
   const fh = data?.five_hour;
   const sd = data?.seven_day;
@@ -76,7 +82,7 @@ export function mapOAuthUsage(data) {
     result.week7dReset   = fmtResetIso(sd.resets_at);
     result.week7dResetAt = isoToSec(sd.resets_at);
   } else {
-    result.week7dPct = 0;
+    result.week7dPct = null;
   }
   if (son?.utilization != null)  result.weekSonnetPct = clampPct(son.utilization);
   if (opus?.utilization != null) result.weekOpusPct   = clampPct(opus.utilization);
@@ -119,7 +125,10 @@ export function quotaFromStore(entry) {
     session5hReset:     fmtResetIso(primary.resets_at),
     session5hResetAt:   isoToSec(primary.resets_at),
     week7dWindowSec:    WIN_7D_SEC,
-    week7dPct:          typeof sd?.pct === "number" ? clampPct(sd.pct) : 0,
+    // Unknown rather than 0 when the row has no 7d window, as mapOAuthUsage
+    // publishes it (#1627): claude-swap writes no `seven_day` at all when the
+    // endpoint sent none.
+    week7dPct:          typeof sd?.pct === "number" ? clampPct(sd.pct) : null,
     week7dReset:        fmtResetIso(sd?.resets_at),
     week7dResetAt:      isoToSec(sd?.resets_at),
     // The age of the DATA, not of our read of it. The panel prints this, and
