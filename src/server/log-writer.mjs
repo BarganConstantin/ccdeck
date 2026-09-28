@@ -345,7 +345,7 @@ const appendTails = new Map();
  * The ceiling on pending append bytes, and the ring's sibling on purpose.
  *
  * 128 MiB, the same number and the same three readings that pick
- * MAX_BUFFER_CHARS in index.mjs:
+ * MAX_BUFFER_CHARS in ring-bounds.mjs:
  *
  *   - It is 26 times the largest single line ingest can produce (5,000,000
  *     characters plus the deck's envelope), so a burst of maximum-size tool
