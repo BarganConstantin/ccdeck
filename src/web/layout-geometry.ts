@@ -103,6 +103,21 @@ export function sessionOfNode(n: Node): string {
   return sid ?? "_default";
 }
 
+/** The nodes of each session, keyed by `sessionOfNode`, in the order they are
+ *  given; `keep` leaves some out. Sessions appear in the order their first
+ *  kept node does. */
+export function groupBySession(nodes: Node[], keep: (n: Node) => boolean = () => true): Map<string, Node[]> {
+  const groups = new Map<string, Node[]>();
+  for (const n of nodes) {
+    if (!keep(n)) continue;
+    const sid = sessionOfNode(n);
+    const list = groups.get(sid);
+    if (list) list.push(n);
+    else groups.set(sid, [n]);
+  }
+  return groups;
+}
+
 /** Bubbles currently drawn beside an agent, by agent id. Absent = none. */
 export type Lanes = Map<string, number>;
 

@@ -8,7 +8,7 @@
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 import {
-  cardSize, columnGap, fitZoom, footprint, SESSION_GAP, sessionOfNode, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, fitZoom, footprint, groupBySession, SESSION_GAP, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 
 // The shared measurements are layout-geometry.ts's. The lane map's type and
@@ -177,20 +177,14 @@ function laySessions(nodes: Node[], edges: Edge[], opts: LayoutOptions): { laid:
   const measured = opts.measured ?? new Map();
   const lanes = opts.lanes;
 
-  const sessions = new Map<string, string[]>();
-  for (const n of nodes) {
-    const sid = sessionOfNode(n);
-    const list = sessions.get(sid);
-    if (list) list.push(n.id);
-    else sessions.set(sid, [n.id]);
-  }
+  const sessions = groupBySession(nodes);
 
   // Lay out each session in its own dagre graph, then pack the subgraphs into
   // columns. Sessions are ordered by id so the layout is stable across events.
   const sessionOrder = Array.from(sessions.keys()).sort();
   const laid = sessionOrder.map(sid => ({
     sid,
-    ...layoutSession(sessions.get(sid)!, edges, direction, measured, pinned, lanes),
+    ...layoutSession(sessions.get(sid)!.map(n => n.id), edges, direction, measured, pinned, lanes),
   }));
 
   return { laid, gap: columnGap(nodes, measured) };

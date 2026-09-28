@@ -5,7 +5,7 @@
 // a session grew or two session boxes are crossing.
 import type { Node } from "reactflow";
 import {
-  CROSS_SESSION_X, CROSS_SESSION_Y, footprint, NODE_H, NODE_W, sessionOfNode, type Lanes,
+  CROSS_SESSION_X, CROSS_SESSION_Y, footprint, groupBySession, NODE_H, NODE_W, type Lanes,
 } from "./layout-geometry";
 
 /**
@@ -107,13 +107,7 @@ export function bubblePush(
   }
 
   // ── build one box per session ────────────────────────────────────────────
-  const bySession = new Map<string, Node[]>();
-  for (const n of nodes) {
-    if (!posOf(n.id)) continue;
-    const sid = sessionOfNode(n);
-    const list = bySession.get(sid);
-    if (list) list.push(n); else bySession.set(sid, [n]);
-  }
+  const bySession = groupBySession(nodes, n => posOf(n.id) != null);
 
   const boxes: Box[] = [];
   const grew = new Set<string>();

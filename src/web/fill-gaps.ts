@@ -6,7 +6,7 @@
 // sessions only.
 import type { Node } from "reactflow";
 import {
-  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, groupBySession, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 
 /**
@@ -72,14 +72,7 @@ export function fillGapsWithNewSessions(
   // cluster box stretches across the canvas to reach it and the parent→child
   // edge runs the length of the screen. A partially-new session keeps the slot
   // dagre just gave its new cards, beside their siblings.
-  const membersBySession = new Map<string, Node[]>();
-  for (const n of nodes) {
-    if (!posOf(n.id)) continue;
-    const sid = sessionOfNode(n);
-    const list = membersBySession.get(sid);
-    if (list) list.push(n);
-    else membersBySession.set(sid, [n]);
-  }
+  const membersBySession = groupBySession(nodes, n => posOf(n.id) != null);
   const wholeSessionArrived = new Set<string>();
   for (const [sid, members] of membersBySession) {
     if (members.every(n => newIds.has(n.id) && !pinned.has(n.id))) wholeSessionArrived.add(sid);
