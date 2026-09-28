@@ -57,6 +57,7 @@ import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { TOOL_LANE_ALLOWANCE, useCamera } from "./use-camera";
+import { usePointerFocus } from "./use-pointer-focus";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { usePauseGate } from "./use-pause-gate";
@@ -1456,16 +1457,16 @@ function Inner() {
     }, 30);
   }, [selectAgent, focusAgent]);
 
-  /** Select a session's root and bring it on screen. Reads `nodesRef` rather
-   *  than the render-scope array so callers can be memoised: the array is
-   *  rebuilt every render and would otherwise re-create every handler that
-   *  closes over it. The frame of delay is for the same reason the session list
-   *  has always needed one — the node has to be laid out before fitView can
-   *  have anything to fit to. */
   /** The blocked session W went to last (#825), so the next press moves on to
    *  the one after it. The waiting button writes it too: the two are one way in. */
   const waitingCursorRef = useRef<string | null>(null);
 
+  /** Select a session's root and bring it on screen. Through focusAgent, which
+   *  reads `nodesRef` rather than the render-scope array so callers can be
+   *  memoised: the array is rebuilt every render and would otherwise re-create
+   *  every handler that closes over it. The frame of delay is for the same
+   *  reason the session list has always needed one — the node has to be laid
+   *  out before focusAgent has a box to frame. */
   const focusSession = useCallback((sessionId: string) => {
     selectAgent(sessionId, false);
     window.setTimeout(() => {
@@ -1481,25 +1482,8 @@ function Inner() {
   }, [removedAgentIds, bringBack, focusSession]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
-  // swallowing the single-key shortcuts (#851; the rule is ownsKeystroke's).
-  // Tracked here because the browser cannot be asked at keydown time —
-  // `:focus-visible` is re-decided by the keystroke itself. A focus that lands
-  // within a moment of a press came from the press; any other focus (Tab, a
-  // dialog handing focus back) clears the mark.
-  const pointerFocusRef = useRef<EventTarget | null>(null);
-  useEffect(() => {
-    let pressedAt = -Infinity;
-    const onPress = () => { pressedAt = performance.now(); };
-    const onFocus = (e: FocusEvent) => {
-      pointerFocusRef.current = performance.now() - pressedAt < 250 ? e.target : null;
-    };
-    window.addEventListener("pointerdown", onPress, true);
-    window.addEventListener("focusin", onFocus, true);
-    return () => {
-      window.removeEventListener("pointerdown", onPress, true);
-      window.removeEventListener("focusin", onFocus, true);
-    };
-  }, []);
+  // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
+  const pointerFocusRef = usePointerFocus();
 
   // keyboard shortcuts
   useEffect(() => {

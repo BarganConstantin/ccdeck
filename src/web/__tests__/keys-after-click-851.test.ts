@@ -48,15 +48,18 @@ describe("a button the mouse pressed leaves the letters to the deck (#851)", () 
 });
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The listeners that fill the ref live in use-pointer-focus.ts; the keydown
+// handler that reads it stays in App.tsx.
+const pointerCode = readFileSync(fileURLToPath(new URL("../use-pointer-focus.ts", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 describe("the wiring that knows how focus arrived (#851)", () => {
   it("marks a focus that lands right after a pointer press", () => {
-    expect(appCode).toMatch(/window\.addEventListener\("pointerdown", onPress, true\)/);
-    expect(appCode).toMatch(/window\.addEventListener\("focusin", onFocus, true\)/);
-    expect(appCode).toMatch(/pointerFocusRef\.current = performance\.now\(\) - pressedAt < 250 \? e\.target : null;/);
+    expect(pointerCode).toMatch(/window\.addEventListener\("pointerdown", onPress, true\)/);
+    expect(pointerCode).toMatch(/window\.addEventListener\("focusin", onFocus, true\)/);
+    expect(pointerCode).toMatch(/pointerFocusRef\.current = performance\.now\(\) - pressedAt < 250 \? e\.target : null;/);
   });
 
   it("hands the mark and the key to the gate", () => {
