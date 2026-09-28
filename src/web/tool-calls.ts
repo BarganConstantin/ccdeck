@@ -209,7 +209,29 @@ function releaseToolId(state: GraphState, a: AgentNodeData, t: ToolCall): void {
  *  while it was paused (#676). It is the one cause the deck can vouch for, so
  *  the stale sweep and the turn end both say it in place of their own reading
  *  of the silence. */
-export const DROPPED_OUTCOME_PREVIEW = "no result reached the deck — events were dropped while the deck was paused";
+const DROPPED_OUTCOME_PREVIEW = "no result reached the deck — events were dropped while the deck was paused";
+
+/** Settle a call whose outcome is never coming: failed, ended at `endedAt`, and
+ *  saying `cause` — or `DROPPED_OUTCOME_PREVIEW` when the deck dropped events
+ *  while the call was open, which outranks any reading of the silence. The two
+ *  callers are the two pieces of evidence the deck has that no outcome is on
+ *  its way: `sweepStaleTools` (the session went silent) and `applyTurnEnd`
+ *  (the turn that made the call ended).
+ *
+ *  Out of the live index too, since the id is no longer held open. A late
+ *  outcome still lands — the PostToolUse handler falls back to scanning the
+ *  session's tool lists and resurrects the call, un-saying this. Keyed on the
+ *  session, not the bare id (#1009): the id namespace is shared across every
+ *  session on the board, so a bare delete would release another session's live
+ *  call. */
+export function settleUnanswered(
+  state: GraphState, a: AgentNodeData, t: ToolCall, endedAt: number, cause: string,
+): void {
+  t.endedAt = endedAt;
+  t.ok = false;
+  t.errorPreview = t.outcomeGap ? DROPPED_OUTCOME_PREVIEW : cause;
+  state.toolIndex.delete(toolKey(a.sessionId, t.id));
+}
 
 /** Whether this envelope is the answer to a call the graph is still waiting on
  *  — a `PostToolUse` / `PostToolUseFailure` whose id is in flight right now.
