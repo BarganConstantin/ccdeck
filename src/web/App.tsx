@@ -47,7 +47,7 @@ import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
 import { useAgentFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
-import { useBoardLayout } from "./use-board-layout";
+import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
 import { useAutoFit } from "./use-auto-fit";
 import { layoutSignature } from "./layout-signature";
@@ -56,7 +56,7 @@ import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { clearStoredLayout, loadViewport, saveLayout, saveViewport } from "./layout-storage";
+import { clearStoredLayout, loadViewport, saveViewport } from "./layout-storage";
 import { isCanvasNodeElement } from "./canvas-node-element";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
@@ -559,18 +559,8 @@ function Inner() {
     [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds],
   );
 
-  // Persist the arrangement whenever it changes, not only when the user drags.
-  // Auto-placed nodes are part of what gets restored on reload, so a session
-  // that was never touched still comes back where it was. Debounced: layoutSig
-  // moves on every structural change and localStorage writes are synchronous.
-  const layoutSaveTimerRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current);
-    layoutSaveTimerRef.current = window.setTimeout(() => {
-      saveLayout(positionsRef.current, pinnedRef.current);
-    }, 1500);
-    return () => { if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current); };
-  }, [layoutSig]);
+  // Stored whenever the arrangement's signature moves — use-board-layout.ts.
+  useLayoutAutosave(layoutSig, layout);
 
   // The two things that bring the board back into view on their own — a
   // layout that changed shape, and a board that drifted off the pane — both
