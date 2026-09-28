@@ -22,6 +22,7 @@ export const MACHINE_PANEL_FILES = [
   "components/MachinePanel.tsx",
   "machine-snapshot.ts",
   "machine-readings.ts",
+  "use-system.ts",
 ] as const;
 
 let joined: string | null = null;
