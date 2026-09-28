@@ -16,7 +16,7 @@ import { stateLabel } from "../agent-copy";
 
 export default function UsageSessionBreakdown({
   fromRange, rangeSessionRows, boardSessionRows, boardStates, sessionsOpen, setSessionsOpen,
-  periodNoun, sessionScale, staleCls,
+  periodNoun, sessionScale,
 }: {
   /** ccusage answered, so the rows are its sessions for the period. */
   fromRange: boolean;
@@ -32,12 +32,10 @@ export default function UsageSessionBreakdown({
   periodNoun: string;
   /** Every ccusage row summed against the period's cost, for the heading's note. */
   sessionScale: SessionListScale;
-  /** " up-stale" while a slower period loads, or "". */
-  staleCls: string;
 }) {
   const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;
   return (
-    <section className={`up-section${staleCls}`}>
+    <section className="up-section">
       {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
           in a tooltip, because the reader can see the arithmetic fail
           without it: rows that add up past the figure above read as a

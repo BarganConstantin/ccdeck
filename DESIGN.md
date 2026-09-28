@@ -41,16 +41,16 @@ typography:
     fontSize: "13px"
     lineHeight: 1.45
   data:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace"
     fontSize: "12px"
     lineHeight: 1.45
   label:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace"
     fontSize: "11px"
     fontWeight: 600
     lineHeight: 1.3
   micro:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace"
     fontSize: "9px"
     letterSpacing: "0.06em"
 rounded:
@@ -168,9 +168,10 @@ before the build does it:
 | Control edges, strokes, series bands, meter fills | 3:1 | 1.4.11 |
 | Decorative marks, and disabled or non-operable controls | exempt | 1.4.3 |
 
-**The tests measure token values, not composited opacity.** A token that passes
-can still fail once an `opacity` is multiplied over it — see `--dim-stale` under
-Shapes, and #1289.
+**An opacity is a contrast ratio too.** A token that passes can still fail once an
+`opacity` is multiplied over it, so `contrast-floors.test.ts` composites the stale
+dim over every readable tier and holds every rule that reads it to an element with
+no children (#1289) — see `--dim-stale` under Shapes.
 
 ## Colors
 
@@ -310,13 +311,13 @@ One sans stack and one mono stack. No webfonts, no font loading, ever — the de
 opens instantly and a FOUT on a dashboard is unacceptable.
 
 - **Body / UI:** `13px/1.45` system sans, the base on `html, body, #root`.
-- **Data:** `ui-monospace, SFMono-Regular, Menlo, monospace` — every number, id,
-  path, token count, model name, duration and dollar figure. If it is a value
-  rather than a sentence, it is monospaced. This is the single strongest carrier of
-  the product's character. **On Windows and Linux it names no font:**
-  `ui-monospace` resolves only in Safari and the other two are macOS fonts, so on
-  two of three peer platforms the browser picks. Accepted for now, tracked in
-  #1286.
+- **Data:** `var(--font-mono)` — every number, id, path, token count, model name,
+  duration and dollar figure. If it is a value rather than a sentence, it is
+  monospaced. This is the single strongest carrier of the product's character, so
+  the stack names a font on every peer platform (#1286): `ui-monospace,
+  SFMono-Regular, Menlo` for macOS, first and unchanged; `"Cascadia Mono", Consolas`
+  for Windows; `"DejaVu Sans Mono", "Liberation Mono"` for Linux; then the generic.
+  Declared once — never write the stack out in a rule.
 - **Every live number is `font-variant-numeric: tabular-nums`** — 72 declarations.
   On a panel whose numbers tick every second, proportional digits jitter. This is
   as much the character as the monospace is.
@@ -331,7 +332,7 @@ one-off hero sizes and using them as steps will look wrong:
 
 | Size | Uses | Role |
 |---|---|---|
-| 9px | 13 | Micro-labels: chart axis labels, stat captions. Uppercase with tracking. Readable text, which is why #1286 also asks about it on Windows. |
+| 9px | 13 | Micro-labels: chart axis labels, stat captions. Uppercase with tracking. Readable text — #1286 asked whether 9px holds up under ClearType at 100%; it stayed 9px when the stack was fixed, so check it on Windows before adding more. |
 | 10px | 109 | Chips, tags, node metadata. |
 | 11px | 166 | The workhorse label. |
 | 12px | 101 | Control and button text, dense body. |
@@ -378,7 +379,14 @@ gets its compact face because *it* is small, not because the window is.
 the pointer or focus is inside the scroller, and the **track keeps its width
 always**, so arriving with the pointer never reflows the panel underneath.
 `:focus-within` sits beside `:hover` because a scroller can be driven from the
-keyboard — though the colour it reveals is currently below 3:1, tracked in #1290.
+keyboard, and the keyboard's thumb is the louder one (#1290): `--ctl-edge`, 3:1 or
+better on every surface in both themes, because a keyboard cannot hover the bar to
+get a louder one. The pointer's reveal stays `--line`, a hint under a pointer that
+is about to grab; the grabbed thumb is louder than both. Chromium and Firefox read
+only `scrollbar-color` (Chromium ignores `::-webkit-scrollbar` once it is set, and
+shades the grabbed thumb itself); Safari reads the webkit rules, whose grabbed thumb
+is `--muted`. Keep the two halves in step. Under forced colours Chromium draws its
+own system scrollbar in every state, so the forced-colours block has nothing to add.
 
 ## Elevation & Depth
 
@@ -427,12 +435,14 @@ Control height is `--ctl-h: 30px`. Panel padding is `--panel-inset: 14px`.
   today, because every use is a disabled or non-operable control, which 1.4.3
   exempts.
 - **`--dim-stale: 0.45`** — **marks and fills only.** Over text it drops below AA
-  (3.55:1 on `--text` in dark, 2.15:1 on `--muted` in light) and the contrast tests
-  cannot see it, because they measure tokens rather than composited opacity. Stale
-  *text* says so in words — `updated 6m ago` — at full contrast. The four rules
-  that currently break this are #1289. The sheet already learned this once: the
-  comment at `styles.css:8539` explains why `.ap-account.disabled` stopped using
-  `--dim-off`.
+  (3.55:1 on `--text` in dark, 2.15:1 on `--muted` in light), and no readable tier
+  survives it on any surface in either theme. Stale *text* says so in words at full
+  contrast: the history modal's subtitle reads `running ccusage…` while a re-run is
+  out and only the chart's bars, segments and swatches dim; the usage panel's
+  headline names the period its figures are from; an expired share says `expired`.
+  `contrast-floors.test.ts` fails any rule that puts it on an element the markup
+  gives children (#1289). The sheet had learned this once before: the comment above
+  `.ap-account.active` explains why `.ap-account.disabled` stopped using `--dim-off`.
 
 ## Components
 
@@ -535,7 +545,7 @@ rather than scattered through the sections above.
 | Done | `--ok` | node border, state pill | `done` | edge fades to settled |
 | Error | `--err` | node border, state pill | `err` | none |
 | Switched off / disabled | `--dim-off` | the whole control dims | — | none |
-| Stale data | `--dim-stale` | marks and fills only | `updated 6m ago` at full contrast | none |
+| Stale data | `--dim-stale` | marks and fills only | `running ccusage…`, the period's noun, `expired` — at full contrast | none |
 | Disconnected | `--warn` | `.conn-banner` row | — | none |
 | Update ready | `--accent` | `.ver-banner` row | — | none |
 | Empty canvas | `--muted` | — | the tour offer | none |

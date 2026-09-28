@@ -227,8 +227,14 @@ export default function AccountMenuPopover({
         const exp = shareExpiry(share.expiresAt, nowSec);
         const dead = exp.tone === "gone";
         return (
-          <div className={`ap-pop-form ap-share${dead ? " expired" : ""}`}>
+          <div className="ap-pop-form">
             <p className="ap-pop-title" id={titleId}>Share account</p>
+            {/* The text keeps its ink past the expiry (#1289): it used to fade
+                to --dim-stale, 1.93:1 on the dark panel, through an `expired`
+                class on this form that was there for nothing else. The
+                countdown beside it says "expired" in --err and the primary
+                becomes "Make a new share", so the state is in words, at full
+                contrast. */}
             <code className="ap-share-blob">{share.blob}</code>
             {/* The warning belongs to what the text IS, and the
                 countdown is not what keeps anyone out — so the warning

@@ -296,13 +296,14 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
   const periodNoun = nounFor(shownPeriod, period);
 
-  // WHAT DIMS WHILE A SLOWER RANGE LOADS, and it is the numbers rather than the
-  // chips. The sheet's own rule: --dim-off means "this control cannot be
-  // operated" and --dim-stale means "a newer reading is on its way, this one was
-  // true a moment ago". Dimming the strip said the first about controls that
-  // stay pressable; dimming the figures says the second about the figures, which
-  // is what is actually out of date.
-  const staleCls = rangeStale ? " up-stale" : "";
+  // NOTHING DIMS WHILE A SLOWER RANGE LOADS — not the chips, which stay
+  // pressable, and since #1289 not the figures either. They used to fade to
+  // --dim-stale, and every one of them is a word: 0.45 took --text to 3.55:1 and
+  // --muted to 1.95:1 on the dark panel, under AA for the numbers a reader is
+  // still using. The stale state is said in words instead, at full contrast —
+  // the headline's noun names the period the figures are FROM ("$4.20 today"
+  // with `all` pressed), the session heading says "active today", and the
+  // pressed chip pulses while its read is out.
 
   // WHAT HAS HAPPENED SINCE THE READING WAS TAKEN, from the canvas.
   //
@@ -482,7 +483,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className={`up-total${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+              <div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
                 <span className="up-total-value">{fmtCost(shownCost)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
@@ -500,7 +501,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             </>
           )}
 
-          <div className={`up-tokens-row${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+          <div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
             <span className="up-tok"><span className="up-k">in</span>{fmtTokens(shownIn)}</span>
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
@@ -533,7 +534,6 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               fromRange={fromRange}
               rangeModelRows={rangeModelRows}
               boardModelRows={boardModelRows}
-              staleCls={staleCls}
             />
           )}
 
@@ -568,7 +568,6 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               setSessionsOpen={setSessionsOpen}
               periodNoun={periodNoun}
               sessionScale={sessionScale}
-              staleCls={staleCls}
             />
           )}
 

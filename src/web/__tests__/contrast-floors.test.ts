@@ -21,7 +21,7 @@
 // So the ratios are computed here from the stylesheet's own token values, and a
 // palette edit that walks any of them back under its floor fails the build.
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops as readStops } from "./gradient-stops";
@@ -126,8 +126,12 @@ function tokens(theme: Theme): Record<string, string> {
 
 const TOK: Record<Theme, Record<string, string>> = { dark: tokens("dark"), light: tokens("light") };
 
-/** var() one level deep, plus the `color-mix(in srgb, var(--x) N%, transparent)`
- *  form the banners use — which is just var(--x) at N% alpha. */
+/** var() all the way down, plus the `color-mix(in srgb, var(--x) N%, transparent)`
+ *  form the banners use — which is just var(--x) at N% alpha.
+ *
+ *  All the way down since #1290: --ctl-edge is itself that color-mix(), so a
+ *  rule reading `var(--ctl-edge)` is two steps from a colour, and a resolver
+ *  that took one step handed parseColor() the color-mix() text and threw. */
 function resolve(value: string, theme: Theme): Rgba {
   const mix = /color-mix\(in srgb,\s*var\((--[\w-]+)\)\s*([\d.]+)%,\s*transparent\)/.exec(value);
   if (mix) {
@@ -135,7 +139,7 @@ function resolve(value: string, theme: Theme): Rgba {
     return [base[0], base[1], base[2], +mix[2] / 100];
   }
   const v = /^var\((--[\w-]+)\)$/.exec(value.trim());
-  return parseColor(v ? TOK[theme][v[1]] : value);
+  return v ? resolve(TOK[theme][v[1]], theme) : parseColor(value);
 }
 
 /** The colour stops of a gradient token, in order — and a failure naming the
@@ -242,8 +246,9 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
   });
 
   it("leaves --muted-dim alone for the decoration it was always sized for", () => {
-    // Scrollbar thumb, a hover hairline, the auto-restart dot, the idle
-    // sparkline bar, the session dot. None of them is text.
+    // A hover hairline, the auto-restart dot, the idle sparkline bar, the
+    // session dot. None of them is text. (The scrollbar thumb's hover was one
+    // too, until #1290 needed it louder than the thumb a keyboard reveals.)
     expect(css).toMatch(/background: var\(--muted-dim\)/);
     expect(css).toMatch(/fill: var\(--muted-dim\)/);
     for (const theme of themes) {
@@ -940,5 +945,300 @@ describe("one reader for every gradient this suite measures against (#664, #665)
     expect(PRIVATE_SCRAPE.test("const stops = gradientStops(token, theme, TOK[theme]);")).toBe(false);
     expect(GRADIENT_TOKEN.test('TOK[theme]["--node' + '-grad"]')).toBe(true);
     expect(GRADIENT_TOKEN.test('TOK[theme]["--panel"]')).toBe(false);
+  });
+});
+
+// ── #1290: the scrollbar thumb, the one colour here no sweep read ──────────
+//
+// Every sweep above measures a token against the surface a rule paints it on,
+// and the thumb was never one of those rules: `::-webkit-scrollbar-thumb` is a
+// pseudo-element under two pseudo-classes, `scrollbar-color` is a property no
+// sweep names, and the two states shared one selector list that rule() — which
+// anchors on a selector ending in `{` — cannot read the first member of. So the
+// colour a keyboard user got for the bar they scroll by was 1.14:1 in dark and
+// nothing noticed. These read the four states out of the sheet the way the
+// browser picks between them, and measure each on every surface a scroller has.
+
+/** Every style rule in the stripped sheet, at any depth, with its selector list
+ *  split and each member whitespace-collapsed. rule() finds a selector only
+ *  where it opens a line and closes with the brace; this finds it as any member
+ *  of a list, which is where both halves of the scrollbar used to live. */
+type SheetRule = { selectors: string[]; body: string; at: string };
+function sheetRules(src: string, at = ""): SheetRule[] {
+  const out: SheetRule[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const open = src.indexOf("{", i);
+    if (open < 0) break;
+    const prelude = src.slice(i, open).replace(/\s+/g, " ").trim();
+    let depth = 0, end = open;
+    for (; end < src.length; end++) {
+      if (src[end] === "{") depth++;
+      else if (src[end] === "}" && --depth === 0) break;
+    }
+    const inner = src.slice(open + 1, end);
+    if (prelude.startsWith("@")) out.push(...sheetRules(inner, prelude));
+    else out.push({ selectors: prelude.split(",").map(s => s.trim()).filter(Boolean), body: inner, at });
+    i = end + 1;
+  }
+  return out;
+}
+const SHEET = sheetRules(bare);
+
+/** The last value `prop` is given by a top-level rule listing `selector`, which
+ *  is the one the cascade keeps at equal specificity. */
+function declFor(selector: string, prop: string): string | null {
+  let found: string | null = null;
+  for (const r of SHEET) {
+    if (r.at || !r.selectors.includes(selector)) continue;
+    const v = decl(r.body, prop);
+    if (v !== null) found = v;
+  }
+  return found;
+}
+
+/** The colour before the first top-level space: the thumb half of a
+ *  `scrollbar-color: <thumb> <track>` pair, parentheses respected. */
+function firstColour(value: string): string {
+  let depth = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === "(") depth++;
+    else if (value[i] === ")") depth--;
+    else if (value[i] === " " && depth === 0) return value.slice(0, i);
+  }
+  return value;
+}
+
+describe("the scrollbar thumb, in every state it has (#1290)", () => {
+  const THUMB = {
+    rest: declFor("*::-webkit-scrollbar-thumb", "background-color"),
+    pointer: declFor(":hover::-webkit-scrollbar-thumb", "background-color"),
+    keyboard: declFor(":focus-within::-webkit-scrollbar-thumb", "background-color"),
+    grabbed: declFor("*::-webkit-scrollbar-thumb:hover", "background-color"),
+  };
+  const ratio = (value: string, bed: Rgba, theme: Theme) => contrastRatio(over(resolve(value, theme), bed), bed);
+
+  it("reads all four states out of the sheet, so the sweeps below measure something", () => {
+    expect(THUMB.rest).toBe("transparent");
+    for (const [state, value] of Object.entries(THUMB)) expect(value, state).not.toBeNull();
+  });
+
+  it("reproduces what the keyboard was shown — --line, at the ratios #1290 measured", () => {
+    const line = (theme: Theme) => contrastRatio(parseColor(TOK[theme]["--line"]), parseColor(TOK[theme]["--panel"]));
+    expect(line("dark")).toBeCloseTo(1.14, 2);
+    expect(line("light")).toBeCloseTo(1.60, 2);
+  });
+
+  it("reveals a thumb a keyboard can find: 3:1 on every surface a scroller has, in both themes", () => {
+    for (const theme of themes) {
+      for (const [name, bed] of surfaces(theme)) {
+        const r = ratio(THUMB.keyboard!, bed, theme);
+        expect(r, `${theme} keyboard thumb ${THUMB.keyboard} on ${name} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    }
+  });
+
+  it("keeps the grabbed thumb the loudest of the three, so hovering a focused bar never dims it", () => {
+    for (const theme of themes) {
+      for (const [name, bed] of surfaces(theme)) {
+        const grabbed = ratio(THUMB.grabbed!, bed, theme);
+        expect(grabbed, `${theme} grabbed vs keyboard on ${name}`).toBeGreaterThan(ratio(THUMB.keyboard!, bed, theme));
+        expect(grabbed, `${theme} grabbed vs pointer on ${name}`).toBeGreaterThan(ratio(THUMB.pointer!, bed, theme));
+      }
+    }
+    // Equal specificity, so source order is what makes it win: it has to come
+    // after both reveals.
+    const at = (sel: string) => SHEET.findIndex(r => !r.at && r.selectors.includes(sel));
+    expect(at("*::-webkit-scrollbar-thumb:hover")).toBeGreaterThan(at(":focus-within::-webkit-scrollbar-thumb"));
+    expect(at(":focus-within::-webkit-scrollbar-thumb")).toBeGreaterThan(at(":hover::-webkit-scrollbar-thumb"));
+  });
+
+  it("hands Chromium and Firefox the same two reveals through scrollbar-color", () => {
+    // Not a courtesy copy. Chromium ignores every ::-webkit-scrollbar rule once
+    // scrollbar-color is set, so for the browser and the desktop shell this
+    // property IS the thumb, and the webkit rules above are Safari's.
+    expect(firstColour(declFor("*", "scrollbar-color")!)).toBe("transparent");
+    expect(firstColour(declFor(":hover", "scrollbar-color")!)).toBe(THUMB.pointer);
+    expect(firstColour(declFor(":focus-within", "scrollbar-color")!)).toBe(THUMB.keyboard);
+  });
+});
+
+// ── #1289: an opacity is a colour too ──────────────────────────────────────
+//
+// Every sweep in this file measures a token against a surface, and an opacity
+// is neither: it multiplies whatever colour lands under it, so a rule can take
+// a tier this file has just proved at 4.5:1 and composite it to 3.55:1 without
+// naming a single colour. --dim-stale did exactly that to four blocks of words —
+// the usage panel's figures, the history modal's whole answer, an expired
+// share's text twice — and the build passed, because nothing here composited
+// an opacity over anything. The sheet had learned this once already, at
+// `.ap-account.disabled`, and the lesson lived in a comment.
+//
+// So the maths goes first: no readable tier survives --dim-stale on any surface
+// in either theme, which makes "never on text" arithmetic rather than taste.
+// Then the sweep that follows from it: every rule reading the token must dim an
+// element that CANNOT hold a word — one the markup only ever writes as a
+// self-closing tag. That is a structural question the stylesheet cannot answer
+// alone, so it reads the components, the way usage-series-contrast.test.ts does.
+
+/** Every .tsx in the bundle, tests excluded. */
+const WEB = fileURLToPath(new URL("..", import.meta.url));
+function tsxUnder(dir: string): string[] {
+  return readdirSync(dir).flatMap(name => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : tsxUnder(path);
+    return path.endsWith(".tsx") ? [path] : [];
+  });
+}
+const MARKUP = tsxUnder(WEB).map(path => ({
+  file: path.slice(WEB.length).replace(/\\/g, "/"),
+  src: readFileSync(path, "utf8"),
+}));
+
+/** The index just past a string literal opened at `i`, `${…}` in a template
+ *  counted out so a nested brace or quote cannot end it early. */
+function pastString(src: string, i: number): number {
+  const q = src[i];
+  for (let j = i + 1; j < src.length; j++) {
+    if (src[j] === "\\") { j++; continue; }
+    if (q === "`" && src[j] === "$" && src[j + 1] === "{") {
+      let depth = 1;
+      for (j += 2; j < src.length && depth > 0; j++) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}") depth--;
+      }
+      j--;
+      continue;
+    }
+    if (src[j] === q) return j + 1;
+  }
+  return src.length;
+}
+
+/** Where the opening tag that starts at `start` closes: the first `>` outside
+ *  every brace and string, so an arrow function in an attribute is not it. */
+function tagEnd(src: string, start: number): number {
+  let depth = 0;
+  for (let i = start; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'" || c === "`") { i = pastString(src, i) - 1; continue; }
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth === 0) return i;
+  }
+  return -1;
+}
+
+/** The class names an attribute value can spell literally, interpolations
+ *  dropped — `ap-share-blob${dead ? " sa-dead" : ""}` spells both. */
+function classTokens(value: string): string[] {
+  const literals = [...value.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)]
+    .map(m => (m[1] ?? m[2] ?? m[3]).replace(/\$\{[^}]*\}/g, " "));
+  return literals.flatMap(l => l.split(/\s+/)).filter(Boolean);
+}
+
+/** Every JSX element whose className names `cls`, and whether it closes itself.
+ *  A self-closing element has no children, so nothing it paints can be a word. */
+function elementsWithClass(cls: string): Array<{ file: string; selfClosing: boolean }> {
+  const out: Array<{ file: string; selfClosing: boolean }> = [];
+  for (const { file, src } of MARKUP) {
+    for (const m of src.matchAll(/<([A-Za-z][\w.]*)(?=[\s>])/g)) {
+      const end = tagEnd(src, m.index!);
+      if (end < 0) continue;
+      const tag = src.slice(m.index!, end + 1);
+      const at = tag.indexOf("className=");
+      if (at < 0) continue;
+      const rest = tag.slice(at + "className=".length);
+      const value = rest[0] === "{" ? rest.slice(0, tagEnd(rest, 0) + 1) : rest.slice(0, rest.indexOf('"', 1) + 1);
+      if (classTokens(value).includes(cls)) out.push({ file, selfClosing: tag.endsWith("/>") });
+    }
+  }
+  return out;
+}
+
+/** The class a selector finally styles: the last class of its last compound. */
+const subjectClass = (selector: string) => [...selector.trim().split(/[\s>+~]+/).pop()!.matchAll(/\.([\w-]+)/g)].pop()?.[1] ?? null;
+
+/** Whether the markup proves `selector` lands only on childless elements. */
+function dimsOnlyMarks(selector: string): boolean {
+  const cls = subjectClass(selector);
+  if (!cls) return false;
+  const found = elementsWithClass(cls);
+  return found.length > 0 && found.every(e => e.selfClosing);
+}
+
+describe("an opacity over text is a contrast ratio too (#1289)", () => {
+  const STALE = parseFloat(declFor(":root", "--dim-stale")!);
+  /** The tiers this file holds to 4.5:1 — the four a reader is meant to read. */
+  const READABLE = ["--text", "--text-secondary", "--muted", "--text-dim"];
+  const through = (fg: Rgba, alpha: number, bed: Rgba) => over([fg[0], fg[1], fg[2], fg[3] * alpha], bed);
+  const dimmed = (tier: string, theme: Theme, bed: Rgba) => contrastRatio(through(parseColor(TOK[theme][tier]), STALE, bed), bed);
+
+  it("reproduces the table #1289 measured, from the token as it ships", () => {
+    expect(STALE).toBe(0.45);
+    const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+    expect(dimmed("--text", "dark", panel("dark"))).toBeCloseTo(3.55, 1);
+    expect(dimmed("--muted", "dark", panel("dark"))).toBeCloseTo(1.95, 1);
+    expect(dimmed("--text", "light", panel("light"))).toBeCloseTo(3.04, 1);
+    expect(dimmed("--muted", "light", panel("light"))).toBeCloseTo(2.15, 1);
+  });
+
+  it("leaves no readable tier at 4.5:1 on any surface in either theme, so it can never dim a word", () => {
+    for (const theme of themes) {
+      for (const [name, bed] of surfaces(theme)) {
+        for (const tier of READABLE) {
+          const r = dimmed(tier, theme, bed);
+          expect(r, `${theme} ${tier} through --dim-stale on ${name} — ${r.toFixed(2)}:1`).toBeLessThan(BODY);
+        }
+      }
+    }
+  });
+
+  it("tells a mark from a box that can hold a word, so the sweep below means something", () => {
+    // Childless: the day bar's segments, the legend swatch, the meter fill.
+    for (const mark of [".uh-bar-seg", ".uh-legend-dot", ".uh-model-bar-fill", ".uh-agent-seg"]) {
+      expect(dimsOnlyMarks(mark), mark).toBe(true);
+    }
+    // Word-bearing: the status line, a share's text, the modal's own wrapper.
+    for (const box of [".uh-status", ".ap-share-blob", ".uh-stale", ".up-section"]) {
+      expect(dimsOnlyMarks(box), box).toBe(false);
+    }
+    // And a class nothing in the markup writes proves nothing, so it fails too.
+    expect(dimsOnlyMarks(".no-such-class-anywhere")).toBe(false);
+  });
+
+  it("would have failed every one of the four rules #1289 found", () => {
+    for (const was of [".up-stale", ".uh-stale", ".sa-dead", ".ap-share.expired .ap-share-blob"]) {
+      expect(dimsOnlyMarks(was), was).toBe(false);
+    }
+  });
+
+  it("puts --dim-stale on marks and fills only — elements with no children to hold a word", () => {
+    const readers = SHEET.filter(r => decl(r.body, "opacity") === "var(--dim-stale)").flatMap(r => r.selectors);
+    expect(readers.length, "nothing reads --dim-stale, so the sweep is over nothing").toBeGreaterThan(0);
+    for (const sel of readers) expect(dimsOnlyMarks(sel), `${sel} dims something that can hold a word`).toBe(true);
+    // Nor through a literal. The same number written out is held to the same
+    // rule — it composites exactly as far — which today is one SVG ring.
+    const literal = SHEET.filter(r => decl(r.body, "opacity") === String(STALE)).flatMap(r => r.selectors);
+    expect(literal).toEqual([".aa-mark-ring"]);
+    for (const sel of literal) expect(dimsOnlyMarks(sel), `${sel} dims something that can hold a word at ${STALE}`).toBe(true);
+  });
+
+  it("says stale in words where the dim came off, and those words are at full contrast", () => {
+    const src = (file: string) => MARKUP.find(m => m.file === file)!.src;
+    // The history modal: the subtitle says what is running while a re-run is out.
+    expect(src("components/UsageHistoryModal.tsx"))
+      .toContain('<div className="uh-sub">{view.stale ? "running ccusage…" : usageSubtitle(');
+    expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
+    // The usage panel: the headline names the period its figures are from.
+    expect(src("components/UsagePanel.tsx"))
+      .toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
+    // The share dialog's heading, and the popover's countdown.
+    expect(src("components/ShareAccountsDialog.tsx")).toContain('"This share has expired"');
+    expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");
+    // And none of those words sits inside anything that still dims.
+    for (const box of [".uh-sub", ".up-total", ".ap-share-blob", ".ap-share-expiry"]) {
+      expect(SHEET.filter(r => r.selectors.includes(box)).map(r => decl(r.body, "opacity")).filter(Boolean), box).toEqual([]);
+    }
   });
 });

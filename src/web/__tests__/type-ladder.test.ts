@@ -402,13 +402,18 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     }
   });
 
-  it("names the two superseded surfaces apart, so they stay free to differ", () => {
-    // `.uh-stale` and `.ap-share.expired` are not "you cannot use this", they
-    // are "this is a refresh out of date" — still readable, still true a moment
-    // ago. Folding them into --dim-off would make a later decision about
-    // disabled controls silently restate itself about stale data.
-    expect(decl(".uh-stale", "opacity")).toBe("var(--dim-stale)");
-    expect(decl(".ap-share.expired .ap-share-blob", "opacity")).toBe("var(--dim-stale)");
+  it("names the superseded surface apart, so the two stay free to differ", () => {
+    // A re-running range is not "you cannot use this", it is "this is a
+    // refresh out of date" — still readable, still true a moment ago. Folding
+    // it into --dim-off would make a later decision about disabled controls
+    // silently restate itself about stale data. Since #1289 what reads the
+    // token is the modal's marks rather than its words (contrast-floors.test.ts
+    // holds it there), and the expired share keeps its ink altogether.
+    for (const mark of [".uh-stale .uh-bar-seg", ".uh-stale .uh-agent-seg", ".uh-stale .uh-model-bar-fill", ".uh-stale .uh-legend-dot"]) {
+      expect(decl(mark, "opacity"), mark).toBe("var(--dim-stale)");
+    }
+    expect(decl(".uh-stale", "opacity")).toBeNull();
+    expect(decl(".ap-share.expired .ap-share-blob", "opacity")).toBeNull();
     expect(decl(":root", "--dim-stale")).not.toBe(decl(":root", "--dim-off"));
   });
 
