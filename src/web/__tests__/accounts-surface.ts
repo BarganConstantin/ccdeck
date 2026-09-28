@@ -32,6 +32,7 @@ export const ACCOUNTS_FILES = [
   "components/AutoSwitchPolicy.tsx",
   "use-request-slot.ts",
   "use-account-menu.ts",
+  "components/AccountMenuPopover.tsx",
 ] as const;
 
 let joined: string | null = null;

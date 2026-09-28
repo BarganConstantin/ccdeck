@@ -52,6 +52,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { USAGE_FILES } from "./usage-surface";
+import { ACCOUNTS_FILES } from "./accounts-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
@@ -73,6 +74,8 @@ const sessionList = markup("components", "SessionList.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
 /** The usage panel and every file lifted out of it, for the negatives. */
 const usageSurface = USAGE_FILES.map(f => markup(f)).join("\n");
+/** The accounts panel and every file lifted out of it, the same way. */
+const accountsSurface = ACCOUNTS_FILES.map(f => markup(f)).join("\n");
 const toolModal = markup("components", "ToolModal.tsx");
 const bursts = markup("components", "ToolBursts.tsx");
 
@@ -489,7 +492,7 @@ describe("the visually-hidden utility, now that four surfaces read it", () => {
 
   it("dropped the panel prefix rather than lending three panels a private name", () => {
     expect(css).not.toMatch(/\.ap-vh\b/);
-    for (const src of [app, sessionList, usageSurface, markup("components", "AccountsPanel.tsx")]) {
+    for (const src of [app, sessionList, usageSurface, accountsSurface]) {
       expect(src).not.toMatch(/ap-vh/);
     }
     expect(markup("components", "AccountsPanel.tsx")).toMatch(/className="vis-hidden"/);

@@ -38,6 +38,8 @@ const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.ts
 /** The ⋯ popover's state and the requests pressed in it: the slot draft, the
  *  move and the press that sends it live here since they left the panel. */
 const accountMenuCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8"));
+/** The ⋯ popover's markup, where the slot picker and its button are drawn. */
+const popoverCode = withoutComments(readFileSync(fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8"));
 
 /** The same file with its comments gone. The prose here quotes the handler it
  *  retired — explaining why `onChange` could not be the commit needs the old
@@ -223,13 +225,13 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // The retired shape, which must not come back in either picker.
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
-    expect(panelCode).toMatch(/onChange=\{e => pickSlot\(Number\(e\.target\.value\)\)\}/);
+    expect(popoverCode).toMatch(/onChange=\{e => pickSlot\(Number\(e\.target\.value\)\)\}/);
     expect(clientText()).toMatch(/onChange=\{e => setThresholdDraft\(e\.target\.value\)\}/);
   });
 
   it("shows the pending pick in the picker, so the button and the box agree", () => {
-    expect(panelCode).toMatch(/const picked = slotShowing\(choices, slotDraft, a\.num\)/);
-    expect(panelCode).toMatch(/value=\{String\(picked\)\}/);
+    expect(popoverCode).toMatch(/const picked = slotShowing\(choices, slotDraft, a\.num\)/);
+    expect(popoverCode).toMatch(/value=\{String\(picked\)\}/);
     expect(clientText()).toMatch(/value=\{thresholdPick\}/);
   });
 
@@ -250,7 +252,7 @@ describe("both commit controls are reachable and named", () => {
     // The slot's word in sentence case, since the picker moved from a pill row
     // into the ⋯ popover's form — and still the commit's own word: `Swap` for
     // exactly the options marked `· swap`.
-    expect(panelCode).toMatch(/>\{busy === `move-\$\{a\.num\}` \? "…" : sentence\(commit\.label\)\}<\/button>/);
+    expect(popoverCode).toMatch(/>\{busy === `move-\$\{a\.num\}` \? "…" : sentence\(commit\.label\)\}<\/button>/);
     // `saved` only while the pick is the stored one: a second pick inside the
     // confirmation would otherwise sit behind a button claiming it was stored.
     expect(clientText()).toMatch(/>\{thresholdSaved && !thresholdCtl\.sends \? thresholdCtl\.done : thresholdCtl\.label\}<\/button>/);
@@ -259,7 +261,7 @@ describe("both commit controls are reachable and named", () => {
   it("keeps the picker itself named by a real label", () => {
     // Visible now. The row's block had no room for a label and hid it; the
     // popover's form has a title, and the title is the label.
-    expect(panelCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
+    expect(popoverCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
     expect(clientText()).toMatch(/aria-label="Switch threshold"/);
   });
 

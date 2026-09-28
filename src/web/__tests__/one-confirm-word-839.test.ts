@@ -10,7 +10,8 @@ import { accountsSurface } from "./accounts-surface";
 
 const components = fileURLToPath(new URL("../components", import.meta.url));
 const read = (name: string) => readFileSync(join(components, name), "utf8");
-const accounts = read("AccountsPanel.tsx");
+/** The ⋯ menu, which is where Remove is drawn. */
+const accounts = read("AccountMenuPopover.tsx");
 const lan = read("LanSyncSection.tsx");
 /** The rows, which the section draws through a list of their own. */
 const list = read("LanDeckList.tsx");
