@@ -17,7 +17,7 @@ import type { ContextBreakdown, HookPayload } from "./types";
  *  about its context yet.
  *
  *  One function rather than two object literals because the two writers below —
- *  the `context_tokens` stamp and the `ContextObserved` branch — merge into
+ *  the `context_tokens` stamp and `applyContextObserved` — merge into
  *  whatever is already there, and a field that one of them forgot to seed would
  *  read `undefined` where the type promises a number and print "NaN" in the
  *  modal. Adding a field to `ContextBreakdown` should not be able to miss a
@@ -273,9 +273,10 @@ export function applyOutputObserved(state: GraphState, p: HookPayload, sessionId
     keep.push(at);
     root.outputs = keep.length > MAX_OUTPUTS ? keep.slice(-MAX_OUTPUTS) : keep;
   }
-  // The revision is what makes the canvas re-read a mutated agent; the
-  // sibling observers above it are enrichment on an event that already
-  // bumped, and this one arrives on its own.
+  // The revision is what makes the canvas re-read a mutated agent. This second
+  // bump is redundant with the one `applyEvent` gives every event, which was
+  // there before this branch was written (#536), and harmless: a memo only asks
+  // whether the number moved.
   state.revision += 1;
 }
 

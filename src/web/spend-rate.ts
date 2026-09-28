@@ -25,7 +25,7 @@ export interface SpendSample {
    * the moment that session first reaches the canvas — a Claude session that
    * started before the deck and whose first hook event lands now, a rollout the
    * Codex watcher picks up mid-flight, a Stop-evicted session returning under
-   * the same id, which reducer.ts records as routine — and none of that is
+   * the same id, which the reducer records as routine — and none of that is
    * money spent in the last ten minutes. This counter only ever rises by what
    * a session gained BETWEEN two samples it appeared in both of.
    */

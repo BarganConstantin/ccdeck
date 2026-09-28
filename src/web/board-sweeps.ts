@@ -51,8 +51,8 @@ export type ForgetSession = (sessionId: string) => void;
  *  happens whenever a background subagent outlives the turn that dispatched it,
  *  and on this machine's log that is every announced subagent — leaving
  *  `S::A.parentId` pointing at nothing. The result is a card that belongs to
- *  nowhere: App.tsx draws no edge for it because there is no parent node to draw
- *  to, `SessionList.buildRows` skips it because it is not a root, so it has no
+ *  nowhere: canvas-flow.ts draws no edge for it because there is no parent node
+ *  to draw to, `SessionList.buildRows` skips it because it is not a root, so it has no
  *  sidebar row and no cost roll-up, and it floats on the canvas with nothing to
  *  explain it. `pruneDoneSessions` has held the opposite invariant since it was
  *  written — it evicts whole subtrees and has a test asserting no agent is left
@@ -403,8 +403,8 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // Also out of the live tool index, so the id is not held open by a
         // session that is gone — which does not make the call unsettleable: when
         // the sweep guessed wrong and the session comes back, its late
-        // PostToolUse resurrects the call, the same un-reap `lastEventAt`
-        // performs for the root above. See `settleUnanswered`.
+        // PostToolUse resurrects the call, the way `noteSessionHeard` un-reaps
+        // the root. See `settleUnanswered`.
         settleUnanswered(state, a, t, silentSince, "session ended before this call returned");
         changed = true;
       }
