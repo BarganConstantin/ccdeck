@@ -963,6 +963,7 @@ function Inner() {
       measuredRef.current, prevSessionSizeRef.current, onBubble, settled, dragging,
       positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
       selectedIds, spotlightSet, visibleAgentIds, openContext, historyReplayed,
+      restoredLayout.restored,
       );
       return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },

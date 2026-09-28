@@ -36,6 +36,9 @@ describe("parseStoredLayout", () => {
     const restored = restoreLayout(out);
     expect([...restored.positions.keys()]).toEqual(["a", "b"]);
     expect([...restored.pinned]).toEqual([["b", { x: 3, y: 4 }]]);
+    // Every card that came back with a place, pinned or not, is held to it until
+    // the board it was saved on is back (#1333).
+    expect([...restored.restored]).toEqual(["a", "b"]);
   });
 
   it("drops the v2 entries that are not points", () => {

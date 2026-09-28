@@ -27,10 +27,14 @@ export interface RestoredLayout {
   positions: Map<string, { x: number; y: number }>;
   /** Just the deliberate ones, which outrank anything dagre would compute. */
   pinned: Map<string, { x: number; y: number }>;
+  /** Every id that came back with a position: until the board they were saved
+   *  on is back, these hold still rather than make room (#1333). The canvas
+   *  empties it; see snapshotToFlow. */
+  restored: Set<string>;
 }
 
 /**
- * Split a stored arrangement into the two maps the canvas holds on to.
+ * Split a stored arrangement into the maps the canvas holds on to.
  *
  * `pins` is turned into a Set first, and that is the whole of the fix in #612.
  * The pinned map used to be built with
@@ -52,7 +56,7 @@ export function restoreLayout(stored: StoredLayout): RestoredLayout {
     positions.set(id, at);
     if (pins.has(id)) pinned.set(id, at);
   }
-  return { positions, pinned };
+  return { positions, pinned, restored: new Set(positions.keys()) };
 }
 
 type Point = { x: number; y: number };

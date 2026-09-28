@@ -140,6 +140,13 @@ export function snapshotToFlow(
    * from storage for agents that have not arrived yet (#1333).
    */
   historyReplayed: boolean,
+  /**
+   * Ids whose position came back from storage and has not yet been seen on the
+   * board it was saved with (#1333). An id leaves it when it is laid out
+   * afresh, and the whole set is emptied, for good, once the log has replayed
+   * and the page has settled.
+   */
+  restored: Set<string>,
 ): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
@@ -279,7 +286,28 @@ export function snapshotToFlow(
   // forty tool calls, grew 420px sideways, and nothing ever reconsidered its
   // neighbours. Clamping at four bubbles is what keeps this cheap: the string
   // stops changing after an agent's fourth tool call.
-  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}`;
+  //
+  // A RESTORED POSITION IS NOT REPAIRED BEFORE ITS BOARD IS BACK (#1333). It was
+  // clear of everything on the board it was saved from, and until the log has
+  // replayed and the cards have measured, the board here is not that one: the
+  // agents replayed so far, at the default card size, beside sessions from the
+  // log that the tick's sweep evicts right after the replay. A render in the
+  // middle of the replay lays out the first of those while the restored agents
+  // they will land on have not arrived — nothing tells autoLayout where a card
+  // that is not on the board yet is coming back to. When the restored ones did
+  // arrive, the overlap pass slid whichever of the two was lower, often the
+  // restored card; the sweep then took the arrival away and left the card
+  // lower than it was saved, and a reload drew a different board. So until the
+  // log is back and the page has settled, restored cards stand still and
+  // whatever covers one slides off it instead. `#held` leaving the key is what
+  // runs the pass once more when the hold lifts, and an overlap still there
+  // then is real and is repaired as ever. A board that starts empty restores
+  // nothing and is never held. (A replay that outlasts the settle delay lifts
+  // the hold on its own last frame, a tick before the sweep: that board is
+  // repaired the way every board was before this.)
+  const holding = restored.size > 0 && !(settled && historyReplayed);
+  if (!holding) restored.clear();
+  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}${holding ? "#held" : ""}`;
   // A node holding a placeholder counts as missing however real its entry in
   // `positions` looks — see placement.ts. Without that, the one write that
   // exists to keep a node on screen for a frame was also the write that told
@@ -288,9 +316,16 @@ export function snapshotToFlow(
   // the next one is placed beside its card as the card sits THEN — a note put
   // away before its card moved must not come back to where the card used to
   // be. Where somebody DRAGGED one is a pin, and pins are kept (liveNodeIds).
+  // After the replay, like the prune further down (#1333): while it streams in,
+  // a note is off the board because its recap has not been replayed yet, not
+  // because it was put away. Forgetting it then placed it again from a card
+  // that had not measured, a few pixels off the spot it was saved at — and,
+  // with the restored cards around it holding still, slid it down the column
+  // away from its card, which stretched the session's box across its
+  // neighbours for the push to shove the whole board apart once it settled.
   const shownNotes = new Set(nodes.filter(n => n.type === "recapNote").map(n => n.id));
   for (const id of Array.from(positions.keys())) {
-    if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
+    if (historyReplayed && isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
       positions.delete(id);
       provisional.delete(id);
     }
@@ -298,6 +333,9 @@ export function snapshotToFlow(
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
+      // Laid out afresh — after R, the reframe, or anything else that emptied
+      // its place — so this page's arrangement, not the stored board's.
+      for (const n of missing) restored.delete(n.id);
       // A card joining a session already on the canvas goes beside that session
       // as it sits now, not where a layout from scratch would have it.
       const laidOut = joinSessions(
@@ -335,7 +373,7 @@ export function snapshotToFlow(
         recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
       }
     }
-    separateOverlaps(nodes, positions, pinned, measured, lanes);
+    separateOverlaps(nodes, positions, pinned, measured, lanes, holding ? restored : undefined);
     lastLayoutSigRef.current = sig;
   }
   // A session that just fanned out subagents is wider and taller than it was a
