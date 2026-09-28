@@ -53,7 +53,26 @@ function components(dir: string): string[] {
 }
 
 const FILES = components(web);
-const source = (name: string) => readFileSync(FILES.find(p => p.endsWith(name))!, "utf8");
+
+/** A path from the walk, relative to src/web and with forward slashes. join()
+ *  spells `components/Detail.tsx` with a backslash on Windows, so every name
+ *  this file compares a path against goes through here first. */
+const rel = (path: string) => path.slice(web.length).replace(/\\/g, "/");
+
+/**
+ * One .tsx, raw, by its name or by its path under src/web
+ * (`"App.tsx"`, `"components/Detail.tsx"`).
+ *
+ * It matches whole path segments, and it throws on a miss: a `find` that comes
+ * back empty used to reach readFileSync as `undefined`, which is how the Windows
+ * leg reported the missing backslash — as a TypeError about the path argument,
+ * with nothing to say which file was being looked for.
+ */
+function source(name: string): string {
+  const hit = FILES.find(p => rel(p) === name || rel(p).endsWith(`/${name}`));
+  if (!hit) throw new Error(`no .tsx at ${name} under src/web`);
+  return readFileSync(hit, "utf8");
+}
 
 /** The same text with its comments gone — the only form an "appears nowhere"
  *  assertion may read. */
@@ -81,11 +100,11 @@ const summary = source("SessionSummary.tsx");
 // #374 gave it a file of its own.
 const costBar = source("CostBar.tsx");
 
-/** Every file in the bundle, as [name, comment-stripped text]. The separator is
- *  normalised because two of the assertions below name a file inside
- *  components/, and join() spells that with a backslash on Windows. */
+/** Every file in the bundle, as [name, comment-stripped text]. The name goes
+ *  through `rel` because two of the assertions below name a file inside
+ *  components/. */
 const BUNDLE: Array<[string, string]> = FILES.map(p =>
-  [p.slice(web.length).replace(/\\/g, "/"), code(readFileSync(p, "utf8"))]);
+  [rel(p), code(readFileSync(p, "utf8"))]);
 
 /**
  * Every file in the bundle again, comment-free the way `./tsx-scan` means it —
@@ -100,7 +119,7 @@ const BUNDLE: Array<[string, string]> = FILES.map(p =>
  * first also makes each tag's `end` an index into a string this file holds.
  */
 const BARE: Array<[string, string]> = FILES.map(p =>
-  [p.slice(web.length).replace(/\\/g, "/"), withoutComments(readFileSync(p, "utf8"))]);
+  [rel(p), withoutComments(readFileSync(p, "utf8"))]);
 
 // ── how the two tag sweeps read markup (#655) ───────────────────────────────
 //
