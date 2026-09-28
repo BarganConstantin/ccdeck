@@ -192,6 +192,13 @@ export function upgradeBlock(pkgRoot) {
 // needs to know whether to show a spinner, a version, or an error.
 let _upgrade = { state: "idle", command: null, error: null, at: 0 };
 
+/** Where this process's install stands: its state, the command it runs, and why
+ *  it failed when it did, stamped with the moment it got there. Every change to
+ *  the state goes through here, so no path can report one without its time. */
+function setUpgrade(state, command, error = null) {
+  _upgrade = { state, command, error, at: Date.now() };
+}
+
 export function upgradeStatus() {
   return { ..._upgrade };
 }
@@ -221,13 +228,13 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
   // detail of how this platform reaches npm, and pasting it would be advice
   // about the deck rather than about their install.
   const command = `npm ${spec.plain.join(" ")}`;
-  _upgrade = { state: "running", command, error: null, at: Date.now() };
+  setUpgrade("running", command);
 
   let child;
   try {
     child = spawn(spec.file, spec.args, { ...spec.opts, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   } catch (err) {
-    _upgrade = { state: "failed", command, error: err?.message ?? String(err), at: Date.now() };
+    setUpgrade("failed", command, err?.message ?? String(err));
     return { ok: false, reason: "spawn_failed", command };
   }
 
@@ -257,12 +264,7 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    _upgrade = {
-      state: "failed",
-      command,
-      error: `timed out after ${Math.round(INSTALL_TIMEOUT_MS / 60_000)} minutes`,
-      at: Date.now(),
-    };
+    setUpgrade("failed", command, `timed out after ${Math.round(INSTALL_TIMEOUT_MS / 60_000)} minutes`);
     killTree(child);
   }, INSTALL_TIMEOUT_MS);
   timer.unref?.();
@@ -272,7 +274,7 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
     // A kill can make the child emit one of these; whatever it says, the reason
     // this install failed is the deadline that has already been reported.
     if (timedOut) return;
-    _upgrade = { state: "failed", command, error: e?.message ?? String(e), at: Date.now() };
+    setUpgrade("failed", command, e?.message ?? String(e));
   });
   child.on("close", (code) => {
     clearTimeout(timer);
@@ -284,14 +286,14 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
       // Deliberately does not restart anything. The new files on disk make
       // installedVersion() disagree with the running one, and the ordinary
       // drift path takes it from there — including its wait for an idle moment.
-      _upgrade = { state: "done", command, error: null, at: Date.now() };
+      setUpgrade("done", command);
     } else if (!timedOut && _upgrade?.state !== "failed") {
       // Not over a failure the 'error' handler already explained. A missing npm
       // emits 'error' with ENOENT and THEN 'close' with a null code, and this
       // branch used to replace "spawn npm ENOENT" with "npm exited -2" — the
       // one message that says what is wrong, overwritten by the one that does
       // not.
-      _upgrade = { state: "failed", command, error: lastMeaningfulLine(err) || `npm exited ${code}`, at: Date.now() };
+      setUpgrade("failed", command, lastMeaningfulLine(err) || `npm exited ${code}`);
     }
   });
 
