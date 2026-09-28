@@ -12,21 +12,27 @@
 //                 one lan-sync.mjs matches accounts on. The verdict cache wrote
 //                 it and read it back in two more hand-written spellings.
 //
+// The verdict cache lives in claude-verdicts.mjs now, which is why the last
+// rule is checked across both modules.
+//
 // claude-swap-row-identity.test.ts drives the two row readers end to end
 // against a real store, and account-health.test.ts drives the verdict cache;
 // this file pins the rules themselves, and that each has one spelling.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 // @ts-expect-error plain JS module
-import { cachedVerdictFor, rowIsFor, usageRows } from "../../server/claude-accounts.mjs";
+import { rowIsFor, usageRows } from "../../server/claude-accounts.mjs";
+// @ts-expect-error plain JS module
+import { cachedVerdictFor } from "../../server/claude-verdicts.mjs";
 // @ts-expect-error plain JS module
 import { accountKey } from "../../server/lan-sync.mjs";
 
-const source = readFileSync(new URL("../../server/claude-accounts.mjs", import.meta.url), "utf8");
-/** The module with its comments gone, since the prose quotes the rules. */
-const code = source
+/** A server module with its comments gone, since the prose quotes the rules. */
+const codeOf = (name: string) => readFileSync(new URL(`../../server/${name}`, import.meta.url), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+const code = codeOf("claude-accounts.mjs");
+const verdictCode = codeOf("claude-verdicts.mjs");
 
 describe("usageRows", () => {
   it("answers the rows of a schema-2 file, as they are", () => {
@@ -109,8 +115,10 @@ describe("the identity a cached verdict is filed under", () => {
     expect(cachedVerdictFor(cache, 4, 1_001, "ana@example.test", null)).toBeNull();
   });
 
-  it("is never spelled out by hand in claude-accounts.mjs", () => {
-    expect(code).not.toMatch(/@@\$\{/);
-    expect(code.match(/accountKey\(/g) ?? []).toHaveLength(2);
+  it("is never spelled out by hand in the roster or the verdict cache", () => {
+    // Both modules: the roster read the cache before the cache moved out.
+    expect(code + verdictCode).not.toMatch(/@@\$\{/);
+    // Written once when a collection lands, read once when a row asks.
+    expect(verdictCode.match(/accountKey\(/g) ?? []).toHaveLength(2);
   });
 });

@@ -123,6 +123,22 @@ describe("the two modules the boot wires together", () => {
     // admin-claude-bin.test.ts and cswap-identity.test.ts importing undefined.
     expect(read("cswap-admin.mjs")).toMatch(/^export \{ adminClaudeBin, currentIdentity \};$/m);
   });
+
+  it("still answer for the verdicts, which moved to claude-verdicts.mjs", async () => {
+    // cswap-admin.mjs imports verdictNow and verdictsNow from claude-accounts.mjs
+    // statically, and lan-deck.mjs reaches verdictsNow there through a dynamic
+    // import that swallows its own failure — so a dropped re-export would be
+    // an undefined function in one and a verdict that silently never arrives in
+    // the other. Identity, not merely presence: a second copy would be a second
+    // queue and a second cache.
+    const accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
+    const verdicts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-verdicts.mjs")).href);
+    for (const name of ["verdictNow", "verdictsNow"]) {
+      expect(typeof (verdicts as Record<string, unknown>)[name], name).toBe("function");
+      expect((accounts as Record<string, unknown>)[name], name).toBe((verdicts as Record<string, unknown>)[name]);
+    }
+    expect(read("claude-accounts.mjs")).toMatch(/^export \{ verdictNow, verdictsNow \} from "\.\/claude-verdicts\.mjs";$/m);
+  });
 });
 
 describe("the modules that exist so that others need not import each other", () => {
