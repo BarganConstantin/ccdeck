@@ -1159,18 +1159,34 @@ describe("the invite, which is one piece of text and every address", () => {
     }
   });
 
-  it("has a code that is six digits and evenly drawn", async () => {
-    // A modulo over a byte would make 0-5 likelier than 6-9, in the one number
-    // that decides whether a stranger can pair.
-    const { inviteCode } = await import("../../server/lan-invite.mjs");
-    const seen = new Map<string, number>();
+  it("has a code of 128 random bits, every one of them the random source's (#1137)", async () => {
+    // Six digits was about twenty bits: a number a laptop counts through in a
+    // second, in the one value that decides whether a stranger can pair. The
+    // proofs are made over it and a transcript that crosses the wire, so the
+    // code has to be one nobody can count through — and nobody types it, so
+    // it can be.
+    const { inviteCode, INVITE_CODE_BYTES } = await import("../../server/lan-invite.mjs");
+    expect(INVITE_CODE_BYTES * 8).toBeGreaterThanOrEqual(128);
+
+    // Spelled in base64url: 22 characters for 16 bytes, no padding, nothing a
+    // token or a chat window would mangle.
+    const seen = new Set<string>();
     for (let i = 0; i < 400; i++) {
       const c = inviteCode();
-      expect(c).toMatch(/^[0-9]{6}$/);
-      for (const d of c) seen.set(d, (seen.get(d) ?? 0) + 1);
+      expect(c).toMatch(/^[A-Za-z0-9_-]{22}$/);
+      expect(Buffer.from(c, "base64url")).toHaveLength(INVITE_CODE_BYTES);
+      seen.add(c);
     }
-    const counts = [...Array(10).keys()].map(d => seen.get(String(d)) ?? 0);
-    expect(Math.min(...counts)).toBeGreaterThan(Math.max(...counts) * 0.6);
+    expect(seen.size, "two codes out of 400 were the same").toBe(400);
+
+    // AND NOTHING REDUCED ON THE WAY. The bytes asked for are the bytes the
+    // code decodes to, so no sampling or modulo sits between the random source
+    // and the secret — the entropy is the source's, all of it.
+    const asked: number[] = [];
+    const bytes = Buffer.from("000102030405060708090a0b0c0d0e0f", "hex");
+    const c = inviteCode((n: number) => { asked.push(n); return bytes.subarray(0, n); });
+    expect(asked).toEqual([INVITE_CODE_BYTES]);
+    expect(Buffer.from(c, "base64url").equals(bytes)).toBe(true);
   });
 
   it("proves the holder without ever sending the code", async () => {
@@ -1226,11 +1242,15 @@ describe("the invite, which is one piece of text and every address", () => {
     const made = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
     expect(readInvite(made.token).provesBack).toBe(true);
 
+    // A token as a deck from before the flag wrote it: six digits, no `pb`.
+    // Only such a deck can have minted one, so only for one does the missing
+    // flag mean anything.
     const body = JSON.parse(Buffer.from(made.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
-    delete body.pb;
-    const old = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    const token = (o: unknown) => INVITE_PREFIX + Buffer.from(JSON.stringify(o), "utf8").toString("base64url");
+    const old = token({ ...body, c: "482100", pb: undefined });
     expect(readInvite(old), "a token from before the flag is still an invite").not.toBeNull();
     expect(readInvite(old).provesBack).toBe(false);
+    expect(readInvite(token({ ...body, c: "482100" })).provesBack).toBe(true);
   });
 
   // WHAT A PASTED TOKEN IS ALLOWED TO BE (#1171). The case above pastes junk
@@ -1254,10 +1274,14 @@ describe("the invite, which is one piece of text and every address", () => {
       // itself. The version check is the coarse one; `pb` above is the fine one.
       ["another PROTOCOL", { ...body, v: PROTOCOL + 1 }],
       ["no version at all", { ...body, v: undefined }],
-      // The code is what a person reads out loud to the other machine. A token
-      // without one, or with one that is not six digits, pairs on nothing.
+      // The code is the secret the two proofs are made over. A token without
+      // one, or with one of neither kind — this version's 22 characters of
+      // base64url, or an older deck's six digits — pairs on nothing.
       ["no code", { ...body, c: undefined }],
-      ["a code that is not six digits", { ...body, c: "12345" }],
+      ["a code of neither kind", { ...body, c: "12345" }],
+      ["a code a character short", { ...body, c: body.c.slice(1) }],
+      ["a code a character long", { ...body, c: `${body.c}A` }],
+      ["a code outside base64url", { ...body, c: `${body.c.slice(1)}+` }],
       ["a code that is not a string", { ...body, c: 482100 }],
       // No expiry is an invite that never runs out, which is the one thing an
       // invite may not be.
