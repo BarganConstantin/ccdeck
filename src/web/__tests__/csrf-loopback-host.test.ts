@@ -24,6 +24,7 @@
 // where the routes actually live.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -199,6 +200,7 @@ describe("the rebinding gate in front of the routing table", () => {
       server.closeAllConnections?.();
       server.close(() => done());
     });
+    rmTempDir(DIR);
   });
 
   function call(path: string, headers: Record<string, string>): Promise<number> {

@@ -22,6 +22,9 @@ import * as zlib from "node:zlib";
 // A Codex home of this file's own, in place before anything below imports the
 // module: fetchCodexUsage walks $CODEX_HOME/sessions, and a case that reached
 // the real one would be counting the developer's own sessions.
+// The cases make their own directories inside it, so the afterAll below takes
+// them too: the torn case writes ten megabytes, and in the system temp
+// directory it left them behind on every run.
 const SANDBOX = mkdtempSync(join(tmpdir(), "codex-zst-home-"));
 const CODEX_HOME = join(SANDBOX, "codex");
 const ENV_KEYS = ["HOME", "USERPROFILE", "CODEX_HOME"] as const;
@@ -126,7 +129,7 @@ describe("reading one", () => {
 
   it("reads a compressed rollout exactly as it reads a plain one", async () => {
     const { readTokenSeriesForTest } = await import("../../server/codex-usage.mjs") as never;
-    const dir = mkdtempSync(join(tmpdir(), "codex-zst-"));
+    const dir = mkdtempSync(join(SANDBOX, "codex-zst-"));
     const packed = join(dir, "rollout-2026-06-17T12-39-01-bbbb.jsonl.zst");
 
     if (!HAS_ZSTD) {
@@ -162,7 +165,7 @@ describe("reading one", () => {
     // this function opened is destroyed before it returns — and that is
     // checkable on the object itself, identically on all three platforms.
     if (!HAS_ZSTD) return;
-    const dir = mkdtempSync(join(tmpdir(), "codex-zst-torn-"));
+    const dir = mkdtempSync(join(SANDBOX, "codex-zst-torn-"));
     const torn = join(dir, "rollout-2026-06-17T12-39-01-cccc.jsonl.zst");
     // BIG, and broken at the START. A small torn file is read to EOF before the
     // decompressor gives up, and a source that reached EOF closes itself — so a
@@ -202,7 +205,7 @@ describe("reading one", () => {
     // used to emit an unhandled 'error' on the source — an uncaught exception
     // with no process-level net anywhere in the deck.
     const { readTokenSeriesForTest } = await import("../../server/codex-usage.mjs") as never;
-    const dir = mkdtempSync(join(tmpdir(), "codex-zst-gone-"));
+    const dir = mkdtempSync(join(SANDBOX, "codex-zst-gone-"));
     const gone = join(dir, "rollout-2026-06-17T12-39-01-dddd.jsonl.zst");
     const escaped: Error[] = [];
     const catchAll = (e: Error) => { escaped.push(e); };
