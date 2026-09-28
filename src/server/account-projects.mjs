@@ -4,11 +4,11 @@
 // The account cards show account-wide rate-limit utilisation, which has no
 // project dimension and cannot be sliced. This is the other axis: for one
 // account, the tokens it spent per project, which the web side prices with the
-// board's own pricing table (pricing.ts). Cost is NOT computed here — the
-// server is plain .mjs with no build step and cannot import the .ts price
-// table, and keeping one source of prices beats a second copy that drifts. So
-// this file tallies TOKENS per (account, project, day, model) and the client
-// multiplies by the rates it already owns.
+// board's own rates (rate-table.ts, through pricing.ts's costForUsage). Cost is
+// NOT computed here — the server is plain .mjs with no build step and cannot
+// import the .ts rate table, and keeping one source of prices beats a second
+// copy that drifts. So this file tallies TOKENS per (account, project, day,
+// model) and the client multiplies by the rates it already owns.
 //
 // Attribution is per MESSAGE, not per session. A running session migrates to a
 // newly-activated account on its next message, so a whole session can span two
