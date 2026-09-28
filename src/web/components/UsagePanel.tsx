@@ -7,7 +7,7 @@ import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-
 import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
 import {
   boardModelTable, boardSessionTable, boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
-  UNKNOWN_MODEL, type BoardSessionRow,
+  type BoardSessionRow,
 } from "../board-usage";
 import {
   PERIODS, modelRows as ccModelRows, sessionRows as ccSessionRows,
@@ -18,9 +18,9 @@ import { readStored } from "../storage";
 import type { GraphState } from "../reducer";
 import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
-import { shortModel } from "../model-label";
 import CostBar from "./CostBar";
 import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
+import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
 import UsageSessionBreakdown from "./UsageSessionBreakdown";
 import { selfPressProps } from "../panel-press";
@@ -81,7 +81,9 @@ function saveSessionsOpen(open: boolean): void {
 
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
-// with the folds that build them (#1175).
+// with the folds that build them (#1175). The tables that draw them, and
+// ccusage's rows beside them, are components/UsageModelTable.tsx and
+// components/UsageSessionBreakdown.tsx.
 
 // The stacked cost bar this panel drew is components/CostBar.tsx now — it was
 // written out here, in App.tsx and in SessionSummary.tsx, and #381's role fix
@@ -529,50 +531,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               when ccusage has not answered at all. */}
 
           {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
-            <section className={`up-section${staleCls}`}>
-              <h3 className="up-section-title">By model</h3>
-              <table className="up-table">
-                <thead>
-                  <tr>
-                    <th>Model</th>
-                    <th>Tokens</th>
-                    <th>Cost</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fromRange
-                    ? rangeModelRows.map(m => (
-                      <tr key={m.model}>
-                        <td className="up-model-name" title={m.model}>{shortModel(m.model)}</td>
-                        {/* Every token, not input plus output. The board's row
-                            counts the two it can price per agent; ccusage sends
-                            all four, and on an agentic session the cache is the
-                            larger part by two orders of magnitude — 9.56B
-                            against 320k on the machine this was written on. */}
-                        <td className="up-num">{fmtTokens(m.tokens)}</td>
-                        {m.cost > 0
-                          ? <td className="up-num up-cost-val">{fmtCost(m.cost)}</td>
-                          : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
-                      </tr>
-                    ))
-                    : boardModelRows.map(m => (
-                      <tr key={m.model}>
-                        {/* `__unknown__` is the map's key for an agent that has
-                            not reported a model yet, and it is not a word. The
-                            row still belongs here — its tokens are in the strip
-                            above — but under a name a person can read. */}
-                        <td className="up-model-name" title={m.model === UNKNOWN_MODEL ? "no model reported yet" : m.model}>
-                          {m.model === UNKNOWN_MODEL ? "unknown" : shortModel(m.model)}
-                        </td>
-                        <td className="up-num">{fmtTokens(m.inputTokens + m.outputTokens)}</td>
-                        {m.priced
-                          ? <td className="up-num up-cost-val">{fmtCost(m.cost.total)}</td>
-                          : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </section>
+            <UsageModelTable
+              fromRange={fromRange}
+              rangeModelRows={rangeModelRows}
+              boardModelRows={boardModelRows}
+              staleCls={staleCls}
+            />
           )}
 
           {/* THE HOUR AFTER LOCAL MIDNIGHT, said rather than left blank.

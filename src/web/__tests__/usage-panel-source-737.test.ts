@@ -58,6 +58,8 @@ const rangeHook = read("../use-usage-range.ts");
 const strip = read("../components/UsagePeriodStrip.tsx");
 /** The per-session breakdown, lifted out of the panel. */
 const sessions = read("../components/UsageSessionBreakdown.tsx");
+/** The By model table, lifted out of the panel. */
+const models = read("../components/UsageModelTable.tsx");
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -379,8 +381,9 @@ describe("markup, read as source", () => {
   it("renders both branches of both tables", () => {
     expect(panel).toContain("{(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (");
     expect(panel).toContain("{(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (");
-    expect(panel).toContain("? rangeModelRows.map(m => (");
-    expect(panel).toContain(": boardModelRows.map(m => (");
+    expect(panel).toMatch(/\{\(fromRange \? rangeModelRows\.length : boardModelRows\.length\) > 0 && \(\s*<UsageModelTable\b/);
+    expect(models).toContain("? rangeModelRows.map(m => (");
+    expect(models).toContain(": boardModelRows.map(m => (");
     // The session table's two branches are UsageSessionBreakdown.tsx's, which
     // the panel mounts behind the gate above: one link per file.
     expect(panel).toMatch(/\{\(fromRange \? rangeSessionRows\.length : boardSessionRows\.length\) > 0 && \(\s*<UsageSessionBreakdown\b/);
@@ -393,7 +396,7 @@ describe("markup, read as source", () => {
     // ccusage sends four, and on an agentic session cache read is the largest
     // by orders of magnitude — a row that dropped it would report a fraction of
     // its own model's usage under a cost that included all of it.
-    expect(panel).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
+    expect(models).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
   });
 
   it("says unpriced by the source's own answer", () => {
@@ -479,7 +482,11 @@ describe("markup, read as source", () => {
     expect(panel).toContain('const staleCls = rangeStale ? " up-stale" : "";');
     expect(panel).toContain("<div className={`up-total${staleCls}`}");
     expect(panel).toContain("<div className={`up-tokens-row${staleCls}`}");
-    expect(panel).toContain("<section className={`up-section${staleCls}`}>");
+    // The two tables are lifted out of the panel, which hands each the class:
+    // one link per file.
+    expect([...panel.matchAll(/staleCls=\{staleCls\}/g)]).toHaveLength(2);
+    expect(models).toContain("<section className={`up-section${staleCls}`}>");
+    expect(sessions).toContain("<section className={`up-section${staleCls}`}>");
     expect(css).toMatch(/\.up-stale \{ opacity: var\(--dim-stale\)/);
   });
 
