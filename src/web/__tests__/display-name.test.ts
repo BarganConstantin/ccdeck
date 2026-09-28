@@ -199,7 +199,9 @@ describe("the boundary the rename must not cross", () => {
     // The upgrade path is where the package name is the truth. Since the old
     // names stopped being published it is the same word as the product, and
     // the default parameter is what says which package the update installs.
-    const selfUpdate = read("src", "server", "self-update.mjs");
+    // install-layout.mjs is where self-update.mjs's naming half moved to, and
+    // self-update.mjs re-exports it; the defaults are written there.
+    const selfUpdate = read("src", "server", "install-layout.mjs");
     // The default is the fact; the line breaks are not (#378). Both of these
     // were exact signatures, so reformatting the parameter list failed them
     // while the package the upgrade installs stayed exactly the same.

@@ -546,7 +546,7 @@ describe("the name the deck asks people to type", () => {
     // nothing overrides it — not the signature's line breaks (#378). Reflowing
     // the parameters across three lines used to fail this and display-name
     // .test.ts, which asserts the same default, at once.
-    expect(read("src", "server", "self-update.mjs"), "the upgrade stopped defaulting to the published package")
+    expect(read("src", "server", "install-layout.mjs"), "the upgrade stopped defaulting to the published package")
       .toMatch(/export function upgradeName\(\s*pkgRoot,\s*name\s*=\s*PUBLISHED_NAME,?\s*\)/);
     expect(JSON.parse(read("package.json")).name).toBe(PREFERRED);
   });
