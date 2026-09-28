@@ -1,4 +1,6 @@
 // agent-dag server: HTTP ingest + SSE broadcast + static file serving.
+// This file is the startup and the route table; the handlers, and the state
+// they share, live in the modules imported below.
 // Pure Node HTTP server, zero deps. Nothing in this file talks to anything but
 // 127.0.0.1 clients. It used to import `request` for challengeDeck, which asks
 // another deck's port to prove it is the deck its discovery record describes;
