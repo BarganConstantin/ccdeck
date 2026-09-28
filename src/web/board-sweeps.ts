@@ -7,7 +7,7 @@
 // through `bump`, so a sweep that changed something is also one every memo can
 // see.
 import { rootAgentId, toolKey, type GraphState } from "./graph-state";
-import { releaseToolIds } from "./tool-calls";
+import { DROPPED_OUTCOME_PREVIEW, releaseToolIds } from "./tool-calls";
 import type { AgentNodeData } from "./types";
 
 /** Record that a sweep changed something, and pass its answer through.
@@ -397,7 +397,7 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // the expensive kind of wrong: a missing result is a gap the user can
         // see through, a cause that never happened is a bug hunt.
         t.errorPreview = t.outcomeGap
-          ? "no result reached the deck — events were dropped while the deck was paused"
+          ? DROPPED_OUTCOME_PREVIEW
           : "session ended before this call returned";
         // Also drop it from the live tool index, so the id is not held open by a
         // session that is gone. This does NOT make the call unsettleable: the

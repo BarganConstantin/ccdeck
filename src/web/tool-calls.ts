@@ -103,8 +103,7 @@ function trimTools(state: GraphState, a: AgentNodeData): void {
       // — `resolveOwner` hands a re-delivered `PreToolUse` back to the root
       // whenever no subagent is live — so agent equality would hold for both
       // copies and guard nothing.
-      const key = toolKey(a.sessionId, t.id);
-      if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
+      releaseToolId(state, a, t);
     }
   }
   // Entries below the blob window are always trimmed already, so this walks
@@ -194,11 +193,23 @@ function findTool(state: GraphState, owner: AgentNodeData, id: string): ToolCall
  *  `state.agents` and the agent is gone from it — the call is off the board, and
  *  settling a bubble nothing draws is not a thing worth keeping a map for. */
 export function releaseToolIds(state: GraphState, a: AgentNodeData): void {
-  for (const t of a.tools) {
-    const key = toolKey(a.sessionId, t.id);
-    if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
-  }
+  for (const t of a.tools) releaseToolId(state, a, t);
 }
+
+/** Drop `t`'s entry from `toolIndex` if, and only if, the entry is still `t` —
+ *  the guard both releases above need, for the reason `releaseToolIds` gives:
+ *  one `tool_use_id` can name two calls, and a release by id alone can evict
+ *  the live one (#443). */
+function releaseToolId(state: GraphState, a: AgentNodeData, t: ToolCall): void {
+  const key = toolKey(a.sessionId, t.id);
+  if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
+}
+
+/** What a call left without an outcome says when the deck itself dropped events
+ *  while it was paused (#676). It is the one cause the deck can vouch for, so
+ *  the stale sweep and the turn end both say it in place of their own reading
+ *  of the silence. */
+export const DROPPED_OUTCOME_PREVIEW = "no result reached the deck — events were dropped while the deck was paused";
 
 /** Whether this envelope is the answer to a call the graph is still waiting on
  *  — a `PostToolUse` / `PostToolUseFailure` whose id is in flight right now.
