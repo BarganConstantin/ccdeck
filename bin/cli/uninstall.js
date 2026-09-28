@@ -9,8 +9,8 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
-import { glyphs, unicodeOK } from "../../src/server/term.mjs";
 import { INVOKED_AS, PKG_ROOT } from "./package.js";
+import { G } from "./screen.js";
 import { removedRecord } from "./login-item.js";
 
 /**
@@ -33,9 +33,9 @@ export async function uninstall(flags) {
   // the whole path-plus-parser-error twice buries the one line that differs —
   // which of our two installations is still in there.
   const named = new Set();
-  // Its own glyphs for the same reason the bad-port line in deck.js has them:
-  // this runs well before deck.js declares `G` (#797).
-  const { dash: gDash } = glyphs(unicodeOK());
+  // The screen's dash, by the name every line below uses: bin/cli/screen.js
+  // answers it when it loads, so it is there before the boot draws anything.
+  const { dash: gDash } = G;
   /** Report one provider's outcome. `ok` first — see uninstallHooks. */
   const report = (res, label) => {
     if (res.ok === false) {

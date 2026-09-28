@@ -7,17 +7,18 @@
 // deck has no business moving that deck's files on the way past, and because
 // asking a server to stop should not require starting one.
 //
-// Their own glyphs and palette rather than deck.js's `G`/`P`, for the reason
-// the bad-port block there gives (#797): those are declared hundreds of lines
-// further down that file, and this runs before any of them.
+// The glyphs and the palette are the boot's own, from bin/cli/screen.js, which
+// answers them when it loads — so these lines can use them even though they run
+// before the boot has drawn anything (#797).
 import { readFileSync as readLog, statSync as statLog } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isPortValue } from "../../src/server/args.mjs";
 import { PRODUCT } from "../../src/server/brand.mjs";
-import { colorProfile, glyphs, palette, sinceLabel, unicodeOK } from "../../src/server/term.mjs";
+import { sinceLabel } from "../../src/server/term.mjs";
 import { installGlobally, loginItemCommand } from "./login-item.js";
 import { INVOKED_AS, PKG_ROOT } from "./package.js";
+import { G, P } from "./screen.js";
 
 /**
  * Answer one of the six one-shot flags and resolve to the exit code. The
@@ -43,10 +44,10 @@ export async function oneShot(flags) {
   return stopDecks(flags, decks, voice);
 }
 
-/** The one-shots' glyphs, palette and `say`, asked of the terminal once. */
+/** The screen's glyphs and palette, by the names the one-shots use, and `say`. */
 function oneShotVoice() {
-  const { dash, ok: gOk, warn: gWarn, bullet, arrow, ellipsis: gEllipsis } = glyphs(unicodeOK());
-  const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
+  const { dash, ok: gOk, warn: gWarn, bullet, arrow, ellipsis: gEllipsis } = G;
+  const tone = P;
   const say = (line) => process.stdout.write(`${line}\n`);
   return { dash, gOk, gWarn, bullet, arrow, gEllipsis, tone, say };
 }
@@ -57,11 +58,10 @@ const url = (d) => `http://127.0.0.1:${d.port}`;
 
 // WHAT THE ONE-SHOTS USED TO SWALLOW.
 //
-// reportUnknownFlags and reportIncompleteFlags live in bin/deck.js and
-// cannot be called from here — they reach for `G`, `P` and `write`, which
-// that file declares long after it asks this, so a call would be a temporal
-// dead zone (the same reason the `--port` guard builds its own glyphs,
-// #797). So the rows are written here, in the one-shots' own tone.
+// The boot's reportUnknownFlags and reportIncompleteFlags live in bin/deck.js,
+// which is the script itself and cannot be imported, and they write the boot's
+// label-column rows to stdout. So a one-shot's are written here, to stderr, in
+// the one-shots' own shape.
 //
 // Without them `--help`'s closing promise — "Anything else on the command
 // line is reported as an unknown option and then ignored" — held for a boot

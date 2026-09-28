@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import { dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
-import { glyphs, link, oneLine, pulseDot, pulseText, unicodeOK, unregisteredDetail } from "../src/server/term.mjs";
+import { link, oneLine, pulseDot, pulseText, unregisteredDetail } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { renameNotice } from "../src/server/invoked-as.mjs";
 import { wayBackNote } from "../src/server/way-back.mjs";
@@ -102,13 +102,10 @@ const envPort = process.env.AGENT_DAG_PORT?.trim();
 const rawPort = flags.port ?? (envPort ? envPort : null);
 if (rawPort != null && !isPortValue(rawPort)) {
   const named = flags.port != null ? "--port" : "AGENT_DAG_PORT";
-  // Its own glyphs, not `G` — that is declared a hundred lines below and this
-  // runs at module top level, so reaching for it here would be a temporal dead
-  // zone and a ReferenceError on the one path that reports a bad port. Both
-  // helpers read the environment and nothing this file has parsed yet, so
-  // asking twice on a path that exits immediately costs nothing (#797).
-  const { dash } = glyphs(unicodeOK());
-  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${dash} expected 0-65535.`);
+  // `G.dash`, not an em dash: the console may be the legacy Windows one (#797).
+  // `G` is bin/cli/screen.js's, answered when that module loads, so it is there
+  // on this path too, long before the boot draws anything with it.
+  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${G.dash} expected 0-65535.`);
   process.exit(1);
 }
 const port = rawPort == null ? 4317 : Number(rawPort);
@@ -1098,7 +1095,7 @@ if (openBrowser && !RESPAWN) {
 // come up has no business teaching the machine to start it at every login. By
 // here the port is bound, the hooks are registered and the browser is open.
 // Never on a respawn, which is the same session continuing. See offerLoginItem.
-if (!RESPAWN) await offerLoginItem({ P, G, write, deckDataDir, deckLogDir });
+if (!RESPAWN) await offerLoginItem({ deckDataDir, deckLogDir });
 
 // ── Pulse indicator ───────────────────────────────────────────────────────────
 // The whole line is rewritten each beat rather than just the dot: anything else
