@@ -11,8 +11,8 @@
 // OUR tokens. Our tokens are then priced exactly as ccusage would price them,
 // whether we tracked the whole day or a sliver of it. pricing.ts supplies the
 // per-token shape (input vs output vs cache each have their own rate); ccusage
-// supplies the calibration. Codex never enters: the caller passes a Claude-only
-// ccByDayModel.
+// supplies the calibration. Codex never enters: ccCellsFrom keeps Claude's
+// breakdowns alone.
 import { costForUsage } from "./pricing";
 import { bareModelId } from "./model-id";
 import type { TokenUsage } from "./types";
@@ -48,6 +48,38 @@ export function tokensOf(models: Record<string, Counters>): number {
   let t = 0;
   for (const c of Object.values(models)) t += c.i + c.o + c.cr + c.cc;
   return t;
+}
+
+/**
+ * ccusage's range body as its cost and tokens per (day, model), keyed
+ * `${day}|${model}` — the dollar authority reconcile() is calibrated against.
+ * Empty for no body, which is what leaves the report on pricing.ts alone.
+ *
+ * Only Claude model breakdowns are read, so Codex cost never reconciles into a
+ * project nor into the window total.
+ */
+export function ccCellsFrom(range: unknown): Map<string, CcCell> {
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const cells = new Map<string, CcCell>();
+  const days = range && Array.isArray((range as { days?: unknown }).days) ? (range as { days: Array<Record<string, unknown>> }).days : [];
+  for (const d of days) {
+    const period = typeof d.period === "string" ? d.period : "";
+    const mbs = Array.isArray(d.modelBreakdowns) ? (d.modelBreakdowns as Array<Record<string, unknown>>) : [];
+    for (const b of mbs) {
+      const mn = typeof b.modelName === "string" ? b.modelName : "";
+      if (!period || !/claude/i.test(mn)) continue;
+      const key = `${period}|${mn}`;
+      const cur = cells.get(key);
+      const u = cur ? cur.usage : { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 };
+      u.inputTokens += num(b.inputTokens);
+      u.outputTokens += num(b.outputTokens);
+      u.cacheReadTokens += num(b.cacheReadTokens);
+      u.cacheCreateTokens += num(b.cacheCreationTokens);
+      if (cur) cur.cost += num(b.cost);
+      else cells.set(key, { cost: num(b.cost), usage: u });
+    }
+  }
+  return cells;
 }
 
 /**
