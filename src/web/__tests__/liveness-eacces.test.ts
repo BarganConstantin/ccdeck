@@ -33,11 +33,11 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 // which this file's whole `toBeGreaterThan(0)` guard exists to catch, and did.
 // self-update.mjs left the list the same way: its copy of the probe went, and
 // the restart-note sweep (restart-note.mjs now) asks deck-probe.mjs's — see the
-// case below the loop.
+// case below the loop. So did Browser Watch's: the election's `pidAlive` was
+// the same two lines, and browser-watch-decks.mjs asks deck-probe.mjs now.
 const SITES: Array<[string, string]> = [
   ["hook/hook.js", "../../../hook/hook.js"],
   ["src/server/deck-probe.mjs", "../../server/deck-probe.mjs"],
-  ["src/server/browser-watch-decks.mjs", "../../server/browser-watch-decks.mjs"],
 ];
 
 describe("every liveness probe accepts both spellings of 'not allowed'", () => {
@@ -72,19 +72,22 @@ describe("every liveness probe accepts both spellings of 'not allowed'", () => {
     expect(note).toContain("isProcessAlive(owner)");
   });
 
-  it("browser-watch asks through a named predicate rather than a bare catch", () => {
+  it("browser-watch asks the shared probe rather than a bare catch", () => {
     // Two `try { process.kill(d.pid, 0); } catch { continue; }` sites used to
     // swallow BOTH errnos, so an elevated deck was invisible to the writer
     // election — and two elected writers is duplicate log lines, duplicate
-    // reactions, and two writers racing one rename.
-    // The deck registry reads moved out of browser-watch.mjs whole, probe and
-    // all, into browser-watch-decks.mjs.
+    // reactions, and two writers racing one rename. They became a named
+    // predicate of the watch's own, and then the one deck-probe.mjs exports,
+    // which the loop above checks for both spellings.
     const src = read("../../server/browser-watch-decks.mjs");
-    expect(src).toContain("function pidAlive(pid)");
-    expect(src).toContain("if (!pidAlive(d.pid)) continue;");
+    expect(src).toContain('import { isProcessAlive } from "./deck-probe.mjs";');
+    expect(src.match(/if \(!isProcessAlive\(d\.pid\)\) continue;/g) ?? [],
+      "the election and the port list each ask it").toHaveLength(2);
     // Nowhere in the watch's server half, not only in the file that has the
-    // probe now: a copy could come back beside the snapshot as easily.
-    expect(watchServerSurface()).not.toMatch(/try \{ process\.kill\(d\.pid, 0\); \} catch \{ continue; \}/);
+    // election: no probe of its own, bare catch or otherwise, can come back.
+    const watch = watchServerSurface();
+    expect(watch).not.toMatch(/try \{ process\.kill\(d\.pid, 0\); \} catch \{ continue; \}/);
+    expect(watch).not.toMatch(/process\.kill\([^)]*, 0\)/);
   });
 });
 
