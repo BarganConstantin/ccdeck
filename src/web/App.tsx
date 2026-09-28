@@ -48,7 +48,7 @@ import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
-import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
+import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
 import { clientPointOf, trashProximity, type TrashProximity } from "./trash-zone";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
@@ -2334,10 +2334,19 @@ function Inner() {
   );
   // Brought back rather than filtered out: see sessionsCalledBack. Filtering
   // would leave the alarm counting one fewer than the sessions actually stuck.
+  // A removed card that goes back to work is brought back the same way, and
+  // through the same bringBack, so the restore is saved and a reload does not
+  // hide it again (#1315): see removalsLiftedByWork, and removalTimes for when
+  // its work starts to count.
+  const removedSinceRef = useRef<ReadonlyMap<string, number>>(new Map());
   useEffect(() => {
-    const back = sessionsCalledBack(waitingSessions, removedAgentIds);
+    removedSinceRef.current = removalTimes(removedSinceRef.current, removedNodes, Date.now());
+    const back = [
+      ...sessionsCalledBack(waitingSessions, removedAgentIds),
+      ...removalsLiftedByWork(stateRef.current.agents, removedAgentIds, removedNodes, removedSinceRef.current),
+    ];
     if (back.length > 0) bringBack(back);
-  }, [waitingSessions, removedAgentIds, bringBack]);
+  }, [waitingSessions, removedAgentIds, removedNodes, bringBack]);
   const runningSessions = useMemo(
     () => runningSessionCount(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
