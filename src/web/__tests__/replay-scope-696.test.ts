@@ -87,7 +87,7 @@ const replayScope = mod.replayScope as (
 ) => (payload: unknown) => boolean;
 const startServer = mod.startServer as (o: unknown) => Promise<Server>;
 const eventsSince = mod.eventsSince as (seq: number) => HookEnvelope[];
-const codexCwdInWorkspace = (await import("../../server/log-writer.mjs"))
+const codexCwdInWorkspace = (await import("../../server/log-election.mjs"))
   .codexCwdInWorkspace as (cwd: string, ws: string, platform?: NodeJS.Platform) => boolean;
 
 afterAll(() => {

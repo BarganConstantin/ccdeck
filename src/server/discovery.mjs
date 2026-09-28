@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 // Under the name installer.mjs gives it, which is the one the bodies below use.
 import { CODEX_HOME as CODEX_DIR } from "./codex-dir.mjs";
-import { canonicalLogPath } from "./log-writer.mjs";
+import { canonicalLogPath } from "./log-election.mjs";
 import { stripBom, writeFileAtomic } from "./atomic-write.mjs";
 
 // Resolved through claude-dir.mjs, the module that owns the rule, exactly as
@@ -106,7 +106,7 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // through a hook, so the decks elect a writer for them among themselves —
     // and a deck running --no-codex must be left out of that election rather
     // than win it and record a rollout it is not even reading. See
-    // writesCodexLog in src/server/log-writer.mjs.
+    // writesCodexLog in src/server/log-election.mjs.
     codex: codex !== false,
     // And WHOSE rollouts. `codex: true` says this deck tails them and never said
     // from where, while CODEX_HOME moves the whole tree — #375 was five modules

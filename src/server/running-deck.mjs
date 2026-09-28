@@ -61,7 +61,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { challengeDeck, isProcessAlive } from "./deck-probe.mjs";
-import { sameCodexTree } from "./log-writer.mjs";
+import { sameCodexTree } from "./log-election.mjs";
 
 /**
  * Where every deck on this machine registers itself.

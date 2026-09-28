@@ -142,6 +142,12 @@ export const CONDITIONS = {
 // why CI can assert the strongest possible thing on those two legs — that
 // nothing was skipped at all.
 export const GATES = [
+  // The append queue's deadline answering false for real (log-writer.mjs's
+  // withinDeadline). The wedge is a FIFO with no reader, which takes mkfifo, and
+  // Windows has neither; the deadline is the same code on all three legs, and
+  // the answer once the queue drains is asserted everywhere by
+  // drain-before-exit and log-lifecycle-1130.
+  { file: "append-deadline.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #796's tilde, driven through backupRoot() rather than read out of it (#994).
   // The rule under test is Linux's — a value is absolute when it starts with
   // "/" — and `~/data` becomes absolute only once it is joined onto a home

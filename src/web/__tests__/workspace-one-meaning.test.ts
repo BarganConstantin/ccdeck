@@ -60,7 +60,7 @@ const { canonicalWorkspace, canonicalCwd, startCodexWatcher, eventsSince } = awa
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
-const { codexCwdInWorkspace } = await import("../../server/log-writer.mjs");
+const { codexCwdInWorkspace } = await import("../../server/log-election.mjs");
 
 // Refuse to run at all if the sandbox did not take, rather than assert against
 // a developer's real configuration.

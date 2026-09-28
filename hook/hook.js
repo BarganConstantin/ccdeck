@@ -180,7 +180,7 @@ function cwdInWorkspace(cwd, workspace, platform = process.platform) {
  * payload with no cwd — it is here because the rule has to be stated the same
  * way on both sides to be pinned against the other one.
  *
- * src/server/log-writer.mjs answers this same question, for the sessions the
+ * src/server/log-election.mjs answers this same question, for the sessions the
  * server builds itself out of Codex's rollout files, under the name
  * codexCwdInWorkspace — this script is copied out of the package and run
  * standalone, so it cannot import that copy. A test walks one table of paths
@@ -234,11 +234,11 @@ function isAlive(pid) {
  * The platform is a parameter, like cwdInWorkspace's, so the case-folding half
  * is testable from any machine.
  *
- * src/server/log-writer.mjs repeats this rule for the events no hook delivers —
- * the ones the server builds itself from Codex's rollout files — because this
- * script is copied out of the package and cannot import it. A test compares the
- * two directly: they decide for the same decks, and a disagreement is a line
- * written twice or not at all.
+ * src/server/log-election.mjs repeats this rule for the events no hook
+ * delivers — the ones the server builds itself from Codex's rollout files —
+ * because this script is copied out of the package and cannot import it. A test
+ * compares the two directly: they decide for the same decks, and a disagreement
+ * is a line written twice or not at all.
  */
 function electWriters(decks, platform = process.platform) {
   const byLog = new Map();

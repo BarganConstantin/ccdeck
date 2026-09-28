@@ -36,7 +36,7 @@ const DIR = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-canon-log-"))
 afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — plain .mjs server module, no types
-const { canonicalLogPath, electWriters } = await import("../../server/log-writer.mjs");
+const { canonicalLogPath, electWriters } = await import("../../server/log-election.mjs");
 
 const deckJs = () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires

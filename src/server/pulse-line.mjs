@@ -109,10 +109,10 @@ export function pulseDot(beat, { registered = true, claude = true, busy = null }
  * both. On a Codex-only deck it is false twice over: no hook is looking for this
  * deck, and events do keep arriving, because the rollout watcher reads the files
  * directly. What that deck really loses is the writer election in
- * log-writer.mjs, which is how several decks tailing one rollout agree on which
- * of them appends it to a shared events log. A deck with no record on disk is
- * assumed to be writing, so nothing is dropped — the log can gain the same line
- * twice instead.
+ * log-election.mjs, which is how several decks tailing one rollout agree on
+ * which of them appends it to a shared events log. A deck with no record on
+ * disk is assumed to be writing, so nothing is dropped — the log can gain the
+ * same line twice instead.
  *
  * @param file the discovery file that could not be written.
  * @param claude whether this deck is watching Claude Code at all.
