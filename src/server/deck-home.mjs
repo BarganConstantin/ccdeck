@@ -45,7 +45,7 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 // and the file this one renames into place is a private key. Losing that rename
 // to a virus scanner would be a deck with no identity, which is the one outcome
 // this whole module is written to prevent.
-import { renameWithRetry } from "./installer.mjs";
+import { renameWithRetry } from "./atomic-write.mjs";
 
 /** The name this deck files itself under. No `-nodejs` suffix, which env-paths
  *  adds to keep a script from colliding with a native app of the same name —

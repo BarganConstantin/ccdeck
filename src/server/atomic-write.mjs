@@ -7,9 +7,9 @@
 // retired sound hook, deck-prefs, the browser-watch store, the Codex token
 // writer, uv-bootstrap, macmon, deck-home and the account-projects cache all
 // reach for them too, and none of those installs a hook. So they moved to a
-// leaf of their own, with the note on why each one is exported. installer.mjs
-// imports what it calls and re-exports all six, so every one of those modules
-// still imports them from there. The code is unchanged.
+// leaf of their own, with the note on why each one is exported. Every one of
+// those modules imports what it uses from here, as installer.mjs does: going
+// through the installer loaded its whole module graph to reach a rename.
 import { readFile, unlink, rename, open, stat, chmod, realpath, readlink } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";

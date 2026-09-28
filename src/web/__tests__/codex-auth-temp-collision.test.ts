@@ -56,7 +56,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     }
   };
   // Called for whichever call creates the temp file: `open` once the fix routes
-  // the write through the installer's createTemp, `writeFile` on the code that
+  // the write through atomic-write.mjs's createTemp, `writeFile` on the code that
   // built the name from the pid. Both go through here so the same assertions
   // describe both.
   const decoy = (path: string) => {
@@ -99,8 +99,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 // codex-auth resolves ~/.codex at import time: CODEX_HOME when set, otherwise
 // homedir(), which reads $HOME on POSIX and %USERPROFILE% on Windows. All of
-// them — plus CLAUDE_CONFIG_DIR, which the installer module it imports resolves
-// the same way — point inside a temp dir BEFORE the module loads, so nothing
+// them — plus CLAUDE_CONFIG_DIR, which the installer module it once imported
+// resolves the same way — point inside a temp dir BEFORE the module loads, so nothing
 // here can read or replace the developer's own Codex credentials. A realpath
 // because persistAuth resolves symlinks and macOS hands out /var/folders temp
 // dirs that really live under /private.

@@ -21,8 +21,7 @@ const DIR = mkdtempSync(join(tmpdir(), "ccdeck-ro-target-"));
 afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — .mjs server module, no types
-const { writeFileAtomic } = await import("../../server/installer.mjs");
-// writeFileAtomic is declared in atomic-write.mjs; installer.mjs re-exports it.
+const { writeFileAtomic } = await import("../../server/atomic-write.mjs");
 const src = readFileSync(fileURLToPath(new URL("../../server/atomic-write.mjs", import.meta.url)), "utf8");
 
 describe("writing over a file the filesystem calls read-only", () => {

@@ -69,7 +69,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { claudeConfigDir } from "./claude-dir.mjs";
-import { readSettingsForWrite, writeFileAtomic } from "./installer.mjs";
+import { readSettingsForWrite, writeFileAtomic } from "./atomic-write.mjs";
 
 const CLAUDE_DIR    = claudeConfigDir();
 const SETTINGS_PATH = join(CLAUDE_DIR, "settings.json");

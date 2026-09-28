@@ -26,13 +26,13 @@
 // cannot be parsed is now moved aside and said out loud; only a genuinely
 // ABSENT file starts clean. See loadStore.
 import { mkdir, open, readFile, unlink } from "node:fs/promises";
-// The rename, with the Windows retry ladder installer.mjs wrote for exactly
+// The rename, with the Windows retry ladder atomic-write.mjs keeps for exactly
 // this call. See the note over `writeNow` (#786). `stripBom` comes from the same
 // module for the reason its export block gives: a rule spelled twice is a rule
 // that drifts, and "a BOM is not damage" has to mean the same thing here as it
 // does on settings.json, or a state.json somebody opened in Notepad gets
 // quarantined for a mark the settings reader has ignored since it was written.
-import { renameWithRetry, stripBom } from "./installer.mjs";
+import { renameWithRetry, stripBom } from "./atomic-write.mjs";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { PRODUCT } from "./brand.mjs";

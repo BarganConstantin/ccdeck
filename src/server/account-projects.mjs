@@ -25,7 +25,7 @@ import { open, stat, readdir, readFile, writeFile, mkdir } from "node:fs/promise
 import { homedir } from "node:os";
 import { join, resolve, basename, dirname, relative } from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import { renameWithRetry } from "./installer.mjs";
+import { renameWithRetry } from "./atomic-write.mjs";
 import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
 import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";

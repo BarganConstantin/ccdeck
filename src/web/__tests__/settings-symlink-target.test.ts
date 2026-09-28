@@ -67,8 +67,10 @@ process.env.CODEX_HOME = join(FAKE_HOME, ".codex");
 const installer = await import("../../server/installer.mjs");
 // @ts-expect-error — .mjs server module, no types
 const sound = await import("../../server/retire-sound-hook.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { writeFileAtomic, resolveWriteTarget } = await import("../../server/atomic-write.mjs");
 
-const { installHooks, uninstallHooks, writeFileAtomic, resolveWriteTarget, CLAUDE_DIR } = installer;
+const { installHooks, uninstallHooks, CLAUDE_DIR } = installer;
 const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } = sound;
 
 for (const p of [CLAUDE_DIR, SETTINGS_PATH, PARKED_PATH]) {

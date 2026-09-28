@@ -534,7 +534,3 @@ export { AGENT_DAG_DIR, CLAUDE_DIR, CODEX_DIR };
 // file before they moved, and still: bin/deck.js and the CLI import them from
 // here.
 export { codexHomeField, discoveryPath, ensureDiscovery, keepDiscovery, removeDiscovery, writeDiscovery } from "./discovery.mjs";
-// The atomic write and its read-before-rewrite, which moved to atomic-write.mjs.
-// Exported from this file before they moved, and still: eight modules import
-// them from here.
-export { readSettingsForWrite, writeFileAtomic, renameWithRetry, createTemp, resolveWriteTarget, stripBom } from "./atomic-write.mjs";
