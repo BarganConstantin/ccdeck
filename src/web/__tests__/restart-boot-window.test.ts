@@ -26,7 +26,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { spawn, type ChildProcess } from "node:child_process";
 import { rmTempDir } from "./rm-temp-dir";
 import { copyWorker } from "./cli-surface";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -303,17 +303,27 @@ for (const mod of readdirSync(REAL_SERVER).filter(f => f.endsWith(".mjs"))) {
 // export shadows the same name arriving through `export *`, so every other
 // thing in installer.mjs — removeDiscovery included — is still the real one.
 // Nothing is registered: no hook is going to look for this deck.
+//
+// Each boot leaves a line in CHECKS_DONE the moment its hold ends, written
+// before the promise resolves. On a respawn nothing between `await
+// discovery.check()` and markDeckReady() awaits, so by the time a caller can
+// read the line the deck has already said it is ready — which is the moment the
+// second ask below waits for, where it used to sleep BOOT_MS + 800 (#994).
+const CHECKS_DONE = join(DIR, "checks-done.txt");
 writeFileSync(join(SERVER_DIR, "installer.mjs"), [
+  `import { appendFileSync } from "node:fs";`,
   `export * from ${JSON.stringify(new URL("../../server/installer.mjs", import.meta.url).href)};`,
   `const HELD = Number(process.env.STUB_BOOT_MS ?? 0);`,
   `export function keepDiscovery() {`,
   `  return {`,
   `    file: ${JSON.stringify(join(DIR, "never-written.json"))},`,
-  `    check: () => new Promise(r => setTimeout(r, HELD)),`,
+  `    check: () => new Promise(r => setTimeout(() => { appendFileSync(${JSON.stringify(CHECKS_DONE)}, "done\\n"); r(); }, HELD)),`,
   `    stop: () => {},`,
   `  };`,
   `}`,
 ].join("\n"));
+/** How many boots have got past their discovery hold. */
+const checksDone = () => (existsSync(CHECKS_DONE) ? readFileSync(CHECKS_DONE, "utf8").split("\n").filter(Boolean).length : 0);
 
 // No registry, from either process. The real one is raced against a 1200ms
 // timeout and swallowed, so a network this test cannot rely on would only make
@@ -363,8 +373,9 @@ describe("a restart clicked while the deck is still coming up", () => {
 
     // The respawn is a boot of its own and holds its discovery check open for
     // just as long, so this waits it out — the point of the second ask is the
-    // ordinary path, after the window has closed.
-    await sleep(BOOT_MS + 800);
+    // ordinary path, after the window has closed. The first boot's hold is one
+    // line and the respawn's is the second.
+    await until(() => checksDone() >= 2, 20_000, "the respawn to finish booting");
     const second = await post(port, "/api/restart");
     await until(() => restarts() >= 2, 20_000, "the deck to come back a second time");
 
