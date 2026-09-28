@@ -459,7 +459,18 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   No accounts have arrived, so there is nothing to show yet. The panel keeps
                   trying every {POLL_MS / 1000} seconds.
                 </span>
-                <button type="button" className="ap-fix" disabled={reloading} onClick={() => load(true)}>
+                {/* This was `disabled={reloading}`, #518's one pinned exclusion:
+                    the only control in this branch, so no busy lock had anything
+                    to protect it from. It still dropped focus to <body> the
+                    moment it was pressed, as a control that disables itself
+                    always does, and a roster that then arrived took the button
+                    away with nowhere for focus to go (#1411). It takes the ↻'s
+                    two attributes now and says `trying…` while it works; a
+                    press that brings the roster in hands focus to that ↻, the
+                    same act one row up — only if focus was dropped, the rule
+                    every rescue in this panel keeps. */}
+                <button type="button" className="ap-fix" {...pressProps("reload", reloading)}
+                  onClick={() => load(true).then(() => rescueFocus(null))}>
                   {reloading ? "trying…" : "try again"}
                 </button>
               </div>
