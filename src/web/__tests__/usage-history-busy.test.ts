@@ -113,7 +113,9 @@ describe("the modal itself", () => {
     // place in the tab order while saying `aria-busy`.
     expect([...bare.matchAll(/disabled=\{loading\}/g)]).toHaveLength(0);
     expect([...bare.matchAll(/\{\.\.\.selfPressProps\(loading\)\}/g)]).toHaveLength(2);
-    expect(bare).toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
+    // The refusal is the modal's ccusage hook's, lifted out of it.
+    expect(withoutComments(readFileSync(fileURLToPath(new URL("../use-ccusage.ts", import.meta.url)), "utf8")))
+      .toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
   });
 
   it("swaps the ↻ for a busy label, the way UsagePanel's reload already did", () => {

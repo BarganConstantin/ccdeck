@@ -28,6 +28,8 @@ import { asDay, asResp } from "../usage-history";
 const src = readFileSync(
   fileURLToPath(new URL("../components/UsageHistoryModal.tsx", import.meta.url)), "utf8");
 const rows = readFileSync(fileURLToPath(new URL("../usage-history.ts", import.meta.url)), "utf8");
+/** The modal's ccusage run, where the reply is first read, lifted out of it. */
+const hook = readFileSync(fileURLToPath(new URL("../use-ccusage.ts", import.meta.url)), "utf8");
 
 describe("a day row whose shape moved upstream", () => {
   it("renders as empty rather than throwing, when modelBreakdowns is gone", () => {
@@ -65,8 +67,8 @@ describe("a day row whose shape moved upstream", () => {
   it("is normalised once at the boundary, not guarded at each reader", () => {
     // Six dereference sites today; a seventh added later must not have to
     // remember the rule.
-    expect(src).toContain("setLanded({ range, resp: asResp(raw) })");
-    expect(src, "the untrusted body must not reach state directly")
+    expect(hook).toContain("setLanded({ range, resp: asResp(raw) })");
+    expect(src + "\n" + hook, "the untrusted body must not reach state directly")
       .not.toContain("setLanded({ range, resp })");
     expect(rows).toContain("days: Array.isArray(o.days) ? o.days.map(asDay) : undefined");
   });

@@ -380,7 +380,8 @@ describe("a second press is refused by the handler, not by the browser", () => {
   });
 
   it("holds one forced ccusage run at a time, and hands the lock to the newest request", () => {
-    const modal = codeOf("components/UsageHistoryModal.tsx");
+    // The run is the modal's hook's, lifted out of it into use-ccusage.ts.
+    const modal = withoutComments(readFileSync(`${WEB}/use-ccusage.ts`, "utf8"));
     expect(modal).toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
     // `busyRef.current = force`, not `= true`: a range change starts an
     // unforced load that supersedes the forced one, whose `finally` will not
