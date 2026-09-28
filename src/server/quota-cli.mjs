@@ -104,19 +104,16 @@ export function quotaClaudeBin(platform = process.platform, env = process.env,
   return "claude";
 }
 
-// Run `claude --print /usage` once. Returns { cliOk, parsed }.
-//   cliOk  — the CLI ran and we recognized its output (preamble present)
-//   parsed — quota percentages object, or null if the "Current session/week"
-//            lines were absent (CLI cold-start, or genuinely <1% usage)
 /**
  * The failure this last said out loud, so a standing one is said once.
  *
  * #742. A Windows user with no Claude Code installed sent a screenshot of three
  * identical lines — `ccdeck quota: claude CLI failed: claude exited ENOENT` —
  * interleaved with the deck's pulse line, and they keep coming for as long as
- * the deck runs. Every poll ran the loop below three times, and every attempt
- * printed. A CLI that is not installed is not news three times a minute; it is
- * a condition, and a condition is worth exactly one line.
+ * the deck runs. Every poll ran the retry loop in quota.mjs's _doFetch three
+ * times, and every attempt printed. A CLI that is not installed is not news
+ * three times a minute; it is a condition, and a condition is worth exactly
+ * one line.
  *
  * Cleared on the first run that works, so a `claude` installed while the deck
  * is up can still report its next genuine failure.
@@ -131,6 +128,12 @@ let _saidFailure = null;
  *  sentence back on the terminal every time somebody changed accounts. */
 export function forgetQuotaFailureNotice() { _saidFailure = null; }
 
+// Run `claude --print /usage` once. Returns { cliOk, ran, missing, parsed }.
+//   cliOk   — we recognized its output (preamble present), whatever the exit
+//   ran     — the run itself succeeded, which cliOk does not say
+//   missing — there is no `claude` to run at all
+//   parsed  — quota percentages object, or null if the "Current session/week"
+//             lines were absent (CLI cold-start, or genuinely <1% usage)
 export async function runUsageOnce(bin) {
   const r = await run(bin, ["--print", "/usage"], {
     timeout: 15_000,
