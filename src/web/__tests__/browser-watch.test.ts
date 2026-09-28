@@ -488,7 +488,8 @@ describe("what the test suite is allowed to touch", () => {
     //
     // Asserted against the store module's own path rather than a guess, so a
     // future change to where the store lives cannot quietly re-open the hole.
-    const { storePath, logPath } = await import("../../server/browser-watch-store.mjs");
+    const { storePath } = await import("../../server/browser-watch-store.mjs");
+    const { logPath } = await import("../../server/browser-watch-log.mjs");
     const stamp = (p: string) => {
       try { return statSync(p).mtimeMs; } catch { return null; }
     };

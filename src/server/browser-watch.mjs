@@ -32,7 +32,9 @@ import { readFile } from "node:fs/promises";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { msToChromeTime, readVisitsSince } from "./browser-history.mjs";
 import { toEpisodes, defaultExclusions } from "./agent-activity.mjs";
-import { appendLog, episodeKey, logPath, logSize, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
+import { episodeKey, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
+// watch.log, the plain-text record a person reads without opening the panel.
+import { appendLog, logPath, logSize } from "./browser-watch-log.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST, hostsPath, readKillswitch, extensionReport, killswitchCommand, verdict } from "./relay-guard.mjs";
