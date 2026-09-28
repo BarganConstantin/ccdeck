@@ -68,6 +68,7 @@ function frame(state: GraphState, o: {
   visible?: Set<string>;
   selected?: Set<string>;
   lineage?: Set<string> | null;
+  replayed?: boolean;
 } = {}) {
   const positions = o.positions ?? new Map<string, Point>();
   const provisional = o.provisional ?? new Set<string>();
@@ -79,6 +80,7 @@ function frame(state: GraphState, o: {
     /* settled */ true, /* dragging */ false,
     positions, provisional, o.layoutSig ?? "sig", ref,
     o.selected ?? new Set(), o.lineage ?? null, visible, onOpenContext,
+    o.replayed ?? true,
   );
   return { ...flow, positions, provisional, ref };
 }
@@ -220,6 +222,39 @@ describe("when the frame is allowed to lay the board out again", () => {
     expect(ref.current).toBe("sig#lanes:a:1");
     // And the repair pass really ran: the two cards no longer sit on each other.
     expect(positions.get("b")).not.toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("a board restored while the log is still replaying (#1333)", () => {
+  // Positions and pins come back from storage before the event log does, and
+  // the log arrives a few agents at a time. Anything that renders in between
+  // runs this against the agents replayed so far, which is not all the agents
+  // there are.
+  const restored = () => ({
+    positions: new Map<string, Point>([["a", { x: 0, y: 0 }], ["b", { x: 460, y: 0 }], ["c", { x: 0, y: 580 }]]),
+    pinned: new Map<string, Point>([["c", { x: 0, y: 580 }]]),
+  });
+
+  it("keeps the places of agents that have not arrived yet", () => {
+    const { positions, pinned } = restored();
+    frame(board(agent("a")), { positions, pinned, replayed: false });
+    expect(positions.get("b")).toEqual({ x: 460, y: 0 });
+    // A pin is the user's own placement, and it is restored the same way.
+    expect(pinned.get("c")).toEqual({ x: 0, y: 580 });
+  });
+
+  it("puts a late arrival back where it was rather than laying it out afresh", () => {
+    const { positions, pinned } = restored();
+    frame(board(agent("a")), { positions, pinned, replayed: false });
+    frame(board(agent("a"), agent("b")), { positions, pinned, replayed: false });
+    expect(positions.get("b")).toEqual({ x: 460, y: 0 });
+  });
+
+  it("prunes against the agents once the whole log is back", () => {
+    const { positions, pinned } = restored();
+    frame(board(agent("a")), { positions, pinned, replayed: true });
+    expect(positions.has("b")).toBe(false);
+    expect(pinned.has("c")).toBe(false);
   });
 });
 
