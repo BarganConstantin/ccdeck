@@ -7,14 +7,16 @@
 // `autoLayout` does. Two passes that disagree about how big something is pack
 // one thing into the space the other reserved.
 import type { Node } from "reactflow";
+import { HEADER_H, LABEL_LIFT, PAD } from "./session-chrome";
 
 export const NODE_W = 240;
 export const NODE_H = 130;
 
 // Chrome drawn around a session beyond its cards: outer padding on both sides,
-// the label header, and the label tab that sits above the box's top edge
-// (PAD 18, HEADER_H 26, LABEL_LIFT 12 in cluster-bounds.ts).
-export const SESSION_CHROME = 18 * 2 + 26 + 12;
+// the label header, and the label tab that sits above the box's top edge — the
+// three parts of session-chrome.ts, which the box and its drag handle are
+// drawn with.
+export const SESSION_CHROME = PAD * 2 + HEADER_H + LABEL_LIFT;
 
 // Clear space wanted between one session's box and the next one's label tab.
 // Measured as what the eye sees, not as the distance between card origins —
@@ -30,10 +32,10 @@ export const CARD_MARGIN = 24;
 // inside a cluster box that extends past it — padding on every side, a header
 // strip, and a label tab above that. Cards 30px apart look fine and their boxes
 // still cross, which is what "one on another" actually was. Sideways that is
-// the two boxes' facing padding (PAD 18 each) plus the card margin; down it is
+// the two boxes' facing padding (PAD each) plus the card margin; down it is
 // the gap two stacked sessions keep, chrome included. The overlap repair and
 // the push both clear these, so the two agree on what "overlapping" means.
-export const CROSS_SESSION_X = 18 * 2 + CARD_MARGIN;
+export const CROSS_SESSION_X = PAD * 2 + CARD_MARGIN;
 export const CROSS_SESSION_Y = SESSION_GAP;
 
 // Horizontal room between two session columns: a full card width. At 80px the
