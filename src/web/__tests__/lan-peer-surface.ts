@@ -22,6 +22,7 @@ export const LAN_PEER_FILES = [
   "components/LanPeerMap.tsx",
   "use-peer-unpair.ts",
   "components/LanPeerTwins.tsx",
+  "components/LanPeerFoot.tsx",
 ] as const;
 
 /** Every file in LAN_PEER_FILES, raw, each passed through `strip` and joined by

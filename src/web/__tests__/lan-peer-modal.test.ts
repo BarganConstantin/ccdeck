@@ -31,6 +31,9 @@ const DIALOG = lanPeerSurface(src => src.replace(/\/\*[\s\S]*?\*\//g, " ").repla
 const PRESS = code("../panel-press.ts");
 const ROW_UNPAIR = code("../use-row-unpair.ts");
 const PEER_UNPAIR = code("../use-peer-unpair.ts");
+/** The dialog's foot — the row's one verb and the check — which moved out of
+ *  the dialog into its own. */
+const FOOT = code("../components/LanPeerFoot.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 describe("LAN warning visibility", () => {
@@ -333,13 +336,13 @@ describe("the dialog is as quiet as the row it opens from", () => {
   // A held key clears the 400ms bar while the finger has never come up, so
   // the clock alone cannot be the whole rule.
   it("does not let a held key be its own second press", () => {
-    expect(MODAL).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
+    expect(FOOT).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
   });
 
   // A nearby deck can send its request while its dialog is open, and that kind
   // has no verb here — the bar used to draw itself empty.
   it("says something in the footer for a row that changed kind under it", () => {
-    expect(MODAL).toMatch(/row\.kind === "asks"/);
+    expect(FOOT).toMatch(/row\.kind === "asks"/);
   });
 });
 
@@ -397,7 +400,7 @@ describe("the row is the door", () => {
 
   it("does in the dialog exactly what the row's verb does, under the same busy tag", () => {
     for (const tag of ["unpair:", "accept:", "drop:", "allow:", "check:", "alias:"]) {
-      expect(MODAL, tag).toContain(`press(\`${tag}`);
+      expect(DIALOG, tag).toContain(`press(\`${tag}`);
     }
   });
 
@@ -408,7 +411,7 @@ describe("the row is the door", () => {
     // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
     // Each press lives in a hook of its own: the dialog's in use-peer-unpair.ts,
     // the row's in the section's use-row-unpair.ts.
-    expect(MODAL).toMatch(/onClick=\{\(\) => pressOwn\(\)\}/);
+    expect(FOOT).toMatch(/onClick=\{\(\) => pressOwn\(\)\}/);
     expect(PEER_UNPAIR).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect(PEER_UNPAIR).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); setArmedTwin\(null\); armedAt\.current = now; return; \}/);
     for (const src of [PEER_UNPAIR, ROW_UNPAIR]) {
