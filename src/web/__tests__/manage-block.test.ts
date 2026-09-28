@@ -33,6 +33,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
@@ -409,10 +411,12 @@ describe("the buttons stopped sharing the labels' colour (#325's first finding)"
     // rather than the row's pill — and it takes the same two attributes.
     expect(panel).toMatch(/className="btn primary" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
     // The one place the rule is written, so it cannot be spelled two ways.
-    expect(panel).toMatch(/const s = pressState\(busy, tag\);/);
-    expect(panel).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
-    // And no control in the panel goes inert any other way.
-    expect(panel).not.toMatch(/disabled=\{busy/);
+    expect(clientText()).toMatch(/const s = pressState\(busy, tag\);/);
+    expect(clientText()).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
+    // And no control in the panel goes inert any other way — asked of every
+    // file the panel has been split into, so a control that moves is still in
+    // the sweep.
+    expect(accountsSurface()).not.toMatch(/disabled=\{busy/);
     expect(decl(".ap-manage-btn:disabled", "opacity")).toBe("var(--dim-off)");
     const dimOff = parseFloat(/--dim-off:\s*([\d.]+)/.exec(css)![1]);
     expect(dimOff).toBe(0.6);
