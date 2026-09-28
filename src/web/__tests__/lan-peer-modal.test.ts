@@ -16,6 +16,8 @@ const NOW = 1_700_000_000_000;
 const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const SECTION = code("../components/LanSyncSection.tsx");
+/** The rows, which the section draws through a list of their own. */
+const LIST = code("../components/LanDeckList.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
@@ -318,11 +320,13 @@ describe("the dialog is as quiet as the row it opens from", () => {
 
 describe("the row is the door", () => {
   it("opens the deck's dialog from a button that is the name, and carries no tooltip", () => {
-    expect(SECTION).toMatch(/className="ap-lan-who-open"/);
+    expect(LIST).toMatch(/className="ap-lan-who-open"/);
+    expect(LIST).toMatch(/onClick=\{\(\) => onOpenPeer\(p\.fp\)\}/);
+    expect(SECTION).toMatch(/onOpenPeer=\{setPeerOpen\}/);
     expect(SECTION).toMatch(/<LanPeerModal/);
     // The sentence the tooltip carried is in the dialog now. On the row it was
     // the same words a second late, over the rows below it.
-    expect(SECTION).not.toMatch(/className="ap-lan-who"[^>]*title=/);
+    for (const src of [SECTION, LIST]) expect(src).not.toMatch(/className="ap-lan-who"[^>]*title=/);
   });
 
   it("keeps the verb a verb: it sits above the row's hit area", () => {
@@ -332,7 +336,7 @@ describe("the row is the door", () => {
     expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: 4px;/);
     // The name, and beside it the route when that is the tailnet — both hidden
     // from a screen reader, which the button tells once.
-    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
+    expect(LIST).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
   });
 
   it("answers the pointer with a tone the size of the row, and nothing more", () => {
@@ -362,8 +366,8 @@ describe("the row is the door", () => {
   });
 
   it("tells a keyboard reader what is happening to the machine, not only its name", () => {
-    expect(SECTION).toMatch(/aria-describedby=\{`lan-who-state-\$\{i\}`\}/);
-    expect(SECTION).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className=\{p\.quiet \? "vis-hidden" : "ap-lan-who-when"\}>/);
+    expect(LIST).toMatch(/aria-describedby=\{`lan-who-state-\$\{i\}`\}/);
+    expect(LIST).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className=\{p\.quiet \? "vis-hidden" : "ap-lan-who-when"\}>/);
   });
 
   it("does in the dialog exactly what the row's verb does, under the same busy tag", () => {

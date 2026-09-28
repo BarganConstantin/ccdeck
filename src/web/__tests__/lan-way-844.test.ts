@@ -22,6 +22,8 @@ const lan = read("../components/LanSyncSection.tsx");
 /** The card itself, which moved out of the section into its own file. What the
  *  section is never allowed to do, the card beside it is not either. */
 const card = read("../components/LanPeek.tsx");
+/** The view's rows, which the section draws through a list of their own. */
+const list = read("../components/LanDeckList.tsx");
 const guide = read("../components/guide-art.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -238,7 +240,7 @@ describe("the view (#844)", () => {
   });
 
   it("adds no focus stop of its own", () => {
-    for (const src of [lan, card]) expect(src).not.toMatch(/tabIndex=\{-1\}/);
+    for (const src of [lan, card, list]) expect(src).not.toMatch(/tabIndex=\{-1\}/);
   });
 });
 

@@ -51,6 +51,10 @@ const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ")
  *  about the writes and the poll are asked of it, where they now live. */
 const HOOK_SRC = readFileSync(fileURLToPath(new URL("../use-lan-section.ts", import.meta.url)), "utf8");
 const HOOK = HOOK_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The list of machines, which the section draws through a component of its
+ *  own. The rules about how a row is drawn are asked of it. */
+const LIST = readFileSync(fileURLToPath(new URL("../components/LanDeckList.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The section's whole surface: the component and the files lifted out of it,
  *  comments gone the same way. Every rule below that says what the section
  *  never does reads all of it, so that moving a piece into a file of its own
@@ -58,6 +62,7 @@ const HOOK = HOOK_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm,
 const SURFACE = [
   CODE,
   HOOK,
+  LIST,
   readFileSync(fileURLToPath(new URL("../components/LanPeek.tsx", import.meta.url)), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "),
 ].join("\n");
@@ -592,7 +597,7 @@ describe("the list is quiet until it is not", () => {
     // word the dot beside it cannot say, kept for anybody being read the list.
     // Dropping the node instead would have made the colour of a 5px dot the
     // only evidence that a deck is fine.
-    expect(CODE).toMatch(/p\.quiet \? "vis-hidden" : "ap-lan-who-when"/);
+    expect(LIST).toMatch(/p\.quiet \? "vis-hidden" : "ap-lan-who-when"/);
     expect(CSS).toContain(".vis-hidden");
   });
 
@@ -619,7 +624,7 @@ describe("the list is quiet until it is not", () => {
     // And the three verbs that are the REASON their row is on the list stay
     // where they are: a deck nearby exists to be asked.
     for (const verb of ["ask", "allow", "stop"]) {
-      expect(CODE, verb).toMatch(new RegExp(`>\\s*${verb}\\s*</button>`));
+      expect(LIST, verb).toMatch(new RegExp(`>\\s*${verb}\\s*</button>`));
     }
     expect(CSS).not.toMatch(/\.ap-lan-who \.ap-lan-do \{[^}]*opacity:\s*0/);
   });
@@ -781,8 +786,12 @@ describe("the pairing that replaced the passphrase", () => {
   it("puts the request above everything else, because nothing moves until it is answered", () => {
     const ask = CODE.indexOf('className="ap-lan-asks"');
     expect(ask).toBeGreaterThan(-1);
-    // Above the roster, which is the only other thing in the section.
-    expect(ask).toBeLessThan(CODE.indexOf('className="ap-lan-here"'));
+    // Above the roster, which is the only other thing in the section — the
+    // list the section places after it, which draws the roster's <ul>.
+    const roster = CODE.indexOf("<LanDeckList");
+    expect(roster).toBeGreaterThan(-1);
+    expect(ask).toBeLessThan(roster);
+    expect(LIST).toMatch(/<ul className="ap-lan-here">/);
     // Announced, because it arrives while the reader is three sections up
     // looking at a quota.
     expect(CODE).toMatch(/className="ap-lan-asks" role="alert"/);

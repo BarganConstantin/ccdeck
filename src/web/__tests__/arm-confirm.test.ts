@@ -81,6 +81,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
     withoutComments(readFileSync(fileURLToPath(new URL(`../components/${name}`, import.meta.url)), "utf8"));
   const accounts = read("AccountsPanel.tsx");
   const section = read("LanSyncSection.tsx");
+  const list = read("LanDeckList.tsx");
   const modal = read("LanPeerModal.tsx");
   const sound = read("SoundMenu.tsx");
 
@@ -121,7 +122,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
 
   it("leaves no hand-written gap check anywhere in the components", () => {
     // A fifth copy is how the first four drifted apart in what they pinned.
-    for (const [name, src] of [["AccountsPanel.tsx", accounts], ["LanSyncSection.tsx", section], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx", sound]]) {
+    for (const [name, src] of [["AccountsPanel.tsx", accounts], ["LanSyncSection.tsx", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx", sound]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }

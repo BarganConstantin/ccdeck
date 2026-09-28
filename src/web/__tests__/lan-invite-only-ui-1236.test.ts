@@ -17,6 +17,8 @@ const setup = read("../components/LanSetupModal.tsx");
 const peerModal = read("../components/LanPeerModal.tsx");
 const addModal = read("../components/LanAddDeckModal.tsx");
 const section = read("../components/LanSyncSection.tsx");
+/** The rows, which the section draws through a list of their own. */
+const list = read("../components/LanDeckList.tsx");
 
 const stranger = { fp: "aaaa-bbbb-cccc-dddd", name: "Laptop", addr: "192.168.1.20" };
 
@@ -67,9 +69,12 @@ describe("the controls that say it (#1236)", () => {
   });
 
   it("leaves a nearby or declined machine one verb — an invite — on its row and in its dialog", () => {
-    expect(section).toMatch(
-      /\(p\.kind === "nearby" \|\| p\.kind === "declined"\) && status\?\.pairingMode === "invite"[\s\S]{0,200}setAddOpen\("invite"\)/,
+    // The row draws it and the section opens the dialog — one link in each
+    // file, and the mode the row reads is the section's status.
+    expect(list).toMatch(
+      /\(p\.kind === "nearby" \|\| p\.kind === "declined"\) && pairingMode === "invite"[\s\S]{0,200}onClick=\{onInvite\}/,
     );
+    expect(section).toMatch(/<LanDeckList[\s\S]*?pairingMode=\{status\?\.pairingMode\}[\s\S]*?onInvite=\{\(\) => setAddOpen\("invite"\)\}/);
     expect(peerModal).toMatch(
       /\(row\.kind === "nearby" \|\| row\.kind === "declined"\) && status\.pairingMode === "invite" && onInvite/,
     );
@@ -78,7 +83,7 @@ describe("the controls that say it (#1236)", () => {
   });
 
   it("says the row's invite opens a dialog, the way the row's own door does", () => {
-    const invite = /<button type="button" className="ap-manage-btn ap-lan-do"([^>]*?)onClick=\{\(\) => setAddOpen\("invite"\)\}/.exec(section);
+    const invite = /<button type="button" className="ap-manage-btn ap-lan-do"([^>]*?)onClick=\{onInvite\}/.exec(list);
     expect(invite, "the row's invite button was not found").not.toBeNull();
     expect(invite![1]).toMatch(/aria-haspopup="dialog"/);
   });
