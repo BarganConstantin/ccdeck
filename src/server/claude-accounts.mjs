@@ -305,8 +305,9 @@ export async function fetchClaudeAccounts({ force = false } = {}) {
 //
 // HANDED IN, NOT IMPORTED. The repair writes a credential into claude-swap's
 // store, and this module is read by dozens of tests against fixture stores. The
-// server hands it in when it starts listening (index.mjs) and nothing else does,
-// so no test run can reach `cswap add` through a read.
+// server hands it in when it starts listening (wireStaleCopyRepair, in
+// account-routes.mjs) and nothing else does, so no test run can reach
+// `cswap add` through a read.
 let _repairStaleCopy = null;
 
 /** Called with `{ num, email, now }` for a `stale-copy` row, and returns that

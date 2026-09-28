@@ -10,11 +10,11 @@
 // socket and takes none out of the pin.
 //
 // Four things are exported beyond the handlers. Three because index.mjs reaches
-// for them: cswapAdminModule and cswapAutoModule, which startServer uses to
-// wire the stale-copy repair and to start auto-switch, and getProjectRollup,
-// which it starts at boot. The fourth is CHECKS_IMPORTS, which lan-deck.mjs
-// reads because a LAN round checks the imports it lands the same way the paste
-// box does.
+// for them: wireStaleCopyRepair, which startServer runs to hand the roster its
+// stale-copy repair, cswapAutoModule, which it uses to start auto-switch, and
+// getProjectRollup, which it starts at boot. The fourth is CHECKS_IMPORTS,
+// which lan-deck.mjs reads because a LAN round checks the imports it lands the
+// same way the paste box does.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readBody, send } from "./http-io.mjs";
@@ -105,8 +105,57 @@ export async function handleAccountProjects(req, res) {
   send(res, 200, { ok: true, ...report });
 }
 
-export function cswapAdminModule() {
+function cswapAdminModule() {
   return import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-admin.mjs")).href);
+}
+
+/**
+ * Hand cswap-admin's autoRecapture to the roster read, so a `stale-copy` row
+ * carries its own repair rather than a button — see repairStaleCopyWith.
+ *
+ * startServer calls this once per boot on a deck that watches Claude Code, and
+ * does not wait for it. It lived in startServer itself and moved here, beside
+ * cswapAdminModule and the package root it imports the pair by; the body is
+ * unchanged.
+ */
+export function wireStaleCopyRepair() {
+  // THIS WIRING IS WHERE AN IMPORT CYCLE SHOWED UP AS A SILENT NO-OP, and it
+  // is the cycle that has been fixed rather than this line — see
+  // claude-identity.mjs.
+  //
+  // claude-accounts.mjs used to take `currentIdentity` from cswap-admin.mjs
+  // while cswap-admin.mjs took `backupRoot`, `invalidateClaudeAccountsCache`
+  // and `verdictNow` back, which was the only static import cycle in
+  // src/server. Two dynamic imports entering a cycle concurrently are each
+  // handed the other module's HALF-BUILT namespace rather than waiting for
+  // it, and a half-built namespace has no exports on it at all: measured on
+  // CI, both came back with zero keys, so `accounts.repairStaleCopyWith` was
+  // a TypeError in a promise nothing awaits. The repair was never wired and
+  // nothing said so — every test passed, and the run exited 1 on an unhandled
+  // rejection alone.
+  //
+  // Several importers reach this pair within a few ticks at boot —
+  // startServer's `cswapAutoModule()` imports claude-accounts.mjs too, and
+  // `startServer` can be called again before this has settled — so it was a
+  // timing defect that any change to those import lists could trip, and
+  // sequencing one call site was never going to be enough.
+  //
+  // Asked for one at a time anyway, which is now belt as well as braces: with
+  // no cycle left, a concurrent pair would simply wait for each other.
+  // boot-module-graph.test.ts asserts the braces — that src/server has no
+  // import cycles at all — rather than trying to police call sites.
+  void (async () => {
+    let accounts, admin;
+    // An import that genuinely fails stays tolerated, exactly as the
+    // `() => {}` this replaced tolerated it: the wiring is best-effort. A
+    // namespace that arrives WITHOUT the function is a different thing and
+    // must stay loud, because that is the failure described above.
+    try {
+      accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
+      admin = await cswapAdminModule();
+    } catch { return; }
+    accounts.repairStaleCopyWith(admin.autoRecapture);
+  })();
 }
 
 // Reading the login's progress. The browser polls this while its dialog is

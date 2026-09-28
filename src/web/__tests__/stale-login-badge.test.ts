@@ -356,6 +356,8 @@ describe("the repair itself", () => {
 describe("the repair runs itself", () => {
   const server = src("../../server/claude-accounts.mjs");
   const index = src("../../server/index.mjs");
+  // Where startServer's hand-over lives — see wireStaleCopyRepair.
+  const routes = src("../../server/account-routes.mjs");
   const MIN = 60_000;
 
   it("starts once, then waits, then tries again", () => {
@@ -380,10 +382,19 @@ describe("the repair runs itself", () => {
     // them may be able to reach `cswap add`.
     expect(server).not.toMatch(/import \{[^}]*autoRecapture[^}]*\} from/);
     // Inside startServer rather than at module scope, which every test that
-    // imports index.mjs would evaluate.
+    // imports index.mjs would evaluate. startServer calls wireStaleCopyRepair,
+    // and the hand-over is inside that function — account-routes.mjs is
+    // imported by index.mjs, so its module scope would be evaluated as well.
     const start = index.indexOf("export async function startServer(");
     expect(start).toBeGreaterThan(-1);
-    expect(index.indexOf("repairStaleCopyWith(admin.autoRecapture)")).toBeGreaterThan(start);
+    expect(index.indexOf("wireStaleCopyRepair();", start)).toBeGreaterThan(start);
+    const wire = routes.indexOf("export function wireStaleCopyRepair() {");
+    expect(wire).toBeGreaterThan(-1);
+    const end = routes.indexOf("\n}\n", wire);
+    expect(end).toBeGreaterThan(wire);
+    expect(routes.slice(wire, end)).toContain("repairStaleCopyWith(admin.autoRecapture)");
+    // One hand-over, in that one function.
+    expect(routes.split("repairStaleCopyWith(admin.autoRecapture)")).toHaveLength(2);
   });
 
   it("lets the next read say how the attempt went", () => {

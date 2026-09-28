@@ -6,9 +6,7 @@
 // another deck's port to prove it is the deck its discovery record describes;
 // that moved to deck-probe.mjs, and the client half went with it.
 import { createServer } from "node:http";
-import { join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 // Moved out to a leaf so that a one-shot `ccdeck --stop`, the boot-path module
 // that finds a running deck, and the tests that pin the handshake against
 // hook/hook.js can all ask these questions without importing this file and
@@ -137,9 +135,9 @@ import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } fr
 // moved, and still is.
 import { send, sendInternalError } from "./http-io.mjs";
 export { sendInternalError };
-// The accounts surface's routes — see account-routes.mjs. The boot reaches the
-// admin and auto-switch modules through the same two loaders.
-import { cswapAdminModule, cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction } from "./account-routes.mjs";
+// The accounts surface's routes — see account-routes.mjs. The boot wires the
+// stale-copy repair and starts auto-switch through the same module.
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -152,9 +150,6 @@ import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mj
 // The build this process runs, loaded before an install can replace it — see
 // pinned-build.mjs. Exported from this file before it moved, and still.
 export { pinRunningBuild } from "./pinned-build.mjs";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PKG_ROOT = resolve(__dirname, "..", "..");
 
 // Parse a request target into a URL, or null when it cannot be parsed.
 //
@@ -184,46 +179,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   startAwayUpdate();
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
-  // rather than wired at import — see repairStaleCopyWith.
-  if (deckProviders().claude) {
-    // THIS WIRING IS WHERE AN IMPORT CYCLE SHOWED UP AS A SILENT NO-OP, and it
-    // is the cycle that has been fixed rather than this line — see
-    // claude-identity.mjs.
-    //
-    // claude-accounts.mjs used to take `currentIdentity` from cswap-admin.mjs
-    // while cswap-admin.mjs took `backupRoot`, `invalidateClaudeAccountsCache`
-    // and `verdictNow` back, which was the only static import cycle in
-    // src/server. Two dynamic imports entering a cycle concurrently are each
-    // handed the other module's HALF-BUILT namespace rather than waiting for
-    // it, and a half-built namespace has no exports on it at all: measured on
-    // CI, both came back with zero keys, so `accounts.repairStaleCopyWith` was
-    // a TypeError in a promise nothing awaits. The repair was never wired and
-    // nothing said so — every test passed, and the run exited 1 on an unhandled
-    // rejection alone.
-    //
-    // Several importers reach this pair within a few ticks at boot —
-    // `cswapAutoModule()` below imports claude-accounts.mjs too, and
-    // `startServer` can be called again before this has settled — so it was a
-    // timing defect that any change to those import lists could trip, and
-    // sequencing one call site was never going to be enough.
-    //
-    // Asked for one at a time anyway, which is now belt as well as braces: with
-    // no cycle left, a concurrent pair would simply wait for each other.
-    // boot-module-graph.test.ts asserts the braces — that src/server has no
-    // import cycles at all — rather than trying to police call sites.
-    void (async () => {
-      let accounts, admin;
-      // An import that genuinely fails stays tolerated, exactly as the
-      // `() => {}` this replaced tolerated it: the wiring is best-effort. A
-      // namespace that arrives WITHOUT the function is a different thing and
-      // must stay loud, because that is the failure described above.
-      try {
-        accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
-        admin = await cswapAdminModule();
-      } catch { return; }
-      accounts.repairStaleCopyWith(admin.autoRecapture);
-    })();
-  }
+  // rather than wired at import — see wireStaleCopyRepair.
+  if (deckProviders().claude) wireStaleCopyRepair();
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);
   // Where the log is and whether it can be written, asked before the first
