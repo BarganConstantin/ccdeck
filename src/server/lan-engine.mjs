@@ -26,11 +26,14 @@
 // something in it, which is when an account is actually broken. A deck whose
 // accounts all work talks to its peers every minute and never asks for
 // anything.
-import { accountKey, currentFor, manifestFor, onePerKey, open, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge } from "./lan-sync.mjs";
+import {
+  accountKey, addTrusted, currentFor, dropTrusted, identityFrom, manifestFor, mintInvite, onePerKey, open,
+  pairable, peerWhy, plan, readInvite, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
+  trustedPeer,
+} from "./lan-sync.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
-import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS, TAILNET_MS } from "./tailscale.mjs";
 import { randomBytes } from "node:crypto";
@@ -83,7 +86,6 @@ const ROUND_MS = 10_000;
  * position to tell them they have too many machines.
  */
 export const MAX_AUTO_PEERS = 32;
-
 
 /** What this machine calls itself when the user has not said. The hostname,
  *  because that is the word they already use for this machine everywhere else. */
@@ -139,13 +141,6 @@ export const anotherMachine = (from, mine = []) => {
   return !!at && at !== "127.0.0.1" && at !== "::1" && !mine.includes(at);
 };
 
-/**
- * The accounts a peer's manifest listed, as the panel may keep them.
- *
- * It arrived from another machine, so it is read rather than trusted: strings
- * where strings belong, a boolean for the verdict, and no more rows than a
- * manifest may carry. What is kept is only what the deck's dialog draws.
- */
 /** One peer-supplied string as the panel may draw it: no control or format
  *  characters, whitespace collapsed, bounded. The rule cleanName applies to a
  *  deck's name and lan-about's `field` to a card, applied to the two strings
@@ -156,6 +151,13 @@ function flatten(v, max) {
   return [...flat].slice(0, max).join("");
 }
 
+/**
+ * The accounts a peer's manifest listed, as the panel may keep them.
+ *
+ * It arrived from another machine, so it is read rather than trusted: strings
+ * where strings belong, a boolean for the verdict, and no more rows than a
+ * manifest may carry. What is kept is only what the deck's dialog draws.
+ */
 export function offered(list) {
   return onePerKey((Array.isArray(list) ? list : [])
     .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
@@ -195,13 +197,6 @@ export function heardCurrent(raw, list) {
 }
 
 /**
- * One deck's LAN sync, from settings to a healed account.
- *
- * `deps` is every side effect: reading accounts, exporting one, importing one.
- * Injected rather than imported so a test can run a whole round — two engines,
- * two fake stores, one real socket pair — without claude-swap on the machine.
- */
-/**
  * Whether an account this round just placed is ticked for sharing here (#1188).
  *
  * ONLY AN ADD: a heal needed the tick to happen at all — roundWith asks for a
@@ -218,6 +213,13 @@ export function ticksOnArrival(step, via) {
   return !!step?.key && step.action === "add" && via !== "tailscale";
 }
 
+/**
+ * One deck's LAN sync, from settings to a healed account.
+ *
+ * `deps` is every side effect: reading accounts, exporting one, importing one.
+ * Injected rather than imported so a test can run a whole round — two engines,
+ * two fake stores, one real socket pair — without claude-swap on the machine.
+ */
 export function createEngine({
   readAccounts, exportAccount, importAccount, checkArrivals, liveLogin,
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
@@ -383,6 +385,30 @@ export function createEngine({
    *  still be said to come over the tailnet or the local network — it has no
    *  address of its own here, and without this its row could not say which. */
   const spokeFrom = new Map();
+  /** Peers the user typed in, which the beacon will never find.
+   *
+   *  Broadcast dies at the first router and is dropped by a switch that
+   *  filters it, so a deck across a VPN or on another subnet is unreachable by
+   *  discovery and perfectly reachable by address. Typing one is a decision to
+   *  trust whatever answers there the first time, and to pin it: an address is
+   *  a way to reach a deck, and the accept on the other machine is what lets
+   *  anything move.
+   *
+   *  Keyed by `host:port` rather than by fingerprint, because a fingerprint is
+   *  what a deck says about itself after the handshake and this list has to
+   *  exist before there has been one.
+   *
+   *  EVERY ROW SAYS WHERE IT CAME FROM, in `typed`, and the difference decides
+   *  whether reaching it may pin a key sight unseen. A row somebody put in the
+   *  address field — or pressed accept on, or joined by invite — is a person
+   *  naming a machine. A row `autoAsk` added from a beacon is this deck
+   *  answering a shout, which is not the same claim and must not read as one.
+   *  See roundWith, where the difference is the whole of the trust rule. */
+  const manual = new Map();
+  /** What answered at a typed address, once something has. Keyed the same way
+   *  `manual` is, because until a connection succeeds an address is all there
+   *  is to key on. */
+  const learned = new Map();
   /** Addresses this deck added because a paired deck called in from them and
    *  nothing here dialled it — see learnCaller. Kept until a round proves the
    *  address answers: one that does is an ordinary dialled peer from then on
@@ -521,12 +547,6 @@ export function createEngine({
     return sealed ? { about: sealed } : {};
   };
 
-  /** Frames from a deck that finished the handshake AND that somebody here has
-   *  accepted. Nothing reaches this before both, which is the whole point of
-   *  where the two checks sit. `ctx.key` is this connection's key and no other
-   *  connection's — see sessionKey. `ctx.send` seals whatever it is handed when
-   *  both ends said they seal, so nothing below has to know which kind of deck
-   *  asked — see frameChannel. */
   /** Does this deck already hold an address it dials for `fp`? A beacon row it
    *  still hears, or a typed/learned row that answered as that deck. When
    *  neither is true, the only way it ever reaches that deck is if the deck
@@ -572,6 +592,12 @@ export function createEngine({
     }
   };
 
+  /** Frames from a deck that finished the handshake AND that somebody here has
+   *  accepted. Nothing reaches this before both, which is the whole point of
+   *  where the two checks sit. `ctx.key` is this connection's key and no other
+   *  connection's — see sessionKey. `ctx.send` seals whatever it is handed when
+   *  both ends said they seal, so nothing below has to know which kind of deck
+   *  asked — see frameChannel. */
   const serve = async (msg, ctx) => {
     // Authentication happened at connection setup; a previously trusted deck
     // may have been unpaired while this socket remained open.
@@ -1035,31 +1061,6 @@ export function createEngine({
       conn?.sock?.destroy();
     }
   };
-
-  /** Peers the user typed in, which the beacon will never find.
-   *
-   *  Broadcast dies at the first router and is dropped by a switch that
-   *  filters it, so a deck across a VPN or on another subnet is unreachable by
-   *  discovery and perfectly reachable by address. Typing one is a decision to
-   *  trust whatever answers there the first time, and to pin it: an address is
-   *  a way to reach a deck, and the accept on the other machine is what lets
-   *  anything move.
-   *
-   *  Keyed by `host:port` rather than by fingerprint, because a fingerprint is
-   *  what a deck says about itself after the handshake and this list has to
-   *  exist before there has been one.
-   *
-   *  EVERY ROW SAYS WHERE IT CAME FROM, in `typed`, and the difference decides
-   *  whether reaching it may pin a key sight unseen. A row somebody put in the
-   *  address field — or pressed accept on, or joined by invite — is a person
-   *  naming a machine. A row `autoAsk` added from a beacon is this deck
-   *  answering a shout, which is not the same claim and must not read as one.
-   *  See roundWith, where the difference is the whole of the trust rule. */
-  const manual = new Map();
-  /** What answered at a typed address, once something has. Keyed the same way
-   *  `manual` is, because until a connection succeeds an address is all there
-   *  is to key on. */
-  const learned = new Map();
 
   const oneRound = async () => {
     if (!beacon) return [];
