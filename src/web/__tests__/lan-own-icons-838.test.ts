@@ -8,7 +8,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const lan = read("../components/LanSyncSection.tsx");
+/** The Local network view's header, which moved out of LanSyncSection.tsx into
+ *  a component of its own. */
+const lan = read("../components/LanViewHeader.tsx");
 /** The accounts panel's header, which draws its + and its ↻. */
 const accounts = read("../components/AccountsHeader.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");

@@ -49,6 +49,10 @@ const ADD = readFileSync(
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The view's header — Back, the title, the section's three acts and the
+ *  panel's close — which moved out of the component into its own. */
+const HEADER = readFileSync(fileURLToPath(new URL("../components/LanViewHeader.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The section's conversation with its deck — the poll, the request slot and
  *  every write — which moved out of the component into its own hook. The rules
  *  about the writes and the poll are asked of it, where they now live. */
@@ -435,7 +439,7 @@ describe("the three rules the panel above it already keeps", () => {
     }
     // The word became the glyph the accounts header two sections up has always
     // used for the same act; what is pinned is that the section still OWNS it.
-    expect(CODE).toMatch(/aria-label="Add a deck"/);
+    expect(SURFACE).toMatch(/aria-label="Add a deck"/);
     expect(CODE).toMatch(/role="switch"/);
     expect(CODE).toMatch(/wants to pair/);
   });
@@ -462,7 +466,7 @@ describe("the three rules the panel above it already keeps", () => {
     // in with a WORD rather than only with `aria-busy`, which paints nothing.
     // The round is a glyph beside the switch now, so its word is in the
     // accessible name and in the line under the title.
-    expect(CODE).toMatch(/aria-label=\{busy === "check" \? "Checking every paired deck"/);
+    expect(HEADER).toMatch(/aria-label=\{busy === "check" \? "Checking every paired deck"/);
     // The word moved into `checkedLabel`, which is the same slot: the line
     // under the title says `checking…` while the round is out and what it found
     // when it lands.
@@ -652,7 +656,9 @@ describe("the list is quiet until it is not", () => {
     // now, beside the round, which is where the accounts header two sections up
     // has kept the same glyph for the same act since it was written.
     // The section's header is its view's header now, beside Back and the title.
-    const head = /<h2 id="ap-lan-title">Local network<\/h2>([\s\S]*?)<div className="ap-scroll"/.exec(CODE)?.[1] ?? "";
+    // To the end of the header's own file, which is where the header ends now.
+    const head = /<h2 id="ap-lan-title">Local network<\/h2>([\s\S]*)$/.exec(HEADER)?.[1] ?? "";
+    expect(head).not.toBe("");
     expect(head).toMatch(/ap-lan-plus/);
     expect(head).toMatch(/aria-label="Add a deck"/);
     expect(head).toMatch(/ap-lan-check/);
@@ -755,8 +761,8 @@ describe("switching on says what switching on does", () => {
     // through the hook's onSwitchedOn — the control that has always opened it,
     // and the line in a deck's own dialog that goes from "you offer" to where
     // that list is changed.
-    expect([...CODE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
-    expect(CODE).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
+    expect([...SURFACE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
+    expect(HEADER).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
     expect(CODE).toMatch(/onSettings=\{\(\) => \{ setPeerOpen\(null\); setSetupOpen\(true\); \}\}/);
   });
 });

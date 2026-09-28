@@ -31,6 +31,9 @@ const peekHook = read("../use-hover-peek.ts");
 /** The way-in row itself, and the peek beside it, which moved out of the
  *  section into a component of their own. */
 const entryRow = read("../components/LanEntryRow.tsx");
+/** The view's header, which moved out of the section into a component of its
+ *  own. */
+const viewHeader = read("../components/LanViewHeader.tsx");
 const guide = read("../components/guide-art.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -235,7 +238,9 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
 
 describe("the view (#844)", () => {
   it("has the panel's header shape: Back, the title, the section's own acts and the panel's close", () => {
-    const head = /<div className="ap-lan-view">\s*<div className="ap-header">([\s\S]*?)\n {6}<\/div>/.exec(lan)?.[1] ?? "";
+    // The view opens on its header, which is a component of its own.
+    expect(lan).toMatch(/<div className="ap-lan-view">\s*<LanViewHeader /);
+    const head = /<div className="ap-header">([\s\S]*?)\n {4}<\/div>\n {2}\);/.exec(viewHeader)?.[1] ?? "";
     expect(head).toMatch(/id="ap-lan-back" className="glyph-btn ap-back" onClick=\{onBack\}/);
     expect(head).toMatch(/aria-label="Back to Claude accounts"/);
     expect(head).toMatch(/<h2 id="ap-lan-title">Local network<\/h2>/);
