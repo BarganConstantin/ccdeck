@@ -207,10 +207,10 @@ function realpathOrSelf(p) {
  * their own venv. Windows copies the launcher instead, so there the layout
  * question is asked directly: exactly one of the two venv directories exists.
  * Zero means nothing offered here owns it — a `pip install --user` copy is the
- * common shape, and `installers()` deliberately refuses to offer bare pip — and
- * two means the machine has both and the resolved path did not say which is on
- * PATH. Both answer null, because a silent boot is better than a daily sentence
- * that is not true.
+ * common shape, and cswap-install.mjs's `installers()` deliberately refuses to
+ * offer bare pip — and two means the machine has both and the resolved path did
+ * not say which is on PATH. Both answer null, because a silent boot is better
+ * than a daily sentence that is not true.
  *
  * Pure, and platform/env/home/filesystem all arrive as arguments, for the reason
  * cswapCandidates gives: a Windows layout has to be checkable from a Mac.
