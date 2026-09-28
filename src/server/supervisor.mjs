@@ -348,6 +348,21 @@ export function upgradeRefusalText({ reason, waitMs = 0, attempt = 0, dash = "â€
   return `${what} failed to fetch a moment ago ${dash} waiting ${left} before trying again`;
 }
 
+/** Drop the two flags launchNpx sets itself. `--port` takes a value, and both
+ *  spellings npm's parser accepts (`--port 4317`, `--port=4317`) have to go.
+ *  launchNpx appends its own two after what this leaves of the user's argv. */
+export function withoutPortAndOpen(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--no-open") continue;
+    if (a === "--port") { i++; continue; } // and its value
+    if (a.startsWith("--port=")) continue;
+    out.push(a);
+  }
+  return out;
+}
+
 /**
  * Die when the process that started this one does â€” on all three operating
  * systems (#702).

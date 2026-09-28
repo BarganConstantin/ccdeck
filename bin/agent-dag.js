@@ -46,7 +46,7 @@ import {
 } from "../src/server/self-update.mjs";
 import {
   crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, replacedNote,
-  upgradeAttempt, upgradeRefusalText, workerExitAction,
+  upgradeAttempt, upgradeRefusalText, withoutPortAndOpen, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
 import { DETACHED_ENV, detachAndWatch, stopCommand } from "../src/server/detach.mjs";
@@ -345,20 +345,6 @@ function launch(respawn) {
     console.error(`${PRODUCT}: could not start ${WORKER}: ${err.message}`);
     process.exit(1);
   });
-}
-
-/** Drop the two flags launchNpx sets itself. `--port` takes a value, and both
- *  spellings npm's parser accepts (`--port 4317`, `--port=4317`) have to go. */
-function withoutPortAndOpen(args) {
-  const out = [];
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === "--no-open") continue;
-    if (a === "--port") { i++; continue; } // and its value
-    if (a.startsWith("--port=")) continue;
-    out.push(a);
-  }
-  return out;
 }
 
 /**
