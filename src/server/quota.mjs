@@ -319,6 +319,35 @@ export function resetQuotaPollFloor() {
   clearResetCreditsFloor();
 }
 
+/**
+ * Source 3, attempted until it prints windows: `{ cliOk, cliRan, parsed }`,
+ * where the first two say whether ANY attempt was recognised and whether any
+ * ran cleanly — the no-numbers branch of _doFetch needs both — and `parsed` is
+ * the first set of windows printed, or null.
+ */
+async function readCliUsage(bin) {
+  // The CLI sometimes omits the "Current session/week" quota lines on a cold
+  // invocation (right after the server starts, or after the page is hard-
+  // refreshed). The real lines appear on a subsequent call. Retry a couple
+  // times before giving up so the first paint already shows real values.
+  let cliOk = false;
+  let cliRan = false;
+  let parsed = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(1200);
+    const r = await runUsageOnce(bin);
+    cliOk = r.cliOk || cliOk;
+    cliRan = r.ran || cliRan;
+    if (r.parsed) { parsed = r.parsed; break; }
+    // The retry exists for a CLI that RAN and left the quota lines out of a cold
+    // invocation. A CLI that is not installed will not be installed 1.2 seconds
+    // from now, and asking twice more spends two spawns and 2.4 seconds of the
+    // caller's wait to print the same sentence three times. See runUsageOnce.
+    if (r.missing) break;
+  }
+  return { cliOk, cliRan, parsed };
+}
+
 async function _doFetch(now, force = false, gen = _generation) {
   // Source 1: claude-swap's store. Free, and already paid for.
   let store = await storeQuota();
@@ -365,27 +394,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   }
 
   // Source 3: parse `claude --print /usage` CLI output.
-  const bin = quotaClaudeBin();
-
-  // The CLI sometimes omits the "Current session/week" quota lines on a cold
-  // invocation (right after the server starts, or after the page is hard-
-  // refreshed). The real lines appear on a subsequent call. Retry a couple
-  // times before giving up so the first paint already shows real values.
-  let cliOk = false;
-  let cliRan = false;
-  let parsed = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await sleep(1200);
-    const r = await runUsageOnce(bin);
-    cliOk = r.cliOk || cliOk;
-    cliRan = r.ran || cliRan;
-    if (r.parsed) { parsed = r.parsed; break; }
-    // The retry exists for a CLI that RAN and left the quota lines out of a cold
-    // invocation. A CLI that is not installed will not be installed 1.2 seconds
-    // from now, and asking twice more spends two spawns and 2.4 seconds of the
-    // caller's wait to print the same sentence three times. See runUsageOnce.
-    if (r.missing) break;
-  }
+  const { cliOk, cliRan, parsed } = await readCliUsage(quotaClaudeBin());
 
   // Got real quota lines — cache normally and remember as last-known-good.
   if (parsed) {
