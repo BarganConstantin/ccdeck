@@ -5,15 +5,15 @@
 // lan-engine.test.ts proves a peer's duplicate rows and its cap over the wire.
 // What is pinned here is the one rule those all lean on, onePerKey's order,
 // spelled out case by case; what `offered` keeps of the strings a peer sent;
-// and that the names lan-sync.mjs hands out are these functions and not copies
-// of them.
+// which of a peer's refusals this deck repeats in its own words; and that the
+// names lan-sync.mjs hands out are these functions and not copies of them.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import * as copies from "../../server/lan-copies.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import * as sync from "../../server/lan-sync.mjs";
 
-const { onePerKey, slotFor, offered } = copies;
+const { onePerKey, slotFor, offered, peerWhy, HERE, SENDER_UNREADABLE } = copies;
 
 type Row = { key: string; email?: string; alive?: boolean; readable?: boolean; num?: number };
 
@@ -82,6 +82,22 @@ describe("what a peer's list keeps of the strings it sent", () => {
     ]);
     expect(a).toEqual({ key: "a@@o", email: "a@x", alive: true });
     expect(b).toEqual({ key: "b@@o", email: "b@x", alive: true, shareable: false });
+  });
+});
+
+describe("a peer's reason for a login it did not send", () => {
+  it("is kept when it is one serve sends", () => {
+    for (const why of ["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]) {
+      expect(peerWhy(why)).toBe(why);
+    }
+  });
+
+  it("is `refused` for anything else, this machine's own codes above all", () => {
+    // A HERE code is a sentence about THIS machine; a peer saying one must
+    // not make the panel say it.
+    for (const why of [...Object.values(HERE), "constructor", "__proto__", "Keychain locked", "", 5, null, undefined, {}]) {
+      expect(peerWhy(why), String(why)).toBe("refused");
+    }
   });
 });
 
