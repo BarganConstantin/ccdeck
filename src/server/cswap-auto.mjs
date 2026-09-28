@@ -722,8 +722,8 @@ export async function autoStatus() {
 
 /** Hold an account out of auto-rotation, or return it.
  *
- *  UNDER THE MUTEX AND FOLLOWED BY AN INVALIDATION, like the nine other
- *  mutations of claude-swap's store, and this was the one that was neither.
+ *  UNDER THE MUTEX AND FOLLOWED BY AN INVALIDATION, like every other
+ *  mutation of claude-swap's store, and this was the one that was neither.
  *
  *  `cswap enable/disable` writes `accounts[N].disabled` in sequence.json, which
  *  is the field claude-accounts.mjs's roster reads as `disabled` — so it is the

@@ -114,11 +114,12 @@ const CACHE_MS = 5_000;
 // for, not a cost anyone would have noticed.
 //
 // The reason to fix it anyway is the second half. This is the only one of the
-// six whose cache is invalidated from elsewhere — nine call sites in four
-// modules: six mutations in cswap-admin.mjs, an auto-switch in cswap-auto.mjs, a
-// manual one in index.mjs, and the first `cswap add` below — and #582 has
-// already shown what a read that started before an invalidation does when it
-// lands after one. So the in-flight slot this route was missing arrives with the
+// six whose cache is invalidated from elsewhere — by every mutation in
+// cswap-admin.mjs, the auto-switch tick and the rotation flag in cswap-auto.mjs,
+// the manual switch in account-routes.mjs and the first `cswap add` below, and
+// by lan-deck.mjs once it has asked claude-swap for fresh verdicts — and #582
+// has already shown what a read that started before an invalidation does when
+// it lands after one. So the in-flight slot this route was missing arrives with the
 // generation guard that makes it safe, rather than after the next bug report.
 const FORCE_POLL_MS = 60_000;
 
@@ -615,9 +616,11 @@ export async function requestCollection() {
 /**
  * Forget the roster, because something just made it wrong.
  *
- * Called from nine places in four modules — every `cswap` mutation the deck
- * performs — and every one of them is behind a POST that `isTrustedMutation`
- * guards, so nothing a page can send in a loop reaches this.
+ * Called after every `cswap` mutation the deck performs, and by lan-deck.mjs's
+ * verdict refresh. The mutations a page can ask for are POSTs that
+ * `isTrustedMutation` guards; the rest — the auto-switch tick, the first-run
+ * seed, the verdict refresh — run on the deck's own schedule. So nothing a page
+ * can send in a loop reaches this.
  *
  * Three things go besides the reading itself:
  *
@@ -627,9 +630,9 @@ export async function requestCollection() {
  *                  that began before it — joining a run is only free when the
  *                  run is still about the right thing.
  *   `_lastReadAt`  so the very next read is real work rather than a refusal.
- *                  Every one of these call sites is followed by the panel
- *                  reloading with ?refresh=1, and a floor that answered THAT
- *                  with the pre-switch roster would make the guard the bug.
+ *                  A mutation the panel asked for is followed by its reloading
+ *                  with ?refresh=1, and a floor that answered THAT with the
+ *                  pre-switch roster would make the guard the bug.
  */
 export function invalidateClaudeAccountsCache() {
   _cache = null;
