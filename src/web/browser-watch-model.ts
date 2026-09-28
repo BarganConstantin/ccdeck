@@ -62,7 +62,7 @@ export interface WatchBrowser {
 }
 
 /** What relay-guard.mjs can say about this machine, read by browser-watch.mjs
- *  and rendered by `RemoteControl` below (#799). */
+ *  and rendered by components/RemoteControl.tsx (#799). */
 export interface RelayGuard {
   relayHost: string;
   hostsPath: string;
