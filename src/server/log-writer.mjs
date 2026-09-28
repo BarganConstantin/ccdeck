@@ -181,9 +181,10 @@ export const MAX_PENDING_APPEND_CHARS = 128 * 1024 * 1024;
 
 // What has been accepted and not yet written, what has been refused because of
 // it, and whether we are inside an episode of refusing. These move with the
-// chain in appendLogLine and nowhere else — the same rule `bufferedChars` and
-// `events` keep in event-ring.mjs, and for the same reason: a total that names
-// lines the queue no longer holds is a permanent debt against the budget.
+// chain in appendLogLine and nowhere else, through takeCharge, noteRefused and
+// releaseCharge below — the same rule `bufferedChars` and `events` keep in
+// event-ring.mjs, and for the same reason: a total that names lines the queue
+// no longer holds is a permanent debt against the budget.
 let pendingLines = 0;
 let pendingChars = 0;
 let droppedLines = 0;
@@ -213,6 +214,45 @@ export function appendQueueStats() {
 }
 
 const mb = chars => `${(chars / 1024 / 1024).toFixed(0)}MB`;
+
+/**
+ * Would a line of `charged` characters be refused at the door right now?
+ *
+ * The queue always accepts a line when it is EMPTY, whatever that line
+ * weighs. Ingest admits 5,000,000 characters and a Codex rollout line read
+ * off disk has no length bound at all, so refusing an oversized line outright
+ * would mean a deck that silently never records its largest events — and the
+ * ring one file over makes the same exception for the same reason ("a single
+ * event is allowed to be larger than the entire budget"). So the true ceiling
+ * is MAX_PENDING_APPEND_CHARS plus one line, stated here rather than
+ * pretended away.
+ */
+function queueIsFull(charged) {
+  return pendingLines > 0 && pendingChars + charged > MAX_PENDING_APPEND_CHARS;
+}
+
+/** One line accepted: charge it until releaseCharge gives the charge back. */
+function takeCharge(charged) {
+  pendingLines++;
+  pendingChars += charged;
+}
+
+/** One line refused at the door: count it, and open an episode if this is the
+ *  first refusal since the queue last drained. */
+function noteRefused(filePath, charged) {
+  droppedLines++;
+  droppedChars += charged;
+  episodeLines++;
+  episodeChars += charged;
+  if (!shedding) {
+    shedding = true;
+    dropEpisodes++;
+    // One line, at the start of the episode. Per refusal it would be
+    // thousands of lines onto the terminal the deck paints over, which is its
+    // own version of the problem being fixed.
+    console.error(`${PRODUCT}: the log append queue is full (${mb(pendingChars)} waiting for ${filePath}) — dropping events until it drains`);
+  }
+}
 
 /**
  * One line has left the queue. Give its charge back, and close the episode if
@@ -410,33 +450,13 @@ function noteAppendFailed(filePath, line, err) {
  */
 export function appendLogLine(filePath, line) {
   const charged = typeof line === "string" ? line.length : 0;
-  // The queue always accepts a line when it is EMPTY, whatever that line
-  // weighs. Ingest admits 5,000,000 characters and a Codex rollout line read
-  // off disk has no length bound at all, so refusing an oversized line outright
-  // would mean a deck that silently never records its largest events — and the
-  // ring one file over makes the same exception for the same reason ("a single
-  // event is allowed to be larger than the entire budget"). So the true ceiling
-  // is MAX_PENDING_APPEND_CHARS plus one line, stated here rather than
-  // pretended away.
-  if (pendingLines > 0 && pendingChars + charged > MAX_PENDING_APPEND_CHARS) {
-    droppedLines++;
-    droppedChars += charged;
-    episodeLines++;
-    episodeChars += charged;
-    if (!shedding) {
-      shedding = true;
-      dropEpisodes++;
-      // One line, at the start of the episode. Per refusal it would be
-      // thousands of lines onto the terminal the deck paints over, which is its
-      // own version of the problem being fixed.
-      console.error(`${PRODUCT}: the log append queue is full (${mb(pendingChars)} waiting for ${filePath}) — dropping events until it drains`);
-    }
+  if (queueIsFull(charged)) {
+    noteRefused(filePath, charged);
     // Resolved rather than rejected, and resolved rather than the tail: the
     // contract every caller has is "never rejects, never makes you wait".
     return Promise.resolve();
   }
-  pendingLines++;
-  pendingChars += charged;
+  takeCharge(charged);
   const tail = tailOf(filePath)
     .then(() => writeWholeLine(filePath, line))
     // Counted, and reported once per episode — see noteAppendFailed. The order
