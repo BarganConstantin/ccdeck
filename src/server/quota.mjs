@@ -56,7 +56,7 @@ import { homedir } from "node:os";
 import { PRODUCT } from "./brand.mjs";
 import { stripAnsi } from "./term.mjs";
 import { availableResetCredits, readResetGrants } from "./claude-reset-credits.mjs";
-import { mapOAuthUsage, parseUsageText, quotaFromStore } from "./quota-shape.mjs";
+import { mapOAuthUsage, parseUsageText, quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
 import { createHash } from "node:crypto";
 
 const USAGE_URL   = "https://api.anthropic.com/api/oauth/usage";
@@ -906,8 +906,8 @@ async function _doFetch(now, force = false, gen = _generation) {
   // and absence plus failure is not a measurement.
   const subscribed = cliOk && cliRan ? await hasSubscriptionCredential() : false;
   const result = cliOk && cliRan && subscribed
-    ? { ok: true, session5hPct: 0, session5hWindowSec: 18000,
-        week7dPct: 0, week7dWindowSec: 604800, fetchedAt: now }
+    ? { ok: true, session5hPct: 0, session5hWindowSec: WIN_5H_SEC,
+        week7dPct: 0, week7dWindowSec: WIN_7D_SEC, fetchedAt: now }
     : { ok: false, reason: cliOk && cliRan ? "no_subscription" : "cli_failed", fetchedAt: now };
   return publish(gen, result, now - (CACHE_MS - 5_000));
 }

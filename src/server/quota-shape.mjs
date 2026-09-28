@@ -16,8 +16,27 @@ import { resetCreditsFrom } from "./claude-reset-credits.mjs";
 // into text this module then parsed for quota lines.
 import { stripAnsi } from "./term.mjs";
 
-const WIN_5H_SEC  = 18000;
-const WIN_7D_SEC  = 604800;
+// The two windows' lengths. Every reading carries them, whichever source it
+// came from — including the CLI's, which prints no length at all, and the
+// zero reading quota.mjs publishes for a window that has just reset.
+export const WIN_5H_SEC  = 18000;
+export const WIN_7D_SEC  = 604800;
+
+/**
+ * A reported utilisation as the whole percentage the panel draws: rounded, and
+ * held inside 0–100 whatever the source said.
+ *
+ * The OAuth body and the claude-swap row each carried this as a private arrow
+ * inside their mapping, the same one character for character. One rule written
+ * twice is a rule that can drift, and a clamp is where a drift prints 140% on
+ * a bar. The CLI's parse is not a third copy: it reads at most three digits
+ * off a line, so there is nothing below zero or between integers to handle.
+ *
+ * Exported for its test.
+ */
+export function clampPct(v) {
+  return Math.min(100, Math.max(0, Math.round(v)));
+}
 
 // ISO-8601 → "Jun 19, 1:19pm" (local time, matching the CLI display format).
 //
@@ -45,23 +64,22 @@ export function mapOAuthUsage(data) {
   const primary = (fh?.utilization != null) ? fh : sd;
   if (!primary || primary.utilization == null) return null;
 
-  const round = (v) => Math.min(100, Math.max(0, Math.round(v)));
   const result = {
-    session5hPct:       round(primary.utilization),
+    session5hPct:       clampPct(primary.utilization),
     session5hWindowSec: WIN_5H_SEC,
     session5hReset:     fmtResetIso(primary.resets_at),
     session5hResetAt:   isoToSec(primary.resets_at),
     week7dWindowSec:    WIN_7D_SEC,
   };
   if (sd?.utilization != null) {
-    result.week7dPct     = round(sd.utilization);
+    result.week7dPct     = clampPct(sd.utilization);
     result.week7dReset   = fmtResetIso(sd.resets_at);
     result.week7dResetAt = isoToSec(sd.resets_at);
   } else {
     result.week7dPct = 0;
   }
-  if (son?.utilization != null)  result.weekSonnetPct = round(son.utilization);
-  if (opus?.utilization != null) result.weekOpusPct   = round(opus.utilization);
+  if (son?.utilization != null)  result.weekSonnetPct = clampPct(son.utilization);
+  if (opus?.utilization != null) result.weekOpusPct   = clampPct(opus.utilization);
 
   // extra usage credits (pay-as-you-go top-up), if enabled
   const extra = data?.extra_usage;
@@ -93,16 +111,15 @@ export function quotaFromStore(entry) {
   const primary = (typeof fh?.pct === "number") ? fh : sd;
   if (typeof primary?.pct !== "number") return null;
 
-  const round = (v) => Math.min(100, Math.max(0, Math.round(v)));
   const out = {
     ok: true,
     source: "claude-swap",
-    session5hPct:       round(primary.pct),
+    session5hPct:       clampPct(primary.pct),
     session5hWindowSec: WIN_5H_SEC,
     session5hReset:     fmtResetIso(primary.resets_at),
     session5hResetAt:   isoToSec(primary.resets_at),
     week7dWindowSec:    WIN_7D_SEC,
-    week7dPct:          typeof sd?.pct === "number" ? round(sd.pct) : 0,
+    week7dPct:          typeof sd?.pct === "number" ? clampPct(sd.pct) : 0,
     week7dReset:        fmtResetIso(sd?.resets_at),
     week7dResetAt:      isoToSec(sd?.resets_at),
     // The age of the DATA, not of our read of it. The panel prints this, and
@@ -114,8 +131,8 @@ export function quotaFromStore(entry) {
   // fields, because which ones an account has depends on its plan.
   for (const s of Array.isArray(good.scoped) ? good.scoped : []) {
     if (typeof s?.pct !== "number") continue;
-    if (/sonnet/i.test(s.name ?? "")) out.weekSonnetPct = round(s.pct);
-    else if (/opus/i.test(s.name ?? "")) out.weekOpusPct = round(s.pct);
+    if (/sonnet/i.test(s.name ?? "")) out.weekSonnetPct = clampPct(s.pct);
+    else if (/opus/i.test(s.name ?? "")) out.weekOpusPct = clampPct(s.pct);
   }
   return out;
 }
@@ -180,7 +197,7 @@ export function parseUsageText(raw) {
   const session = extract(/current session/i);
   if (session?.pct != null) {
     result.session5hPct       = session.pct;
-    result.session5hWindowSec = 18000;
+    result.session5hWindowSec = WIN_5H_SEC;
     if (session.reset)   result.session5hReset   = session.reset;
     if (session.resetAt) result.session5hResetAt  = session.resetAt;
   }
@@ -188,7 +205,7 @@ export function parseUsageText(raw) {
   const weekAll = extract(/current week\s*\(all models\)/i) || extract(/current week\s*[:·]/i);
   if (weekAll?.pct != null) {
     result.week7dPct       = weekAll.pct;
-    result.week7dWindowSec = 604800;
+    result.week7dWindowSec = WIN_7D_SEC;
     if (weekAll.reset)   result.week7dReset   = weekAll.reset;
     if (weekAll.resetAt) result.week7dResetAt  = weekAll.resetAt;
   }
