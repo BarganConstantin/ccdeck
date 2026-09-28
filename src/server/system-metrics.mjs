@@ -17,19 +17,16 @@
 // tool calls from the replay a reconnecting tab receives, and making an ambient
 // readout the loudest producer in the application. So this is a plain poll
 // endpoint, exactly like /api/quota and /api/codex-usage already are.
-import { lookup } from "node:dns/promises";
-import { access, readdir, readFile } from "node:fs/promises";
-import net from "node:net";
 import os from "node:os";
-import { hasClaudeInstalled } from "./claude-dir.mjs";
+import { loadReading } from "./load-average.mjs";
+import { BUCKET_MS, labelsUnder, oldestBucketMs, pointsOf, record, resetHistory } from "./metrics-history.mjs";
 import { readAvailable, readSwap } from "./memory-metrics.mjs";
-import { run } from "./metrics-run.mjs";
+import {
+  networkSnapshot, notePanelPoll, probeNetwork, routeChangesSince, sampleNetwork,
+  startNetworkTimers, stopNetwork,
+} from "./network-sampler.mjs";
 import { readProcesses, resetProcessList } from "./process-list.mjs";
 import { CRIT_C, readThermal, WARN_C } from "./thermal-metrics.mjs";
-import {
-  classifyRoute, parseNetstatE, parseNetstatIbn, parseProcNetDev, rateBetween,
-  routeIfaceDarwin, routeIfaceLinux, routeLabel, tailscaleExitFromStatus,
-} from "./network-metrics.mjs";
 
 /** CPU is the metric with spikes, so it is sampled often enough to catch one. */
 const CPU_INTERVAL_MS = 3_000;
@@ -58,9 +55,6 @@ let thermalInFlight = false;
 let thermalMisses = 0;
 /** Whether this machine has EVER answered. See sampleThermal. */
 let thermalEverAnswered = false;
-/** Minute buckets, oldest first, for every section that keeps a history.
- *  See HISTORY_MINUTES. */
-const history = [];
 /** When sampling started, so a modal can say what "since" means. */
 let historySince = 0;
 
@@ -147,6 +141,12 @@ function cpuPercent() {
  */
 export { readProcesses };
 
+/**
+ * The network probe, which lives in network-sampler.mjs with the rest of that
+ * section: re-exported because this module is where the suite reaches it.
+ */
+export { probeNetwork };
+
 // ---------------------------------------------------------------------------
 // Thermal: how often this machine is asked whether it is getting hot, and when
 // one that has never answered stops being asked. What is asked, and why those
@@ -171,52 +171,6 @@ const THERMAL_INTERVAL_MS = 10_000;
  * user installs a driver or changes a firmware setting.
  */
 const THERMAL_GIVE_UP = 3;
-
-/**
- * How much history the panel keeps, and why it is bucketed by minute.
- *
- * Each section answers "what is it now"; the chart behind it answers "what did
- * it do while that build was running", which is a different question and the
- * reason a section opens one at all. 1440 minutes is a day, which covers "since
- * the deck started" for every session anybody actually has.
- *
- * A bucket holds the MAXIMUM of its minute, never the mean, and that choice is
- * the same one for every series here. A machine that touched 94°C for twenty
- * seconds and sat at 60 for the rest of the minute averages to 66 and reads as
- * calm; a load average that spiked to 114 between two quiet stretches averages
- * away entirely. The spike is what somebody opens a chart to find.
- *
- * Kept out of systemSnapshot deliberately. That endpoint is polled every three
- * seconds by a topbar meter that draws none of this; a day of buckets on every
- * one of those responses would be the largest thing the deck sends, for charts
- * that are usually closed. It has its own route, like the process list.
- */
-const HISTORY_MINUTES = 1440;
-const BUCKET_MS = 60_000;
-
-/**
- * Fold one reading into the minute it belongs to, under a namespaced key.
- *
- * Keys are namespaced by section (`thermal:GPU`, `cpu:all`, `mem:swap`) rather
- * than kept in four rings, because they all share one clock: a bucket is a
- * minute of this machine, and every series that has something to say about that
- * minute says it in the same place. The sections sample at different rates —
- * CPU every three seconds, thermal every ten, memory every thirty — and folding
- * by maximum makes that difference invisible to the reader, which is what it
- * should be.
- */
-function record(key, value, nowMs = Date.now()) {
-  if (!Number.isFinite(value)) return;
-  const minute = Math.floor(nowMs / BUCKET_MS);
-  let last = history[history.length - 1];
-  if (!last || last.m !== minute) {
-    last = { m: minute, v: {} };
-    history.push(last);
-    while (history.length > HISTORY_MINUTES) history.shift();
-  }
-  const prev = last.v[key];
-  last.v[key] = prev == null ? value : Math.max(prev, value);
-}
 
 /**
  * The thermal reading, whose series are not known until the machine answers.
@@ -270,11 +224,7 @@ function loadTop(points, coreCount) {
  * another that means nothing.
  */
 function seriesFor(group) {
-  const at = key => history.filter(b => b.v[key] != null)
-    // Timestamps rather than indices: a bucket only exists for a minute that was
-    // sampled, so a gap — the machine asleep, the process paused — stays a gap
-    // rather than becoming a straight line across it.
-    .map(b => ({ t: b.m * BUCKET_MS, v: b.v[key] }));
+  const at = pointsOf;
   const coreCount = os.cpus().length;
 
   if (group === "thermal") return thermalSeries(at);
@@ -289,14 +239,7 @@ function seriesFor(group) {
  *  order each first appeared — throttling among them, where it is recorded. */
 function thermalSeries(at) {
   const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
-  const labels = [];
-  for (const b of history) {
-    for (const k of Object.keys(b.v)) {
-      if (!k.startsWith("thermal:")) continue;
-      const label = k.slice("thermal:".length);
-      if (!labels.includes(label)) labels.push(label);
-    }
-  }
+  const labels = labelsUnder("thermal:");
   return labels.map(label => ({
     // The stable name of this reading, which the display label is not: `Swap`
     // is `Commit` on Windows, and anything joining on what the eye sees
@@ -389,8 +332,7 @@ function networkSeries(at) {
   // The path the traffic took, as marks on the last chart — the question the
   // section exists for is "was it the VPN", and a line that jumps where a
   // mark sits answers it without a legend.
-  const since = history.length ? history[0].m * BUCKET_MS : 0;
-  const changes = routeLog.filter(c => c.t >= since).map(c => ({ t: c.t, label: c.label, from: c.from }));
+  const changes = routeChangesSince(oldestBucketMs());
   if (series.length && changes.length) series[series.length - 1].changes = changes;
   return series;
 }
@@ -425,11 +367,10 @@ function heldBackSoFar() {
   const key = `thermal:${THROTTLE_LABEL}`;
   let peak = 0;
   let lastMs = 0;
-  for (const b of history) {
-    const v = b.v[key];
-    if (v == null || v <= 0) continue;
+  for (const { t, v } of pointsOf(key)) {
+    if (v <= 0) continue;
     if (v > peak) peak = v;
-    lastMs = b.m * BUCKET_MS;
+    lastMs = t;
   }
   return peak > 0 ? { peak, lastMs } : null;
 }
@@ -551,207 +492,11 @@ function sampleCpu() {
   while (cpuHistory.length > HISTORY) cpuHistory.shift();
   record("cpu:all", pct);
   if (per?.length) record("cpu:busiest", Math.max(...per));
-  // Free — os.loadavg() reads a kernel value, no syscall worth the name — so it
-  // rides the CPU tick rather than earning a timer. Windows returns [0,0,0],
-  // which is not a reading and is not recorded as one.
-  //
-  // THE PLATFORM TEST IS THE WHOLE TEST. It used to be joined by
-  // `load.some(n => n > 0)`, which reads as belt and braces and is not: Node
-  // documents `os.loadavg()` as always [0,0,0] on Windows, so the platform test
-  // alone already excludes every non-reading — and the extra clause could only
-  // ever reject a reading that was REAL. `/proc/loadavg` on a genuinely quiet
-  // Linux box says `0.00 0.00 0.00`, so "Queued work" recorded no points at all
-  // for every quiet minute, and after the machine woke the chart read as though
-  // the deck had been switched off through them.
-  const load = os.loadavg();
-  if (process.platform !== "win32") record("load:1m", Math.round(load[0] * 100) / 100);
-}
-
-// ── the network ────────────────────────────────────────────────────────────
-//
-// Three readings, taken at two very different costs (network-metrics.mjs says
-// why these three). THROUGHPUT is two counters the kernel already keeps, so it
-// rides its own five-second timer for the life of the process like CPU does,
-// and its history is as complete as every other section's. LATENCY and ROUTE
-// leave the machine or spawn a process, so they are taken only while somebody
-// is looking: the panel is the only thing that polls /api/system, and a probe
-// runs only within NET_ASKED_MS of that poll. A deck left open in a background
-// tab all day makes no connection it was not asked for — the rule Claude FM's
-// probe already follows ("makes no request until a page asks for one").
-
-/** Counters on Linux are a file read; on macOS and Windows one short command.
- *  Five seconds is often enough to catch a burst and rare enough that the
- *  command costs nothing anybody could measure. */
-const NET_INTERVAL_MS = 5_000;
-/** How often the far end is asked, while the panel is open. */
-const NET_PROBE_MS = 30_000;
-/** How recently a poll must have come for the probe to run at all. */
-const NET_ASKED_MS = 20_000;
-/** A probe older than this is from before the panel was last closed, and is
- *  not reported as the present. */
-const NET_STALE_MS = NET_PROBE_MS * 2 + 5_000;
-/** What "how far is Claude" is measured against: the host every request Claude
- *  Code makes goes to, and the one quota.mjs already reads from. */
-const API_HOST = "api.anthropic.com";
-const API_PORT = 443;
-const CONNECT_TIMEOUT_MS = 4_000;
-/** Where the route is asked for when there is no API address to ask about. A
- *  routing-table lookup sends no packet, so this contacts nobody. */
-const ROUTE_FALLBACK = "1.1.1.1";
-/** Route changes kept for the history's markers. A path changes a handful of
- *  times a day; forty is several days of it. */
-const ROUTE_LOG = 40;
-
-let netTimer = null;
-let netInFlight = false;
-let prevNet = null;
-let netRate = null;
-let physical = null;
-let physicalAt = 0;
-let probeTimer = null;
-/** Whether this process may reach out at all. Off unless the server says so:
- *  the suite starts this module in dozens of cases, and none of them should
- *  open a connection to Anthropic or spawn `ip` and `tailscale` to do it. */
-let probeEnabled = false;
-let probeInFlight = false;
-let probeAt = 0;
-let askedAt = 0;
-/** Undefined until measured, null when the host could not be reached. */
-let apiMs;
-let route = null;
-const routeLog = [];
-
-/** Interfaces that are hardware, by the one test the kernel offers: a
- *  `device` link under /sys/class/net. Rechecked each minute, because a dock or
- *  a phone tethered over USB is a new wire. */
-async function physicalInterfaces(root = "/sys/class/net") {
-  try {
-    const names = await readdir(root);
-    const real = await Promise.all(names.map(n => access(`${root}/${n}/device`).then(() => n, () => null)));
-    return new Set(real.filter(Boolean));
-  } catch { return null; }
-}
-
-async function readNetCounters(platform = process.platform) {
-  if (platform === "linux") {
-    if (!physical || Date.now() - physicalAt > 60_000) {
-      physical = await physicalInterfaces();
-      physicalAt = Date.now();
-    }
-    try {
-      const include = physical?.size ? name => physical.has(name) : name => name !== "lo";
-      return parseProcNetDev(await readFile("/proc/net/dev", "utf8"), include);
-    } catch { return null; }
-  }
-  if (platform === "darwin") return parseNetstatIbn(await run("netstat", ["-ibn"]));
-  if (platform === "win32") return parseNetstatE(await run("netstat", ["-e"]));
-  return null;
-}
-
-async function sampleNetwork() {
-  if (netInFlight) return;
-  netInFlight = true;
-  try {
-    const counters = await readNetCounters();
-    if (!counters) return;
-    const next = { rx: counters.rx, tx: counters.tx, at: Date.now() };
-    const rate = rateBetween(prevNet, next);
-    prevNet = next;
-    if (!rate) return;
-    netRate = rate;
-    record("net:down", rate.down);
-    record("net:up", rate.up);
-  } finally { netInFlight = false; }
-}
-
-/** Milliseconds for a TCP handshake with `address`, or null. The connection
- *  is closed the moment it opens: nothing is sent, so this is a round trip and
- *  nothing else — no TLS, no request, nothing the far end has to answer. */
-function connectMs(address, port = API_PORT, timeoutMs = CONNECT_TIMEOUT_MS) {
-  return new Promise(resolve => {
-    const t0 = performance.now();
-    let done = false;
-    const socket = net.connect({ host: address, port });
-    const finish = ms => {
-      if (done) return;
-      done = true;
-      socket.destroy();
-      resolve(ms);
-    };
-    socket.setTimeout(timeoutMs, () => finish(null));
-    socket.once("connect", () => finish(Math.round(performance.now() - t0)));
-    socket.once("error", () => finish(null));
-  });
-}
-
-/** Which way traffic to `address` leaves, and — for a Tailscale exit node —
- *  through which machine and whether through a relay. */
-async function readRoute(address, platform, runner) {
-  let iface = null;
-  if (platform === "linux") iface = routeIfaceLinux(await runner("ip", ["-o", "route", "get", address]));
-  else if (platform === "darwin") iface = routeIfaceDarwin(await runner("route", ["-n", "get", address]));
-  const kind = classifyRoute(iface);
-  if (!kind || kind.kind === "direct") return kind;
-  // Tailscale on a Mac is a utun like every other VPN there, so the question is
-  // asked of any tunnel rather than only of one named tailscale0. A machine
-  // without the CLI answers null and keeps the generic label.
-  const exit = tailscaleExitFromStatus(await runner("tailscale", ["status", "--json"], 3_000));
-  if (exit) return { kind: "tailscale-exit", iface, ...exit };
-  return kind;
-}
-
-/**
- * One probe: how far the API is and which way the traffic to it goes.
- *
- * Guarded twice, because a GET can start it (see systemSnapshot) and a read's
- * cost must have a ceiling (#544): never two at once, and never more often than
- * half the probe interval however many tabs poll. `deps` is the seam the tests
- * use — nothing else here can be made to answer "unreachable" on demand.
- */
-export async function probeNetwork(deps = {}) {
-  const now = deps.now ?? Date.now;
-  if (!probeEnabled && !deps.force) return;
-  if (probeInFlight || now() - probeAt < NET_PROBE_MS / 2) return;
-  if (!deps.force && now() - askedAt > NET_ASKED_MS) return;
-  probeInFlight = true;
-  probeAt = now();
-  try {
-    const platform = deps.platform ?? process.platform;
-    const runner = deps.run ?? run;
-    const measureApi = (deps.hasClaude ?? hasClaudeInstalled)();
-    let address = null;
-    if (measureApi) {
-      try { address = (await (deps.lookup ?? lookup)(API_HOST)).address; } catch { address = null; }
-      apiMs = address ? await (deps.connect ?? connectMs)(address) : null;
-      if (apiMs != null) record("net:api", apiMs);
-    }
-    const next = await readRoute(address ?? ROUTE_FALLBACK, platform, runner);
-    if (next) {
-      const label = routeLabel(next);
-      const prev = routeLog[routeLog.length - 1]?.label ?? null;
-      if (prev !== label) {
-        // `from` null is the first route this process saw — the state when it
-        // started looking, not a change, and the chart draws no mark for it.
-        routeLog.push({ t: now(), label, from: prev });
-        while (routeLog.length > ROUTE_LOG) routeLog.shift();
-      }
-    }
-    route = next;
-  } finally { probeInFlight = false; }
-}
-
-/** What the panel shows for the network, or null before anything is known. */
-function networkSnapshot(nowMs = Date.now()) {
-  const fresh = nowMs - probeAt <= NET_STALE_MS;
-  const api = fresh && apiMs !== undefined ? { host: API_HOST, ms: apiMs } : null;
-  // `to` says what the route was asked about: the API itself when Claude Code
-  // is here, the open internet otherwise — a split tunnel can send one and not
-  // the other, and the panel should not claim more than was measured.
-  const via = fresh && route && route.kind !== "direct"
-    ? { ...route, label: routeLabel(route), to: apiMs !== undefined ? "claude" : "internet" }
-    : null;
-  if (!netRate && !api && !via) return null;
-  return { down: netRate?.down ?? null, up: netRate?.up ?? null, api, route: via };
+  // Free, so it rides the CPU tick rather than earning a timer — and null on
+  // Windows, which publishes no load average. loadReading holds the rule and
+  // the #1028 story behind it; the snapshot's `loadavg` asks the same function.
+  const load = loadReading();
+  if (load) record("load:1m", load[0]);
 }
 
 /**
@@ -763,7 +508,6 @@ function networkSnapshot(nowMs = Date.now()) {
  */
 export function startSystemMetrics({ probe = false } = {}) {
   if (cpuTimer) return;
-  probeEnabled = probe;
   prevTicks = readTicks();          // baseline, so the first tick has a delta
   prevCoreTicks = readCoreTicks();
   sampleMemory();
@@ -773,13 +517,10 @@ export function startSystemMetrics({ probe = false } = {}) {
   cpuTimer = setInterval(sampleCpu, CPU_INTERVAL_MS);
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
   thermalTimer = setInterval(sampleThermal, THERMAL_INTERVAL_MS);
-  netTimer = setInterval(sampleNetwork, NET_INTERVAL_MS);
-  if (probeEnabled) probeTimer = setInterval(() => { probeNetwork(); }, NET_PROBE_MS);
+  startNetworkTimers(probe);
   cpuTimer.unref?.();
   memTimer.unref?.();
   thermalTimer.unref?.();
-  netTimer.unref?.();
-  probeTimer?.unref?.();
 }
 
 /**
@@ -803,23 +544,12 @@ export function stopSystemMetrics() {
   if (cpuTimer) clearInterval(cpuTimer);
   if (memTimer) clearInterval(memTimer);
   if (thermalTimer) clearInterval(thermalTimer);
-  if (netTimer) clearInterval(netTimer);
-  if (probeTimer) clearInterval(probeTimer);
-  cpuTimer = memTimer = thermalTimer = netTimer = probeTimer = null;
-  probeEnabled = false;
-  prevNet = null;
-  netRate = null;
-  physical = null;
-  physicalAt = 0;
-  probeAt = 0;
-  askedAt = 0;
-  apiMs = undefined;
-  route = null;
-  routeLog.length = 0;
+  cpuTimer = memTimer = thermalTimer = null;
+  stopNetwork();
   thermal = null;
   thermalMisses = 0;
   thermalEverAnswered = false;
-  history.length = 0;
+  resetHistory();
   historySince = 0;
   prevTicks = null;
   prevCoreTicks = null;
@@ -841,20 +571,7 @@ export function stopSystemMetrics() {
  */
 export function systemSnapshot() {
   const cpu = cpuHistory.length ? cpuHistory[cpuHistory.length - 1] : null;
-  // The panel is the only poller, so a poll is the signal somebody is looking.
-  // The first one after the panel was closed asks at once rather than waiting
-  // out the probe timer, so the latency is on screen by the second poll; the
-  // guards inside probeNetwork are what keep a busy poller from paying twice.
-  const idle = Date.now() - askedAt > NET_ASKED_MS;
-  askedAt = Date.now();
-  if (idle && probeEnabled) void probeNetwork();
-  const load = os.loadavg();
-  // Platform alone, for the reason spelled out beside the `load:1m` record in
-  // sampleCpu: Node's own contract makes the platform test sufficient, and the
-  // `load.some(n => n > 0)` that used to join it here rejected nothing except a
-  // real reading of zero. MachinePanel gates the whole section on `{loadavg &&
-  // …}`, so an idle Linux box had the section disappear from under it.
-  const hasLoad = process.platform !== "win32";
+  notePanelPoll();
   return {
     ok: true,
     cpu,
@@ -868,7 +585,8 @@ export function systemSnapshot() {
     thermal: thermal ? { ...thermal, heldBack: heldBackSoFar() } : null,
     uptimeSec: Math.round(os.uptime()),
     platform: process.platform,
-    loadavg: hasLoad ? load.map(n => Math.round(n * 100) / 100) : null,
+    // The rule the `load:1m` record in sampleCpu asks too — see loadReading.
+    loadavg: loadReading(),
     network: networkSnapshot(),
     intervalMs: CPU_INTERVAL_MS,
     sampledAt: Date.now(),

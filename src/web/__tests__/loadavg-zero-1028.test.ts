@@ -31,12 +31,13 @@
 // half of the same rule: three zeros there are still not a reading, and this
 // change must not have turned them into one. Nothing is skipped on any leg.
 //
-// The matching `record("load:1m", …)` in `sampleCpu` takes the identical edit
-// and is deliberately not driven here. It is reachable only from the sampler's
-// three-second timer, and starting that timer also starts the memory and
-// thermal probes, which spawn real children on two of the three platforms — a
-// price this rule does not need paying, since what a reader loses when it is
-// wrong is the chart fed by the snapshot below.
+// The matching `record("load:1m", …)` in `sampleCpu` is not driven through the
+// sampler. It is reachable only from the three-second timer, and starting that
+// timer also starts the memory and thermal probes, which spawn real children on
+// two of the three platforms. It does not need to be: the record and the
+// snapshot both ask `loadReading` in load-average.mjs, which is the rule spelled
+// once, and that function takes the platform as an argument — so the last block
+// below drives the Windows half and the POSIX half on every leg.
 import { describe, it, expect, vi } from "vitest";
 import { liveReadings } from "../machine-live";
 
@@ -51,6 +52,8 @@ vi.mock("node:os", async (importOriginal) => {
 
 // @ts-expect-error — a plain .mjs module, no types
 const { systemSnapshot, stopSystemMetrics } = await import("../../server/system-metrics.mjs");
+// @ts-expect-error — a plain .mjs module, no types
+const { loadReading } = await import("../../server/load-average.mjs");
 
 describe("a quiet machine", () => {
   it("reports its load average of zero as the reading it is", () => {
@@ -82,5 +85,29 @@ describe("a quiet machine", () => {
       return;
     }
     expect(live["load:1m"]).toBe(0);
+  });
+});
+
+describe("the rule both halves ask", () => {
+  it("is the platform test alone, so a real zero is a reading", () => {
+    // The `.some(n => n > 0)` #1028 removed, put back, fails exactly these two.
+    expect(loadReading("linux", [0, 0, 0])).toEqual([0, 0, 0]);
+    expect(loadReading("darwin", [0, 0, 0])).toEqual([0, 0, 0]);
+  });
+
+  it("refuses Windows' three zeros, which are not a reading", () => {
+    expect(loadReading("win32", [0, 0, 0])).toBeNull();
+    // Whatever the array says: the platform is the test, not the numbers.
+    expect(loadReading("win32", [1.5, 1, 0.5])).toBeNull();
+  });
+
+  it("rounds to two places, the figure the record and the snapshot both carry", () => {
+    expect(loadReading("linux", [1.23456, 5.678, 12.3456])).toEqual([1.23, 5.68, 12.35]);
+    expect(loadReading("linux", [0.004, 0, 0])).toEqual([0, 0, 0]);
+  });
+
+  it("reads the machine when asked with nothing", () => {
+    // `os.loadavg` is the three zeros mocked at the top of this file.
+    expect(loadReading()).toEqual(process.platform === "win32" ? null : [0, 0, 0]);
   });
 });

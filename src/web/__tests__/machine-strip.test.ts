@@ -23,9 +23,14 @@ import { fileURLToPath } from "node:url";
 import { fmtReading, fmtThreshold, liveReadings, THROTTLE_SERIES, type LiveSource } from "../machine-live";
 import { cellLabel, worthACell, windowOf, SPARK_W, SPARK_H, WINDOW_BUCKETS, REFRESH_MS, GROUPS } from "../components/MachineStrip";
 import { spanLabel, type Series } from "../components/SectionHistoryModal";
+import { systemMetricsSurface } from "./system-metrics-surface";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const metrics = readFileSync(at("../../server/system-metrics.mjs"), "utf8");
+/** The load-average rule, which both of the sampler's uses of it ask. */
+const loadRule = readFileSync(at("../../server/load-average.mjs"), "utf8");
+/** The minute ring the sampler records into, lifted out of system-metrics.mjs. */
+const ring = readFileSync(at("../../server/metrics-history.mjs"), "utf8");
 const strip = readFileSync(at("../components/MachineStrip.tsx"), "utf8");
 const css = readFileSync(at("../styles.css"), "utf8");
 
@@ -55,9 +60,11 @@ const full = (): LiveSource => ({
 
 describe("the client's readings and the server's ring agree", () => {
   // Every `record("x", …)` the sampler makes, which is the complete list of
-  // names the ring can ever be keyed by, read out of the server itself.
+  // names the ring can ever be keyed by, read out of the server itself — the
+  // sampler and every module lifted out of it, since the network's three are
+  // recorded from network-sampler.mjs.
   const recorded = new Set(
-    [...metrics.matchAll(/\brecord\(\s*(?:"([^"]+)"|`([^`]+)`)/g)]
+    [...systemMetricsSurface().matchAll(/\brecord\(\s*(?:"([^"]+)"|`([^`]+)`)/g)]
       .map(m => m[1] ?? m[2])
       // `thermal:${label}` is one call that produces a key per sensor, and the
       // sensors are whatever the chip publishes. Its dynamic half is covered
@@ -112,7 +119,9 @@ describe("what a machine that cannot answer gets", () => {
   it("omits load on a platform that publishes none, rather than reading zero", () => {
     // Windows. `os.loadavg()` returns zeros there and the server refuses to
     // record them; a strip that printed `0.00` would be inventing calm.
-    expect(metrics).toContain('const hasLoad = process.platform !== "win32"');
+    expect(loadRule).toContain('return platform !== "win32" ? load.map(n => Math.round(n * 100) / 100) : null;');
+    expect(metrics).toContain("loadavg: loadReading(),");
+    expect(metrics).toContain('if (load) record("load:1m", load[0]);');
     const { loadavg, ...rest } = full();
     expect("load:1m" in liveReadings({ ...rest, loadavg: null })).toBe(false);
   });
@@ -189,7 +198,7 @@ describe("the window, and what it is allowed to claim", () => {
     // Buckets are a minute wide; anything quicker re-fetches a ring that has
     // not changed. The NUMBER is live at the panel's own three seconds.
     expect(REFRESH_MS).toBe(60_000);
-    expect(metrics).toContain("const BUCKET_MS = 60_000;");
+    expect(ring).toContain("export const BUCKET_MS = 60_000;");
   });
 
   it("asks for the four groups the server allows, in the panel's order", () => {
