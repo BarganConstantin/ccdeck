@@ -88,9 +88,20 @@ describe("the once-a-day version check", () => {
     // Stamped first, a boot with no network — a laptop opened on a train —
     // burned the whole shared 24-hour window on a check that never reached
     // PyPI, and the next real chance was the day after.
+    //
+    // Both anchors are required to be there. #1061 renamed latestOnPypi to
+    // newestAcceptableOnPypi, and this line went on asking for the old name:
+    // indexOf answered -1, which is less than any position, so it passed
+    // whatever order the two calls were in.
     const src = read("../../server/cswap-install.mjs");
-    const check = src.slice(src.indexOf("if (!updateCheckDue()) return { state: \"present\""));
-    expect(check.indexOf("await latestOnPypi()")).toBeLessThan(check.indexOf("touchMarker()"));
+    const at = src.indexOf("if (!updateCheckDue()) return { state: \"present\"");
+    expect(at, "the daily check's guard is gone or renamed").toBeGreaterThan(-1);
+    const check = src.slice(at);
+    const asked = check.indexOf("await newestAcceptableOnPypi()");
+    const stamped = check.indexOf("touchMarker()");
+    expect(asked, "the daily check no longer asks PyPI").toBeGreaterThan(-1);
+    expect(stamped, "the daily check no longer stamps its marker").toBeGreaterThan(-1);
+    expect(asked).toBeLessThan(stamped);
   });
 });
 
