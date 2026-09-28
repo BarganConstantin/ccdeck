@@ -7961,7 +7961,7 @@ button.qb-pace::after {
 /* Both of these are .up-quota-sub lines, so they have to come after it to win
    on source order — they read as dim grey otherwise. */
 .up-credits { color: var(--accent); }
-.up-reset-credits { color: var(--ok); }
+.up-reset-credits { color: var(--ok); font-variant-numeric: tabular-nums; }
 
 :root[data-theme="light"] .up-rate {
   background: rgba(126,34,206,0.10);
