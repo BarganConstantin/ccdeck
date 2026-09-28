@@ -516,8 +516,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       )}
 
       {/* The switch that took, said out loud (#827). Always mounted, empty at
-          rest, the way App's blocked-session region is: a status that appears
-          already holding its text is one a screen reader may never read. */}
+          rest, the way the topbar's blocked-session region is: a status that
+          appears already holding its text is one a screen reader may never
+          read. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
         {switched ? `Now active: ${switched.name}` : ""}
       </div>
