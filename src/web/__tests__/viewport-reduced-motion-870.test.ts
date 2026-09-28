@@ -67,7 +67,12 @@ describe("every fit that frames a card asks the rule", () => {
       expect(options).not.toMatch(/duration:\s*\d/);
       expect(options).toMatch(/duration: fitViewDuration\(\d+\)/);
     }
-    const apply = appCode.slice(appCode.indexOf("const applyViewport = useCallback("), appCode.indexOf("}, [rf, storeApi]);"));
+    // applyViewport lives in use-camera.ts. Found first, so a move cannot turn
+    // this into a match against an empty slice.
+    const camera = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8");
+    const start = camera.indexOf("const applyViewport = useCallback(");
+    expect(start, "applyViewport is not in use-camera.ts").toBeGreaterThan(-1);
+    const apply = camera.slice(start, camera.indexOf("}, [rf, storeApi]);", start));
     expect(apply).toMatch(/if \(shouldAnimateViewport\(\{ durationMs: duration, documentHidden: document\.hidden \}\)\)/);
     expect(appCode).toMatch(/applyViewport\(want, FOCUS_MS\);/);
   });

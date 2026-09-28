@@ -87,7 +87,11 @@ describe("whether a viewport change the deck asks for should animate", () => {
 
 // ── the wiring the rule is useless without ──────────────────────────────────
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The door, the fit and the landing handler moved to use-camera.ts; the
+// focus and the reader's gestures stayed in App.tsx. Read as one, so a body is
+// found wherever it lives and every negative below holds for both files.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8");
 
 /** The same text with its comments gone — the prose in this repo quotes the
  *  shapes it rejected, so an "appears nowhere" assertion has to read code. */
@@ -107,7 +111,7 @@ const appCode = app
  */
 function body(opening: string): string {
   const at = appCode.indexOf(opening);
-  if (at < 0) throw new Error(`viewport-motion-671: no "${opening}" in App.tsx`);
+  if (at < 0) throw new Error(`viewport-motion-671: no "${opening}" in App.tsx or use-camera.ts`);
   // From the arrow, not from the declaration: the first brace after
   // `const applyViewport = useCallback(` belongs to a parameter's type literal,
   // and counting from there would balance after three fields and call that the
