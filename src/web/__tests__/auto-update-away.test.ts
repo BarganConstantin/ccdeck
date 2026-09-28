@@ -14,6 +14,7 @@ import { createPresence, PRESENCE_TTL_MS } from "../../server/presence.mjs";
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
 import { IDLE_BEFORE_RESTART_MS } from "../restart";
 import { PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "../presence";
+import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const MIN = 60_000;
@@ -293,6 +294,10 @@ describe("the wiring", () => {
   });
 
   it("has every tab report its focus, with a goodbye that outlives the page", () => {
+    // The beacon moved to use-presence-beacon.ts — one effect that reads nothing
+    // from the component — so this reads the client rather than App.tsx. What it
+    // pins is the wiring: the keepalive goodbye and the beat behind it.
+    const app = clientText();
     expect(app).toMatch(/fetch\("\/api\/presence", \{/);
     expect(app).toContain("keepalive: true,");
     expect(app).toContain('window.addEventListener("pagehide", bye);');

@@ -50,7 +50,6 @@ import {
   resolveCustomFmStations, resolveFmMuted, resolveFmSelection, selectionAfterRemovingStation,
   type CustomFmStation, type FmSelection,
 } from "./fm-stations";
-import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
@@ -63,6 +62,7 @@ import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDesktopUpdate } from "./use-desktop-update";
+import { usePresenceBeacon } from "./use-presence-beacon";
 import { useVersionCheck, VERSION_DISMISSED_KEY } from "./use-version-check";
 import { readStored } from "./storage";
 import { THEME_KEY, storedTheme, type Theme } from "./theme";
@@ -1113,49 +1113,10 @@ function Inner() {
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate,
           askDesktopUpdateRestart, onDesktopUpdateEvent } = useDesktopUpdate(live);
 
-  // ── who is looking ────────────────────────────────────────────────────────
-  // The server updates the deck on its own while nobody is looking at it
-  // (auto-update.mjs), and only a page can say whether somebody is. So each tab
-  // says so on every focus change, and again every PRESENCE_BEAT_MS while it
-  // holds focus, because the claim expires on the server rather than being
-  // trusted forever. A tab that closes takes its claim back on the way out;
-  // one that cannot is forgotten when its last beat runs out.
-  useEffect(() => {
-    const tab = newTabId();
-    let last: boolean | null = null;
-    const say = (looking: boolean) => {
-      fetch("/api/presence", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tab, looking }),
-        // keepalive, so the goodbye sent from `pagehide` still leaves.
-        keepalive: true,
-      }).catch(() => {});
-    };
-    const tick = () => {
-      const looking = tabLooking(document);
-      if (presenceShouldSend(last, looking)) say(looking);
-      last = looking;
-    };
-    const bye = () => {
-      if (last) say(false);
-      last = false;
-    };
-    tick();
-    const iv = window.setInterval(tick, PRESENCE_BEAT_MS);
-    window.addEventListener("focus", tick);
-    window.addEventListener("blur", tick);
-    document.addEventListener("visibilitychange", tick);
-    window.addEventListener("pagehide", bye);
-    return () => {
-      window.clearInterval(iv);
-      window.removeEventListener("focus", tick);
-      window.removeEventListener("blur", tick);
-      document.removeEventListener("visibilitychange", tick);
-      window.removeEventListener("pagehide", bye);
-      bye();
-    };
-  }, []);
+  // Telling the server somebody is looking at this deck lives in
+  // use-presence-beacon.ts. It takes nothing and returns nothing.
+  usePresenceBeacon();
+
   const notice = version?.notice ?? null;
 
   // ── what changed since you last looked (#712) ─────────────────────────────
