@@ -133,6 +133,10 @@ export default function LanPeerModal({
     if (await run(() => onRename(name))) setDraft(null);
   };
 
+  // A check that got an answer draws the lanes again, so the picture that
+  // answered the press is visibly a new one — see drawn.
+  const checkNow = () => void run(onCheck).then(ok => { if (ok && alive.current) setDrawn(n => n + 1); });
+
   const copy = async () => {
     if (!fp) return;
     try {
@@ -282,7 +286,7 @@ export default function LanPeerModal({
               answer. */}
           {paired && !peer?.waiting && (
             <button type="button" className="btn" {...press(`check:${row.fp}`)}
-              onClick={() => void run(onCheck).then(ok => { if (ok && alive.current) setDrawn(n => n + 1); })}
+              onClick={checkNow}
               title="Ask this deck now instead of waiting for the next round">
               {busy === `check:${row.fp}` ? "Checking…" : "Check now"}
             </button>
