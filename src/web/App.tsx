@@ -896,6 +896,9 @@ function Inner() {
    *  here (#821) — counted from mount, the board total climbing from $0 to
    *  itself during the replay read as hundreds of dollars a minute. */
   const [liveSince, setLiveSince] = useState<number | null>(null);
+  /** The same boundary as a flag, for the layout: positions restored from
+   *  storage are only pruned against the agents once all of them are back. */
+  const historyReplayed = liveSince !== null;
   useEffect(() => {
     const es = new EventSource("/events");
     const coalescer = createRenderCoalescer(rerender, {
@@ -1669,11 +1672,11 @@ function Inner() {
       stateRef.current, now, availableWidth, availableHeight, pinnedRef.current,
       measuredRef.current, prevSessionSizeRef.current, onBubble, settled, dragging,
       positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
-      selectedIds, spotlightSet, visibleAgentIds, openContext,
+      selectedIds, spotlightSet, visibleAgentIds, openContext, historyReplayed,
       );
       return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch],
+    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch, historyReplayed],
   );
 
   // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).

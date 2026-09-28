@@ -43,7 +43,7 @@ describe("a relayout is what a reload brings back (#1331)", () => {
 
   it("rebuilds in the render it schedules, not on the next clock tick", () => {
     // The nodes memo lists the epoch, so moving it is what reruns snapshotToFlow.
-    expect(app).toMatch(/snapshotToFlow\([\s\S]*?\[stateRef\.current, stateRef\.current\.revision, now,[^\]]*\blayoutEpoch\]/);
+    expect(app).toMatch(/snapshotToFlow\([\s\S]*?\[stateRef\.current, stateRef\.current\.revision, now,[^\]]*\blayoutEpoch\b[^\]]*\]/);
     // And both places that throw positions away move it, instead of a bare
     // rerender() the memo answers from its cache.
     const body = relayout();

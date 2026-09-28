@@ -134,6 +134,12 @@ export function snapshotToFlow(
   lineage: Set<string> | null,
   visibleIds: Set<string>,
   onOpenContext: (sessionId: string) => void,
+  /**
+   * The event log has finished replaying, so the agents in `state` are all the
+   * agents there are. Until then `positions` and `pinned` hold a board restored
+   * from storage for agents that have not arrived yet (#1333).
+   */
+  historyReplayed: boolean,
 ): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
@@ -346,12 +352,17 @@ export function snapshotToFlow(
   // is false during a state transition) doesn't lose the position and snap
   // the node to {0,0} on return — that was causing "nodes vanish on action
   // change" while bursts (which gate on visibleIds) also disappeared.
-  // Like the pins below, this is guarded on a non-empty graph: positions are
+  // Like the pins below, this waits for the replay to finish: positions are
   // restored from storage before the event log has replayed, so pruning them
   // against an empty agent map would wipe the whole saved arrangement on every
-  // page load and re-derive it with dagre.
+  // page load and re-derive it with dagre. Guarding on an empty map alone was
+  // not enough (#1333). The replay renders once at its end, but anything else
+  // that renders while it streams in — the clock's tick, the stream opening —
+  // runs this against the few agents replayed so far, and every restored
+  // position the rest were coming back to was dropped. They were then laid out
+  // afresh as they arrived, and a reload drew a different board.
   const live = liveNodeIds(state.agents.values());
-  pruneStaleEntries(positions, live);
+  if (historyReplayed) pruneStaleEntries(positions, live);
   // A mark normally lives one frame — the pass it asks for clears it — but an
   // agent that leaves between the stamp and that pass would leave its id in the
   // set for the life of the tab, which is the leak the size cache below had.
@@ -360,8 +371,9 @@ export function snapshotToFlow(
   // localStorage on every load, so without this a drag from some previous run
   // outlives the agent it belonged to and keeps claiming that spot on the
   // canvas — where a later session, laid out from the top, gets stacked
-  // straight onto it.
-  pruneStaleEntries(pinned, live);
+  // straight onto it. After the replay, for the same reason as the positions:
+  // a pin is the user's own placement, and the partial map would drop it too.
+  if (historyReplayed) pruneStaleEntries(pinned, live);
   // Drop measurements for nodes that no longer exist. This cache is not
   // restored from storage, but it is not rebuilt either: nothing but the Clear
   // button ever removed an id, so a tab left open for days holds a size for
