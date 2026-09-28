@@ -19,9 +19,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
+import { authTrouble } from "../../server/claude-accounts.mjs";
+import { readVerdicts } from "../../server/claude-verdicts.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-const accounts = await import("../../server/claude-accounts.mjs");
+const verdicts = await import("../../server/claude-verdicts.mjs");
 import { autoRecaptureState } from "../../server/cswap-admin.mjs";
 import { manifestFor } from "../../server/lan-sync.mjs";
 import { accountIssue, collectorText, staleCopyText } from "../account-issue";
@@ -521,7 +522,7 @@ describe("asking claude-swap about one account, now", () => {
   // The cached verdicts are up to ten minutes old, which is right for a label
   // and wrong for a decision that writes a credential: somebody who signed in
   // two minutes ago still reads as `no_credentials` there.
-  const { verdictNow } = accounts as {
+  const { verdictNow } = verdicts as {
     verdictNow: (email: string, org: string, o?: Record<string, unknown>) => Promise<string | null>;
   };
   const LIST = JSON.stringify({

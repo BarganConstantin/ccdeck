@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
 import { cachedExportReadable, exportVerdictOk, liveLoginIs, storedCopyAlive } from "../../server/account-health.mjs";
 // @ts-expect-error plain JS module
-import { cachedVerdictFor } from "../../server/claude-accounts.mjs";
+import { cachedVerdictFor } from "../../server/claude-verdicts.mjs";
 
 describe("account health for LAN sync", () => {
   it.each(["no_credentials", "relogin_required", "foreign_credential"])("treats %s as a lost stored copy", verdict => {

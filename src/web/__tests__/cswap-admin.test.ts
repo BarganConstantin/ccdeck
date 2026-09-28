@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, checkImportResults, markUnreadable, importOutcomes, landed, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
-import { createVerdictQueue } from "../../server/claude-accounts.mjs";
+import { createVerdictQueue } from "../../server/claude-verdicts.mjs";
 
 describe("fresh import verdicts", () => {
   it("starts idle collection synchronously and recovers after a start error", async () => {
@@ -63,7 +63,7 @@ describe("sender readiness mapping", () => {
   });
 });
 // @ts-expect-error — plain JS module, no types
-import { createVerdictQueue } from "../../server/claude-accounts.mjs";
+import { createVerdictQueue } from "../../server/claude-verdicts.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
