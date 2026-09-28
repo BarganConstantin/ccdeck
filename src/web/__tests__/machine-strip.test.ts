@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { fmtReading, fmtThreshold, liveReadings, THROTTLE_SERIES, type LiveSource } from "../machine-live";
 import { cellLabel, worthACell, windowOf, SPARK_W, SPARK_H, WINDOW_BUCKETS, REFRESH_MS, GROUPS } from "../components/MachineStrip";
 import { spanLabel, type Series } from "../components/SectionHistoryModal";
+import { systemMetricsSurface } from "./system-metrics-surface";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const metrics = readFileSync(at("../../server/system-metrics.mjs"), "utf8");
@@ -59,9 +60,11 @@ const full = (): LiveSource => ({
 
 describe("the client's readings and the server's ring agree", () => {
   // Every `record("x", …)` the sampler makes, which is the complete list of
-  // names the ring can ever be keyed by, read out of the server itself.
+  // names the ring can ever be keyed by, read out of the server itself — the
+  // sampler and every module lifted out of it, since the network's three are
+  // recorded from network-sampler.mjs.
   const recorded = new Set(
-    [...metrics.matchAll(/\brecord\(\s*(?:"([^"]+)"|`([^`]+)`)/g)]
+    [...systemMetricsSurface().matchAll(/\brecord\(\s*(?:"([^"]+)"|`([^`]+)`)/g)]
       .map(m => m[1] ?? m[2])
       // `thermal:${label}` is one call that produces a key per sensor, and the
       // sensors are whatever the chip publishes. Its dynamic half is covered

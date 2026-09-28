@@ -30,7 +30,7 @@ export interface NetRoute {
   to: "claude" | "internet";
 }
 /** Throughput is sampled all the time; latency and route only while this panel
- *  is open (system-metrics.mjs), so each can be missing for the first poll.
+ *  is open (network-sampler.mjs), so each can be missing for the first poll.
  *
  *  THE THREE FIGURES ARE NOT ONE MEASUREMENT. `down` and `up` are this
  *  machine's own counters across every physical interface it has; `api` is a
