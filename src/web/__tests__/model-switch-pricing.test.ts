@@ -642,7 +642,7 @@ describe("no cost surface multiplies a whole session by its last model", () => {
     const files = [
       "App.tsx", ...USAGE_FILES, "components/SessionList.tsx",
       "components/SessionSummary.tsx", "components/ContextModal.tsx",
-      "components/AgentNode.tsx", "board-usage.ts",
+      "components/AgentNode.tsx", "card-cost.ts", "board-usage.ts",
     ];
     const lastWins = /costForUsage\(\s*(?!e\.)(\w+)\.usage\s*,\s*\1\.model\s*\)/;
     for (const f of files) expect(lastWins.test(srcOf(f)), f).toBe(false);

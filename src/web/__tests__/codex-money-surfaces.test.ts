@@ -53,7 +53,7 @@ import {
 // where this file has many, and the count of what a fix actually repairs is the
 // point of running it against the old tree.
 import * as pricing from "../pricing";
-import { costBreakdownTooltip } from "../components/AgentNode";
+import { costBreakdownTooltip } from "../card-cost";
 import { applyEvent, initialState } from "../reducer";
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
 
@@ -79,6 +79,8 @@ const panelSurface = strip(usageSurface());
 /** The two quota sections, lifted out of the panel. */
 const sections = strip(read("../components/QuotaSections.tsx"));
 const card = strip(read("../components/AgentNode.tsx"));
+/** What the card's cost slot holds, decided out of the card since it moved. */
+const cardCost = strip(read("../card-cost.ts"));
 const css = strip(read("../styles.css"));
 
 // ── 1. the price table ──────────────────────────────────────────────────────
@@ -225,13 +227,14 @@ describe("a model with no rate says so instead of vanishing", () => {
   it("puts the marker on the card in the slot the money would have used", () => {
     // The gate that removed the whole element is gone; the lookup now chooses
     // between two renderings instead of between one and nothing.
-    expect(card).not.toMatch(/data\.model && ratesForModel\(data\.model\) &&/);
-    expect(card).toMatch(/const rates = ratesForModel\(data\.model\);/);
+    // The choice is costChip's, in card-cost.ts; the card draws what it says.
+    expect(card + "\n" + cardCost).not.toMatch(/data\.model && ratesForModel\(data\.model\) &&/);
+    expect(cardCost).toMatch(/const rates = ratesForModel\(data\.model\);/);
     expect(card).toMatch(/className="cost-unpriced"/);
     expect(card).toMatch(/\{UNPRICED_LABEL\}/);
     // And only once there are tokens: a card that has not reported usage yet
     // has nothing to be unpriced about.
-    expect(card).toMatch(/data\.usage\.inputTokens \+ data\.usage\.outputTokens\) <= 0\) return null/);
+    expect(cardCost).toMatch(/data\.usage\.inputTokens \+ data\.usage\.outputTokens\) <= 0\) return null/);
   });
 
   it("stops the usage panel dropping rows whose tokens it still counts", () => {

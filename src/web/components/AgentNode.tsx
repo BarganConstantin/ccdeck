@@ -1,17 +1,20 @@
 import React, { memo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
-import { billedInputTokens, cacheWriteBreakdown, costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL } from "../pricing";
-// Tokens are priced at the model that produced them. See usage-models.ts for
-// what the last-wins multiplication this replaces was measured to cost (#686).
-import { agentCost, agentUnpricedTokens, otherModelIds, usageByModelEntries, type UsageBearing } from "../usage-models";
+import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { otherModelIds } from "../usage-models";
+// What the cost chip holds, and its tooltip with the multiplication written
+// out. See card-cost.ts.
+import { costChip } from "../card-cost";
 import { codexApprovalTell } from "../codex-approval";
 // The chip's labeller, which used to be declared in this file and moved out in
 // #462 so that a pure matcher and a bare-node suite could reach it without a
 // React component behind it. See model-label.ts for why the move happened with
 // that fix rather than with #374's wider consolidation.
 import { shortModel, modelFamily } from "../model-label";
-import { guessLine } from "../notify";
+// The card's words — its state, a block's sentence and label — which the
+// session list, the peek and the topbar say too. See agent-copy.ts.
+import { stateLabel, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -25,85 +28,16 @@ import { elapsed } from "../duration";
 // the column cap in #521 is only sound while both surfaces show the same field.
 import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
-import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types";
+import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { recapShown } from "../session-recap";
 import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
+// The activity chart's counting and its scale. See tool-spark.ts.
+import { barHeight, BUCKETS, H, sparkWindow, W } from "../tool-spark";
 import { AlertMark, StateMark } from "./StateMark";
-
-/** Multi-line breakdown for the cost chip tooltip — shows the actual
- *  multiplication so the user can verify pricing is sane.
- *  e.g. "input  725 × $5/M     = $0.00"
- *
- *  Every row must multiply out to the figure printed beside it, and the rows
- *  must sum to the total: this tooltip exists only to be checked by hand, so a
- *  row whose operands don't produce its own result is worse than no row. */
-export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefined): string {
-  const rates = ratesForModel(modelId);
-  // This branch was unreachable until #400: the only element carrying this
-  // tooltip was gated on the same ratesForModel call that returns null here, so
-  // the graceful answer existed and could never be read. It names the model now
-  // because that is the one thing the reader needs in order to act on it — the
-  // sentence is otherwise a claim about nothing, and the id is what goes in the
-  // issue asking for the row.
-  if (!rates) {
-    return `model: ${modelId}\nno published rate in this build — the tokens are counted, the dollars are not`;
-  }
-  const fmtN = (n: number) => n.toLocaleString();
-  const fmtR = (r: number) => `$${r}/MTok`;
-  const c = costForUsage(usage, modelId);
-  const cw = cacheWriteBreakdown(usage, rates);
-  // Cache writes are billed per TTL — 2× input for a 1-hour entry, 1.25× for a
-  // 5-minute one — so once a transcript reports both, one multiplication can't
-  // reproduce the total the chip shows. Split the row rather than print a
-  // product that doesn't check out.
-  const cacheWriteRows = cw.tokens1h > 0
-    ? [
-        `cache w5m${fmtN(cw.tokens5m).padStart(14)}  × ${fmtR(rates.cacheWrite).padEnd(11)} = ${fmtCost(cw.usd5m)}`,
-        `cache w1h${fmtN(cw.tokens1h).padStart(14)}  × ${fmtR(rates.cacheWrite1h ?? rates.cacheWrite).padEnd(11)} = ${fmtCost(cw.usd1h)}`,
-      ]
-    : [`cache w  ${fmtN(cw.tokens5m).padStart(14)}  × ${fmtR(rates.cacheWrite).padEnd(11)} = ${fmtCost(cw.usd5m)}`];
-  // Codex reports a single `input_tokens` that already contains the cached
-  // prefix, and only the remainder is billed at the input rate — so the raw
-  // count printed here disagreed with its own dollar column by ~10x on a
-  // multi-turn session. Print the tokens the rate is applied to, and relabel
-  // the row when that differs from what the agent reported so the missing
-  // tokens are visibly the ones on the cache-read line below.
-  const inputTokens = billedInputTokens(usage, modelId);
-  const inputLabel = inputTokens === usage.inputTokens ? "input" : "uncached";
-  return [
-    `model: ${modelId}`,
-    `${inputLabel.padEnd(9)}${fmtN(inputTokens).padStart(14)}  × ${fmtR(rates.input).padEnd(11)} = ${fmtCost(c.input)}`,
-    `output   ${fmtN(usage.outputTokens).padStart(14)}  × ${fmtR(rates.output).padEnd(11)} = ${fmtCost(c.output)}`,
-    `cache r  ${fmtN(usage.cacheReadTokens).padStart(14)}  × ${fmtR(rates.cacheRead).padEnd(11)} = ${fmtCost(c.cacheRead)}`,
-    ...cacheWriteRows,
-    `─────────────────────────────────────────`,
-    `total                                 = ${fmtCost(c.total)}`,
-  ].join("\n");
-}
-
-/** The same tooltip for a whole agent, one section per model its tokens came
- *  from (#686).
- *
- *  One section is the common case and renders byte-identically to what this card
- *  has always shown — a session on one model has one rate card, and a footer
- *  under a single block would be arithmetic about nothing. Two or more sections
- *  earn the footer, because that line is the only place on the card where the
- *  figure in the chip can be checked by hand: neither block's own total is it,
- *  and without the footer a reader has no way to see that the two were added
- *  rather than one of them chosen — which is precisely the mistake this whole
- *  change is about. */
-function agentCostTooltip(a: UsageBearing): string {
-  const entries = usageByModelEntries(a);
-  if (entries.length <= 1) return costBreakdownTooltip(a.usage, a.model);
-  return [
-    ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
-    `═════════════════════════════════════════`,
-    `all models                            = ${fmtCost(agentCost(a).total)}`,
-  ].join("\n");
-}
+import { RecapMark } from "./RecapMark";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -166,6 +100,8 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
   const noteKey = recap ? recapKey(data.sessionId, recap.at) : null;
   const noteDismissed = useRecapDismissed(noteKey);
   const noteOpen = recap != null && !noteDismissed;
+  // The cost slot at the end of the meta row, decided once (card-cost.ts).
+  const cost = costChip(data);
 
   return (
     // --accent itself is built in styles.css from this hue: the token that
@@ -335,59 +271,16 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
             <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> tok
           </span>
         )}
-        {data.model && (() => {
-          // An unpriced model says so, in the slot the money would have used.
-          // The gate here used to be `ratesForModel(data.model) &&`, which took
-          // the whole element away the moment the lookup failed: a gpt-5.1-codex
-          // card showed `412.3k tok` and then nothing, indistinguishable from a
-          // session that had spent nothing, and the tooltip written for exactly
-          // this case sat behind the failing call. The marker only appears once
-          // there are tokens to price — a card with no usage yet has nothing to
-          // be unpriced about, and would otherwise carry this the whole time it
-          // was starting up.
-          const rates = ratesForModel(data.model);
-          const c = agentCost(data);
-          // The two questions this branch asks have come apart (#686). `rates`
-          // is about the model the card is ON — the one in the chip, the one the
-          // next turn will use. `c.total` is about money already spent, which can
-          // be real on a card whose current model has no published rate, and
-          // zero on a card whose current model has one. So the marker is for the
-          // agent with no priced spend AT ALL; an agent with some gets its
-          // figure, and the `+` beside it says the figure is a floor because
-          // some of its tokens reached no rate card — the same thing the "+" on
-          // the usage panel's session rows has always meant.
-          const unpricedTok = agentUnpricedTokens(data);
-          if (!rates && c.total <= 0) {
-            if ((data.usage.inputTokens + data.usage.outputTokens) <= 0) return null;
-            return (
-              <span className="cost-unpriced" title={agentCostTooltip(data)}>
-                {UNPRICED_LABEL}
-              </span>
-            );
-          }
-          if (c.total <= 0) return null;
-          // As of this render (#873). The card re-renders on its agent's events
-          // and the rate lives in a tooltip, so it is at most one event stale.
-          const elapsedSec = Math.max(0, ((data.endedAt ?? Date.now()) - data.startedAt) / 1000);
-          // Not for a session the deck joined late (#822): its cost is the whole
-          // session's and its clock only the part this page saw, so the quotient
-          // would overstate the burn by however much of the session was missed.
-          const rate = data.state === "active" && !data.synthetic ? fmtCostRate(c.total, elapsedSec) : null;
-          const tt = agentCostTooltip(data) + (rate ? `\nburn: ${rate}` : "");
-          // THE BURN RATE IS IN THE TOOLTIP AND NOWHERE ELSE NOW. The row is
-          // flex, no-wrap, inside `overflow: hidden`, with 232px of content;
-          // five items at 11px measure about 290px, so the live card — the one
-          // case where a rate means anything — pushed its last item off the
-          // right edge and said nothing about it. The rate was that item. It is
-          // also derived from two figures printed 20px away, so of the five it
-          // is the one whose removal costs a reader the least: the row now fits
-          // in the state it used to break in, and the card loses a type size.
-          return (
-            <span className="cost-meta" title={tt}>
-              <b>{fmtCost(c.total)}{unpricedTok > 0 ? "+" : ""}</b>
-            </span>
-          );
-        })()}
+        {cost?.kind === "unpriced" && (
+          <span className="cost-unpriced" title={cost.tt}>
+            {UNPRICED_LABEL}
+          </span>
+        )}
+        {cost?.kind === "spent" && (
+          <span className="cost-meta" title={cost.tt}>
+            <b>{fmtCost(cost.total)}{cost.floor ? "+" : ""}</b>
+          </span>
+        )}
       </div>
 
       <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />
@@ -457,108 +350,8 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
   return <>{elapsed(start, end, now)}</>;
 }
 
-/** The one word this app uses for a session's state, wherever it says it.
- *
- *  It was inline in StatePill until #373, where the session list and the usage
- *  panel gained a spoken copy of the same fact — their dot carries the state
- *  and a dot cannot be read aloud. Two ternaries would have been two
- *  vocabularies waiting to disagree: a card that says `live` beside a row that
- *  says `running` is one state with two names, and a reader who uses both
- *  surfaces has to learn that they mean the same thing. Same argument, and the
- *  same shape, as waitingSentence below.
- *
- *  `err` rather than `failed` even in text nobody sees, for that reason exactly
- *  — it is the word on the card, so it is the word in the row. */
-export function stateLabel(state: AgentNodeData["state"]): string {
-  return state === "active" ? "live" : state === "done" ? "done" : "err";
-}
-
 function StatePill({ state }: { state: AgentNodeData["state"] }) {
   return <span className={`state-pill state-${state}`}>{stateLabel(state)}</span>;
-}
-
-/** What a blocked session says for itself, on the card, in the row and in the
- *  topbar's tooltip. CC's own sentence wherever there is one — the payload has
- *  no tool_name and no tool_input, so it is the entire truth we hold about the
- *  block, and paraphrasing it would only add a claim we cannot back. The
- *  fallback is what stops a re-wording upstream, or an older log line with no
- *  message at all, from rendering a coloured row that says nothing. One
- *  function so the three surfaces cannot drift apart, the way shortModel — now
- *  in model-label.ts, imported at the top of this file — is one for the same
- *  reason. */
-export function waitingSentence(waiting: WaitingBlock): string {
-  if (waiting.message) return waiting.message;
-  // The fallbacks only ever show for a block whose payload carried no message,
-  // which CC does not currently produce. `asked` shares idle's wording rather
-  // than getting a third string: what distinguishes it is the QUESTION, and a
-  // block that lost its message has no question to show.
-  return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
-}
-
-/** What a screen reader says for a card (#853). React Flow names a node from
- *  its content when it is given no `ariaLabel`, so a card was heard as its
- *  whole text run together — "liveagents-deck?1622m 12ssession…", a median of
- *  89 characters — and at the far zoom tier, where the details are
- *  `visibility: hidden`, the same card suddenly announced as three words. This
- *  is composed from the data instead, so it does not change with zoom, and it
- *  says the things a reader chooses a card by, in the card's own words: name,
- *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
-export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false): string {
-  const failed = data.tools.filter(t => t.ok === false).length;
-  const cost = agentCost(data, now).total;
-  return [
-    data.label,
-    data.kind === "root" ? "session" : "subagent",
-    stateLabel(data.state),
-    isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
-    data.model ? shortModel(data.model) : null,
-    `${data.toolCount} ${data.toolCount === 1 ? "tool" : "tools"}`,
-    failed > 0 ? `${failed} failed` : null,
-    cost > 0 ? `${fmtCost(cost)}${agentUnpricedTokens(data, now) > 0 ? "+" : ""}` : null,
-    selected ? "selected" : null,
-  ].filter(Boolean).join(", ");
-}
-
-/** The same guess, worded for a surface with room to hedge — and worded against
- *  the sentence it will sit under.
- *
- *  "Likely" is not padding and does not come out. The deck infers this from
- *  where the notification sat in the stream rather than from anything CC said
- *  (types.ts spells out why), so a surface that prints it flat is claiming more
- *  than the deck knows — and the one place a user would catch the deck lying is
- *  the place they are deciding whether to approve a command.
- *
- *  `guessLine` — the one wording function, in notify.ts — because the tooltip
- *  prints CC's
- *  sentence directly above this, and that sentence usually already names the
- *  tool: "…to use Bash" over "Likely on: Bash · rm -rf" repeats a word and
- *  pushes the command further from the eye. The notification body had this
- *  fixed first and the tooltip did not, which left the same block reading two
- *  different ways depending on where you saw it. One rule, both surfaces. */
-export function blockedToolTooltip(waiting: WaitingBlock, said: string): string | null {
-  const label = guessLine(waiting, said);
-  return label ? `Likely on: ${label}` : null;
-}
-
-/** The visible label, which is CC's sentence for a permission block and a
- *  quieter one for an idle block.
- *
- *  "Claude is waiting for your input" is accurate and reads as an emergency,
- *  and it is the kind that fires most — three of every four blocks on this
- *  machine's log. What it actually describes is a turn that ended and has not
- *  been picked back up, sitting on a node that already reads `done` two columns
- *  away. So the visible half says whose move it is and the verbatim sentence
- *  stays in the tooltip, where it is still the only human wording the payload
- *  gives us and still exactly what CC said. A permission block is genuinely
- *  urgent and keeps its sentence untouched. */
-export function waitingLabel(waiting: WaitingBlock): string {
-  // The sentence for both alarming kinds, "Your turn" only for idle. An `asked`
-  // block's message IS the question — "paycore needs your input: merge both
-  // branches to main, or just one?" — which is the single most useful string
-  // this card can carry, and "Your turn" would throw it away on the one surface
-  // with room for it. Idle keeps the short label because CC's sentence there is
-  // the contentless "Claude is waiting for your input".
-  return waiting.kind === "idle" ? "Your turn" : waitingSentence(waiting);
 }
 
 /** The session is blocked on a human — and on which of the two chores that is.
@@ -595,105 +388,18 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   );
 }
 
-/** Claude Code's own mark for a recap: the ※ the terminal prints in front of
- *  one. Drawn rather than typed — U+203B comes from whichever fallback font a
- *  platform has, at whatever weight that font chose, and this has to be the
- *  same small figure on macOS, Windows and Linux. Decoration beside the word
- *  "recap", so it is hidden from assistive technology. */
-export function RecapMark() {
-  return (
-    <svg className="recap-glyph" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
-      <path d="M3.3 3.3l5.4 5.4M8.7 3.3l-5.4 5.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-      <circle cx="6" cy="1.2" r="1.05" fill="currentColor" />
-      <circle cx="6" cy="10.8" r="1.05" fill="currentColor" />
-      <circle cx="1.2" cy="6" r="1.05" fill="currentColor" />
-      <circle cx="10.8" cy="6" r="1.05" fill="currentColor" />
-    </svg>
-  );
-}
-
 /** Sparkline of tool starts per bucket over the last 60s. Most-recent
  *  bucket lives on the right and is highlighted while it's the active one. */
-/** The activity chart.
- *
- *  IT USED TO COUNT ONLY TOOL CALLS, and that is why a working card read as an
- *  idle one. Between a tool's result and the next tool's call the model is
- *  reading, reasoning and writing — 16.5% of measured time on this machine,
- *  more than the time spent inside the tools themselves — and the chart drew a
- *  flat line through all of it. A chart labelled `60s` on a card whose only
- *  other movement is a clock is the element a reader checks to answer "is this
- *  thing doing anything", and it was answering no while the answer was yes.
- *
- *  It counts both now. A tool call is one mark and a completed block of the
- *  model's own output is another, so the line moves whenever the session does
- *  and is flat only when the session genuinely is. */
 function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number[] }) {
   // Its own beat (#873): the window slides under a card that has not changed.
   const now = useNow(1000);
-  const WINDOW_MS = 60_000;
-  const BUCKETS = 24;
-  const BUCKET_MS = WINDOW_MS / BUCKETS;
-  const counts: number[] = new Array(BUCKETS).fill(0);
-  let total = 0;
-  const mark = (at: number) => {
-    const age = now - at;
-    if (age < 0 || age >= WINDOW_MS) return;
-    const idx = BUCKETS - 1 - Math.floor(age / BUCKET_MS);
-    if (idx >= 0 && idx < BUCKETS) {
-      counts[idx] += 1;
-      total += 1;
-    }
-  };
-  for (const t of tools) mark(t.startedAt);
-  for (const at of outputs ?? []) mark(at);
-  // ONE SCALE FOR EVERY CARD ON THE CANVAS. This used to be
-  // `Math.max(1, ...counts)` — each card normalised to its own busiest bucket,
-  // so a session at one call per bucket and a session at twelve drew the
-  // IDENTICAL chart. Two charts that cannot be told apart are not comparing
-  // anything, and comparing sessions is the only reason a graph exists rather
-  // than a list.
-  //
-  // A fixed ceiling rather than the canvas maximum, which was the other way to
-  // make them comparable and is worse: the busiest card would set the scale for
-  // all of them, so every chart on screen would silently redraw when an
-  // unrelated session spiked, and a card nobody touched would appear to calm
-  // down. A constant means a bar height is the same quantity in every card, at
-  // every moment, whatever else is on the canvas.
-  //
-  // TWO, MEASURED — and it was four, guessed, back when this counted only tool
-  // calls. Over 14,194 real 2.5s buckets: 92.5% hold nothing, 6.9% hold exactly
-  // one, and 0.7% hold more than one. p90 is 1 and p99 is 3. At a ceiling of
-  // four the ordinary active bucket drew a 3.5px stub in a 14px box and the
-  // chart spent its whole range on a case that happens once in a thousand.
-  //
-  // What the chart is actually reading, at this density, is HOW MANY of the 24
-  // buckets have anything in them — a session working steadily fills them, a
-  // stalling one does not — so the height per bucket matters less than that a
-  // single mark is unmistakably a mark. Two puts one at half the box and clips
-  // only the 0.1% of buckets past it, where the tooltip carries the real
-  // figure, as it always has.
-  const FULL_SCALE = 2;
-  const observedPeak = Math.max(0, ...counts);
-  const W = 132;
-  const H = 14;
+  const { counts, title } = sparkWindow(tools, outputs, now);
   const barW = W / BUCKETS;
-  const peakRate = observedPeak / (BUCKET_MS / 1000);
-  // Says what it counted rather than naming only half of it — the chart moving
-  // on a card with no tool call in a minute is otherwise a reader's puzzle.
-  const toolMarks = tools.filter(t => now - t.startedAt >= 0 && now - t.startedAt < WINDOW_MS).length;
-  const blockMarks = total - toolMarks;
-  const parts = [
-    toolMarks > 0 ? `${toolMarks} tool ${toolMarks === 1 ? "call" : "calls"}` : "",
-    blockMarks > 0 ? `${blockMarks} ${blockMarks === 1 ? "block" : "blocks"} of thinking and writing` : "",
-  ].filter(Boolean);
-  const title = total === 0
-    ? "nothing in the last 60s"
-    : `${parts.join(" · ")} in last 60s · peak ${peakRate.toFixed(1)}/s`;
   return (
     <div className="tool-spark-row" title={title}>
       <svg className="tool-spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
         {counts.map((c, i) => {
-          const h = c === 0 ? 1.5 : Math.max(1.5, Math.min(1, c / FULL_SCALE) * H);
+          const h = barHeight(c);
           const isLatest = i === BUCKETS - 1 && c > 0;
           const isActive = c > 0;
           const cls = `tool-spark-bar${isActive ? " active" : ""}${isLatest ? " latest" : ""}`;

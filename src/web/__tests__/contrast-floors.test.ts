@@ -28,6 +28,8 @@ import { gradientStops as readStops } from "./gradient-stops";
 
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const agentNode = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
+/** The card's words, stateLabel among them, lifted out of AgentNode.tsx. */
+const agentCopy = readFileSync(fileURLToPath(new URL("../agent-copy.ts", import.meta.url)), "utf8");
 
 /** WCAG 1.4.3 for body text, 1.4.11 for large text and non-text boundaries. */
 const BODY = 4.5;
@@ -333,7 +335,7 @@ describe("agent-node state rings (#268)", () => {
     // 1.4.1: running / done / failed are near-isoluminant under red-green CVD
     // (deuteranope ΔE 4.5 light, 4.5 dark between done and err), so the ring is
     // a reinforcement. The words are the channel that actually carries it.
-    expect(agentNode).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
+    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
     expect(agentNode).toMatch(/<StatePill state=\{data\.state\} \/>/);
   });
 

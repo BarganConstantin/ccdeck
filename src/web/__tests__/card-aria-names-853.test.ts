@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { agentAriaLabel } from "../components/AgentNode";
+import { agentAriaLabel } from "../agent-copy";
 import type { AgentNodeData } from "../types";
 
 const card = (over: Partial<AgentNodeData> = {}): AgentNodeData => ({

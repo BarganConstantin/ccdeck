@@ -319,9 +319,12 @@ describe("where it is drawn", () => {
   it("draws the terminal's ※ rather than typing it, so every platform gets the same figure", () => {
     // U+203B comes from whatever fallback font a platform has; the card and the
     // list share one authored mark instead.
+    // The mark is RecapMark.tsx's, lifted out of the card; the card draws it.
     const card = read("../components/AgentNode.tsx");
-    expect(card).toContain('<svg className="recap-glyph" viewBox="0 0 12 12"');
-    expect(card).not.toContain("※</");
+    const mark = read("../components/RecapMark.tsx");
+    expect(mark).toContain('<svg className="recap-glyph" viewBox="0 0 12 12"');
+    expect(card).toContain("<RecapMark />");
+    expect(card + "\n" + mark).not.toContain("※</");
   });
 
   /** The body of the first rule whose selector list names `sel`. */

@@ -14,7 +14,7 @@ import { statusPill } from "../status-pill";
 import { fmtTokens } from "../token-format";
 import type { useMonthlyUsage } from "../use-monthly-usage";
 import type { PauseControls } from "../use-pause-gate";
-import { waitingSentence } from "./AgentNode";
+import { waitingSentence } from "../agent-copy";
 
 type MonthlyUsage = ReturnType<typeof useMonthlyUsage>;
 

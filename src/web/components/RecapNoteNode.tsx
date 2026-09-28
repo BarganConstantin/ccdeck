@@ -19,7 +19,7 @@ import type { SessionRecap } from "../types";
 import { dismissRecap } from "../recap-note";
 import { promptTime } from "../relative-time";
 import { useNow } from "../use-now";
-import { RecapMark } from "./AgentNode";
+import { RecapMark } from "./RecapMark";
 
 /** What App hands the node. `parentId` is the session root — the tie's target,
  *  and the member joinSessions anchors a new node to, so a note arriving in a

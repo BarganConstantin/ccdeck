@@ -12,7 +12,7 @@ import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { fmtTokens } from "../token-format";
 import type { AgentState } from "../types";
 import { sessionListNote, type SessionCostRow, type SessionListScale } from "../usage-from-ccusage";
-import { stateLabel } from "./AgentNode";
+import { stateLabel } from "../agent-copy";
 
 export default function UsageSessionBreakdown({
   fromRange, rangeSessionRows, boardSessionRows, boardStates, sessionsOpen, setSessionsOpen,

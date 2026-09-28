@@ -70,6 +70,8 @@ function markup(...path: string[]): string {
 // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
 const app = markup("App.tsx") + "\n" + markup("components/Detail.tsx");
 const agentNode = markup("components", "AgentNode.tsx");
+/** The card's words, stateLabel among them, lifted out of AgentNode.tsx. */
+const agentCopy = markup("agent-copy.ts");
 const sessionList = markup("components", "SessionList.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
 /** The usage panel's session rows, and the dot each one draws, lifted out of it. */
@@ -438,11 +440,11 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
   it("says it in one vocabulary, shared with the word already on the card", () => {
     // A card that reads `live` beside a row that reads `running` is one state
     // with two names. StatePill and both lists go through the same function.
-    expect(agentNode).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
-    expect(agentNode).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
+    expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
+    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
     expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state\)\}<\/span>/);
     for (const [name, src] of [["SessionList", sessionList], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
-      expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\/AgentNode"/);
+      expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\.\/agent-copy"/);
       expect(src, `${name} re-states the vocabulary`).not.toMatch(/\? "live"/);
     }
     expect(usageSurface, "a file lifted out of UsagePanel re-states the vocabulary").not.toMatch(/\? "live"/);

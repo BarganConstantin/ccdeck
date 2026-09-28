@@ -21,7 +21,7 @@
 //
 // No React here: types from reactflow, and the same modules App.tsx was calling.
 import { type Edge, type Node } from "reactflow";
-import { agentAriaLabel } from "./components/AgentNode";
+import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";

@@ -12,10 +12,10 @@
 // disagree about it again.
 //
 // Nothing imported here touches the filesystem: pricing.ts is arithmetic, and
-// AgentNode's import graph is react / reactflow / reducer, all browser-only.
+// so is card-cost.ts, where the tooltip moved out of AgentNode.tsx.
 import { describe, it, expect } from "vitest";
 import { billedInputTokens, costForUsage, fmtCost, ratesForModel } from "../pricing";
-import { costBreakdownTooltip } from "../components/AgentNode";
+import { costBreakdownTooltip } from "../card-cost";
 import type { TokenUsage } from "../types";
 
 const usage = (u: Partial<TokenUsage> = {}): TokenUsage => ({
