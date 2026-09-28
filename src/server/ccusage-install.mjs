@@ -209,7 +209,7 @@ export function resolveEntry() {
  * landed on stdout across majors.
  *
  * The four fields are spawnSync's, because that is where they were first read
- * off; `install` above now fills the same shape from the 'error' event, the
+ * off; `install` below now fills the same shape from the 'error' event, the
  * exit status and the two collected streams.
  */
 function installFailureText(r) {

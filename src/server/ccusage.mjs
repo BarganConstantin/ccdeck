@@ -121,8 +121,8 @@ const BY_AGENT = "--by-agent";
  * The npx fallback resolves `ccusage@latest` and so is never the stale case,
  * but a managed install that has not had its once-a-day update yet can be, and
  * a copy the user put on PATH themselves can be any age at all. Process-scoped,
- * like ccusage-install.mjs's `_checkedThisRun` and `_repairedThisRun`: a deck restarted after
- * upgrading ccusage asks again.
+ * like ccusage-install.mjs's `_checkedThisRun` and `_repairedThisRun`: a deck
+ * restarted after upgrading ccusage asks again.
  */
 let _byAgentUnsupported = false;
 
@@ -294,14 +294,6 @@ export async function fetchCcusageDaily({ since, until, force = false } = {}) {
 }
 
 /**
- * One ccusage run, once the queue has let it through.
- *
- * `now` is read here rather than carried in from the call, so `fetchedAt` and
- * the cache stamp both mean "when this reading was taken" even for a run that
- * waited its turn. With an empty queue that is the same instant the caller
- * asked, which is what this always did.
- */
-/**
  * The same range, grouped by session rather than by day.
  *
  * Returns `[]` for every failure, including a ccusage too old to have the
@@ -333,6 +325,14 @@ async function readSessions(sinceArg, until) {
   }
 }
 
+/**
+ * One ccusage run, once the queue has let it through.
+ *
+ * `now` is read here rather than carried in from the call, so `fetchedAt` and
+ * the cache stamp both mean "when this reading was taken" even for a run that
+ * waited its turn. With an empty queue that is the same instant the caller
+ * asked, which is what this always did.
+ */
 async function readRange(sinceArg, until, key) {
   const now = Date.now();
   let result;
