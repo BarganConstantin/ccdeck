@@ -35,11 +35,18 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const panelCode = panel
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The same, for every file the panel has been split into — what a count or a
+ *  negative reads, so code that moved out of the component is still counted. */
+const surfaceCode = accountsSurface()
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
@@ -254,19 +261,19 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(pressAccepted("share-2")).toBe(false);
     expect(panelCode).toMatch(/if \(!claim\(tag\)\) return null;/);
     expect(panelCode).toMatch(/if \(!claim\(`switch-\$\{num\}`\)\) return;/);
-    expect(panelCode).toMatch(/if \(!pressAccepted\(busyRef\.current\)\) return false;/);
+    expect(clientText()).toMatch(/if \(!pressAccepted\(busyRef\.current\)\) return false;/);
     // A ref, not the state, because the state a handler closes over is a render
     // old and the second press happens before the next one.
-    expect(panelCode).toMatch(/const busyRef = useRef<string \| null>\(null\);/);
+    expect(clientText()).toMatch(/const busyRef = useRef<string \| null>\(null\);/);
   });
 
   it("is spelled once, and every control in the panel reads it", () => {
-    expect(panelCode).toMatch(/const pressProps = \(tag: string, working = false\) => \{/);
+    expect(clientText()).toMatch(/const pressProps = \(tag: string, working = false\) => \{/);
     // Nothing goes inert any other way. `.ap-fix` in the empty state is the one
     // control still on `disabled={reloading}` and is deliberately untouched:
     // #518 names it as out of scope, and it is the only control on screen in
     // that branch, so there is nothing for a busy lock to protect it from.
-    const disabled = [...panelCode.matchAll(/disabled=\{([^}]*)\}/g)].map(m => m[1]);
+    const disabled = [...surfaceCode.matchAll(/disabled=\{([^}]*)\}/g)].map(m => m[1]);
     expect(disabled).toEqual(["reloading"]);
     expect(panelCode).toMatch(/className="ap-fix" disabled=\{reloading\}/);
     // Every request-bearing control takes the same two attributes.

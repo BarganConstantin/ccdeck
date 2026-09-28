@@ -19,7 +19,7 @@ import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { laneSplit } from "../lane-view";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
-import { armedPress, focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
+import { armedPress, focusDropped, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
@@ -36,6 +36,7 @@ import {
 import { resetCountdown, shortAgoSec } from "../relative-time";
 import { shareExpiry } from "../share-bundle";
 import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
+import { useRequestSlot } from "../use-request-slot";
 
 interface Lane {
   id: string;
@@ -225,10 +226,9 @@ interface Props {
 export default function AccountsPanel({ onClose, leaving }: Props) {
   const [data, setData] = useState<AccountsData | null>(null);
   const [auto, setAuto] = useState<AutoStatus | null>(null);
-  // The tag of the one request the panel has out, or null. A switch is one of
-  // them now rather than a flag of its own: #518 needs every control to answer
-  // the same question — "is somebody else working" — and two flags cannot.
-  const [busy, setBusy] = useState<string | null>(null);
+  // The one request the panel has out, and the attributes it puts on every
+  // control that request makes inert — see use-request-slot.ts (#518).
+  const { busy, claim, release, pressProps } = useRequestSlot();
   const [reloading, setReloading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   /** The account a switch from this panel just landed on (#827), said on its
@@ -331,32 +331,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    *  folds again. It is kept across a switch on purpose — the account just left
    *  is in that list, and it moved there under the reader's own press. */
   const [restOpen, setRestOpen] = useState(false);
-
-  // The same fact as `busy`, where a handler can read it without waiting for a
-  // render. #518 leaves the working control enabled, so a second press reaches
-  // the handler and the handler is what has to refuse it.
-  const busyRef = useRef<string | null>(null);
-  /** Take the panel's one request slot, or refuse the press. */
-  const claim = useCallback((tag: string) => {
-    if (!pressAccepted(busyRef.current)) return false;
-    busyRef.current = tag;
-    setBusy(tag);
-    return true;
-  }, []);
-  const release = useCallback(() => { busyRef.current = null; setBusy(null); }, []);
-
-  /**
-   * The two attributes #518 puts on every control that a request makes inert.
-   *
-   * Spread rather than written out per button, because the whole of that fix is
-   * that there is ONE answer: inert while somebody else is working, busy and
-   * still focusable while it is your own request. A control that spelled either
-   * half by hand would be the second answer the issue asks against.
-   */
-  const pressProps = (tag: string, working = false) => {
-    const s = pressState(busy, tag);
-    return { disabled: s.disabled, "aria-busy": s.busy || working };
-  };
 
   /**
    * Focus the nearest control that outlived the press.
