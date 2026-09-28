@@ -54,7 +54,7 @@ import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
 import { useCanvasClicks } from "./use-canvas-clicks";
 import { useCanvasSize } from "./use-canvas-size";
-import { useNodeMeasurements } from "./use-node-measurements";
+import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
@@ -96,6 +96,7 @@ import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
+import { usePrefsRead } from "./use-prefs-read";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { readStored, writeStored } from "./storage";
@@ -491,12 +492,9 @@ function Inner() {
     autoFitDisabledRef, lastFitTimeRef, fitLeft,
   });
 
-  // Sizes only mean something once the cards have all mounted and measured.
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setSettled(true), 2500);
-    return () => window.clearTimeout(t);
-  }, []);
+  // Sizes only mean something once the cards have all mounted and measured —
+  // use-node-measurements.ts.
+  const settled = useSettled();
   const { bubbling, endBubble, onBubble } = useBubbleAnimation();
   // True for the length of any drag gesture. React Flow marks the node under
   // the cursor with .dragging, and the stylesheet drops its transition — but
@@ -680,18 +678,9 @@ function Inner() {
   const { notifyPermission, notifySaid, notifyOn, notifyVetoed, toggleNotify,
           notifySupported, askForNotifications, loadNotifyPrefs }
     = useOsNotifications({ waitingSessions, liveSince, focusSession });
-  // One read of the deck's server-side prefs answers two switches, and each
-  // hook is handed its half: auto-update to loadAutoRestartPrefs, notifications
-  // to loadNotifyPrefs. Split, it would be two requests for one answer.
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/prefs").then(r => (r.ok ? r.json() : null)).then(d => {
-      if (!alive || !d?.ok) return;
-      loadAutoRestartPrefs(d);
-      loadNotifyPrefs(d);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
+  // One read of the deck's server-side prefs, each hook handed its half —
+  // use-prefs-read.ts.
+  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs });
 
   return (
     <div className="app">

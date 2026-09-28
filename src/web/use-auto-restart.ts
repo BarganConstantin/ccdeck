@@ -13,8 +13,9 @@
 // banner is offering, and `upgradeFailure` for an npx upgrade that came back on
 // the old version.
 //
-// Like the notifier, it is handed its half of the one /api/prefs read App.tsx
-// makes, through `loadAutoRestartPrefs`, rather than reading prefs itself.
+// Like the notifier, it is handed its half of the one /api/prefs read
+// (use-prefs-read.ts), through `loadAutoRestartPrefs`, rather than reading
+// prefs itself.
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { selfPressAccepted } from "./panel-press";
@@ -215,7 +216,7 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     setRestarting(false);
   }, [restarting, upgradeFailure]);
 
-  /** The auto-update half of the one /api/prefs read App.tsx makes. */
+  /** The auto-update half of the one /api/prefs read — use-prefs-read.ts. */
   const loadAutoRestartPrefs = useCallback((d: AutoRestartPrefsAnswer) => {
     // The auto-update switch, which lives here now (see toggleAutoRestart).
     // One that was turned off while it was a localStorage key is carried
