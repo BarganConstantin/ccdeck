@@ -221,7 +221,8 @@ describe("a recording of two decks of this version, once both long-term keys are
       // A login, sealed under the connection's key the way lan-engine seals
       // one inside `have`, so the recording holds what #1120 is about.
       handlers: (msg: Frame, ctx: { send: (o: unknown) => void; key: Buffer; peerFp: string }) => ctx.send({
-        t: "have", key: msg.key, sealed: sync.seal(ctx.key, "ccdeck2:a-login", `${listener.fp}->${ctx.peerFp}|${msg.key}`),
+        t: "have", key: msg.key,
+        sealed: sync.seal(ctx.key, "ccdeck2:a-login", sync.credentialAad(listener.fp, ctx.peerFp, msg.key)),
       }),
     });
     running.push(s);
@@ -238,7 +239,7 @@ describe("a recording of two decks of this version, once both long-term keys are
     const { up, down } = afterHandshake(r.wire);
     const want = JSON.parse(up[0]);
     const have = JSON.parse(down[0]);
-    const aad = `${listener.fp}->${caller.fp}|${ACCOUNT}`;
+    const aad = sync.credentialAad(listener.fp, caller.fp, ACCOUNT);
 
     // The recording is the real conversation: the connection's own key opens
     // both frames, and the login inside the answer.
