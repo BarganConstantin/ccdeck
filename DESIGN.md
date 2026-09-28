@@ -22,7 +22,7 @@ colors:
   cat-file: "#7dd3fc"
   cat-shell: "#fcd34d"
   cat-web: "#67e8f9"
-  cat-agent: "#f0abfc"
+  cat-agent: "#f9a8d4"
   cat-task: "#86efac"
   cat-plan: "#c4b5fd"
   cat-mcp: "#5eead4"
@@ -143,9 +143,8 @@ thing being looked at on purpose for long.
 Three consequences that decide everything else:
 
 - **Calm by default, loud only for a real event.** Colour carries state, not
-  decoration. A screen with nothing wrong on it is almost monochrome. The shipped
-  palette breaks this in one place, recorded below — they are debt, not
-  precedent.
+  decoration. A screen with nothing wrong on it is almost monochrome, and no
+  resting colour may wear a state's hue — see *State hues are exclusive* below.
 - **Dark is the default, light is a full peer.** `:root` is the dark ramp;
   `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
   where contrast bugs live, because every terminal-adjacent colour assumes dark.
@@ -201,7 +200,7 @@ two copies cannot drift. Never move that logic into the bundle.
 | `--accent-dim` | `#38bdf850` | `rgba(3,105,161,0.22)` | The primary button's wash. |
 | `--grid-line` | `#1a1d24` | `#d0d5dd` | The canvas dot grid. |
 | `--ok` `--warn` `--err` | `#86efac` `#fcd34d` `#fca5a5` | `#157a3a` `#ad4e08` `#b91c1c` | Settled, attention, failed. |
-| `--inflight` | `#f0abfc` | `#7e22ce` | A tool call in flight. Intended as the one hue that means *right now* — see the collisions below. |
+| `--inflight` | `#f0abfc` | `#7e22ce` | A tool call in flight — the one hue that means *right now*. Nothing else in either palette comes within 16 ΔE of it (#1283). |
 
 **Derived tiers, and why they are derived.** These are deliberately absent from the
 frontmatter's `colors` map, because a primitive may not reference another primitive
@@ -241,12 +240,12 @@ chart, so both ramps are here rather than dark alone:
 
 | Token | Dark | Light | | Token | Dark | Light |
 |---|---|---|---|---|---|---|
-| `--cat-file` | `#7dd3fc` | `#0369a1` | | `--usage-purple` | `#c4b5fd` | `#7e22ce` |
+| `--cat-file` | `#7dd3fc` | `#0369a1` | | `--usage-purple` | `#c4b5fd` | `#4c1d95` |
 | `--cat-shell` | `#fcd34d` | `#b45309` | | `--usage-blue` | `#7dd3fc` | `#0369a1` |
 | `--cat-web` | `#67e8f9` | `#0e7490` | | `--usage-teal` | `#5eead4` | `#0f766e` |
-| `--cat-agent` | `#f0abfc` | `#a21caf` | | `--usage-lime` | `#bef264` | `#4d7c0f` |
+| `--cat-agent` | `#f9a8d4` | `#a21caf` | | `--usage-lime` | `#bef264` | `#4d7c0f` |
 | `--cat-task` | `#86efac` | `#15803d` | | `--usage-pink` | `#f9a8d4` | `#be185d` |
-| `--cat-plan` | `#c4b5fd` | `#6d28d9` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
+| `--cat-plan` | `#c4b5fd` | `#4c1d95` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
 | `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#7c2d12` |
 | `--cat-other` | `#94a3b8` | `#64748b` | | `--usage-zinc` | `#94a3b8` | `#4a5260` |
 | | | | | `--usage-cyan` | `#67e8f9` | `#0e7490` |
@@ -281,13 +280,21 @@ eight series. So the usage series and the tool categories buy their separation w
 clears 3:1 against `--panel` so that hairline is visible against whichever two
 bands it separates. Do not try to solve a new multi-series chart with colour alone.
 
-### Where the shipped palette breaks *colour carries state*
+### State hues are exclusive
 
-Recorded because a reader will otherwise copy them:
+A state colour means something only if nothing at rest wears it, so two sweeps hold
+the palette off them, in both themes:
 
-- **`--inflight` `#f0abfc` is also `--cat-agent` and the dark Opus chip**, so with
-  nothing running, every Opus chip and agent-category stripe wears the *right now*
-  hue — #1283.
+- **Nothing but `--inflight` comes within 16 ΔE of `--inflight`** —
+  `contrast-floors.test.ts`. It used to be `--cat-agent` and the dark Opus chip byte
+  for byte, and on white the Opus band and the plan category sat on it (#1283).
+- **No usage palette member comes within 16 ΔE of `--ok`, `--warn` or `--err`** —
+  `usage-series-contrast.test.ts` (#1284).
+
+Pick a new category or series colour against both. Four surfaces still read
+`--inflight` itself while nothing is running — the context meter's gradient, the
+session summary's tool bars, the context donut between 70% and 90%, and the empty
+canvas — tracked in #1649; do not add a fifth.
 
 ### Two palettes that are exempt from theming
 
