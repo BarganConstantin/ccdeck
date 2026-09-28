@@ -61,6 +61,20 @@ const WIN_EXTS = [".exe", ".cmd", ".bat", ""];
 const resolved = new Map();
 
 /**
+ * Remember that `raw` is the spelling of `cmd` that worked, so `candidates`
+ * offers it alone from now on.
+ *
+ * The memo's one write, named. Five places confirm a spelling — a clean `run`,
+ * a direct spawn and a clean exit in `runInteractive`, the same two in
+ * `runDetached` — and each has its own rule for WHEN a spelling counts as
+ * confirmed; see the notes at each. What they record is always the candidate
+ * and never a resolved path, for the reason given in `run`.
+ */
+function rememberSpelling(cmd, raw) {
+  resolved.set(cmd, raw);
+}
+
+/**
  * The spellings to try for `cmd`, best first.
  *
  * Exported with the platform as a parameter for the reason everything else in
@@ -756,7 +770,7 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
         // whole life — an upgrade that moves the shim would then fail forever
         // where today it simply gets found again. Re-running the lookup per
         // attempt costs a handful of stats against a process spawn.
-        if (!err) resolved.set(cmd, raw);
+        if (!err) rememberSpelling(cmd, raw);
         resolve({
           ok: !err,
           // A tool cmd.exe could not find is missing, not "exited 1" — callers
@@ -975,7 +989,7 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     // false message "not on PATH" — even after it was installed. A batch
     // spelling is confirmed by the clean exit below instead, which is the rule
     // `run` already applies with `if (!err)`.
-    if (!isBatch(raw)) proc.on("spawn", () => resolved.set(cmd, raw));
+    if (!isBatch(raw)) proc.on("spawn", () => rememberSpelling(cmd, raw));
     // Capped so a runaway child cannot grow the heap without bound; the tail is
     // what carries the error, so the head is what gets dropped.
     const keep = (buf, text) => (buf + text).slice(-maxOutput);
@@ -1009,7 +1023,7 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
       }
       // Ran to a clean exit, so this spelling is real — the only confirmation a
       // batch one ever gets.
-      if (code === 0 && !killed && !timedOut) resolved.set(cmd, raw);
+      if (code === 0 && !killed && !timedOut) rememberSpelling(cmd, raw);
       finish(code ?? -1, null);
     });
   };
@@ -1066,8 +1080,8 @@ export function runDetached(cmd, args) {
       // Same trap as above: a batch spelling is spawned through cmd.exe, which
       // succeeds whether or not the batch file is there, so only a clean exit
       // proves this one is worth remembering.
-      if (isBatch(raw)) child.on("exit", (code) => { if (code === 0) resolved.set(cmd, raw); });
-      else child.on("spawn", () => resolved.set(cmd, raw));
+      if (isBatch(raw)) child.on("exit", (code) => { if (code === 0) rememberSpelling(cmd, raw); });
+      else child.on("spawn", () => rememberSpelling(cmd, raw));
       child.unref?.();
     } catch {
       attempt(i + 1);
