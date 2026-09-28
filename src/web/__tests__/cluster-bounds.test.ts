@@ -12,7 +12,7 @@
 // grew to 110, so the 72px of designed breathing room read as half that.
 import { describe, it, expect } from "vitest";
 import type { Node } from "reactflow";
-import { clusterBounds, type ClusterNode } from "../components/SessionClusters";
+import { clusterBounds, type ClusterNode } from "../cluster-bounds";
 import { sessionGroupNodes } from "../session-group-nodes";
 import type { AgentNodeData } from "../types";
 

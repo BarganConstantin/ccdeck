@@ -22,7 +22,7 @@
 //
 // Pure functions only, like the rest of this suite: no DOM, no layout engine.
 import { describe, it, expect } from "vitest";
-import { clusterBounds, type ClusterNode } from "../components/SessionClusters";
+import { clusterBounds, type ClusterNode } from "../cluster-bounds";
 import {
   clusterHeader,
   truncateName,

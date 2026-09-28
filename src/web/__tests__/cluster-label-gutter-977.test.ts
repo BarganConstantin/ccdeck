@@ -40,7 +40,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { labelMaxWidth } from "../components/SessionClusters";
+import { labelMaxWidth } from "../cluster-bounds";
 
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const css = at("../styles.css");

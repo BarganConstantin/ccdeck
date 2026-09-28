@@ -22,7 +22,7 @@ import { recapShown } from "../session-recap";
 import { dismissRecap, isRecapDismissed, isRecapNoteId, recapKey, recapNoteId, toggleRecapDismissed } from "../recap-note";
 import { autoLayout } from "../layout";
 import { liveNodeIds, measuredNodeIds } from "../prune";
-import { clusterBounds } from "../components/SessionClusters";
+import { clusterBounds } from "../cluster-bounds";
 import { buildRows } from "../components/SessionList";
 import type { HookEnvelope, HookPayload, SessionRecap } from "../types";
 
