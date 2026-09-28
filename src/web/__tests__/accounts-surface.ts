@@ -25,6 +25,7 @@ export const ACCOUNTS_FILES = [
   "account-issue.ts",
   "account-freshness.ts",
   "components/AccountIssuePopover.tsx",
+  "claude-accounts.ts",
   "use-request-slot.ts",
 ] as const;
 

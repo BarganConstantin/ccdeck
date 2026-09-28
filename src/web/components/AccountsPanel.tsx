@@ -25,7 +25,7 @@ import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
 import { activeSwitchNote } from "../active-switch-note";
-import { type Repair, accountIssue, sentence } from "../account-issue";
+import { accountIssue, sentence } from "../account-issue";
 import {
   type Failure,
   RELOAD_SLOW,
@@ -39,67 +39,7 @@ import { ago, due } from "../account-freshness";
 import { shareExpiry } from "../share-bundle";
 import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
-
-interface Lane {
-  id: string;
-  label: string;
-  pct: number;
-  resetAt: number | null;   // unix seconds
-}
-
-interface Account {
-  num: number;
-  email: string | null;
-  alias: string | null;
-  org: string | null;
-  active: boolean;
-  disabled: boolean;
-  lanes: Lane[];
-  headroom: number | null;
-  fetchedAt: number | null;  // unix ms
-  nextAt: number | null;     // unix ms — claude-swap's next planned read
-  stale: boolean;
-  error: string | null;
-  staleCopy?: boolean;
-  /** How the deck's own re-capture of a `staleCopy` row is going. */
-  repair?: Repair | null;
-  stopped?: boolean;
-  collector?: string | null;
-  /** The other half of an account's identity. A slot number is not one:
-   *  claude-swap assigns them max+1 per store, so the account that is 4 here
-   *  is 2 on another machine. LAN sync matches on this pair. */
-  orgUuid?: string | null;
-  /** Whether claude-swap's STORED COPY works on this machine — which is not
-   *  the same question as whether the user is signed in (#721). The copy is
-   *  what a share carries and what a peer's copy heals, so both kinds of
-   *  trouble read as not alive. */
-  alive?: boolean;
-}
-
-interface AccountsData {
-  ok: boolean;
-  accounts?: Account[];
-  activeNum?: number | null;
-  reason?: string;
-  hint?: string;
-  fetchedAt?: number;
-}
-
-interface AutoTick {
-  at: number;
-  event: string;
-  reason?: string | null;
-  detail?: string | null;
-  to?: number | null;
-}
-
-interface AutoStatus {
-  ok: boolean;
-  enabled: boolean;
-  external: boolean;          // the user runs their own `cswap auto` loop
-  lastTick: AutoTick | null;
-  settings: Record<string, { value: string | null; isDefault: boolean }>;
-}
+import { type Account, type AccountsData, type AutoStatus, type Lane } from "../claude-accounts";
 
 /** What an account's ⋯ is showing. Rename and Move are forms; Share is its
  *  answer — the text to copy. */
