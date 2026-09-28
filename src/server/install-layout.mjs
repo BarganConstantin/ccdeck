@@ -17,11 +17,12 @@ import { join } from "node:path";
 /** A package directory's own manifest, or null when there is not one worth
  *  reading there.
  *
- *  Shared by everything below that asks a directory who it is, so the three
- *  callers cannot drift on what a missing, truncated or non-object package.json
- *  means. A JSON document is not necessarily an object — `null`, `"ccdeck"` and
- *  `[]` all parse — and a manifest that is not an object has no fields to read,
- *  so it is refused here once rather than guarded against three times. */
+ *  Shared by everything below that asks a directory who it is — the npx cache
+ *  directory's record of the spec included — so its callers cannot drift on
+ *  what a missing, truncated or non-object package.json means. A JSON document
+ *  is not necessarily an object — `null`, `"ccdeck"` and `[]` all parse — and a
+ *  manifest that is not an object has no fields to read, so it is refused here
+ *  once rather than guarded against at every caller. */
 function readManifest(dir) {
   try {
     const meta = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
@@ -101,6 +102,15 @@ export function isGitCheckout(pkgRoot) {
 // Re-running the wrong one would work but would leave them on a package they
 // never asked for, so it is worth reading rather than guessing.
 
+/** The separator to join a path's segments back with: the one the input used,
+ *  because a Windows path must come back as one. Backslashes only when the
+ *  path has no forward slash at all — POSIX-style input is valid on Windows
+ *  too. Shared by npxRoot and hostRoot, the two that cut a path apart and
+ *  hand a piece of it back. */
+function sepOf(path) {
+  return path.includes("\\") && !path.includes("/") ? "\\" : "/";
+}
+
 /** The `_npx/<hash>` directory this package was unpacked into, or null. Pure —
  *  path arithmetic only, so both platforms' separators can be tested. */
 export function npxRoot(pkgRoot) {
@@ -108,9 +118,7 @@ export function npxRoot(pkgRoot) {
   const parts = pkgRoot.split(/[\\/]/);
   const i = parts.lastIndexOf("_npx");
   if (i === -1 || i + 1 >= parts.length) return null;
-  // Keep the separator the input used: a Windows path must come back as one.
-  const sep = pkgRoot.includes("\\") && !pkgRoot.includes("/") ? "\\" : "/";
-  return parts.slice(0, i + 2).join(sep);
+  return parts.slice(0, i + 2).join(sepOf(pkgRoot));
 }
 
 /** Package name out of an npm spec, scope intact: `ccdeck@1.2.3` → `ccdeck`,
@@ -147,9 +155,7 @@ export function npxSpecFromMeta(meta, fallback = PUBLISHED_NAME) {
 export function npxRestartSpec(pkgRoot, name = PUBLISHED_NAME) {
   const root = npxRoot(pkgRoot);
   if (!root) return null;
-  let meta = null;
-  try { meta = JSON.parse(readFileSync(join(root, "package.json"), "utf8")); } catch { /* fall back to the name */ }
-  return npxSpecFromMeta(meta, name);
+  return npxSpecFromMeta(readManifest(root), name);
 }
 
 // ── the package that installed us ────────────────────────────────────────────
@@ -262,9 +268,7 @@ export function hostRoot(pkgRoot) {
   // the host. A scoped package would sit one level deeper, under `@scope`, and
   // is refused here rather than guessed at — none of the three names is scoped.
   if (parts.length < 3 || parts[parts.length - 2] !== "node_modules") return null;
-  // Keep the separator the input used: a Windows path must come back as one.
-  const sep = pkgRoot.includes("\\") && !pkgRoot.includes("/") ? "\\" : "/";
-  return parts.slice(0, -2).join(sep) || null;
+  return parts.slice(0, -2).join(sepOf(pkgRoot)) || null;
 }
 
 /** The host package's name, out of its own manifest — but only when it is one
