@@ -156,6 +156,12 @@ export function selfPressAccepted(inflight: boolean): boolean {
 /** What one press on an arm-then-confirm control does. */
 export type ArmedPress = "arm" | "ignore" | "fire";
 
+/** The shortest gap between arming `unpair` and confirming it that counts as
+ *  two decisions. A double-click on the right end of a row armed the verb and
+ *  confirmed it in one gesture, and its second press lands before anybody
+ *  could have read `confirm` — so a press sooner than this is not an answer. */
+export const CONFIRM_GAP_MS = 400;
+
 /**
  * `armedFor` is which target the control is armed for right now, or null;
  * `target` is the one this press is on. Pressing a different target arms that
