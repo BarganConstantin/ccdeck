@@ -319,6 +319,12 @@ export function resetQuotaPollFloor() {
   clearResetCreditsFloor();
 }
 
+// How many times source 3 is run before its silence is taken at its word, and
+// how far apart. Like REREAD_TRIES above, a count and a gap rather than a
+// deadline; QUOTA_DEADLINE_MS's note adds up what the two cost a caller.
+const CLI_ATTEMPTS = 3;
+const CLI_RETRY_GAP_MS = 1200;
+
 /**
  * Source 3, attempted until it prints windows: `{ cliOk, cliRan, parsed }`,
  * where the first two say whether ANY attempt was recognised and whether any
@@ -333,8 +339,8 @@ async function readCliUsage(bin) {
   let cliOk = false;
   let cliRan = false;
   let parsed = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await sleep(1200);
+  for (let attempt = 0; attempt < CLI_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(CLI_RETRY_GAP_MS);
     const r = await runUsageOnce(bin);
     cliOk = r.cliOk || cliOk;
     cliRan = r.ran || cliRan;
