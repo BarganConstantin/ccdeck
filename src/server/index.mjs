@@ -37,7 +37,7 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, prefsWriteRefusal, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
@@ -3830,7 +3830,10 @@ async function handlePrefsWrite(req, res) {
     const reason = prefsWriteRefusal(err);
     if (!reason) throw err;
     console.error(`${PRODUCT}: settings were not saved:`, err?.message ?? err);
-    return send(res, 500, { ok: false, reason });
+    // What blocked it, from closed sets and without the path, so a screenshot
+    // of the panel is enough to tell the cases apart (#1335).
+    const detail = prefsRefusalDetail(err);
+    return send(res, 500, detail ? { ok: false, reason, detail } : { ok: false, reason });
   }
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather

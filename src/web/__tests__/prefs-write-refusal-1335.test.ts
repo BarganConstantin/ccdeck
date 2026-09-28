@@ -80,7 +80,13 @@ describe("a settings write the deck cannot make", () => {
 
   it("answers a share tick with a reason the panel can name", async () => {
     const { json } = await postPrefs({ lan: { shared: ["someone@example.com"] } });
-    expect(json).toEqual({ ok: false, reason: "prefs_unreadable" });
+    // And what blocked it: a directory where the file should be is not about
+    // who owns it, which is exactly what 3.29.3's panel could not tell apart.
+    expect(json).toEqual({
+      ok: false,
+      reason: "prefs_unreadable",
+      detail: { code: "EISDIR", owner: "unknown", on: "file" },
+    });
   });
 
   it("never puts the path it could not read in front of the page", async () => {

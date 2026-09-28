@@ -273,7 +273,7 @@ export const quarantinePath = (home = deckDataDir(), at = Date.now()) =>
  *  not the user's. Shaped like installer.mjs's SETTINGS_UNREADABLE, which is
  *  the same policy on the other file this deck rewrites: a file we cannot
  *  reproduce is never treated as an empty one. */
-function unreadablePrefs(path, why) {
+function unreadablePrefs(path, why, blocked) {
   const err = new Error(
     `${path} could not be read (${why}). Refusing to overwrite it — this deck's ` +
     `LAN key and its pairings are in there and cannot be re-derived. Fix the ` +
@@ -282,6 +282,7 @@ function unreadablePrefs(path, why) {
   err.code = "PREFS_UNREADABLE";
   err.prefsPath = path;
   err.why = why;
+  err.blocked = blocked;
   return err;
 }
 
@@ -301,6 +302,40 @@ export function prefsWriteRefusal(err) {
   if (err?.code === "PREFS_UNREADABLE") return "prefs_unreadable";
   if (NOT_WRITABLE.has(err?.code)) return "prefs_not_writable";
   return null;
+}
+
+/** What blocked a prefs.json that is not JSON and could not be moved aside —
+ *  no errno for it, so a name of the deck's own in the same shape. */
+const NOT_JSON = Object.freeze({ code: "BADJSON", owner: "unknown", on: "file" });
+
+const OWNERS = new Set(["you", "other", "unknown"]);
+/** An errno as Node spells one, or the deck's BADJSON. Anything else — which
+ *  nothing here produces — is dropped rather than echoed to the page. */
+const ERRNO = /^E?[A-Z][A-Z0-9]{1,15}$/;
+
+/**
+ * The same refusal, told precisely enough to act on from a screenshot (#1335).
+ *
+ * 3.29.3's panel could only guess — "the file may belong to another user" — and
+ * the one Mac it was written for turned out not to be the case 3.29.4 repairs,
+ * with nothing on the screen to say which case it was. So the page now gets the
+ * errno, who owns what blocked the read (`you`, `other`, `unknown`), and whether
+ * that is the `file` or its `folder`.
+ *
+ * Every field is picked from a closed set. Still no path and no uid: the route's
+ * body is readable by a DNS-rebound page (see prefsWriteRefusal), and a path
+ * names the user. Null when there is nothing precise to add.
+ */
+export function prefsRefusalDetail(err) {
+  const blocked = err?.code === "PREFS_UNREADABLE" ? err.blocked
+    : NOT_WRITABLE.has(err?.code) ? { code: err.code, owner: "unknown", on: "folder" }
+    : null;
+  if (!blocked || typeof blocked !== "object") return null;
+  return {
+    code: ERRNO.test(blocked.code ?? "") ? blocked.code : "",
+    owner: OWNERS.has(blocked.owner) ? blocked.owner : "unknown",
+    on: blocked.on === "folder" ? "folder" : "file",
+  };
 }
 
 /** The read errors that can mean "not yours" rather than "broken". Only these
@@ -335,12 +370,15 @@ export const foreignPath = (home = deckDataDir(), at = Date.now()) =>
  * is, and so is anything on Windows, where there is no uid to compare and
  * EPERM is usually another program holding the file.
  *
- * Answers `{ moved, owner }`, `{ gone }` when the file vanished under it, or
- * `{ why }` — a sentence for the log, possibly empty — when it stayed.
+ * Answers `{ moved, uid }`, `{ gone }` when the file vanished under it, or,
+ * when it stayed, `{ why, owner, on }`: a sentence for the log, possibly empty,
+ * and who owns what blocked the read — "you", "other" or "unknown" — and
+ * whether that is the "file" or its "folder". The last two are what the panel
+ * is told (see prefsRefusalDetail); the sentence, which has the path, is not.
  */
 async function setAsideForeign(path, home, deps) {
   const uid = deps.getuid ? deps.getuid() : process.getuid?.();
-  if (uid === undefined) return { why: "" };
+  if (uid === undefined) return { why: "", owner: "unknown", on: "file" };
   const look = deps.stat ?? stat;
   let st;
   try {
@@ -351,19 +389,23 @@ async function setAsideForeign(path, home, deps) {
     // alone moved. Name the folder and its owner, which is what a person needs.
     const folder = prefsDir(home);
     const owner = await look(folder).then(s => s.uid, () => undefined);
-    return owner !== undefined && owner !== uid
-      ? { why: ` The folder ${folder} belongs to another user (uid ${owner}), most likely from a run with sudo; sudo chown -R "$(id -un)" "${folder}" gives it back.` }
-      : { why: "" };
+    if (owner === undefined) return { why: "", owner: "unknown", on: "folder" };
+    if (owner === uid) return { why: "", owner: "you", on: "folder" };
+    return {
+      why: ` The folder ${folder} belongs to another user (uid ${owner}), most likely from a run with sudo; sudo chown -R "$(id -un)" "${folder}" gives it back.`,
+      owner: "other",
+      on: "folder",
+    };
   }
-  if (st.uid === uid) return { why: "" };
+  if (st.uid === uid) return { why: "", owner: "you", on: "file" };
   const to = foreignPath(home);
   try {
     await (deps.rename ?? renameWithRetry)(path, to);
   } catch (err) {
     if (err?.code === "ENOENT") return { gone: true };
-    return { why: ` It belongs to another user (uid ${st.uid}) and could not be moved aside either: ${err?.message ?? err}.` };
+    return { why: ` It belongs to another user (uid ${st.uid}) and could not be moved aside either: ${err?.message ?? err}.`, owner: "other", on: "file" };
   }
-  return { moved: to, owner: st.uid };
+  return { moved: to, uid: st.uid };
 }
 
 /**
@@ -391,7 +433,8 @@ async function setAsideForeign(path, home, deps) {
  *   "unreadable" the read itself failed for some reason other than absence — a
  *                permission on a file this user owns, a directory in the way,
  *                a folder another user owns. The file is still there and still
- *                unread, which is exactly when a write must not land.
+ *                unread, which is exactly when a write must not land. `blocked`
+ *                says what stopped it; see prefsRefusalDetail.
  *
  * A BYTE-ORDER MARK IS NOT DAMAGE. Notepad and `Set-Content` write one, and
  * `JSON.parse` throws on it — so stripping it here is what keeps a perfectly
@@ -414,11 +457,12 @@ export async function loadPrefs(home = deckDataDir(), deps = {}) {
     // this machine doing this same thing. What is at `path` now is nothing.
     if (aside.gone) return { prefs: defaults(), source: "missing", quarantined: "" };
     if (aside.moved) {
-      warn(`${PRODUCT}: ${path} belongs to another user (uid ${aside.owner}) — most likely left by a run with sudo — so this deck could not read it. It has been kept as ${aside.moved}, unread and still theirs, and this deck is starting with fresh settings: paired decks will need to accept it again. To have the old key back instead, stop the deck and run: sudo chown "$(id -un)" "${aside.moved}" && mv "${aside.moved}" "${path}"`);
+      warn(`${PRODUCT}: ${path} belongs to another user (uid ${aside.uid}) — most likely left by a run with sudo — so this deck could not read it. It has been kept as ${aside.moved}, unread and still theirs, and this deck is starting with fresh settings: paired decks will need to accept it again. To have the old key back instead, stop the deck and run: sudo chown "$(id -un)" "${aside.moved}" && mv "${aside.moved}" "${path}"`);
       return { prefs: defaults(), source: "foreign", quarantined: aside.moved };
     }
     warn(`${PRODUCT}: could not read ${path}: ${err?.message ?? err}.${aside.why ?? ""} Leaving it alone — settings will not be saved until it can be read.`);
-    return { prefs: defaults(), source: "unreadable", quarantined: "" };
+    const blocked = { code: err?.code ?? "", owner: aside.owner ?? "unknown", on: aside.on ?? "file" };
+    return { prefs: defaults(), source: "unreadable", quarantined: "", blocked };
   }
 
   try {
@@ -582,10 +626,10 @@ async function save(mutate, home, deps) {
   // stick. POSIX rename(2) has no such rule, which is why this shipped green.
   const mv = deps.rename ?? renameWithRetry;
   const target = prefsPath(home);
-  const { prefs: prev, source, quarantined } = await loadPrefs(home, deps);
-  if (source === "unreadable") throw unreadablePrefs(target, "the read failed");
+  const { prefs: prev, source, quarantined, blocked } = await loadPrefs(home, deps);
+  if (source === "unreadable") throw unreadablePrefs(target, "the read failed", blocked);
   if (source === "corrupt" && !quarantined) {
-    throw unreadablePrefs(target, "it is not JSON and could not be moved aside");
+    throw unreadablePrefs(target, "it is not JSON and could not be moved aside", NOT_JSON);
   }
   // INSIDE THE JOB, after the read above and after the two guards that
   // decide whether this file may be written at all — see `updatePrefs`.
