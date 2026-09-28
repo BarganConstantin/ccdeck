@@ -235,10 +235,11 @@ export const saysYesOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === 
 function askOver(conn, frame) {
   // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
   //
-  // lan-socket.mjs's header states the rule: "a peer that sends a megabyte
-  // with no newline in it is not sending a large frame, it is sending
-  // nothing at all, expensively... the buffer is ABANDONED rather than
-  // grown past it." frameReader enforces it; this reader did not.
+  // lan-socket.mjs states the rule, on frameReader and MAX_FRAME_BYTES: "a
+  // peer that sends a megabyte with no newline in it is not sending a large
+  // frame, it is sending nothing at all, expensively... the buffer is
+  // ABANDONED rather than grown past it." frameReader enforces it; this
+  // reader did not.
   //
   // The frameReader connectToPeer installed IS still attached and does hit
   // MAX_FRAME_BYTES — but it only sets its own flag and calls `fail`, which
