@@ -503,7 +503,9 @@ describe("no row grid, and one form at a time", () => {
     expect(popover).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
     // The press itself is the ⋯ menu's hook's, which holds the armed account.
     const menu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
-    expect(menu).toMatch(/setConfirmRemove\(c => \(c === num \? null : c\)\), REMOVE_ARMED_MS\)/);
+    // Stood down by an effect keyed on the armed account, so each arm gets its
+    // own window (#1639), not by a timer started on the press.
+    expect(menu).toMatch(/useEffect\(\(\) => \{\s*if \(confirmRemove == null\) return;\s*const t = window\.setTimeout\(\(\) => setConfirmRemove\(null\), REMOVE_ARMED_MS\);\s*return \(\) => window\.clearTimeout\(t\);\s*\}, \[confirmRemove\]\);/);
     // The window is one named length, and the bar draining along the item is
     // timed to the same number: a bar that emptied early or late would be
     // lying about how long the next press still removes.

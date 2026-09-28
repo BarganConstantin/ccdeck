@@ -16,7 +16,7 @@
 // stands beside, the effects that drop it when the panel leaves or its account
 // does, and the auto-switch POST, which says its refusal here through
 // `sayInMenu` when the press came from the menu.
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { explainFailure } from "./admin-failure";
 import { type SwapNote, manageAfterMove } from "./account-move";
@@ -91,6 +91,17 @@ export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus
   // the next account's ⋯, and Remove, last in the list, is what a press aimed
   // at that ⋯ lands on.
   const removeArmedAt = useRef(0);
+  // The arm stands down REMOVE_ARMED_MS after ITS OWN arming (#1639). The
+  // timer used to start on the press and clear whichever arm was on that
+  // account when it fired, so closing the menu, opening it again and arming
+  // within the four seconds left the new Confirm with only the time the first
+  // one had left. Keyed on the armed account: closing the menu clears it, and a
+  // new arm starts a new window — the shape Local network's unpairs use (#1539).
+  useEffect(() => {
+    if (confirmRemove == null) return;
+    const t = window.setTimeout(() => setConfirmRemove(null), REMOVE_ARMED_MS);
+    return () => window.clearTimeout(t);
+  }, [confirmRemove]);
   const [share, setShare] = useState<{ num: number; blob: string; expiresAt: number } | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   // A move into an occupied slot relocates an account the user never picked.
@@ -320,7 +331,6 @@ export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus
     if (press === "arm") {
       setConfirmRemove(num);
       removeArmedAt.current = now;
-      window.setTimeout(() => setConfirmRemove(c => (c === num ? null : c)), REMOVE_ARMED_MS);
       return;
     }
     // A double-click is one decision, not two: its second press lands before
