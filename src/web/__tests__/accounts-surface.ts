@@ -28,6 +28,7 @@ export const ACCOUNTS_FILES = [
   "claude-accounts.ts",
   "components/AccountRow.tsx",
   "components/AccountsEmptyState.tsx",
+  "auto-switch-threshold.ts",
   "use-request-slot.ts",
 ] as const;
 

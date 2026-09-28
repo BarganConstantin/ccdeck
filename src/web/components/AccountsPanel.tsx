@@ -38,6 +38,7 @@ import {
 import { shareExpiry } from "../share-bundle";
 import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
+import { thresholdChoices } from "../auto-switch-threshold";
 import { type Account, type AccountsData, type AutoStatus } from "../claude-accounts";
 
 /** What an account's ⋯ is showing. Rename and Move are forms; Share is its
@@ -63,17 +64,6 @@ const SAVED_MS = 1_800;
 // cswap, and the server kills those at 20 seconds, so anything shorter would
 // abort answers that were still coming.
 const RELOAD_TIMEOUT_MS = 30_000;
-const THRESHOLDS = [70, 80, 85, 90, 95];
-
-/** The threshold picker's options: the five, plus whatever the store holds if
- *  it is none of them — `cswap config set` takes any number, and a picker that
- *  cannot show the stored value shows its first option instead, which is a
- *  setting the loop is not using. */
-export function thresholdChoices(stored: string): number[] {
-  const n = Number(stored);
-  const all = Number.isFinite(n) && n > 0 && !THRESHOLDS.includes(n) ? [...THRESHOLDS, n] : THRESHOLDS;
-  return [...all].sort((a, b) => a - b);
-}
 
 interface Props {
   onClose: () => void;
