@@ -16,8 +16,8 @@ import { STOP, walkRolloutDays } from "./codex-dir.mjs";
 // The per-session model and approval policy the translation remembers, which
 // forgetCodexSession drops with the rest — see codex-translate.mjs.
 import { codexSessionApproval, codexSessionModel } from "./codex-translate.mjs";
-// The bounded chunk reads the Claude transcripts use — see transcript-scan.mjs.
-import { readByteRange } from "./transcript-scan.mjs";
+// The bounded chunk reads the Claude transcripts use — see jsonl-chunks.mjs.
+import { readByteRange } from "./jsonl-chunks.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
