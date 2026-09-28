@@ -339,7 +339,9 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // writes localStorage, both synchronous, so a double press is idempotent
     // rather than racy. The assertion is that the lock is GONE — a re-added
     // request without a re-added guard is the regression this now watches for.
-    const app = codeOf("App.tsx");
+    // The switch moved to use-sound-switch.ts, so this asks App.tsx and the
+    // hooks it imports — the negatives included, which now have more to hold for.
+    const app = surfaceOf("App.tsx", codeOf("App.tsx"));
     expect(app).not.toMatch(/soundBusyRef/);
     expect(app).not.toMatch(/setSoundBusy/);
     expect(app, "the toggle must stay synchronous").toMatch(/const toggleSound = useCallback\(\(\) => \{/);

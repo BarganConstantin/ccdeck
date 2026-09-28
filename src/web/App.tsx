@@ -111,6 +111,7 @@ import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
 import { fmtMonthlyCost } from "./monthly-usage";
 import { useMonthlyUsage } from "./use-monthly-usage";
+import { useSoundSwitch } from "./use-sound-switch";
 import {
   desktopAppVersion,
   readDesktopUpdate,
@@ -553,51 +554,6 @@ function Inner() {
   const usagePhase = usePanelPresence(usagePanelOpen, 130);
   const machinePhase = usePanelPresence(machinePanelOpen, 130);
 
-  // The finish sound. Local to this tab since #704: the deck plays it itself,
-  // so there is no server state to fetch and no settings.json to write. `null`
-  // is kept as the first value for one render only — the switch is not drawn
-  // until the stored preference has been read, which keeps it from flashing
-  // through "off" on a deck where it is on.
-  const [soundOn, setSoundOn] = useState<boolean | null>(null);
-  useEffect(() => {
-    let stored: string | null = null;
-    // Wrapped: a private window, or a browser set to block site data, throws
-    // out of the accessor rather than answering null.
-    try { stored = localStorage.getItem("agent-dag.sound"); } catch { /* no storage */ }
-    setSoundOn(stored === null ? true : stored === "on");
-  }, []);
-
-  const toggleSound = useCallback(() => {
-    setSoundOn(prev => {
-      const next = prev !== true;
-      try { localStorage.setItem("agent-dag.sound", next ? "on" : "off"); } catch { /* no storage */ }
-      // Turning it ON is itself the gesture the autoplay rules want, so take
-      // it: otherwise the switch says "on" and the next event is still silent
-      // because nothing has been pressed since the reload.
-      if (next) chimesRef.current?.unlock();
-      return next;
-    });
-  }, []);
-
-  /** The single door to the sound switch, in the shape requestClear already
-   *  established for the one other control that answers to two devices.
-   *
-   *  Which devices those are changed in #711 and the door did not. The topbar
-   *  button no longer toggles — it opens the menu — so the two ways to the
-   *  switch are now M and the menu's own control, and both arrive here. Shift
-   *  used to mean "put my own parked hooks back"; #704 removed the mechanism
-   *  that parked them, so there is nothing left for it to mean and a press is
-   *  a press whatever is held down. */
-  const activateSound = useCallback((_withShift: boolean) => { toggleSound(); }, [toggleSound]);
-  // `toggleSound` is rebuilt whenever the switch changes state, so the window
-  // keydown listener — registered exactly once, on purpose — reads the current
-  // one through a ref rather than listing it as a dependency and re-subscribing.
-  const activateSoundRef = useMirroredRef(activateSound);
-  /** null until the stored flag has been read back. The button is not drawn in
-   *  that window and the key must not fire in it either: there is no state to
-   *  invert yet, and "not false" would arm the tones on a guess. */
-  const soundOnRef = useMirroredRef(soundOn);
-
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
   // constructed before the page has been interacted with is created suspended,
@@ -606,6 +562,8 @@ function Inner() {
   // a `useRef` seed that does work runs on every render and throws the result
   // away (#612).
   const chimesRef = useRef<ReturnType<typeof createChimePlayer> | null>(null);
+
+  const { soundOn, toggleSound, activateSoundRef, soundOnRef } = useSoundSwitch(chimesRef);
 
   // What each tone is set to, how a change is written and auditioned, and the
   // preview timer behind it, live in use-tone-prefs.ts. The chime player reads
