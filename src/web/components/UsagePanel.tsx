@@ -14,7 +14,7 @@ import {
   rangeTotals, sessionListScale, nounFor, panelFigures,
   type PeriodKey,
 } from "../usage-from-ccusage";
-import { readStored } from "../storage";
+import { readStored, writeStored } from "../storage";
 import type { GraphState } from "../reducer";
 import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
@@ -51,8 +51,7 @@ function loadPeriod(): PeriodKey {
 }
 
 function savePeriod(period: PeriodKey): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(PERIOD_KEY, period); } catch { /* private mode */ }
+  writeStored(PERIOD_KEY, period);
 }
 
 /** Whether the session list is open, and it is shut until asked for.
@@ -75,8 +74,7 @@ function loadSessionsOpen(): boolean {
 }
 
 function saveSessionsOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(SESSIONS_OPEN_KEY, open ? "1" : "0"); } catch { /* private mode */ }
+  writeStored(SESSIONS_OPEN_KEY, open ? "1" : "0");
 }
 
 

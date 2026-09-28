@@ -392,14 +392,9 @@ export function splitNoteTitle(title: string): NoteTitleParts {
 // silent branch — a deck that cannot remember shows no modal at all, rather
 // than the same one on every reload for the rest of the release.
 
+// The store these are handed is storage.ts's `localStore()`: the accessor read
+// inside a try, and null where there is no store to have.
 type Storeish = Pick<Storage, "getItem" | "setItem">;
-
-/** The store, or null where there is not one to have — a non-browser
- *  environment, or a profile that refuses. */
-export function seenStore(): Storeish | null {
-  if (typeof window === "undefined") return null;
-  try { return window.localStorage; } catch { return null; }
-}
 
 /** The version this profile was last shown notes through, or null when the
  *  store is absent, empty, unreadable or holding something that is not a
@@ -423,7 +418,7 @@ export function readSeen(store: Storeish | null | undefined): string | null {
  * the way to it.
  *
  * A read is enough to tell. The profiles that actually block storage throw from
- * the `window.localStorage` accessor itself, which is what `seenStore` catches
+ * the `window.localStorage` accessor itself, which is what `localStore` catches
  * and why `null` is the common answer here; a store object that throws when
  * asked is the other shape of the same refusal. A store that answers a read and
  * then refuses the write is a full quota rather than a browser setting, and it

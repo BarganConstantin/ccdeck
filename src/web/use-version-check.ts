@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { noticeIsOpen, noticeKeyFor } from "./version-chip";
+import { readStored, writeStored } from "./storage";
 
 const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
 
@@ -132,10 +133,7 @@ export interface VersionCheck {
  */
 export function useVersionCheck(live: boolean): VersionCheck {
   const [version, setVersion] = useState<VersionInfo | null>(null);
-  const [versionDismissed, setVersionDismissed] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
-  });
+  const [versionDismissed, setVersionDismissed] = useState<string>(() => readStored(VERSION_DISMISSED_KEY) ?? "");
   // `force` asks npm now instead of reusing the answer cached on disk. Used by
   // the chip, because "no banner" and "no check ran" look identical from here.
   const lastForcedRef = useRef(0);
@@ -203,12 +201,12 @@ export function useVersionCheck(live: boolean): VersionCheck {
   // always spelled it.
   const showNotice = useCallback(() => {
     setVersionDismissed("");
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, ""); } catch { /* private mode */ }
+    writeStored(VERSION_DISMISSED_KEY, "");
   }, []);
   const dismissNotice = useCallback(() => {
     if (!notice) return;
     setVersionDismissed(noticeKey);
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, noticeKey); } catch { /* private mode */ }
+    writeStored(VERSION_DISMISSED_KEY, noticeKey);
   }, [notice, noticeKey]);
 
   return { version, notice, noticeOpen, showNotice, dismissNotice, versionChecking, loadVersion };

@@ -8,7 +8,7 @@
 // screen naming the cause. These pin that an unreadable store reads as "not
 // stored" so the caller keeps its default and the deck still mounts.
 import { describe, it, expect, afterEach } from "vitest";
-import { readStored } from "../storage";
+import { localStore, readStored, removeStored, writeStored } from "../storage";
 
 const glob = globalThis as unknown as Record<string, unknown>;
 
@@ -20,7 +20,11 @@ function browser(desc: PropertyDescriptor): void {
 
 function store(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
-  return { getItem: (k: string) => (map.has(k) ? map.get(k)! : null) };
+  return {
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    setItem: (k: string, v: string) => { map.set(k, String(v)); },
+    removeItem: (k: string) => { map.delete(k); },
+  };
 }
 
 /** What a blocked profile actually raises on the property read. */
@@ -71,5 +75,60 @@ describe("readStored", () => {
     const stored = readStored("agent-dag.usagePanelOpen");
     expect(stored === null ? true : stored === "1").toBe(true);
     expect((readStored("agent-dag.theme") as "dark" | "light" | null) ?? "dark").toBe("dark");
+  });
+});
+
+describe("localStore", () => {
+  // The accessor itself, for a caller that hands the store on: the release
+  // notes' seen markers take a store so their rules run against a fake. Read
+  // as an argument, `window.localStorage` is evaluated before the callee's own
+  // try has begun, so the refusal has to be caught here, where it is read.
+  it("hands back the store the tab has", () => {
+    const s = store({ "agent-dag.tourSeen": "1" });
+    browser({ value: s });
+    expect(localStore()).toBe(s);
+  });
+
+  it("is null, not a throw, under a localStorage getter that refuses", () => {
+    browser({ get: refuse });
+    expect(() => localStore()).not.toThrow();
+    expect(localStore()).toBeNull();
+  });
+
+  it("is null with no window at all", () => {
+    delete glob.window;
+    expect(localStore()).toBeNull();
+  });
+});
+
+describe("writeStored and removeStored", () => {
+  // The writing half of the same rule. A preference that cannot be kept costs
+  // the next load its memory of it; it must not cost this one a click handler
+  // or an effect, which is where every caller writes from.
+  it("keep and forget a key in a store that allows it", () => {
+    const s = store({ "agent-dag.usagePeriod": "today" });
+    browser({ value: s });
+    writeStored("agent-dag.usagePeriod", "week");
+    expect(s.getItem("agent-dag.usagePeriod")).toBe("week");
+    removeStored("agent-dag.usagePeriod");
+    expect(s.getItem("agent-dag.usagePeriod")).toBeNull();
+  });
+
+  it("survive a localStorage getter that throws", () => {
+    browser({ get: refuse });
+    expect(() => writeStored("agent-dag.sessionListOpen", "1")).not.toThrow();
+    expect(() => removeStored("agent-dag.layout")).not.toThrow();
+  });
+
+  it("survive a store whose setItem and removeItem throw, which is a full quota too", () => {
+    browser({ value: { getItem: () => null, setItem: refuse, removeItem: refuse } });
+    expect(() => writeStored("agent-dag.layout", "{}")).not.toThrow();
+    expect(() => removeStored("agent-dag.layout")).not.toThrow();
+  });
+
+  it("do nothing with no window at all", () => {
+    delete glob.window;
+    expect(() => writeStored("agent-dag.theme", "light")).not.toThrow();
+    expect(() => removeStored("agent-dag.theme")).not.toThrow();
   });
 });

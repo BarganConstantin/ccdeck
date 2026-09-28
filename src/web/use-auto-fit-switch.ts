@@ -9,6 +9,8 @@
 // from, and the operations.
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { removeStored } from "./storage";
+
 const AUTOFIT_KEY = "agent-dag.autoFitDisabled";
 
 /**
@@ -29,7 +31,7 @@ export function useAutoFitSwitch(fitLeft: (duration?: number) => void) {
   // older builds wrote is cleared once, below, so it stops meaning anything.
   const autoFitDisabledRef = useRef(false);
   const [autoFitDisabled, setAutoFitDisabled] = useState(false);
-  useEffect(() => { try { window.localStorage.removeItem(AUTOFIT_KEY); } catch {} }, []);
+  useEffect(() => { removeStored(AUTOFIT_KEY); }, []);
   const disableAutoFit = useCallback(() => {
     if (autoFitDisabledRef.current) return;
     autoFitDisabledRef.current = true;

@@ -44,7 +44,9 @@ describe("a first run opens the panels that answer its questions", () => {
 
   it("writes the answer down, so it survives a reload", () => {
     for (const [name, key] of PANELS) {
-      expect(app, name).toMatch(new RegExp(`setItem\\(${key}, [^)]*\\? "1" : "0"\\)`));
+      // localStorage.setItem where the panel's state lives in App.tsx, storage.ts's
+      // writeStored where it moved out to a hook: the same write either way.
+      expect(app, name).toMatch(new RegExp(`(?:setItem|writeStored)\\(${key}, [^)]*\\? "1" : "0"\\)`));
     }
   });
 

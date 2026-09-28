@@ -347,6 +347,6 @@ describe("#804 — the deck restarting itself", () => {
     // Defaulting to off would leave every user on a version they already have
     // installed until they found a switch they have no reason to look for. The
     // defect was reachability, not the default — so the default stays.
-    expect(app).toContain('window.localStorage.getItem(AUTO_RESTART_KEY) !== "0"');
+    expect(app).toContain('readStored(AUTO_RESTART_KEY) !== "0"');
   });
 });

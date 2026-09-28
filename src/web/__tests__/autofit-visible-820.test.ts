@@ -23,12 +23,12 @@ describe("auto-fit off is a moment, not a setting (#820)", () => {
   it("starts every load fitting, whatever an older build stored", () => {
     expect(autofit).toMatch(/const autoFitDisabledRef = useRef\(false\);/);
     expect(autofit).toMatch(/const \[autoFitDisabled, setAutoFitDisabled\] = useState\(false\);/);
-    expect(autofit).not.toMatch(/getItem\(AUTOFIT_KEY\)/);
+    expect(autofit).not.toMatch(/(?:getItem|readStored)\(AUTOFIT_KEY\)/);
   });
 
   it("does not store a pan, and clears the key older builds wrote", () => {
-    expect(autofit).not.toMatch(/setItem\(AUTOFIT_KEY/);
-    expect(autofit).toMatch(/useEffect\(\(\) => \{ try \{ window\.localStorage\.removeItem\(AUTOFIT_KEY\); \} catch \{\} \}, \[\]\);/);
+    expect(autofit).not.toMatch(/(?:setItem|writeStored)\(AUTOFIT_KEY/);
+    expect(autofit).toMatch(/useEffect\(\(\) => \{ removeStored\(AUTOFIT_KEY\); \}, \[\]\);/);
   });
 
   it("still turns off on the reader's own pan or zoom", () => {

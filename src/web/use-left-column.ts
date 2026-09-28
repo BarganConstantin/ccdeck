@@ -18,17 +18,21 @@
 // that is an effect on the list's state rather than a step each caller must
 // remember.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readStored, writeStored } from "./storage";
 
 const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
 const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
 
 function loadSessionListOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  try { return window.localStorage.getItem(SESSION_LIST_OPEN_KEY) === "1"; } catch { return false; }
+  return readStored(SESSION_LIST_OPEN_KEY) === "1";
 }
 function saveSessionListOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(SESSION_LIST_OPEN_KEY, open ? "1" : "0"); } catch {}
+  writeStored(SESSION_LIST_OPEN_KEY, open ? "1" : "0");
+}
+/** Open unless the reader closed it: a first run gets the panel. */
+function loadAccountsPanelOpen(): boolean {
+  const stored = readStored(ACCOUNTS_PANEL_OPEN_KEY);
+  return stored === null ? true : stored === "1";
 }
 
 export interface LeftColumn {
@@ -53,12 +57,7 @@ export function useLeftColumn(): LeftColumn {
    *  is remembered here, never written as one, and undone when the list goes. */
   const accountsEvictedRef = useRef(false);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
-    const wanted = (() => {
-      try {
-        const stored = window.localStorage.getItem(ACCOUNTS_PANEL_OPEN_KEY);
-        return stored === null ? true : stored === "1";
-      } catch { return true; }
-    })();
+    const wanted = loadAccountsPanelOpen();
     // The list holds the column on this load, so the panel waits behind it.
     if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
     return wanted;
@@ -66,7 +65,7 @@ export function useLeftColumn(): LeftColumn {
   useEffect(() => {
     // An eviction is not the reader closing the panel, so it is not stored as one.
     if (!accountsPanelOpen && accountsEvictedRef.current) return;
-    try { window.localStorage.setItem(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0"); } catch {}
+    writeStored(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0");
   }, [accountsPanelOpen]);
   // The list gave the column back, by any of its ways out: so does the panel it
   // took the column from (#824).

@@ -108,9 +108,9 @@ describe("App.tsx", () => {
   };
 
   it("reads and writes the layout key through the format above", () => {
-    expect(body("loadLayout")).toContain("parseStoredLayout(window.localStorage.getItem(LAYOUT_STORAGE_KEY))");
+    expect(body("loadLayout")).toContain("parseStoredLayout(readStored(LAYOUT_STORAGE_KEY))");
     expect(body("saveLayout")).toContain("serializeLayout(positions, pinned)");
-    expect(body("loadLayoutFrame")).toContain("parseLayoutFrame(window.localStorage.getItem(LAYOUT_FRAME_KEY))");
+    expect(body("loadLayoutFrame")).toContain("parseLayoutFrame(readStored(LAYOUT_FRAME_KEY))");
     // And does not parse or build either value a second way beside it.
     for (const name of ["loadLayout", "saveLayout", "loadLayoutFrame"]) {
       expect(body(name), name).not.toMatch(/JSON\.(parse|stringify)/);

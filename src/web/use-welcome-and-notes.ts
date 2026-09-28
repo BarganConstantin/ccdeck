@@ -23,8 +23,9 @@ import { inDesktopApp } from "./in-app";
 // is the only shape a DOM-less suite can ask "what would a user upgrading
 // 1.42 to 1.48 have been shown?" — or, since #717, "what does somebody who
 // has never run this see on the release they just installed?".
-import { RELEASE_NOTES, type VersionNotes, decideReleaseNotes, decideWelcome, notesBetween, readSeen, readTourSeen, remembersSeen, seenStore, writeSeen, writeTourSeen } from "./release-notes";
+import { RELEASE_NOTES, type VersionNotes, decideReleaseNotes, decideWelcome, notesBetween, readSeen, readTourSeen, remembersSeen, writeSeen, writeTourSeen } from "./release-notes";
 import type { VersionInfo } from "./use-version-check";
+import { localStore } from "./storage";
 
 export interface WelcomeAndNotesDeps {
   version: VersionInfo | null;
@@ -78,7 +79,7 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
   const releaseNotesDecidedRef = useRef(false);
   useEffect(() => {
     if (releaseNotesDecidedRef.current) return;
-    const store = seenStore();
+    const store = localStore();
     const stored = readSeen(store);
     // The server's running version, never the bundle's __APP_VERSION__: an
     // upgrade replaces dist/web on disk before the process restarts, so this
@@ -183,7 +184,7 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
       setTourOpen(false);
       // Seen means a person closed it — Done, ×, Escape or the scrim. A tab
       // that reloaded with it open never got here, so it opens again.
-      writeTourSeen(seenStore());
+      writeTourSeen(localStore());
       if (inDesktopApp()) {
         void fetch("/api/prefs", {
           method: "POST",

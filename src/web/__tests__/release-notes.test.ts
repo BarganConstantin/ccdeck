@@ -832,7 +832,7 @@ describe("how App.tsx wires it up", () => {
     // can do least about it.
     expect(app).toMatch(/remembers: remembersSeen\(store\) \}\);/);
     // From the same store the marker was read out of, not a second one.
-    expect(app).toMatch(/const store = seenStore\(\);/);
+    expect(app).toMatch(/const store = localStore\(\);/);
   });
 
   it("holds the decision open until /api/version has answered", () => {
@@ -916,7 +916,7 @@ describe("how App.tsx wires it up", () => {
     // closeTour, and closeTour closes it and then marks it seen. Both are pinned,
     // so "marked when closed" is proved end to end rather than assumed.
     expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{closeTour\}/);
-    expect(app).toMatch(/const closeTour = useCallback\(\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(seenStore\(\)\);/);
+    expect(app).toMatch(/const closeTour = useCallback\(\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(localStore\(\)\);/);
     expect([...app.matchAll(/writeTourSeen\(/g)]).toHaveLength(1);
     expect(effect).toMatch(/if \(plan\.notes === "now"\) setReleaseNotes\(notes\);\s*else if \(plan\.notes === "after"\) notesAfterTour\.current = notes;/);
     expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
