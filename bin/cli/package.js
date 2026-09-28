@@ -28,8 +28,8 @@ export function versionOnDisk() {
 
 export const PKG_VERSION = versionOnDisk() ?? "0.0.0";
 
-// The command the user typed, handed down by the supervisor — our own argv[1]
-// is this file under every one of the three names. Null when it cannot be
+// The command the user typed, handed down by the supervisor — the worker's own
+// argv[1] is bin/deck.js under every one of the three names. Null when it cannot be
 // proven, and null is the answer that prints nothing.
 export const INVOKED_AS = invokedName({ pkgRoot: PKG_ROOT });
 
