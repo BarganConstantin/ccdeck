@@ -117,6 +117,15 @@ export function mayAskNpm({ now, lastAskAt }) {
 
 // ── what npm has ─────────────────────────────────────────────────────────────
 
+/** One GET to the registry, asked the way both lookups below ask it: for JSON,
+ *  under this deck's user-agent, and given up on after FETCH_TIMEOUT_MS. */
+function askRegistry(path) {
+  return fetch(`https://registry.npmjs.org/${path}`, {
+    headers: { accept: "application/json", "user-agent": "agents-deck" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+}
+
 // The dist-tags endpoint answers with ~20 bytes ({"latest":"1.30.7"}); the full
 // packument is >2 KB and needs parsing we have no use for.
 //
@@ -127,10 +136,7 @@ export function mayAskNpm({ now, lastAskAt }) {
 // the caller has to be able to tell them from an up-to-date deck.
 async function fetchLatest(name) {
   try {
-    const res = await fetch(`https://registry.npmjs.org/-/package/${name}/dist-tags`, {
-      headers: { accept: "application/json", "user-agent": "agents-deck" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    const res = await askRegistry(`-/package/${name}/dist-tags`);
     if (!res.ok) return { ok: false, version: null };
     const v = (await res.json())?.latest;
     return typeof v === "string" ? { ok: true, version: v } : { ok: false, version: null };
@@ -159,10 +165,7 @@ async function fetchLatest(name) {
 // announce either, but it is not evidence of an unpublished version.
 async function isPublished(name, version) {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${name}/${version}`, {
-      headers: { accept: "application/json", "user-agent": "agents-deck" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    const res = await askRegistry(`${name}/${version}`);
     if (res.status === 404) return { ok: true, published: false };
     if (!res.ok) return { ok: false, published: false };
     // The document has to be the one asked for: a registry that answers 200

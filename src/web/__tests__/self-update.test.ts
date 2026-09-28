@@ -1024,6 +1024,25 @@ describe("the version check and the upgrade command must be about one package", 
     rmTempDir(home);
   });
 
+  it("asks both endpoints for JSON, as this deck, and gives up on either after a deadline", async () => {
+    // One request shape for the dist-tag and for the version document behind
+    // it — askRegistry in npm-latest.mjs — so the probe cannot drift from the
+    // lookup it confirms: a probe without a deadline would hold the report
+    // open for as long as a stalled registry liked.
+    registry.tags = { ccdeck: NEXT };
+    registry.published = new Set([`ccdeck@${NEXT}`]);
+    await mod.versionReport({ running: INSTALLED, pkgRoot: npxTree("ccdeck") });
+    const asked = (globalThis.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls;
+    expect(asked.map(([url]) => url)).toEqual([
+      "https://registry.npmjs.org/-/package/ccdeck/dist-tags",
+      `https://registry.npmjs.org/ccdeck/${NEXT}`,
+    ]);
+    for (const [url, init] of asked) {
+      expect(init.headers, url).toEqual({ accept: "application/json", "user-agent": "agents-deck" });
+      expect(init.signal, url).toBeInstanceOf(AbortSignal);
+    }
+  });
+
   it("asks npm about ccdeck when the command will install ccdeck", async () => {
     // The two tags disagree, which is the normal state of the world between the
     // first and the last publish of a release.
