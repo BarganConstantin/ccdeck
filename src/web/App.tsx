@@ -14,7 +14,7 @@ import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
 import SessionClusters from "./components/SessionClusters";
 import SessionGroupNode from "./components/SessionGroupNode";
-import RecapNoteNode, { type RecapNoteData } from "./components/RecapNoteNode";
+import RecapNoteNode from "./components/RecapNoteNode";
 import RecapTieEdge from "./components/RecapTieEdge";
 import ToolBursts from "./components/ToolBursts";
 import SessionSummary from "./components/SessionSummary";
@@ -46,6 +46,7 @@ import { useEventStream } from "./use-event-stream";
 import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
 import { useAgentFocus } from "./use-agent-focus";
+import { usePeekReaders } from "./use-peek-readers";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
@@ -1099,38 +1100,15 @@ function Inner() {
   });
 
 
-  // What the peek reads, through refs so the three are made once: the node's
-  // own data (branch summary included), a parent's label, and the room it may
-  // open into — the canvas less the rail of panels over its right edge.
-  const peekAgent = useCallback((id: string) => {
-    const n = nodesRef.current.find(x => x.id === id && x.type === "agent");
-    return n ? (n.data as FlowNodeData) : undefined;
-  }, []);
-  const peekLabel = useCallback((id: string) => stateRef.current.agents.get(id)?.label, []);
-  const peekRecap = useCallback((id: string) => {
-    const n = nodesRef.current.find(x => x.id === id && x.type === "recapNote");
-    if (!n) return undefined;
-    const d = n.data as unknown as RecapNoteData;
-    return { recap: d.recap, hue: d.hue, sessionLabel: stateRef.current.agents.get(d.parentId)?.label };
-  }, []);
-  const peekBounds = useCallback(() => {
-    // The canvas's own box, not the window's: the peek belongs over the canvas,
-    // and the canvas already runs to the foot of the page.
-    const box = canvasRef.current?.getBoundingClientRect();
-    const doc = document.documentElement;
-    return box
-      ? { width: box.right - railInsetRef.current, height: box.bottom }
-      : { width: doc.clientWidth, height: doc.clientHeight };
-  }, []);
+  // What the peek reads, made once — use-peek-readers.ts.
+  const { peekAgent, peekLabel, peekRecap, peekBounds } = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
   // Delete reaches the removal through a ref for the same reason: the handler
   // below is registered once, and the callback moves with the selection.
   const removeSelectedRef = useMirroredRef(removeSelectedNode);
 
-
   /** The blocked session W went to last (#825), so the next press moves on to
    *  the one after it. The waiting button writes it too: the two are one way in. */
   const waitingCursorRef = useRef<string | null>(null);
-
 
   // A session list row for a removed session brings it back as it focuses it:
   // selecting a card that is not drawn would open a panel for nothing.
