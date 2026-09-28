@@ -81,6 +81,21 @@ describe("successorRoot", () => {
     expect(successorRoot(pkgRoot)).toBe(host);
   });
 
+  it("reads an own manifest that is not an object as one that is not there", () => {
+    // readManifest refuses a package.json with no fields to read, so its
+    // callers never guard against one. `[]` got past it: an array is an object
+    // to `typeof`, so our own manifest counted as intact and the host above was
+    // never consulted — unlike `null`, a string or a number in the same file.
+    for (const [what, text] of [["null", "null"], ["an array", "[]"], ["a string", '"agents-deck"'], ["a number", "7"]]) {
+      const { host, pkgRoot } = nested(`not-object-${what.replace(/ /g, "-")}`);
+      upgradeOverIt(host, "1.44.0");
+      mkdirSync(pkgRoot, { recursive: true });
+      writeFileSync(join(pkgRoot, "package.json"), text);
+      expect(successorRoot(pkgRoot), what).toBe(host);
+      expect(installedVersion(pkgRoot), what).toBe("1.44.0");
+    }
+  });
+
   it("refuses a host that is not one of the three names we publish", () => {
     // The directory above us is not evidence on its own. A deck vendored into
     // somebody else's package as a dependency has a host, and that host is not

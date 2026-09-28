@@ -26,7 +26,8 @@ import { join } from "node:path";
 function readManifest(dir) {
   try {
     const meta = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
-    return meta && typeof meta === "object" ? meta : null;
+    // An array is an object to `typeof`, so it is refused by name.
+    return meta && typeof meta === "object" && !Array.isArray(meta) ? meta : null;
   } catch {
     return null;
   }
