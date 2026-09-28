@@ -33,7 +33,8 @@ import {
   offered, open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
   trustedPeer,
 } from "./lan-sync.mjs";
-import { MAX_WRONG_PROOFS, mintInvite, readInvite } from "./lan-invite.mjs";
+import { mintInvite, readInvite } from "./lan-invite.mjs";
+import { createInviteOffer } from "./lan-invite-offer.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
@@ -371,9 +372,9 @@ export function createEngine({
    * refusal that outlives the process is a decision nobody can find to undo.
    */
   const declined = new Map();
-  /** The invite this deck is offering, or null. One at a time: a deck showing
-   *  two tokens is a deck whose owner cannot say which one they sent. */
-  let invite = null;
+  /** The invite this deck is offering, from the press that makes it to the
+   *  proof that spends it — see lan-invite-offer.mjs. */
+  const offer = createInviteOffer({ now, onChange, onError });
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
@@ -823,7 +824,7 @@ export function createEngine({
    *  again changes nothing but its name, and dialling it back is what joining
    *  does on the other end too. */
   const inviteUsed = entry => {
-    invite = null;
+    offer.retire();
     const { list } = pin(entry);
     // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
     // deck with no way to reach it: an inbound connection puts nothing in
@@ -832,24 +833,6 @@ export function createEngine({
     // it would be one-way again after the next restart.
     if (entry.addr && entry.port) keepDialling(entry.addr, entry.port, { fp: entry.fp, name: entry.name || "" });
     onTrust?.(list);
-    onChange?.();
-  };
-
-  /** Somebody presented a proof of the token that did not hold. Counted on
-   *  the invite, written to the log with where it came from, and at
-   *  MAX_WRONG_PROOFS the invite is put away (#1137) — the owner makes a new
-   *  one, which is one press, and the old one stops being something anybody
-   *  can keep working at. */
-  const wrongInvite = from => {
-    if (!invite) return;
-    const refused = (invite.refused ?? 0) + 1;
-    invite = { ...invite, refused };
-    const where = from?.addr || "an unknown address";
-    onError?.("invite", new Error(`a proof of this deck's invite from ${where} did not hold (${refused} of ${MAX_WRONG_PROOFS})`));
-    if (refused >= MAX_WRONG_PROOFS) {
-      invite = null;
-      onError?.("invite", new Error(`put the invite away after ${MAX_WRONG_PROOFS} proofs that did not hold; make a new one`));
-    }
     onChange?.();
   };
 
@@ -1396,9 +1379,9 @@ export function createEngine({
         // still proved the path.
         onInbound: from => { if (anotherMachine(from, localAddresses())) inboundAt = now(); },
         trusted: () => cfg.trusted,
-        invite: () => (invite && invite.expiresAt > now() ? invite : null),
+        invite: offer.live,
         onInviteUsed: inviteUsed,
-        onWrongInvite: wrongInvite,
+        onWrongInvite: offer.wrongInvite,
         // Asked before the request is drawn, so a deck that was told no is
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
@@ -1484,25 +1467,14 @@ export function createEngine({
       const addrs = localAddresses().map(a => `${a}:${port}`);
       const made = mintInvite({ addrs, name: cfg.name, now: now() });
       if (!made) return null;
-      invite = { ...made, refused: 0 };
-      onChange?.();
+      offer.put(made);
       return { token: made.token, expiresAt: made.expiresAt, addrs };
     },
 
-    /** What this deck is offering right now, for the panel to draw. Null once
-     *  it has run out, so a token nobody can use is not shown as if they could. */
-    offering() {
-      if (!invite || invite.expiresAt <= now()) return null;
-      return { token: invite.token, expiresAt: invite.expiresAt };
-    },
-
-    /** Put it away without using it. */
-    withdraw() {
-      const had = !!invite;
-      invite = null;
-      if (had) onChange?.();
-      return had;
-    },
+    /** What this deck is offering right now, and putting it away unused —
+     *  see lan-invite-offer.mjs. */
+    offering: offer.offering,
+    withdraw: offer.withdraw,
 
     /**
      * Join on somebody else's invite: try every address it carries until one
@@ -1810,10 +1782,8 @@ export function createEngine({
         // The token this deck is offering, if any. Drawn as the one thing to do
         // when nobody is paired yet, and put away once somebody is. With how
         // many proofs of it have failed so far — the record beside the log's,
-        // see wrongInvite.
-        invite: invite && invite.expiresAt > now()
-          ? { token: invite.token, expiresAt: invite.expiresAt, refused: invite.refused ?? 0 }
-          : null,
+        // see wrongInvite in lan-invite-offer.mjs.
+        invite: offer.row(),
         // Decks somebody accepted, decks that asked and have not been answered,
         // and decks merely heard. Three lists because they are three different
         // things a person does something different about.
