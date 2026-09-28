@@ -269,16 +269,22 @@ function archivable(e) {
 
 /** Two episodes are the same one when they start at the same moment on the same
  *  host. Not the count or the end, both of which grow while a program is still
- *  working — keyed on those, one run would archive itself a dozen times. */
+ *  working — keyed on those, one run would archive itself a dozen times.
+ *
+ *  From the two fields rather than from an episode, and exported, because the
+ *  route that dismisses an episode is handed a host and a start, not an
+ *  episode. */
 // Separated by an escaped NUL rather than a space: a host cannot contain one,
 // so no two different episodes can collide on the joined string. Written as an
 // ESCAPE and never as the raw byte — source-nul-bytes.test.ts exists because a
 // raw NUL makes grep skip the whole file without ever saying so.
-const keyOf = e => `${e.host}\u0000${e.startMs}`;
-
-/** The same key, from the two fields a caller has. Exported because the route
- *  that dismisses an episode is handed a host and a start, not an episode. */
 export const episodeKey = (host, startMs) => `${host}\u0000${startMs}`;
+
+/** The same key, for an episode in hand. It spells nothing itself: the merge,
+ *  the dismissal filter and the route that stores a dismissal all end in
+ *  `episodeKey`, so the key a dismissal is saved under and the key it is
+ *  compared against cannot drift apart. */
+const keyOf = e => episodeKey(e.host, e.startMs);
 
 /** How many dismissals are remembered. A dismissal is a few dozen bytes and
  *  the archive it filters is capped at 500, so this is generous — but it is
