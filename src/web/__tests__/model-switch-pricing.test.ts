@@ -41,6 +41,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { USAGE_FILES } from "./usage-surface";
 import { costForUsage } from "../pricing";
 import { boardModelTable } from "../board-usage";
 import { applyEvent, initialState } from "../reducer";
@@ -639,7 +640,7 @@ describe("no cost surface multiplies a whole session by its last model", () => {
     // one included the moment it is renamed to something that is not an entry,
     // trips the check.
     const files = [
-      "App.tsx", "components/UsagePanel.tsx", "components/SessionList.tsx",
+      "App.tsx", ...USAGE_FILES, "components/SessionList.tsx",
       "components/SessionSummary.tsx", "components/ContextModal.tsx",
       "components/AgentNode.tsx", "board-usage.ts",
     ];
@@ -659,7 +660,8 @@ describe("no cost surface multiplies a whole session by its last model", () => {
     // And the panel has no fold of its own left to disagree with it.
     const panel = srcOf("components/UsagePanel.tsx");
     expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
-    expect(panel).not.toMatch(/usageByModelEntries/);
+    // Nor anything lifted out of it.
+    expect(USAGE_FILES.map(srcOf).join("\n")).not.toMatch(/usageByModelEntries/);
   });
 
   it("carries the split from the scanner to the client on the usage event", () => {

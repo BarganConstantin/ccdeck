@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   boardModelTable, boardSessionTable, boardTotals, BOARD_SESSION_ROWS, UNKNOWN_MODEL,
   type Billable, type SessionBillable,
@@ -264,12 +265,15 @@ describe("the panel draws its two board tables from these", () => {
   it("calls boardModelTable and boardSessionTable, and folds nothing itself", () => {
     expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
     expect(panel).toMatch(/\(\): BoardSessionRow\[\] => boardSessionTable\(state\.agents\.values\(\)\)/);
-    expect(panel).not.toMatch(/modelMap/);
-    expect(panel).not.toMatch(/agentCost\(/);
-    expect(panel).not.toMatch(/agentUnpricedTokens\(/);
+    // Nor does anything lifted out of it: the negatives and the count read
+    // the panel's whole surface.
+    const surface = usageSurface();
+    expect(surface).not.toMatch(/modelMap/);
+    expect(surface).not.toMatch(/agentCost\(/);
+    expect(surface).not.toMatch(/agentUnpricedTokens\(/);
     // The one `.slice(0, 12)` left in the panel is the ccusage path's own cut,
     // which is a different list from a different source.
-    expect([...panel.matchAll(/\.slice\(0, 12\)/g)]).toHaveLength(1);
+    expect([...surface.matchAll(/\.slice\(0, 12\)/g)]).toHaveLength(1);
     expect(panel).toMatch(/ccSessionRows\(range, boardNames\)\.slice\(0, 12\)/);
   });
 

@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import { panelFigures, rangeView, type Board, type Delta, type Landed, type UsageRange } from "../usage-from-ccusage";
 import { boardBySession, liveDelta, type CountableAgent } from "../live-delta";
 
@@ -80,7 +81,7 @@ describe("#784 — the reading and the point it is measured from", () => {
   it("is wired that way in the panel, with no effect left to be one render late", () => {
     expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
     expect(panel).toContain("liveDelta(baseline, boardBySession(state.agents.values(), now))");
-    expect(panel, "the baseline is back in a ref an effect writes").not.toContain("baselineRef.current =");
+    expect(usageSurface(), "the baseline is back in a ref an effect writes").not.toContain("baselineRef.current =");
     // And the snapshot handed to the hook must be stable, or the fetch re-runs
     // on every 250ms tick — which would be a far louder bug than the one fixed.
     expect(panel).toContain("const takeBaseline = useCallback(() => boardNowRef.current(), []);");

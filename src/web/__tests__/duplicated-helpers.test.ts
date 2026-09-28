@@ -30,6 +30,7 @@ import CostBar from "../components/CostBar";
 import type { CostBreakdown } from "../pricing";
 import type { ToolCall } from "../types";
 import { accountsSurface } from "./accounts-surface";
+import { usageSurface } from "./usage-surface";
 import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -50,6 +51,8 @@ const app = src("../App.tsx");
 const detail = src("../components/Detail.tsx");
 const agentNode = src("../components/AgentNode.tsx");
 const usagePanel = src("../components/UsagePanel.tsx");
+// The usage panel's quota bars, and the countdown they print, are QuotaBar.tsx.
+const quotaBar = src("../components/QuotaBar.tsx");
 const accountRow = src("../components/AccountRow.tsx");
 const sessionSummary = src("../components/SessionSummary.tsx");
 const toolModal = src("../components/ToolModal.tsx");
@@ -192,7 +195,7 @@ describe("the stacked cost bar", () => {
     expect(detail).toMatch(/import CostBar from "\.\/CostBar";/);
     expect(usagePanel).toMatch(/import CostBar from "\.\/CostBar";/);
     expect(sessionSummary).toMatch(/import CostBar from "\.\/CostBar";/);
-    for (const [name, text] of [["App.tsx", app], ["components/Detail.tsx", detail], ["UsagePanel.tsx", usagePanel], ["SessionSummary.tsx", sessionSummary]] as const) {
+    for (const [name, text] of [["App.tsx", app], ["components/Detail.tsx", detail], ["UsagePanel.tsx and the files lifted out of it", usageSurface()], ["SessionSummary.tsx", sessionSummary]] as const) {
       expect(code(text), name).not.toMatch(/function (Ss)?CostBar\b/);
       expect(code(text), name).not.toMatch(/"cb-seg /);
       expect(code(text), name).not.toMatch(/className="cost-bar/);
@@ -474,11 +477,13 @@ describe("the countdown to a quota reset", () => {
   });
 
   it("is read from one place by both panels", () => {
-    expect(usagePanel).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
+    // The usage half is the quota bar now, lifted out of the panel with the
+    // countdown it prints.
+    expect(quotaBar).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
     // The accounts half is the row's bars now, asked of the row's own file:
     // the usage panel's use would satisfy a search of the whole client.
     expect(accountRow).toMatch(/\bresetCountdown\b/);
-    expect(code(usagePanel)).not.toMatch(/function fmtCountdown\b/);
+    expect(code(usageSurface())).not.toMatch(/function fmtCountdown\b/);
     expect(code(accountsSurface())).not.toMatch(/function countdown\b/);
   });
 });
@@ -664,7 +669,7 @@ describe("the shapes these helpers replaced", () => {
   const FILES: Array<[string, string]> = [
     ["App.tsx", app],
     ["AgentNode.tsx", agentNode],
-    ["UsagePanel.tsx", usagePanel],
+    ["UsagePanel.tsx and the files lifted out of it", usageSurface()],
     ["AccountsPanel.tsx and the files lifted out of it", accountsSurface()],
     ["SessionSummary.tsx", sessionSummary],
     ["ToolModal.tsx", toolModal],

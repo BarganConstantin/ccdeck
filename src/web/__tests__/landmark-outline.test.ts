@@ -38,6 +38,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
+import { usageSurface } from "./usage-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -68,6 +69,8 @@ const detail = source("components/Detail.tsx");
 /** The version chip beside the wordmark, out of App.tsx's topbar. */
 const versionChip = source("components/VersionChip.tsx");
 const usage = source("UsagePanel.tsx");
+/** The usage panel and every file lifted out of it, for negatives and counts. */
+const usageAll = usageSurface();
 const accounts = source("AccountsPanel.tsx");
 const sessions = source("SessionList.tsx");
 const history = source("UsageHistoryModal.tsx");
@@ -172,7 +175,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
   it("has no <div> left wearing one of those class names", () => {
     // The exact two shapes the issue measured, which is the assertion that
     // fails if somebody re-opens one of these files and reaches for a <div>.
-    expect(code(usage)).not.toMatch(/<div className="usage-panel"/);
+    expect(code(usageAll)).not.toMatch(/<div className="usage-panel"/);
     expect(code(accounts)).not.toMatch(/<div className="accounts-panel"/);
   });
 
@@ -233,6 +236,8 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       expect(code(src), `${file} imports the bar`).toMatch(/import CostBar from "\.(\/components)?\/CostBar";/);
       expect(code(src), `${file} draws no bar of its own`).not.toMatch(/className="cost-bar/);
     }
+    // Nor does any file lifted out of the usage panel.
+    expect(code(usageAll), "the usage panel's files draw no bar of their own").not.toMatch(/className="cost-bar/);
     // App.tsx no longer imports the bar at all, and must not grow one of its own.
     expect(code(app), "App.tsx draws no bar of its own").not.toMatch(/className="cost-bar/);
   });
@@ -310,11 +315,11 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       do { prev = out; out = out.replace(/\{[^{}]*\}/g, " "); } while (out !== prev);
       return out;
     };
-    const heads = [...code(usage).matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
+    const heads = [...code(usageAll).matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
       .map(m => stripBraces(m[1]).replace(/<[^>]*>/g, " ").match(/[A-Za-z][A-Za-z ]*/)?.[0].trim() ?? "");
     expect(heads).toHaveLength(5);
     expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
-    expect(code(usage)).not.toMatch(/<h4/);
+    expect(code(usageAll)).not.toMatch(/<h4/);
   });
 
   it("keeps <h4> to the dialogs, plus the one panel section that really has subsections", () => {

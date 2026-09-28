@@ -40,6 +40,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   nounFor, panelFigures, rangeView, PERIODS, periodFocusMove, sinceFor,
   type Board, type Delta, type Landed, type UsageRange,
@@ -47,6 +48,9 @@ import {
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
+/** The panel and every file lifted out of it: what the negatives read, so a
+ *  move cannot empty one. */
+const surface = usageSurface();
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -245,7 +249,7 @@ describe("what the panel asks the server for", () => {
     // what the server had cached. Keyed on the value changing instead.
     expect(panel).toContain("const force = refreshKey !== forcedRef.current;");
     expect(panel).toContain("`/api/ccusage?since=${since}${force ? \"&refresh=1\" : \"\"}`");
-    expect(panel).not.toContain('refreshKey > 0 ? "&refresh=1"');
+    expect(surface).not.toContain('refreshKey > 0 ? "&refresh=1"');
   });
 
   it("polls once a minute, against a cache that is not longer than the poll", () => {
@@ -394,7 +398,7 @@ describe("markup, read as source", () => {
     // being read while it reads — so the assertion is that `p.hint` is still
     // the resting half rather than that it is the only half.
     expect(panel).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
-    expect(panel).not.toMatch(/title="[^"]*month/i);
+    expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
   it("shows the selector only when there is a source with periods in it", () => {
@@ -432,7 +436,7 @@ describe("markup, read as source", () => {
     // that disabled itself under any other identifier, and it failed the moment
     // the pending signal was drawn without disabling anything. What it was
     // reaching for is below.
-    expect(panel).not.toContain("up-period-busy");
+    expect(surface).not.toContain("up-period-busy");
     const strip = panel.slice(panel.indexOf('className="uh-range up-period"'), panel.indexOf("</div>\n      )}"));
     expect(strip).not.toMatch(/\bdisabled\b/);
     expect(strip).not.toMatch(/pointer-events/);
@@ -459,7 +463,7 @@ describe("markup, read as source", () => {
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
     expect(panel).toContain("return { ...rangeView(landed, period), loading };");
     for (const gone of ["fromRange ? rangeSum.cost +", "fromRange ? rangeSum.tokens", "landed.period !== period,"]) {
-      expect(panel, `${gone} is decided in the component again`).not.toContain(gone);
+      expect(surface, `${gone} is decided in the component again`).not.toContain(gone);
     }
   });
 });
@@ -584,7 +588,7 @@ describe("the period strip's keyboard and memory", () => {
     // gives `month`, `month`, `month` — and it looked correct in the source.
     expect(panel).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
     expect(panel).toContain("periodFocusMove(e.key, from)");
-    expect(panel).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
+    expect(surface).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
     // The arrows have to stop being the page's arrows, or the panel scrolls
     // under the ring the moment it moves.
     expect(panel).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
@@ -592,7 +596,7 @@ describe("the period strip's keyboard and memory", () => {
     // And it must not have become the thing #381 deleted. Read with the
     // comments stripped: the block above this markup names that role in order
     // to say why it is wrong, and a substring match cannot tell the two apart.
-    const code = panel.replace(/\/\*[\s\S]*?\*\//g, "");
+    const code = surface.replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toContain('role="tablist"');
     expect(code).not.toContain('role="tab"');
   });
@@ -752,7 +756,7 @@ describe("the session section's disclosure", () => {
     // for them on Windows and Linux. A path is the same three strokes on every
     // OS, and it can rotate instead of being replaced.
     expect(panel).toContain('<svg className="up-chev"');
-    expect(panel).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
+    expect(surface).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
     expect(block('.up-disclose[aria-expanded="true"] .up-chev')).toMatch(/transform:\s*rotate\(180deg\)/);
     // Under reduced motion it still turns — it just stops travelling.
     // `transform: none` there would have frozen it pointing down over an open

@@ -13,10 +13,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
-const usage = read("../components/UsagePanel.tsx");
+// The usage panel's bars are QuotaBar.tsx, lifted out of it.
+const quotaBar = read("../components/QuotaBar.tsx");
 const ctx = read("../components/ContextModal.tsx");
 
 function body(selector: string): string {
@@ -40,9 +42,9 @@ describe("the panel readouts move by transform (#863)", () => {
   }
 
   it("sets the fills' readings as a scale, not a width", () => {
-    expect(usage).toMatch(/className="qb-fill" style=\{\{ transform: `scaleX\(\$\{fillW \/ 100\}\)`/);
+    expect(quotaBar).toMatch(/className="qb-fill" style=\{\{ transform: `scaleX\(\$\{fillW \/ 100\}\)`/);
     expect(ctx).toMatch(/className="ctx-window-fill" style=\{\{ transform: `scaleX\(/);
-    expect(usage).not.toMatch(/className="qb-fill" style=\{\{ width:/);
+    expect(usageSurface()).not.toMatch(/className="qb-fill" style=\{\{ width:/);
     expect(ctx).not.toMatch(/className="ctx-window-fill" style=\{\{ width:/);
   });
 
@@ -50,7 +52,7 @@ describe("the panel readouts move by transform (#863)", () => {
     expect(decl(".qb-pace-rail", "inset")).toBe("0");
     expect(decl(".qb-pace-rail", "transition")).toMatch(/^transform 400ms/);
     expect(decl(".qb-pace-rail", "pointer-events")).toBe("none");
-    expect(usage).toMatch(/className="qb-pace-rail" style=\{\{ transform: `translateX\(\$\{pace\.expectedPct\}%\)` \}\}/);
+    expect(quotaBar).toMatch(/className="qb-pace-rail" style=\{\{ transform: `translateX\(\$\{pace\.expectedPct\}%\)` \}\}/);
     // The marker itself stands still inside it, at the rail's left edge.
     expect(decl(".qb-pace-marker", "left")).toBe("0");
     expect(decl(".qb-pace-marker", "transition")).toBeNull();

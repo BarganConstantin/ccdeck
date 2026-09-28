@@ -28,6 +28,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   recordSpend, spendRate, NO_SPEND_HISTORY, SPEND_JUMP_USD,
   type SpendHistory, type SpendBySession,
@@ -141,7 +142,7 @@ describe("the panel samples what the rule needs (#987)", () => {
     expect(panel).toMatch(/const bySession = boardBySession\(state\.agents\.values\(\), now\);/);
     expect(panel).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
     expect(panel).toMatch(/spendRate\(spendSamples\.current, now, bySession\)/);
-    expect(panel).not.toMatch(/recordSpend\([^)]*board\.cost\.total/);
-    expect(panel).not.toMatch(/spendRate\([^)]*board\.cost\.total/);
+    expect(usageSurface()).not.toMatch(/recordSpend\([^)]*board\.cost\.total/);
+    expect(usageSurface()).not.toMatch(/spendRate\([^)]*board\.cost\.total/);
   });
 });

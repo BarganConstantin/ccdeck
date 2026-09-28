@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import { countTo, frameValue, worthCounting, COUNT_MS } from "../count-up";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
@@ -170,8 +171,8 @@ describe("what the panel counts, and what it leaves alone", () => {
     // thousand or back down to three hundred is the one place the SIZE of the
     // difference is worth feeling.
     expect(panel).toContain("if (firstRef.current) {");
-    expect(panel).not.toContain("meaningChanged");
-    expect(panel).not.toContain("countKey");
+    expect(usageSurface()).not.toContain("meaningChanged");
+    expect(usageSurface()).not.toContain("countKey");
   });
 
   it("adds what the canvas has gained since the reading, so it moves between polls", () => {
@@ -199,7 +200,7 @@ describe("what the panel counts, and what it leaves alone", () => {
     // arrived and the headline overshot by a minute (#784). Committing both in
     // one `setLanded` removes the ordering rather than getting it right.
     expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
-    expect(panel, "the baseline is back in an effect of its own")
+    expect(usageSurface(), "the baseline is back in an effect of its own")
       .not.toContain("baselineRef.current =");
   });
 

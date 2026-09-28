@@ -37,6 +37,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   createDismissStack,
   escapeOutcome,
@@ -231,7 +232,8 @@ describe("the four docked panels are one idiom again", () => {
   // The machine panel is the fourth now, which is the point: a reader who
   // learns how one of these closes has learned how all of them close.
   const panels = [
-    ["UsagePanel.tsx", usagePanel, "Close (U)"],
+    // The usage panel as a whole: the component and every file lifted out of it.
+    ["UsagePanel.tsx and the files lifted out of it", usageSurface(), "Close (U)"],
     ["SessionList.tsx", sessionList, "Hide sidebar (L)"],
     ["AccountsPanel.tsx", accountsPanel, "Close (A)"],
     ["MachinePanel.tsx", meter, 'aria-label="Close" title="Close"'],
