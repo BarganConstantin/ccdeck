@@ -273,7 +273,10 @@ function Inner() {
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
-  const [openedToolId, setOpenedToolId] = useState<string | null>(null);
+  // Which call the tool modal shows: its agent and its id, since an id alone
+  // can name two sessions' calls (#1483).
+  const [openedToolKey, setOpenedToolKey] = useState<{ agentId: string; toolId: string } | null>(null);
+  const openTool = useCallback((agentId: string, toolId: string) => setOpenedToolKey({ agentId, toolId }), []);
   /** Session ID for which we're showing the end-of-session recap modal,
    *  or null when no modal is open. Opened from the detail panel's
    *  `Show recap` on a finished session. */
@@ -913,7 +916,7 @@ function Inner() {
   // render, four times a second on an idle deck. What it must not do on that
   // tick is why the walk lives in the reducer; see findToolOnBoard.
   const openedTool: ToolCall | null =
-    openedToolId ? findToolOnBoard(stateRef.current.agents, openedToolId) : null;
+    openedToolKey ? findToolOnBoard(stateRef.current.agents, openedToolKey.agentId, openedToolKey.toolId) : null;
 
   const handleClear = useCallback(async () => {
     try { await fetch("/api/clear", { method: "POST" }); } catch {}
@@ -1829,7 +1832,7 @@ function Inner() {
             spotlight={spotlightSet}
             hiddenCategories={hiddenCats}
             now={now}
-            onOpenTool={setOpenedToolId}
+            onOpenTool={openTool}
           />
           {/* The state the recenter tint used to be the only sign of (#820).
               While the reader's own pan or zoom holds the view, new sessions
@@ -1938,7 +1941,7 @@ function Inner() {
           <Detail
                 agent={selected}
                 now={now}
-                onOpenTool={setOpenedToolId}
+                onOpenTool={openTool}
                 onShowSummary={setSummaryFor}
                 onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
                 onRemove={removeSelectedNode}
@@ -1946,7 +1949,7 @@ function Inner() {
         </aside>
       ) : null}
 
-      {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolId(null)} />}
+      {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
       {/* `providers` is what the modal's subtitle falls back to until a ccusage
           run has said whose logs are actually in the figures (#431). It is not
           a gate: ccusage reads the logs on this machine rather than this deck's
