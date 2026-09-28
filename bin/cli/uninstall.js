@@ -10,7 +10,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { glyphs, unicodeOK } from "../../src/server/term.mjs";
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
+import { INVOKED_AS, PKG_ROOT } from "./package.js";
+import { removedRecord } from "./login-item.js";
 
 /**
  * Remove this deck's hooks, its login item and, with `flags.purge`, the files
@@ -67,7 +68,7 @@ export async function uninstall(flags) {
     const { deckDataDir: dataDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
     if (svc.readServiceRecord(dataDir()) !== null) {
       const gone = svc.uninstallService();
-      svc.writeServiceRecord(dataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
+      svc.writeServiceRecord(dataDir(), removedRecord());
       // Silent when there was nothing on the machine: an uninstall that reports
       // removing a login item this deck never had is the same lie the explicit
       // command used to tell, in the place a reader is least able to check it.

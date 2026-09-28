@@ -13,6 +13,29 @@ import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
 
+// The copy of the deck this file belongs to: what `--install-service` and a
+// first start put at login. `--install` names the global copy instead.
+const OWN_SCRIPT = join(PKG_ROOT, "bin", "agent-dag.js");
+
+/** The login item's job, for whichever copy of the deck it should start. */
+const loginJob = (script, deckLogDir) => ({ script, logPath: join(deckLogDir(), "deck.log"), product: PRODUCT });
+
+/**
+ * What the service record says once a login item is written, and once one is
+ * taken away. The record is what shouldOfferService reads, so every writer of
+ * it goes through these two rather than spelling the shape again.
+ */
+const installedRecord = (path) => ({ installed: PKG_VERSION, at: new Date().toISOString(), path });
+export const removedRecord = () => ({ removed: new Date().toISOString(), version: PKG_VERSION });
+
+/** The one place the three platforms genuinely differ in what a login item buys you. */
+function warnWhenLingerOff(svc, { say, tone, gWarn }) {
+  if (svc.lingerState() === "off") {
+    say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
+    say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
+  }
+}
+
 // ── --install ─────────────────────────────────────────────────────────────
 //
 // The one command that turns an npx run into a deck that comes back after a
@@ -49,17 +72,14 @@ export async function installGlobally({ say, tone, dash, gOk, gWarn, bullet, gEl
     say(`  ${tone.warn}${gWarn}  installed, but npm did not say where ${dash} run \`${pkg} --install-service\` to start it at login${tone.reset}\n`);
     return 0;
   }
-  const out = svc.installService({ script, logPath: join(deckLogDir(), "deck.log"), product: PRODUCT });
+  const out = svc.installService(loginJob(script, deckLogDir));
   if (!out.ok) {
     say(`  ${tone.warn}${gWarn}  installed, but it will not start at login ${dash} ${out.reason}${tone.reset}\n`);
     return 0;
   }
-  svc.writeServiceRecord(deckDataDir(), { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path });
+  svc.writeServiceRecord(deckDataDir(), installedRecord(out.path));
   say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
-  if (svc.lingerState() === "off") {
-    say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
-    say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
-  }
+  warnWhenLingerOff(svc, { say, tone, gWarn });
   say(`     ${tone.muted}\`${pkg} --uninstall-service\` undoes the login part${tone.reset}\n`);
   return 0;
 }
@@ -76,7 +96,7 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     // Recorded either way. The record is what stops the next ordinary start
     // putting back what was just taken away, and a tool that argues with its
     // user about a login item is a tool that gets uninstalled entirely.
-    svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
+    svc.writeServiceRecord(deckDataDir(), removedRecord());
     // `existed` rather than the record: the record says what THIS tool last
     // did, and the machine is what actually has a login item on it. Somebody
     // who removed the plist by hand should be told the truth about the
@@ -103,16 +123,12 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     say(`     ${tone.muted}install it first: \`npm i -g ${INVOKED_AS ?? PRODUCT}\`${tone.reset}\n`);
     return 1;
   }
-  const out = svc.installService({
-    script: join(PKG_ROOT, "bin", "agent-dag.js"),
-    logPath: join(deckLogDir(), "deck.log"),
-    product: PRODUCT,
-  });
+  const out = svc.installService(loginJob(OWN_SCRIPT, deckLogDir));
   if (!out.ok) {
     say(`\n  ${tone.err}${gWarn}  could not set it up ${dash} ${out.reason}${tone.reset}\n`);
     return 1;
   }
-  svc.writeServiceRecord(deckDataDir(), { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path });
+  svc.writeServiceRecord(deckDataDir(), installedRecord(out.path));
   say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
   if (out.how === "file-only") {
     // The file is on disk and both launchd and systemd read their directories
@@ -120,11 +136,7 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     // "it will work tomorrow" is a different promise from "it works now".
     say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
   }
-  // The one place the three platforms genuinely differ in what this buys you.
-  if (svc.lingerState() === "off") {
-    say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
-    say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
-  }
+  warnWhenLingerOff(svc, { say, tone, gWarn });
   say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${tone.reset}\n`);
   return 0;
 }
@@ -151,13 +163,9 @@ export async function offerLoginItem({ P, G, write, deckDataDir, deckLogDir }) {
       npx: isNpxInstall(PKG_ROOT),
       checkout: isGitCheckout(PKG_ROOT),
     })) {
-      const out = svc.installService({
-        script: join(PKG_ROOT, "bin", "agent-dag.js"),
-        logPath: join(deckLogDir(), "deck.log"),
-        product: PRODUCT,
-      });
+      const out = svc.installService(loginJob(OWN_SCRIPT, deckLogDir));
       svc.writeServiceRecord(deckDataDir(), out.ok
-        ? { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path }
+        ? installedRecord(out.path)
         : { failed: out.reason ?? "unknown", at: new Date().toISOString(), version: PKG_VERSION });
       // Said once, on the one run that does it, and never again. A tool that
       // adds itself to your login items and does not mention it is a tool you

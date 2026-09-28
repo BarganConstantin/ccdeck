@@ -73,7 +73,8 @@ describe("no service manager is given a restart policy", () => {
     // A login is not somebody asking to look at the deck. The auto-install and
     // the explicit command both pass this.
     expect(plistFor(JOB)).toContain("<string>--no-open</string>");
-    expect(LOGIN_ITEM).toMatch(/installService\(\{[\s\S]{0,200}script: join\(PKG_ROOT/);
+    expect(LOGIN_ITEM).toContain('const OWN_SCRIPT = join(PKG_ROOT, "bin", "agent-dag.js");');
+    expect(LOGIN_ITEM).toContain("svc.installService(loginJob(OWN_SCRIPT, deckLogDir))");
   });
 });
 
@@ -574,7 +575,7 @@ describe("putting the deck on PATH, when somebody asks in words", () => {
   it("points the login item at the global install, not at the cache", () => {
     const block = installBlock();
     expect(block).toContain("gi.globalScript(root, pkg)");
-    expect(block).toContain("svc.installService({ script,");
+    expect(block).toContain("svc.installService(loginJob(script, deckLogDir))");
     // And it asks npm where that is rather than assuming a prefix.
     expect(block).toContain('run("npm", ["root", "-g"]');
   });
