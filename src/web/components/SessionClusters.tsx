@@ -63,8 +63,9 @@ export interface ClusterNode {
 // HEADER_H and LABEL_LIFT are this file's own and are deliberately NOT part of
 // the handle: the header strip is where the clickable fit-view label lives, so
 // extending the handle over it would swallow the click (see
-// session-group-nodes.ts). layout.ts folds all three into SESSION_CHROME when it
-// budgets the space between two stacked sessions.
+// session-group-nodes.ts). layout-geometry.ts folds all three into
+// SESSION_CHROME, which the layout budgets the space between two stacked
+// sessions with.
 const PAD = 18;
 const HEADER_H = 26;
 const LABEL_LIFT = 12; // px the label tab sits above the box's top edge
