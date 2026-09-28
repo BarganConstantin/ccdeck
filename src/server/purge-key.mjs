@@ -32,6 +32,7 @@ import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { deckDataDir, legacyDeckDir } from "./deck-home.mjs";
+import { stripBom } from "./atomic-write.mjs";
 
 /** The file. Named once, because it is spelled in deck-prefs.mjs too and the
  *  two must not drift — see `prefsPath`, which is the same join. */
@@ -88,13 +89,12 @@ export async function findKeyFiles(dirs = keyDirs(), deps = {}) {
       continue;
     }
     try {
-      // The BOM, stripped the way installer.mjs strips it off settings.json:
-      // `JSON.parse` throws on one and a file Notepad saved is not damaged.
-      // Spelled out rather than imported because installer.mjs's `stripBom` is
-      // private to that module today — #1056 exports it, and this call should
-      // become that import once it lands, so the rule has one spelling.
-      const text = String(raw);
-      const parsed = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+      // The BOM, stripped by the rule settings.json, prefs.json and the
+      // browser-watch state are all read with: `JSON.parse` throws on one and
+      // a file Notepad saved is not damaged. This was a copy of it, spelled out
+      // while stripBom was private; it is exported now (atomic-write.mjs), so
+      // the rule has one spelling.
+      const parsed = JSON.parse(stripBom(String(raw)));
       const secret = parsed?.lan?.secret;
       out.push({ path, holds: typeof secret === "string" && secret !== "" ? "key" : "no-key", why: "" });
     } catch (err) {
