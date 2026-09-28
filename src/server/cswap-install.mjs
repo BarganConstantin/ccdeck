@@ -8,6 +8,7 @@
 // entirely. It is always best-effort — the deck's core function does not
 // depend on it, so a failure is reported and then ignored.
 import { run } from "./exec.mjs";
+import { failureDetail } from "./exec-output.mjs";
 // The version comparator was written out here as well, identical apart from a
 // type guard this copy lacked, and only the self-update one was under test
 // (#374). No cycle: self-update.mjs and the four modules it reads from
@@ -328,7 +329,7 @@ async function installCswap() {
     if (!(await run(cmd, probe, { timeout: 8_000 })).ok) continue;
     const r = await run(cmd, args, { timeout: INSTALL_TIMEOUT_MS });
     if (r.ok) return { ok: true, via, want, spec };
-    return { ok: false, reason: "install_failed", via, spec, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+    return { ok: false, reason: "install_failed", via, spec, detail: failureDetail(r, 300) };
   }
 
   // Nothing on the machine can install a Python application. Rather than hand
@@ -339,7 +340,7 @@ async function installCswap() {
 
   const r = await run(boot.bin, ["tool", "install", spec], { timeout: INSTALL_TIMEOUT_MS });
   if (r.ok) return { ok: true, via: `uv ${boot.version} (fetched)`, want, spec };
-  return { ok: false, reason: "install_failed", via: "uv (fetched)", spec, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+  return { ok: false, reason: "install_failed", via: "uv (fetched)", spec, detail: failureDetail(r, 300) };
 }
 
 /**
@@ -546,7 +547,7 @@ function upgradeInBackground({ cmd, upgrade, via }, { from, want }) {
           : (typeof to === "string" && to !== "installed" && !isAcceptableVersion(to))
             ? "unexpected_version"
             : null,
-        detail: r.ok ? null : (r.stderr || r.stdout).trim().slice(0, 300),
+        detail: r.ok ? null : failureDetail(r, 300),
       };
     } catch (e) {
       entry = { from, want: want ?? null, to: null, at: new Date().toISOString(), via: via ?? null,
