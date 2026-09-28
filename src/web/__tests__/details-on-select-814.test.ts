@@ -18,12 +18,14 @@ import { WELCOME_STEPS } from "../components/guide-art";
 
 // selectAgent moved to use-selection.ts; everything that calls it stayed in
 // App.tsx. The two are read as one, so a body is found wherever it lives.
-// The keydown handler moved to use-deck-shortcuts.ts, and stepAgent and
-// focusSession to use-agent-focus.ts; the keys and the rest of the deck are read as one.
+// The keydown handler moved to use-deck-shortcuts.ts, stepAgent and
+// focusSession to use-agent-focus.ts, and the canvas's click handlers to
+// use-canvas-clicks.ts; the keys and the rest of the deck are read as one.
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8")
-  + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8");
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-canvas-clicks.ts", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
@@ -56,11 +58,13 @@ describe("selecting an agent opens its details (#814)", () => {
     // A click on a card is the one that does not (2026-09-19): it goes to the
     // session and leaves the panel to the double-click, which selects through
     // the same door with the panel's default.
-    expect(appCode).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
+    expect(appCode).toMatch(/onNodeClick=\{onNodeClick\}/);
+    expect(appCode).toMatch(/const onNodeClick = \(e: React\.MouseEvent, n: Node\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
     // And shuts a panel left open, which is stored across reloads — on the
     // stored flag, not on what is showing, which after a reload is nothing.
     expect(appCode).toMatch(/if \(detailOpen\) setDetailOpen\(false\);/);
-    expect(appCode).toMatch(/onNodeDoubleClick=\{\(_, n\) => \{[\s\S]*?selectAgent\(id, false\);/);
+    expect(appCode).toMatch(/onNodeDoubleClick=\{onNodeDoubleClick\}/);
+    expect(appCode).toMatch(/const onNodeDoubleClick = \(_: React\.MouseEvent, n: Node\) => \{[\s\S]*?selectAgent\(id, false\);/);
     expect(body("const stepAgent = useCallback")).toMatch(/selectAgent\(target\.id, false\)/);
     expect(body("const focusSession = useCallback")).toMatch(/selectAgent\(sessionId, false\)/);
   });

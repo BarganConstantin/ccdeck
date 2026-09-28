@@ -7,10 +7,10 @@
 //       || contextFor != null || summaryFor != null || …
 //
 // while both of those modals render nothing once their subject is gone — the
-// context modal on `if (!root) return null`, and SessionSummary on the same
-// `state.agents.get(sessionId)` inside `buildSummary`. `contextFor` is only ever
-// cleared by the dialog's own `onClose`, which lives on the dialog that no
-// longer exists.
+// context modal because App.tsx's `contextAgent` no longer resolves, and
+// SessionSummary on the same `state.agents.get(sessionId)` inside
+// `buildSummary`. `contextFor` is only ever cleared by the dialog's own
+// `onClose`, which lives on the dialog that no longer exists.
 //
 // So: open the context donut on a card, leave it open, let the session finish.
 // `pruneDoneSessions` evicts it about two minutes later — or another deck
