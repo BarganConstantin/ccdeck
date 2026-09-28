@@ -79,8 +79,9 @@ export { ccProjectSlug };
 // The Codex half of capture: the rollouts directory tailed for its events —
 // see codex-watch.mjs.
 import { startCodexWatcher } from "./codex-watch.mjs";
-// Exported from this file before they moved, and still.
-export { startCodexWatcher } from "./codex-watch.mjs";
+// Exported from this file before they moved, and still. scanCodexNow is new,
+// and is here for the suites that import this file to drive the watcher.
+export { scanCodexNow, startCodexWatcher } from "./codex-watch.mjs";
 export { sidFromRolloutName } from "./codex-dir.mjs";
 export { readCodexRollout } from "./codex-enrichment.mjs";
 // Re-exported because bin/deck.js prints this path in the boot banner, and it
