@@ -39,11 +39,12 @@ const SONNET_5: ModelRates =
   { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 };
 
 // THE `(?![-_.]\d{1,7}(?!\d))` ON EVERY CLAUDE ROW (#688). It is one assertion
-// repeated on each row rather than a shared constant, because the row patterns
-// have to stay regex LITERALS — bedrock-model-ids.test.ts reads them straight
-// out of this source and rebuilds them, so that a row added tomorrow with no
-// pinned id fails its coverage sweep instead of quietly going unproven. A table
-// assembled by string concatenation would be invisible to that check.
+// repeated on each row rather than a shared constant, so every row states its
+// whole pattern where it stands. The suite reads each row off this table:
+// bedrock-model-ids.test.ts sweeps them for a pinned id, so that a row added
+// tomorrow with no pinned id fails its coverage sweep instead of quietly going
+// unproven, and unrecognised-model-version.test.ts checks every Claude row
+// carries this guard.
 //
 // What it asserts is not what `\b` asserts. `\b` says the version number ended.
 // This says nothing that follows it is ANOTHER version number — and the gap

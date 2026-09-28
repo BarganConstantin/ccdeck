@@ -27,9 +27,8 @@
 // Plain node — ratesForModel is pure arithmetic over a string, so this suite is
 // identical on Linux, macOS and Windows.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { ratesForModel, type ModelRates } from "../pricing";
+import { RATES } from "../rate-table";
 
 // Fixed clock. Sonnet 5's row is a function of the date, and a suite reading the
 // wall clock would pin a different number in September than in August.
@@ -224,18 +223,11 @@ describe("the tail a real Claude id carries is not mistaken for a version", () =
 
 describe("the guard is on every Claude row, not just the one the issue named", () => {
   it("carries the version lookahead in each `^claude` pattern", () => {
-    // Read out of the source rather than off the exported function, for the
-    // reason bedrock-model-ids.test.ts reads RATES the same way: a family added
+    // Read off each row of the table rather than off ratesForModel's answers,
+    // for the reason bedrock-model-ids.test.ts sweeps RATES: a family added
     // tomorrow without the guard has no id in the table above to fail on, so the
     // only thing that can catch it is the shape of the row itself.
-    const text = readFileSync(fileURLToPath(new URL("../rate-table.ts", import.meta.url)), "utf8");
-    const start = text.indexOf("const RATES");
-    const end = text.indexOf("\n];", start);
-    expect(start, "RATES declaration").toBeGreaterThan(-1);
-    expect(end, "end of RATES").toBeGreaterThan(start);
-
-    const claudeRows = [...text.slice(start, end).matchAll(/match:\s*(\/\^claude[^\n]*?\/i)\s*,/g)]
-      .map(m => m[1]);
+    const claudeRows = RATES.map(r => String(r.match)).filter(r => r.startsWith("/^claude"));
     expect(claudeRows.length, "Claude rows found in RATES").toBeGreaterThanOrEqual(9);
 
     const unguarded = claudeRows.filter(r => !r.includes(String.raw`(?![-_.]\d{1,7}(?!\d))`));

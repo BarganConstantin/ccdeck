@@ -25,8 +25,8 @@
 // half is the whole risk of the fix: thirty-odd rate rows, several of them
 // prefixes of each other and separated only by anchoring plus list order, all
 // of which now match against a string that has been rewritten before they see
-// it. Every rate is pinned as a literal, and the RATES table is read out of the
-// source so a row nobody thought to pin fails the sweep rather than passing it.
+// it. Every rate is pinned as a literal, and every row of the RATES table is
+// swept, so a row nobody thought to pin fails the sweep rather than passing it.
 //
 // Plain node — no DOM, no rendering. Every function here is pure except the
 // server's transcript reader, which gets a temp file.
@@ -38,6 +38,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { contextWindowForModel } from "../context-window";
 import { ratesForModel, type ModelRates } from "../pricing";
+import { RATES } from "../rate-table";
 import { bareModelId, VENDOR_PREFIX_RE } from "../model-id";
 import { shortModel } from "../model-label";
 import { applyEvent, initialState } from "../reducer";
@@ -164,23 +165,13 @@ describe("every rate the table already gave, unchanged", () => {
   });
 });
 
-/** The RATES block, sliced out of the source, and every `match:` literal in it
- *  rebuilt as a RegExp. Reading the table rather than importing it (it is not
- *  exported, and exporting it to be tested would be the tail wagging the dog)
- *  is what makes the sweep above a COVERAGE claim: a row added tomorrow with no
- *  pinned id fails here instead of quietly going unproven. */
+/** Every row's pattern, off the table ratesForModel walks. Sweeping the table
+ *  itself rather than a list of ids is what makes the sweep above a COVERAGE
+ *  claim: a row added tomorrow with no pinned id fails here instead of quietly
+ *  going unproven. The table used to be read out of pricing.ts's source,
+ *  because it was not exported; it is exported now, for pricing.ts. */
 function ratesRowPatterns(): RegExp[] {
-  const text = src("../rate-table.ts");
-  const start = text.indexOf("const RATES");
-  expect(start, "RATES declaration").toBeGreaterThan(-1);
-  const end = text.indexOf("\n];", start);
-  expect(end, "end of RATES").toBeGreaterThan(start);
-  const block = text.slice(start, end);
-  const out: RegExp[] = [];
-  for (const m of block.matchAll(/match:\s*\/((?:[^/\\\n]|\\.)+)\/([a-z]*)/g)) {
-    out.push(new RegExp(m[1], m[2]));
-  }
-  return out;
+  return RATES.map(r => r.match);
 }
 
 describe("the pinned table covers the whole rate table", () => {
