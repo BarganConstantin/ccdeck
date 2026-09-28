@@ -311,6 +311,8 @@ describe("the terminal row it becomes", () => {
 describe("the wiring, which is the half no pure function can hold", () => {
   const supervisor = read("bin", "agent-dag.js");
   const worker = read("bin", "deck.js");
+  // Where the worker works out which package it is and the name it was typed as.
+  const identity = read("bin", "cli", "package.js");
   const server = read("src", "server", "index.mjs");
   const app = read("src", "web", "App.tsx");
 
@@ -325,7 +327,8 @@ describe("the wiring, which is the half no pure function can hold", () => {
       .toMatch(/AGENTS_DECK_INVOKED_AS:\s*INVOKED_AS\s*\?\?\s*""/);
     // AGENTS_DECK_*, like every other variable the deck reads — display-name
     // .test.ts owns that boundary and this is the new one it applies to.
-    expect(worker).toContain("invokedName({ pkgRoot: PKG_ROOT })");
+    expect(identity).toContain("invokedName({ pkgRoot: PKG_ROOT })");
+    expect(worker).toMatch(/import \{[^}]*\bINVOKED_AS\b[^}]*\} from "\.\/cli\/package\.js";/);
     expect(cliSurface()).not.toContain("process.argv[1]");
   });
 

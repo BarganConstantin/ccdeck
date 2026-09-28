@@ -4,9 +4,9 @@
 // exits with RESTART_CODE. On a respawn (AGENTS_DECK_RESPAWN=1) everything that
 // was already done once this session is skipped — that is what makes a restart
 // take about a second instead of the better part of ten.
-import { resolve, dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
 import { dieOfSignal, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
 import {
@@ -15,7 +15,7 @@ import {
   elapsedSuffix, sinceLabel, unicodeOK, unregisteredDetail, visibleWidth, wordmark,
 } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
-import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
+import { renameNotice } from "../src/server/invoked-as.mjs";
 import { wayBackNote } from "../src/server/way-back.mjs";
 import { budget, bootDeadlineMs } from "../src/server/boot-deadline.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
@@ -26,19 +26,9 @@ import { deckRegistryDir, liveDecks, olderVersion, secondStart, versionNote } fr
 // The same kind of leaf — fs, path, crypto and deck-probe.mjs — for the same
 // reason: it is taken before anything else in the boot has run.
 import { takeBootLock } from "../src/server/boot-lock.mjs";
+// The package this worker belongs to and the name it was typed as — see there.
+import { INVOKED_AS, PKG_ROOT, PKG_VERSION, versionOnDisk } from "./cli/package.js";
 import { printHelp } from "./cli/help.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PKG_ROOT = resolve(__dirname, "..");
-const PKG_VERSION = (() => {
-  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? "0.0.0"; }
-  catch { return "0.0.0"; }
-})();
-
-// The command the user typed, handed down by the supervisor — our own argv[1]
-// is this file under every one of the three names. Null when it cannot be
-// proven, and null is the answer that prints nothing.
-const INVOKED_AS = invokedName({ pkgRoot: PKG_ROOT });
 
 const argv = process.argv.slice(2);
 const flags = parseArgs(argv);
@@ -1264,7 +1254,9 @@ function beginRestart(mode) {
       catch (err) { abandonUpgrade(err?.message ?? "the supervisor is no longer listening"); }
       return;
     }
-    const to = restartTarget();
+    // What a restart would land on. Read from disk now rather than remembered
+    // from boot, because the whole point is that the two differ.
+    const to = versionOnDisk();
     write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}restarting${to ? ` ${G.arrow} v${to}` : ""}${G.ellipsis}${P.reset}\n`);
     shutdown(RESTART_CODE);
   } catch (err) {
@@ -1336,13 +1328,6 @@ process.on("message", (m) => {
     abandonUpgrade(m.error);
   }
 });
-
-// What a restart would land on. Read from disk now rather than remembered from
-// boot, because the whole point is that the two differ.
-function restartTarget() {
-  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? null; }
-  catch { return null; }
-}
 
 // The three things `shutdown` has to tear down, named before the boot that
 // fills them in rather than by it. From the line below onwards this process is
