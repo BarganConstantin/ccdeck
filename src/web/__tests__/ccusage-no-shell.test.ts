@@ -85,7 +85,10 @@ process.env.PATH = FAKE_HOME;
 delete process.env.AGENTS_DECK_CCUSAGE;
 
 // @ts-expect-error — .mjs server module, no types
-const { fallbackSpec, fetchCcusageDaily } = await import("../../server/ccusage.mjs");
+const { fetchCcusageDaily } = await import("../../server/ccusage.mjs");
+// The npx command line moved to ccusage-runner.mjs with the run it starts.
+// @ts-expect-error — .mjs server module, no types
+const { fallbackSpec } = await import("../../server/ccusage-runner.mjs");
 
 const PKG_DIR = join(FAKE_HOME, ".agents-deck", "ccusage", "node_modules", "ccusage");
 
