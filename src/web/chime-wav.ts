@@ -14,7 +14,7 @@
 // time cannot see it. Scaled up from the page's peak, which is set for a
 // speaker already carrying other audio; a notification is heard at the
 // system's alert volume beside other alert sounds.
-import { DEFAULT_FIGURE_ID, DEFAULT_LEVEL, figureFor, peakFor } from "./sound";
+import { DEFAULT_FIGURE_ID, DEFAULT_LEVEL, ENVELOPE_ATTACK_S, ENVELOPE_FLOOR, figureFor, peakFor } from "./sound";
 import type { Chime } from "./sound";
 
 /** How far above the page's own peak the file is written. The page's loudest
@@ -28,12 +28,13 @@ function oscillator(type: string | undefined, phase: number): number {
   return Math.sin(2 * Math.PI * p);
 }
 
-/** The envelope sound.ts builds with exponentialRampToValueAtTime. */
+/** The envelope sound.ts builds with exponentialRampToValueAtTime, from the
+ *  same two constants. */
 function envelope(t: number, t0: number, t1: number, peak: number): number {
-  const floor = 0.0001;
-  const attackEnd = t0 + 0.012;
+  const floor = ENVELOPE_FLOOR;
+  const attackEnd = t0 + ENVELOPE_ATTACK_S;
   if (t < t0) return 0;
-  if (t < attackEnd) return floor * Math.pow(peak / floor, (t - t0) / 0.012);
+  if (t < attackEnd) return floor * Math.pow(peak / floor, (t - t0) / ENVELOPE_ATTACK_S);
   if (t <= t1) return peak * Math.pow(floor / peak, (t - attackEnd) / Math.max(t1 - attackEnd, 1e-6));
   return 0;
 }
