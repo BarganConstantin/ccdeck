@@ -52,6 +52,17 @@ function modulesUnder(dir: string): string[] {
   });
 }
 
+/** A path from the walk, relative to src/web and with forward slashes. join()
+ *  spells `components/Detail.tsx` with a backslash on Windows, so every name
+ *  this file compares a path against goes through here first. */
+const rel = (path: string) => path.slice(web.length).replace(/\\/g, "/");
+
+/** Whether the walk reached the module `name` — by its name or by its path
+ *  under src/web, matched on whole path segments the way landmark-outline.test.ts
+ *  matches them (#1556), so `Detail.tsx` is not also `ToolDetail.tsx`. */
+const walked = (files: string[], name: string) =>
+  files.some(p => rel(p) === name || rel(p).endsWith(`/${name}`));
+
 /** WCAG 1.4.3 for the words, 1.4.11 for a graphic that carries meaning. */
 const BODY = 4.5;
 const NON_TEXT = 3;
@@ -532,13 +543,13 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     const files = modulesUnder(web);
     expect(files.length, "the walk found nothing — src/web moved").toBeGreaterThan(12);
     for (const path of files) {
-      expect(readFileSync(path, "utf8"), `${path.slice(web.length)} composes a colour`)
+      expect(readFileSync(path, "utf8"), `${rel(path)} composes a colour`)
         .not.toMatch(/hsl\(/);
     }
     // The four the audit named are still among them, so the walk cannot quietly
     // stop reaching the files this rule was written about.
     for (const name of Object.keys(COMPONENTS)) {
-      expect(files.some(p => p.endsWith(name)), `${name} is no longer in the walk`).toBe(true);
+      expect(walked(files, name), `${name} is no longer in the walk`).toBe(true);
     }
   });
 
