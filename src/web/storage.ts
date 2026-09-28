@@ -40,6 +40,21 @@ export function readStored(key: string): string | null {
   try { return window.localStorage.getItem(key); } catch { return null; }
 }
 
+/**
+ * The tab's store itself, or null where there is not one to have: outside a
+ * browser, or on a profile whose `window.localStorage` accessor throws.
+ *
+ * For the callers that hand a store to a function taking one, so the rules can
+ * be driven with a fake — the release notes' seen markers. Those functions
+ * guard their own `getItem` and `setItem`; what they cannot guard is the
+ * accessor, because it is read by the CALLER, as the argument, before any try
+ * of theirs has begun. Read here, it is inside one.
+ */
+export function localStore(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try { return window.localStorage; } catch { return null; }
+}
+
 type Storeish = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /**

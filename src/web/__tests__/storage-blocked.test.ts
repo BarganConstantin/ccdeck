@@ -8,7 +8,7 @@
 // screen naming the cause. These pin that an unreadable store reads as "not
 // stored" so the caller keeps its default and the deck still mounts.
 import { describe, it, expect, afterEach } from "vitest";
-import { readStored } from "../storage";
+import { localStore, readStored } from "../storage";
 
 const glob = globalThis as unknown as Record<string, unknown>;
 
@@ -71,5 +71,28 @@ describe("readStored", () => {
     const stored = readStored("agent-dag.usagePanelOpen");
     expect(stored === null ? true : stored === "1").toBe(true);
     expect((readStored("agent-dag.theme") as "dark" | "light" | null) ?? "dark").toBe("dark");
+  });
+});
+
+describe("localStore", () => {
+  // The accessor itself, for a caller that hands the store on: the release
+  // notes' seen markers take a store so their rules run against a fake. Read
+  // as an argument, `window.localStorage` is evaluated before the callee's own
+  // try has begun, so the refusal has to be caught here, where it is read.
+  it("hands back the store the tab has", () => {
+    const s = store({ "agent-dag.tourSeen": "1" });
+    browser({ value: s });
+    expect(localStore()).toBe(s);
+  });
+
+  it("is null, not a throw, under a localStorage getter that refuses", () => {
+    browser({ get: refuse });
+    expect(() => localStore()).not.toThrow();
+    expect(localStore()).toBeNull();
+  });
+
+  it("is null with no window at all", () => {
+    delete glob.window;
+    expect(localStore()).toBeNull();
   });
 });
