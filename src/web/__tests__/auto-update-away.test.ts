@@ -262,14 +262,16 @@ describe("the switch", () => {
 });
 
 describe("the wiring", () => {
-  // The route table, pushEvent and startServer are index.mjs's; the tick, its
-  // timer and the routes it shares a hand-off with are lifecycle.mjs's.
+  // The route table and startServer are index.mjs's, pushEvent is
+  // event-pipeline.mjs's; the tick, its timer and the routes it shares a
+  // hand-off with are lifecycle.mjs's.
   const index = src("../../server/index.mjs");
+  const pipeline = src("../../server/event-pipeline.mjs");
   const lifecycle = src("../../server/lifecycle.mjs");
   const app = src("../App.tsx");
 
   it("learns about turns from every live event and never from a replay", () => {
-    expect(index).toContain("if (!opts.replay) activity.note(raw, evt.receivedAt);");
+    expect(pipeline).toContain("if (!opts.replay) activity.note(raw, evt.receivedAt);");
   });
 
   it("takes presence on a route only the deck's own page can post to", () => {

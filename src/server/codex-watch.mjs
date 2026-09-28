@@ -26,7 +26,7 @@ import { readLiveDecks } from "./live-decks.mjs";
 // The bounded chunk reads the Claude transcripts use — see transcript-scan.mjs.
 import { readAppendedLines, readByteRange } from "./transcript-scan.mjs";
 import { maybeResolveCodexMemory } from "./session-enrichment.mjs";
-// index.mjs's pushEvent, reached without importing index.mjs — see
+// event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
 
@@ -598,14 +598,15 @@ async function codexScanOnce(firstRun) {
           //
           // NOT because the reducer would refuse to listen. It used to say so
           // here — "the reducer only honours `synthetic` on the call that
-          // CREATES the node" — and that is false: `reducer.ts` clears
-          // `root.synthetic` on EVERY `SessionStart`, deliberately, so that one
-          // arriving after the event that created the root retracts a marker
-          // the deck no longer deserves to be wearing (#677). Which makes the
-          // marker exactly as honest as the emitter above it, and is why the
-          // rule this branch states — do not emit a `SessionStart` for a
-          // beginning this process did not watch — is the whole guarantee
-          // rather than a belt beside a brace (#981).
+          // CREATES the node" — and that is false: `applySessionStart`, in
+          // src/web/session-lifecycle.ts, clears `root.synthetic` on EVERY
+          // `SessionStart`, deliberately, so that one arriving after the event
+          // that created the root retracts a marker the deck no longer
+          // deserves to be wearing (#677). Which makes the marker exactly as
+          // honest as the emitter above it, and is why the rule this branch
+          // states — do not emit a `SessionStart` for a beginning this process
+          // did not watch — is the whole guarantee rather than a belt beside a
+          // brace (#981).
           state.offset = st.size;
           state.sawBeginning = false;
           continue;

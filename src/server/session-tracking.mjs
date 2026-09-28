@@ -15,7 +15,7 @@ import { readBody, send } from "./http-io.mjs";
 import { createOutputWatch } from "./output-watch.mjs";
 import { forgetEnrichment, onRecapTail } from "./session-enrichment.mjs";
 import { forgetCodexSession } from "./codex-watch.mjs";
-// index.mjs's pushEvent, reached without importing index.mjs — see
+// event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
 

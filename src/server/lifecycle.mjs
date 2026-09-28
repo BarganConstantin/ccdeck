@@ -314,9 +314,10 @@ async function handleStop(req, res) {
 
 // The two facts the away-update waits on (awayUpdateTick): whether a turn is
 // running, fed from pushEvent, and whether a tab is being looked at, fed from
-// POST /api/presence. pushEvent is index.mjs's and can run before that module
-// has finished evaluating, which is why these sat at the top of it; made here,
-// they exist before index.mjs's own body runs at all.
+// POST /api/presence. They sat at the top of index.mjs while pushEvent was
+// that file's, because pushEvent can run before the module holding it has
+// finished evaluating; made here, they exist before event-pipeline.mjs's own
+// body runs at all.
 const activity = createActivity();
 const presence = createPresence();
 
