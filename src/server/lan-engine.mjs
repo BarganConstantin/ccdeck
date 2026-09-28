@@ -50,6 +50,7 @@ import { createTurns } from "./lan-turns.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
+import { anotherMachine, createInbound } from "./lan-inbound.mjs";
 import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { createManifests } from "./lan-manifest.mjs";
 import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
@@ -126,23 +127,9 @@ export function localAddresses(faces = networkInterfaces()) {
   return out;
 }
 
-/**
- * Did this connection come from a DIFFERENT computer?
- *
- * The question behind "can other decks reach this one": a socket accepted from
- * loopback, or from one of this machine's own addresses, is the second deck on
- * this computer talking to the first — which happens on every developer machine
- * and proves nothing at all about the network. Both spellings of loopback are
- * named because both arrive: `127.0.0.1` from a deck that dialled an address
- * and `::1` from one that dialled a name.
- *
- * Pure and separate from the engine so the case that matters — a connection
- * from somewhere else — can be tested without a second machine.
- */
-export const anotherMachine = (from, mine = []) => {
-  const at = String(from ?? "").replace(/^::ffff:/, "").trim();
-  return !!at && at !== "127.0.0.1" && at !== "::1" && !mine.includes(at);
-};
+/** Did this connection come from a different computer — see lan-inbound.mjs,
+ *  where the record it decides is kept. */
+export { anotherMachine };
 
 /**
  * Whether an account this round just placed is ticked for sharing here (#1188).
@@ -353,57 +340,14 @@ export function createEngine({
    * reach one peer is that peer's row, not the deck's.
    */
   let stalled = null;
-  /**
-   * When each paired deck last SPOKE TO THIS ONE, keyed by fingerprint.
-   *
-   * The panel had no evidence at all about a deck it does not dial. A deck that
-   * calls in has no beacon row here (if it had one it would be dialled), never
-   * appears in `lastRound`, and its `lastSeen` was therefore undefined forever
-   * — so the row was drawn as live on the strength of being paired, and a
-   * Windows deck that had been closed for an hour still read `ready`. Reported
-   * from a screenshot of exactly that.
-   *
-   * Every authenticated frame lands in `serve`, which is the one place that
-   * knows a paired deck is on the other end of an open socket right now. That
-   * is the evidence, and it is the same kind the beacon gives: a timestamp.
-   */
-  const spokeAt = new Map();
-  /** And the address it spoke FROM, so a deck that only ever calls in can
-   *  still be said to come over the tailnet or the local network — it has no
-   *  address of its own here, and without this its row could not say which. */
-  const spokeFrom = new Map();
+  /** Who has called this deck — when each paired deck last spoke and from
+   *  where, when another machine last got through, and since when the
+   *  listener has been up — see lan-inbound.mjs. */
+  const inbound = createInbound({ now, localAddresses });
   /** The addresses this deck dials that the beacon did not hand it, and what
    *  answered at each — see lan-dials.mjs, where every row says whether a
    *  person named it, which is the whole of roundWith's trust rule. */
   const dials = createDials();
-  /**
-   * When a connection from ANOTHER MACHINE last arrived on the sync listener.
-   *
-   * The one fact that settles "can other decks reach this one", and the only
-   * one on the whole question that is measured rather than reasoned about: a
-   * firewall's configuration is read through three different tools on three
-   * platforms, one of which (`ufw`) refuses to show its rules to a process
-   * that is not root. An accepted socket needs none of that — the packets got
-   * in, whatever any rule file says.
-   *
-   * ANOTHER MACHINE, checked here and not in the socket: a connection from
-   * loopback or from one of this machine's own addresses is the second deck on
-   * this computer, which proves nothing about the network. The socket does not
-   * hold that list; this does.
-   */
-  let inboundAt = null;
-
-  /** When this deck's listener came up, or null while it is down.
-   *
-   *  THE OTHER HALF OF `inboundAt`. On its own, "nothing has ever connected in"
-   *  says nothing: a deck that started four seconds ago has the same null as one
-   *  that has been listening all afternoon while the network talked around it.
-   *  What makes the silence evidence is how long it has gone on for, and that is
-   *  a number only the engine holds. See silentInbound in lan-reach.mjs, which
-   *  is the one verdict in this feature that works on a platform nothing can be
-   *  asked about. */
-  let listeningSince = null;
-
   /** Whether this deck can hear other decks announce, who is holding the
    *  discovery port while it cannot, and the sentence the panel says about
    *  it — see lan-hearing.mjs. */
@@ -529,9 +473,7 @@ export function createEngine({
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
     if (ctx?.peerFp) {
-      spokeAt.set(ctx.peerFp, now());
-      const from = ctx.peerAddr || String(ctx.sock?.remoteAddress ?? "").replace(/^::ffff:/, "");
-      if (from) spokeFrom.set(ctx.peerFp, from);
+      inbound.spoke(ctx);
       learnCaller(ctx);
     }
     try {
@@ -1055,9 +997,9 @@ export function createEngine({
         // What it is to be "here" for a deck nothing dials: it called,
         // and this is when. Undefined until it has, which is a row the
         // panel draws as unknown rather than as live.
-        lastSeen: spokeAt.get(t.fp),
+        lastSeen: inbound.spokeAt(t.fp),
         // Which way it called, once it has.
-        ...(spokeFrom.has(t.fp) ? { via: viaAt(spokeFrom.get(t.fp)) } : {}),
+        ...(inbound.spokeFrom(t.fp) ? { via: viaAt(inbound.spokeFrom(t.fp)) } : {}),
         // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
         // of those it is on. The card was kept and never handed over, so
         // the dialog said "it runs an older version" about a deck that
@@ -1098,10 +1040,10 @@ export function createEngine({
       const startingServer = createSyncServer({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
         name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames, ephemeral,
-        // See inboundAt. Every connection passes here, including one that goes
-        // on to fail the handshake — a stranger who cannot prove anything has
-        // still proved the path.
-        onInbound: from => { if (anotherMachine(from, localAddresses())) inboundAt = now(); },
+        // See inboundAt in lan-inbound.mjs. Every connection passes here,
+        // including one that goes on to fail the handshake — a stranger who
+        // cannot prove anything has still proved the path.
+        onInbound: inbound.arrived,
         trusted: () => cfg.trusted,
         invite: offer.live,
         onInviteUsed: inviteUsed,
@@ -1135,7 +1077,7 @@ export function createEngine({
       stalled = null;
       // From here the socket is accepting, so this is the moment the silence
       // starts being about the network rather than about a deck still starting.
-      listeningSince = now();
+      inbound.listening();
       if (port !== cfg.port) onPort?.(port);
       const startingBeacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
@@ -1431,10 +1373,11 @@ export function createEngine({
         port: server?.port() ?? null,
         // When another machine last got a connection through to this one. Null
         // on a deck nobody has dialled yet, which is not the same as blocked
-        // and is drawn as neither — see inboundAt and lan-reach.mjs.
-        inboundAt,
-        // How long that null has been true for — see listeningSince.
-        listeningSince,
+        // and is drawn as neither — see inboundAt in lan-inbound.mjs and
+        // lan-reach.mjs.
+        inboundAt: inbound.inboundAt(),
+        // How long that null has been true for — see listeningSince there.
+        listeningSince: inbound.listeningSince(),
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
         // The token this deck is offering, if any. Drawn as the one thing to do
@@ -1473,7 +1416,7 @@ export function createEngine({
       server = null;
       // Nothing is listening, so nothing is being silent AT anybody. Leaving
       // this set would have the next start measure its quiet from the last one.
-      listeningSince = null;
+      inbound.closed();
     },
   };
 }
