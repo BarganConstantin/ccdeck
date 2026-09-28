@@ -9,11 +9,12 @@
 // loads, so moving the routes here puts no import on the path to a listening
 // socket and takes none out of the pin.
 //
-// Four things are exported beyond the handlers, because index.mjs reaches for
-// them: cswapAdminModule and cswapAutoModule, which startServer uses to wire
-// the stale-copy repair and to start auto-switch; getProjectRollup, which it
-// starts at boot; and CHECKS_IMPORTS, because a LAN round checks the imports it
-// lands the same way the paste box does.
+// Four things are exported beyond the handlers. Three because index.mjs reaches
+// for them: cswapAdminModule and cswapAutoModule, which startServer uses to
+// wire the stale-copy repair and to start auto-switch, and getProjectRollup,
+// which it starts at boot. The fourth is CHECKS_IMPORTS, which lan-deck.mjs
+// reads because a LAN round checks the imports it lands the same way the paste
+// box does.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readBody, send } from "./http-io.mjs";

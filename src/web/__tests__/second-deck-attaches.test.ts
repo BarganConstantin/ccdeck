@@ -428,10 +428,11 @@ describe("what a launcher that only asks never does", () => {
   const code = (name: string) => readFileSync(fileURLToPath(new URL(`../../server/${name}`, import.meta.url)), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
   const index = code("index.mjs");
-  // The read at import is prefs-state.mjs's, which holds what it returns. The
-  // negative and the count read both files, since either could grow the call.
+  // The read at import is prefs-state.mjs's, which holds what it returns, and
+  // applyLanPrefs is lan-deck.mjs's. The negative and the count read all three
+  // files, since any of them could grow the call.
   const held = code("prefs-state.mjs");
-  const both = `${index}\n${held}`;
+  const both = `${index}\n${held}\n${code("lan-deck.mjs")}`;
 
   it("does not start LAN sync from the import, only from a listen that succeeded", () => {
     // Reported from a terminal, the day 3.21.0 shipped: `npx ccdeck` beside a

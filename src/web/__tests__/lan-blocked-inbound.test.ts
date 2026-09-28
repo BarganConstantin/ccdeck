@@ -407,6 +407,8 @@ const PANEL = strip(read("../components/LanSyncSection.tsx"));
 const LIST = strip(read("../components/LanDeckList.tsx"));
 const ADD = strip(read("../components/LanAddDeckModal.tsx"));
 const SERVER = strip(read("../../server/index.mjs"));
+/** The engine, its callbacks and the reach probe, which moved out of index.mjs. */
+const LAN = strip(read("../../server/lan-deck.mjs"));
 
 describe("the finding is drawn where the switch is", () => {
   it("hangs under the switch, and only while the section is on", () => {
@@ -444,7 +446,7 @@ describe("the finding is drawn where the switch is", () => {
 
 describe("the press is answered by a measurement, not by a cache", () => {
   it("forgets the held verdict when somebody switches the section on", () => {
-    expect(SERVER).toMatch(/function forgetReach\(\) \{ reachAt = 0; \}/);
+    expect(LAN).toMatch(/function forgetReach\(\) \{ reachAt = 0; \}/);
     expect(SERVER).toMatch(/if \(body\.lan\?\.enabled === true\) forgetReach\(\);/);
   });
 
@@ -452,7 +454,7 @@ describe("the press is answered by a measurement, not by a cache", () => {
     // linuxFixSteps offers the TCP line only when there is a port to name, so a
     // verdict taken before the listener had one is half an answer — and without
     // this it would be the pinned one for the next five minutes.
-    const onPort = /onPort: async port => \{([\s\S]*?)\n  \},/.exec(SERVER)?.[1] ?? "";
+    const onPort = /onPort: async port => \{([\s\S]*?)\n  \},/.exec(LAN)?.[1] ?? "";
     expect(onPort, "onPort was not found in the server source").not.toBe("");
     expect(onPort).toMatch(/forgetReach\(\)/);
   });

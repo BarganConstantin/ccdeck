@@ -1596,9 +1596,11 @@ describe("a heal that healed nothing", () => {
   // refresh-token-dead, and is "never triggered by the live store's
   // `no credentials` state". So `login expired` heals over the network and
   // `no stored login` does not.
-  const src = readFileSync(
-    fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8",
-  );
+  // The engine's callbacks moved from index.mjs to lan-deck.mjs. Both are read,
+  // so the negatives below still cover the file the route used to live in.
+  const src = ["index.mjs", "lan-deck.mjs"]
+    .map(f => readFileSync(fileURLToPath(new URL(`../../server/${f}`, import.meta.url)), "utf8"))
+    .join("\n");
   const admin = readFileSync(
     fileURLToPath(new URL("../../server/cswap-admin.mjs", import.meta.url)), "utf8",
   );

@@ -430,7 +430,7 @@ export async function updatePrefs(mutate, home = deckDataDir(), deps = {}) {
  * The two `mutate`s the three callers above hand updatePrefs, named so that the
  * callers and prefs-update-1041.test.ts run the same function. The suite used to
  * carry its own copy of each closure and test the copy (#1168), which stays
- * green however the one in index.mjs is edited.
+ * green however the one the server runs is edited.
  */
 
 /** `lan.manual` with `entry` on the end, or no change when it is there already.
