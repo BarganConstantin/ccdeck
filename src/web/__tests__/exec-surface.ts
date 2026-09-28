@@ -25,6 +25,7 @@ export const EXEC_FILES = [
   "exec.mjs",
   "exec-not-found.mjs",
   "exec-children.mjs",
+  "exec-spec.mjs",
 ] as const;
 
 let joined: string | null = null;
