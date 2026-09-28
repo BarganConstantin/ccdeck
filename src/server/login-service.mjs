@@ -456,8 +456,9 @@ export function installService({
  * ASKED, NOT INFERRED FROM THE REFUSAL. schtasks exits 1 for a missing task and
  * for a permission it does not have, and the two are told apart only by an
  * English sentence that is not English on a localised Windows — the same trap
- * `looksMissing` in exec.mjs documents. So the task is queried first, which is
- * one extra call and an answer that does not depend on the machine's language.
+ * `looksMissing` in exec-not-found.mjs documents. So the task is queried first,
+ * which is one extra call and an answer that does not depend on the machine's
+ * language.
  */
 export function uninstallService({
   platform = process.platform,

@@ -157,11 +157,18 @@ describe("the modules that exist so that others need not import each other", () 
     // because the next dependency added here is the one that would put it back
     // in a cycle, and it would look reasonable at the time.
     expect(relativeDeps(read("store-lock.mjs"))).toEqual([]);
-    // claude-identity.mjs runs a subprocess, so it needs two modules — both of
-    // which are leaves themselves, which is the property that matters.
+    // claude-identity.mjs runs a subprocess, so it needs two modules. One is a
+    // leaf. The other, exec.mjs, now imports the pieces lifted out of it — and
+    // every one of those is a leaf, which is still the property that matters: a
+    // cycle needs a way back, and nothing under the oracle has one. Each level
+    // is listed exactly, so the next dependency added anywhere under it is seen
+    // here rather than in a boot step that silently did nothing.
     const identity = relativeDeps(read("claude-identity.mjs"));
     expect(identity).toEqual(["claude-dir.mjs", "exec.mjs"]);
-    for (const leaf of identity) {
+    expect(relativeDeps(read("claude-dir.mjs")), "claude-dir.mjs is no longer a leaf").toEqual([]);
+    const exec = relativeDeps(read("exec.mjs"));
+    expect(exec).toEqual(["exec-not-found.mjs"]);
+    for (const leaf of exec) {
       expect(relativeDeps(read(leaf)), `${leaf} is no longer a leaf`).toEqual([]);
     }
   });
