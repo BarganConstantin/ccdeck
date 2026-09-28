@@ -26,12 +26,16 @@ import { GUARDED_READS, HOOK_TOKEN, OPEN_MUTATIONS, isAuthorizedDataRead, isAuth
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
 // The ring itself — what it holds, how it numbers them, and the eviction that
 // keeps those bounds — private behind its operations. See event-ring.mjs.
-import { SEQ_EPOCH, admitEvent, clearEventBuffer, eventsSince, lastSeq, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
+import { SEQ_EPOCH, clearEventBuffer, eventsSince, lastSeq, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
+// The one door every event comes through, and what it does to each on the way
+// in — see event-pipeline.mjs. It connects itself to event-sink.mjs as it
+// loads, which is how the modules it imports reach it.
+import { pushEvent } from "./event-pipeline.mjs";
 // The SSE subscribers — pages and the desktop app's tray connections — and the
 // backpressure every frame to them is written under. See sse-clients.mjs.
-import { dropSse, notifyTrays, pageCount, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
+import { dropSse, pageCount, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
 // Exported from this file before they moved, and still.
 export { MAX_CLIENT_BUFFER_BYTES, queuedBytes } from "./sse-clients.mjs";
 // The built page and its assets, with the SPA fallback for everything else —
@@ -40,15 +44,12 @@ import { serveStatic } from "./static-serve.mjs";
 // Which sessions the deck still keeps anything for — the LRU cap, the
 // transcript watch between hook events, and POST /api/forget. See
 // session-tracking.mjs.
-import { handleForget, outputWatch, startOutputWatch, touchSession } from "./session-tracking.mjs";
+import { handleForget, outputWatch, startOutputWatch } from "./session-tracking.mjs";
 // Exported from this file before it moved, and still.
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
 // and the window's answers relayed back to it. See desktop-update-routes.mjs.
 import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
-// The deck's own token, taken back out of every event before the ring, the
-// SSE fan-out or the log can hold it — see token-redact.mjs.
-import { redactDeckToken } from "./token-redact.mjs";
 // The one spelling of `--workspace`, and of a rollout's cwd — see
 // canonical-path.mjs. Both were exported from this file before they moved,
 // and still are.
@@ -58,9 +59,9 @@ import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 // Moved to claude-dir.mjs so the Projects rollup can read transcript folders
 // without importing this file; re-exported under the name it always had.
 export { ccProjectSlug };
-// The Codex half of capture: a session's rollout, found by id for its usage,
-// and the rollouts directory tailed for its events — see codex-watch.mjs.
-import { maybeResolveCodex, startCodexWatcher } from "./codex-watch.mjs";
+// The Codex half of capture: the rollouts directory tailed for its events —
+// see codex-watch.mjs.
+import { startCodexWatcher } from "./codex-watch.mjs";
 // Exported from this file before they moved, and still.
 export { readCodexRollout, sidFromRolloutName, startCodexWatcher } from "./codex-watch.mjs";
 // Re-exported because bin/deck.js prints this path in the boot banner, and it
@@ -73,13 +74,13 @@ export { CODEX_SESSIONS_DIR } from "./codex-dir.mjs";
 // The events.jsonl this deck keeps: where it is, which sessions this deck
 // writes to it, who shares it, when it rolls over and whether it is being
 // written at all — see event-log.mjs.
-import { eventLogPath, logSharing, logWritableNow, maybeRotatePersistFile, noteLogWriter, openEventLog, writesLogFor } from "./event-log.mjs";
+import { eventLogPath, logSharing, logWritableNow, noteLogWriter, openEventLog } from "./event-log.mjs";
 // Exported from this file before they moved, and still.
 export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // What the deck learns about a session that its hooks never say — model,
 // spend, name, recap, context — read off the transcript and sent back through
-// pushEvent. See session-enrichment.mjs.
-import { clearEnrichmentGates, knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
+// pushEvent. Clear drops the gates on its emits. See session-enrichment.mjs.
+import { clearEnrichmentGates } from "./session-enrichment.mjs";
 // The readers it exported from this file before they moved, and still.
 export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, scanAgentsMdFiles, scanClaudeMdFiles, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
 // What a starting deck reads back out of its log, and which of those events
@@ -87,29 +88,22 @@ export { cachedModelId, readContextFromTranscript, readModelFromTranscript, read
 // before they moved, and still are.
 import { replayLog } from "./log-replay.mjs";
 export { replayLog, replayScope } from "./log-replay.mjs";
-// How the enrichment reaches pushEvent without importing this file — see
-// event-sink.mjs. Connected below, as this module loads.
-import { connectEventSink } from "./event-sink.mjs";
 import { PRODUCT } from "./brand.mjs";
-import { createBlockNotifier } from "./block-notify.mjs";
-// The gate pushEvent asks before a transcript path is followed — see
-// transcript-scan.mjs.
-import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-scan.mjs";
 // Exported from this file before they moved, and still: the tests that pin
 // them import them by this file's name.
 export { MAX_SCAN_CHUNK, foldSessionNamingLine, isClaudeTranscriptPath, readAppendedLines, transcriptSessionKey } from "./transcript-scan.mjs";
 // How this process is replaced or ended — the version, upgrade, restart,
 // stop and presence routes, the restart latch, and the away-update that
 // presses Upgrade or Restart by itself — see lifecycle.mjs. startServer arms
-// it, the route table calls into it and pushEvent feeds its `activity`.
-import { activity, armLifecycle, handlePresence, handleRestart, handleStop, handleUpgrade, handleVersion, startAwayUpdate } from "./lifecycle.mjs";
+// it, the route table calls into it and pushEvent (event-pipeline.mjs) feeds
+// its `activity`.
+import { armLifecycle, handlePresence, handleRestart, handleStop, handleUpgrade, handleVersion, startAwayUpdate } from "./lifecycle.mjs";
 // The launcher's two calls into the latch, exported from this file before
 // they moved, and still: bin/deck.js imports them by this file's name.
 export { markDeckReady, releaseRestart } from "./lifecycle.mjs";
-import { notificationsOn } from "./deck-prefs.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
-import { heldPrefs, prefsRead } from "./prefs-state.mjs";
+import { prefsRead } from "./prefs-state.mjs";
 // This deck's LAN engine, what the settings may tell it, and the probe that
 // asks whether other decks can reach it — see lan-deck.mjs. startServer hands
 // it the prefs at boot; the settings route does after every write.
@@ -118,9 +112,8 @@ import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
-import { notify as osNotify } from "./browser-react.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
-import { appendFailureStats, appendLogLine, emptyLog } from "./log-writer.mjs";
+import { appendFailureStats, emptyLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers — see http-io.mjs.
 import { OVERSIZE_DRAIN_MS, send } from "./http-io.mjs";
@@ -142,198 +135,6 @@ export { pinRunningBuild } from "./pinned-build.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
-
-// The modules that emit synthetic events send them here. pushEvent is a
-// function declaration, so it already exists as this line runs, and nothing
-// emits until a request or a timer startServer arms asks it to.
-connectEventSink(pushEvent);
-
-/**
- * The desktop notifier, built once per process.
- *
- * `enabled` is read here and not per event, so a switch cannot change under a
- * running server and let two events in the same second disagree about it. The
- * OS call is browser-react.mjs's — the same one Browser Watch has shipped on
- * all three platforms — so this is a second caller, not a second
- * implementation, and the platform quirks it already handles (argv rather than
- * interpolation on macOS, the WinRT toast on Windows, a missing notify-send on
- * Linux) are handled once.
- *
- * A failure goes to stderr and no further. The user cannot act on "your desktop
- * has no notification daemon" mid-session, the deck is not broken by it, and
- * every in-page surface still says everything it said before.
- */
-const blockNotifier = createBlockNotifier({
-  // The desktop app, while it is connected, raises the notification itself —
-  // under its own name, icon and permission, with a click that opens its
-  // window. Only when no app is listening does the OS helper speak.
-  notify: (title, body, meta) => (trayClients.size > 0 ? notifyTrays(title, body, meta) : osNotify(title, body)),
-  product: PRODUCT,
-  // A function, not a boolean: this is a switch a person flips from the sound
-  // menu while the deck is running, and a mute that waited for a restart would
-  // not be a mute. The env var still wins inside `notificationsOn`.
-  enabled: () => notificationsOn(heldPrefs.current()),
-  onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
-});
-
-function pushEvent(raw, source, opts = {}) {
-  // First, before anything below can see it: the deck's own credential does not
-  // belong in a store that is served without one. Every entry point to the
-  // buffer, the SSE fan-out and events.jsonl passes through here, so this is
-  // the single line that keeps it out of all three. See redactDeckToken.
-  raw = redactDeckToken(raw);
-
-  // Synchronous enrichment: if we already know this session's model, stamp
-  // it on the payload so the client's recursive scanner picks it up.
-  if (raw && typeof raw === "object" && raw.session_id && !raw.model) {
-    const modelId = knownModelId(raw.session_id);
-    if (modelId) raw.model = modelId;
-  }
-
-  // Numbered, charged, held, and the ring evicted behind it — see admitEvent.
-  const evt = admitEvent(raw, source, opts.receivedAt ?? Date.now());
-  const seq = evt.seq;
-
-  // Does this event reach the log at all? Not on a replay (it came from
-  // there), not when the hook told us another deck owns this session's log,
-  // and not when we have no log. Decided before serializing because it is half
-  // of the answer to whether serializing is worth doing.
-  const persisting = eventLogPath() && !opts.replay && opts.persist !== false && writesLogFor(raw);
-
-  // One serialization, shared by both consumers — and skipped entirely when
-  // neither wants it. This used to stringify the whole envelope twice on the
-  // hottest path in the process (once for the SSE frame, once for the persist
-  // line), and built the frame even with nobody subscribed: a headless deck
-  // paid a full stringify per event for a string no one read, and boot replay
-  // — which runs before the listener exists and never broadcasts — paid one
-  // for every line of a log that rotates at 50MB. An event this deck is not
-  // logging is still broadcast, so a subscriber alone is reason enough.
-  //
-  // Contained, because this line was fatal. `JSON.stringify` walks a value
-  // recursively while `JSON.parse` does not, and the gap between the two is
-  // enormous: measured on Node 22.14, parse accepts a body nested 4,194,303
-  // deep and stringify gives up on the result at 4,021. So a payload in that
-  // window parses cleanly and then throws `RangeError: Maximum call stack size
-  // exceeded` out of here — and there is no promise on this path for the
-  // route's `guard` to catch, because pushEvent is reached from inside a raw
-  // `req.on("end")` listener. It was an uncaughtException, and Node's answer to
-  // those is to exit. Measured against the real server: one POST of 24,378
-  // bytes, nested 4,050 deep, to the credential-free `/api/event` — a
-  // two-hundredth of the 5,000,000-character ingest cap — and the deck was
-  // gone, with nothing on the socket to tell the poster why.
-  //
-  // The payload leaves the ring, not just this string, and that is the point.
-  // admitEvent above already took the envelope, and a value nothing can
-  // serialize is a value no reader can ever deliver: every `Last-Event-ID`
-  // resume that replays it and every `GET /api/events` that writes it would
-  // meet the same throw for as long as it stayed in the buffer, so one small
-  // POST would poison both routes for the life of the entry. The envelope
-  // therefore keeps its `seq` and loses its payload — the same replacement
-  // envelopeJson makes for a reader, made once at the write instead of on every
-  // read, and the same bargain about `seq`: a caller paging with `?since=`
-  // walks past the hole rather than asking forever for what it cannot be given.
-  //
-  // Admitted as a stub rather than refused at ingest with a 400, deliberately.
-  // Three of pushEvent's four callers have no HTTP peer to answer — Codex
-  // rollout lines read off disk, the boot replay of events.jsonl, the synthetic
-  // events the transcript scanners emit — so the containment has to live here
-  // whatever the ingest route does, and a 400 on top would be a second
-  // mechanism for a case this one already covers. It would also have to be paid
-  // for: knowing a payload will not serialize means serializing it, which is
-  // the second stringify per event on the hottest path in the process that the
-  // paragraph above exists to have removed. The reason goes to stderr and not
-  // to the wire, under the rule sendInternalError explains.
-  let json = null;
-  if (sseClients.size > 0 || persisting) {
-    try {
-      json = JSON.stringify(evt);
-    } catch (err) {
-      console.error(`${PRODUCT}: event ${seq} could not be serialized:`, err);
-      evt.payload = null;
-      evt.unserializable = true;
-      json = JSON.stringify(evt);
-    }
-  }
-
-  if (sseClients.size > 0) {
-    const line = `id: ${seq}\nevent: hook\ndata: ${json}\n\n`;
-    // writeSse may drop a client mid-loop; deleting from a Set while iterating
-    // it is well defined and skips only the entry removed.
-    for (const res of sseClients) writeSse(res, line);
-  }
-
-  // The desktop, when there is no page to tell.
-  //
-  // Placed here rather than in a route handler because every path that can
-  // produce a permission prompt comes through pushEvent — the hook POST, a
-  // replay, and the transcript scanners — and `sseClients.size` read at this
-  // exact point is the honest answer to "is anybody being shown this by any
-  // other means". The web notifier owns the case where a page exists, and this
-  // owns the case where none does; the two never both fire, and neither has to
-  // know the other exists. block-notify.mjs holds the gates and the cooldown.
-  blockNotifier.consider(raw, { clients: pageCount(), replay: !!opts.replay });
-
-  // Whether a turn is running, for the away-update. Not from a replay: the log
-  // is history, and a turn it shows open is one that ended in another process.
-  if (!opts.replay) activity.note(raw, evt.receivedAt);
-
-  if (persisting) {
-    // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line
-    // has to reach the file as one write — this used to be `appendFile`, which
-    // splits anything over 512 KiB into separate appends and let another
-    // event land in the middle of a large tool response. See appendLogLine.
-    //
-    // Note this runs AFTER redactDeckToken above, as every path to the log
-    // does: the string being written is the one serialization of the event the
-    // SSE frame also used, and the token was taken out of the payload before
-    // either existed.
-    const line = json + "\n";
-    appendLogLine(eventLogPath(), line);
-    // Throttled check — every 30s, or every fifth of the threshold written,
-    // whichever comes first. The byte arm is what keeps the 50 MB cap from
-    // being advisory at any real ingest rate; see maybeRotatePersistFile.
-    maybeRotatePersistFile(Buffer.byteLength(line));
-  }
-
-  // Note the session so the caches the scanners below fill can expire by
-  // least-recent use. Replays are excluded: they fill nothing, and a boot
-  // replay of a log spanning weeks would otherwise churn the whole LRU through
-  // dead session ids before the first live event even arrives.
-  if (!opts.replay && raw && typeof raw === "object") touchSession(raw.session_id);
-
-  // Kick off async transcript scans. Model and usage are both re-read
-  // periodically (throttled to 2.5s per session) so the cost columns track
-  // running totals as the session progresses and late subagent models still
-  // land; ModelObserved is only emitted when the resolved set changes. Both
-  // result in synthetic events.
-  // Provider gates the path: Claude reads transcript_path; Codex reads its
-  // rollout JSONL under ~/.codex/sessions/. The Claude scanners short-circuit
-  // when transcript_path is absent (always the case for Codex hooks).
-  if (source === "hook" && !opts.replay) {
-    if (raw && raw.provider === "codex") {
-      maybeResolveCodex(raw);
-    } else if (!raw?.transcript_path || isClaudeTranscriptPath(raw.transcript_path)) {
-      // The gate is here, once, rather than repeated in the four scanners
-      // below it: this is the single door a caller-chosen path comes through,
-      // and all four read the same field off the same payload. A payload with
-      // no transcript_path at all still goes through — every one of them
-      // early-returns without it, and Codex hooks never send one — so the
-      // ordinary event costs nothing but the absent-field test.
-      maybeResolveModel(raw);
-      maybeResolveUsage(raw);
-      maybeResolveContext(raw);
-      maybeResolveSessionName(raw);
-      // Where the transcript IS, learned from the one place it is free. The
-      // four scanners above read it on this event; the watch reads it between
-      // events, which is the whole of what it adds.
-      if (raw?.transcript_path) outputWatch.note(raw.session_id, raw.transcript_path);
-    } else {
-      noteRefusedTranscript(raw.transcript_path);
-    }
-  }
-
-  return evt;
-}
 
 /**
  * Serialize one envelope, or a stub standing in for it.

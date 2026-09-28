@@ -12,7 +12,7 @@ import { PRODUCT } from "./brand.mjs";
 import { codexCwdInWorkspace } from "./log-writer.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
 import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, payloadChars } from "./ring-bounds.mjs";
-// index.mjs's pushEvent, reached without importing index.mjs — see
+// event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
 

@@ -19,7 +19,7 @@ import { RECAP_MARK } from "./session-recap.mjs";
 // The shared transcript cursor every pass below reads through — see
 // transcript-scan.mjs.
 import { mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-scan.mjs";
-// index.mjs's pushEvent, reached without importing index.mjs — see
+// event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
 
