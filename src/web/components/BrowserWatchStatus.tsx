@@ -18,16 +18,16 @@ import type { WatchSettings, WatchSnapshot } from "../browser-watch-model";
 function modeState(
   snap: { settings: { enabled: boolean } },
   saving: boolean,
-): { kind: "saving" | "off" | "on"; word: string; detail: string } {
-  if (saving) return { kind: "saving", word: "Saving", detail: "" };
+): { kind: "saving" | "off" | "on"; word: string } {
+  if (saving) return { kind: "saving", word: "Saving" };
   // ONE QUESTION, ONE ANSWER. This carried an episode count as well — "Watching
   // · nothing captured yet" — and the two ideas fought: a reader with visible
   // browser activity in the feed below was being told nothing had been
   // captured, which is true of episodes and reads as false of the panel.
   // Persistence belongs to the footer, which says it in the same noun the
   // Episodes tab uses. This line says whether the watch is running.
-  if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "nothing new is recorded" };
-  return { kind: "on", word: "Watching", detail: "" };
+  if (!snap.settings.enabled) return { kind: "off", word: "Paused" };
+  return { kind: "on", word: "Watching" };
 }
 
 export default function BrowserWatchStatus({
