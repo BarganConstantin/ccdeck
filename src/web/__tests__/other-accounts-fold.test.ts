@@ -19,6 +19,10 @@ import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
+/** What the fold is drawn from — the peers, the strain, whether anything is
+ *  armed — lifted out of the panel into pure functions; account-fold.test.ts
+ *  runs them. */
+const accountFold = read("../account-fold.ts");
 const fold = read("../components/OtherAccounts.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -137,7 +141,8 @@ describe("what the row says once something else is doing the switching", () => {
   it("is armed by a terminal loop too, not only by the deck's own toggle", () => {
     // `cswap auto` in a terminal does the switching while the deck stands down,
     // so the toggle can read off while something is very much switching.
-    expect(panel).toMatch(/const autoArmed = auto\?\.ok === true && \(auto\.enabled \|\| auto\.external\);/);
+    expect(accountFold).toMatch(/return auto\?\.ok === true && \(auto\.enabled \|\| auto\.external\);/);
+    expect(panel).toMatch(/const autoArmed = isAutoArmed\(auto\);/);
     expect(panel).toMatch(/armed=\{autoArmed\}/);
   });
 
@@ -290,15 +295,17 @@ describe("what the column folds, and when it does not", () => {
   it("builds a peer from the same two refusals the row withholds its own Switch for", () => {
     // The count and the button cannot be allowed to disagree about who can be
     // reached: the row offers `Switch` when `!a.disabled && !issue?.blocksSwitch`.
-    expect(panel).toMatch(/ready: !a\.disabled && !issue\?\.blocksSwitch,/);
+    expect(accountFold).toMatch(/ready: !a\.disabled && !issue\?\.blocksSwitch,/);
+    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec\);/);
     expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to
     // another. lane-open.ts holds that rule for the rows; this reuses it.
-    expect(panel).toMatch(/key: laneKey\(a\),/);
+    expect(accountFold).toMatch(/key: laneKey\(a\),/);
   });
 
   it("reads the live account's strain off the field the peers already carry", () => {
-    expect(panel).toMatch(/const strained = activeAcct\?\.headroom != null && Number\.isFinite\(trip\)\s*\n\s*&& 100 - activeAcct\.headroom >= trip;/);
+    expect(accountFold).toMatch(/return activeAcct\?\.headroom != null && Number\.isFinite\(trip\)\s*\n\s*&& 100 - activeAcct\.headroom >= trip;/);
+    expect(panel).toMatch(/const strained = pastThreshold\(activeAcct, threshold\);/);
   });
 
   it("carries the panel's inset itself, because it stands in the scroll and not in the foot", () => {
