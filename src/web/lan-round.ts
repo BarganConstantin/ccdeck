@@ -182,7 +182,7 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   // failure on the other machine is a second thing to fix; a line that showed
   // only the first sent somebody to fix one, retry, and meet the next. The
   // names go BEFORE the clock, because the list cuts everything after the
-  // first " · " — see deckRows.
+  // first " · " — see roundWords in lan-roster.ts.
   const said = done.map(d => ({ d, why: roundWhy(d) })).filter(x => x.why);
   const names = [...new Set(said.map(x => x.why!.short))];
   const what = names.length ? `, ${names.join(", ")}` : "";

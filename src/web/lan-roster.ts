@@ -272,6 +272,10 @@ function presenceLabel(p: Peer, here: boolean, now: number): string {
  * and never by liveness — sorting the paired decks by whether they answered
  * last made a row change position between two five-second polls on a lost
  * beacon, in a list somebody is scanning for one machine.
+ *
+ * What each kind of row SAYS is its own function's, below this one — askingRow,
+ * diallingRow, pairedRow, nearbyRow, declinedRow. This decides who is on the
+ * list, once each, and in what order.
  */
 export function deckRows(
   s: {
@@ -286,26 +290,12 @@ export function deckRows(
   const rows: DeckRow[] = [];
   const seen = new Set<string>();
   const byName = (a: DeckRow, b: DeckRow) => a.name.localeCompare(b.name, undefined, { numeric: true });
-  // WHAT SOMEBODY HERE CALLS IT, when they have said. Keyed by fingerprint, so
-  // it follows the machine rather than the name the machine gives itself — and
-  // that name is kept as `self`, for the one surface that says both. Sorting
-  // and the duplicate check below both read the name that is drawn.
   const aliases = s.aliases ?? {};
-  const named = (fp: string | null | undefined, own: string): { name: string; self?: string } => {
-    const given = fp ? aliases[fp] : undefined;
-    return given && given !== own ? { name: given, self: own } : { name: own };
-  };
 
   for (const p of s.pending ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
-    const n = named(p.fp, p.name || p.fp);
-    rows.push({
-      fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
-      kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
-      hint: `${n.name} at ${p.addr}${p.via === "tailscale" ? ", over Tailscale," : ""} is waiting for an answer.`,
-      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
-    });
+    rows.push(askingRow(p, aliases, now));
   }
 
   const paired: DeckRow[] = [];
@@ -314,83 +304,13 @@ export function deckRows(
     const fp = p.peerFp ?? p.fp;
     if (!fp || seen.has(fp)) continue;
     seen.add(fp);
-    const line = roundLabel(p.last, now);
-    const here = isOnline(p, now);
-    const where = p.addr ? `${p.addr}:${p.port}` : "";
     // AN ADDRESS THAT HAS NEVER ANSWERED IS NOT A PAIRED DECK. It wore the
     // paired row and the paired verb, and `unpair` on it named a fingerprint
     // built out of the address — which matches nothing this deck ever met, so
     // the one control on the row answered `could not unpair that deck`. One
     // typo made a row that failed every minute and could not be removed.
-    if (!p.paired && p.manual && !p.met) {
-      dialling.push({
-        fp: where, name: where || p.name || fp, addr: p.addr ?? "",
-        kind: "dialling",
-        // No presence clause: the row IS "an address nothing has answered at",
-        // so saying it twice is the panel repeating itself.
-        state: line ? line.text.replace(/ · .*$/, "") : "trying…",
-        tone: line ? line.tone : "idle",
-        here: false,
-        hint: p.last?.error
-          ? `Nothing has answered at ${where} yet — ${p.last.error}.`
-          : `Dialling ${where} until something answers.`,
-        ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
-      });
-      continue;
-    }
-    // The one-way case, said out loud. A deck this one holds no address for
-    // heals ITSELF from here and can never heal this one, because a round only
-    // ever pulls — see roundWith. "reaches us" was true, cheerful, and hid the
-    // half that matters to somebody whose own login has expired.
-    const called = p.waiting ? callsIn(p.lastSeen, now) : null;
-    const present = called ? called.here : here;
-    // Presence first, then whatever the last round has to add — and the round's
-    // own clock is dropped when the row is online, because `online` already
-    // dates it and two timestamps in 190px is one too many.
-    const said = !called && line
-      ? (present ? `online · ${line.text.replace(/ · .*$/, "")}` : `${line.text.replace(/ · .*$/, "")} · ${presenceLabel(p, present, now)}`)
-      : called ? called.text
-      : presenceLabel(p, present, now);
-    // A deck that has been reached and is waiting on a PERSON is neither fine
-    // nor broken, and painting it as a fault made three healthy machines read
-    // as a network problem. The tone follows what a reader can do about it:
-    // nothing here, something over there.
-    const answered = p.last?.error ? WIRE_ANSWERS[p.last.error] : null;
-    // THE STEADY STATE IS SILENCE. Every healthy row said `online · all logins
-    // fine` — the same twenty-four characters under every name, in a list whose
-    // whole job is to make the odd row findable. The dot already says online and
-    // says it in a shape as well as a colour; what is left is a round that found
-    // nothing to do, which is the state a reader learns by there being nothing
-    // to read. A round that MOVED something still says so, and so does every
-    // failure, every wait and every machine that is not there.
-    const quiet = !called && present && !p.last?.error && !(p.last?.done ?? []).length;
-    // An address nothing has answered at has no identity to hang a name on.
-    const n = p.manual && !p.met ? { name: where } : named(fp, p.name || fp);
-    paired.push({
-      fp,
-      name: n.name,
-      ...(n.self ? { self: n.self } : {}),
-      addr: p.addr ?? "",
-      kind: "paired",
-      state: said,
-      quiet,
-      tone: answered ? (answered.tone === "bad" ? "bad" : "wait")
-        : line ? line.tone
-        : present ? "ok" : "idle",
-      // NOT "paired, therefore here". Being paired says what happened once; it
-      // says nothing about whether that machine is switched on now, and drawing
-      // it live on that evidence is the panel inventing a fact.
-      here: called ? called.here : here,
-      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
-      hint: called
-        ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
-            p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
-          } Add its address with the + at the top of this section to reach it either way.`
-        // The whole sentence, verbatim, including the address and the code the
-        // row is too narrow to carry. This is where somebody looks when the
-        // short form is not enough.
-        : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
-    });
+    if (!p.paired && p.manual && !p.met) dialling.push(diallingRow(p, fp, now));
+    else paired.push(pairedRow(p, fp, aliases, now));
   }
   rows.push(...oneRowPerMachine(paired).sort(byName), ...dialling.sort(byName));
 
@@ -398,17 +318,7 @@ export function deckRows(
   for (const p of s.strangers ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
-    const n = named(p.fp, p.name || p.fp);
-    nearby.push({
-      fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
-      // Under invite-only the row says what it takes, since "not paired yet"
-      // over a row with no ask on it reads as a machine that cannot be paired.
-      kind: "nearby", state: s.pairingMode === "invite" ? "needs an invite" : "not paired yet", tone: "idle", here: true,
-      hint: p.via === "tailscale"
-        ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
-        : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
-      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
-    });
+    nearby.push(nearbyRow(p, aliases, s.pairingMode));
   }
   rows.push(...nearby.sort(byName));
 
@@ -416,12 +326,7 @@ export function deckRows(
   for (const p of s.declined ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
-    const n = named(p.fp, p.name || p.fp);
-    declined.push({
-      fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
-      kind: "declined", state: "you said no", tone: "idle", here: false,
-      hint: `${n.name} asked and was turned away. It is not asking any more.`,
-    });
+    declined.push(declinedRow(p, aliases));
   }
   rows.push(...declined.sort(byName));
 
@@ -441,6 +346,149 @@ export function deckRows(
   }
 
   return rows;
+}
+
+/** A deck asking to pair: somebody waiting on an answer from this keyboard. */
+function askingRow(p: LanStranger, aliases: Record<string, string>, now: number): DeckRow {
+  const n = named(aliases, p.fp, p.name || p.fp);
+  return {
+    fp: p.fp, ...n, addr: p.addr ?? "",
+    kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
+    hint: `${n.name} at ${p.addr}${p.via === "tailscale" ? ", over Tailscale," : ""} is waiting for an answer.`,
+    ...tailnet(p.via),
+  };
+}
+
+/** An address somebody typed that nothing has answered at yet. */
+function diallingRow(p: Peer, fp: string, now: number): DeckRow {
+  const line = roundLabel(p.last, now);
+  const where = p.addr ? `${p.addr}:${p.port}` : "";
+  return {
+    fp: where, name: where || p.name || fp, addr: p.addr ?? "",
+    kind: "dialling",
+    // No presence clause: the row IS "an address nothing has answered at",
+    // so saying it twice is the panel repeating itself.
+    state: line ? roundWords(line) : "trying…",
+    tone: line ? line.tone : "idle",
+    here: false,
+    hint: p.last?.error
+      ? `Nothing has answered at ${where} yet — ${p.last.error}.`
+      : `Dialling ${where} until something answers.`,
+    ...tailnet(p.via),
+  };
+}
+
+/** A deck somebody here paired with, or an address that has answered: whether
+ *  it is there, and what the last round with it did. */
+function pairedRow(p: Peer, fp: string, aliases: Record<string, string>, now: number): DeckRow {
+  const line = roundLabel(p.last, now);
+  const here = isOnline(p, now);
+  const where = p.addr ? `${p.addr}:${p.port}` : "";
+  // The one-way case, said out loud. A deck this one holds no address for
+  // heals ITSELF from here and can never heal this one, because a round only
+  // ever pulls — see roundWith. "reaches us" was true, cheerful, and hid the
+  // half that matters to somebody whose own login has expired.
+  const called = p.waiting ? callsIn(p.lastSeen, now) : null;
+  const present = called ? called.here : here;
+  // Presence first, then whatever the last round has to add — and the round's
+  // own clock is dropped when the row is online, because `online` already
+  // dates it and two timestamps in 190px is one too many.
+  const said = !called && line
+    ? (present ? `online · ${roundWords(line)}` : `${roundWords(line)} · ${presenceLabel(p, present, now)}`)
+    : called ? called.text
+    : presenceLabel(p, present, now);
+  // A deck that has been reached and is waiting on a PERSON is neither fine
+  // nor broken, and painting it as a fault made three healthy machines read
+  // as a network problem. The tone follows what a reader can do about it:
+  // nothing here, something over there.
+  const answered = p.last?.error ? WIRE_ANSWERS[p.last.error] : null;
+  // THE STEADY STATE IS SILENCE. Every healthy row said `online · all logins
+  // fine` — the same twenty-four characters under every name, in a list whose
+  // whole job is to make the odd row findable. The dot already says online and
+  // says it in a shape as well as a colour; what is left is a round that found
+  // nothing to do, which is the state a reader learns by there being nothing
+  // to read. A round that MOVED something still says so, and so does every
+  // failure, every wait and every machine that is not there.
+  const quiet = !called && present && !p.last?.error && !(p.last?.done ?? []).length;
+  // An address nothing has answered at has no identity to hang a name on.
+  const n = p.manual && !p.met ? { name: where } : named(aliases, fp, p.name || fp);
+  return {
+    fp,
+    ...n,
+    addr: p.addr ?? "",
+    kind: "paired",
+    state: said,
+    quiet,
+    tone: answered ? (answered.tone === "bad" ? "bad" : "wait")
+      : line ? line.tone
+      : present ? "ok" : "idle",
+    // NOT "paired, therefore here". Being paired says what happened once; it
+    // says nothing about whether that machine is switched on now, and drawing
+    // it live on that evidence is the panel inventing a fact.
+    here: called ? called.here : here,
+    ...tailnet(p.via),
+    hint: called
+      ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
+          p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
+        } Add its address with the + at the top of this section to reach it either way.`
+      // The whole sentence, verbatim, including the address and the code the
+      // row is too narrow to carry. This is where somebody looks when the
+      // short form is not enough.
+      : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
+  };
+}
+
+/** A machine on the network that nobody here has paired with. */
+function nearbyRow(p: LanStranger, aliases: Record<string, string>, pairingMode: "automatic" | "invite" | undefined): DeckRow {
+  const n = named(aliases, p.fp, p.name || p.fp);
+  return {
+    fp: p.fp, ...n, addr: p.addr ?? "",
+    // Under invite-only the row says what it takes, since "not paired yet"
+    // over a row with no ask on it reads as a machine that cannot be paired.
+    kind: "nearby", state: pairingMode === "invite" ? "needs an invite" : "not paired yet", tone: "idle", here: true,
+    hint: p.via === "tailscale"
+      ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
+      : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
+    ...tailnet(p.via),
+  };
+}
+
+/** A deck that asked and was told no. */
+function declinedRow(p: LanStranger, aliases: Record<string, string>): DeckRow {
+  const n = named(aliases, p.fp, p.name || p.fp);
+  return {
+    fp: p.fp, ...n, addr: p.addr ?? "",
+    kind: "declined", state: "you said no", tone: "idle", here: false,
+    hint: `${n.name} asked and was turned away. It is not asking any more.`,
+  };
+}
+
+/**
+ * WHAT SOMEBODY HERE CALLS IT, when they have said. Keyed by fingerprint, so
+ * it follows the machine rather than the name the machine gives itself — and
+ * that name is kept as `self`, for the one surface that says both. Sorting and
+ * the duplicate check in deckRows both read the name that is drawn.
+ *
+ * Spread whole into a row: `self` is there only when somebody gave the deck
+ * another name, so a row carries the key exactly when it has something to say.
+ */
+function named(aliases: Record<string, string>, fp: string | null | undefined, own: string): { name: string; self?: string } {
+  const given = fp ? aliases[fp] : undefined;
+  return given && given !== own ? { name: given, self: own } : { name: own };
+}
+
+/** `via` for a row, spread into it: present only for a deck reached over this
+ *  person's tailnet, because absent means the local network — see LanRoute. */
+function tailnet(via: LanRoute | undefined): { via?: "tailscale" } {
+  return via === "tailscale" ? { via: "tailscale" } : {};
+}
+
+/** What a round did, without the clock roundLabel puts after it. A row has
+ *  190px and says when in its own words — `online`, or `last online 12m ago` —
+ *  so it keeps only what comes before the first ` · `, which is why roundLabel
+ *  names every problem before its clock. */
+function roundWords(line: RoundLine): string {
+  return line.text.replace(/ · .*$/, "");
 }
 
 /**
