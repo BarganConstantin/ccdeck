@@ -79,7 +79,10 @@ describe("dismissedSummaries — a Set App.tsx wrote on every recap close and no
   const app = src(WEB, "App.tsx");
 
   it("is gone, with its helpers and its storage key", () => {
-    expect(app).not.toMatch(/\bdismissedSummaries\b|DismissedSummaries|SUMMARY_DISMISSED_KEY|agent-dag\.summariesDismissed/);
+    // The recap's open state is use-dialogs.ts's now, which App.tsx calls, so
+    // the negative reads both.
+    expect(app + "\n" + src(WEB, "use-dialogs.ts"))
+      .not.toMatch(/\bdismissedSummaries\b|DismissedSummaries|SUMMARY_DISMISSED_KEY|agent-dag\.summariesDismissed/);
   });
 
   it("and the recap still opens from the detail panel and still closes", () => {

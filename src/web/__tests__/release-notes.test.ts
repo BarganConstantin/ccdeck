@@ -814,8 +814,10 @@ describe("how App.tsx wires it up", () => {
   // (the pure rules) would be asking the wrong file. The slices taken by indexOf
   // land in the hook's half, where the decision effect is.
   // The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
+  // So is use-dialogs.ts, which hands the notes and the tour to the modal gate.
   const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts") + "\n" + src("../components/EmptyHero.tsx")
-    + "\n" + src("../components/VersionChip.tsx") + "\n" + src("../components/VersionBanner.tsx");
+    + "\n" + src("../components/VersionChip.tsx") + "\n" + src("../components/VersionBanner.tsx")
+    + "\n" + src("../use-dialogs.ts");
   const modal = src("../components/ReleaseNotesModal.tsx");
 
   it("decides from the version the SERVER is running, not the bundle's", () => {
@@ -862,9 +864,10 @@ describe("how App.tsx wires it up", () => {
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
     // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's;
-    // App.tsx hands it the notes.
+    // use-dialogs.ts hands it the notes, which App.tsx hands use-dialogs.ts.
     expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
-    expect(app).toMatch(/useModalGate\(\{[^}]*\breleaseNotes\b/);
+    expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\breleaseNotes\b/);
+    expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\breleaseNotes\b/);
   });
 
   it("opens the browse route with nothing marked seen, so it shows everything", () => {
@@ -927,9 +930,11 @@ describe("how App.tsx wires it up", () => {
     expect(app).toMatch(/const held = notesAfterTour\.current;\s*notesAfterTour\.current = null;\s*if \(held\) setReleaseNotes\(held\);/);
     // And the tour is a dialog like the rest: the canvas shortcuts are gated
     // while it is up, and the empty canvas is the way back to it. The gate is
-    // use-modal-gate.ts's; App.tsx hands it the tour's flag.
+    // use-modal-gate.ts's; use-dialogs.ts hands it the tour's flag, which
+    // App.tsx hands use-dialogs.ts.
     expect(src("../use-modal-gate.ts")).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
-    expect(app).toMatch(/useModalGate\(\{[^}]*\btourOpen\b/);
+    expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\btourOpen\b/);
+    expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\btourOpen\b/);
     expect(app).toMatch(/<GuideModal title="What the deck shows you" steps=\{WELCOME_STEPS\}/);
     expect(app).toMatch(/className="btn empty-tour" onClick=\{onTour\}/);
   });

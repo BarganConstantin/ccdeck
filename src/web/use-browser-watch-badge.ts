@@ -1,8 +1,8 @@
 // The Browser Watch badge on the topbar: what it counts, the slow poll behind it,
 // and the moment the reader last looked.
 //
-// Lifted out of App.tsx's `Inner`. The dialog's open state stays there, because
-// which modal is showing is the component's business; this is only the number on
+// Lifted out of App.tsx's `Inner`. The dialog's open state is not here, because
+// which modal is showing is use-dialogs.ts's business; this is only the number on
 // the eye and what it takes to keep that number honest.
 //
 // `markWatchSeen` replaces two lines the dialog's handler in App.tsx used to run

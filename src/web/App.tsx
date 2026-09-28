@@ -63,7 +63,7 @@ import { useLeftColumn } from "./use-left-column";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
 import { useMirroredRef } from "./use-mirrored-ref";
-import { useModalGate } from "./use-modal-gate";
+import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
@@ -82,14 +82,13 @@ import { blockedSessions } from "./ambient-counts";
 const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
-import { findToolOnBoard, initialState } from "./reducer";
+import { initialState } from "./reducer";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { updateRestartFailureText } from "./desktop-update";
 import { createChimePlayer } from "./chime-player";
-import type { ToolCall } from "./types";
 
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
@@ -174,22 +173,6 @@ function Inner() {
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
-  // Which call the tool modal shows: its agent and its id, since an id alone
-  // can name two sessions' calls (#1483).
-  const [openedToolKey, setOpenedToolKey] = useState<{ agentId: string; toolId: string } | null>(null);
-  const openTool = useCallback((agentId: string, toolId: string) => setOpenedToolKey({ agentId, toolId }), []);
-  /** Session ID for which we're showing the end-of-session recap modal,
-   *  or null when no modal is open. Opened from the detail panel's
-   *  `Show recap` on a finished session. */
-  const [summaryFor, setSummaryFor] = useState<string | null>(null);
-  /** Session id whose context-breakdown modal is open, or null. Driven by
-   *  clicking the donut on the session's root node. */
-  const [contextFor, setContextFor] = useState<string | null>(null);
-  const openContext = useCallback((sid: string) => setContextFor(sid), []);
-  /** Whether the shortcuts sheet is up. Deliberately not persisted: it is a
-   *  reference someone reaches for and closes again, and a deck that reopened
-   *  it on every refresh would be answering a question nobody asked twice. */
-  const [keyHelpOpen, setKeyHelpOpen] = useState(false);
   // The left column: the session list and the accounts panel share one slot,
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
@@ -299,9 +282,13 @@ function Inner() {
   const upgrade = useDeckUpgrade({ version, loadVersion });
   const { upgradeFailure } = upgrade;
 
-  // ccusage history modal — transient (not persisted), opened from the toolbar.
-  const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
-  const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
+  // The six dialogs the reader opens — the tool, context and recap modals, the
+  // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
+  // the gate the keys ask before reaching past one: use-dialogs.ts.
+  const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
+  const { setOpenedToolKey, openTool, openedTool, summaryFor, setSummaryFor, setContextFor, openContext,
+          contextAgent, keyHelpOpen, setKeyHelpOpen, usageHistoryOpen, setUsageHistoryOpen,
+          browserWatchOpen, setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
   // the reader last looked — lives in use-browser-watch-badge.ts.
   const { watchOn, setWatchOn, watchUnseen, markWatchSeen } = useBrowserWatchBadge();
@@ -474,22 +461,6 @@ function Inner() {
   // `selected` is declared with the rail measurement further up this file,
   // which needs to know whether the detail panel is mounted.
 
-  // The tool the modal is showing, found without building a list of the ones it
-  // is not (#997). In the render body and not skippable — the modal gate below
-  // reads `openedTool != null` — so while the modal is open this runs on every
-  // render, four times a second on an idle deck. What it must not do on that
-  // tick is why the walk lives in the reducer; see findToolOnBoard.
-  const openedTool: ToolCall | null =
-    openedToolKey ? findToolOnBoard(stateRef.current.agents, openedToolKey.agentId, openedToolKey.toolId) : null;
-  // The agent the context modal is about, while it is still on the board: once
-  // it is evicted the modal draws nothing, and the tick closes it (#781).
-  const contextAgent = contextFor ? stateRef.current.agents.get(contextFor) : undefined;
-
-  // Whether a dialog is up that the keys must not reach past, and whether it
-  // is the shortcuts sheet — use-modal-gate.ts.
-  const { keyHelpOpenRef, modalOpenRef } = useModalGate({
-    openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
-  });
   // Clear, the confirmation it waits on, and the one door to it — use-clear-flow.ts.
   const { clearConfirmOpen, setClearConfirmOpen, requestClear } = useClearFlow({
     stateRef, pinnedRef, measuredRef, positionsRef, lastLayoutSigRef, forgetRemovals, clearSelection, rerender, modalOpenRef,

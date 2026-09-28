@@ -249,10 +249,13 @@ describe("how App.tsx wires it up", () => {
 
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
-    // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's;
-    // App.tsx hands it the flag.
+    // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's,
+    // and use-dialogs.ts, which holds the flag and which App.tsx calls, hands
+    // it over.
     expect(src("../use-modal-gate.ts")).toMatch(/\|\| browserWatchOpen \|\| keyHelpOpen/);
-    expect(app).toMatch(/useModalGate\(\{[^}]*\bbrowserWatchOpen\b/);
+    expect(src("../use-dialogs.ts")).toMatch(/const \[browserWatchOpen, setBrowserWatchOpen\] = useState\(false\);/);
+    expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\bbrowserWatchOpen\b/);
+    expect(src("../App.tsx")).toMatch(/useDialogs\(\{/);
   });
 });
 

@@ -62,6 +62,8 @@ import { findToolOnBoard } from "../reducer";
 import type { AgentNodeData, ToolCall } from "../types";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The dialogs' state and what the open ones resolve to, which App.tsx calls. */
+const dialogs = readFileSync(fileURLToPath(new URL("../use-dialogs.ts", import.meta.url)), "utf8");
 
 /** A board of `n` agents with `toolsEach` calls apiece, shaped like the reducer
  *  builds them: only the fields the lookup reads are filled in. */
@@ -146,9 +148,12 @@ describe("the open tool is found without building a list of the ones it is not",
   it("is what App.tsx uses, with no flat copy left on the render path", () => {
     // The shape half. `openedTool` is computed in the render body and cannot be
     // gated on anything — `modalOpenRef` reads it on the next line — so the only
-    // place the cost can be removed is the lookup itself.
-    expect(app).toMatch(/openedToolKey \? findToolOnBoard\(stateRef\.current\.agents, openedToolKey\.agentId, openedToolKey\.toolId\) : null;/);
-    expect(app).not.toMatch(/\.flatMap\(a => a\.tools\)/);
+    // place the cost can be removed is the lookup itself. Two links: the lookup
+    // is use-dialogs.ts's, and App.tsx calls that hook in its render with the
+    // board. The negative reads both.
+    expect(dialogs).toMatch(/openedToolKey \? findToolOnBoard\(stateRef\.current\.agents, openedToolKey\.agentId, openedToolKey\.toolId\) : null;/);
+    expect(app).toMatch(/useDialogs\(\{[^}]*\bstateRef\b/);
+    expect(app + "\n" + dialogs).not.toMatch(/\.flatMap\(a => a\.tools\)/);
   });
 });
 

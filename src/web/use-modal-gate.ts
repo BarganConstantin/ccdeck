@@ -2,12 +2,13 @@
 // the Clear flow must not reach past — and, separately, whether that dialog is
 // the shortcuts sheet, which still answers the `?` that opened it.
 //
-// Moved out of App.tsx unchanged. Both are refs assigned during render, the
-// way App's nodesRef is: the keydown listener (use-deck-shortcuts.ts) is
-// registered once and must stay that way, so it reads what is on screen through
-// them rather than closing over it, and a keystroke in the same commit sees the
-// dialogs that were just drawn. requestClear (use-clear-flow.ts) asks the same
-// gate.
+// Moved out of App.tsx unchanged; use-dialogs.ts calls it now, with the six
+// flags it holds and the two use-welcome-and-notes.ts owns. Both are refs
+// assigned during render, the way App's nodesRef is: the keydown listener
+// (use-deck-shortcuts.ts) is registered once and must stay that way, so it reads
+// what is on screen through them rather than closing over it, and a keystroke in
+// the same commit sees the dialogs that were just drawn. requestClear
+// (use-clear-flow.ts) asks the same gate.
 import { useRef } from "react";
 import type { ToolCall } from "./types";
 import { useMirroredRef } from "./use-mirrored-ref";
