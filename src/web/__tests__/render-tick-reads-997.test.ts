@@ -146,8 +146,11 @@ describe("the open tool is found without building a list of the ones it is not",
 });
 
 describe("the rail inset is measured when something can have moved it", () => {
+  /** The effect moved to use-layout-frame.ts with railCover itself; fitLeft,
+   *  the other caller, stayed in App.tsx. */
+  const frame = readFileSync(fileURLToPath(new URL("../use-layout-frame.ts", import.meta.url)), "utf8");
   /** The effect body plus its dependency array, as source text. */
-  const railEffect = /const cover = railCover\(canvasRef\.current\);[\s\S]{0,200}?\}, \[([^\]]*)\]\);/.exec(app);
+  const railEffect = /const cover = railCover\(canvasRef\.current\);[\s\S]{0,200}?\}, \[([^\]]*)\]\);/.exec(frame);
 
   it("has a dependency array at all, which is the whole of #997's first half", () => {
     // Before: `});` — no array, so React re-ran it after every commit. On an
@@ -191,6 +194,7 @@ describe("the rail inset is measured when something can have moved it", () => {
     // not per tick — and the effect above. A third call added to the render body
     // would reintroduce the document-wide query this removed, under another
     // name, and nothing else in the file would notice.
-    expect([...app.matchAll(/\brailCover\(/g)].length).toBe(3);
+    // Counted across both files, which between them are the whole of it.
+    expect([...(app + "\n" + frame).matchAll(/\brailCover\(/g)].length).toBe(3);
   });
 });
