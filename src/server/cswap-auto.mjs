@@ -125,11 +125,8 @@ export async function setCswapConfig(key, value) {
   // process — sixty `cswap auto --once` spawns an hour instead of one, against
   // the shared per-account request budget this subsystem exists to protect.
   // Lowering it was equally inert.
-  if (r.ok && key === "autoswitch.intervalSeconds" && _enabled) {
-    stopLoop();
-    // startLoop records the ask when one is already in flight, so this can no
-    // longer be swallowed by the boot's own start — see the note there (#791).
-    await startLoop();
+  if (r.ok && key === "autoswitch.intervalSeconds" && loopEnabled()) {
+    await restartLoop();
   }
   return r.ok ? { ok: true } : { ok: false, reason: "set_failed", detail: failureDetail(r, 300) };
 }
@@ -406,6 +403,28 @@ function stopLoop() {
   if (_timer) { clearInterval(_timer); _timer = null; }
 }
 
+/** Put a new interval into effect: the timer goes, and a fresh read of the
+ *  interval installs the next one. */
+function restartLoop() {
+  stopLoop();
+  // startLoop records the ask when one is already in flight, so this can no
+  // longer be swallowed by the boot's own start — see the note there (#791).
+  return startLoop();
+}
+
+/** Whether the user has the loop switched on — the setting, which a new
+ *  interval and the status route both ask about, rather than whether a timer is
+ *  installed right now. */
+function loopEnabled() {
+  return _enabled;
+}
+
+/** What the most recent tick did, as /api/cswap-auto reports it; null before
+ *  the first. */
+function lastTick() {
+  return _lastTick;
+}
+
 /** Turn the deck-managed loop on or off, persisting the choice. */
 export async function setAutoEnabled(enabled) {
   _enabled = Boolean(enabled);
@@ -435,9 +454,9 @@ export async function autoStatus() {
   const [config, external] = await Promise.all([readCswapConfig(), externalAutoRunning()]);
   return {
     ok:        config != null,
-    enabled:   _enabled,
+    enabled:   loopEnabled(),
     external,                       // user is running their own `cswap auto`
-    lastTick:  _lastTick,
+    lastTick:  lastTick(),
     settings:  config ?? {},
   };
 }
