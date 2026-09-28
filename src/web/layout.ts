@@ -8,7 +8,7 @@
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 import {
-  columnGap, fitZoom, footprint, NODE_H, NODE_W, SESSION_GAP, sessionOfNode, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, fitZoom, footprint, SESSION_GAP, sessionOfNode, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 
 // The shared measurements are layout-geometry.ts's. The lane map's type and
@@ -110,9 +110,7 @@ function layoutSession(
   for (const id of free) {
     const p = g.node(id);
     if (!p) continue;
-    const m = measured.get(id);
-    const w = m?.width ?? NODE_W;
-    const h = m?.height ?? NODE_H;
+    const { w, h } = cardSize(id, measured);
     // dagre centred the card+lane box; the CARD sits at its left edge, so the
     // reserved space ends up where the bubbles actually are.
     const box = footprint(id, measured, lanes);
@@ -149,9 +147,7 @@ function layoutSession(
   for (const id of ids) {
     const p = pinned.get(id);
     if (!p) continue;
-    const m = measured.get(id);
-    const w = m?.width ?? NODE_W;
-    const h = m?.height ?? NODE_H;
+    const { w, h } = cardSize(id, measured);
     pinnedBox = pinnedBox === null ? { minX: p.x, minY: p.y, maxX: p.x + w, maxY: p.y + h } : {
       minX: Math.min(pinnedBox.minX, p.x),
       minY: Math.min(pinnedBox.minY, p.y),

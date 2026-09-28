@@ -104,6 +104,17 @@ function laneHeight(id: string, lanes: Lanes | undefined): number {
   return n > 0 ? 6 + n * 36 : 0;
 }
 
+/** A card's own size: what React Flow measured, or the default until it has.
+ *  The size a fit frames and a pin occupies; `footprint` is the one to pack
+ *  and push with. */
+export function cardSize(
+  id: string,
+  measured: Map<string, { width: number; height: number }>,
+): { w: number; h: number } {
+  const m = measured.get(id);
+  return { w: m?.width ?? NODE_W, h: m?.height ?? NODE_H };
+}
+
 /**
  * The ground an agent actually covers: its card PLUS its burst lane.
  *
@@ -120,10 +131,10 @@ export function footprint(
   measured: Map<string, { width: number; height: number }>,
   lanes: Lanes | undefined,
 ): { w: number; h: number } {
-  const m = measured.get(id);
+  const card = cardSize(id, measured);
   return {
-    w: (m?.width ?? NODE_W) + laneWidth(id, lanes),
-    h: Math.max(m?.height ?? NODE_H, laneHeight(id, lanes)),
+    w: card.w + laneWidth(id, lanes),
+    h: Math.max(card.h, laneHeight(id, lanes)),
   };
 }
 

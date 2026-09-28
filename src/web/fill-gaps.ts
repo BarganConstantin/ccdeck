@@ -6,7 +6,7 @@
 // sessions only.
 import type { Node } from "reactflow";
 import {
-  columnGap, footprint, FULL_SIZE, NODE_H, NODE_W, SESSION_CHROME, SESSION_VISIBLE_GAP, sessionOfNode, TOOL_LANE_W,
+  cardSize, columnGap, footprint, FULL_SIZE, SESSION_CHROME, SESSION_VISIBLE_GAP, sessionOfNode, TOOL_LANE_W,
   type Lanes,
 } from "./layout-geometry";
 
@@ -58,8 +58,8 @@ export function fillGapsWithNewSessions(
   const posOf = (id: string) => pinned.get(id) ?? positions.get(id);
   // The fit frames cards, not lanes, so the board it scores is card-sized.
   const cardOf = (id: string) => {
-    const m = measured.get(id);
-    return { cw: m?.width ?? NODE_W, ch: m?.height ?? NODE_H };
+    const { w, h } = cardSize(id, measured);
+    return { cw: w, ch: h };
   };
   const scoring = frame != null && frame.width > 0 && frame.height > 0;
 
