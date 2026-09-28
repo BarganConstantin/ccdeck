@@ -66,7 +66,8 @@ const { spawns, fake } = vi.hoisted(() => ({
      *  and a baseline written from the wrong one produces a different answer. */
     cpuSec: 10,
     /** When set, the next children exit non-zero with nothing on stdout, which
-     *  is what `run` in system-metrics.mjs turns into an empty list. */
+     *  is what `run` in metrics-run.mjs answers null for, and the process
+     *  read turns into an empty list. */
     fail: false,
   },
 }));
