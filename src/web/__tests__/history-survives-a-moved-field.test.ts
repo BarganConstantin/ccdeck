@@ -20,28 +20,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+// The normaliser itself, which lived inside the component and was copied here
+// so the shapes below could be run at all. It is usage-history.ts's now, and
+// this file runs the rule that ships rather than a copy of it.
+import { asDay, asResp } from "../usage-history";
+
 const src = readFileSync(
   fileURLToPath(new URL("../components/UsageHistoryModal.tsx", import.meta.url)), "utf8");
-
-/** The normaliser, lifted out of the component so the shapes below can be run
- *  against the real rule rather than against a copy of it. */
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
-const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
-const asBreakdown = (v: unknown) => {
-  const o = (v ?? {}) as Record<string, unknown>;
-  return { modelName: str(o.modelName), cost: num(o.cost), inputTokens: num(o.inputTokens),
-    outputTokens: num(o.outputTokens), cacheCreationTokens: num(o.cacheCreationTokens),
-    cacheReadTokens: num(o.cacheReadTokens) };
-};
-const asDay = (v: unknown) => {
-  const o = (v ?? {}) as Record<string, unknown>;
-  return { period: str(o.period), totalCost: num(o.totalCost), totalTokens: num(o.totalTokens),
-    inputTokens: num(o.inputTokens), outputTokens: num(o.outputTokens),
-    cacheCreationTokens: num(o.cacheCreationTokens), cacheReadTokens: num(o.cacheReadTokens),
-    modelsUsed: strs(o.modelsUsed),
-    modelBreakdowns: Array.isArray(o.modelBreakdowns) ? o.modelBreakdowns.map(asBreakdown) : [] };
-};
+const rows = readFileSync(fileURLToPath(new URL("../usage-history.ts", import.meta.url)), "utf8");
 
 describe("a day row whose shape moved upstream", () => {
   it("renders as empty rather than throwing, when modelBreakdowns is gone", () => {
@@ -82,6 +68,18 @@ describe("a day row whose shape moved upstream", () => {
     expect(src).toContain("setLanded({ range, resp: asResp(raw) })");
     expect(src, "the untrusted body must not reach state directly")
       .not.toContain("setLanded({ range, resp })");
-    expect(src).toContain("days: Array.isArray(o.days) ? o.days.map(asDay) : undefined");
+    expect(rows).toContain("days: Array.isArray(o.days) ? o.days.map(asDay) : undefined");
+  });
+
+  it("makes every row of the reply safe, and keeps the fields it only reads for a message", () => {
+    const resp = asResp({ ok: true, days: [null, { period: "2026-09-14" }], reason: "x", error: "y" });
+    expect(resp.ok).toBe(true);
+    expect(resp.days?.map(d => d.modelBreakdowns)).toEqual([[], []]);
+    expect(resp.reason).toBe("x");
+    expect(resp.error).toBe("y");
+    // Not `ok: true` because something truthy was there: only the literal.
+    expect(asResp({ ok: "yes" }).ok).toBe(false);
+    expect(asResp(null)).toEqual({ ok: false, days: undefined });
+    expect(asResp({ ok: true, days: "none" }).days).toBeUndefined();
   });
 });
