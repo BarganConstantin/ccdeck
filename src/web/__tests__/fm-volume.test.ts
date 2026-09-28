@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import { FM_VOLUME_KEY, resolveFmVolume } from "../appearance";
 import { DEFAULT_LEVEL, LEVEL_MAX, LEVEL_MIN } from "../sound";
 import { clientText } from "./client-source";
+import { claudeFmSurface } from "./claude-fm-surface";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -71,7 +72,9 @@ describe("the Claude FM volume preference", () => {
   });
 
   it("sends setVolume at the ready handshake and again whenever the level moves", () => {
-    const fm = read("components/ClaudeFm.tsx");
+    // The component and the player hook lifted out of it, read as one, so the
+    // count of senders still covers both.
+    const fm = claudeFmSurface();
     // Two senders: the "ready" branch (before playVideo, so there is no window
     // at the wrong loudness) and the [volume, armed, say] effect (the live
     // retune). setVolume is a plain command — nothing is read back.
