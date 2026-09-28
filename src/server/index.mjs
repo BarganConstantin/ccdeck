@@ -1215,6 +1215,32 @@ function maybeResolveCodexMemory(sid, cwd, persist) {
     .finally(() => pendingCodexMemoryReads.delete(sid));
 }
 
+/**
+ * Everything the enrichment passes above keep for one session, dropped. Its
+ * one caller is forgetSession, which says when a session is forgotten and why.
+ */
+function forgetEnrichment(sid) {
+  modelBySession.delete(sid);
+  // The two the session-naming work added (#520/#522) and did not list here.
+  // Both are keyed by session id and nothing else ever removed an entry, which
+  // is the exact leak the comment above forgetSession says this mechanism
+  // exists to end — every sibling cache is capped at MAX_TRACKED_SESSIONS and
+  // these two were not. The functional half is worse than the leak:
+  // nameBySession gates the SessionNamed emit on "has this changed", so a live
+  // session evicted past the cap and then heard from again re-emits its model
+  // (modelBySession was cleared) and never re-emits its name. A tab that
+  // connects after the event ring has rolled past the original SessionNamed
+  // shows that session unnamed for the rest of its life.
+  nameBySession.delete(sid);
+  // The recap's gate, for the same reason — see noteRecap.
+  recapBySession.delete(sid);
+  lastNameReadAt.delete(sid);
+  modelLastReadAt.delete(sid);
+  lastUsageReadAt.delete(sid);
+  lastContextReadAt.delete(sid);
+  lastCodexMemoryReadAt.delete(sid);
+}
+
 // ─── Codex transcript enrichment ──────────────────────────────────────────
 // Codex CLI hook payloads carry `session_id` but no transcript path. Sessions
 // are persisted to ~/.codex/sessions/YYYY/MM/DD/rollout-<sid>.jsonl with one
@@ -2046,27 +2072,9 @@ function startOutputWatch() {
 
 function forgetSession(sid) {
   outputWatch.forget(sid);
-  modelBySession.delete(sid);
-  // The two the session-naming work added (#520/#522) and did not list here.
-  // Both are keyed by session id and nothing else ever removed an entry, which
-  // is the exact leak the comment above says this mechanism exists to end —
-  // every sibling cache is capped at MAX_TRACKED_SESSIONS and these two were
-  // not. The functional half is worse than the leak: nameBySession gates the
-  // SessionNamed emit on "has this changed", so a live session evicted past the
-  // cap and then heard from again re-emits its model (modelBySession was
-  // cleared) and never re-emits its name. A tab that connects after the event
-  // ring has rolled past the original SessionNamed shows that session unnamed
-  // for the rest of its life.
-  nameBySession.delete(sid);
-  // The recap's gate, for the same reason — see noteRecap.
-  recapBySession.delete(sid);
-  lastNameReadAt.delete(sid);
-  modelLastReadAt.delete(sid);
-  lastUsageReadAt.delete(sid);
-  lastContextReadAt.delete(sid);
+  forgetEnrichment(sid);
   codexRolloutPathBySid.delete(sid);
   lastCodexUsageReadAt.delete(sid);
-  lastCodexMemoryReadAt.delete(sid);
   codexSessionModel.delete(sid);
   codexSessionApproval.delete(sid);
 }
