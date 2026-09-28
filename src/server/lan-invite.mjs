@@ -38,6 +38,17 @@ export const INVITE_MS = 10 * 60 * 1000;
  *  hand-built token from being a way to make this deck dial a list. */
 export const MAX_INVITE_ADDRS = 10;
 
+/** How many proofs of one invite may fail before it is put away (#1137).
+ *
+ *  Not a guard on the code — 128 bits is not something a few more tries get
+ *  any nearer — but a bound on how long a live invite can be worked at, and a
+ *  signal: a token presented wrong this often is circulating in some form
+ *  nobody here handed out, and the owner is better off making another. Five
+ *  rather than one, because one honest paste can reach the deck at several of
+ *  its addresses and an old token pasted by mistake should not cost the new
+ *  one. */
+export const MAX_WRONG_PROOFS = 5;
+
 /** What the token starts with, so a reader can tell at a glance what they have
  *  been sent and a wrong paste is refused before it is parsed. */
 export const INVITE_PREFIX = "ccdeck1.";

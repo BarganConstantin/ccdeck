@@ -33,7 +33,7 @@ import {
   offered, open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
   trustedPeer,
 } from "./lan-sync.mjs";
-import { mintInvite, readInvite } from "./lan-invite.mjs";
+import { MAX_WRONG_PROOFS, mintInvite, readInvite } from "./lan-invite.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
@@ -833,6 +833,24 @@ export function createEngine({
     onChange?.();
   };
 
+  /** Somebody presented a proof of the token that did not hold. Counted on
+   *  the invite, written to the log with where it came from, and at
+   *  MAX_WRONG_PROOFS the invite is put away (#1137) — the owner makes a new
+   *  one, which is one press, and the old one stops being something anybody
+   *  can keep working at. */
+  const wrongInvite = from => {
+    if (!invite) return;
+    const refused = (invite.refused ?? 0) + 1;
+    invite = { ...invite, refused };
+    const where = from?.addr || "an unknown address";
+    onError?.("invite", new Error(`a proof of this deck's invite from ${where} did not hold (${refused} of ${MAX_WRONG_PROOFS})`));
+    if (refused >= MAX_WRONG_PROOFS) {
+      invite = null;
+      onError?.("invite", new Error(`put the invite away after ${MAX_WRONG_PROOFS} proofs that did not hold; make a new one`));
+    }
+    onChange?.();
+  };
+
   /** A deck the beacon heard that nobody here has accepted: a row somebody
    *  can accept, and — when the ask switch for its route is on — asked. */
   const heardStranger = entry => {
@@ -1439,6 +1457,7 @@ export function createEngine({
         trusted: () => cfg.trusted,
         invite: () => (invite && invite.expiresAt > now() ? invite : null),
         onInviteUsed: inviteUsed,
+        onWrongInvite: wrongInvite,
         // Asked before the request is drawn, so a deck that was told no is
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
@@ -1524,7 +1543,7 @@ export function createEngine({
       const addrs = localAddresses().map(a => `${a}:${port}`);
       const made = mintInvite({ addrs, name: cfg.name, now: now() });
       if (!made) return null;
-      invite = made;
+      invite = { ...made, refused: 0 };
       onChange?.();
       return { token: made.token, expiresAt: made.expiresAt, addrs };
     },
@@ -1845,9 +1864,11 @@ export function createEngine({
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
         // The token this deck is offering, if any. Drawn as the one thing to do
-        // when nobody is paired yet, and put away once somebody is.
+        // when nobody is paired yet, and put away once somebody is. With how
+        // many proofs of it have failed so far — the record beside the log's,
+        // see wrongInvite.
         invite: invite && invite.expiresAt > now()
-          ? { token: invite.token, expiresAt: invite.expiresAt }
+          ? { token: invite.token, expiresAt: invite.expiresAt, refused: invite.refused ?? 0 }
           : null,
         // Decks somebody accepted, decks that asked and have not been answered,
         // and decks merely heard. Three lists because they are three different

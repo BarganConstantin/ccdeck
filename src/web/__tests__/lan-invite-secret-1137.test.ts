@@ -18,7 +18,7 @@ import { describe, it, expect, afterEach } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import { createEngine } from "../../server/lan-engine.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { INVITE_PREFIX, mintInvite, readInvite } from "../../server/lan-invite.mjs";
+import { INVITE_PREFIX, MAX_WRONG_PROOFS, mintInvite, readInvite } from "../../server/lan-invite.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { connectToPeer, createSyncServer } from "../../server/lan-socket.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -168,4 +168,51 @@ describe("an invite, once a proof of it has held", () => {
     expect(m.e.offering(), "the invite the returning deck proved is still live").toBeNull();
     expect(m.e.status().trusted, "and it is one pin, not two").toHaveLength(1);
   }, 20_000);
+});
+
+describe("an invite that is presented wrong", () => {
+  /** A token for this deck's address with a code it never minted — what a
+   *  stale or mangled token is, from the minter's side. */
+  const wrongFor = (d: Awaited<ReturnType<typeof deck>>) =>
+    mintInvite({ addrs: [`127.0.0.1:${d.port}`], name: "Minter" }).token as string;
+  const WRONG = "that deck did not take this invite — ask them for a new one";
+
+  it("is refused by name, counted, and does not become a request to pair", async () => {
+    // A wrong proof used to be read as a caller that brought nothing: a
+    // pairing request here, and on the caller's screen "waiting for them to
+    // say yes". Below the bound, the right token still pairs.
+    const m = await deck("Minter");
+    const j = await deck("Joiner");
+    const right = invitedAt(m);
+    for (let i = 1; i < MAX_WRONG_PROOFS; i++) {
+      const res = await j.e.join(wrongFor(m));
+      expect(res.ok).toBe(false);
+      expect(res.tried).toMatchObject([{ why: WRONG }]);
+      expect(m.e.status().invite?.refused, `after ${i} wrong`).toBe(i);
+    }
+    expect(m.e.status().pending, "a wrong token became a request").toEqual([]);
+    // Recorded where the deck writes what goes wrong, with where it came from.
+    const said = m.errors.filter(([what]) => what === "invite").map(([, why]) => why);
+    expect(said).toHaveLength(MAX_WRONG_PROOFS - 1);
+    expect(said[0]).toMatch(new RegExp(`from 127\\.0\\.0\\.1 did not hold \\(1 of ${MAX_WRONG_PROOFS}\\)`));
+
+    const res = await j.e.join(right);
+    expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
+    expect(m.e.offering()).toBeNull();
+  }, 30_000);
+
+  it(`is put away after ${MAX_WRONG_PROOFS} proofs that do not hold, and the right token with it`, async () => {
+    const m = await deck("Minter");
+    const j = await deck("Joiner");
+    const right = invitedAt(m);
+    for (let i = 0; i < MAX_WRONG_PROOFS; i++) expect((await j.e.join(wrongFor(m))).ok).toBe(false);
+    expect(m.e.offering(), "the invite outlived the bound").toBeNull();
+    expect(m.e.status().invite).toBeNull();
+    expect(m.errors.filter(([what]) => what === "invite").at(-1)?.[1]).toMatch(/put the invite away/);
+
+    // Retired is retired, for the token that was right too.
+    expect((await j.e.join(right)).ok).toBe(false);
+    expect(m.e.status().trusted).toEqual([]);
+    expect(j.e.status().trusted).toEqual([]);
+  }, 30_000);
 });
