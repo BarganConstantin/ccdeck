@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain JS module, no types
-import { quotaFromStore, maySelfPoll, freshest, parseResetToSec, quotaClaudeBin } from "../../server/quota.mjs";
+import { maySelfPoll, freshest, quotaClaudeBin } from "../../server/quota.mjs";
+// The two mappings moved to quota-shape.mjs with the rest of the pure ones.
+// @ts-expect-error — plain JS module, no types
+import { clampPct, mapOAuthUsage, parseResetToSec, parseUsageText, quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "../../server/quota-shape.mjs";
 
 const MIN = 60_000;
 
@@ -53,6 +56,45 @@ describe("quotaFromStore", () => {
     const q = quotaFromStore(entry({ five_hour: { pct: 140 }, seven_day: { pct: -3 } }));
     expect(q.session5hPct).toBe(100);
     expect(q.week7dPct).toBe(0);
+  });
+});
+
+describe("clampPct", () => {
+  it("rounds to a whole percentage and holds it inside 0–100", () => {
+    expect(clampPct(41.4)).toBe(41);
+    expect(clampPct(41.5)).toBe(42);
+    expect(clampPct(0)).toBe(0);
+    expect(clampPct(100)).toBe(100);
+    expect(clampPct(140)).toBe(100);
+    expect(clampPct(-3)).toBe(0);
+  });
+
+  it("is the one clamp both structured sources draw with", () => {
+    // mapOAuthUsage and quotaFromStore each carried a private copy of it. The
+    // same out-of-range numbers through either must land where the rule says.
+    const api = mapOAuthUsage({
+      five_hour: { utilization: 140 }, seven_day: { utilization: -3.4 }, seven_day_sonnet: { utilization: 12.5 },
+    });
+    const store = quotaFromStore(entry({
+      five_hour: { pct: 140 }, seven_day: { pct: -3.4 }, scoped: [{ name: "Sonnet", pct: 12.5 }],
+    }));
+    for (const q of [api, store]) {
+      expect([q.session5hPct, q.week7dPct, q.weekSonnetPct]).toEqual([clampPct(140), clampPct(-3.4), clampPct(12.5)]);
+    }
+  });
+});
+
+describe("the two window lengths", () => {
+  it("are the same on every source's reading, including the CLI's, which prints none", () => {
+    const api = mapOAuthUsage({ five_hour: { utilization: 10 }, seven_day: { utilization: 20 } });
+    const store = quotaFromStore(entry({ five_hour: { pct: 10 }, seven_day: { pct: 20 } }));
+    const cli = parseUsageText("Current session: 10% used\nCurrent week (all models): 20% used");
+    for (const q of [api, store, cli]) {
+      expect(q.session5hWindowSec).toBe(WIN_5H_SEC);
+      expect(q.week7dWindowSec).toBe(WIN_7D_SEC);
+    }
+    expect(WIN_5H_SEC).toBe(5 * 3600);
+    expect(WIN_7D_SEC).toBe(7 * 86400);
   });
 });
 

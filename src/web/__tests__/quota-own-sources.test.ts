@@ -98,7 +98,11 @@ type QuotaModule = {
 
 async function freshQuota(): Promise<QuotaModule> {
   vi.resetModules();
-  return await import("../../server/quota.mjs") as unknown as QuotaModule;
+  const quota = await import("../../server/quota.mjs");
+  // The CLI's reset parser moved to quota-shape.mjs with the other pure
+  // mappings; imported after the reset, it is the instance quota.mjs uses.
+  const { parseResetToSec } = await import("../../server/quota-shape.mjs");
+  return { ...quota, parseResetToSec } as unknown as QuotaModule;
 }
 
 const force = (q: QuotaModule) => q.fetchClaudeQuota({ force: true });

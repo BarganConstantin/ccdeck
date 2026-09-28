@@ -54,13 +54,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { PRODUCT } from "./brand.mjs";
-// One ANSI stripper for the whole deck. The private copy that used to live
-// here accepted only the BEL terminator for an OSC sequence, while term.mjs's
-// also accepts ESC \\ — so a hyperlink written the other legal way survived
-// into text this module then parsed for quota lines.
 import { stripAnsi } from "./term.mjs";
-import { resetLabelIso } from "./reset-label.mjs";
-import { availableResetCredits, readResetGrants, resetCreditsFrom } from "./claude-reset-credits.mjs";
+import { availableResetCredits, readResetGrants } from "./claude-reset-credits.mjs";
+import { mapOAuthUsage, parseUsageText, quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
 import { createHash } from "node:crypto";
 
 const USAGE_URL   = "https://api.anthropic.com/api/oauth/usage";
@@ -94,8 +90,6 @@ const PROFILE_URL = "https://api.anthropic.com/api/oauth/profile";
  * on the panel is wrong. Raising it is the fix when that happens.
  */
 const USER_AGENT  = "claude-cli/2.1.283 (external, cli)";
-const WIN_5H_SEC  = 18000;
-const WIN_7D_SEC  = 604800;
 
 // 429 cooldown gate — after a rate-limit, skip the API until this passes.
 let _rateLimitedUntil = 0;
@@ -203,67 +197,6 @@ export async function hasSubscriptionCredential(env = process.env) {
   // "sign in" is the right thing to say — which is the `waiting` branch, not
   // this one.
   return !(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN);
-}
-
-// ISO-8601 → "Jun 19, 1:19pm" (local time, matching the CLI display format).
-//
-// The body moved to reset-label.mjs in #374: codex-quota.mjs had a copy that
-// claimed in its own comment to match this one and did not, so the Codex lanes
-// and the Claude lanes printed the same instant two different ways in the same
-// panel. This rendering is the one both surfaces use now. The alias stays so
-// the four call sites below read the way they always have.
-const fmtResetIso = resetLabelIso;
-
-function isoToSec(iso) {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  return isNaN(t) ? null : Math.floor(t / 1000);
-}
-
-// Map the OAuth usage JSON to our quota result shape.
-// utilization is already a 0–100 percentage. 5h falls back to 7d if absent.
-function mapOAuthUsage(data) {
-  const fh = data?.five_hour;
-  const sd = data?.seven_day;
-  const son = data?.seven_day_sonnet;
-  const opus = data?.seven_day_opus;
-
-  const primary = (fh?.utilization != null) ? fh : sd;
-  if (!primary || primary.utilization == null) return null;
-
-  const round = (v) => Math.min(100, Math.max(0, Math.round(v)));
-  const result = {
-    session5hPct:       round(primary.utilization),
-    session5hWindowSec: WIN_5H_SEC,
-    session5hReset:     fmtResetIso(primary.resets_at),
-    session5hResetAt:   isoToSec(primary.resets_at),
-    week7dWindowSec:    WIN_7D_SEC,
-  };
-  if (sd?.utilization != null) {
-    result.week7dPct     = round(sd.utilization);
-    result.week7dReset   = fmtResetIso(sd.resets_at);
-    result.week7dResetAt = isoToSec(sd.resets_at);
-  } else {
-    result.week7dPct = 0;
-  }
-  if (son?.utilization != null)  result.weekSonnetPct = round(son.utilization);
-  if (opus?.utilization != null) result.weekOpusPct   = round(opus.utilization);
-
-  // extra usage credits (pay-as-you-go top-up), if enabled
-  const extra = data?.extra_usage;
-  if (extra?.is_enabled) {
-    result.extraEnabled = true;
-    if (extra.used_credits != null)  result.extraUsedCredits  = extra.used_credits;
-    if (extra.monthly_limit != null) result.extraMonthlyLimit = extra.monthly_limit;
-    if (extra.currency)              result.extraCurrency     = extra.currency;
-  }
-
-  // Saved limit resets, from the same response and so from the same account as
-  // the windows above. Absent rather than null when the block says nothing
-  // readable, so a response without one maps exactly as it always has.
-  const credits = resetCreditsFrom(data?.cedar_ember, Date.now());
-  if (credits) result.resetCredits = credits;
-  return result;
 }
 
 /** The headers every request below sends with the Claude Code token. */
@@ -383,129 +316,6 @@ let _owner = null;
  * publishes to the cache, and the panel's next poll gets the real numbers.
  */
 export const QUOTA_DEADLINE_MS = 5_000;
-
-/**
- * claude-swap's row for the active account, in the shape the panel speaks.
- *
- * Exported for tests: the mapping is where a wrong number would come from, and
- * it is pure.
- */
-export function quotaFromStore(entry) {
-  const good = entry?.lastGood;
-  const fh = good?.five_hour;
-  const sd = good?.seven_day;
-  const primary = (typeof fh?.pct === "number") ? fh : sd;
-  if (typeof primary?.pct !== "number") return null;
-
-  const round = (v) => Math.min(100, Math.max(0, Math.round(v)));
-  const out = {
-    ok: true,
-    source: "claude-swap",
-    session5hPct:       round(primary.pct),
-    session5hWindowSec: WIN_5H_SEC,
-    session5hReset:     fmtResetIso(primary.resets_at),
-    session5hResetAt:   isoToSec(primary.resets_at),
-    week7dWindowSec:    WIN_7D_SEC,
-    week7dPct:          typeof sd?.pct === "number" ? round(sd.pct) : 0,
-    week7dReset:        fmtResetIso(sd?.resets_at),
-    week7dResetAt:      isoToSec(sd?.resets_at),
-    // The age of the DATA, not of our read of it. The panel prints this, and
-    // "30s ago" over numbers claude-swap collected twenty minutes back is the
-    // kind of true-looking lie this whole change exists to remove.
-    fetchedAt: entry.fetchedAt,
-  };
-  // claude-swap keeps per-model windows in a named list rather than fixed
-  // fields, because which ones an account has depends on its plan.
-  for (const s of Array.isArray(good.scoped) ? good.scoped : []) {
-    if (typeof s?.pct !== "number") continue;
-    if (/sonnet/i.test(s.name ?? "")) out.weekSonnetPct = round(s.pct);
-    else if (/opus/i.test(s.name ?? "")) out.weekOpusPct = round(s.pct);
-  }
-  return out;
-}
-
-
-// Parse "Jun 18, 4:09pm" (local time, no tz) into unix seconds.
-// Claude shows times in the user's local timezone, so parsing as local is correct.
-// `now` is injectable so the year-boundary case is testable.
-export function parseResetToSec(resetStr, now = Date.now()) {
-  if (!resetStr) return null;
-  try {
-    // "4:09pm" → "4:09 PM" so Date.parse handles it. Minutes are optional in
-    // the CLI's output ("9am"); Date.parse rejects "9 AM", so supply ":00".
-    const norm = resetStr
-      .replace(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
-               (_all, h, mm, ampm) => `${h}:${mm ?? "00"} ${ampm}`)
-      .trim();
-    // The CLI prints no year, so we have to supply one. Stamping the current
-    // year blindly puts a "Jan 2" reset read on Dec 30 eleven months in the
-    // past, which hides the countdown and pins the pace marker at 100%. A
-    // reset is never more than a week away, so the neighbouring year that
-    // lands nearest to `now` is the one Claude meant.
-    const thisYear = new Date(now).getFullYear();
-    let best = null;
-    for (const year of [thisYear - 1, thisYear, thisYear + 1]) {
-      const t = new Date(`${norm} ${year}`).getTime();
-      if (isNaN(t)) continue;
-      if (best === null || Math.abs(t - now) < Math.abs(best - now)) best = t;
-    }
-    return best === null ? null : Math.floor(best / 1000);
-  } catch { return null; }
-}
-
-/**
- * Parse `claude --print /usage` output.
- *
- * Observed format (Claude Code ≥ 1.x):
- *   "Current session: 84% used · resets Jun 18, 4:09pm (Europe/Chisinau)"
- *   "Current week (all models): 85% used · resets Jun 21, 8:59am (Europe/Chisinau)"
- *   "Current week (Sonnet only): 48% used · resets Jun 21, 9am (Europe/Chisinau)"
- *   "Current week (Opus only): ..."   (if present)
- */
-function parseUsageText(raw) {
-  const text = stripAnsi(raw);
-  const result = {};
-
-  // Helper: find "X% used · resets <rest>" on a line matching a label.
-  const extract = (labelRe) => {
-    const line = text.split("\n").find(l => labelRe.test(l));
-    if (!line) return null;
-    const pctM = line.match(/(\d{1,3})\s*%/);
-    const resetM = line.match(/resets\s+(.+)/i);
-    const resetFull = resetM
-      ? resetM[1].replace(/\(.*?\)/g, "").replace(/·/g, "").trim()
-      : null;
-    return {
-      pct:     pctM ? Math.min(100, parseInt(pctM[1], 10)) : null,
-      reset:   resetFull,
-      resetAt: parseResetToSec(resetFull),
-    };
-  };
-
-  const session = extract(/current session/i);
-  if (session?.pct != null) {
-    result.session5hPct       = session.pct;
-    result.session5hWindowSec = 18000;
-    if (session.reset)   result.session5hReset   = session.reset;
-    if (session.resetAt) result.session5hResetAt  = session.resetAt;
-  }
-
-  const weekAll = extract(/current week\s*\(all models\)/i) || extract(/current week\s*[:·]/i);
-  if (weekAll?.pct != null) {
-    result.week7dPct       = weekAll.pct;
-    result.week7dWindowSec = 604800;
-    if (weekAll.reset)   result.week7dReset   = weekAll.reset;
-    if (weekAll.resetAt) result.week7dResetAt  = weekAll.resetAt;
-  }
-
-  const weekSon = extract(/current week\s*\(sonnet/i);
-  if (weekSon?.pct != null) result.weekSonnetPct = weekSon.pct;
-
-  const weekOpus = extract(/current week\s*\(opus/i);
-  if (weekOpus?.pct != null) result.weekOpusPct = weekOpus.pct;
-
-  return Object.keys(result).length > 0 ? result : null;
-}
 
 // Where the `claude` CLI can be. The list moved to claude-dir.mjs, which is the
 // module that owns every "where does Claude Code live" answer the deck has —
@@ -1096,8 +906,8 @@ async function _doFetch(now, force = false, gen = _generation) {
   // and absence plus failure is not a measurement.
   const subscribed = cliOk && cliRan ? await hasSubscriptionCredential() : false;
   const result = cliOk && cliRan && subscribed
-    ? { ok: true, session5hPct: 0, session5hWindowSec: 18000,
-        week7dPct: 0, week7dWindowSec: 604800, fetchedAt: now }
+    ? { ok: true, session5hPct: 0, session5hWindowSec: WIN_5H_SEC,
+        week7dPct: 0, week7dWindowSec: WIN_7D_SEC, fetchedAt: now }
     : { ok: false, reason: cliOk && cliRan ? "no_subscription" : "cli_failed", fetchedAt: now };
   return publish(gen, result, now - (CACHE_MS - 5_000));
 }
