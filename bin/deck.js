@@ -15,9 +15,8 @@ import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
-import { link, unregisteredDetail } from "../src/server/term.mjs";
+import { unregisteredDetail } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
-import { wayBackNote } from "../src/server/way-back.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
 // with the rest rather than fetched later. Deliberately NOT the other way
 // round: it takes the handshake as a parameter precisely so that it never has
@@ -26,18 +25,18 @@ import { deckRegistryDir } from "../src/server/running-deck.mjs";
 // The same kind of leaf — fs, path, crypto and deck-probe.mjs — for the same
 // reason: it is taken before anything else in the boot has run.
 import { takeBootLock } from "../src/server/boot-lock.mjs";
-// The package this worker belongs to and the name it was typed as — see there.
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./cli/package.js";
+// The package this worker belongs to — see there.
+import { PKG_ROOT, PKG_VERSION } from "./cli/package.js";
 import { printHelp } from "./cli/help.js";
 import { uninstall } from "./cli/uninstall.js";
 import { offerLoginItem } from "./cli/login-item.js";
 import { oneShot } from "./cli/one-shot.js";
 // The terminal the boot draws in: palette, glyphs, rows, the wordmark and the spinner.
 import {
-  G, LINKS, P, cols, fileLink, printBanner, row, showCursor, step, takeCursor, tty, write,
+  G, P, fileLink, printBanner, showCursor, step, takeCursor, tty, write,
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
-import { reportIncompleteFlags, reportStartup, reportUnknownFlags, startupWork } from "./cli/startup.js";
+import { reportReady, reportRestarted, reportStartup, startupWork } from "./cli/startup.js";
 import { restartLatch } from "./cli/restart.js";
 import { startPulse } from "./cli/pulse.js";
 import { settleSecondStart } from "./cli/second-start.js";
@@ -423,39 +422,8 @@ const url = `http://127.0.0.1:${realPort}`;
 // the deck out from under every open tab.
 try { process.send?.({ type: "listening", port: realPort }); } catch { /* not supervised */ }
 
-if (RESPAWN) {
-  write(`  ${P.ok}${G.restart}${P.reset}  ${P.muted}restarted ${G.arrow} ${P.reset}v${PKG_VERSION}${P.muted} ${G.bullet} ${link(url, url, LINKS)}${P.reset}\n`);
-  // A respawn skips the whole startup report, but not this: the argv is the
-  // same argv, the typo in it is still there, and a deck that mentioned it once
-  // and then went quiet for every restart afterwards is back to hiding it from
-  // anyone who was not watching the first boot.
-  reportUnknownFlags(flags.unknown);
-  reportIncompleteFlags(flags.incomplete);
-} else {
-  // The URL is the one detail an ellipsis would destroy — half an address is
-  // not a shorter address — so it keeps its own line when the terminal is too
-  // narrow to hold it beside the label. See statusLine's `keep`.
-  write(row({
-    mark: G.ok, label: "server ready",
-    detail: link(url, url, LINKS), detailTone: `${P.accent}${P.bold}`, keep: true,
-  }));
-  if (persist) write(row({ label: "log", detail: fileLink(persist) }));
-  // Last of the rows, on purpose — see reportUnknownFlags.
-  reportUnknownFlags(flags.unknown);
-  reportIncompleteFlags(flags.incomplete);
-  // AFTER the warnings and outside the rows, because it is neither. It is the
-  // one thing on this screen that is about next week rather than about this
-  // boot — see way-back.mjs — and putting it above a typo warning would be
-  // spending the reader's last line of attention on the calmer of the two.
-  write(`\n  ${P.muted}${G.dash}  ${wayBackNote({
-    command: INVOKED_AS ?? PRODUCT, dash: G.dash, columns: cols(),
-  })}${P.reset}\n`);
-  // Only when one is actually being opened. Under --no-open — which is how an
-  // npx update relaunches, with a tab already waiting — this was announcing
-  // something that never happened.
-  if (openBrowser) write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
-  else write("\n");
-}
+if (RESPAWN) reportRestarted({ url, flags });
+else reportReady({ url, persist, openBrowser, flags });
 
 // The discovery file is the whole of how a hook finds this deck: hook.js
 // enumerates that directory and nothing else. Writing it once at boot meant

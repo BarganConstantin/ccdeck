@@ -328,7 +328,8 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // AGENTS_DECK_*, like every other variable the deck reads — display-name
     // .test.ts owns that boundary and this is the new one it applies to.
     expect(identity).toContain("invokedName({ pkgRoot: PKG_ROOT })");
-    expect(worker).toMatch(/import \{[^}]*\bINVOKED_AS\b[^}]*\} from "\.\/cli\/package\.js";/);
+    // And the files that print it take it from there rather than working it out again.
+    expect(cliSurface()).toMatch(/import \{[^}]*\bINVOKED_AS\b[^}]*\} from "\.\/package\.js";/);
     expect(cliSurface()).not.toContain("process.argv[1]");
   });
 

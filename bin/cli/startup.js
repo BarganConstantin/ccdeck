@@ -13,8 +13,10 @@ import { pathToFileURL } from "node:url";
 import { budget, bootDeadlineMs } from "../../src/server/boot-deadline.mjs";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { renameNotice } from "../../src/server/invoked-as.mjs";
+import { link } from "../../src/server/term.mjs";
+import { wayBackNote } from "../../src/server/way-back.mjs";
 import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
-import { G, P, fileLink, row, step, write } from "./screen.js";
+import { G, LINKS, P, cols, fileLink, row, step, write } from "./screen.js";
 
 /**
  * What is still happening after the report ended, in three words or so.
@@ -410,4 +412,48 @@ export function reportIncompleteFlags(incomplete) {
       detail: `${flag} ${G.dash} expected ${expects}; using the default`,
     }));
   }
+}
+
+/**
+ * The one line a respawn prints instead of the whole report — the same session
+ * continuing — and the flag rows, which it does not skip.
+ */
+export function reportRestarted({ url, flags }) {
+  write(`  ${P.ok}${G.restart}${P.reset}  ${P.muted}restarted ${G.arrow} ${P.reset}v${PKG_VERSION}${P.muted} ${G.bullet} ${link(url, url, LINKS)}${P.reset}\n`);
+  // A respawn skips the whole startup report, but not this: the argv is the
+  // same argv, the typo in it is still there, and a deck that mentioned it once
+  // and then went quiet for every restart afterwards is back to hiding it from
+  // anyone who was not watching the first boot.
+  reportUnknownFlags(flags.unknown);
+  reportIncompleteFlags(flags.incomplete);
+}
+
+/**
+ * The end of the startup report, once the port is bound: the server and log
+ * rows, the flag rows under them, the way back, and whether a browser opens.
+ */
+export function reportReady({ url, persist, openBrowser, flags }) {
+  // The URL is the one detail an ellipsis would destroy — half an address is
+  // not a shorter address — so it keeps its own line when the terminal is too
+  // narrow to hold it beside the label. See statusLine's `keep`.
+  write(row({
+    mark: G.ok, label: "server ready",
+    detail: link(url, url, LINKS), detailTone: `${P.accent}${P.bold}`, keep: true,
+  }));
+  if (persist) write(row({ label: "log", detail: fileLink(persist) }));
+  // Last of the rows, on purpose — see reportUnknownFlags.
+  reportUnknownFlags(flags.unknown);
+  reportIncompleteFlags(flags.incomplete);
+  // AFTER the warnings and outside the rows, because it is neither. It is the
+  // one thing on this screen that is about next week rather than about this
+  // boot — see way-back.mjs — and putting it above a typo warning would be
+  // spending the reader's last line of attention on the calmer of the two.
+  write(`\n  ${P.muted}${G.dash}  ${wayBackNote({
+    command: INVOKED_AS ?? PRODUCT, dash: G.dash, columns: cols(),
+  })}${P.reset}\n`);
+  // Only when one is actually being opened. Under --no-open — which is how an
+  // npx update relaunches, with a tab already waiting — this was announcing
+  // something that never happened.
+  if (openBrowser) write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
+  else write("\n");
 }
