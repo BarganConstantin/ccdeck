@@ -9,16 +9,17 @@
 // on it, its trouble, the two numbers it rests on and the bars it opens to —
 // some two hundred and thirty lines of closure that only ever read the panel.
 //
-// Nothing here holds state. Every value is the panel's, handed in under the
-// name the closure used, and the two writes the row makes — opening its own
-// detail and dismissing a refusal — are callbacks the panel spells.
+// Nothing here holds state. Every value is the panel's, and what the panel's
+// state says about this row arrives already answered — whether its ⋯ is the
+// open one, the refusal a switch on it left, the note a swap left on it — so
+// the row never reads another account's part of that state. The writes it
+// makes are callbacks the panel spells.
 import { WarnGlyph } from "./AccountIssuePopover";
 import { accountIssue } from "../account-issue";
 import { ago, due } from "../account-freshness";
 import { type Failure } from "../accounts-reload";
 import { type SwapNote } from "../account-move";
 import { type Account, type Lane } from "../claude-accounts";
-import { laneKey } from "../lane-open";
 import { laneSplit } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
@@ -60,30 +61,34 @@ function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?
 interface Props {
   a: Account;
   nowSec: number;
-  /** Which of the other accounts the reader has opened, by laneKey. */
-  openLanes: readonly string[];
+  /** The reader has opened this row's detail. */
+  opened: boolean;
   /** Open this row's detail, or shut it. */
   onToggleLanes: () => void;
   busy: RequestSlot["busy"];
   pressProps: RequestSlot["pressProps"];
-  doSwitch: (num: number, name: string) => void;
-  /** Which account's ⋯ is open, if any. */
-  menuFor: number | null;
-  openMenu: (num: number, start?: "first" | "last") => void;
-  closeMenu: (only?: number) => void;
-  failure: Failure | null;
-  onDismissFailure: () => void;
-  switched: { num: number; name: string } | null;
-  swapNote: SwapNote | null;
-  /** The whole roster, for the name of the account a swap displaced. */
-  roster: readonly Account[];
-  issueOpen: { num: number; anchor: string } | null;
-  openIssue: (num: number, anchor: string) => void;
+  onSwitch: (num: number, name: string) => void;
+  /** This row's ⋯ is the one open. */
+  menuOpen: boolean;
+  onOpenMenu: (num: number, start?: "first" | "last") => void;
+  onCloseMenu: (only?: number) => void;
+  /** Why a switch pressed on this row did not work, if one did not. */
+  refusal: Failure | null;
+  onDismissRefusal: () => void;
+  /** A switch from the panel just landed on this account. */
+  switchedHere: boolean;
+  /** The swap a move into a taken slot made, when it landed on this row. */
+  swapped: SwapNote | null;
+  /** The account that swap sent to the other slot, for its name. */
+  displaced: Account | undefined;
+  /** This row's warning has its explanation open. */
+  issueExpanded: boolean;
+  onOpenIssue: (num: number, anchor: string) => void;
 }
 
 export default function AccountRow({
-  a, nowSec, openLanes, onToggleLanes, busy, pressProps, doSwitch, menuFor, openMenu, closeMenu,
-  failure, onDismissFailure, switched, swapNote, roster, issueOpen, openIssue,
+  a, nowSec, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
+  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue,
 }: Props) {
   const { shown, fuller } = laneSplit(a.lanes);
   const issue = accountIssue(a, nowSec);
@@ -93,7 +98,7 @@ export default function AccountRow({
   // opened for. Any other account only has to answer one question —
   // is it worth switching to — and two numbers answer it. The rest
   // is one press on the row away, and held by account (#542).
-  const open = a.active || openLanes.includes(laneKey(a));
+  const open = a.active || opened;
   const name = a.alias ?? a.email ?? `account ${a.num}`;
   // The whole identity, for the door. The head clips both names with an
   // ellipsis and the door lies over them, so the door is where a pointer
@@ -169,7 +174,7 @@ export default function AccountRow({
             type="button"
             className="ap-switch"
             {...pressProps(`switch-${a.num}`)}
-            onClick={() => doSwitch(a.num, name)}
+            onClick={() => onSwitch(a.num, name)}
             aria-label={`Switch to ${name}`}
             title={`Switch to ${a.alias ?? a.email}`}
           >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
@@ -183,16 +188,16 @@ export default function AccountRow({
             reader cannot tell apart. */}
         <button type="button" id={`ap-more-${a.num}`} className="ap-more"
           aria-label={`More actions for ${a.email ?? a.alias ?? `account ${a.num}`}`}
-          aria-haspopup="menu" aria-expanded={menuFor === a.num}
-          aria-controls={menuFor === a.num ? `ap-menu-${a.num}` : undefined}
+          aria-haspopup="menu" aria-expanded={menuOpen}
+          aria-controls={menuOpen ? `ap-menu-${a.num}` : undefined}
           title="More actions"
-          onClick={() => (menuFor === a.num ? closeMenu() : openMenu(a.num))}
+          onClick={() => (menuOpen ? onCloseMenu() : onOpenMenu(a.num))}
           onKeyDown={e => {
             // Down opens at the first item and Up at the last, the way
             // a native menu button does. Enter and Space are the click.
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
-            openMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
+            onOpenMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
           }}>
           {/* AUTHORED, NOT TYPED, like the header's four: three dots on
               the same 14px grid the header draws at. */}
@@ -208,14 +213,14 @@ export default function AccountRow({
           switch that took says so on the row it took to, with the one
           thing nothing else on screen says: what happens to the
           sessions already running. */}
-      {failure?.row === a.num && (
+      {refusal && (
         <div className="ap-failure ap-row-failure" role="alert">
-          <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
-          <button type="button" className="ap-failure-x" onClick={() => onDismissFailure()}
+          <span className="ap-failure-text" title={refusal.raw || undefined}>{refusal.text}</span>
+          <button type="button" className="ap-failure-x" onClick={() => onDismissRefusal()}
             aria-label="Dismiss this message" title="Dismiss">×</button>
         </div>
       )}
-      {a.active && switched?.num === a.num && (
+      {a.active && switchedHere && (
         <p className="ap-switched">
           Now active. New sessions start on it; ones already running pick it up on
           their next message, up to about 30 seconds later on macOS.
@@ -224,14 +229,13 @@ export default function AccountRow({
       {/* A move into a taken slot relocated a second account, and this
           is the only place that says so, for eight seconds. The
           sentence naming who went where is its title. */}
-      {swapNote?.at === a.num && (() => {
-        const other = roster.find(x => x.num === swapNote.displaced);
-        const who = other?.alias ?? other?.email ?? "the account that was there";
+      {swapped && (() => {
+        const who = displaced?.alias ?? displaced?.email ?? "the account that was there";
         return (
           <p className="ap-note ap-swap-note"
-            title={`Slot ${swapNote.at} was taken, so the two accounts traded places: `
-                 + `${who} now holds slot ${swapNote.displaced}.`}>
-            swapped with slot {swapNote.displaced}
+            title={`Slot ${swapped.at} was taken, so the two accounts traded places: `
+                 + `${who} now holds slot ${swapped.displaced}.`}>
+            swapped with slot {swapped.displaced}
           </p>
         );
       })()}
@@ -246,9 +250,9 @@ export default function AccountRow({
         <div className="ap-issue-line">
           <button type="button" id={`ap-issue-${a.num}`} className="ap-issue" data-tone={issue.tone}
             aria-haspopup="dialog"
-            aria-expanded={issueOpen?.anchor === `ap-issue-${a.num}`}
-            aria-controls={issueOpen?.anchor === `ap-issue-${a.num}` ? "ap-issue-pop" : undefined}
-            onClick={() => openIssue(a.num, `ap-issue-${a.num}`)}>
+            aria-expanded={issueExpanded}
+            aria-controls={issueExpanded ? "ap-issue-pop" : undefined}
+            onClick={() => onOpenIssue(a.num, `ap-issue-${a.num}`)}>
             {issue.tone === "warn" && <WarnGlyph />}
             <span className="ap-issue-text">{issue.text}</span>
           </button>

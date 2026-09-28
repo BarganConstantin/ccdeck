@@ -551,7 +551,8 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     // account — and a dialog named by its title once an item makes it a form.
     expect(popover).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
     expect(popover).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
-    expect(clientText()).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
+    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
     expect(clientText()).toMatch(/aria-haspopup="menu"/);
   });
 
@@ -611,7 +612,10 @@ describe("microcopy (#325's eighth finding)", () => {
     // reads `swap` for exactly the picks the options mark `· swap`; the sentence
     // spelling out which second account moves is that button's title. So this
     // line stays the one thing said in the block: the fact, after the move.
-    expect(clientText()).toMatch(/swapped with slot \{swapNote\.displaced\}/);
+    // The row's own note, read once off the panel's: `swapped` is the swap
+    // when it landed on this row.
+    expect(clientText()).toMatch(/const swapped = swapNote\?\.at === a\.num \? swapNote : null;/);
+    expect(clientText()).toMatch(/swapped with slot \{swapped\.displaced\}/);
     expect([...surfaceCode.matchAll(/swapped with slot/g)]).toHaveLength(1);
   });
 });

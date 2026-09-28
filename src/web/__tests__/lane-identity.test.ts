@@ -201,7 +201,9 @@ describe("what counts as the same account", () => {
 
 describe("the panel holds the set the way this module says", () => {
   it("names rows by account and never by slot number", () => {
-    expect(clientText()).toMatch(/const open = a\.active \|\| openLanes\.includes\(laneKey\(a\)\);/);
+    // Whether the reader opened it is read off the set by account, once.
+    expect(clientText()).toMatch(/const opened = openLanes\.includes\(laneKey\(a\)\);/);
+    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
     expect(panelCode).toMatch(/setOpenLanes\((\w+) => toggleLane\(\1, a\)\)/);
     // The two shapes the bug was made of.
     expect(surfaceCode).not.toMatch(/openLanes\.includes\(a\.num\)/);
