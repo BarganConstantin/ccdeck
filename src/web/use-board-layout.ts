@@ -3,16 +3,18 @@
 // the epoch that forces a rebuild, and the frame the arrangement was packed
 // for. Restored from storage on the first render.
 //
-// Moved out of App.tsx unchanged. App.tsx still does everything with them —
-// snapshotToFlow reads and fills them, R and the reframe throw them away, the
-// drag handlers pin — so this file is the one place the state is declared.
-import { useRef, useState } from "react";
+// Moved out of App.tsx unchanged, with R (handleRelayout), which touches
+// nothing else. App.tsx still does the rest — snapshotToFlow reads and fills
+// them, the reframe throws them away, the drag handlers pin.
+import { useCallback, useRef, useState } from "react";
 import type { Frame } from "./layout";
-import { loadLayout, loadLayoutFrame } from "./layout-storage";
+import { clearStoredLayout, loadLayout, loadLayoutFrame, saveLayout, saveLayoutFrame } from "./layout-storage";
 import type { Provisional } from "./placement";
 import { restoreLayout } from "./stored-layout";
+import type { useCamera } from "./use-camera";
 
-export function useBoardLayout() {
+/** `fitLeft` is the camera's: R frames the board it has just drawn. */
+export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"]) {
   // Restore pinned positions synchronously on first render so they're
   // applied before snapshotToFlow runs autoLayout. Sessions outlast a
   // browser refresh (their session_id is stable), so dragged positions
@@ -68,5 +70,30 @@ export function useBoardLayout() {
   // render path for an answer only the first render asks for (#612).
   const restoredLayoutFrame = useState(loadLayoutFrame)[0];
   const lastLayoutFrameRef = useRef<Frame | null>(restoredLayoutFrame);
-  return { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef };
+
+  // R: throw the arrangement away, pins included, and draw it again from the
+  // board as it is.
+  const handleRelayout = useCallback(() => {
+    pinnedRef.current.clear();
+    positionsRef.current.clear();
+    lastLayoutSigRef.current = "";
+    clearStoredLayout();
+    setLayoutEpoch(e => e + 1);
+    // After dagre runs on the next render, fit-view so the user sees the
+    // result. 80ms gives React + RF one paint to settle the new positions.
+    window.setTimeout(() => {
+      // And store it, for the reason App.tsx's reframe does: the debounced save
+      // is keyed on layoutSig, which R does not move, so the board R drew was
+      // never written — the storage it had just emptied stayed empty, and a
+      // reload rebuilt the board from the replay instead (#1331). With it goes
+      // the frame it was packed for, which clearStoredLayout removed with the
+      // arrangement it described.
+      saveLayout(positionsRef.current, pinnedRef.current);
+      if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
+      fitLeft(500);
+    }, 80);
+  }, [fitLeft]);
+
+  return { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
+           handleRelayout };
 }

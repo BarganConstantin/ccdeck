@@ -171,7 +171,7 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     const layoutState = readFileSync(fileURLToPath(new URL("../use-board-layout.ts", import.meta.url)), "utf8");
     expect(/useRef<Frame \| null>\(restoredLayoutFrame\)/.test(layoutState), "the restored frame does not seed the reframe comparison").toBe(true);
     expect(/const restoredLayoutFrame = useState\(loadLayoutFrame\)\[0\]/.test(layoutState), "the stored frame is not read through a lazy initialiser (#612)").toBe(true);
-    appHas(/\blastLayoutFrameRef\b[^\n]*\n?\s*= useBoardLayout\(\)/, "App.tsx no longer takes the reframe's frame from useBoardLayout");
+    appHas(/\blastLayoutFrameRef\b[^}]*\}\s*=\s*useBoardLayout\(/, "App.tsx no longer takes the reframe's frame from useBoardLayout");
     // And it goes when the layout it describes goes, or Clear and R leave a
     // frame record pointing at a board that no longer exists.
     const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(storage);
