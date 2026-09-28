@@ -270,7 +270,14 @@ vi.mock("node:child_process", () => ({
 // which reads $HOME on POSIX and %USERPROFILE% on Windows. Both point into a
 // temp directory BEFORE the module loads, so nothing here can see — or write to
 // — the developer's real managed install on any platform.
-const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-ccusage-shim-"));
+const FAKE_ROOT = mkdtempSync(join(tmpdir(), "ccdeck-ccusage-shim-"));
+// A long home on purpose (#1672). The install's one-line account is fitted to a
+// fixed width, and it used to put the path first, so on a machine with a deep
+// temp directory the level that was missing fell off the end and the two cases
+// that read it failed. A hundred more characters makes that the case on every
+// machine, rather than on the ones with a long TMPDIR.
+const FAKE_HOME = join(FAKE_ROOT, "h".repeat(100));
+mkdirSync(FAKE_HOME);
 const prevEnv = {
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
@@ -309,7 +316,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_ROOT);
 });
 
 beforeEach(() => {
@@ -435,7 +442,7 @@ describe("what the modal shows once it knows which path failed", () => {
   const both = {
     reason: "run_failed",
     stage: "npx",
-    install: "npm install ccusage exited 0 but left nothing runnable under C:\\Users\\v\\.agents-deck\\ccusage: node_modules under it is not there",
+    install: "npm install ccusage exited 0 but left nothing runnable: node_modules under it is not there, under C:\\Users\\v\\.agents-deck\\ccusage",
     error: "'npx.cmd' is not recognized as an internal or external command,\r\noperable program or batch file.",
   };
 
