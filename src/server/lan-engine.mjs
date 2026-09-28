@@ -47,6 +47,7 @@ import { syncAccounts } from "./lan-accounts.mjs";
 import { createBeacon } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { createTurns } from "./lan-turns.mjs";
+import { ASKING_MS, createRoundTimer, SYNC_MS } from "./lan-round-timer.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
@@ -57,25 +58,10 @@ import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
-/** How often a deck asks its peers what they have. A minute is far more often
- *  than a login dies, and it is what makes the panel's list feel live rather
- *  than something that updates when you press a button. */
-export const SYNC_MS = 60_000;
-
-/**
- * How long to wait before dialling again while somebody is deciding.
- *
- * A minute is right for the steady state — two decks whose logins all work have
- * nothing to say to each other — and it is far too long for the one moment
- * anybody is watching: the seconds after somebody presses accept on the other
- * machine. Reported as "it should work by itself", from a panel that had been
- * correct for up to fifty-nine more seconds than the person in front of it.
- *
- * So the loop tightens while a request is outstanding and relaxes the moment it
- * is answered — either way. A refusal is an answer, and a deck that said no is
- * not asked every eight seconds.
- */
-export const ASKING_MS = 8_000;
+/** How often a deck asks its peers what they have, and how soon it asks again
+ *  while somebody is deciding — see lan-round-timer.mjs, which keeps the
+ *  clock that picks between them. */
+export { ASKING_MS, SYNC_MS };
 
 /** How long to wait before trying the discovery port again while another
  *  program holds it. The beacon's own interval: a port that frees up is picked
@@ -308,7 +294,6 @@ export function createEngine({
   let identity = null;
   let beacon = null;
   let server = null;
-  let timer = null;
   /** This engine, for the helpers below `apply` that need to press its own
    *  accept or add its own peer — the requests (see lan-requests.mjs, which
    *  reach it through engineNow), and the callbacks apply hands the listener
@@ -911,6 +896,9 @@ export function createEngine({
    *  check waits behind it (#1132). */
   const turns = createTurns();
   const round = () => turns.round(session, oneRound);
+  /** When the next round runs: a minute at rest, seconds while a deck this one
+   *  dialled is deciding — see lan-round-timer.mjs. */
+  const roundTimer = createRoundTimer({ round, waiting: waitingOnSomebody });
 
   /** What status() says about Tailscale, for a deck that has a reader: whether
    *  the machine has it at all, and what it can see. */
@@ -1105,16 +1093,9 @@ export function createEngine({
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
       tailPoll.sync();
-      // A self-scheduling loop rather than one interval, because the gap
-      // between rounds is not one number: see ASKING_MS.
-      const tick = async () => {
-        try { await round(); } catch { /* a round reports itself, per peer */ }
-        if (startedIn !== generation || beacon !== startingBeacon || !cfg.enabled) return;
-        timer = setTimeout(() => { void tick(); }, waitingOnSomebody() ? ASKING_MS : SYNC_MS);
-        timer.unref?.();
-      };
-      timer = setTimeout(() => { void tick(); }, SYNC_MS);
-      timer.unref?.();
+      // The first round a minute from now, and one after each that finishes,
+      // for as long as this start stands — see lan-round-timer.mjs.
+      roundTimer.start(() => startedIn !== generation || beacon !== startingBeacon || !cfg.enabled);
     },
     /**
      * Make an invite: every address this deck has, its port, its name, and a
@@ -1404,12 +1385,11 @@ export function createEngine({
     stop(restarting = false) {
       generation++;
       if (!restarting) session++;
-      if (timer) clearTimeout(timer);
+      roundTimer.stop();
       tailPoll.stop();
       hearing.forget();
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
-      timer = null;
       beacon?.stop();
       server?.stop();
       beacon = null;

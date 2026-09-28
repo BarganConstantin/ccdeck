@@ -1061,7 +1061,11 @@ describe("the gap between rounds", () => {
     // drift apart silently.
     const src = readFileSync(fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
     expect(src).toContain('"waiting for the other deck to accept this one"');
-    expect(src).toMatch(/waitingOnSomebody\(\) \? ASKING_MS : SYNC_MS/);
+    // The engine hands that check to the clock, which picks the gap by it —
+    // see lan-round-timer.mjs, and lan-round-timer.test.ts for the gaps run.
+    expect(src).toMatch(/createRoundTimer\(\{ round, waiting: waitingOnSomebody \}\)/);
+    const timer = readFileSync(fileURLToPath(new URL("../../server/lan-round-timer.mjs", import.meta.url)), "utf8");
+    expect(timer).toMatch(/waiting\(\) \? ASKING_MS : SYNC_MS/);
     const socket = readFileSync(fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
     expect(socket).toContain("waiting for the other deck to accept this one");
   });
