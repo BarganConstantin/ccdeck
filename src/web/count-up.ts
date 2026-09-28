@@ -4,20 +4,23 @@
 // somebody is looking straight at it. Replaced in one frame, $170 → $269 says
 // only "this is different now": no direction, no sense of how much, and no
 // signal that anything happened at all if the eye was a few pixels away. Counted
-// over a fifth of a second, the same change says up, and roughly how far.
+// over four tenths of a second, the same change says up, and roughly how far.
 //
 // WHAT DOES NOT ANIMATE, and this is most of the panel:
 //
 //   * the first paint. A page that counts every figure up from zero on load is
 //     a slot machine, and it delays the one thing the reader opened it for.
-//   * a change of PERIOD. "today $269" and "all time $12.4k" are not the same
-//     quantity, so counting between them would be theatre — the number snaps
-//     and the label changes with it.
 //   * the tables. Twelve rows counting at once is noise; the aggregates at the
 //     top are what the eye returns to, and they are the only things here that
 //     move.
 //   * a change too small to read — under half a percent, or under one whole
 //     unit. Counting $269.10 to $269.40 is motion for its own sake.
+//
+// A change of PERIOD does count. It snapped at first, on the reasoning that
+// "today $269" and "all time $12.4k" are different quantities rather than one
+// that moved — sound, and the motion is still better, because the reader
+// pressed the button and is watching the figure they asked for. The hook in
+// use-count-up.ts says so where it decides.
 //
 // Written by hand rather than pulled in: this package has no runtime
 // dependencies and the client bundle is already 654 KB, which is a poor trade
