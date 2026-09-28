@@ -28,15 +28,21 @@ import { noticeIsOpen, noticeKeyFor } from "./version-chip";
 
 const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
 
-// Long enough that a run of forced checks cannot turn the ~20-byte registry GET
-// into traffic, short enough that a release published while somebody is looking
-// at the deck still reaches them inside the five-minute poll's next few turns.
+// How stale the last registry lookup may get before a poll asks npm again
+// instead of accepting the server's cached answer. Three times the poll
+// interval: long enough that a run of forced checks cannot turn the ~20-byte
+// registry GET into traffic — the cost stays the one request the README
+// advertises — and short enough that a release published while somebody is
+// looking at the deck still reaches them inside the poll's next few turns.
 const VERSION_FORCE_MS = 15 * 60_000;
 
 /** The banner the server decided to offer, if any. */
 export type VersionNotice = { kind: "restart" | "upgrade"; from: string; to: string };
 
-/** What GET /api/version answers. */
+/** What GET /api/version answers. `running` is the version this server process
+ *  booted with; `installed` is what is on disk right now. They diverge the
+ *  moment npm upgrades a deck that is already running, and Node's module cache
+ *  means the process keeps executing the old code until it restarts. */
 export type VersionInfo = {
   /** The package the server asked npm about, which is the one its `command`
    *  would install — `ccdeck` for a deck started with `npx ccdeck`. */
