@@ -348,7 +348,7 @@ describe("one machine, one store, usually more than one deck", () => {
     // A deck that cannot read the discovery directory must not fall silent —
     // for the common case of one deck, "alone" is the right answer anyway, and
     // the failure mode of the opposite choice is a watch that never reports.
-    const server = src("../../server/browser-watch.mjs");
+    const server = src("../../server/browser-watch-decks.mjs");
     expect(server).toMatch(/catch \{ return true; \}\s+\/\/ cannot look/);
   });
 
@@ -356,7 +356,7 @@ describe("one machine, one store, usually more than one deck", () => {
     // The shell tool this descends from lost its lock on SIGHUP and then
     // refused to watch anything ever again. This reads and compares; there is
     // no claim to strand.
-    const server = src("../../server/browser-watch.mjs");
+    const server = src("../../server/browser-watch-decks.mjs");
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const body = fn.slice(0, fn.indexOf("\n}"));
     expect(body).not.toMatch(/writeFile|mkdir|open\(|rename/);
@@ -506,7 +506,7 @@ describe("what the test suite is allowed to touch", () => {
 });
 
 describe("which deck is allowed to win the election", () => {
-  const server = src("../../server/browser-watch.mjs");
+  const server = src("../../server/browser-watch-decks.mjs");
 
   it("skips a deck that does not run the watch", () => {
     // THE BUG THIS CLOSES, measured on a real machine. The election ran on port

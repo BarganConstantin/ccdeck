@@ -22,6 +22,8 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { watchServerSurface } from "./browser-watch-server-surface";
+
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 // `deck-probe.mjs` in place of `index.mjs`: the probe moved there whole, comment
@@ -35,7 +37,7 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 const SITES: Array<[string, string]> = [
   ["hook/hook.js", "../../../hook/hook.js"],
   ["src/server/deck-probe.mjs", "../../server/deck-probe.mjs"],
-  ["src/server/browser-watch.mjs", "../../server/browser-watch.mjs"],
+  ["src/server/browser-watch-decks.mjs", "../../server/browser-watch-decks.mjs"],
 ];
 
 describe("every liveness probe accepts both spellings of 'not allowed'", () => {
@@ -75,10 +77,14 @@ describe("every liveness probe accepts both spellings of 'not allowed'", () => {
     // swallow BOTH errnos, so an elevated deck was invisible to the writer
     // election — and two elected writers is duplicate log lines, duplicate
     // reactions, and two writers racing one rename.
-    const src = read("../../server/browser-watch.mjs");
+    // The deck registry reads moved out of browser-watch.mjs whole, probe and
+    // all, into browser-watch-decks.mjs.
+    const src = read("../../server/browser-watch-decks.mjs");
     expect(src).toContain("function pidAlive(pid)");
     expect(src).toContain("if (!pidAlive(d.pid)) continue;");
-    expect(src).not.toMatch(/try \{ process\.kill\(d\.pid, 0\); \} catch \{ continue; \}/);
+    // Nowhere in the watch's server half, not only in the file that has the
+    // probe now: a copy could come back beside the snapshot as easily.
+    expect(watchServerSurface()).not.toMatch(/try \{ process\.kill\(d\.pid, 0\); \} catch \{ continue; \}/);
   });
 });
 

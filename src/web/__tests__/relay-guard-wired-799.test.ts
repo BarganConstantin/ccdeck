@@ -21,6 +21,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { browserWatchSurface } from "./browser-watch-surface";
+import { watchServerSurface } from "./browser-watch-server-surface";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -224,8 +225,9 @@ describe("what wiring it up must not have changed", () => {
     // no route can do something the caller could not do for itself — the moment
     // one can raise a password dialog, any local process gets to make an
     // authentication prompt appear wearing ccdeck's name.
-    expect(watch).not.toMatch(/\bexec(File)?(Sync)?\s*\(/);
-    expect(watch).not.toMatch(/\bspawn(Sync)?\s*\(/);
+    // Every module lifted out of browser-watch.mjs is inside the sweep.
+    expect(watchServerSurface()).not.toMatch(/\bexec(File)?(Sync)?\s*\(/);
+    expect(watchServerSurface()).not.toMatch(/\bspawn(Sync)?\s*\(/);
     expect(modal).not.toContain("needsAdmin: false");
   });
 
