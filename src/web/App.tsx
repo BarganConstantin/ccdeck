@@ -1028,7 +1028,7 @@ function Inner() {
       if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
       fitLeft(500);
     }, 80);
-  }, [rf, fitLeft]);
+  }, [fitLeft]);
 
   // Same anchoring as relayout — F and the fit button land where it does.
   const handleFit = useCallback(() => fitLeft(500), [fitLeft]);
