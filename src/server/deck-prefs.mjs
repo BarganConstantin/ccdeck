@@ -40,7 +40,7 @@ import { chmod, mkdir, readFile, stat, unlink } from "node:fs/promises";
 // a rule spelled twice is a rule that drifts, and both of these are rules
 // settings.json and auth.json already follow on files with the same stakes.
 import { createTemp, renameWithRetry, stripBom } from "./atomic-write.mjs";
-import { join } from "node:path";
+import { prefsDir, prefsPath } from "./prefs-path.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -49,14 +49,8 @@ import { PRODUCT } from "./brand.mjs";
  *  AGENTS_DECK_NO_INSTALL, and unchanged in meaning by this file. */
 export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
 
-/* WHERE THIS FILE LIVES, AND WHY IT MOVED. It sat in ~/.claude/agent-dag — the
-   directory Claude Code owns — which meant a person clearing Claude Code's
-   configuration cleared this deck's private key, and every machine that had
-   pinned it had to be told to trust this one again. deck-home.mjs owns the new
-   answer and the reasons; what matters here is that the parameter is still a
-   DIRECTORY, so every caller that passes one is unchanged. */
-const prefsDir = (home = deckDataDir()) => home;
-export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.json");
+// Where prefs.json lives, and why it moved: prefs-path.mjs.
+export { prefsPath };
 
 /**
  * Every preference the deck keeps, with the answer it gives when there is no
