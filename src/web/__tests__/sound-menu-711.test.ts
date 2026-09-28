@@ -1038,7 +1038,9 @@ describe("App owns the settings, the write and the round trip", () => {
   it("hands the player the settings through a ref, the way it hands it the flag", () => {
     expect(app).toMatch(/prefs: \(\) => tonePrefsRef\.current,/);
     expect(app).toMatch(/enabled: \(\) => soundOnRef\.current === true,/);
-    expect(app).toMatch(/tonePrefsRef\.current = tonePrefs;/);
+    // The mirror is `useMirroredRef` now — same fact, named: the ref holds the
+    // current settings so the player, built once on mount, reads them at play time.
+    expect(app).toMatch(/const tonePrefsRef = useMirroredRef\(tonePrefs\);/);
   });
 
   it("gives the menu everything it needs and nothing it does not", () => {

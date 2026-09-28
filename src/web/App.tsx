@@ -62,6 +62,7 @@ import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDesktopUpdate } from "./use-desktop-update";
+import { useMirroredRef } from "./use-mirrored-ref";
 import { usePresenceBeacon } from "./use-presence-beacon";
 import { useVersionCheck, VERSION_DISMISSED_KEY } from "./use-version-check";
 import { readStored } from "./storage";
@@ -836,13 +837,11 @@ function Inner() {
   // `toggleSound` is rebuilt whenever the switch changes state, so the window
   // keydown listener — registered exactly once, on purpose — reads the current
   // one through a ref rather than listing it as a dependency and re-subscribing.
-  const activateSoundRef = useRef(activateSound);
-  activateSoundRef.current = activateSound;
+  const activateSoundRef = useMirroredRef(activateSound);
   /** null until the stored flag has been read back. The button is not drawn in
    *  that window and the key must not fire in it either: there is no state to
    *  invert yet, and "not false" would arm the tones on a guess. */
-  const soundOnRef = useRef(soundOn);
-  soundOnRef.current = soundOn;
+  const soundOnRef = useMirroredRef(soundOn);
 
   // ── what each tone is set to (#711) ───────────────────────────────────────
   //
@@ -859,15 +858,13 @@ function Inner() {
   const [tonePrefs, setTonePrefs] = useState<TonePrefs>(() => readPrefs(readStored));
   // The player is built once, on mount, and reads these through the ref at play
   // time — the same shape `enabled` already uses for the flag.
-  const tonePrefsRef = useRef(tonePrefs);
-  tonePrefsRef.current = tonePrefs;
+  const tonePrefsRef = useMirroredRef(tonePrefs);
 
   // Custom sounds are selected independently from the built-in figure. Keeping
   // the figure intact gives every custom choice a deterministic local fallback
   // without changing the shape #711 stores and tests.
   const [customSelections, setCustomSelections] = useState<CustomSelections>(() => readCustomSelections(readStored));
-  const customSelectionsRef = useRef(customSelections);
-  customSelectionsRef.current = customSelections;
+  const customSelectionsRef = useMirroredRef(customSelections);
   // The listing only — names, kinds and lengths. A clip's bytes stay in the
   // store until the player asks for the one it is about to play (loadCustom).
   const [customAssets, setCustomAssets] = useState<CustomAssetSummary[]>([]);
@@ -892,8 +889,7 @@ function Inner() {
     });
     try { localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID); } catch { /* no storage */ }
   }, [clearCustomOnly]);
-  const fallbackCustomRef = useRef(fallbackCustom);
-  fallbackCustomRef.current = fallbackCustom;
+  const fallbackCustomRef = useMirroredRef(fallbackCustom);
 
   useEffect(() => {
     let live = true;
@@ -1288,8 +1284,7 @@ function Inner() {
   // The keydown handler below is bound once and reads its world through refs;
   // `A` has to see today's answer rather than the one that shipped with the
   // first render, when nothing had come back from /api/health yet.
-  const providersRef = useRef(providers);
-  providersRef.current = providers;
+  const providersRef = useMirroredRef(providers);
   // Keyed to the version it is about, so dismissing today's notice does not
   // silence next month's release — and, through `noticeOpen`, does not turn
   // off restart-to-update for good either (#804). The rule is version-chip.ts's
@@ -2788,8 +2783,7 @@ function Inner() {
   // The same reading for the handlers that frame a card or place its peek:
   // they run on a press or a hover, and asking the document again there would
   // be a third query of what this effect has just measured.
-  const railInsetRef = useRef(railInset);
-  railInsetRef.current = railInset;
+  const railInsetRef = useMirroredRef(railInset);
 
   // The frame fitLeft will show the board in, in flow units at full size: the
   // canvas less the rail's strip, less the fit's margins and fill. The layout
@@ -3112,13 +3106,11 @@ function Inner() {
   // the gate reads what is on screen through refs rather than closing over it.
   // Assigned during render, the way nodesRef is, so a keystroke in the same
   // commit sees the dialogs that were just drawn.
-  const clearConfirmOpenRef = useRef(clearConfirmOpen);
-  clearConfirmOpenRef.current = clearConfirmOpen;
+  const clearConfirmOpenRef = useMirroredRef(clearConfirmOpen);
   // The same treatment for the shortcuts sheet, because `?` is a toggle and the
   // gate below has to be able to tell "the sheet is the modal" from "a modal is
   // open" — the first still answers `?`, the second must not stack a second one.
-  const keyHelpOpenRef = useRef(keyHelpOpen);
-  keyHelpOpenRef.current = keyHelpOpen;
+  const keyHelpOpenRef = useMirroredRef(keyHelpOpen);
   const modalOpenRef = useRef(false);
   // The shortcuts sheet counts, for the reason clearActionFor gives: a clear
   // prompt raised over another dialog is two things competing for one Escape.
@@ -3165,8 +3157,7 @@ function Inner() {
   // stateRef already uses) so stepAgent is created once and the listener is
   // registered once. Assigned during render so a keystroke in the same commit
   // sees the array that was just drawn.
-  const nodesRef = useRef(nodes);
-  nodesRef.current = nodes;
+  const nodesRef = useMirroredRef(nodes);
 
   /** BRING ONE CARD, AND THE SESSION IT BELONGS TO, INTO A READABLE VIEW.
    *
@@ -3254,12 +3245,10 @@ function Inner() {
       ? { width: box.right - railInsetRef.current, height: box.bottom }
       : { width: doc.clientWidth, height: doc.clientHeight };
   }, []);
-  const primarySelectedIdRef = useRef(primarySelectedId);
-  primarySelectedIdRef.current = primarySelectedId;
+  const primarySelectedIdRef = useMirroredRef(primarySelectedId);
   // Delete reaches the removal through a ref for the same reason: the handler
   // below is registered once, and the callback moves with the selection.
-  const removeSelectedRef = useRef(removeSelectedNode);
-  removeSelectedRef.current = removeSelectedNode;
+  const removeSelectedRef = useMirroredRef(removeSelectedNode);
 
   /** Step through visible agents in render order. `direction` is +1 for
    *  next (j) or -1 for previous (k). Selecting moves the canvas to keep
