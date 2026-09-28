@@ -312,19 +312,27 @@ describe("one realpath, at all three sites", () => {
     // fs/promises IS the native one, an equivalence nothing documents, so a site
     // spelled that way is right by accident and reads as if it were the plain
     // one. Every realpath in these two files names .native out loud.
+    //
+    // The server's two sites are canonical-path.mjs's. index.mjs, where they
+    // lived, is held to the first half as well: a plain realpath added back
+    // there is this bug again, whoever writes it.
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    const codeOf = (src: string) => src.split("\n").filter(l => {
+      const t = l.trimStart();
+      return !t.startsWith("*") && !t.startsWith("//") && !t.startsWith("/*");
+    }).join("\n");
     const sources: Array<[string, string]> = [
       ["hook/hook.js", readFileSync(HOOK_SRC, "utf8")],
-      ["src/server/index.mjs", readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8")],
+      ["src/server/canonical-path.mjs", read("../../server/canonical-path.mjs")],
     ];
     for (const [name, src] of sources) {
-      const code = src.split("\n").filter(l => {
-        const t = l.trimStart();
-        return !t.startsWith("*") && !t.startsWith("//") && !t.startsWith("/*");
-      }).join("\n");
+      const code = codeOf(src);
       expect(code.match(/\brealpath(Sync)?\s*\(/g) ?? [], `${name} calls a realpath that does not name .native`).toEqual([]);
       expect(code.match(/\brealpath\w*\.native\b/g) ?? [], `${name} canonicalises through no native realpath at all`)
         .not.toHaveLength(0);
     }
+    expect(codeOf(read("../../server/index.mjs")).match(/\brealpath(Sync)?\s*\(/g) ?? [],
+      "src/server/index.mjs calls a realpath that does not name .native").toEqual([]);
   });
 });
 

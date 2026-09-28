@@ -62,9 +62,9 @@ import { PRODUCT } from "./brand.mjs";
  * run that creates the file. The parent exists (or is about to be created under
  * one canonical name), so it is canonicalised and the basename rejoined.
  *
- * `canonicalWorkspace` in index.mjs is the same rule for the other path this
- * deck publishes, with three comments naming 8.3 expansion as its reason. This
- * is that rule reaching the value two lines away from it.
+ * `canonicalWorkspace` in canonical-path.mjs is the same rule for the other
+ * path this deck publishes, with three comments naming 8.3 expansion as its
+ * reason. This is that rule reaching the value two lines away from it.
  */
 export function canonicalLogPath(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return "";
