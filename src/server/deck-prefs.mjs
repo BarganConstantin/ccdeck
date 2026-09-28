@@ -179,6 +179,15 @@ function aliasesFrom(raw) {
   return out;
 }
 
+/** A stored switch, or its default when the file does not hold a real boolean.
+ *  Only `true` and `false` override a default: a truthy string or a 1 from a
+ *  hand-edited file is not an answer anybody gave, and reading it as one would
+ *  turn on a switch nobody pressed. One function, because the rule was spelled
+ *  out at every switch and a copy is where the next one would have differed. */
+export function flagOr(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
 /** One LAN section, coerced. Unknown keys dropped like everything else here,
  *  and string lists forced to arrays of strings before anything compares them
  *  with account keys, addresses or fingerprints. */
@@ -186,7 +195,7 @@ function normaliseLan(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
   return {
-    enabled: typeof src.enabled === "boolean" ? src.enabled : DEFAULTS.lan.enabled,
+    enabled: flagOr(src.enabled, DEFAULTS.lan.enabled),
     name: typeof src.name === "string" ? src.name : "",
     // THIS DECK'S PRIVATE KEY, and the only secret this file has ever held —
     // which is why the write below names a mode rather than taking the umask's.
@@ -224,7 +233,7 @@ function normaliseLan(raw) {
     // ASK FIRST. A deck heard on the broadcast is sent a pairing request without
     // anybody pressing `ask` — the outbound half, which gives nothing away: the
     // machine on the other end still answers it, by hand or by the switch below.
-    autoAsk: typeof src.autoAsk === "boolean" ? src.autoAsk : DEFAULTS.lan.autoAsk,
+    autoAsk: flagOr(src.autoAsk, DEFAULTS.lan.autoAsk),
     // AND SAY YES, once somebody has turned this on. Every deck that finishes a
     // handshake and is not already trusted is then pinned without anybody being
     // asked — the accept button pressed in advance, and it hands whoever asks a
@@ -232,16 +241,16 @@ function normaliseLan(raw) {
     // which is off since the feature itself started on; only a real boolean
     // overrides it, because a truthy string from a hand-edited file is not an
     // answer.
-    autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : DEFAULTS.lan.autoAccept,
+    autoAccept: flagOr(src.autoAccept, DEFAULTS.lan.autoAccept),
     pairingMode: src.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
-    shareActive: typeof src.shareActive === "boolean" ? src.shareActive : DEFAULTS.lan.shareActive,
+    shareActive: flagOr(src.shareActive, DEFAULTS.lan.shareActive),
     // The Tailscale switch and its two permissions. Only a real boolean
     // overrides a default, as above.
-    tailscale: typeof src.tailscale === "boolean" ? src.tailscale : DEFAULTS.lan.tailscale,
-    tailscaleAsk: typeof src.tailscaleAsk === "boolean" ? src.tailscaleAsk : DEFAULTS.lan.tailscaleAsk,
-    tailscaleAccept: typeof src.tailscaleAccept === "boolean" ? src.tailscaleAccept : DEFAULTS.lan.tailscaleAccept,
+    tailscale: flagOr(src.tailscale, DEFAULTS.lan.tailscale),
+    tailscaleAsk: flagOr(src.tailscaleAsk, DEFAULTS.lan.tailscaleAsk),
+    tailscaleAccept: flagOr(src.tailscaleAccept, DEFAULTS.lan.tailscaleAccept),
   };
 }
 
@@ -254,9 +263,9 @@ function normaliseLan(raw) {
 export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
-    notifications: typeof src.notifications === "boolean" ? src.notifications : DEFAULTS.notifications,
-    tourSeen: typeof src.tourSeen === "boolean" ? src.tourSeen : DEFAULTS.tourSeen,
-    autoUpdate: typeof src.autoUpdate === "boolean" ? src.autoUpdate : DEFAULTS.autoUpdate,
+    notifications: flagOr(src.notifications, DEFAULTS.notifications),
+    tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
+    autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     lan: normaliseLan(src.lan),
   };
 }
