@@ -192,22 +192,6 @@ export function cleanName(raw, fallback = "unnamed deck") {
 // ── this deck's own key ─────────────────────────────────────────────────────
 
 /**
- * Turn a passphrase into the key everything else hangs off.
- *
- * scrypt rather than a plain hash, and the parameters are the point: this is a
- * passphrase a person typed, on a network where anybody can capture the
- * handshake and grind at it offline. N=2^15 costs about 100ms and 32 MB per
- * guess here, which is nothing once per deck start and is the difference
- * between a weak passphrase falling in seconds and falling in weeks.
- *
- * The salt is FIXED and that is deliberate, not an oversight. A per-deck salt
- * would mean two decks with the same passphrase deriving different keys, which
- * is the one thing this must never do. What a salt buys — that one rainbow
- * table cannot cover every deployment — is bought instead by the passphrase
- * being generated at 128 bits by default; a table against a random 128-bit
- * secret is not a thing that exists.
- */
-/**
  * A deck's own long-term identity.
  *
  * X25519, because the only thing it is ever used for is agreeing a session key
@@ -600,24 +584,6 @@ export function inviteProofBack(code, transcript) {
 // ── the beacon ──────────────────────────────────────────────────────────────
 
 /**
- * What a deck shouts, which anybody on the network can hear.
- *
- * NO ACCOUNTS AND NO SECRET. This is the packet a stranger on the same wifi
- * receives, so what is in it is what a stranger learns: that a ccdeck is here,
- * what it calls itself, and a hash of its public key. Not which Anthropic
- * accounts exist on the machine, not how many, and nothing that could be ground
- * at offline, because there is nothing in it derived from a secret.
- *
- * IT NO LONGER CARRIES A GROUP TAG, and that is the shape of the whole feature
- * changing rather than a field going away. The tag let a deck drop a packet
- * from outside its group before any handshake existed to attack, which is a
- * real property and was worth having — but it only worked when both people
- * held the same passphrase, and a passphrase neither of them can see is exactly
- * what nobody could get right. What replaces it is later and cheaper: a beacon
- * from a deck this one does not trust becomes a row somebody can accept, and
- * nothing at all happens until they do.
- */
-/**
  * WHICH MACHINE THIS IS, as opposed to which PROCESS or which KEY.
  *
  * Reported by somebody looking at a colleague's screen: "I appear three or four
@@ -661,6 +627,24 @@ export function machineName(hostname) {
   return /^\d+(\.\d+){3}$/.test(h) ? h : h.split(".")[0];
 }
 
+/**
+ * What a deck shouts, which anybody on the network can hear.
+ *
+ * NO ACCOUNTS AND NO SECRET. This is the packet a stranger on the same wifi
+ * receives, so what is in it is what a stranger learns: that a ccdeck is here,
+ * what it calls itself, and a hash of its public key. Not which Anthropic
+ * accounts exist on the machine, not how many, and nothing that could be ground
+ * at offline, because there is nothing in it derived from a secret.
+ *
+ * IT NO LONGER CARRIES A GROUP TAG, and that is the shape of the whole feature
+ * changing rather than a field going away. The tag let a deck drop a packet
+ * from outside its group before any handshake existed to attack, which is a
+ * real property and was worth having — but it only worked when both people
+ * held the same passphrase, and a passphrase neither of them can see is exactly
+ * what nobody could get right. What replaces it is later and cheaper: a beacon
+ * from a deck this one does not trust becomes a row somebody can accept, and
+ * nothing at all happens until they do.
+ */
 export function beaconPayload({ name, fp, port, instance, host }) {
   return {
     m: MAGIC,
@@ -719,13 +703,13 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
 }
 
 /**
- * Whether a beacon is one this deck should act on.
+ * Whether a beacon is one this deck should act on, and if not, why not.
  *
- * Three separate refusals and they mean different things, which is why this
- * returns a reason rather than a boolean — the panel says "found a deck that is
- * not in your group" where it would otherwise say nothing at all, and "not in
- * your group" is the single most useful sentence when somebody has mistyped the
- * passphrase on one machine.
+ * A reason rather than a boolean, because each answer asks for something
+ * different: a packet that is not a beacon, this deck's own echo, or another
+ * deck on this computer is nothing to act on; a deck wearing this one's key
+ * (`id-clash`) is a key to replace; a paired deck is a peer to note; and a
+ * stranger is a row somebody can accept.
  *
  * Self-recognition is by fingerprint, not by address: a deck hears its own
  * broadcast on every interface it owns, and filtering by address would need a
@@ -988,11 +972,13 @@ export function peerRows(peers, now) {
 // ── the handshake ───────────────────────────────────────────────────────────
 
 /**
- * The proof a deck offers to show it holds the group passphrase.
+ * The proof a deck offers to show it holds the private half of the key it
+ * announced — the key a paired deck pinned for it.
  *
  * Challenge-response over the derived key rather than sending anything derived
- * from the passphrase directly, so a recording of one exchange is worth nothing
- * for the next: the challenge is fresh random from the side being convinced.
+ * from that private key directly, so a recording of one exchange is worth
+ * nothing for the next: the challenge is fresh random from the side being
+ * convinced.
  *
  * BOTH SIDES PROVE. The obvious version has the caller prove itself to the
  * listener, which stops a stranger reading a manifest and stops nothing else —
@@ -1011,9 +997,10 @@ export function proof(key, { challenge, peerChallenge, fromFp, toFp, direction }
     .digest("hex");
 }
 
-/** Whether a proof is the one expected, compared in constant time for the
- *  reason `beaconVerdict` gives. Length-checked first because timingSafeEqual
- *  throws on a mismatch, and a throw here is a crash rather than a refusal. */
+/** Whether a proof is the one expected, compared in constant time so how much
+ *  of a guess matched is not something a caller can time. Length-checked first
+ *  because timingSafeEqual throws on a mismatch, and a throw here is a crash
+ *  rather than a refusal. */
 export function proofOk(expected, offered) {
   if (typeof offered !== "string" || offered.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(offered, "utf8"));
@@ -1038,14 +1025,12 @@ export function transferChallenge(key, { nonce, accountKey, fromFp, toFp }) {
 // ── the payload ─────────────────────────────────────────────────────────────
 
 /**
- * Wrap a share blob so only the group can read it.
+ * Seal something so only the deck on the other end of one connection can read
+ * it — a login, a card, and through frameChannel every frame.
  *
- * AES-256-GCM over the group key with a random 12-byte nonce. The alternative
- * — per-peer keys from the X25519 exchange — is better cryptography and worse
- * for this: it would make the encryption depend on a session that the transfer
- * check above deliberately does not trust, and the thing being protected is
- * already group-wide by definition. Anybody who can decrypt this is somebody
- * the passphrase already admits.
+ * AES-256-GCM under a key that connection derived, with a random 12-byte
+ * nonce. It sealed under one long-lived group key once, and sessionKey's note
+ * says why that stopped.
  *
  * The additional data binds the ciphertext to the two decks and the account, so
  * a blob captured on one exchange cannot be replayed into another as if it were

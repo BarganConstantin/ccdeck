@@ -7,8 +7,9 @@
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
 //
-//   1. it hears a beacon from a deck with the same group tag
-//   2. it dials that deck's sync port and both sides prove the passphrase
+//   1. it hears a beacon from a deck somebody here has accepted
+//   2. it dials that deck's sync port and each side proves the key the other
+//      pinned for it
 //   3. it asks for a manifest: which accounts, and does each one work THERE
 //   4. `plan()` says "heal a@@1" — mine is quarantined, theirs is alive
 //   5. it asks for that one account, with a fresh proof naming it

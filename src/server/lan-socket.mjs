@@ -9,8 +9,8 @@
 // correct on loopback, and total exposure the moment the same server answers
 // the network. So this feature never asks anybody to run `--host`: it opens its
 // own listener, that listener speaks one protocol and nothing else, and it
-// refuses every frame from anybody who has not proved they hold the group
-// passphrase.
+// serves no frame to anybody who has not proved they hold the key of a deck
+// somebody here accepted.
 //
 // DISCOVERY IS BROADCAST ON A FIXED PORT; THE SYNC LISTENER IS EPHEMERAL and
 // says its port in the beacon. One fixed port rather than two is one thing to
