@@ -35,6 +35,7 @@ colors:
   usage-indigo: "#a5b4fc"
   usage-orange: "#fdba74"
   usage-zinc: "#94a3b8"
+  usage-cyan: "#67e8f9"
 typography:
   body:
     fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
@@ -143,7 +144,7 @@ Three consequences that decide everything else:
 
 - **Calm by default, loud only for a real event.** Colour carries state, not
   decoration. A screen with nothing wrong on it is almost monochrome. The shipped
-  palette breaks this in three places, all recorded below — they are debt, not
+  palette breaks this in two places, all recorded below — they are debt, not
   precedent.
 - **Dark is the default, light is a full peer.** `:root` is the dark ramp;
   `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
@@ -248,14 +249,16 @@ chart, so both ramps are here rather than dark alone:
 | `--cat-plan` | `#c4b5fd` | `#6d28d9` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
 | `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#b0490c` |
 | `--cat-other` | `#94a3b8` | `#64748b` | | `--usage-zinc` | `#94a3b8` | `#4a5260` |
+| | | | | `--usage-cyan` | `#67e8f9` | `#0e7490` |
 
 The usage colours are a palette, and the cost bar and the projects bar draw from
 it too. Which member a model family is drawn in is said once, by a `--model-*`
 token in a theme-independent `:root` block (#1285): `--model-opus` (also Claude
 Code's own band), `--model-sonnet`, `--model-haiku` (also Copilot's),
-`--model-gpt5`, `--model-gpt`, `--model-gemini`, `--model-codex`, and
-`--model-other` for anything `modelColor` does not recognise. Anything that draws a
-model reads the family token and never a palette member.
+`--model-gpt5`, `--model-gpt`, `--model-gemini`, `--model-codex`, `--model-fable`
+(also Mythos), and `--model-other` for anything `modelColor` does not recognise.
+Anything that draws a model — the chart, the by-CLI strip, the model chip — reads the
+family token and never a palette member.
 
 **A category is never identified by colour alone; the chip carries its name.**
 That is already what `.cat-chip .cat-name` does, and it has to stay true: in dark,
@@ -283,10 +286,6 @@ Recorded because a reader will otherwise copy them:
 - **In dark, three usage series are byte-identical to the status colours:**
   `--usage-green` = `--ok`, `--usage-amber` = `--warn`, `--usage-red` = `--err`. A
   GPT band reads as *failed* — #1284. Legibility is fine; meaning is not.
-- **The model chip's family colours are literals, not tokens**, and disagree with
-  the usage band for the same model. Opus switches hue family across themes; Fable
-  and Mythos wear `--warn` — #1285. The intent to aim at is one `--model-*` hue per
-  family, read by both the chip and the chart, kept off the state hues.
 
 ### Two palettes that are exempt from theming
 
@@ -490,8 +489,12 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   `compact` and `overview` strip it down as the board zooms out, so anything added
   to a node must decide what it becomes at each LOD.
 - **Model chip** — `data-family` per family (`opus`, `sonnet`, `haiku`, `fable`,
-  `mythos`). Add a family here rather than in a component; see #1285 for the
-  colours.
+  `mythos`), each naming its `--model-*` token and nothing else, so a chip is always
+  the colour of its band in the usage chart (#1285). A chip draws the hue as its
+  word with a 40% edge and a 6% wash; on white, a 55% edge, a 14% wash and the word a
+  fifth of the way to `--text`, which is what keeps 10px text at 4.5:1 on its own
+  wash. `gpt` is left untinted: the chart splits GPT-5 from the GPTs before it. Add a
+  family here rather than in a component.
 - **Tool bubble / burst** — striped with its `--cat-*` category colour; the chip's
   edge is the same colour at 40%, and the chip always carries the category name.
 - **Panel** (usage, machine, accounts) — `--panel` on `--r-panel`, 14px inset, 1px

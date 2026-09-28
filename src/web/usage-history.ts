@@ -160,6 +160,9 @@ export function modelColor(m: string): string {
   if (s.includes("gpt")) return "var(--model-gpt)";
   if (s.includes("gemini")) return "var(--model-gemini)";
   if (s.includes("codex")) return "var(--model-codex)";
+  // A band of its own since #1285: Fable and Mythos were drawn in the
+  // unrecognised zinc while the chip beside the chart named them in a colour.
+  if (s.includes("fable") || s.includes("mythos")) return "var(--model-fable)";
   return "var(--model-other)";
 }
 

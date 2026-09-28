@@ -136,6 +136,7 @@
   --usage-indigo: #a5b4fc;   /* gemini */
   --usage-orange: #fdba74;   /* codex */
   --usage-zinc: #94a3b8;     /* everything neither function recognises */
+  --usage-cyan: #67e8f9;     /* fable and mythos (#1285) */
   color-scheme: dark;
 }
 
@@ -270,6 +271,7 @@
   --usage-indigo: #3730a3;
   --usage-orange: #b0490c;
   --usage-zinc: #4a5260;
+  --usage-cyan: #0e7490;
   color-scheme: light;
 }
 
@@ -291,6 +293,7 @@
   --model-gpt: var(--usage-red);
   --model-gemini: var(--usage-indigo);
   --model-codex: var(--usage-orange);
+  --model-fable: var(--usage-cyan);     /* and mythos, which the rate table prices as fable */
   --model-other: var(--usage-zinc);     /* everything modelColor does not recognise */
 }
 
@@ -5216,8 +5219,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-weight: 600;
 }
 
-/* Model chip — tiny pill next to "session"/"subagent" with a family tint.
-   Picks up the family colour from a substring match in the chip text. */
+/* Model chip — tiny pill next to "session"/"subagent" with a family tint,
+   keyed on `data-family` (below). */
 .model-chip {
   display: inline-flex;
   align-items: center;
@@ -5240,18 +5243,40 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    and took the LAST: a chip reading "Opus 5 +1" painted Sonnet blue, in both
    themes, on the card, in the cluster area and in the detail hero. Add a Fable
    turn and it went yellow. `data-family` is one value from one function
-   (modelFamily), so a chip cannot be painted as a model it does not name. */
-.model-chip[data-family="opus"]   { color: #f0abfc; border-color: rgba(240,171,252,0.40); background: rgba(240,171,252,0.06); }
-.model-chip[data-family="sonnet"] { color: #7dd3fc; border-color: rgba(125,211,252,0.40); background: rgba(125,211,252,0.06); }
-.model-chip[data-family="haiku"]  { color: #86efac; border-color: rgba(134,239,172,0.40); background: rgba(134,239,172,0.06); }
+   (modelFamily), so a chip cannot be painted as a model it does not name.
+   THE HUE IS THE CHART'S (#1285). These were eight literals, and they
+   disagreed with the usage band beside them: Opus was pink on the dark chip
+   and violet on the chart — and pink is --inflight, so every resting Opus chip
+   wore the colour that means "running right now" (#1283) — and Fable and
+   Mythos wore --warn's amber and had no band at all. Each family now names its
+   --model-* token and nothing else; how a chip draws that hue is the rule after
+   this one, per theme. `gpt` is a family modelFamily() knows but the chip does
+   not tint: the chart splits GPT-5 from the GPTs before it, and one chip tint
+   for both would disagree with one of them. */
+.model-chip[data-family="opus"]   { --chip-hue: var(--model-opus); }
+.model-chip[data-family="sonnet"] { --chip-hue: var(--model-sonnet); }
+.model-chip[data-family="haiku"]  { --chip-hue: var(--model-haiku); }
 .model-chip[data-family="fable"],
-.model-chip[data-family="mythos"] { color: #fcd34d; border-color: rgba(252,211,77,0.40);  background: rgba(252,211,77,0.06); }
-/* Bumped alpha from 0.06 → 0.14 to clear WCAG AA contrast on white. */
-:root[data-theme="light"] .model-chip[data-family="opus"]   { color: #6b21a8; border-color: rgba(126,34,206,0.55);  background: rgba(126,34,206,0.14); }
-:root[data-theme="light"] .model-chip[data-family="sonnet"] { color: #075985; border-color: rgba(3,105,161,0.55);   background: rgba(3,105,161,0.14); }
-:root[data-theme="light"] .model-chip[data-family="haiku"]  { color: #166534; border-color: rgba(21,128,61,0.55);   background: rgba(21,128,61,0.14); }
-:root[data-theme="light"] .model-chip[data-family="fable"],
-:root[data-theme="light"] .model-chip[data-family="mythos"] { color: #92400e; border-color: rgba(180,83,9,0.55);    background: rgba(180,83,9,0.14); }
+.model-chip[data-family="mythos"] { --chip-hue: var(--model-fable); }
+/* The word in the hue itself, a 40% edge and a 6% wash — the weights the dark
+   literals carried. Listed rather than `[data-family]`, because modelFamily()
+   also writes "gpt" and "" and neither has a hue to read. */
+.model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+  color: var(--chip-hue);
+  border-color: color-mix(in srgb, var(--chip-hue) 40%, transparent);
+  background: color-mix(in srgb, var(--chip-hue) 6%, transparent);
+}
+/* On white the wash is 14% and the edge 55% — the alphas the light literals
+   carried to clear AA — and the word is the hue a fifth of the way to --text,
+   which is where every light literal's ink already sat (#6b21a8 against the
+   band's #7e22ce, #075985 against #0369a1): a band colour dark enough for a
+   3:1 bar is not dark enough for 10px words on its own wash. The sweep in
+   usage-series-contrast.test.ts measures the word on every bed. */
+:root[data-theme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+  color: color-mix(in srgb, var(--chip-hue) 80%, var(--text));
+  border-color: color-mix(in srgb, var(--chip-hue) 55%, transparent);
+  background: color-mix(in srgb, var(--chip-hue) 14%, transparent);
+}
 
 /* React Flow edge label background — match theme */
 .react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }

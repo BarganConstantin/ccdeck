@@ -58,6 +58,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 import { USAGE_HISTORY_FILES } from "./usage-history-surface";
+import { modelFamily } from "../model-label";
+import { modelColor } from "../usage-history";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -254,7 +256,7 @@ function functionBody(src: string, name: string): string {
 const returnsOf = (src: string, name: string) =>
   [...functionBody(src, name).matchAll(/return\s+"([^"]*)"/g)].map(m => m[1]);
 
-/** The eight, as modelColor writes them — read out of the source rather
+/** The nine, as modelColor writes them — read out of the source rather
  *  than restated here, so a ninth model family lands in every sweep below on
  *  the day it is added rather than on the day somebody remembers this file. */
 const MODEL_COLOURS = returnsOf(historyRowsSrc, "modelColor");
@@ -353,9 +355,10 @@ describe("what the eight series colours were worth (#583)", () => {
 
 // ── the palette, as the two functions write it now ──────────────────────────
 
-describe("the eight colours answer the theme now, and still say which model they are", () => {
+describe("the series colours answer the theme now, and still say which model they are", () => {
   it("hands the inline style a var() and never a literal, in both functions", () => {
-    expect(MODEL_COLOURS.length).toBe(8);
+    // Nine since #1285 gave Fable and Mythos a band of their own.
+    expect(MODEL_COLOURS.length).toBe(9);
     expect(AGENT_COLOURS.length).toBe(5);
     for (const value of SERIES) {
       expect(tokenNameOf(value), `modelColor/agentColor returned ${value}`).toMatch(/^--model-/);
@@ -403,7 +406,8 @@ describe("the eight colours answer the theme now, and still say which model they
     // is a second key otherwise.
     expect(returnsOf(agentsSrc, "agentColor")[0]).toBe(MODEL_COLOURS[0]);
     expect(returnsOf(agentsSrc, "agentColor")[1]).toBe(MODEL_COLOURS[6]);
-    expect(AGENT_COLOURS[4]).toBe(MODEL_COLOURS[7]);
+    // The fallback is modelColor's LAST return, wherever a new family lands.
+    expect(AGENT_COLOURS[4]).toBe(MODEL_COLOURS[MODEL_COLOURS.length - 1]);
   });
 });
 
@@ -448,9 +452,9 @@ describe("every band is visible on the bed the sheet draws it on", () => {
 describe("no two bands are told apart by luminance, which is why there is a hairline", () => {
   const pairs = SERIES.flatMap((a, i) => SERIES.slice(i + 1).map(b => [a, b] as const));
 
-  it("has 28 pairs to measure, so the sweep is not one colour looking at itself", () => {
-    expect(SERIES.length).toBe(8);
-    expect(pairs.length).toBe(28);
+  it("has 36 pairs to measure, so the sweep is not one colour looking at itself", () => {
+    expect(SERIES.length).toBe(9);
+    expect(pairs.length).toBe(36);
   });
 
   it("finds every pair under 3:1 in both themes — the measurement that makes the cut load-bearing", () => {
@@ -516,6 +520,91 @@ describe("no two bands are told apart by luminance, which is why there is a hair
     // colour stood alone, and the cut is where the fix belongs.
     expect(historySrc).toMatch(/<span className="uh-legend-dot"[^>]*\/>\s*\n\s*\{shortModel\(m\)\}/);
     expect(dayDetailSrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
+  });
+});
+
+// ── the model chip, which painted a palette of its own (#1285) ──────────────
+//
+// The chip beside a card's title and the band in this chart name the same model
+// and did not agree on its colour: eight literals in the sheet, chosen apart
+// from the palette above. Opus was pink on the dark chip and violet on the
+// chart — and the pink was --inflight's, so a resting Opus chip wore "running
+// right now" — while Fable and Mythos wore --warn's amber on the chip and the
+// unrecognised zinc in the chart. The family tokens are the one answer now, and
+// this reads both ends of the join off the code: the family modelFamily() stamps
+// on the chip, the token the sheet gives that family, and the token modelColor()
+// hands the chart for the same id.
+
+/** One real id per tinted family, the ones model-chip-tint.test.ts uses. */
+const CHIP_IDS: Record<string, string> = {
+  opus: "claude-opus-5", sonnet: "claude-sonnet-5-20260101", haiku: "claude-haiku-4-5",
+  fable: "claude-fable-5-1", mythos: "claude-mythos-5-1",
+};
+
+/** The first top-level rule whose whole selector is exactly `selector` — the
+ *  chip's two drawing rules carry commas inside :is(), which `bodyOf` would
+ *  split on. */
+function exactRule(selector: string): string | null {
+  const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|})\\s*${esc}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? null;
+}
+const TINTED = Object.keys(CHIP_IDS).map(f => `[data-family="${f}"]`).join(", ");
+const CHIP_DRAW = { dark: exactRule(`.model-chip:is(${TINTED})`), light: exactRule(`:root[data-theme="light"] .model-chip:is(${TINTED})`) };
+
+/** `color-mix(in srgb, A p%, B)` of two already-resolved colours, as the
+ *  browser does it: premultiplied, so mixing toward `transparent` is A at p%. */
+function mix(value: string, hue: Rgba, theme: Theme): Rgba {
+  const m = /^color-mix\(in srgb,\s*var\(--chip-hue\)\s+([\d.]+)%,\s*(.+)\)$/.exec(value.trim());
+  if (!m) return value.trim() === "var(--chip-hue)" ? hue : resolve(value, theme);
+  const p = +m[1] / 100;
+  if (m[2].trim() === "transparent") return [hue[0], hue[1], hue[2], p];
+  const other = resolve(m[2], theme);
+  return [0, 1, 2].map(i => hue[i] * p + other[i] * (1 - p)).concat(1) as Rgba;
+}
+
+describe("the model chip wears its family's band (#1285)", () => {
+  it("names each family's --model-* token and nothing else — no colour of its own", () => {
+    for (const family of Object.keys(CHIP_IDS)) {
+      const body = bodyOf(`.model-chip[data-family="${family}"]`);
+      expect(declIn(body, "--chip-hue"), family).toMatch(/^var\(--model-[\w-]+\)$/);
+      expect(isColourLiteral(body), `${family}: ${body.trim()}`).toBe(false);
+    }
+    // And the two rules that draw a chip read the hue, never a literal.
+    for (const theme of themes) {
+      expect(CHIP_DRAW[theme], `${theme} chip drawing rule`).not.toBeNull();
+      expect(isColourLiteral(CHIP_DRAW[theme]!), theme).toBe(false);
+    }
+  });
+
+  it("paints a chip in the same token the chart draws that model's band in", () => {
+    for (const [family, id] of Object.entries(CHIP_IDS)) {
+      const stamped = modelFamily(id);
+      expect(stamped, id).toBe(family);
+      expect(declIn(bodyOf(`.model-chip[data-family="${stamped}"]`), "--chip-hue"), id).toBe(modelColor(id));
+    }
+  });
+
+  it("gives Fable and Mythos a band of their own rather than the unrecognised zinc", () => {
+    const fallback = MODEL_COLOURS[MODEL_COLOURS.length - 1];
+    expect(modelColor(CHIP_IDS.fable)).not.toBe(fallback);
+    expect(modelColor(CHIP_IDS.mythos)).toBe(modelColor(CHIP_IDS.fable));
+  });
+
+  it("reads the chip's word at 4.5:1 on its own wash, on every surface a chip sits on, in both themes", () => {
+    // A 10px model name is text, and nothing measured it: the light literals
+    // carried a comment saying they cleared AA. The node's two stops sit
+    // between --panel and --bg in both themes, so these three are the extremes.
+    for (const theme of themes) {
+      const body = CHIP_DRAW[theme]!;
+      for (const family of Object.keys(CHIP_IDS)) {
+        const hue = resolve(declIn(bodyOf(`.model-chip[data-family="${family}"]`), "--chip-hue")!, theme);
+        for (const bed of ["--panel", "--bg-soft", "--bg"]) {
+          const paper = over(mix(declIn(body, "background")!, hue, theme), parseColor(TOK[theme][bed]));
+          const ratio = contrastRatio(mix(declIn(body, "color")!, hue, theme), paper);
+          expect(ratio, `${theme} ${family} chip on ${bed} — ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
   });
 });
 
