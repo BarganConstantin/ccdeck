@@ -1,0 +1,22 @@
+// Which package this worker belongs to, and the name it was started under.
+//
+// Worked out from where THIS file is, so a copy of bin/ in another tree — an npx
+// cache, a package a test assembled by hand — answers for that tree and not for
+// the one it was copied from. Lifted out of bin/deck.js so that every file in
+// bin/cli/ imports the three answers instead of having them handed down.
+import { resolve, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { invokedName } from "../../src/server/invoked-as.mjs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+export const PKG_ROOT = resolve(__dirname, "../..");
+export const PKG_VERSION = (() => {
+  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? "0.0.0"; }
+  catch { return "0.0.0"; }
+})();
+
+// The command the user typed, handed down by the supervisor — our own argv[1]
+// is this file under every one of the three names. Null when it cannot be
+// proven, and null is the answer that prints nothing.
+export const INVOKED_AS = invokedName({ pkgRoot: PKG_ROOT });

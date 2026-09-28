@@ -30,6 +30,7 @@ export const REPO_DIR = fileURLToPath(new URL("../../../", import.meta.url));
 export const CLI_FILES = [
   "bin/deck.js",
   "bin/cli/help.js",
+  "bin/cli/package.js",
 ] as const;
 
 let joined: string | null = null;
