@@ -225,7 +225,11 @@ describe("whether anybody is looking", () => {
 });
 
 describe("the switch", () => {
-  const app = src("../App.tsx");
+  // The switch, its storage migration and the press guard moved to
+  // use-auto-restart.ts, so this block reads the client. Its one negative — the
+  // switch is never written to localStorage — is stronger across the client,
+  // and true: the key now exists only in that hook, where it is read and removed.
+  const app = clientText();
 
   it("is on unless somebody turned it off, and only a real boolean turns it off", () => {
     expect(DEFAULTS.autoUpdate).toBe(true);

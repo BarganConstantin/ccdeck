@@ -306,6 +306,8 @@ describe("#803 — a failed write in Browser Watch", () => {
 
 describe("#804 — the deck restarting itself", () => {
   it("is armed only while the switch that stops it is on screen", () => {
+    // Auto-restart lives in use-auto-restart.ts; these matches are positive.
+    const app = clientText();
     // The behaviour was keyed on `notice?.kind`; the switch renders inside
     // `noticeOpen && notice`. Dismiss the banner with its × and the server
     // still exited, respawned and reloaded the page thirty seconds after the
@@ -328,6 +330,8 @@ describe("#804 — the deck restarting itself", () => {
   });
 
   it("keeps the default the useful one, because the switch is now always beside it", () => {
+    // Auto-restart lives in use-auto-restart.ts; these matches are positive.
+    const app = clientText();
     // Defaulting to off would leave every user on a version they already have
     // installed until they found a switch they have no reason to look for. The
     // defect was reachability, not the default — so the default stays.
