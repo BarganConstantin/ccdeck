@@ -58,6 +58,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 import { USAGE_HISTORY_FILES } from "./usage-history-surface";
+import { modelFamily } from "../model-label";
+import { modelColor } from "../usage-history";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -239,6 +241,8 @@ function resolve(value: string, theme: Theme): Rgba {
   return resolve(raw, theme);
 }
 const tokenNameOf = (value: string) => /^var\(\s*(--[\w-]+)\s*\)$/.exec(value.trim())?.[1] ?? null;
+/** The --usage-* palette member a family token names (#1285). */
+const memberOf = (value: string) => tokenNameOf(TOK.dark[tokenNameOf(value)!] ?? "")!;
 
 // ── what the components hand to an inline style ─────────────────────────────
 
@@ -254,7 +258,7 @@ function functionBody(src: string, name: string): string {
 const returnsOf = (src: string, name: string) =>
   [...functionBody(src, name).matchAll(/return\s+"([^"]*)"/g)].map(m => m[1]);
 
-/** The eight, as modelColor writes them — read out of the source rather
+/** The nine, as modelColor writes them — read out of the source rather
  *  than restated here, so a ninth model family lands in every sweep below on
  *  the day it is added rather than on the day somebody remembers this file. */
 const MODEL_COLOURS = returnsOf(historyRowsSrc, "modelColor");
@@ -353,12 +357,13 @@ describe("what the eight series colours were worth (#583)", () => {
 
 // ── the palette, as the two functions write it now ──────────────────────────
 
-describe("the eight colours answer the theme now, and still say which model they are", () => {
+describe("the series colours answer the theme now, and still say which model they are", () => {
   it("hands the inline style a var() and never a literal, in both functions", () => {
-    expect(MODEL_COLOURS.length).toBe(8);
+    // Nine since #1285 gave Fable and Mythos a band of their own.
+    expect(MODEL_COLOURS.length).toBe(9);
     expect(AGENT_COLOURS.length).toBe(5);
     for (const value of SERIES) {
-      expect(tokenNameOf(value), `modelColor/agentColor returned ${value}`).toMatch(/^--usage-/);
+      expect(tokenNameOf(value), `modelColor/agentColor returned ${value}`).toMatch(/^--model-/);
     }
   });
 
@@ -366,30 +371,38 @@ describe("the eight colours answer the theme now, and still say which model they
     // The family test is the thing the cascade cannot do — there is no selector
     // for "the model name contains sonnet". What moved is the value, not the
     // decision, which is exactly the boundary #330 drew for the session hues.
-    expect(historyRowsSrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--usage-blue\)"/);
-    expect(agentsSrc).toMatch(/case "codex": return "var\(--usage-orange\)"/);
+    expect(historyRowsSrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--model-sonnet\)"/);
+    expect(agentsSrc).toMatch(/case "codex": return "var\(--model-codex\)"/);
   });
 
   it("declares every one of them in both themes, since half a token is a light-theme bug", () => {
+    // A family token (#1285) names a palette member, once, for both themes; the
+    // member is what each theme declares as a hex.
     for (const value of SERIES) {
       const token = tokenNameOf(value)!;
+      const member = tokenNameOf(TOK.dark[token] ?? "");
+      expect(member, `${token} should name a --usage-* palette member`).toMatch(/^--usage-/);
       for (const theme of themes) {
-        expect(TOK[theme][token], `${theme} ${token}`).toMatch(/^#[0-9a-f]{6}$/i);
+        expect(TOK[theme][token], `${theme} ${token}`).toBe(`var(${member})`);
+        expect(TOK[theme][member!], `${theme} ${member}`).toMatch(/^#[0-9a-f]{6}$/i);
       }
     }
   });
 
-  it("pins the dark canvas — every dark value is the hex that shipped", () => {
-    // #330's rule, and the same reason: this issue is about the light theme,
-    // and quietly re-tuning dark on the way past would be a separate call.
-    expect(TOK.dark["--usage-purple"]).toBe(WAS.opus);
-    expect(TOK.dark["--usage-blue"]).toBe(WAS.sonnet);
-    expect(TOK.dark["--usage-green"]).toBe(WAS.haiku);
-    expect(TOK.dark["--usage-amber"]).toBe(WAS["gpt-5"]);
-    expect(TOK.dark["--usage-red"]).toBe(WAS.gpt);
-    expect(TOK.dark["--usage-indigo"]).toBe(WAS.gemini);
-    expect(TOK.dark["--usage-orange"]).toBe(WAS.codex);
-    expect(TOK.dark["--usage-zinc"]).toBe(WAS.fallback);
+  it("pins the dark canvas — every dark value #1284 did not move is the hex that shipped", () => {
+    // #330's rule, and the same reason: #583 was about the light theme, and
+    // quietly re-tuning dark on the way past would have been a separate call.
+    // #1284 was that call, for exactly the three bands that were state colours
+    // (swept below); the other five still draw what they drew.
+    const dark = (id: string) => TOK.dark[memberOf(modelColor(id))];
+    expect(dark("claude-opus-5")).toBe(WAS.opus);
+    expect(dark("claude-sonnet-5")).toBe(WAS.sonnet);
+    expect(dark("gemini-2.5-pro")).toBe(WAS.gemini);
+    expect(dark("codex-mini-latest")).toBe(WAS.codex);
+    expect(dark("llama-3")).toBe(WAS.fallback);
+    expect(dark("claude-haiku-4-5")).not.toBe(WAS.haiku);
+    expect(dark("gpt-5.4")).not.toBe(WAS["gpt-5"]);
+    expect(dark("gpt-4.1")).not.toBe(WAS.gpt);
   });
 
   it("keeps the by-CLI strip reading as a summary of the chart above it", () => {
@@ -398,7 +411,8 @@ describe("the eight colours answer the theme now, and still say which model they
     // is a second key otherwise.
     expect(returnsOf(agentsSrc, "agentColor")[0]).toBe(MODEL_COLOURS[0]);
     expect(returnsOf(agentsSrc, "agentColor")[1]).toBe(MODEL_COLOURS[6]);
-    expect(AGENT_COLOURS[4]).toBe(MODEL_COLOURS[7]);
+    // The fallback is modelColor's LAST return, wherever a new family lands.
+    expect(AGENT_COLOURS[4]).toBe(MODEL_COLOURS[MODEL_COLOURS.length - 1]);
   });
 });
 
@@ -443,9 +457,9 @@ describe("every band is visible on the bed the sheet draws it on", () => {
 describe("no two bands are told apart by luminance, which is why there is a hairline", () => {
   const pairs = SERIES.flatMap((a, i) => SERIES.slice(i + 1).map(b => [a, b] as const));
 
-  it("has 28 pairs to measure, so the sweep is not one colour looking at itself", () => {
-    expect(SERIES.length).toBe(8);
-    expect(pairs.length).toBe(28);
+  it("has 36 pairs to measure, so the sweep is not one colour looking at itself", () => {
+    expect(SERIES.length).toBe(9);
+    expect(pairs.length).toBe(36);
   });
 
   it("finds every pair under 3:1 in both themes — the measurement that makes the cut load-bearing", () => {
@@ -511,6 +525,136 @@ describe("no two bands are told apart by luminance, which is why there is a hair
     // colour stood alone, and the cut is where the fix belongs.
     expect(historySrc).toMatch(/<span className="uh-legend-dot"[^>]*\/>\s*\n\s*\{shortModel\(m\)\}/);
     expect(dayDetailSrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
+  });
+});
+
+// ── the palette off the state colours (#1284) ───────────────────────────────
+//
+// Contrast was never the problem here — every band cleared 7.06:1 on the dark
+// panel. Meaning was: three of the dark bands were byte-identical to the deck's
+// state colours, green to --ok, amber to --warn, red to --err, so a GPT band
+// read as failed and a GPT-5 band as attention. On white orange sat 3.9 ΔE from
+// that theme's --warn, which is an orange. A palette that is not allowed to
+// mean anything has to stay measurably away from the three colours that do.
+
+/** CIE76 ΔE a band keeps from every state colour: twice HUE_APART — further
+ *  from a state than two bands need to be from each other to read as two. */
+const STATE_APART = 2 * HUE_APART;
+const STATES = ["--ok", "--warn", "--err"] as const;
+/** Every member of the palette, which is wider than the series: the cost bar,
+ *  its key and the projects bar draw from it too. */
+const PALETTE = Object.keys(TOK.dark).filter(t => /^--usage-/.test(t));
+
+describe("no band wears a state colour (#1284)", () => {
+  it("reproduces the three the report found, byte for byte, from the hexes that shipped", () => {
+    expect(WAS.haiku).toBe(TOK.dark["--ok"]);
+    expect(WAS["gpt-5"]).toBe(TOK.dark["--warn"]);
+    expect(WAS.gpt).toBe(TOK.dark["--err"]);
+    expect(deltaE(parseColor("#b0490c"), parseColor(TOK.light["--warn"]))).toBeCloseTo(3.9, 1);
+  });
+
+  it("keeps every palette member — and so every series — 16 ΔE from --ok, --warn and --err, in both themes", () => {
+    expect(PALETTE.length).toBeGreaterThanOrEqual(SERIES.length);
+    for (const value of SERIES) expect(PALETTE, value).toContain(memberOf(value));
+    for (const theme of themes) {
+      for (const member of PALETTE) {
+        for (const state of STATES) {
+          const d = deltaE(resolve(`var(${member})`, theme), parseColor(TOK[theme][state]));
+          expect(d, `${theme} ${member} vs ${state} — ΔE ${d.toFixed(1)}`).toBeGreaterThanOrEqual(STATE_APART);
+        }
+      }
+    }
+  });
+
+  it("draws the cost bar and its key from the palette too, so they left the state colours with it", () => {
+    for (const sel of [".cost-bar .cb-cache-r", ".cost-bar .cb-cache-w", ".session-summary .ssl-cr::before", ".session-summary .ssl-cw::before"]) {
+      expect(PALETTE, sel).toContain(tokenNameOf(decl(sel, "background")!));
+    }
+  });
+});
+
+// ── the model chip, which painted a palette of its own (#1285) ──────────────
+//
+// The chip beside a card's title and the band in this chart name the same model
+// and did not agree on its colour: eight literals in the sheet, chosen apart
+// from the palette above. Opus was pink on the dark chip and violet on the
+// chart — and the pink was --inflight's, so a resting Opus chip wore "running
+// right now" — while Fable and Mythos wore --warn's amber on the chip and the
+// unrecognised zinc in the chart. The family tokens are the one answer now, and
+// this reads both ends of the join off the code: the family modelFamily() stamps
+// on the chip, the token the sheet gives that family, and the token modelColor()
+// hands the chart for the same id.
+
+/** One real id per tinted family, the ones model-chip-tint.test.ts uses. */
+const CHIP_IDS: Record<string, string> = {
+  opus: "claude-opus-5", sonnet: "claude-sonnet-5-20260101", haiku: "claude-haiku-4-5",
+  fable: "claude-fable-5-1", mythos: "claude-mythos-5-1",
+};
+
+/** The first top-level rule whose whole selector is exactly `selector` — the
+ *  chip's two drawing rules carry commas inside :is(), which `bodyOf` would
+ *  split on. */
+function exactRule(selector: string): string | null {
+  const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|})\\s*${esc}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? null;
+}
+const TINTED = Object.keys(CHIP_IDS).map(f => `[data-family="${f}"]`).join(", ");
+const CHIP_DRAW = { dark: exactRule(`.model-chip:is(${TINTED})`), light: exactRule(`:root[data-theme="light"] .model-chip:is(${TINTED})`) };
+
+/** `color-mix(in srgb, A p%, B)` of two already-resolved colours, as the
+ *  browser does it: premultiplied, so mixing toward `transparent` is A at p%. */
+function mix(value: string, hue: Rgba, theme: Theme): Rgba {
+  const m = /^color-mix\(in srgb,\s*var\(--chip-hue\)\s+([\d.]+)%,\s*(.+)\)$/.exec(value.trim());
+  if (!m) return value.trim() === "var(--chip-hue)" ? hue : resolve(value, theme);
+  const p = +m[1] / 100;
+  if (m[2].trim() === "transparent") return [hue[0], hue[1], hue[2], p];
+  const other = resolve(m[2], theme);
+  return [0, 1, 2].map(i => hue[i] * p + other[i] * (1 - p)).concat(1) as Rgba;
+}
+
+describe("the model chip wears its family's band (#1285)", () => {
+  it("names each family's --model-* token and nothing else — no colour of its own", () => {
+    for (const family of Object.keys(CHIP_IDS)) {
+      const body = bodyOf(`.model-chip[data-family="${family}"]`);
+      expect(declIn(body, "--chip-hue"), family).toMatch(/^var\(--model-[\w-]+\)$/);
+      expect(isColourLiteral(body), `${family}: ${body.trim()}`).toBe(false);
+    }
+    // And the two rules that draw a chip read the hue, never a literal.
+    for (const theme of themes) {
+      expect(CHIP_DRAW[theme], `${theme} chip drawing rule`).not.toBeNull();
+      expect(isColourLiteral(CHIP_DRAW[theme]!), theme).toBe(false);
+    }
+  });
+
+  it("paints a chip in the same token the chart draws that model's band in", () => {
+    for (const [family, id] of Object.entries(CHIP_IDS)) {
+      const stamped = modelFamily(id);
+      expect(stamped, id).toBe(family);
+      expect(declIn(bodyOf(`.model-chip[data-family="${stamped}"]`), "--chip-hue"), id).toBe(modelColor(id));
+    }
+  });
+
+  it("gives Fable and Mythos a band of their own rather than the unrecognised zinc", () => {
+    const fallback = MODEL_COLOURS[MODEL_COLOURS.length - 1];
+    expect(modelColor(CHIP_IDS.fable)).not.toBe(fallback);
+    expect(modelColor(CHIP_IDS.mythos)).toBe(modelColor(CHIP_IDS.fable));
+  });
+
+  it("reads the chip's word at 4.5:1 on its own wash, on every surface a chip sits on, in both themes", () => {
+    // A 10px model name is text, and nothing measured it: the light literals
+    // carried a comment saying they cleared AA. The node's two stops sit
+    // between --panel and --bg in both themes, so these three are the extremes.
+    for (const theme of themes) {
+      const body = CHIP_DRAW[theme]!;
+      for (const family of Object.keys(CHIP_IDS)) {
+        const hue = resolve(declIn(bodyOf(`.model-chip[data-family="${family}"]`), "--chip-hue")!, theme);
+        for (const bed of ["--panel", "--bg-soft", "--bg"]) {
+          const paper = over(mix(declIn(body, "background")!, hue, theme), parseColor(TOK[theme][bed]));
+          const ratio = contrastRatio(mix(declIn(body, "color")!, hue, theme), paper);
+          expect(ratio, `${theme} ${family} chip on ${bed} — ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
   });
 });
 
@@ -773,9 +917,9 @@ describe("the sweep that could not see a .tsx literal, which is why none of this
     // The indirection is the whole reason the existing sweeps missed this:
     // `background: modelColor(mb.modelName)` mentions no colour at all.
     const seg = INLINE.find(c => c.expression === "modelColor(mb.modelName)")!;
-    expect(seg.sources).toEqual(expect.arrayContaining(["var(--usage-purple)", "var(--usage-zinc)"]));
+    expect(seg.sources).toEqual(expect.arrayContaining(["var(--model-opus)", "var(--model-other)"]));
     const share = INLINE.find(c => c.expression === "agentColor(a.id)")!;
-    expect(share.sources).toEqual(expect.arrayContaining(["var(--usage-orange)"]));
+    expect(share.sources).toEqual(expect.arrayContaining(["var(--model-codex)"]));
   });
 
   it("would fail on a hard-coded hex in an inline style, which is the shape that shipped", () => {

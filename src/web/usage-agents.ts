@@ -102,20 +102,21 @@ export function dayAgentSummary(agents: readonly AgentDay[] | undefined): string
  * put unreadable-against-the-panel colours on screen to solve a case nobody has
  * yet reported.
  *
- * The palette is five `var(--usage-…)` names rather than five hexes as of #583,
+ * The palette is five `var(--model-…)` names rather than five hexes as of #583,
  * for the reason `modelColor` spells out: the literals here were the dark
  * canvas's pastels, an inline `style` is unreachable from the sheet, and on
  * white they were 1.40:1 to 2.56:1 against the panel they were drawn on. The
  * mapping is still this function's; only the values moved to :root, where each
- * theme answers for its own.
+ * theme answers for its own. They are the model families' tokens since #1285,
+ * so a CLI's band is by construction the colour its models are drawn in.
  */
 export function agentColor(id: string): string {
   switch (id.toLowerCase()) {
-    case "claude": return "var(--usage-purple)";  // as the Claude models are drawn
-    case "codex": return "var(--usage-orange)";   // as the Codex models are drawn
-    case "gemini": return "var(--usage-indigo)";  // matching modelColor's gemini
-    case "copilot": return "var(--usage-green)";
-    default: return "var(--usage-zinc)";          // the same fallback modelColor uses
+    case "claude": return "var(--model-opus)";    // as the Claude models are drawn
+    case "codex": return "var(--model-codex)";    // as the Codex models are drawn
+    case "gemini": return "var(--model-gemini)";  // matching modelColor's gemini
+    case "copilot": return "var(--model-haiku)";  // no model family of its own; borrows haiku's
+    default: return "var(--model-other)";         // the same fallback modelColor uses
   }
 }
 

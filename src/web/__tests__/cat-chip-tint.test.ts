@@ -665,8 +665,11 @@ describe("the category stripe on a tool bubble, in both themes (#877)", () => {
     const audit: Record<string, number> = {
       file: 1.54, shell: 1.37, web: 1.38, agent: 1.61, task: 1.34, plan: 1.67, mcp: 1.41, other: 2.18,
     };
+    // The pastels as the audit measured them: agent's has since moved off
+    // --inflight (#1283), so it is restated as the value that shipped.
+    const shipped = (cat: string) => (cat === "agent" ? "#f0abfc" : accentOf(cat, "dark"));
     for (const cat of CATEGORIES) {
-      expect(stripeRatio(accentOf(cat, "dark"), "light"), cat).toBeCloseTo(audit[cat], 2);
+      expect(stripeRatio(shipped(cat), "light"), cat).toBeCloseTo(audit[cat], 2);
     }
   });
 

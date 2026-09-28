@@ -144,19 +144,26 @@ export interface CcusageResp {
  * the mapping stays here and the values live at :root, per theme, where a test
  * can compute them and a theme switch can answer them — which is exactly what
  * #357 did for --edge-transition, and legal in an inline style for the same
- * reason: `background: var(--usage-blue)` resolves against the element's own
- * computed custom properties.
+ * reason: `background: var(--model-sonnet)` resolves against the element's
+ * own computed custom properties.
+ *
+ * A family token and not a palette member since #1285: `--model-sonnet` is the
+ * one place the sheet says which of its --usage-* colours Sonnet is drawn in,
+ * so the model chip can read the same answer the chart does.
  */
 export function modelColor(m: string): string {
   const s = m.toLowerCase();
-  if (s.includes("opus")) return "var(--usage-purple)";
-  if (s.includes("sonnet")) return "var(--usage-blue)";
-  if (s.includes("haiku")) return "var(--usage-green)";
-  if (s.includes("gpt-5") || s.includes("gpt5")) return "var(--usage-amber)";
-  if (s.includes("gpt")) return "var(--usage-red)";
-  if (s.includes("gemini")) return "var(--usage-indigo)";
-  if (s.includes("codex")) return "var(--usage-orange)";
-  return "var(--usage-zinc)";
+  if (s.includes("opus")) return "var(--model-opus)";
+  if (s.includes("sonnet")) return "var(--model-sonnet)";
+  if (s.includes("haiku")) return "var(--model-haiku)";
+  if (s.includes("gpt-5") || s.includes("gpt5")) return "var(--model-gpt5)";
+  if (s.includes("gpt")) return "var(--model-gpt)";
+  if (s.includes("gemini")) return "var(--model-gemini)";
+  if (s.includes("codex")) return "var(--model-codex)";
+  // A band of its own since #1285: Fable and Mythos were drawn in the
+  // unrecognised zinc while the chip beside the chart named them in a colour.
+  if (s.includes("fable") || s.includes("mythos")) return "var(--model-fable)";
+  return "var(--model-other)";
 }
 
 // ── the range, rolled up ────────────────────────────────────────────────────

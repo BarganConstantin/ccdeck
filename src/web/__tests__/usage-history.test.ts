@@ -80,18 +80,18 @@ describe("the line of CLIs over a selected day", () => {
 
 describe("the colour a model is drawn in", () => {
   it("is its family's token, whatever the case of the id", () => {
-    expect(modelColor("claude-opus-5")).toBe("var(--usage-purple)");
-    expect(modelColor("Claude-Sonnet-5")).toBe("var(--usage-blue)");
-    expect(modelColor("claude-haiku-4-5")).toBe("var(--usage-green)");
-    expect(modelColor("gemini-2.5-pro")).toBe("var(--usage-indigo)");
-    expect(modelColor("codex-mini-latest")).toBe("var(--usage-orange)");
-    expect(modelColor("mystery-model-x")).toBe("var(--usage-zinc)");
+    expect(modelColor("claude-opus-5")).toBe("var(--model-opus)");
+    expect(modelColor("Claude-Sonnet-5")).toBe("var(--model-sonnet)");
+    expect(modelColor("claude-haiku-4-5")).toBe("var(--model-haiku)");
+    expect(modelColor("gemini-2.5-pro")).toBe("var(--model-gemini)");
+    expect(modelColor("codex-mini-latest")).toBe("var(--model-codex)");
+    expect(modelColor("mystery-model-x")).toBe("var(--model-other)");
   });
 
   it("tells GPT-5 from the GPTs before it, and a GPT codex id by its GPT", () => {
-    expect(modelColor("gpt-5.4")).toBe("var(--usage-amber)");
-    expect(modelColor("gpt5-mini")).toBe("var(--usage-amber)");
-    expect(modelColor("gpt-4.1")).toBe("var(--usage-red)");
-    expect(modelColor("gpt-5.4-codex")).toBe("var(--usage-amber)");
+    expect(modelColor("gpt-5.4")).toBe("var(--model-gpt5)");
+    expect(modelColor("gpt5-mini")).toBe("var(--model-gpt5)");
+    expect(modelColor("gpt-4.1")).toBe("var(--model-gpt)");
+    expect(modelColor("gpt-5.4-codex")).toBe("var(--model-gpt5)");
   });
 });

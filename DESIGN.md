@@ -22,19 +22,20 @@ colors:
   cat-file: "#7dd3fc"
   cat-shell: "#fcd34d"
   cat-web: "#67e8f9"
-  cat-agent: "#f0abfc"
+  cat-agent: "#f9a8d4"
   cat-task: "#86efac"
   cat-plan: "#c4b5fd"
   cat-mcp: "#5eead4"
   cat-other: "#94a3b8"
   usage-purple: "#c4b5fd"
   usage-blue: "#7dd3fc"
-  usage-green: "#86efac"
-  usage-amber: "#fcd34d"
-  usage-red: "#fca5a5"
+  usage-teal: "#5eead4"
+  usage-lime: "#bef264"
+  usage-pink: "#f9a8d4"
   usage-indigo: "#a5b4fc"
   usage-orange: "#fdba74"
   usage-zinc: "#94a3b8"
+  usage-cyan: "#67e8f9"
 typography:
   body:
     fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
@@ -142,9 +143,8 @@ thing being looked at on purpose for long.
 Three consequences that decide everything else:
 
 - **Calm by default, loud only for a real event.** Colour carries state, not
-  decoration. A screen with nothing wrong on it is almost monochrome. The shipped
-  palette breaks this in three places, all recorded below — they are debt, not
-  precedent.
+  decoration. A screen with nothing wrong on it is almost monochrome, and no
+  resting colour may wear a state's hue — see *State hues are exclusive* below.
 - **Dark is the default, light is a full peer.** `:root` is the dark ramp;
   `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
   where contrast bugs live, because every terminal-adjacent colour assumes dark.
@@ -200,7 +200,7 @@ two copies cannot drift. Never move that logic into the bundle.
 | `--accent-dim` | `#38bdf850` | `rgba(3,105,161,0.22)` | The primary button's wash. |
 | `--grid-line` | `#1a1d24` | `#d0d5dd` | The canvas dot grid. |
 | `--ok` `--warn` `--err` | `#86efac` `#fcd34d` `#fca5a5` | `#157a3a` `#ad4e08` `#b91c1c` | Settled, attention, failed. |
-| `--inflight` | `#f0abfc` | `#7e22ce` | A tool call in flight. Intended as the one hue that means *right now* — see the collisions below. |
+| `--inflight` | `#f0abfc` | `#7e22ce` | A tool call in flight — the one hue that means *right now*. Nothing else in either palette comes within 16 ΔE of it (#1283). |
 
 **Derived tiers, and why they are derived.** These are deliberately absent from the
 frontmatter's `colors` map, because a primitive may not reference another primitive
@@ -240,18 +240,29 @@ chart, so both ramps are here rather than dark alone:
 
 | Token | Dark | Light | | Token | Dark | Light |
 |---|---|---|---|---|---|---|
-| `--cat-file` | `#7dd3fc` | `#0369a1` | | `--usage-purple` | `#c4b5fd` | `#7e22ce` |
+| `--cat-file` | `#7dd3fc` | `#0369a1` | | `--usage-purple` | `#c4b5fd` | `#4c1d95` |
 | `--cat-shell` | `#fcd34d` | `#b45309` | | `--usage-blue` | `#7dd3fc` | `#0369a1` |
-| `--cat-web` | `#67e8f9` | `#0e7490` | | `--usage-green` | `#86efac` | `#157a3a` |
-| `--cat-agent` | `#f0abfc` | `#a21caf` | | `--usage-amber` | `#fcd34d` | `#7a5c00` |
-| `--cat-task` | `#86efac` | `#15803d` | | `--usage-red` | `#fca5a5` | `#be123c` |
-| `--cat-plan` | `#c4b5fd` | `#6d28d9` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
-| `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#b0490c` |
+| `--cat-web` | `#67e8f9` | `#0e7490` | | `--usage-teal` | `#5eead4` | `#0f766e` |
+| `--cat-agent` | `#f9a8d4` | `#a21caf` | | `--usage-lime` | `#bef264` | `#4d7c0f` |
+| `--cat-task` | `#86efac` | `#15803d` | | `--usage-pink` | `#f9a8d4` | `#be185d` |
+| `--cat-plan` | `#c4b5fd` | `#4c1d95` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
+| `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#7c2d12` |
 | `--cat-other` | `#94a3b8` | `#64748b` | | `--usage-zinc` | `#94a3b8` | `#4a5260` |
+| | | | | `--usage-cyan` | `#67e8f9` | `#0e7490` |
 
-The usage colours map to: purple = opus and Claude Code's own band, blue = sonnet,
-green = haiku and Copilot, amber = gpt-5, red = gpt, indigo = gemini, orange =
-codex, zinc = anything neither function recognises.
+The usage colours are a palette, and the cost bar and the projects bar draw from
+it too. Which member a model family is drawn in is said once, by a `--model-*`
+token in a theme-independent `:root` block (#1285): `--model-opus` (also Claude
+Code's own band), `--model-sonnet`, `--model-haiku` (also Copilot's),
+`--model-gpt5`, `--model-gpt`, `--model-gemini`, `--model-codex`, `--model-fable`
+(also Mythos), and `--model-other` for anything `modelColor` does not recognise.
+Anything that draws a model — the chart, the by-CLI strip, the model chip — reads the
+family token and never a palette member.
+
+**The palette never wears a state colour** (#1284). Every member stays 16 ΔE or more
+from `--ok`, `--warn` and `--err` in both themes, and there is no red in it: a band
+that is the error colour reads as a failure whatever its legend says. On white the
+orange slot is a burnt orange, because that theme's `--warn` is an orange.
 
 **A category is never identified by colour alone; the chip carries its name.**
 That is already what `.cat-chip .cat-name` does, and it has to stay true: in dark,
@@ -269,20 +280,21 @@ eight series. So the usage series and the tool categories buy their separation w
 clears 3:1 against `--panel` so that hairline is visible against whichever two
 bands it separates. Do not try to solve a new multi-series chart with colour alone.
 
-### Where the shipped palette breaks *colour carries state*
+### State hues are exclusive
 
-Recorded because a reader will otherwise copy them:
+A state colour means something only if nothing at rest wears it, so two sweeps hold
+the palette off them, in both themes:
 
-- **`--inflight` `#f0abfc` is also `--cat-agent` and the dark Opus chip**, so with
-  nothing running, every Opus chip and agent-category stripe wears the *right now*
-  hue — #1283.
-- **In dark, three usage series are byte-identical to the status colours:**
-  `--usage-green` = `--ok`, `--usage-amber` = `--warn`, `--usage-red` = `--err`. A
-  GPT band reads as *failed* — #1284. Legibility is fine; meaning is not.
-- **The model chip's family colours are literals, not tokens**, and disagree with
-  the usage band for the same model. Opus switches hue family across themes; Fable
-  and Mythos wear `--warn` — #1285. The intent to aim at is one `--model-*` hue per
-  family, read by both the chip and the chart, kept off the state hues.
+- **Nothing but `--inflight` comes within 16 ΔE of `--inflight`** —
+  `contrast-floors.test.ts`. It used to be `--cat-agent` and the dark Opus chip byte
+  for byte, and on white the Opus band and the plan category sat on it (#1283).
+- **No usage palette member comes within 16 ΔE of `--ok`, `--warn` or `--err`** —
+  `usage-series-contrast.test.ts` (#1284).
+
+Pick a new category or series colour against both. Four surfaces still read
+`--inflight` itself while nothing is running — the context meter's gradient, the
+session summary's tool bars, the context donut between 70% and 90%, and the empty
+canvas — tracked in #1649; do not add a fifth.
 
 ### Two palettes that are exempt from theming
 
@@ -486,8 +498,12 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   `compact` and `overview` strip it down as the board zooms out, so anything added
   to a node must decide what it becomes at each LOD.
 - **Model chip** — `data-family` per family (`opus`, `sonnet`, `haiku`, `fable`,
-  `mythos`). Add a family here rather than in a component; see #1285 for the
-  colours.
+  `mythos`), each naming its `--model-*` token and nothing else, so a chip is always
+  the colour of its band in the usage chart (#1285). A chip draws the hue as its
+  word with a 40% edge and a 6% wash; on white, a 55% edge, a 14% wash and the word a
+  fifth of the way to `--text`, which is what keeps 10px text at 4.5:1 on its own
+  wash. `gpt` is left untinted: the chart splits GPT-5 from the GPTs before it. Add a
+  family here rather than in a component.
 - **Tool bubble / burst** — striped with its `--cat-*` category colour; the chip's
   edge is the same colour at 40%, and the chip always carries the category name.
 - **Panel** (usage, machine, accounts) — `--panel` on `--r-panel`, 14px inset, 1px

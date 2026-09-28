@@ -1242,3 +1242,78 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     }
   });
 });
+
+// ── #1283: one hue for "right now" ─────────────────────────────────────────
+//
+// --inflight is meant to be the one colour that says a thing is happening at
+// this moment, and a claim like that is only as good as its exclusivity. It
+// was not exclusive: the dark value was also --cat-agent's and the dark Opus
+// chip's, byte for byte, so with nothing running every agent-category stripe
+// and every Opus chip wore "running". On white the Opus band was it byte for
+// byte and the plan category sat 7.4 ΔE away. Nothing measured the distance
+// between the in-flight hue and anything else in the palette, because every
+// sweep here measures a colour against the paper it lands on.
+
+/** CIE76 ΔE — the question a contrast ratio cannot answer: whether two colours
+ *  of different luminance are still the same hue to somebody glancing. */
+function deltaE(a: Rgba, b: Rgba): number {
+  const lab = (c: Rgba) => {
+    const lin = (v: number) => { const n = v / 255; return n <= 0.04045 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4); };
+    const [r, g, bl] = [c[0], c[1], c[2]].map(lin);
+    const f = (v: number) => (v > 216 / 24389 ? Math.cbrt(v) : (841 / 108) * v + 4 / 29);
+    const x = f((0.4124 * r + 0.3576 * g + 0.1805 * bl) / 0.95047);
+    const y = f(0.2126 * r + 0.7152 * g + 0.0722 * bl);
+    const z = f((0.0193 * r + 0.1192 * g + 0.9505 * bl) / 1.08883);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+  };
+  const [l1, a1, b1] = lab(a), [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+describe("--inflight is the only colour wearing the in-flight hue (#1283)", () => {
+  /** The floor usage-series-contrast.test.ts keeps between a band and a state
+   *  colour: twice the 8 ΔE at which two bands stop reading as two. */
+  const APART = 16;
+  const inflight = (theme: Theme) => parseColor(TOK[theme]["--inflight"]);
+  /** Every opaque colour a theme block declares, the in-flight token aside. */
+  const colours = (theme: Theme) => Object.entries(TOK[theme])
+    .filter(([name, value]) => name !== "--inflight" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value));
+
+  it("reproduces the collisions, from the values that shipped", () => {
+    // --cat-agent and the dark Opus chip were written #f0abfc; the light Opus
+    // band was #7e22ce; the light plan category #6d28d9.
+    expect(deltaE(parseColor("#f0abfc"), inflight("dark"))).toBe(0);
+    expect(deltaE(parseColor("#7e22ce"), inflight("light"))).toBe(0);
+    expect(deltaE(parseColor("#6d28d9"), inflight("light"))).toBeCloseTo(7.4, 1);
+  });
+
+  it("keeps every other colour in both palettes 16 ΔE from it", () => {
+    for (const theme of themes) {
+      for (const [name, value] of colours(theme)) {
+        const d = deltaE(parseColor(value), inflight(theme));
+        expect(d, `${theme} ${name} ${value} — ΔE ${d.toFixed(1)} from --inflight`).toBeGreaterThanOrEqual(APART);
+      }
+    }
+  });
+
+  it("keeps every model chip off it too, through the family token the chip reads", () => {
+    // The chip's hue is two steps from a colour: --model-* in a bare :root,
+    // naming a --usage-* member each theme declares.
+    for (const family of ["opus", "sonnet", "haiku", "fable", "mythos"]) {
+      const token = declFor(`.model-chip[data-family="${family}"]`, "--chip-hue")!;
+      const member = declFor(":root", /^var\((--[\w-]+)\)$/.exec(token)![1])!;
+      for (const theme of themes) {
+        const d = deltaE(resolve(member, theme), inflight(theme));
+        expect(d, `${theme} ${family} chip — ΔE ${d.toFixed(1)} from --inflight`).toBeGreaterThanOrEqual(APART);
+      }
+    }
+  });
+
+  it("sweeps both palettes whole, so a pass is not a sweep over nothing", () => {
+    for (const theme of themes) {
+      const names = colours(theme).map(([name]) => name);
+      expect(names.length, theme).toBeGreaterThan(30);
+      for (const t of ["--cat-agent", "--cat-plan", "--usage-purple", "--accent", "--err"]) expect(names, `${theme} ${t}`).toContain(t);
+    }
+  });
+});

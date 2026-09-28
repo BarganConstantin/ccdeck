@@ -70,6 +70,12 @@
   --ok: #86efac;
   --warn: #fcd34d;
   --err: #fca5a5;
+  /* THE ONE HUE THAT MEANS "IN FLIGHT, RIGHT NOW" — and a claim like that is
+     only true if nothing at rest wears it. It was also --cat-agent's value and
+     the dark Opus chip's, so with nothing running every agent-category stripe
+     and every Opus chip was painted "running" (#1283); on white the Opus band
+     and the plan category sat on it too. Nothing else in either palette comes
+     within 16 ΔE of it now, which contrast-floors.test.ts sweeps for. */
   --inflight: #f0abfc;
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
@@ -94,11 +100,13 @@
   --session-edge-idle-l: 55%;  /* settled edge — 1.5px, same floor */
   --mcp-dot-l: 65%;            /* the unknown-server burst stripe + the MCP chip's edge */
   /* The eight tool categories: a bubble's stripe, and at 40% its chip's edge.
-     Pastels on the dark canvas; the light block darkens every one (#877). */
+     Pastels on the dark canvas; the light block darkens every one (#877).
+     Agent was --inflight's fuchsia byte for byte, so a finished Task bubble
+     read as still running (#1283); it is the pink beside it, 20.3 ΔE off. */
   --cat-file: #7dd3fc;
   --cat-shell: #fcd34d;
   --cat-web: #67e8f9;
-  --cat-agent: #f0abfc;
+  --cat-agent: #f9a8d4;
   --cat-task: #86efac;
   --cat-plan: #c4b5fd;
   --cat-mcp: #5eead4;
@@ -117,10 +125,18 @@
      --edge-transition, and it is the only one available, because an inline
      style outranks every selector this sheet could write — a `.uh-bar-seg`
      rule cannot repaint a background the component itself set.
-     These dark values are the shipped ones byte for byte, so nothing on this
-     canvas moves; the light block re-tunes all eight. Both are swept by
+     These dark values were the shipped ones byte for byte, so nothing on this
+     canvas moved; the light block re-tuned all eight. Both are swept by
      usage-series-contrast.test.ts against --panel, --bg-soft, and the --line
      track the two meters draw their fills on.
+     NONE OF THEM IS A STATE COLOUR (#1284). Three were: green was --ok, amber
+     was --warn and red was --err, byte for byte, so a GPT band read as failed,
+     a GPT-5 band as attention and every Haiku band as done — legible, and
+     saying the wrong thing. They are teal, lime and pink now, and the palette
+     has no red at all; the light block also moves orange, which sat 3.9 ΔE from
+     that theme's --warn. Every member stays 16 ΔE or more from --ok, --warn
+     and --err in both themes — twice the distance two bands need to read as
+     two — and the nearest is 23.3.
      Eight mutually distinguishable luminances are not available at any tuning:
      a chain of n colours each 3:1 from the next needs (L + 0.05) to span
      3^(n-1), and 3^3 = 27 already exceeds the 21 sRGB allows, so four is
@@ -130,12 +146,13 @@
      visible against whichever two bands it happens to separate. */
   --usage-purple: #c4b5fd;   /* opus, and Claude Code's own band */
   --usage-blue: #7dd3fc;     /* sonnet */
-  --usage-green: #86efac;    /* haiku, and Copilot */
-  --usage-amber: #fcd34d;    /* gpt-5 */
-  --usage-red: #fca5a5;      /* gpt */
+  --usage-teal: #5eead4;     /* haiku, and Copilot (#1284: was --ok's green) */
+  --usage-lime: #bef264;     /* gpt-5 (#1284: was --warn's amber) */
+  --usage-pink: #f9a8d4;     /* gpt (#1284: was --err's red) */
   --usage-indigo: #a5b4fc;   /* gemini */
   --usage-orange: #fdba74;   /* codex */
   --usage-zinc: #94a3b8;     /* everything neither function recognises */
+  --usage-cyan: #67e8f9;     /* fable and mythos (#1285) */
   color-scheme: dark;
 }
 
@@ -232,15 +249,16 @@
   --session-edge-idle-l: 36%;  /* 3.24:1 */
   --mcp-dot-l: 32%;            /* 3.38:1 */
   /* The same hues a tier darker. The dark pastels drew a white bubble's stripe
-     at 1.34-2.18:1 (#877); these draw it at 3.56:1 (other) to 5.30:1 (plan) at
+     at 1.34-2.18:1 (#877); these draw it at 3.56:1 (other) to 7.43:1 (plan) at
      the stripe's own 0.85, and stay as far apart from each other as the dark
-     eight are. */
+     eight are. Plan is violet-900 rather than -700: #6d28d9 sat 7.4 ΔE from
+     this theme's --inflight, so a finished plan bubble wore "running" (#1283). */
   --cat-file: #0369a1;
   --cat-shell: #b45309;
   --cat-web: #0e7490;
   --cat-agent: #a21caf;
   --cat-task: #15803d;
-  --cat-plan: #6d28d9;
+  --cat-plan: #4c1d95;
   --cat-mcp: #0f766e;
   --cat-other: #64748b;
   /* The same eight bands, re-tuned for white — the whole of #583's first half.
@@ -253,24 +271,53 @@
      their fills over — the tightest of the three at #c8cdd6, and the one that
      matters most, since a partial fill's boundary against its track is how the
      length of a meter is read at all.
-     Worst readings in the set: green at 5.42 on the paper and 3.39 on the
-     track, orange at 5.52 and 3.46. The hues are also spread by CIE76 ΔE, not
+     Worst readings in the set: lime at 4.99 on the paper and 3.13 on the
+     track, cyan at 5.36 and 3.36. The hues are also spread by CIE76 ΔE, not
      only by luminance, because a stack of bands is told apart by hue first and
      a contrast ratio only says each band can be seen at all — the closest pair
-     here is blue against zinc at 29.3, where the dark set's closest is purple
-     against indigo at 9.6. Under a colour vision deficiency some pair always
+     here is purple against indigo at 9.9, the same pair the dark set holds
+     closest at 9.6.
+     Purple cannot be this theme's --inflight either, and it was, byte for
+     byte: every Opus band on white wore "running" (#1283). It is violet-900,
+     26.4 ΔE off, and as close to indigo as the dark pair is (9.9 against 9.6).
+     Orange cannot be orange on white: this theme's --warn is an orange, and
+     #b0490c sat 3.9 ΔE from it (#1284). It is a burnt orange a step darker and
+     redder, 24.0 from --warn and 29.4 from --err. Under a colour vision deficiency some pair always
      collapses (the shipped dark set puts purple and blue 2.8 apart for a
      deuteranope), which is precisely why the fix cannot be a palette alone and
      the segment hairline below is load-bearing rather than decorative. */
-  --usage-purple: #7e22ce;
+  --usage-purple: #4c1d95;
   --usage-blue: #0369a1;
-  --usage-green: #157a3a;
-  --usage-amber: #7a5c00;
-  --usage-red: #be123c;
+  --usage-teal: #0f766e;
+  --usage-lime: #4d7c0f;
+  --usage-pink: #be185d;
   --usage-indigo: #3730a3;
-  --usage-orange: #b0490c;
+  --usage-orange: #7c2d12;
   --usage-zinc: #4a5260;
+  --usage-cyan: #0e7490;
   color-scheme: light;
+}
+
+/* WHICH HUE EACH MODEL FAMILY IS DRAWN IN, named once (#1285). The eight
+   --usage-* colours above are a palette — the cost bar's four token kinds and
+   the projects bar draw from it as well as the usage chart — so "the Opus
+   colour" was not a thing the sheet could say: modelColor() and agentColor()
+   picked palette members in TypeScript, and the model chip painted literals of
+   its own that did not agree with them. These are that decision, one token per
+   family, for every surface that draws a model: the chart's bands, the by-CLI
+   strip and the chip. In neither theme, because the mapping is the same on
+   white as on black; each one resolves to its palette member's value in
+   whichever theme :root is in. */
+:root {
+  --model-opus: var(--usage-purple);    /* and Claude Code's own band */
+  --model-sonnet: var(--usage-blue);
+  --model-haiku: var(--usage-teal);     /* and Copilot's */
+  --model-gpt5: var(--usage-lime);
+  --model-gpt: var(--usage-pink);
+  --model-gemini: var(--usage-indigo);
+  --model-codex: var(--usage-orange);
+  --model-fable: var(--usage-cyan);     /* and mythos, which the rate table prices as fable */
+  --model-other: var(--usage-zinc);     /* everything modelColor does not recognise */
 }
 
 /* Geometry, in its own block and in neither theme: an inset and a control
@@ -5195,8 +5242,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-weight: 600;
 }
 
-/* Model chip — tiny pill next to "session"/"subagent" with a family tint.
-   Picks up the family colour from a substring match in the chip text. */
+/* Model chip — tiny pill next to "session"/"subagent" with a family tint,
+   keyed on `data-family` (below). */
 .model-chip {
   display: inline-flex;
   align-items: center;
@@ -5219,18 +5266,40 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    and took the LAST: a chip reading "Opus 5 +1" painted Sonnet blue, in both
    themes, on the card, in the cluster area and in the detail hero. Add a Fable
    turn and it went yellow. `data-family` is one value from one function
-   (modelFamily), so a chip cannot be painted as a model it does not name. */
-.model-chip[data-family="opus"]   { color: #f0abfc; border-color: rgba(240,171,252,0.40); background: rgba(240,171,252,0.06); }
-.model-chip[data-family="sonnet"] { color: #7dd3fc; border-color: rgba(125,211,252,0.40); background: rgba(125,211,252,0.06); }
-.model-chip[data-family="haiku"]  { color: #86efac; border-color: rgba(134,239,172,0.40); background: rgba(134,239,172,0.06); }
+   (modelFamily), so a chip cannot be painted as a model it does not name.
+   THE HUE IS THE CHART'S (#1285). These were eight literals, and they
+   disagreed with the usage band beside them: Opus was pink on the dark chip
+   and violet on the chart — and pink is --inflight, so every resting Opus chip
+   wore the colour that means "running right now" (#1283) — and Fable and
+   Mythos wore --warn's amber and had no band at all. Each family now names its
+   --model-* token and nothing else; how a chip draws that hue is the rule after
+   this one, per theme. `gpt` is a family modelFamily() knows but the chip does
+   not tint: the chart splits GPT-5 from the GPTs before it, and one chip tint
+   for both would disagree with one of them. */
+.model-chip[data-family="opus"]   { --chip-hue: var(--model-opus); }
+.model-chip[data-family="sonnet"] { --chip-hue: var(--model-sonnet); }
+.model-chip[data-family="haiku"]  { --chip-hue: var(--model-haiku); }
 .model-chip[data-family="fable"],
-.model-chip[data-family="mythos"] { color: #fcd34d; border-color: rgba(252,211,77,0.40);  background: rgba(252,211,77,0.06); }
-/* Bumped alpha from 0.06 → 0.14 to clear WCAG AA contrast on white. */
-:root[data-theme="light"] .model-chip[data-family="opus"]   { color: #6b21a8; border-color: rgba(126,34,206,0.55);  background: rgba(126,34,206,0.14); }
-:root[data-theme="light"] .model-chip[data-family="sonnet"] { color: #075985; border-color: rgba(3,105,161,0.55);   background: rgba(3,105,161,0.14); }
-:root[data-theme="light"] .model-chip[data-family="haiku"]  { color: #166534; border-color: rgba(21,128,61,0.55);   background: rgba(21,128,61,0.14); }
-:root[data-theme="light"] .model-chip[data-family="fable"],
-:root[data-theme="light"] .model-chip[data-family="mythos"] { color: #92400e; border-color: rgba(180,83,9,0.55);    background: rgba(180,83,9,0.14); }
+.model-chip[data-family="mythos"] { --chip-hue: var(--model-fable); }
+/* The word in the hue itself, a 40% edge and a 6% wash — the weights the dark
+   literals carried. Listed rather than `[data-family]`, because modelFamily()
+   also writes "gpt" and "" and neither has a hue to read. */
+.model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+  color: var(--chip-hue);
+  border-color: color-mix(in srgb, var(--chip-hue) 40%, transparent);
+  background: color-mix(in srgb, var(--chip-hue) 6%, transparent);
+}
+/* On white the wash is 14% and the edge 55% — the alphas the light literals
+   carried to clear AA — and the word is the hue a fifth of the way to --text,
+   which is where every light literal's ink already sat (#6b21a8 against the
+   band's #7e22ce, #075985 against #0369a1): a band colour dark enough for a
+   3:1 bar is not dark enough for 10px words on its own wash. The sweep in
+   usage-series-contrast.test.ts measures the word on every bed. */
+:root[data-theme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+  color: color-mix(in srgb, var(--chip-hue) 80%, var(--text));
+  border-color: color-mix(in srgb, var(--chip-hue) 55%, transparent);
+  background: color-mix(in srgb, var(--chip-hue) 14%, transparent);
+}
 
 /* React Flow edge label background — match theme */
 .react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }
@@ -6391,7 +6460,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    to see rather than easier. Polarity inverts here as it does everywhere else in
    this sheet — on the dark bed a band reads by getting brighter, on white by
    getting darker — and 0.85 is the drag #330 already spends on the cluster
-   label. It puts the hovered band at 4.33-5.44:1 on the track and 6.91-8.67:1
+   label. It puts the hovered band at 4.02-5.44:1 on the track and 6.42-8.67:1
    on the paper. */
 .cost-bar .cb-seg:hover { filter: brightness(1.3); }
 :root[data-theme="light"] .cost-bar .cb-seg:hover { filter: brightness(0.85); }
@@ -6405,9 +6474,11 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    They are also 1.02:1 from EACH OTHER at the cache end, on both canvases, so
    the tail of the bar composited into one flat area — 1.4.1 as much as 1.4.11,
    since hue was the only channel and on that bed it was carrying nothing.
-   The four hue families are kept — blue, purple, green, amber, in that order —
-   and the values come from the eight the sheet already tunes per theme for the
-   usage chart's bands. Those are the only band values here that have been
+   The four hue families were kept — blue, purple, green, amber, in that order —
+   and the values come from the palette the sheet already tunes per theme for
+   the usage chart's bands. The cache pair is teal and lime since #1284 took
+   the palette off the state colours: green was --ok and amber was --warn, and a
+   cache band has nothing to say about either. Those are the only band values here that have been
    measured against all three beds this bar lands on (--panel and --bg-soft for
    the panels it is drawn in, --line for its own track) in both themes, and a
    second tuned palette saying the same four things would be a second thing to
@@ -6418,8 +6489,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    why the cut above is load-bearing rather than decoration. */
 .cost-bar .cb-input    { background: var(--usage-blue); }
 .cost-bar .cb-output   { background: var(--usage-purple); }
-.cost-bar .cb-cache-r  { background: var(--usage-green); }
-.cost-bar .cb-cache-w  { background: var(--usage-amber); }
+.cost-bar .cb-cache-r  { background: var(--usage-teal); }
+.cost-bar .cb-cache-w  { background: var(--usage-lime); }
 
 .detail-section {
   display: flex;
@@ -7029,11 +7100,11 @@ button.tool.clickable:last-child { border-bottom: none; }
    were the same four the bar declared, so a swatch that stayed behind would key
    the wrong colour. These sit on the hero's 5% green wash rather than on bare
    --panel; they measured 2.69, 2.81, 1.79 and 1.83 against it on white and now
-   measure 5.83, 6.86, 5.32 and 6.14 (#619). */
+   measure 5.83, 6.86, 5.37 and 4.90 (#619, and #1284 for the cache pair). */
 .session-summary .ssl-in::before  { background: var(--usage-blue); }
 .session-summary .ssl-out::before { background: var(--usage-purple); }
-.session-summary .ssl-cr::before  { background: var(--usage-green); }
-.session-summary .ssl-cw::before  { background: var(--usage-amber); }
+.session-summary .ssl-cr::before  { background: var(--usage-teal); }
+.session-summary .ssl-cw::before  { background: var(--usage-lime); }
 
 .session-summary .ss-stats {
   display: grid;

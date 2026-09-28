@@ -66,9 +66,13 @@ describe("the sheet", () => {
   });
 
   it("keeps both themes on the same key", () => {
-    // Light overrides matched the tooltip too, so the defect was in both.
-    for (const family of ["opus", "sonnet", "haiku", "fable"]) {
-      expect(css, family).toContain(`:root[data-theme="light"] .model-chip[data-family="${family}"]`);
+    // Light overrides matched the tooltip too, so the defect was in both. Since
+    // #1285 the family rule names the hue for both themes and the light rule
+    // only says how a chip draws it — keyed on the same attribute values.
+    const light = /:root\[data-theme="light"\] \.model-chip:is\(([^)]*)\)/.exec(css);
+    expect(light, "the light chip rule is gone").not.toBeNull();
+    for (const family of ["opus", "sonnet", "haiku", "fable", "mythos"]) {
+      expect(light![1], family).toContain(`[data-family="${family}"]`);
     }
   });
 });
