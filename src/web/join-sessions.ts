@@ -1,7 +1,7 @@
 // A card joining a session already on the canvas goes beside that session as
 // it sits now — not where a layout from scratch would put the session.
 import type { Node } from "reactflow";
-import { sessionOfNode } from "./layout-geometry";
+import { groupBySession, sessionOfNode } from "./layout-geometry";
 
 /**
  * Keep the cards a session gains beside that session, wherever it now sits.
@@ -32,12 +32,7 @@ export function joinSessions(
   pinned: Map<string, { x: number; y: number }>,
   placedAt: (id: string) => { x: number; y: number } | undefined,
 ): Node[] {
-  const anchors = new Map<string, Node[]>();
-  for (const n of laidOut) {
-    if (pinned.has(n.id) || !placedAt(n.id)) continue;
-    const sid = sessionOfNode(n);
-    (anchors.get(sid) ?? anchors.set(sid, []).get(sid)!).push(n);
-  }
+  const anchors = groupBySession(laidOut, n => !pinned.has(n.id) && placedAt(n.id) != null);
   if (anchors.size === 0) return laidOut;
   for (const members of anchors.values()) members.sort((a, b) => a.id.localeCompare(b.id));
 
