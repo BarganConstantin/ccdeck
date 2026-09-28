@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { entryLine, type DeckRow } from "../lan-roster";
+import { accountsSurface } from "./accounts-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
@@ -125,7 +126,7 @@ describe("one way in, at the foot of the accounts (#844)", () => {
   });
 
   it("comes after the roster and the policy row, and is the only place the network's state is said", () => {
-    expect(panel).not.toMatch(/ap-lan-way|jumpToLan|lanSummary|onSummary/);
+    expect(accountsSurface()).not.toMatch(/ap-lan-way|jumpToLan|lanSummary|onSummary/);
     expect(lan).not.toMatch(/onSummary/);
     // Auto-switch moved back into the column when the fold made it short again
     // — it is about these accounts, so it stands under them. This row did not:
@@ -133,7 +134,7 @@ describe("one way in, at the foot of the accounts (#844)", () => {
     // and still the only place the network's state is said.
     expect(panel.indexOf("{policyBlock}")).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
     expect(panel.indexOf("<LanSyncSection")).toBeGreaterThan(panel.indexOf("{policyBlock}"));
-    expect(panel).not.toMatch(/<div className="ap-foot">/);
+    expect(accountsSurface()).not.toMatch(/<div className="ap-foot">/);
   });
 
   it("keeps the section mounted in both views once it has been shown", () => {

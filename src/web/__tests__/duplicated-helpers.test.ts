@@ -47,7 +47,7 @@ function code(text: string): string {
 const app = src("../App.tsx");
 const agentNode = src("../components/AgentNode.tsx");
 const usagePanel = src("../components/UsagePanel.tsx");
-const accountsPanel = src("../components/AccountsPanel.tsx");
+const accountRow = src("../components/AccountRow.tsx");
 const sessionSummary = src("../components/SessionSummary.tsx");
 const toolModal = src("../components/ToolModal.tsx");
 const costBarSrc = src("../components/CostBar.tsx");
@@ -402,9 +402,10 @@ describe("how long ago something happened", () => {
 
   it("leaves no second dialect in the accounts panel", () => {
     // Two links, each in the file that holds it now: the panel's ages moved to
-    // account-freshness.ts, and its reset countdown stayed in the panel.
+    // account-freshness.ts, and its reset countdown went with the row's bars
+    // to AccountRow.tsx.
     expect(src("../account-freshness.ts")).toMatch(/import \{ shortAgoSec \} from "\.\/relative-time";/);
-    expect(accountsPanel).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
+    expect(accountRow).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
     // No second dialect anywhere the panel has been split into.
     expect(code(accountsSurface())).not.toMatch(/return "just now"/);
     expect(clientText()).toMatch(/return shortAgoSec\(nowSec - Math\.floor\(ms \/ 1000\)\);/);
@@ -469,7 +470,9 @@ describe("the countdown to a quota reset", () => {
 
   it("is read from one place by both panels", () => {
     expect(usagePanel).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
-    expect(accountsPanel).toMatch(/\bresetCountdown\b/);
+    // The accounts half is the row's bars now, asked of the row's own file:
+    // the usage panel's use would satisfy a search of the whole client.
+    expect(accountRow).toMatch(/\bresetCountdown\b/);
     expect(code(usagePanel)).not.toMatch(/function fmtCountdown\b/);
     expect(code(accountsSurface())).not.toMatch(/function countdown\b/);
   });

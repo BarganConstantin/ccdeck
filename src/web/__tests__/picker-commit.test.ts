@@ -31,6 +31,7 @@ import { fileURLToPath } from "node:url";
 import { slotChoices } from "../account-move";
 import { slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { withoutComments } from "./tsx-scan";
+import { accountsSurface } from "./accounts-surface";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 
@@ -207,8 +208,8 @@ describe("nothing in the accounts panel acts on a `change`", () => {
 
   it("keeps the picked slot in state rather than in the request", () => {
     // The retired shape, which must not come back in either picker.
-    expect(panelCode).not.toMatch(/onChange=\{e => doMove\(/);
-    expect(panelCode).not.toMatch(/onChange=\{e => post\(/);
+    expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
+    expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
     expect(panelCode).toMatch(/onChange=\{e => setSlotDraft\(Number\(e\.target\.value\)\)\}/);
     expect(panelCode).toMatch(/onChange=\{e => setThresholdDraft\(e\.target\.value\)\}/);
   });

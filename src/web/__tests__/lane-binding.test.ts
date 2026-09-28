@@ -39,12 +39,15 @@
 // that is right about lanes it is never handed is the failure mode this repo
 // has already shipped once.
 //
-// Plain node, no DOM, so the second half reads AccountsPanel.tsx as text the
-// way manage-block.test.ts and picker-commit.test.ts do.
+// Plain node, no DOM, so the second half reads the markup as text the way
+// manage-block.test.ts and picker-commit.test.ts do — the row's is
+// AccountRow.tsx's now, and the panel keeps the state it reads.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { laneSplit } from "../lane-view";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
@@ -53,6 +56,12 @@ const server = readFileSync(fileURLToPath(new URL("../../server/claude-accounts.
 /** The panel with its comments gone. The prose below quotes the shape it
  *  retired, so a search for `a.lanes.map` has to read the markup only. */
 const panelCode = panel
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The same, for the panel and every file lifted out of it — the row's markup is
+ *  AccountRow.tsx's now — which is what a negative has to read. The positives
+ *  about the row read clientText(), wherever the row lives. */
+const surfaceCode = accountsSurface()
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
@@ -173,8 +182,8 @@ describe("the row renders the windows, and the panel reads the same function", (
   };
 
   it("shuts a row on its windows, plus a folded lane only when it is the fullest (#647)", () => {
-    expect(panelCode).toMatch(/const \{ shown, fuller \} = laneSplit\(a\.lanes\);/);
-    expect(panelCode).toMatch(/const quick = fuller \? \[\.\.\.shown, fuller\] : shown;/);
+    expect(clientText()).toMatch(/const \{ shown, fuller \} = laneSplit\(a\.lanes\);/);
+    expect(clientText()).toMatch(/const quick = fuller \? \[\.\.\.shown, fuller\] : shown;/);
     // Two calm windows over a hidden hot one would be the panel lying by
     // omission, so the hot one joins them; a calm folded lane stays folded.
     expect(quick([labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91)]))
@@ -186,26 +195,26 @@ describe("the row renders the windows, and the panel reads the same function", (
   });
 
   it("opens every window as a bar, in the order the server sent them", () => {
-    expect(panelCode).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} frozen=\{frozen\} \/>\)/);
+    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} frozen=\{frozen\} \/>\)/);
   });
 
   it("opens the live row, and every other row only when the reader opens it", () => {
     expect(panelCode).toMatch(/useState<string\[\]>\(\[\]\)/);
-    expect(panelCode).toMatch(/const open = a\.active \|\| openLanes\.includes\(laneKey\(a\)\);/);
+    expect(clientText()).toMatch(/const open = a\.active \|\| openLanes\.includes\(laneKey\(a\)\);/);
     // The live row has nothing folded, so it has no door.
-    expect(panelCode).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
+    expect(clientText()).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
   });
 
   it("points the door at the detail only while the detail exists", () => {
-    expect(panelCode).toMatch(/aria-expanded=\{open\}/);
-    expect(panelCode).toMatch(/aria-controls=\{open \? `ap-detail-\$\{a\.num\}` : undefined\}/);
-    expect(panelCode).toMatch(/<div className="ap-detail" id=\{`ap-detail-\$\{a\.num\}`\}>/);
+    expect(clientText()).toMatch(/aria-expanded=\{open\}/);
+    expect(clientText()).toMatch(/aria-controls=\{open \? `ap-detail-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/<div className="ap-detail" id=\{`ap-detail-\$\{a\.num\}`\}>/);
     // The ⋯ follows the same rule for the same reason.
-    expect(panelCode).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
   });
 
   it("no longer counts what is folded: there is no `1 more` to read", () => {
-    expect(panelCode).not.toMatch(/moreLabel|lanesTitle|ap-lanes-more/);
+    expect(surfaceCode).not.toMatch(/moreLabel|lanesTitle|ap-lanes-more/);
     expect(bare).not.toMatch(/\.ap-lanes-more/);
   });
 });

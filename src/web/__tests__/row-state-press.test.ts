@@ -165,7 +165,7 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
     // 0.6 over the row drew every tier at 2.495:1 dark, on a row carrying three
     // working controls. The rule is gone and the class with it.
     expect(bare).not.toMatch(/\.ap-account\.disabled/);
-    expect(panelCode).not.toMatch(/a\.disabled \? " disabled" : ""/);
+    expect(surfaceCode).not.toMatch(/a\.disabled \? " disabled" : ""/);
     // The arithmetic that made it a defect, kept so the number is not folklore.
     const bed = resolve("var(--panel)", "dark");
     const muted = resolve("var(--muted)", "dark");
@@ -180,8 +180,8 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
 // The verb stayed under the account; it lost its edge rather than gaining one.
 describe("three tiers, one per kind of thing a row says", () => {
   it("marks the live account with a dot in the accent, and says it in words to a screen reader", () => {
-    expect(panelCode).toMatch(/<span className="ap-live" title=\{`Active account · slot \$\{a\.num\}`\}>\s*<span className="vis-hidden">Active account, slot \{a\.num\}:<\/span>/);
-    expect(panelCode).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
+    expect(clientText()).toMatch(/<span className="ap-live" title=\{`Active account · slot \$\{a\.num\}`\}>\s*<span className="vis-hidden">Active account, slot \{a\.num\}:<\/span>/);
+    expect(clientText()).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
     expect(declOf(".ap-live::before", "background")).toBe("var(--accent)");
     // A mark with no word beside it on screen is non-text contrast (1.4.11).
     for (const theme of themes) {
@@ -195,8 +195,8 @@ describe("three tiers, one per kind of thing a row says", () => {
   it("drops the verb to a word on the control fill, with no edge of its own", () => {
     // It was `.ap-manage-btn ap-switch`: an outlined pill, the strongest
     // boundary on a row whose name and numbers are what a switch is decided on.
-    expect(panelCode).toMatch(/className="ap-switch"/);
-    expect(panelCode).not.toMatch(/className="btn ap-switch"|className="ap-manage-btn ap-switch"/);
+    expect(clientText()).toMatch(/className="ap-switch"/);
+    expect(surfaceCode).not.toMatch(/className="btn ap-switch"|className="ap-manage-btn ap-switch"/);
     expect(declOf(".ap-switch", "flex")).toBe("none");
     expect(declOf(".ap-switch", "border")).toBe("0");
     expect(declOf(".ap-switch", "background")).toBe("var(--ctl-fill)");
@@ -212,14 +212,14 @@ describe("three tiers, one per kind of thing a row says", () => {
     // control that would undo it was not rendered at all — a 1.4.1 failure and a
     // trap in the same rule. The word stays on the row; the undo is in the ⋯,
     // offered whenever the account is out.
-    expect(panelCode).toMatch(/\{a\.disabled && <span className="ap-held">held out<\/span>\}/);
+    expect(clientText()).toMatch(/\{a\.disabled && <span className="ap-held">held out<\/span>\}/);
     expect(panelCode).toMatch(/\(\(\(auto\?\.enabled \|\| auto\?\.external\) && !a\.active\) \|\| a\.disabled\) && \(/);
     expect(panelCode).toMatch(/\{a\.disabled \? "Put back in rotation" : "Hold out of rotation"\}/);
     // The marker takes the slot `Switch` would have had, because a switch to a
     // held-out account is refused and a control that can never act is worse
     // than no control.
-    expect(panelCode).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
-    expect(panelCode).not.toMatch(/disabled=\{[^}]*a\.disabled/);
+    expect(clientText()).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
+    expect(surfaceCode).not.toMatch(/disabled=\{[^}]*a\.disabled/);
     for (const theme of themes) {
       expect(contrastRatio(resolve(declOf(".ap-held", "color")!, theme), beds(theme).panel), `${theme} held out`)
         .toBeGreaterThanOrEqual(BODY);
@@ -277,7 +277,7 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(disabled).toEqual(["reloading"]);
     expect(panelCode).toMatch(/className="ap-fix" disabled=\{reloading\}/);
     // Every request-bearing control takes the same two attributes.
-    const spread = [...panelCode.matchAll(/\{\.\.\.pressProps\(([^)]*)\)\}/g)].map(m => m[1]);
+    const spread = [...surfaceCode.matchAll(/\{\.\.\.pressProps\(([^)]*)\)\}/g)].map(m => m[1]);
     expect(spread.length).toBeGreaterThanOrEqual(9);
     expect(spread).toContain('"threshold"');
     expect(spread).toContain('"enable"');
@@ -292,7 +292,7 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
     // Both targets are real, named controls in the panel rather than a
     // container nobody can hear.
-    expect(panelCode).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
+    expect(clientText()).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
     expect(panelCode).toMatch(/className="glyph-btn ap-refresh"/);
     // And only when focus was really dropped — a reader who tabbed elsewhere
     // during the request keeps where they put themselves.
@@ -304,7 +304,7 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(panelCode).toMatch(/if \(!focusDropped\(document\.activeElement\?\.tagName \?\? null\)\) return;/);
     // Exactly the three sites that unmount, and no others: a rescue on a press
     // that kept its control would take focus off it for no reason.
-    expect([...panelCode.matchAll(/rescueFocus\(/g)].length).toBe(3);
+    expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(3);
     expect(panelCode).toMatch(/rescueFocus\(num\);/);
     expect(panelCode).toMatch(/rescueFocus\(next\.menuFor\);/);
     expect(panelCode).toMatch(/rescueFocus\(null\);/);

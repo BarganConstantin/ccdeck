@@ -21,6 +21,7 @@ import {
   nextFailure,
 } from "../accounts-reload";
 import { COMMAND_REASONS } from "../admin-failure";
+import { accountsSurface } from "./accounts-surface";
 
 const ok = { ok: true, status: 200, body: null };
 
@@ -153,7 +154,7 @@ describe("the panel's reload path", () => {
     expect(load).toContain(`setFailure(prev => nextFailure(prev, ${verdict}));`);
     // The thrown case picks between the two by whose abort it was (#829).
     expect(load).toContain(`setFailure(prev => nextFailure(prev, ${ctl}.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));`);
-    expect(panel).not.toMatch(/catch\s*\{\s*\/\*[^*]*\*\/\s*\}/);
+    expect(accountsSurface()).not.toMatch(/catch\s*\{\s*\/\*[^*]*\*\/\s*\}/);
   });
 
   it("bounds a reload that never answers, so nothing can wait on it forever", () => {
@@ -203,7 +204,7 @@ describe("the panel's reload path", () => {
     // still says which of the two states it is in, which is the half of this
     // assertion that was never about `disabled`.
     expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}\{\.\.\.pressProps\("reload", reloading\)\}/);
-    expect(panel).not.toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}disabled=\{reloading\}/);
+    expect(accountsSurface()).not.toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}disabled=\{reloading\}/);
     // PINNED AS THE REQUIREMENT RATHER THAN AS THE GLYPH. It said which state it
     // was in by swapping the arrow for an ellipsis; it says it by turning now —
     // the same `spin` the LAN section's round takes for the same act, and
@@ -213,7 +214,7 @@ describe("the panel's reload path", () => {
     // `disabled`.
     expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}<svg/);
     expect(css).toMatch(/\.ap-refresh\[aria-busy="true"\][^}]*animation:\s*spin/);
-    expect(panel).not.toContain('"↻"');
+    expect(accountsSurface()).not.toContain('"↻"');
     // Only the forced half: a poll blinking the button every 15 seconds would
     // read as the panel doing something to itself.
     expect(panel).toContain("if (force) setReloading(true);");
