@@ -17,7 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { silenceNote } from "../components/LanSyncSection";
+import { silenceNote } from "../lan-round";
 import { REACH_WAY_OUT } from "../components/LanReachNote";
 // @ts-expect-error — plain .mjs server module, no types
 import { MAC_FW, QUIET_MS, isActive, linuxFixSteps, linuxReach, macFixSteps, macReach, readMacProbe, readUfw, reachability, silentInbound } from "../../server/lan-reach.mjs";
