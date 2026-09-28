@@ -13,6 +13,10 @@ import {
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(join(web, "App.tsx"), "utf8");
+// The read moved to use-monthly-usage.ts; the phrase it fills stayed in App.tsx.
+// The feature is the two together, and what is asked of the read — including
+// the negative, which now has two files to be true of — is asked of both.
+const feature = app + "\n" + readFileSync(join(web, "use-monthly-usage.ts"), "utf8");
 const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("month-to-date topbar usage (#737)", () => {
@@ -38,18 +42,18 @@ describe("month-to-date topbar usage (#737)", () => {
   });
 
   it("fetches ccusage for that month and labels the figures together", () => {
-    expect(app).toContain('fetch(`/api/ccusage?since=${since}`)');
+    expect(feature).toContain('fetch(`/api/ccusage?since=${since}`)');
     expect(app).toContain('className="month-usage-label">this month</span>');
     expect(app).toContain("fmtTokens(monthlyUsage.tokens)");
     expect(app).toContain("fmtMonthlyCost(monthlyUsage.cost)");
-    expect(app).not.toContain("boardTotals(state.agents.values())");
+    expect(feature).not.toContain("boardTotals(state.agents.values())");
   });
 
   it("does not keep last month's figure under \"this month\" when a read fails", () => {
     // A failed read leaves the last good figure standing only while it is
     // still the same month; after the 1st it goes rather than being relabelled.
-    expect(app).toContain("goodSince = since;");
-    expect(app).toContain("if (since !== goodSince) setMonthlyUsage(null);");
+    expect(feature).toContain("goodSince = since;");
+    expect(feature).toContain("if (since !== goodSince) setMonthlyUsage(null);");
   });
 
   it("leaves the bar whole where it would otherwise be clipped, by width alone", () => {
@@ -156,9 +160,9 @@ describe("the month is read only while it is shown (#737)", () => {
   });
 
   it("asks the phrase itself whether it is drawn, and watches it come back", () => {
-    const start = app.indexOf("const monthUsageRef = useRef<HTMLSpanElement>(null);");
+    const start = feature.indexOf("const monthUsageRef = useRef<HTMLSpanElement>(null);");
     expect(start).toBeGreaterThan(-1);
-    const effect = app.slice(start, app.indexOf("}, []);", start));
+    const effect = feature.slice(start, feature.indexOf("}, []);", start));
     // Not a copy of the breakpoints: a box inside display: none has no client
     // rects, whichever rule put it there.
     expect(effect).toContain("shown: !!phrase && phrase.getClientRects().length > 0,");
