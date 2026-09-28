@@ -36,7 +36,9 @@ if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new 
 afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — .mjs server module, no types
-const { installHooks, readSettingsForWrite, writeFileAtomic } = await import("../../server/installer.mjs");
+const { installHooks } = await import("../../server/installer.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { readSettingsForWrite, writeFileAtomic } = await import("../../server/atomic-write.mjs");
 
 const SETTINGS = join(DIR, "claude", "settings.json");
 const read = () => JSON.parse(readFileSync(SETTINGS, "utf8"));

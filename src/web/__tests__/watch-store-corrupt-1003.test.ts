@@ -259,7 +259,7 @@ describe("the three other things a read can find", () => {
     // the archive, and still unread. Renaming it aside would be moving bytes
     // nobody has looked at, and writing onto an empty archive would destroy
     // them — so the write throws and the file is left exactly as it was found.
-    // Same policy installer.mjs's readSettingsForWrite applies to settings.json.
+    // Same policy atomic-write.mjs's readSettingsForWrite applies to settings.json.
     const home = homeWith(WHOLE);
     const log = said();
 
@@ -309,7 +309,7 @@ describe("the temp file the archive is staged through", () => {
     // A rename orders the DIRECTORY ENTRY and not the bytes, so a machine that
     // loses power just after one comes up with the new name pointing at blocks
     // that were never written — a zero-length state.json, which is the very
-    // damage the read above now has to survive. installer.mjs's writeFileAtomic
+    // damage the read above now has to survive. atomic-write.mjs's writeFileAtomic
     // has fsync'd for this reason since it was written.
     //
     // Read off the source because the property cannot be observed from outside:

@@ -13,9 +13,9 @@
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
-// The rename, with the Windows retry ladder installer.mjs wrote for it — see
+// The rename, with the Windows retry ladder atomic-write.mjs keeps for it — see
 // `rollIfFull` below, and #786.
-import { renameWithRetry } from "./installer.mjs";
+import { renameWithRetry } from "./atomic-write.mjs";
 import { storeDir } from "./browser-watch-store.mjs";
 
 /** The plain-text log, which is the one file here a person opens themselves.

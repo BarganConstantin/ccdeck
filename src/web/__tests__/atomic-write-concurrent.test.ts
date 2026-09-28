@@ -34,7 +34,9 @@ process.env.CLAUDE_CONFIG_DIR = join(FAKE_HOME, ".claude");
 process.env.CODEX_HOME = join(FAKE_HOME, ".codex");
 
 // @ts-expect-error — .mjs server module, no types
-const { writeFileAtomic, CLAUDE_DIR } = await import("../../server/installer.mjs");
+const { CLAUDE_DIR } = await import("../../server/installer.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { writeFileAtomic } = await import("../../server/atomic-write.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } =
   await import("../../server/retire-sound-hook.mjs");

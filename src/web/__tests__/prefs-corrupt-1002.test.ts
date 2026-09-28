@@ -49,7 +49,7 @@ afterAll(() => rmTempDir(DIR));
 // @ts-expect-error — plain .mjs server module, no types
 const prefs = await import("../../server/deck-prefs.mjs");
 // @ts-expect-error — ditto; the real temp-file maker, wrapped below
-const { createTemp } = await import("../../server/installer.mjs");
+const { createTemp } = await import("../../server/atomic-write.mjs");
 
 /** A deck home of its own per case, so one quarantine cannot be another's. */
 let n = 0;
@@ -233,7 +233,7 @@ describe("the three other things a read can find", () => {
     // the key, and still unread. Renaming it aside would be moving bytes nobody
     // has looked at, and merging onto the defaults would destroy them — so the
     // write throws and the file is left exactly as it was found. Same policy
-    // installer.mjs's readSettingsForWrite applies to settings.json.
+    // atomic-write.mjs's readSettingsForWrite applies to settings.json.
     const home = homeWith(WHOLE);
     const log = said();
 
@@ -299,7 +299,7 @@ describe("the temp file the key is staged through", () => {
     expect(staged[0] & 0o077).toBe(0);
   });
 
-  it("comes from the installer's createTemp, which is the one that uses O_EXCL", async () => {
+  it("comes from atomic-write.mjs's createTemp, which is the one that uses O_EXCL", async () => {
     // Read off the source because the property that matters cannot be seen from
     // outside: a leftover at a taken name is an EEXIST the helper handles, and
     // a plain create would adopt that file whole — keeping its permissions,

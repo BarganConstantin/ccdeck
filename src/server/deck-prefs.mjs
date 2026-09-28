@@ -34,12 +34,12 @@
 // pinned. A file that cannot be parsed is now moved aside and said out loud;
 // only a genuinely ABSENT file starts clean. See loadPrefs.
 import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
-// The rename, with the Windows retry ladder installer.mjs wrote for exactly
+// The rename, with the Windows retry ladder atomic-write.mjs keeps for exactly
 // this call. See the note over the write below (#786). `stripBom` and
 // `createTemp` come from the same module for the reason its export block gives:
 // a rule spelled twice is a rule that drifts, and both of these are rules
 // settings.json and auth.json already follow on files with the same stakes.
-import { createTemp, renameWithRetry, stripBom } from "./installer.mjs";
+import { createTemp, renameWithRetry, stripBom } from "./atomic-write.mjs";
 import { join } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
@@ -380,7 +380,7 @@ let _chain = Promise.resolve();
  * and the write becomes the thing that destroys the key. So the two failures
  * that read as defaults are separated: a file that was moved aside is safe to
  * start clean over, and one still sitting there unread is not. See
- * installer.mjs's readSettingsForWrite, which is this policy on settings.json.
+ * atomic-write.mjs's readSettingsForWrite, which is this policy on settings.json.
  */
 export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
   return queued(() => save(() => patch, home, deps));

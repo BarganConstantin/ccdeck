@@ -763,12 +763,6 @@ export function notePeer(peers, beacon, addr, now, via = "lan") {
   return { peer: next, changed, restarted: !!prev && prev.instance !== next.instance };
 }
 
-/** Whether a peer counts as here right now. Separate from being in the list at
- *  all — see notePeer. */
-export function isPresent(peer, now) {
-  return peer.lastSeen != null && now - peer.lastSeen < PRESENT_MS;
-}
-
 /** How long a deck stays in the list after its last beacon. See stillListed. */
 export const FORGET_MS = 24 * 60 * 60_000;
 
@@ -793,23 +787,6 @@ export const FORGET_MS = 24 * 60 * 60_000;
 export function stillListed(peer, now, forgetMs = FORGET_MS) {
   if (peer?.manual) return true;
   return peer?.lastSeen != null && now - peer.lastSeen < forgetMs;
-}
-
-/**
- * The list as the panel shows it: present decks first, then by name.
- *
- * Not by last-seen within each group, which was the obvious ordering and is
- * wrong: a list that reorders itself every thirty seconds as beacons land in
- * whatever order the network delivers them is a list nobody can point at.
- * Name is stable, and the presence split is the only thing that should move a
- * row.
- */
-export function peerRows(peers, now) {
-  return [...peers.values()]
-    .map(p => ({ ...p, present: isPresent(p, now) }))
-    .sort((a, b) => (Number(b.present) - Number(a.present))
-      || a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-      || a.fp.localeCompare(b.fp));
 }
 
 // ── the handshake ───────────────────────────────────────────────────────────

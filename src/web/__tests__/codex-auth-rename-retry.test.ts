@@ -5,7 +5,7 @@
 // refresh token is single-use and was already rotated server-side by then, so
 // one lost race deleted the only copy of the new credential: the deck reported
 // refresh_rejected and the user had to run `codex login` again. These tests pin
-// the fix — the move goes through the installer's retrying rename, the same one
+// the fix — the move goes through atomic-write.mjs's retrying rename, the same one
 // the uv download uses — and the two guarantees around it that must survive:
 // the rotated token never lingers in a temp file, and auth.json stays 0600.
 //
@@ -39,7 +39,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   };
   const patched = {
     ...actual,
-    // persistAuth stages the token through the installer's createTemp, so the
+    // persistAuth stages the token through atomic-write.mjs's createTemp, so the
     // handle it writes through is opened here rather than at writeFile — guard
     // both, or the day it switches back this file races the developer's own
     // credentials with nothing watching.
@@ -69,7 +69,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 // codex-auth resolves ~/.codex at import time: CODEX_HOME when set, otherwise
 // homedir(), which reads $HOME on POSIX and %USERPROFILE% on Windows. All of
-// them — plus CLAUDE_CONFIG_DIR, which the installer module this now imports
+// them — plus CLAUDE_CONFIG_DIR, which the installer module it once imported
 // resolves the same way — point inside a temp dir BEFORE the module loads, so
 // nothing here can read or replace the developer's own Codex credentials.
 // A realpath because persistAuth resolves symlinks and macOS hands out

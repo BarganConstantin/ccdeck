@@ -646,8 +646,9 @@ export function createEngine({
    * in its hello which port it LISTENS on, and that pair is dialable. Adding it
    * makes the next round reach the caller and pull — the same dial-back that
    * accepting a deck and joining by invite already do, extended to a peer that
-   * simply calls. In memory, like those two: a settings write clears it and the
-   * next call re-adds it, and nothing here writes an address to disk.
+   * simply calls. In memory, unlike those two: a settings write clears it and
+   * the next call re-adds it, and nothing here writes a caller's address to
+   * disk.
    */
   const learnCaller = ctx => {
     const fp = ctx?.peerFp;
@@ -1670,9 +1671,12 @@ export function createEngine({
       // dials, and an inbound connection puts nothing in it. So the pairing was
       // mutual in the trusted list and one-way in fact — if the other machine
       // stopped calling, nothing here would ever call it. The hello carries the
-      // port it listens on for exactly this.
+      // port it listens on for exactly this. AND KEPT, through onDial, as an
+      // invite's is (#1643): `addPeer` alone lives in memory, and the next
+      // settings write or restart made the pairing one-way again.
       const back = seen.addr && seen.port && this.addPeer(seen.addr, seen.port)
         ? (learned.set(`${seen.addr}:${seen.port}`, { fp, name: seen.name || "" }),
+           onDial?.(`${seen.addr}:${seen.port}`),
            { addr: seen.addr, port: seen.port })
         : null;
       return added ? { fp, name: seen.name, addr: seen.addr, port: seen.port ?? null, dialBack: back } : null;

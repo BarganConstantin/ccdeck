@@ -2504,6 +2504,22 @@ describe("what the engine hands its caller to keep", () => {
     expect(peerRow(a, b.id.fp)).toMatchObject({ addr: "127.0.0.1", port: b.port, paired: true });
   }, 20_000);
 
+  it("writes the caller's address down when somebody here accepts it (#1643)", async () => {
+    // Accepting a deck that called in dials it back, and the address used to
+    // stay in memory: the next settings write — setPeers replaces the dial list
+    // from prefs — or the next restart dropped it, and the pairing was one-way
+    // until the caller called in again. An invite's is kept; this one is now.
+    const a = await deck(store([]), "Caller", []);
+    const b = await deck(store([]), "Acceptor", []);
+    await point(a, b, b.port);
+
+    expect(b.dials, "the acceptor kept no way back to the caller").toEqual([`127.0.0.1:${a.port}`]);
+    // The caller's own row is the address somebody typed, which the settings
+    // route keeps; the engine has nothing to hand it.
+    expect(a.dials).toEqual([]);
+    expect(peerRow(b, a.id.fp)).toMatchObject({ addr: "127.0.0.1", port: a.port, paired: true });
+  }, 20_000);
+
   it("writes down a port that moved, and only one that moved", async () => {
     // An address typed on the other machine names this port, so a restart that
     // lands on another one has to be kept or that address stops working.

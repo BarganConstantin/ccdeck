@@ -26,7 +26,7 @@
 // Silicon Mac reports "x64", and gating on that would skip the one machine this
 // exists for.
 import { run } from "./exec.mjs";
-import { renameWithRetry } from "./installer.mjs";
+import { renameWithRetry } from "./atomic-write.mjs";
 import { existsSync } from "node:fs";
 import { chmod, copyFile, mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";

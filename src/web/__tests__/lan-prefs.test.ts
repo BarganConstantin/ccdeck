@@ -18,7 +18,7 @@ import { ALIAS_MAX, DEFAULTS, cleanAlias, isAliasKey, normalise, publicPrefs, PR
 const fsError = (code: string) =>
   Object.assign(new Error(`${code}: fake, deck-prefs test`), { code });
 
-/** One recorded staging file, standing in for installer.mjs's `createTemp`.
+/** One recorded staging file, standing in for atomic-write.mjs's `createTemp`.
  *  What the cases below need from it is the name it was given and the mode it
  *  was asked to create with; the real one opens with O_EXCL, which is what
  *  makes that mode binding. */
