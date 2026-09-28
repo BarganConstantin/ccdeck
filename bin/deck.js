@@ -4,6 +4,12 @@
 // exits with RESTART_CODE. On a respawn (AGENTS_DECK_RESPAWN=1) everything that
 // was already done once this session is skipped — that is what makes a restart
 // take about a second instead of the better part of ten.
+//
+// This file is the order things happen in; what each step does lives in
+// bin/cli/ — the one-shot commands, the terminal, the startup report, the
+// second-start rule, the restart latch and the pulse line. Its top-level
+// `await`s run in source order, so where a line sits here is part of what it
+// means, and most of the comments below are about exactly that.
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
@@ -268,11 +274,12 @@ let bootLock = null;
 //
 // This file is an ES module with top-level `await`, so its statements run in
 // source order and a handler registered at the bottom does not exist until the
-// boot has got there. Three `process.exit()` calls sit between the gate below
-// and that point — the yield when another deck came up first, the ATTACH that
-// every `ccdeck` typed beside a running deck takes, and the exit of a boot
-// whose server could not bind — and the explicit release further down is on the
-// one path none of them take. So the handler that was written to cover "every
+// boot has got there. Three ways out sit between the gate below and that point
+// — the yield when another deck came up first, the ATTACH that every `ccdeck`
+// typed beside a running deck takes, both of which leave through the one
+// `process.exit()` after settleSecondStart, and the exit of a boot whose server
+// could not bind — and the explicit release further down is on the one path
+// none of them take. So the handler that was written to cover "every
 // way out" covered only the ways out it was already past.
 //
 // What the leftover file costs is a start that has to wait the lock out: the
@@ -301,6 +308,36 @@ process.on("exit", () => { bootLock?.release(); });
 // point is only that discovery is unregistered and the port let go of on the
 // way out, rather than left for the next boot's stale sweep.
 dieWithParent(() => shutdown(0));
+
+// ── is one of ours already up? ────────────────────────────────────────────────
+// A second start, settled before anything else in the boot — see
+// settleSecondStart in bin/cli/second-start.js, which carries the argument.
+//
+// ASKED EXACTLY HERE, and the position is the point. Everything the answer
+// depends on is resolved above — the workspace, the canonical log path, which
+// of the two CLIs this deck would serve — and nothing below has run yet: no
+// port bound, no hooks installed, no tool probed, no banner painted, no
+// discovery file written. An attach therefore leaves the machine precisely as
+// it found it, which is what makes it safe to do without asking.
+//
+// UNDER THE BOOT LOCK, held until this deck's own record is on disk — see the
+// release beside discovery.check below, and boot-lock.mjs for why a registry
+// read alone could not close the window two starts at login fell through.
+bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
+{
+  const ended = await settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, openBrowser, RESPAWN });
+  // A yield or an attach: this start ends here, having said why.
+  if (ended !== null) process.exit(ended);
+}
+
+// The one fact the auto-switch has to wait for and the server cannot see for
+// itself: that the claude-swap it drives is not being installed or upgraded
+// underneath it (#1043). startupWork is what knows, and it has not run yet — it
+// runs beside the server rather than before it (#483) — so the server is handed
+// a promise here and startupWork settles it below. A respawn runs no startup
+// work and installs nothing, so there it settles at once. See cswapQuiet.
+let settleCswap;
+const cswapQuiet = new Promise(r => { settleCswap = r; });
 
 // The listen, begun HERE and awaited below the startup report rather than after
 // it. The report is a narration; the port is the product, and it was queued
@@ -337,36 +374,6 @@ dieWithParent(() => shutdown(0));
 // whole report, and a bind that fails in there with nothing attached to it is an
 // unhandledRejection — which Node answers by killing the process over a port it
 // could have named.
-// ── is one of ours already up? ────────────────────────────────────────────────
-// A second start, settled before anything else in the boot — see
-// settleSecondStart in bin/cli/second-start.js, which carries the argument.
-//
-// ASKED EXACTLY HERE, and the position is the point. Everything the answer
-// depends on is resolved above — the workspace, the canonical log path, which
-// of the two CLIs this deck would serve — and nothing below has run yet: no
-// port bound, no hooks installed, no tool probed, no banner painted, no
-// discovery file written. An attach therefore leaves the machine precisely as
-// it found it, which is what makes it safe to do without asking.
-//
-// UNDER THE BOOT LOCK, held until this deck's own record is on disk — see the
-// release beside discovery.check below, and boot-lock.mjs for why a registry
-// read alone could not close the window two starts at login fell through.
-bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
-{
-  const ended = await settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, openBrowser, RESPAWN });
-  // A yield or an attach: this start ends here, having said why.
-  if (ended !== null) process.exit(ended);
-}
-
-// The one fact the auto-switch has to wait for and the server cannot see for
-// itself: that the claude-swap it drives is not being installed or upgraded
-// underneath it (#1043). startupWork is what knows, and it has not run yet — it
-// runs beside the server rather than before it (#483) — so the server is handed
-// a promise here and startupWork settles it below. A respawn runs no startup
-// work and installs nothing, so there it settles at once. See cswapQuiet.
-let settleCswap;
-const cswapQuiet = new Promise(r => { settleCswap = r; });
-
 const starting = startServer({
   port, persist, workspace, codex: wantCodex, claude: wantClaude,
   // Withheld when nothing is supervising us: without a parent, exiting is just
@@ -645,9 +652,9 @@ process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
 // The boot lock's `exit` handler is NOT here with its siblings. It is armed up
-// beside `let bootLock = null;`, above the start gate, because the three exits
-// this file takes before reaching this line are the ones it exists for — see
-// the note there (#980).
+// beside `let bootLock = null;`, above the start gate, because the three ways
+// out this file takes before reaching this line are the ones it exists for —
+// see the note there (#980).
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
