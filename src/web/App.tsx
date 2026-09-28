@@ -50,6 +50,7 @@ import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
 import { useAutoFit } from "./use-auto-fit";
+import { layoutSignature } from "./layout-signature";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
@@ -108,7 +109,7 @@ const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { isAgentVisible, computeVisibleIds } from "./visibility";
+import { computeVisibleIds } from "./visibility";
 import { sessionGroupNodes } from "./session-group-nodes";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
@@ -551,18 +552,12 @@ function Inner() {
     () => removalHiddenIds(stateRef.current.agents.values(), removedNodes),
     [stateRef.current, stateRef.current.revision, removedNodes],
   );
-  const layoutSig = useMemo(() => {
-    const ids: string[] = [];
-    for (const a of stateRef.current.agents.values()) {
-      // Mirror isAgentVisible exactly — layoutSig and visibleAgentIds must
-      // agree, otherwise dagre re-runs for agents that never render and
-      // the cached positions drift relative to what's actually on canvas.
-      if (!isAgentVisible(a, now) || removedAgentIds.has(a.id)) continue;
-      ids.push(a.id + (a.parentId ? `>${a.parentId}` : ""));
-    }
-    ids.sort();
-    return `${ids.join("|")}#sv${sizeVersion}.${domSizeVersion}`;
-  }, [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds]);
+  // What the layout keys off: the visible, not-removed agents and their
+  // parents, plus the two size versions — layout-signature.ts.
+  const layoutSig = useMemo(
+    () => layoutSignature(stateRef.current.agents.values(), now, removedAgentIds, sizeVersion, domSizeVersion),
+    [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds],
+  );
 
   // Persist the arrangement whenever it changes, not only when the user drags.
   // Auto-placed nodes are part of what gets restored on reload, so a session

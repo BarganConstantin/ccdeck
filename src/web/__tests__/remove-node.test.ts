@@ -114,9 +114,13 @@ describe("the canvas wiring (#1237)", () => {
   });
 
   it("keeps the layout signature in step with it, so the board reflows around a removal", () => {
-    const sig = /const layoutSig = useMemo\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
-    expect(sig).toMatch(/if \(!isAgentVisible\(a, now\) \|\| removedAgentIds\.has\(a\.id\)\) continue;/);
-    expect(sig).toMatch(/removedAgentIds\]\);$/);
+    // Two links: App.tsx's memo hands the removals to layoutSignature and
+    // recomputes when they change, and layoutSignature skips them.
+    const sig = /const layoutSig = useMemo\([\s\S]*?\n  \);/.exec(app)?.[0] ?? "";
+    expect(sig).toMatch(/layoutSignature\(stateRef\.current\.agents\.values\(\), now, removedAgentIds, /);
+    expect(sig).toMatch(/removedAgentIds\],\s*\);$/);
+    const fn = readFileSync(fileURLToPath(new URL("../layout-signature.ts", import.meta.url)), "utf8");
+    expect(fn).toMatch(/if \(!isAgentVisible\(a, now\) \|\| removedAgentIds\.has\(a\.id\)\) continue;/);
   });
 });
 
