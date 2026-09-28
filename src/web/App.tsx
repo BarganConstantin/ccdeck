@@ -59,6 +59,7 @@ import { focusCanvasNode, isCanvasNodeElement } from "./canvas-node-element";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import Detail from "./components/Detail";
+import VersionChip from "./components/VersionChip";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { usePauseGate } from "./use-pause-gate";
@@ -120,9 +121,7 @@ import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import {
-  desktopAppVersion,
   readDesktopUpdate,
-  readyChipCopy,
   readyDesktopUpdate,
   UPDATE_RESTART_WAIT_MS,
   updateRestartFailureText,
@@ -131,7 +130,6 @@ import {
   type UpdateRestartFailure,
 } from "./desktop-update";
 import { useRecapNotesVersion } from "./recap-note";
-import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 import type { Providers } from "./providers";
 import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./sound";
@@ -1636,111 +1634,12 @@ function Inner() {
                 the heading that sentence would become part of the heading's
                 name. */}
             <h1>{PRODUCT}</h1>
-            {/* The server's own version, not the bundle's — an upgrade replaces
-                dist/ too, so a reloaded page can show a number the running
-                process never had. Stale → the chip stays lit even after the
-                banner is dismissed, and clicking it brings the banner back.
-
-                One rule across both branches since #715: clicking the version
-                opens what changed in it. The rest of what a click does depends
-                on which branch is drawn — the healthy one asks npm, this one
-                puts the drift banner back — and neither of those can fail in a
-                way that costs the notes, which is the half that has to work
-                everywhere. It has to work here in particular: a deck that is
-                behind stays behind until somebody upgrades it, and while this
-                branch is the one on screen it is the ONLY way back into a
-                dismissed dialog. */}
-            {readyAppUpdate ? (() => {
-              // Good news, so not the stale chip's amber: that colour is this
-              // bar's warning, and an update the app has already downloaded
-              // and verified is the opposite of something being wrong. It
-              // wears the accent instead — see .v.ready.
-              const copy = readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version);
-              return (
-                <button
-                  type="button"
-                  className="v ready"
-                  onClick={openReleaseNotes}
-                  aria-haspopup="dialog"
-                  aria-label={copy.label}
-                  title={copy.title}
-                >
-                  {copy.text}
-                  <span className="v-dot" aria-hidden />
-                </button>
-              );
-            })() : notice ? (
-              <button
-                type="button"
-                className="v stale"
-                onClick={() => { openReleaseNotes(); showNotice(); }}
-                aria-haspopup="dialog"
-                /* The healthy branch below has carried an accessible name since it
-                   was written; this one did not, so its name was its text — the
-                   same bare version string, which made the chip that HAS news
-                   indistinguishable from the chip that has none. See
-                   versionNoticeLabel for the rest of the reasoning (#381). */
-                aria-label={versionNoticeLabel({ ...notice, open: noticeOpen })}
-                title={notice.kind === "restart"
-                  ? `Running v${notice.from}; v${notice.to} is installed on disk. Restart to pick it up · click for what's new`
-                  : `Running v${notice.from}; v${notice.to} is on npm · click for what's new`}
-              >
-                v{notice.from}
-                <span className="v-dot" aria-hidden />
-              </button>
-            ) : (
-              // Not decoration: "no banner" and "the check never ran" look the
-              // same from a chair, and on a machine that only ever runs
-              // `npx ccdeck` the difference is the whole feature. Clicking asks
-              // npm now, ahead of the poll — so it has to look like a control and
-              // say so out loud, which a dim version number does neither of.
-              //
-              // And since #715 it opens the release notes too, which is the
-              // half that is answered instantly. The ORDER below is the
-              // interesting part and it is not incidental: the notes are in
-              // this bundle and npm is across a network that may not be there,
-              // so the dialog is on screen before the request leaves. Written
-              // the other way round — awaiting the check and opening after —
-              // the button would sit still for the length of a registry
-              // round-trip, and on a deck with no route to npm it would open
-              // nothing at all until the fetch gave up. Nothing the dialog
-              // draws depends on the answer, so there is nothing to wait for.
-              (() => {
-                const copy = {
-                  running: chipVersion,
-                  latest: version?.latest,
-                  latestPending: version?.latestPending,
-                  checkedAgo: version?.checkedAt ? shortAgo(now - version.checkedAt) : null,
-                  // Only when it is the NEWER of the two. A failure older than
-                  // the last success is history, and saying so would describe a
-                  // problem that has already gone away.
-                  checkFailedAgo: version?.checkFailedAt
-                    && version.checkFailedAt > (version.checkedAt ?? 0)
-                    ? shortAgo(now - version.checkFailedAt) : null,
-                  checkDisabled: version?.checkDisabled,
-                  checking: versionChecking,
-                };
-                return (
-                  <button
-                    type="button"
-                    className={versionChecking ? "v checking" : "v"}
-                    onClick={() => { openReleaseNotes(); loadVersion(true); }}
-                    aria-busy={versionChecking || undefined}
-                    /* No aria-pressed and no aria-expanded, for the reason the
-                       usage-history button gives: what this opens is a modal
-                       behind a scrim, so while it is open this button is out of
-                       the tree entirely and a `true` no reader can reach is
-                       worse than no state at all. aria-haspopup is the part
-                       that says what kind of thing opens. */
-                    aria-haspopup="dialog"
-                    aria-label={versionChipLabel(copy)}
-                    title={versionChipTitle(copy)}
-                  >
-                    v{copy.running}
-                  </button>
-                );
-              })()
-            )}
+            {/* The version chip, and what clicking it does: see VersionChip. */}
+            <VersionChip
+              readyAppUpdate={readyAppUpdate} notice={notice} noticeOpen={noticeOpen}
+              version={version} chipVersion={chipVersion} versionChecking={versionChecking} now={now}
+              openReleaseNotes={openReleaseNotes} showNotice={showNotice} loadVersion={loadVersion}
+            />
           </div>
           {/* NOT a live region, and #372 is the issue that took the
               `role="status"` off it. Nothing in this strip is a status

@@ -65,6 +65,8 @@ function code(src: string): string {
 const app = source("App.tsx");
 /** The detail panel, which moved out of App.tsx into its own component. */
 const detail = source("components/Detail.tsx");
+/** The version chip beside the wordmark, out of App.tsx's topbar. */
+const versionChip = source("components/VersionChip.tsx");
 const usage = source("UsagePanel.tsx");
 const accounts = source("AccountsPanel.tsx");
 const sessions = source("SessionList.tsx");
@@ -261,11 +263,16 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // rotor's entry for this page would be a paragraph.
     const brand = code(app).slice(code(app).indexOf('<div className="brand">'));
     expect(brand).toContain("<h1>");
-    // The chip's branches open with the desktop app's ready update (#1187),
-    // then the deck's own notice; the heading comes before both.
-    expect(brand.indexOf("<h1>")).toBeLessThan(brand.indexOf("{readyAppUpdate ?"));
-    expect(brand.indexOf("{readyAppUpdate ?")).toBeLessThan(brand.indexOf(") : notice ?"));
+    // The chip is VersionChip now: drawn after the heading, and outside it.
+    expect(brand.indexOf("<VersionChip")).toBeGreaterThan(-1);
+    expect(brand.indexOf("<h1>")).toBeLessThan(brand.indexOf("<VersionChip"));
+    expect(brand).not.toMatch(/<h1>[\s\S]*?<VersionChip[\s\S]*?<\/h1>/);
     expect(brand).not.toMatch(/<h1>[\s\S]*?<button[\s\S]*?<\/h1>/);
+    // Its branches open with the desktop app's ready update (#1187), then the
+    // deck's own notice.
+    const chip = code(versionChip);
+    expect(chip.indexOf("{readyAppUpdate ?")).toBeGreaterThan(-1);
+    expect(chip.indexOf("{readyAppUpdate ?")).toBeLessThan(chip.indexOf(") : notice ?"));
   });
 
   it("heads every persistent region with an <h2>", () => {
@@ -582,7 +589,7 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
     // and an aria-hidden dot, so with no aria-label its accessible name was
     // the version string — byte for byte what the healthy chip announces. The
     // branch carrying the news was the quieter of the two.
-    expect(code(app)).toMatch(/aria-label=\{versionNoticeLabel\(\{ \.\.\.notice, open: noticeOpen \}\)\}/);
+    expect(code(versionChip)).toMatch(/aria-label=\{versionNoticeLabel\(\{ \.\.\.notice, open: noticeOpen \}\)\}/);
   });
 
   it("says which way the drift goes, in both kinds", () => {

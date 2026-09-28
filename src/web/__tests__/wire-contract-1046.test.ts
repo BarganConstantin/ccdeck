@@ -26,7 +26,8 @@ const types = read("../types.ts");
 const server = read("../../server/index.mjs");
 const quota = read("../../server/quota.mjs");
 const selfUpdate = read("../../server/self-update.mjs");
-const app = read("../App.tsx");
+// The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.
+const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx");
 const panel = read("../components/UsagePanel.tsx");
 const chip = read("../version-chip.ts");
 const sound = read("../sound.ts");
