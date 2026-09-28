@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
 import {
   FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableNote, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
 } from "../fm-stations";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// Claude FM's state, storage and station operations moved to use-claude-fm.ts;
+// the props they are handed on are still App.tsx's. This reads the client:
+// every match on it is positive, and the slices taken by name stay inside the hook.
+const app = clientText();
 const player = readFileSync(fileURLToPath(new URL("../components/ClaudeFm.tsx", import.meta.url)), "utf8");
 const menu = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
 const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../../package.json", import.meta.url)), "utf8"));

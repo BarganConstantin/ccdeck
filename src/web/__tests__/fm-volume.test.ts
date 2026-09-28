@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { FM_VOLUME_KEY, resolveFmVolume } from "../appearance";
 import { DEFAULT_LEVEL, LEVEL_MAX, LEVEL_MIN } from "../sound";
+import { clientText } from "./client-source";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -42,7 +43,9 @@ describe("the Claude FM volume preference", () => {
   });
 
   it("is owned by App, persisted on change, and handed to both consumers", () => {
-    const app = read("App.tsx");
+    // Owned on App's side rather than by either consumer — in use-claude-fm.ts,
+    // which App calls — so this reads the client. All matches are positive.
+    const app = clientText();
     expect(app).toContain("useState(storedFmVolume)");
     expect(app).toContain("localStorage.setItem(FM_VOLUME_KEY, String(fmVolume))");
     expect(app).toContain("fmVolume={fmVolume}");
