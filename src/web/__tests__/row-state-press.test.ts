@@ -306,7 +306,8 @@ describe("a press never disables the control it came from (#518)", () => {
     // Both targets are real, named controls in the panel rather than a
     // container nobody can hear.
     expect(clientText()).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
-    expect(panelCode).toMatch(/className="glyph-btn ap-refresh"/);
+    expect(readFileSync(fileURLToPath(new URL("../components/AccountsHeader.tsx", import.meta.url)), "utf8"))
+      .toMatch(/className="glyph-btn ap-refresh"/);
     // And only when focus was really dropped — a reader who tabbed elsewhere
     // during the request keeps where they put themselves.
     expect(focusDropped(null)).toBe(true);

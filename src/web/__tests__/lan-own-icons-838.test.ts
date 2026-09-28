@@ -9,7 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const lan = read("../components/LanSyncSection.tsx");
-const accounts = read("../components/AccountsPanel.tsx");
+/** The accounts panel's header, which draws its + and its ↻. */
+const accounts = read("../components/AccountsHeader.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The <svg> a header button draws, found by the class that names the button. */
