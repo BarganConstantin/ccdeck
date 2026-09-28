@@ -227,7 +227,7 @@ function ccPathHash(s) {
 
 /** Encode an absolute path the way CC stores it under
  *  ~/.claude/projects/<slug>/, so a scan looks in the directory CC actually
- *  wrote — session-enrichment.mjs's auto-memory scan, and the Projects rollup
+ *  wrote — memory-files.mjs's auto-memory scan, and the Projects rollup
  *  reading a transcript's folder back out of it (account-projects.mjs).
  *
  *  CC flattens *every* non-alphanumeric character to "-", not just the path

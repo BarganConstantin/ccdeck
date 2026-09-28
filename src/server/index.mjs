@@ -99,7 +99,9 @@ export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // spend, name, recap, context — read off the transcript and sent back through
 // pushEvent; see session-enrichment.mjs. The readers it exported from this
 // file before they moved, it still exports.
-export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, scanAgentsMdFiles, scanClaudeMdFiles, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
+export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
+// And the two memory-file scans, which have moved on to memory-files.mjs.
+export { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 // What a starting deck reads back out of its log, and which of those events
 // are in its scope — see log-replay.mjs. Both were exported from this file
 // before they moved, and still are.
