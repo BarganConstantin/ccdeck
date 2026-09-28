@@ -47,6 +47,7 @@ import type { Node } from "reactflow";
 import { autoLayout, columnsWouldChange } from "../layout";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+const reframe = readFileSync(fileURLToPath(new URL("../use-reframe.ts", import.meta.url)), "utf8");
 
 const W = 240, H = 130;
 const agent = (id: string, sessionId: string): Node =>
@@ -61,7 +62,7 @@ const WIDE = { width: 963.2, height: 503.1 };
 const opts = (nodes: Node[]) => ({ direction: "LR" as const, measured: sizes(nodes) });
 
 /**
- * The body of the reframe effect in App.tsx.
+ * The body of the reframe effect, in use-reframe.ts since it left App.tsx.
  *
  * Read as text rather than run, because what it does is mutate four refs and
  * schedule a fit, and none of that is reachable without React and a canvas.
@@ -69,8 +70,10 @@ const opts = (nodes: Node[]) => ({ direction: "LR" as const, measured: sizes(nod
  * failing on a null match.
  */
 function reframeEffect(): string {
-  const m = /columnsWouldChange\(nodes, edges, opts, prev, frame\)[\s\S]*?\}, \[availableWidth/.exec(app);
-  expect(m, "App.tsx has no effect asking columnsWouldChange about the frame").not.toBeNull();
+  const m = /columnsWouldChange\(nodes, edges, opts, prev, frame\)[\s\S]*?\}, \[availableWidth/.exec(reframe);
+  expect(m, "use-reframe.ts has no effect asking columnsWouldChange about the frame").not.toBeNull();
+  // And App.tsx still runs it.
+  expect(app).toMatch(/\buseReframe\(\{/);
   return m![0];
 }
 
@@ -171,7 +174,10 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     const layoutState = readFileSync(fileURLToPath(new URL("../use-board-layout.ts", import.meta.url)), "utf8");
     expect(/useRef<Frame \| null>\(restoredLayoutFrame\)/.test(layoutState), "the restored frame does not seed the reframe comparison").toBe(true);
     expect(/const restoredLayoutFrame = useState\(loadLayoutFrame\)\[0\]/.test(layoutState), "the stored frame is not read through a lazy initialiser (#612)").toBe(true);
-    appHas(/\blastLayoutFrameRef\b[^}]*\}\s*=\s*useBoardLayout\(/, "App.tsx no longer takes the reframe's frame from useBoardLayout");
+    // Two links: App.tsx hands the reframe the layout useBoardLayout returned,
+    // and the reframe compares against that layout's frame.
+    appHas(/const layout = useBoardLayout\(/, "App.tsx no longer takes the layout from useBoardLayout");
+    expect(reframe, "the reframe no longer reads the frame from the layout it is handed").toMatch(/const \{[^}]*\blastLayoutFrameRef\b[^}]*\} = layout;/);
     // And it goes when the layout it describes goes, or Clear and R leave a
     // frame record pointing at a board that no longer exists.
     const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(storage);
