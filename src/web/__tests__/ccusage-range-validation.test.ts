@@ -62,7 +62,9 @@ process.env.AGENTS_DECK_NO_INSTALL = "1";
 process.env.AGENTS_DECK_CCUSAGE = join(DIR, "no-such-ccusage");
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, isCliDate } = await import("../../server/index.mjs");
+const { startServer } = await import("../../server/index.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { isCliDate } = await import("../../server/usage-routes.mjs");
 
 // Stated, not inherited. With the spawn gone every case here is a refusal that
 // costs about a millisecond, so this is not a margin these tests need to spend —
