@@ -9,9 +9,11 @@
 // enrichment passes (session-enrichment.mjs now) ask `scanTranscript` for a
 // state and decide what to emit from it, the Codex watcher borrows the chunked
 // reader, and pushEvent asks the path gate before any of that runs. So the whole
-// reader moved as one piece, with its caches, and index.mjs imports the
-// operations it calls. The names are the ones the bodies always used, and the
-// five index.mjs exported it still exports, by re-export.
+// reader moved as one piece, with its caches, and its callers import the
+// operations they call. The names are the ones the bodies always used, and
+// index.mjs still re-exports the five it exported: two from here, and the
+// rest from jsonl-chunks.mjs and transcript-gate.mjs, where they have since
+// moved.
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
@@ -306,9 +308,17 @@ function foldTranscriptLine(state, line) {
   // The recap rides the same pass for the same reason, and costs the ordinary
   // line two substring tests. See session-recap.mjs.
   foldRecapLine(state, line);
+  // Model before usage, always: a usage block is charged to the model the same
+  // line names, which is the one foldModelLine has just read off it.
+  foldModelLine(state, line);
+  foldUsageLine(state, line);
+  foldContextLine(state, line);
+}
 
-  // Model. Only a line that mentions a model can change it, and parsing the
-  // rest is what made the full rescan expensive.
+/** The model a line names, folded in: the newest one seen, and the root's or a
+ *  legacy inline subagent's. Only a line that mentions a model can change it,
+ *  and parsing the rest is what made the full rescan expensive. */
+function foldModelLine(state, line) {
   if (line.includes('"model"')) {
     let obj = null;
     try { obj = JSON.parse(line); } catch {}
@@ -324,21 +334,26 @@ function foldTranscriptLine(state, line) {
       else if (!isSide) state.rootModel = model;
     }
   }
+}
 
+/** The usage blocks a line was billed for, charged to the file's totals and to
+ *  their model's bucket. Runs after foldModelLine on the same line — see
+ *  below for why the order is the attribution. */
+function foldUsageLine(state, line) {
   // Usage totals sum every block in the file, resets included — every block the
   // model was actually billed for, which is why the `toolUseResult` tail is cut
   // off first (see billedUsageText) — and are summed a second time into the
   // bucket of the model that produced them (#686).
   //
   // `state.lastModel` is the attribution, and it is the LINE's model whenever
-  // the line has one: the block above has already run and assigned it. That is
-  // the whole trick — CC writes `message.model` and `message.usage` into the
-  // same JSON object, so by the time this loop reads the tokens the model that
-  // produced them is the most recent thing the scanner saw. A usage block on a
-  // line naming no model falls back to the last model seen, which is the turn it
-  // belongs to; a usage block before ANY model line gets no bucket at all and
-  // stays in the flat total alone, where the client prices it at the session's
-  // current model exactly as it did before.
+  // the line has one: foldModelLine has already run on it and assigned it.
+  // That is the whole trick — CC writes `message.model` and `message.usage`
+  // into the same JSON object, so by the time this loop reads the tokens the
+  // model that produced them is the most recent thing the scanner saw. A usage
+  // block on a line naming no model falls back to the last model seen, which
+  // is the turn it belongs to; a usage block before ANY model line gets no
+  // bucket at all and stays in the flat total alone, where the client prices it
+  // at the session's current model exactly as it did before.
   //
   // The bucket takes exactly what the flat total takes, off the same `billed`
   // text: a split that read a wider stretch of the line than the total it splits
@@ -352,8 +367,11 @@ function foldTranscriptLine(state, line) {
   for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
     chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS);
   }
+}
 
-  // Context counts only what follows the most recent /clear or /compact.
+/** The line's share of the context breakdown. Context counts only what follows
+ *  the most recent /clear or /compact. */
+function foldContextLine(state, line) {
   let ctxText = line;
   let resetEnd = -1;
   for (const m of line.matchAll(CONTEXT_RESET_RE)) resetEnd = (m.index ?? -1) + m[0].length;

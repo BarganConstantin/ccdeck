@@ -7,9 +7,10 @@
 // rollout reader. pushEvent asks it to look at every live hook event, and it
 // answers through pushEvent, which it reaches through event-sink.mjs so that
 // the two need not import each other. Its per-session caches are its own:
-// index.mjs asks knownModelId for the stamp, forgetEnrichment when it forgets
-// a session and clearEnrichmentGates on a Clear. The readers, the throttles
-// and the emits are unchanged.
+// pushEvent asks knownModelId for the stamp, forgetSession
+// (session-tracking.mjs) calls forgetEnrichment when it forgets a session, and
+// handleClear (clear-route.mjs) calls clearEnrichmentGates on a Clear. The
+// readers, the throttles and the emits are unchanged.
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 // Which memory files a session has in scope, CLAUDE.md or AGENTS.md — see
@@ -450,10 +451,10 @@ function onRecapTail(sid, text, path) {
 const CONTEXT_READ_THROTTLE_MS = 4000;
 const contextReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 
-// The counts reset at every `/clear` or `/compact` marker (see
-// foldTranscriptLine): CC resets its in-memory window there while the JSONL
-// keeps growing, and reading the pre-reset blocks made the donut report ~100%
-// on an empty context.
+// The counts reset at every `/clear` or `/compact` marker (see foldContextLine
+// in transcript-scan.mjs): CC resets its in-memory window there while the
+// JSONL keeps growing, and reading the pre-reset blocks made the donut report
+// ~100% on an empty context.
 export async function readContextFromTranscript(path) {
   const state = await scanTranscript(path);
   // Nothing folded yet — the file is empty, unreadable, or has no complete
@@ -559,14 +560,14 @@ function forgetEnrichment(sid) {
   modelBySession.delete(sid);
   // The two the session-naming work added (#520/#522) and did not list here.
   // Both are keyed by session id and nothing else ever removed an entry, which
-  // is the exact leak the comment above forgetSession says this mechanism
-  // exists to end — every sibling cache is capped at MAX_TRACKED_SESSIONS and
-  // these two were not. The functional half is worse than the leak:
-  // nameBySession gates the SessionNamed emit on "has this changed", so a live
-  // session evicted past the cap and then heard from again re-emits its model
-  // (modelBySession was cleared) and never re-emits its name. A tab that
-  // connects after the event ring has rolled past the original SessionNamed
-  // shows that session unnamed for the rest of its life.
+  // is the exact leak the comment above forgetSession (session-tracking.mjs)
+  // says this mechanism exists to end — every sibling cache is capped at
+  // MAX_TRACKED_SESSIONS and these two were not. The functional half is worse
+  // than the leak: nameBySession gates the SessionNamed emit on "has this
+  // changed", so a live session evicted past the cap and then heard from again
+  // re-emits its model (modelBySession was cleared) and never re-emits its
+  // name. A tab that connects after the event ring has rolled past the
+  // original SessionNamed shows that session unnamed for the rest of its life.
   nameBySession.delete(sid);
   // The recap's gate, for the same reason — see noteRecap.
   recapBySession.delete(sid);
@@ -595,7 +596,8 @@ function clearEnrichmentGates() {
   modelReads.forgetAll();
 }
 
-// What index.mjs calls besides the readers exported above. Listed rather than
+// What event-pipeline.mjs, session-tracking.mjs, clear-route.mjs and the
+// rollout watcher call besides the readers exported above. Listed rather than
 // marked at each declaration, so the declarations read as they did where they
 // came from.
 export {
