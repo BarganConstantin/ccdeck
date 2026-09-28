@@ -5,7 +5,7 @@
 // "never fetched" forever unless the user ran cswap themselves.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — .mjs server module, no types
-import { collectionDue } from "../../server/claude-accounts.mjs";
+import { collectionDue } from "../../server/claude-collector.mjs";
 
 const NOW = 1_800_000_000_000;
 const sec = (ms: number) => Math.floor(ms / 1000);

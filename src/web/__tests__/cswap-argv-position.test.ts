@@ -588,8 +588,16 @@ function isFixedWord(e: string): boolean {
 /** `String(n)` — a slot number on its way to argv, never free text. */
 const isSlotNumber = (e: string): boolean => /^String\([A-Za-z_$][\w$]*\)$/.test(e.trim());
 
-/** The three modules that put a value of the deck's into claude-swap's argv. */
-const CSWAP_MODULES = ["cswap-auto.mjs", "cswap-admin.mjs", "claude-accounts.mjs"] as const;
+/**
+ * The modules that put a value of the deck's into claude-swap's argv. The last
+ * two were lifted out of claude-accounts.mjs — the collector nudge and the
+ * verdict read — and are scanned so that the census still covers every spawn
+ * that file used to hold.
+ */
+const CSWAP_MODULES = [
+  "cswap-auto.mjs", "cswap-admin.mjs", "claude-accounts.mjs",
+  "claude-collector.mjs", "claude-verdicts.mjs",
+] as const;
 
 const moduleSource = (name: string) =>
   readFileSync(new URL(`../../server/${name}`, import.meta.url), "utf8");
@@ -720,7 +728,7 @@ describe("every value the deck lets somebody type into a cswap argument vector",
   it("is one of the ones this file exercises, and there are no others", () => {
     // The assertion that would have caught #584 the day it was written, and the
     // one that catches the fourth field. A new name in a vector — in any of the
-    // three modules, through a const, a ternary or a push — is a new entry here,
+    // CSWAP_MODULES, through a const, a ternary or a push — is a new entry here,
     // and adding it means answering which guard it carries.
     expect(typedValueSlots()).toEqual(Object.keys(TYPED_VALUE_SLOTS).sort());
   });

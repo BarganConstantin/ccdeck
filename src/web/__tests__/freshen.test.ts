@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain JS module, no types
-import { freshenDue, freshenAllowed, nextReadAt } from "../../server/claude-accounts.mjs";
+import { freshenDue, freshenAllowed, nextReadAt } from "../../server/claude-collector.mjs";
 
 const NOW = 1_800_000_000_000;
 const sec = (ms: number) => ms / 1000;
