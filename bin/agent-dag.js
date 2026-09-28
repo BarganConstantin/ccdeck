@@ -28,8 +28,10 @@
 // happens beside it while it keeps serving, and only a fetch that worked is
 // answered with the exit that gives up the port. See prefetchUpgrade.
 //
-// Everything else the deck does still lives in bin/deck.js. This file must stay
-// boring: it is the one process that is never replaced.
+// Everything else the deck does lives in bin/deck.js and the pieces lifted out
+// of it into bin/cli/, and the rules this file follows are in
+// src/server/supervisor.mjs. This file must stay boring: it is the one process
+// that is never replaced.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
