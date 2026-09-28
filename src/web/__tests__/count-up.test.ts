@@ -160,7 +160,9 @@ describe("what the panel counts, and what it leaves alone", () => {
   it("leaves the tables alone", () => {
     // Twelve rows counting at once is a slot machine. The rows still render
     // their true value directly.
-    expect(panel).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
+    // Both tables are lifted out of the panel into components of their own.
+    expect(readFileSync(fileURLToPath(new URL("../components/UsageModelTable.tsx", import.meta.url)), "utf8"))
+      .toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
     // The session rows are UsageSessionBreakdown.tsx's, lifted out of the panel.
     expect(readFileSync(fileURLToPath(new URL("../components/UsageSessionBreakdown.tsx", import.meta.url)), "utf8"))
       .toMatch(/<span className="up-session-tokens">\{fmtTokens\(s\.tokens\)\}<\/span>/);

@@ -31,6 +31,7 @@ export const USAGE_FILES = [
   "components/UsagePeriodStrip.tsx",
   "components/UsageSessionBreakdown.tsx",
   "usage-session-join.ts",
+  "components/UsageModelTable.tsx",
 ] as const;
 
 let joined: string | null = null;
