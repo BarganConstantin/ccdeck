@@ -47,6 +47,7 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { steppedClock } from "./clock-step";
 import { get, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -138,6 +139,12 @@ function since(seq: number): Promise<Envelope[]> {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+/** The deck's clock, which the read throttle compares against — stepped past
+ *  it rather than slept through (#994). See clock-step.ts. */
+const step = steppedClock();
+/** Past MODEL_READ_THROTTLE_MS (2.5s), so the next prompt is read again. */
+const pastThrottle = () => step(3000);
+
 /** What the deck's own page sends. `/api/forget` is a mutation and mutations are
  *  refused by default — the gate is written so a route added later is protected
  *  until somebody deliberately opens it, and this one is deliberately not open.
@@ -150,6 +157,16 @@ const uiHeaders = () => ({
 
 const forget = (ids: unknown) => post("/api/forget", { ids }, uiHeaders());
 
+/** Whether a `UsageObserved` for `sid` has landed after `seq` — the transcript
+ *  read that a prompt posted at `seq` set off, finished. Waited for, not timed. */
+async function readAfter(sid: string, seq: number): Promise<boolean> {
+  for (let i = 0; i < 200; i++) {
+    if ((await since(seq)).some(e => e.payload.hook_event_name === "UsageObserved" && e.payload.session_id === sid)) return true;
+    await sleep(25);
+  }
+  return false;
+}
+
 /** Every `SessionNamed` the deck has emitted for `sid`, in order. */
 async function namesFor(sid: string): Promise<Array<string | undefined>> {
   return (await since(0))
@@ -160,7 +177,7 @@ async function namesFor(sid: string): Promise<Array<string | undefined>> {
 /** Drive a prompt into the deck and wait until the transcript scan behind it has
  *  named the session, or give up. The scan is throttled per session
  *  (MODEL_READ_THROTTLE_MS, 2.5s), so a caller that wants a SECOND read has to
- *  wait the throttle out first — which is what a resumed session does anyway. */
+ *  get past the throttle first — which is what a resumed session does anyway. */
 async function promptAndWaitForName(sid: string, want: number): Promise<boolean> {
   await post("/api/event", {
     hook_event_name: "UserPromptSubmit", session_id: sid, cwd: DIR, transcript_path: TRANSCRIPT, prompt: "hi",
@@ -186,7 +203,7 @@ describe("the server, told what the page's pruners dropped", () => {
 
     // The session is resumed. Past the read throttle, because a scan inside it
     // is not a scan at all and the bug is not about throttling.
-    await sleep(3000);
+    pastThrottle();
     expect(await promptAndWaitForName(sid, 2)).toBe(true);
     expect(await namesFor(sid)).toEqual([NAME, NAME]);
   }, 40_000);
@@ -199,12 +216,19 @@ describe("the server, told what the page's pruners dropped", () => {
     const sid = "S6";
     expect(await promptAndWaitForName(sid, 1)).toBe(true);
     for (let i = 0; i < 3; i++) {
-      await sleep(3000);
-      await post("/api/event", {
+      pastThrottle();
+      const sent = await post("/api/event", {
         hook_event_name: "UserPromptSubmit", session_id: sid, cwd: DIR, transcript_path: TRANSCRIPT, prompt: "more",
       });
+      // Each prompt has to have been READ, or "named once" is only "not read
+      // again". The usage read runs beside the name read off the same shared
+      // scan and its event is never change-gated, so its landing after this
+      // prompt is the proof the scan ran — and the name read's emit, had there
+      // been one, is synchronous off that same scan, so it is in the ring by
+      // the time this can see the usage. That is what the half-second settle
+      // used to stand in for.
+      expect(await readAfter(sid, Number(sent.body.seq)), `prompt ${i + 1} was never read`).toBe(true);
     }
-    await sleep(500);
     expect(await namesFor(sid)).toEqual([NAME]);
   }, 40_000);
 
