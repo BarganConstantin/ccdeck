@@ -32,12 +32,13 @@ export const rolledLogPath = (home = claudeConfigDir()) => `${logPath(home)}.1`;
 /**
  * How large watch.log may grow before it is rolled over (#989).
  *
- * EVERY OTHER STORE IN THIS MODULE HAS A CAP. `KEEP` holds the archive to 500
- * episodes, `DISMISS_KEEP` holds dismissals to 2000, and the panel's feed is
- * held to 200 lines — while this file, the one that writes out EVERY ADDRESS in
- * full, grew for the life of the install and nothing ever trimmed it. With the
- * watch on by default, a machine where something drives a browser in a loop
- * builds a plaintext list of every address it touched, without end.
+ * EVERY OTHER STORE IN BROWSER WATCH HAS A CAP. `KEEP` holds the archive to 500
+ * episodes and `DISMISS_KEEP` holds dismissals to 2000, both in
+ * browser-watch-store.mjs, and the panel's feed is held to 200 lines — while
+ * this file, the one that writes out EVERY ADDRESS in full, grew for the life
+ * of the install and nothing ever trimmed it. With the watch on by default, a
+ * machine where something drives a browser in a loop builds a plaintext list of
+ * every address it touched, without end.
  *
  * TWO MEBIBYTES. An episode of twenty addresses with query strings is about
  * 2 KB of this file, so the cap is on the order of a thousand episodes: twice
@@ -135,9 +136,9 @@ export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
  * larger file than intended, and none is a reason to write nothing. The next
  * append tries again.
  *
- * `renameWithRetry` for the reason #786 gives over `writeNow`: on Windows a
- * rename loses to anything still holding a handle, and this is a file people
- * open to read.
+ * `renameWithRetry` for the reason #786 gives over the store's `writeNow`: on
+ * Windows a rename loses to anything still holding a handle, and this is a file
+ * people open to read.
  */
 async function rollIfFull(home, adding, deps) {
   const st = deps.stat ?? stat;
