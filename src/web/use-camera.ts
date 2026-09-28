@@ -29,7 +29,7 @@ type PaneTransform = Extract<
   { k: number }
 >;
 
-// Matches TOOL_LANE_W in layout.ts — the burst lane drawn beside each card.
+// Matches TOOL_LANE_W in layout-geometry.ts — the burst lane drawn beside each card.
 export const TOOL_LANE_ALLOWANCE = 420;
 
 export function useCamera() {
