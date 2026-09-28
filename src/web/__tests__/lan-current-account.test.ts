@@ -17,6 +17,8 @@ import { currentFor, heardCurrent } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
 import { exchangeLanes } from "../lan-exchange";
+import { peerView } from "../lan-peer";
+import { deckRows, rowSource } from "../lan-roster";
 
 /** A file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
@@ -123,7 +125,30 @@ describe("the switch", () => {
 
 describe("the dialog", () => {
   it("marks only while that deck answers", () => {
-    expect(MODAL).toMatch(/const current = link === "up" \? offers\?\.current \?\? null : null;/);
+    // "On this one right now" cannot be vouched for by a deck that has gone
+    // quiet, so the mark stops with the lights.
+    const NOW = 1_700_000_000_000;
+    const acct = (key: string) => ({ key, email: key, alive: true });
+    const say = (lastSeen: number, current: Record<string, unknown>) => {
+      const s = {
+        peers: [{
+          fp: "aaa", peerFp: "aaa", name: "Office", paired: true, addr: "10.0.0.2", port: 5000, lastSeen,
+          last: { at: lastSeen, done: [] }, offers: { at: lastSeen, accounts: [acct("a")], current },
+        }],
+        shared: ["a"],
+      } as never;
+      const [row] = deckRows(s, NOW);
+      return peerView({ row, source: rowSource(s, row), status: s, accounts: [acct("a")], now: NOW });
+    };
+    expect(say(NOW, { key: "a" }).link).toBe("up");
+    expect(say(NOW, { key: "a" }).lanes[0].usedThere).toBe(true);
+    expect(say(NOW, { hidden: true }).hiddenThere).toBe(true);
+    expect(say(NOW, { other: true }).otherThere).toBe(true);
+    const quiet = NOW - 3_600_000;
+    expect(say(quiet, { key: "a" }).link).toBe("down");
+    expect(say(quiet, { key: "a" }).lanes[0].usedThere).toBeFalsy();
+    expect(say(quiet, { hidden: true }).hiddenThere).toBe(false);
+    expect(say(quiet, { other: true }).otherThere).toBe(false);
   });
 
   it("says current account hidden under whichever machine is hiding it", () => {

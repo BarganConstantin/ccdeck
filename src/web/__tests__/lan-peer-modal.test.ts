@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exchangeLanes, offerLine, versionOrder } from "../lan-exchange";
 import { deckRows, rowSource, withAliases } from "../lan-roster";
+import { peerView } from "../lan-peer";
 
 const NOW = 1_700_000_000_000;
 /** A file with its comments taken out, so a rule cannot be satisfied by a
@@ -19,6 +20,11 @@ const SECTION = code("../components/LanSyncSection.tsx");
 /** The rows, which the section draws through a list of their own. */
 const LIST = code("../components/LanDeckList.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
+/** What the dialog says about the machine behind the row, which moved out of
+ *  the component into a module of its own. */
+const PEER = code("../lan-peer.ts");
+/** The dialog and what was lifted out of it, for what it must never say. */
+const DIALOG = [MODAL, PEER].join("\n");
 const PRESS = code("../panel-press.ts");
 const ROW_UNPAIR = code("../use-row-unpair.ts");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
@@ -29,7 +35,20 @@ describe("LAN warning visibility", () => {
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }');
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }');
     expect(CSS).toContain('.lan-round[data-tone="warn"] { color: var(--warn); }');
-    expect(MODAL).toMatch(/row\.tone === "bad" \? "bad"/);
+    // The network is drawn broken only when the link itself failed: a round
+    // that brought a login with a problem on the way is warned about, and the
+    // line it came along stays lit.
+    const status = (peer: Record<string, unknown>) => ({ peers: [peer], shared: [] }) as never;
+    const view = (peer: Record<string, unknown>) => {
+      const [row] = deckRows(status(peer), NOW);
+      return peerView({ row, source: rowSource(status(peer), row), status: status(peer), accounts: [], now: NOW });
+    };
+    const warned = paired({ last: { at: NOW, done: [{ email: "a@x.com", action: "heal", ok: true, why: "keychain_unavailable" }] } });
+    expect(deckRows(status(warned), NOW)[0].tone).toBe("warn");
+    expect(view(warned).link).toBe("up");
+    const refused = paired({ last: { at: NOW, error: "connect ECONNREFUSED 192.168.1.44:52011" } });
+    expect(deckRows(status(refused), NOW)[0].tone).toBe("bad");
+    expect(view(refused).link).toBe("bad");
   });
 });
 
@@ -37,7 +56,7 @@ describe("peer dialog connection hints", () => {
   it("keeps the one-way pairing explanation beside a Keychain round remedy", () => {
     expect(MODAL).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
     expect(MODAL).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
-    expect(MODAL).not.toContain("line?.hint ?? row.hint");
+    expect(DIALOG).not.toContain("line?.hint ?? row.hint");
   });
 });
 
@@ -401,17 +420,25 @@ describe("the dialog says each thing once", () => {
   // offers — eight lines in warning ink. When everything is an alarm, nothing
   // on the surface is.
   it("draws no row whose answer is that there is no answer", () => {
-    expect(MODAL).not.toContain("before this deck kept the date");
-    expect(MODAL).not.toContain("same as this deck");
-    expect(MODAL).not.toMatch(/label: "(Reached|System|Deck|Version, OS)"/);
+    expect(DIALOG).not.toContain("before this deck kept the date");
+    expect(DIALOG).not.toContain("same as this deck");
+    expect(DIALOG).not.toMatch(/label: "(Reached|System|Deck|Version, OS)"/);
   });
 
   it("lets the header carry the verdict and the row carry the reason", () => {
-    expect(MODAL).toMatch(/const echoed = /);
+    // A deck that did not answer says so under its name; the line under the
+    // network carries the machine's own words for why, rather than the verdict
+    // a second time.
+    const s = { peers: [paired({ lastSeen: NOW - 3_600_000, last: { at: NOW, error: "connect ECONNREFUSED 192.168.1.44:52011" } })], shared: [] } as never;
+    const [row] = deckRows(s, NOW);
+    const said = peerView({ row, source: rowSource(s, row), status: s, accounts: [], now: NOW });
+    expect(row.state.startsWith(said.line!.text)).toBe(true);
+    expect(said.raw).toBe("connect ECONNREFUSED 192.168.1.44:52011");
+    expect(said.echoed).toBe(true);
   });
 
   it("says the fix for this deck's expired logins once, under them", () => {
-    expect(MODAL).not.toContain("gives them nothing");
+    expect(DIALOG).not.toContain("gives them nothing");
     expect(MODAL).toContain('className="lan-spent"');
   });
 
