@@ -7,13 +7,9 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
-import { dieOfSignal, dieWithParent } from "../src/server/supervisor.mjs";
+import { dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
-import {
-  CURSOR_HIDE, CURSOR_SHOW, colorProfile, fit, glyphs, labelColumn, link, motionOK, oneLine,
-  palette, pulseDot, pulseText, spinnerFrames, statusLine, supportsHyperlinks, termColumns,
-  elapsedSuffix, unicodeOK, unregisteredDetail, visibleWidth, wordmark,
-} from "../src/server/term.mjs";
+import { link, oneLine, pulseDot, pulseText, unregisteredDetail } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { renameNotice } from "../src/server/invoked-as.mjs";
 import { wayBackNote } from "../src/server/way-back.mjs";
@@ -32,6 +28,10 @@ import { printHelp } from "./cli/help.js";
 import { uninstall } from "./cli/uninstall.js";
 import { offerLoginItem } from "./cli/login-item.js";
 import { oneShot } from "./cli/one-shot.js";
+// The terminal the boot draws in: palette, glyphs, rows, the wordmark and the spinner.
+import {
+  G, LINKS, MOTION, P, UNICODE, cols, fileLink, printBanner, row, showCursor, sleep, step, takeCursor, tty, write,
+} from "./cli/screen.js";
 
 const argv = process.argv.slice(2);
 const flags = parseArgs(argv);
@@ -102,13 +102,10 @@ const envPort = process.env.AGENT_DAG_PORT?.trim();
 const rawPort = flags.port ?? (envPort ? envPort : null);
 if (rawPort != null && !isPortValue(rawPort)) {
   const named = flags.port != null ? "--port" : "AGENT_DAG_PORT";
-  // Its own glyphs, not `G` — that is declared a hundred lines below and this
-  // runs at module top level, so reaching for it here would be a temporal dead
-  // zone and a ReferenceError on the one path that reports a bad port. Both
-  // helpers read the environment and nothing this file has parsed yet, so
-  // asking twice on a path that exits immediately costs nothing (#797).
-  const { dash } = glyphs(unicodeOK());
-  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${dash} expected 0-65535.`);
+  // `G.dash`, not an em dash: the console may be the legacy Windows one (#797).
+  // `G` is bin/cli/screen.js's, answered when that module loads, so it is there
+  // on this path too, long before the boot draws anything with it.
+  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${G.dash} expected 0-65535.`);
   process.exit(1);
 }
 const port = rawPort == null ? 4317 : Number(rawPort);
@@ -238,28 +235,6 @@ if (!existsSync(WEB_DIST)) {
   process.exit(1);
 }
 
-// ── the terminal we are printing into ─────────────────────────────────────────
-// Asked once, degraded from there — see src/server/term.mjs, which is where all
-// of this is decided and asserted. Below this point the deck writes no escape of
-// its own: colour comes from `P`, glyphs from `G`, layout from statusLine. That
-// is what makes NO_COLOR, a pipe, a CI log and a legacy Windows console one
-// question rather than thirty separate ones nobody remembers to ask.
-const tty = Boolean(process.stdout.isTTY);
-const PROFILE = colorProfile({ isTTY: tty });
-const P = palette(PROFILE);
-const UNICODE = unicodeOK();
-const G = glyphs(UNICODE);
-const LINKS = supportsHyperlinks({ profile: PROFILE });
-// The terminal's prefers-reduced-motion: nothing sleeps, spins or repaints in a
-// pipe, under CI, or with NO_COLOR set.
-const MOTION = motionOK({ isTTY: tty, profile: PROFILE });
-const write = (s) => process.stdout.write(s);
-// Read per line, never cached: a terminal can be resized while the deck runs,
-// and the pulse below is still on screen hours later.
-const cols = () => termColumns(process.stdout);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const fileLink = (path) => link(path, pathToFileURL(path).href, LINKS);
-
 /**
  * What is still happening after the report ended, in three words or so.
  *
@@ -275,127 +250,10 @@ const fileLink = (path) => link(path, pathToFileURL(path).href, LINKS);
 let pulseBusy = null;
 
 // ── the cursor ────────────────────────────────────────────────────────────────
-// Hidden for as long as anything of ours is moving — the reveal, the spinner,
-// the pulse — and put back on every way out of this process: the ordinary exit,
-// all three signals, and an uncaught throw, which reaches 'exit' after Node has
-// printed it. Half of this is worse than none: a deck that dies with the cursor
-// hidden leaves the user's shell with no cursor and nothing to do about it but
-// `reset`.
-let cursorHidden = false;
-const showCursor = () => {
-  if (!cursorHidden) return;
-  cursorHidden = false;
-  try { write(CURSOR_SHOW); } catch { /* stdout is gone; nothing left to restore */ }
-};
-if (MOTION) { cursorHidden = true; write(CURSOR_HIDE); }
-process.on("exit", showCursor);
-// SIGHUP is the one signal this process does not otherwise handle, so its
-// default action would end us before 'exit' could run. Handled only to put the
-// cursor back and then die of it exactly as before — the supervisor reads the
-// signal, not an exit code.
-process.on("SIGHUP", () => { showCursor(); dieOfSignal("SIGHUP"); });
-
-// ── rows ──────────────────────────────────────────────────────────────────────
-// The status column is computed from the longest label. It used to be counted
-// into each string as trailing spaces, so any new row, or any label a character
-// longer, silently broke the alignment of every other one.
-const LABELS = [
-  "workspace", "Claude hooks", "Codex sessions", "Codex hooks", "claude-swap", "accounts",
-  "ccusage", "update", "name", "server ready", "log", "unknown option",
-  "missing value",
-];
-const LABEL_W = labelColumn(LABELS);
-
-function row({ mark = " ", tone = P.ok, label = "", detail = "", detailTone = P.muted, keep = false }) {
-  return statusLine({
-    mark, label, detail, keep, labelWidth: LABEL_W, columns: cols(), ellipsis: G.ellipsis,
-    paint: {
-      mark: (s) => `${tone}${s}${P.reset}`,
-      detail: (s) => `${detailTone}${s}${P.reset}`,
-    },
-  }) + "\n";
-}
-
-// ── the wordmark ──────────────────────────────────────────────────────────────
-
-/**
- * Hold anything else that wants to speak until the art is finished.
- *
- * #742, found while watching a first run through a pty: the startup jobs run
- * UNDER the reveal on purpose, and one of them failing writes to console.error
- * the moment it fails — which put
- *
- *     ccdeck ccusage: install failed: npm install ccusage failed: spawn npm ENOENT
- *
- * between the second and third rows of the logo. A wordmark with a stack of
- * someone else's bad news through the middle of it is the first thing a new
- * user sees, and it reads as a crash rather than as a note.
- *
- * The window is the reveal and nothing else — about 180ms — so at worst a
- * message arrives a fifth of a second later than it would have, on the one
- * stretch of the boot where there is nowhere for it to go. Restored in a
- * `finally`, so a throw inside the reveal cannot leave the process mute.
- */
-function holdConsole() {
-  const held = [];
-  const real = { warn: console.warn, error: console.error, log: console.log };
-  for (const k of Object.keys(real)) console[k] = (...args) => { held.push([k, args]); };
-  return () => {
-    Object.assign(console, real);
-    for (const [k, args] of held) real[k](...args);
-  };
-}
-
-async function printBanner() {
-  const { lines } = wordmark({ columns: cols(), version: PKG_VERSION, profile: PROFILE, unicode: UNICODE, pal: P });
-  const release = holdConsole();
-  try {
-    for (const line of lines) {
-      write(line + "\n");
-      // A reveal, not a wait. The once-per-session work is already running under
-      // it (see startupWork), so the art costs the boot nothing and the deck is
-      // ready about when the last row lands. What used to be here — 560ms of
-      // spinner at "loading…" before a single art line — was dead time in a tool
-      // whose documented entry point is `npx ccdeck`.
-      if (MOTION && line) await sleep(45);
-    }
-  } finally {
-    release();
-  }
-}
-
-// ── a step, with a spinner only if it is slow enough to need one ──────────────
-// The interval's first frame is 80ms away, so anything already settled when we
-// get here paints nothing at all and the row below is the only trace of it.
-
-async function step(label, work) {
-  if (!MOTION) return work;
-  const frames = spinnerFrames(UNICODE);
-  // Kept inside the terminal: a label that wraps is a label the \r below can
-  // only half erase, and what is left of it stays under the row that follows.
-  // Six columns for the indent and the spinner, four more so the elapsed
-  // seconds have somewhere to go without pushing the label off the edge.
-  const text = fit(label, cols() - 10, G.ellipsis);
-  const started = Date.now();
-  let i = 0;
-  let widest = 0;
-  const iv = setInterval(() => {
-    const line = `  ${P.accent}${frames[i++ % frames.length]}${P.reset}  ${P.muted}${text}${elapsedSuffix(Date.now() - started)}${P.reset}`;
-    widest = Math.max(widest, visibleWidth(line));
-    write(`\r${line}`);
-  }, 80);
-  try {
-    return await work;
-  } finally {
-    clearInterval(iv);
-    // Cleared rather than overwritten: the row that follows is a different
-    // length, and relying on it to be the longer of the two is how a spinner
-    // leaves its own tail on screen. Measured rather than computed, because the
-    // line grows when the elapsed seconds appear and again when they reach two
-    // digits. Nothing to clear if it never painted.
-    if (i) write("\r" + " ".repeat(widest) + "\r");
-  }
-}
+// Hidden from here for as long as anything of ours is moving, and put back on
+// every way out — see takeCursor in bin/cli/screen.js, which draws the rest of
+// the boot's terminal too.
+takeCursor();
 
 /**
  * The once-per-session work, all of it started at once and none of it awaited.
@@ -1237,7 +1095,7 @@ if (openBrowser && !RESPAWN) {
 // come up has no business teaching the machine to start it at every login. By
 // here the port is bound, the hooks are registered and the browser is open.
 // Never on a respawn, which is the same session continuing. See offerLoginItem.
-if (!RESPAWN) await offerLoginItem({ P, G, write, deckDataDir, deckLogDir });
+if (!RESPAWN) await offerLoginItem({ deckDataDir, deckLogDir });
 
 // ── Pulse indicator ───────────────────────────────────────────────────────────
 // The whole line is rewritten each beat rather than just the dot: anything else

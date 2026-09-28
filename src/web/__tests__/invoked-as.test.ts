@@ -263,10 +263,9 @@ describe("what gets said, and to whom", () => {
 });
 
 describe("the terminal row it becomes", () => {
-  // bin/deck.js's own list and its own row(), rebuilt from the same term.mjs
-  // primitives — the file is a script that starts a server, so it cannot be
-  // imported here, and term-layout.test.ts keeps its copy of LABELS the same
-  // way.
+  // The boot's own list and its own row(), rebuilt from the same term.mjs
+  // primitives. They live in bin/cli/screen.js now, which keeps LABELS to
+  // itself, and term-layout.test.ts keeps its copy of LABELS the same way.
   const LABELS = [
     "workspace", "Claude hooks", "Codex sessions", "claude-swap", "accounts",
     "ccusage", "update", "name", "server ready", "log",
@@ -277,7 +276,7 @@ describe("the terminal row it becomes", () => {
     // The order matters and the line breaks do not (#378). This used to be the
     // array literal byte for byte, so reflowing it across two lines — which
     // moves no row anywhere — failed a test named for the rows not moving.
-    expect(read("bin", "deck.js"), "the `name` row left its place in deck.js' label list")
+    expect(read("bin", "cli", "screen.js"), "the `name` row left its place in the boot's label list")
       .toMatch(/"ccusage",\s*"update",\s*"name",\s*"server ready",\s*"log",/);
     expect(width).toBe("Codex sessions".length);
   });

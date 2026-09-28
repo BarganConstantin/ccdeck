@@ -501,7 +501,10 @@ describe("a stop that asked for one deck never ends them all", () => {
     expect(oneShot).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(oneShot);
     expect(missing).toBeGreaterThan(oneShot);
-    // Below the block's own tone/glyphs, or it is a temporal dead zone (#797).
-    expect(unknown).toBeGreaterThan(ONE_SHOT.indexOf("const tone = palette(colorProfile("));
+    // Drawn with the screen's glyphs and palette. bin/cli/screen.js answers them
+    // when it loads, so no line here can reach for them before they exist — the
+    // temporal dead zone the one-shots used to build their own to avoid (#797).
+    expect(ONE_SHOT).toMatch(/^import \{ G, P \} from "\.\/screen\.js";$/m);
+    expect(ONE_SHOT).toContain("const tone = P;");
   });
 });

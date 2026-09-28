@@ -6,13 +6,13 @@
 // is read and before anything else in the boot has run. Each resolves to the
 // exit code, and deck.js exits with it.
 //
-// The one-shots' own voice comes in with every call — their glyphs, their
-// palette and `say` — for the reason oneShot builds them for itself: this runs
-// long before deck.js declares `G` and `P` (#797).
+// The one-shots' voice comes in with every call — the screen's glyphs and
+// palette by the names those lines use, and `say`.
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
+import { G, P, write } from "./screen.js";
 
 // The copy of the deck this file belongs to: what `--install-service` and a
 // first start put at login. `--install` names the global copy instead.
@@ -153,9 +153,9 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
 // and nothing else: the deck is already running, and the worst case is the
 // behaviour every version before this one had.
 //
-// Called by the boot, not by a one-shot, so it speaks in the boot's voice —
-// `P`, `G` and `write` — rather than the one-shot block's.
-export async function offerLoginItem({ P, G, write, deckDataDir, deckLogDir }) {
+// Called by the boot, not by a one-shot, so it writes the boot's way: `P`, `G`
+// and `write`, straight from bin/cli/screen.js.
+export async function offerLoginItem({ deckDataDir, deckLogDir }) {
   try {
     const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
     const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
