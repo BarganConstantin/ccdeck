@@ -12,12 +12,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
 
 /** Comments stripped, so a rule cannot be satisfied by a paragraph that
  *  describes it. */
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
-  .replace(/\/\*[\s\S]*?\*\//g, " ")
-  .replace(/^\s*\/\/.*$/gm, " ");
+// Two of the three panels are still decided in App.tsx; the accounts panel's
+// first-run default moved with the left column into use-left-column.ts. The
+// rule is about the client, so it reads the client — comment-stripped, as this
+// file always read it. All matches are positive.
+const app = clientText();
 
 /** The one decision, spelled the one way, for each key that carries it. */
 const OPENS_ON_FIRST_RUN = /const stored = (?:window\.localStorage\.getItem|readStored)\(KEY\);\s*return stored === null \? true : stored === "1";/;

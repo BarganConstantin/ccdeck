@@ -50,6 +50,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isBoxOnPane, shouldRefit, type NodeBox, type PaneSize, type Viewport } from "../drift";
+import { clientText } from "./client-source";
 
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
@@ -194,7 +195,9 @@ describe("the six layouts are still the six the stylesheet declares", () => {
   it("opens with the accounts panel and without the detail panel", () => {
     // Which is `288px 1fr` — a pane 72px wider than the guess believed, on
     // every deck that has never had its panels touched.
-    expect(appCode).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
+    // The accounts panel's default moved with the left column; the detail
+    // panel's below is still App.tsx's.
+    expect(clientText()).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
     expect(appCode).toMatch(/function loadDetailOpen\(\): boolean \{[\s\S]*?return false;\s*\}/);
   });
 });
