@@ -88,7 +88,9 @@ describe("what App.tsx does about it", () => {
     // would be a second mechanism to keep in step with the pruner, and the
     // reason this tick runs its clears unconditionally (a `__clear` over SSE)
     // applies to the modals exactly as it does to the selection.
-    const sel = app.indexOf("setPrimarySelectedId(prev => (prev != null");
+    // The selection's half is one call now, to the operation in use-selection.ts
+    // that makes both of its prunes.
+    const sel = app.indexOf("pruneSelectionToBoard();");
     const ctx = app.indexOf("setContextFor(prev => (prev != null");
     const sum = app.indexOf("setSummaryFor(prev => (prev != null");
     const tickEnd = app.indexOf("if (changed) rerender();", sel);
@@ -97,6 +99,8 @@ describe("what App.tsx does about it", () => {
     expect(sum, "setSummaryFor is not in the prune tick").toBeGreaterThan(sel);
     expect(ctx).toBeLessThan(tickEnd);
     expect(sum).toBeLessThan(tickEnd);
+    const selection = readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8");
+    expect(selection).toMatch(/const pruneSelectionToBoard = useCallback\(\(\) => \{\s*setSelectedIds\(prev => pruneSelection\(prev, stateRef\.current\.agents\)\);\s*setPrimarySelectedId\(prev => \(prev != null && !stateRef\.current\.agents\.has\(prev\) \? null : prev\)\);/);
   });
 
   it("still counts them as open while they can render, which is what the flag is for", () => {

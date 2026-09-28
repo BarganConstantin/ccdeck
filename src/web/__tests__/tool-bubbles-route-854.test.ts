@@ -36,10 +36,12 @@ describe("the bubbles stay decoration, and the keyboard has its own way in (#854
   });
 
   it("opens that panel from the keyboard, because a selection opens it (#814)", () => {
-    expect(app).toMatch(/if \(!additive && inspect\) setDetailOpen\(true\);/);
+    // selectAgent lives in use-selection.ts now.
+    const selection = code(read("../use-selection.ts"));
+    expect(selection).toMatch(/if \(!additive && inspect\) setDetailOpen\(true\);/);
     // A keyboard selection keeps the panel: only the pointer's click on a card
     // passes `inspect: false`, and Enter takes the default.
-    expect(app).toMatch(/inspect: boolean = !additive/);
+    expect(selection).toMatch(/inspect: boolean = !additive/);
     expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\);/);
   });
 

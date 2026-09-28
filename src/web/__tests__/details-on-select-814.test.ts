@@ -16,7 +16,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { WELCOME_STEPS } from "../components/guide-art";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// selectAgent moved to use-selection.ts; everything that calls it stayed in
+// App.tsx. The two are read as one, so a body is found wherever it lives.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
