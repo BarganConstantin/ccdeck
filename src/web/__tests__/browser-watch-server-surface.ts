@@ -27,6 +27,7 @@ export const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url
 export const WATCH_SERVER_FILES = [
   "browser-watch.mjs",
   "browser-watch-decks.mjs",
+  "browser-watch-feed.mjs",
 ] as const;
 
 let joined: string | null = null;

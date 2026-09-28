@@ -17,6 +17,7 @@ import {
 import { unseenEpisodes, SEEN_KEY } from "../browser-watch-seen";
 import { flooredReader } from "./floored-reader";
 import { clientText } from "./client-source";
+import { watchServerSurface } from "./browser-watch-server-surface";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");
@@ -371,7 +372,9 @@ describe("a log a person can read", () => {
     // one line saying a visit had been read. The view answering "is this
     // working" answered it by making its own answer unfindable.
     const server = src("../../server/browser-watch.mjs");
-    expect(server).not.toMatch(/unchanged, nothing to re-read/);
+    // The feed has a module of its own now; the old line must not come back in
+    // either place.
+    expect(watchServerSurface()).not.toMatch(/unchanged, nothing to re-read/);
     expect(server).toMatch(/else if \(read\.cached\) \{ \/\* silent \*\/ \}/);
   });
 
@@ -382,7 +385,7 @@ describe("a log a person can read", () => {
     // merely clutter it, it evicts the findings the panel exists to show.
     // A count and a timestamp say the same thing and cost no rows.
     const server = src("../../server/browser-watch.mjs");
-    expect(server, "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
+    expect(watchServerSurface(), "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
     expect(server).toMatch(/checkedMs: _checkedMs,/);
     expect(server).toMatch(/checks: _checks,/);
   });
