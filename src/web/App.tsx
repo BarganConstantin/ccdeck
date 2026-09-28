@@ -64,6 +64,7 @@ import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
@@ -295,12 +296,6 @@ const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
  *  no longer exists, and a tab that had the panel open still finds it open. */
 const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
 const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
-// Which old command the name notice has already been dismissed for — the name
-// itself, not a boolean. Somebody who dismisses it under `agent-dag` and later
-// starts the deck as `agents-deck` is a second install that has not heard this
-// yet, and a flag would silence it. In the agent-dag.* namespace like every
-// other key here; brand.ts explains why the rename stops at the storage layer.
-const OLD_NAME_DISMISSED_KEY = "agent-dag.oldNameNoticeDismissed";
 // How stale the last registry lookup may get before a poll asks npm again
 // instead of accepting the server's cached answer. Three times the poll
 // interval: often enough that a release shows up while you are looking at the
@@ -1064,31 +1059,8 @@ function Inner() {
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
   const { workspace, providers, providersRef } = useDeckScope(live);
 
-  // ── the name this deck was started under ──────────────────────────────────
-  // Three npm names reach this same deck, every surface it draws says ccdeck,
-  // and the name most people type is one of the other two. So it is said here
-  // once per old name — in the shape of the banner above, never as an error.
-  // Nothing is broken and nothing is being taken away, and a red alarm over a
-  // name preference would be a lie about severity.
-  //
-  // The server reports `invokedAs` only where it can prove what was typed, so
-  // this stays silent for a global install on Windows and for a git checkout
-  // instead of guessing at either. Seeing this over a deck you started as
-  // `ccdeck` is the one failure that would make it worth ignoring.
-  const [oldNameDismissed, setOldNameDismissed] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    try { return window.localStorage.getItem(OLD_NAME_DISMISSED_KEY) ?? ""; } catch { return ""; }
-  });
-  // PRODUCT is both halves of the comparison on purpose: the name the deck
-  // calls itself and the command we ask people to type are the same string
-  // since the rename (#324), and display-name.test.ts is what holds them there.
-  const oldName = version?.invokedAs && version.invokedAs !== PRODUCT ? version.invokedAs : null;
-  const oldNameOpen = oldName != null && oldNameDismissed !== oldName;
-  const dismissOldName = useCallback(() => {
-    if (!oldName) return;
-    setOldNameDismissed(oldName);
-    try { window.localStorage.setItem(OLD_NAME_DISMISSED_KEY, oldName); } catch { /* private mode */ }
-  }, [oldName]);
+  // The "started under an old npm name" notice lives in use-old-name-notice.ts.
+  const { oldName, oldNameOpen, dismissOldName } = useOldNameNotice(version);
   // Installing runs on the server and reports back through /api/version, so the
   // only thing the click owns is starting it and polling a little faster while
   // it runs — an npm install is a minute, not five.
