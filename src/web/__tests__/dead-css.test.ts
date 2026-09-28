@@ -58,8 +58,8 @@ const declared = new Set([...rules.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
 const namedInJs = new Set([...tsx.matchAll(/"(--[\w-]+)"/g)].map(m => m[1]));
 const readInCss = new Set([...rules.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 /** Off the CODE, not the prose. usage-agents.ts explains its palette as "five
- *  `var(--usage-…)` names", and read raw that sentence is a component reading a
- *  property called `--usage-`. The same rule the stylesheet is held to above:
+ *  `var(--model-…)` names", and read raw that sentence is a component reading a
+ *  property called `--model-`. The same rule the stylesheet is held to above:
  *  a comment about a rule is not a rule. */
 const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 

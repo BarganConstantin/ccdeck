@@ -249,9 +249,13 @@ chart, so both ramps are here rather than dark alone:
 | `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#b0490c` |
 | `--cat-other` | `#94a3b8` | `#64748b` | | `--usage-zinc` | `#94a3b8` | `#4a5260` |
 
-The usage colours map to: purple = opus and Claude Code's own band, blue = sonnet,
-green = haiku and Copilot, amber = gpt-5, red = gpt, indigo = gemini, orange =
-codex, zinc = anything neither function recognises.
+The usage colours are a palette, and the cost bar and the projects bar draw from
+it too. Which member a model family is drawn in is said once, by a `--model-*`
+token in a theme-independent `:root` block (#1285): `--model-opus` (also Claude
+Code's own band), `--model-sonnet`, `--model-haiku` (also Copilot's),
+`--model-gpt5`, `--model-gpt`, `--model-gemini`, `--model-codex`, and
+`--model-other` for anything `modelColor` does not recognise. Anything that draws a
+model reads the family token and never a palette member.
 
 **A category is never identified by colour alone; the chip carries its name.**
 That is already what `.cat-chip .cat-name` does, and it has to stay true: in dark,

@@ -358,7 +358,7 @@ describe("the eight colours answer the theme now, and still say which model they
     expect(MODEL_COLOURS.length).toBe(8);
     expect(AGENT_COLOURS.length).toBe(5);
     for (const value of SERIES) {
-      expect(tokenNameOf(value), `modelColor/agentColor returned ${value}`).toMatch(/^--usage-/);
+      expect(tokenNameOf(value), `modelColor/agentColor returned ${value}`).toMatch(/^--model-/);
     }
   });
 
@@ -366,15 +366,20 @@ describe("the eight colours answer the theme now, and still say which model they
     // The family test is the thing the cascade cannot do — there is no selector
     // for "the model name contains sonnet". What moved is the value, not the
     // decision, which is exactly the boundary #330 drew for the session hues.
-    expect(historyRowsSrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--usage-blue\)"/);
-    expect(agentsSrc).toMatch(/case "codex": return "var\(--usage-orange\)"/);
+    expect(historyRowsSrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--model-sonnet\)"/);
+    expect(agentsSrc).toMatch(/case "codex": return "var\(--model-codex\)"/);
   });
 
   it("declares every one of them in both themes, since half a token is a light-theme bug", () => {
+    // A family token (#1285) names a palette member, once, for both themes; the
+    // member is what each theme declares as a hex.
     for (const value of SERIES) {
       const token = tokenNameOf(value)!;
+      const member = tokenNameOf(TOK.dark[token] ?? "");
+      expect(member, `${token} should name a --usage-* palette member`).toMatch(/^--usage-/);
       for (const theme of themes) {
-        expect(TOK[theme][token], `${theme} ${token}`).toMatch(/^#[0-9a-f]{6}$/i);
+        expect(TOK[theme][token], `${theme} ${token}`).toBe(`var(${member})`);
+        expect(TOK[theme][member!], `${theme} ${member}`).toMatch(/^#[0-9a-f]{6}$/i);
       }
     }
   });
@@ -773,9 +778,9 @@ describe("the sweep that could not see a .tsx literal, which is why none of this
     // The indirection is the whole reason the existing sweeps missed this:
     // `background: modelColor(mb.modelName)` mentions no colour at all.
     const seg = INLINE.find(c => c.expression === "modelColor(mb.modelName)")!;
-    expect(seg.sources).toEqual(expect.arrayContaining(["var(--usage-purple)", "var(--usage-zinc)"]));
+    expect(seg.sources).toEqual(expect.arrayContaining(["var(--model-opus)", "var(--model-other)"]));
     const share = INLINE.find(c => c.expression === "agentColor(a.id)")!;
-    expect(share.sources).toEqual(expect.arrayContaining(["var(--usage-orange)"]));
+    expect(share.sources).toEqual(expect.arrayContaining(["var(--model-codex)"]));
   });
 
   it("would fail on a hard-coded hex in an inline style, which is the shape that shipped", () => {

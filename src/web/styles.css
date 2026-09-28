@@ -273,6 +273,27 @@
   color-scheme: light;
 }
 
+/* WHICH HUE EACH MODEL FAMILY IS DRAWN IN, named once (#1285). The eight
+   --usage-* colours above are a palette — the cost bar's four token kinds and
+   the projects bar draw from it as well as the usage chart — so "the Opus
+   colour" was not a thing the sheet could say: modelColor() and agentColor()
+   picked palette members in TypeScript, and the model chip painted literals of
+   its own that did not agree with them. These are that decision, one token per
+   family, for every surface that draws a model: the chart's bands, the by-CLI
+   strip and the chip. In neither theme, because the mapping is the same on
+   white as on black; each one resolves to its palette member's value in
+   whichever theme :root is in. */
+:root {
+  --model-opus: var(--usage-purple);    /* and Claude Code's own band */
+  --model-sonnet: var(--usage-blue);
+  --model-haiku: var(--usage-green);    /* and Copilot's */
+  --model-gpt5: var(--usage-amber);
+  --model-gpt: var(--usage-red);
+  --model-gemini: var(--usage-indigo);
+  --model-codex: var(--usage-orange);
+  --model-other: var(--usage-zinc);     /* everything modelColor does not recognise */
+}
+
 /* Geometry, in its own block and in neither theme: an inset and a control
    height are the same numbers on white as they are on black, so they do not
    belong in either palette above. #380 found the deck had no such block and
