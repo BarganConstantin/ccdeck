@@ -73,6 +73,8 @@ const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-
 // `app` stays App.tsx for the rest, including the one negative case.
 const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
+// The outside-press rule SoundMenu shares with AnchoredPopover.
+const outsidePress = withoutComments(read("components/use-outside-press.ts"));
 // Each tone's row — its preview, volume and sound — moved to ToneSection.tsx.
 const toneSection = withoutComments(read("components/ToneSection.tsx"));
 // The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
@@ -987,13 +989,18 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // rather than click, so a press that starts outside dismisses even if the
     // pointer travels back in before release — and in the capture phase, so a
     // control that stops propagation cannot keep the menu open.
-    expect(menu).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
-    expect(menu).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
+    //
+    // The listener is use-outside-press.ts's now, shared with AnchoredPopover,
+    // so the phase and the event are read there and the menu is held to
+    // handing it the right two elements.
+    expect(outsidePress).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
+    expect(outsidePress).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
     // The two exclusions, and the opener is the one that matters: without it
     // the outside-press closes the menu and the button's own onClick reopens it
     // in the same gesture.
-    expect(menu).toMatch(/if \(dialogRef\.current\?\.contains\(target\)\) return;/);
-    expect(menu).toMatch(/if \(openerRef\.current\?\.contains\(target\)\) return;/);
+    expect(outsidePress).toMatch(/if \(popover\?\.contains\(target\)\) return false;/);
+    expect(outsidePress).toMatch(/if \(opener\?\.contains\(target\)\) return false;/);
+    expect(menu).toMatch(/useOutsidePress\(dialogRef, \(\) => openerRef\.current, onClose\);/);
     expect(app).toMatch(/openerRef=\{soundButtonRef\}/);
     expect(app).toMatch(/ref=\{soundButtonRef\}/);
   });

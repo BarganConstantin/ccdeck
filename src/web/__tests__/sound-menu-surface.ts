@@ -25,6 +25,8 @@ export const SOUND_MENU_FILES = [
   "components/SpokenVoiceForm.tsx",
   "use-clip-recorder.ts",
   "tone-option.ts",
+  // Shared with AnchoredPopover, which is why it lives beside the hooks.
+  "components/use-outside-press.ts",
 ] as const;
 
 let joined: string | null = null;

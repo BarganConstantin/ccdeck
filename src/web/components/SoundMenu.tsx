@@ -34,14 +34,13 @@
 //
 // Click-outside is the one rule a popover needs that a modal does not, because
 // a modal has a backdrop to catch the click and this has nothing. It is
-// `pointerdown` rather than `click`: a press that starts outside should dismiss
-// even if the pointer travels back in before release, and `click` on a control
-// elsewhere in the topbar would otherwise fire against a menu that is still up.
-// The opener is excluded from it — its own onClick already toggles, and letting
-// both run would close the menu and immediately reopen it.
-import { useEffect, useRef, type RefObject } from "react";
+// use-outside-press.ts's, shared with AnchoredPopover, which says why it is
+// `pointerdown`, why it listens on window in the capture phase, and why the
+// opener is excluded from it.
+import { type RefObject } from "react";
 import { CHIME_ORDER, type TonePrefs } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { useOutsidePress } from "./use-outside-press";
 import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 import { inDesktopApp } from "../in-app";
 import CustomSoundsSection, { type CustomSoundsProps } from "./CustomSoundsSection";
@@ -103,22 +102,9 @@ export default function SoundMenu({
   // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
 
-  // The one dismissal rule a popover owns that the hook does not. On window and
-  // in the capture phase, so a press on a control that stops propagation still
-  // closes the menu first.
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (dialogRef.current?.contains(target)) return;
-      if (openerRef.current?.contains(target)) return;
-      closeRef.current();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    return () => window.removeEventListener("pointerdown", onDown, true);
-  }, [dialogRef, openerRef]);
+  // The one dismissal rule a popover owns that the hook above does not: a
+  // press outside the menu and outside the button that opened it.
+  useOutsidePress(dialogRef, () => openerRef.current, onClose);
 
   return (
     <div
