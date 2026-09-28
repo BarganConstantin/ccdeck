@@ -86,6 +86,19 @@ let _generation = 0;
 
 const CACHE_MS = 60_000;
 
+// How long an answer with no fresh numbers in it stays cached: the "no reading
+// yet" of the poll-floor branch, and both answers _doFetch gives when the CLI
+// printed no windows — the last good reading held over, or the zero or failure
+// when there never was one. A whole CACHE_MS would keep the panel on one of
+// those for a minute when the next attempt may well succeed, so they are
+// stamped CACHE_MS - SHORT_CACHE_MS in the past and expire this long after they
+// were written.
+const SHORT_CACHE_MS = 5_000;
+
+/** The cache stamp that makes an answer published at `now` expire
+ *  SHORT_CACHE_MS later. */
+const shortLived = (now) => now - (CACHE_MS - SHORT_CACHE_MS);
+
 // The refresh button may beat SELF_POLL_MS — the floor for polls we pay for,
 // kept in quota-oauth.mjs beside the cooldown — but not turn into a poll loop
 // when held down. It never beats the 429 cooldown.
@@ -306,6 +319,41 @@ export function resetQuotaPollFloor() {
   clearResetCreditsFloor();
 }
 
+// How many times source 3 is run before its silence is taken at its word, and
+// how far apart. Like REREAD_TRIES above, a count and a gap rather than a
+// deadline; QUOTA_DEADLINE_MS's note adds up what the two cost a caller.
+const CLI_ATTEMPTS = 3;
+const CLI_RETRY_GAP_MS = 1200;
+
+/**
+ * Source 3, attempted until it prints windows: `{ cliOk, cliRan, parsed }`,
+ * where the first two say whether ANY attempt was recognised and whether any
+ * ran cleanly — the no-numbers branch of _doFetch needs both — and `parsed` is
+ * the first set of windows printed, or null.
+ */
+async function readCliUsage(bin) {
+  // The CLI sometimes omits the "Current session/week" quota lines on a cold
+  // invocation (right after the server starts, or after the page is hard-
+  // refreshed). The real lines appear on a subsequent call. Retry a couple
+  // times before giving up so the first paint already shows real values.
+  let cliOk = false;
+  let cliRan = false;
+  let parsed = null;
+  for (let attempt = 0; attempt < CLI_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(CLI_RETRY_GAP_MS);
+    const r = await runUsageOnce(bin);
+    cliOk = r.cliOk || cliOk;
+    cliRan = r.ran || cliRan;
+    if (r.parsed) { parsed = r.parsed; break; }
+    // The retry exists for a CLI that RAN and left the quota lines out of a cold
+    // invocation. A CLI that is not installed will not be installed 1.2 seconds
+    // from now, and asking twice more spends two spawns and 2.4 seconds of the
+    // caller's wait to print the same sentence three times. See runUsageOnce.
+    if (r.missing) break;
+  }
+  return { cliOk, cliRan, parsed };
+}
+
 async function _doFetch(now, force = false, gen = _generation) {
   // Source 1: claude-swap's store. Free, and already paid for.
   let store = await storeQuota();
@@ -341,7 +389,7 @@ async function _doFetch(now, force = false, gen = _generation) {
     const held = freshest(store, _lastGood);
     if (held) return publish(gen, { ...held, stale: true }, now);
     const result = noReading(now);
-    return publish(gen, result, now - (CACHE_MS - 5_000));
+    return publish(gen, result, shortLived(now));
   }
   _lastSelfPollAt = now;
 
@@ -352,27 +400,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   }
 
   // Source 3: parse `claude --print /usage` CLI output.
-  const bin = quotaClaudeBin();
-
-  // The CLI sometimes omits the "Current session/week" quota lines on a cold
-  // invocation (right after the server starts, or after the page is hard-
-  // refreshed). The real lines appear on a subsequent call. Retry a couple
-  // times before giving up so the first paint already shows real values.
-  let cliOk = false;
-  let cliRan = false;
-  let parsed = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await sleep(1200);
-    const r = await runUsageOnce(bin);
-    cliOk = r.cliOk || cliOk;
-    cliRan = r.ran || cliRan;
-    if (r.parsed) { parsed = r.parsed; break; }
-    // The retry exists for a CLI that RAN and left the quota lines out of a cold
-    // invocation. A CLI that is not installed will not be installed 1.2 seconds
-    // from now, and asking twice more spends two spawns and 2.4 seconds of the
-    // caller's wait to print the same sentence three times. See runUsageOnce.
-    if (r.missing) break;
-  }
+  const { cliOk, cliRan, parsed } = await readCliUsage(quotaClaudeBin());
 
   // Got real quota lines — cache normally and remember as last-known-good.
   if (parsed) {
@@ -387,7 +415,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // vouches for numbers this branch already knows are stale. Short-cache so we
   // retry the CLI again soon.
   if (_lastGood) {
-    return publish(gen, { ..._lastGood, stale: true }, now - (CACHE_MS - 5_000));
+    return publish(gen, { ..._lastGood, stale: true }, shortLived(now));
   }
 
   // Never had good data. A CLI that RAN and printed no quota lines is two
@@ -420,7 +448,7 @@ async function _doFetch(now, force = false, gen = _generation) {
     ? { ok: true, session5hPct: 0, session5hWindowSec: WIN_5H_SEC,
         week7dPct: 0, week7dWindowSec: WIN_7D_SEC, fetchedAt: now }
     : { ok: false, reason: cliOk && cliRan ? "no_subscription" : "cli_failed", fetchedAt: now };
-  return publish(gen, result, now - (CACHE_MS - 5_000));
+  return publish(gen, result, shortLived(now));
 }
 
 /**
