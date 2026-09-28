@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
+import { clientText } from "./client-source";
 import {
   askedLabel, checkedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel,
   nextShared, rosterSplit, sameKeys, sectionState, settlePending, writeFailure, ONLINE_MS,
@@ -1353,7 +1354,10 @@ describe("what an off network is allowed to cost", () => {
   // `pending` cannot become anything and the peer list cannot change. Three
   // requests every five seconds is fifty-two thousand a day for a section
   // reading "off — this deck is not on the network".
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The deck-side poller moved out of App.tsx into use-lan-pair-requests.ts, so
+  // this reads the whole client. Every whole-text match here is positive; the
+  // one negative is on the LAN block sliced out by name, which stays in the hook.
+  const app = clientText();
 
   it("asks slowly while the switch is off, and quickly while it is on", () => {
     expect(SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
