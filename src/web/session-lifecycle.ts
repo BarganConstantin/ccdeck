@@ -6,7 +6,7 @@
 // All of them write to the ROOT rather than to whichever agent `resolveOwner`
 // picked: a human types into a session, and a turn or a session ends for the
 // whole of it, never for the Task that happened to be running.
-import { basename, ensureRoot } from "./agent-attribution";
+import { adoptCwd, adoptRootLabel, ensureRoot } from "./agent-attribution";
 import { rootAgentId, toolKey, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, promptAlreadyRecorded, sessionEvidenceAt } from "./redelivery";
@@ -83,8 +83,8 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // is also what makes this line order-independent, which is the property
   // the retraction above it exists to preserve.
   root.startedAt = Math.min(root.startedAt ?? now, now);
-  if (!root.cwd && p.cwd) { root.cwd = p.cwd; root.cwdBasename = basename(p.cwd); }
-  if (root.label === "session" && p.cwd) root.label = basename(p.cwd) ?? "session";
+  adoptCwd(root, p);
+  adoptRootLabel(root, p);
 }
 
 /** The human typing into the session: a new turn on the ROOT, with the prompt
