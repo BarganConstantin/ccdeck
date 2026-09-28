@@ -285,6 +285,24 @@ function unreadablePrefs(path, why) {
   return err;
 }
 
+/** The errors a filesystem raises for a place this user may not write — most
+ *  often a settings folder a `sudo` run left owned by root (#1335). */
+const NOT_WRITABLE = new Set(["EACCES", "EPERM", "EROFS"]);
+
+/**
+ * Why a settings write failed, as a reason the panel can name — or null when
+ * the failure is not one of the two a person can fix from outside the deck.
+ *
+ * A code, never the message: the message carries the absolute path, and a
+ * route's body is readable by a DNS-rebound page (see sendInternalError). The
+ * deck's log keeps the path for the person who has to go and look.
+ */
+export function prefsWriteRefusal(err) {
+  if (err?.code === "PREFS_UNREADABLE") return "prefs_unreadable";
+  if (NOT_WRITABLE.has(err?.code)) return "prefs_not_writable";
+  return null;
+}
+
 /**
  * Read prefs.json, and say WHICH of four things happened — because three of
  * them hand back the same object and only one of them means it.

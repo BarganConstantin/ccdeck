@@ -522,10 +522,23 @@ export function parseAddress(raw: string): { addr: string; port: number } | null
  */
 export function writeFailure(what: string, out: { ok?: boolean; reason?: string } | null): string {
   if (out == null) return `Could not ${what} — the deck did not answer.`;
+  const machine = out.reason ? SETTINGS_OUT_OF_REACH[out.reason] : undefined;
+  if (machine) return `Could not ${what} — ${machine}`;
   return out.reason
     ? `Could not ${what} — the deck refused it (${out.reason}).`
     : `Could not ${what}.`;
 }
+
+/** The two refusals whose next move is on the machine rather than in the panel
+ *  (#1335), so a bracketed code would send the reader looking in the wrong
+ *  place. The server keeps the path out of its answer; its log has it. */
+const SETTINGS_OUT_OF_REACH: Record<string, string> = {
+  prefs_unreadable: "this deck cannot read its settings file, so it will not write over it. "
+    + "The file may belong to another user, for example after ccdeck was run with sudo. The deck's log names the file.",
+  prefs_not_writable: "this deck is not allowed to save its settings. "
+    + "The settings folder may belong to another user, for example after ccdeck was run with sudo, "
+    + "or another program may be holding the file. The deck's log names the folder.",
+};
 
 /** Two lists of account keys, same members or not. Order is not meaning here:
  *  the server stores what it is sent, and the panel sends a Set. */

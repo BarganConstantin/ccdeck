@@ -37,7 +37,7 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, prefsWriteRefusal, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
@@ -3821,7 +3821,17 @@ async function handlePrefsWrite(req, res) {
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
-  _prefs = await writePrefs(body);
+  try {
+    _prefs = await writePrefs(body);
+  } catch (err) {
+    // A settings file or folder this user cannot reach is the machine's to fix,
+    // not the deck's, and `guard`'s bare 500 left the panel with nothing to say
+    // about it (#1335). Anything else is still a bug and still goes to `guard`.
+    const reason = prefsWriteRefusal(err);
+    if (!reason) throw err;
+    console.error(`${PRODUCT}: settings were not saved:`, err?.message ?? err);
+    return send(res, 500, { ok: false, reason });
+  }
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.
