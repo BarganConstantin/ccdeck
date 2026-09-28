@@ -24,7 +24,8 @@ const code = (src: string) => src
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 const card = read("../components/AgentNode.tsx");
-const app = read("../App.tsx");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
 
 describe("a clock whose start the deck did not see reads as a floor (#822)", () => {
   it("prefixes the card's clock with ≥ for a session joined late", () => {

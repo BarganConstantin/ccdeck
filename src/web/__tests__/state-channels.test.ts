@@ -65,7 +65,8 @@ function markup(...path: string[]): string {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
-const app = markup("App.tsx");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = markup("App.tsx") + "\n" + markup("components/Detail.tsx");
 const agentNode = markup("components", "AgentNode.tsx");
 const sessionList = markup("components", "SessionList.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");

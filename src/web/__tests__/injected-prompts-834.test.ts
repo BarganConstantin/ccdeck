@@ -71,7 +71,8 @@ describe("the reducer (#834)", () => {
 });
 
 describe("the surfaces that count prompts (#834)", () => {
-  const app = read("../App.tsx");
+  // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+  const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
   const summary = read("../components/SessionSummary.tsx");
 
   it("counts only typed prompts in the rail's heading", () => {

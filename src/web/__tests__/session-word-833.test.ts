@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const app = readFileSync(join(web, "App.tsx"), "utf8");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
 const node = readFileSync(join(web, "components/AgentNode.tsx"), "utf8");
 
 function modulesUnder(dir: string): string[] {

@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 const taxonomy = read("../tool-taxonomy.ts");
 

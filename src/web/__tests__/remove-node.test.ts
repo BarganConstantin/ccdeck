@@ -488,7 +488,11 @@ describe("where Remove lives and what follows it", () => {
 
   it("is gone from the topbar and sits with the card's own verbs in the detail panel", () => {
     expect(app).not.toMatch(/>\s*Remove node\s*</);
-    const detail = /function Detail\([\s\S]*?\n}\n/.exec(app)?.[0] ?? "";
+    // The panel is components/Detail.tsx now; App.tsx hands it onRemove.
+    const panel = readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
+    const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
+    expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
+    expect(panel).not.toMatch(/>\s*Remove node\s*</);
     expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>Remove from board<\/button>/);
     expect(app).toMatch(/onRemove=\{removeSelectedNode\}/);
     // Reversible from the session list, so not dressed as the one destructive .btn the sheet reserves

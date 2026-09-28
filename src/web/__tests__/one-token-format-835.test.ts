@@ -7,7 +7,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fmtTokens } from "../token-format";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
 const grid = /<div className="tokens-grid">([\s\S]*?)<\/div>\s*<\/section>/.exec(app)?.[1] ?? "";
 
 const FIELDS = ["inputTokens", "outputTokens", "cacheReadTokens", "cacheCreateTokens"];

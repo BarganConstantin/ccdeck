@@ -45,6 +45,9 @@ function code(text: string): string {
 }
 
 const app = src("../App.tsx");
+// The detail panel — the third surface that draws a cost bar, an elapsed clock
+// and a tool row — is components/Detail.tsx now.
+const detail = src("../components/Detail.tsx");
 const agentNode = src("../components/AgentNode.tsx");
 const usagePanel = src("../components/UsagePanel.tsx");
 const accountRow = src("../components/AccountRow.tsx");
@@ -186,10 +189,10 @@ describe("the stacked cost bar", () => {
   });
 
   it("is drawn in one file, and the three panels import it", () => {
-    expect(app).toMatch(/import CostBar from "\.\/components\/CostBar";/);
+    expect(detail).toMatch(/import CostBar from "\.\/CostBar";/);
     expect(usagePanel).toMatch(/import CostBar from "\.\/CostBar";/);
     expect(sessionSummary).toMatch(/import CostBar from "\.\/CostBar";/);
-    for (const [name, text] of [["App.tsx", app], ["UsagePanel.tsx", usagePanel], ["SessionSummary.tsx", sessionSummary]] as const) {
+    for (const [name, text] of [["App.tsx", app], ["components/Detail.tsx", detail], ["UsagePanel.tsx", usagePanel], ["SessionSummary.tsx", sessionSummary]] as const) {
       expect(code(text), name).not.toMatch(/function (Ss)?CostBar\b/);
       expect(code(text), name).not.toMatch(/"cb-seg /);
       expect(code(text), name).not.toMatch(/className="cost-bar/);
@@ -254,12 +257,13 @@ describe("the elapsed clock", () => {
 
   it("reads the same function from both surfaces", () => {
     expect(agentNode).toMatch(/import \{ elapsed \} from "\.\.\/duration";/);
-    expect(app).toMatch(/import \{ elapsed, toolDuration \} from "\.\/duration";/);
+    expect(detail).toMatch(/import \{ elapsed, toolDuration \} from "\.\.\/duration";/);
     expect(code(agentNode)).not.toMatch(/function elapsed\b/);
     expect(code(app)).not.toMatch(/const elapsedLabel = elapsedSec < 60/);
+    expect(code(detail)).not.toMatch(/const elapsedLabel = elapsedSec < 60/);
     // #822 marks a clock whose start the deck did not see as a floor ("≥ "); the
     // clock itself is still this one function.
-    expect(code(app)).toMatch(/const elapsedLabel = `\$\{agent\.synthetic \? "≥ " : ""\}\$\{elapsed\(agent\.startedAt, agent\.endedAt, now\)\}`;/);
+    expect(code(detail)).toMatch(/const elapsedLabel = `\$\{agent\.synthetic \? "≥ " : ""\}\$\{elapsed\(agent\.startedAt, agent\.endedAt, now\)\}`;/);
   });
 
   it("left the two genuinely different dialects where they are", () => {
@@ -316,10 +320,11 @@ describe("a tool call's duration", () => {
 
   it("is one function, called from the row and the dialog it opens", () => {
     expect(toolModal).toMatch(/import \{ toolDuration \} from "\.\.\/duration";/);
-    expect(code(app)).toMatch(/const durLabel = toolDuration\(t, "…"\);/);
+    expect(code(detail)).toMatch(/const durLabel = toolDuration\(t, "…"\);/);
     expect(code(toolModal)).toMatch(/toolDuration\(tool, "in-flight…"\)/);
     expect(code(toolModal)).not.toMatch(/function dur\(/);
     expect(code(app)).not.toMatch(/toFixed\(1\)\}s/);
+    expect(code(detail)).not.toMatch(/toFixed\(1\)\}s/);
   });
 });
 

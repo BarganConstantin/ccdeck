@@ -160,7 +160,8 @@ describe("every Codex tool the deck knows, drawn from the one spec table", () =>
 
 describe("where the six tables get their Codex names from", () => {
   const toolBursts = readFileSync(join(web, "components", "ToolBursts.tsx"), "utf8");
-  const app = readFileSync(join(web, "App.tsx"), "utf8");
+  // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+  const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
 
   it("has the detail categories reading the shared bucket table instead of their own copy", () => {
     // The seventh copy is the one that would restart the drift, and it is the
@@ -171,7 +172,8 @@ describe("where the six tables get their Codex names from", () => {
     // future edit could put it back.
     const detail = readFileSync(join(web, "detail-category.tsx"), "utf8");
     expect(detail).toMatch(/import \{ categoryFor[^}]*\} from "\.\/tool-taxonomy"/);
-    expect(app).toMatch(/import \{[^}]*\bdetailCategoryFor\b[^}]*\} from "\.\/detail-category"/);
+    // The detail panel is components/Detail.tsx now, one directory down.
+    expect(app).toMatch(/import \{[^}]*\bdetailCategoryFor\b[^}]*\} from "\.\.?\/detail-category"/);
     for (const src of [app, detail]) expect(src).not.toMatch(/const DETAIL_TOOL_CAT/);
   });
 
