@@ -1,10 +1,11 @@
 // agent-dag server: HTTP ingest + SSE broadcast + static file serving.
+// This file is the startup and the route table; the handlers, and the state
+// they share, live in the modules imported below.
 // Pure Node HTTP server, zero deps. Nothing in this file talks to anything but
 // 127.0.0.1 clients. It used to import `request` for challengeDeck, which asks
 // another deck's port to prove it is the deck its discovery record describes;
 // that moved to deck-probe.mjs, and the client half went with it.
 import { createServer } from "node:http";
-import { readFile, readdir, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
@@ -18,25 +19,44 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 // challenge deadline stay private to the leaf: they were private here too, and
 // re-exporting them would be inventing API on the way out of a move.
 export { challengeDeck, challengeProof, isProcessAlive };
-// The gates in front of the route table, and the per-process token the
-// strictest of them checks — see src/server/request-gates.mjs.
-import { GUARDED_READS, HOOK_TOKEN, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead, presentsDeckToken } from "./request-gates.mjs";
+// The gates in front of the route table — see src/server/request-gates.mjs,
+// which also holds the per-process token the strictest of them checks.
+import { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
 // How much the event ring may hold and what one event is charged against it —
 // see ring-bounds.mjs. The four it exported from this file, it still exports.
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
 // The ring itself — what it holds, how it numbers them, and the eviction that
 // keeps those bounds — private behind its operations. See event-ring.mjs.
-import { SEQ_EPOCH, clearEventBuffer, eventsSince, lastSeq, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
+import { eventsSince } from "./event-ring.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
-// in — see event-pipeline.mjs. It connects itself to event-sink.mjs as it
-// loads, which is how the modules it imports reach it.
-import { pushEvent } from "./event-pipeline.mjs";
+// in — see event-pipeline.mjs. Imported for its effect as well as through the
+// routes below: it connects pushEvent to event-sink.mjs as it loads, and the
+// boot replay pushes through that sink before any route has run.
+import "./event-pipeline.mjs";
+// POST /api/event, GET /events and GET /api/events — see event-routes.mjs.
+import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs";
+// Exported from this file before it moved, and still.
+export { writeJsonArray };
+// POST /api/clear — see clear-route.mjs.
+import { handleClear } from "./clear-route.mjs";
+// GET /api/health — see health-route.mjs.
+import { handleHealth } from "./health-route.mjs";
+// GET /api/hook-challenge, and the token it proves knowledge of — see
+// hook-challenge.mjs. hookToken was exported from this file before it moved,
+// and still is.
+import { handleHookChallenge, hookToken } from "./hook-challenge.mjs";
+export { hookToken };
+// The discovery records of decks that have died, swept once at boot — see
+// stale-discovery.mjs.
+import { sweepStaleDiscovery } from "./stale-discovery.mjs";
+// Which tree this deck captures and which CLIs it watches, set once below —
+// see deck-scope.mjs.
+import { deckProviders, deckWorkspace, setDeckScope } from "./deck-scope.mjs";
 // The SSE subscribers — pages and the desktop app's tray connections — and the
-// backpressure every frame to them is written under. See sse-clients.mjs.
-import { dropSse, pageCount, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
-// Exported from this file before they moved, and still.
+// backpressure every frame to them is written under; see sse-clients.mjs.
+// These two were exported from this file before they moved, and still are.
 export { MAX_CLIENT_BUFFER_BYTES, queuedBytes } from "./sse-clients.mjs";
 // The built page and its assets, with the SPA fallback for everything else —
 // see static-serve.mjs. The route table hands it every GET nothing above took.
@@ -44,7 +64,7 @@ import { serveStatic } from "./static-serve.mjs";
 // Which sessions the deck still keeps anything for — the LRU cap, the
 // transcript watch between hook events, and POST /api/forget. See
 // session-tracking.mjs.
-import { handleForget, outputWatch, startOutputWatch } from "./session-tracking.mjs";
+import { handleForget, startOutputWatch } from "./session-tracking.mjs";
 // Exported from this file before it moved, and still.
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
@@ -55,7 +75,7 @@ import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdate
 // and still are.
 import { canonicalCwd } from "./canonical-path.mjs";
 export { canonicalCwd, canonicalWorkspace } from "./canonical-path.mjs";
-import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
+import { ccProjectSlug } from "./claude-dir.mjs";
 // Moved to claude-dir.mjs so the Projects rollup can read transcript folders
 // without importing this file; re-exported under the name it always had.
 export { ccProjectSlug };
@@ -74,14 +94,13 @@ export { CODEX_SESSIONS_DIR } from "./codex-dir.mjs";
 // The events.jsonl this deck keeps: where it is, which sessions this deck
 // writes to it, who shares it, when it rolls over and whether it is being
 // written at all — see event-log.mjs.
-import { eventLogPath, logSharing, logWritableNow, noteLogWriter, openEventLog } from "./event-log.mjs";
+import { eventLogPath, logSharing, openEventLog } from "./event-log.mjs";
 // Exported from this file before they moved, and still.
 export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // What the deck learns about a session that its hooks never say — model,
 // spend, name, recap, context — read off the transcript and sent back through
-// pushEvent. Clear drops the gates on its emits. See session-enrichment.mjs.
-import { clearEnrichmentGates } from "./session-enrichment.mjs";
-// The readers it exported from this file before they moved, and still.
+// pushEvent; see session-enrichment.mjs. The readers it exported from this
+// file before they moved, it still exports.
 export { cachedModelId, readContextFromTranscript, readModelFromTranscript, readUsageByModelFromTranscript, readUsageFromTranscript, scanAgentsMdFiles, scanClaudeMdFiles, sessionUsageByModel, sessionUsageTotals } from "./session-enrichment.mjs";
 // What a starting deck reads back out of its log, and which of those events
 // are in its scope — see log-replay.mjs. Both were exported from this file
@@ -113,10 +132,12 @@ import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
-import { appendFailureStats, emptyLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
-// How every route reads a body and answers — see http-io.mjs.
-import { OVERSIZE_DRAIN_MS, send } from "./http-io.mjs";
+// How every route reads a body and answers, and the answer for one that threw
+// — see http-io.mjs. sendInternalError was exported from this file before it
+// moved, and still is.
+import { send, sendInternalError } from "./http-io.mjs";
+export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot reaches the
 // admin and auto-switch modules through the same two loaders.
 import { cswapAdminModule, cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction } from "./account-routes.mjs";
@@ -136,589 +157,6 @@ export { pinRunningBuild } from "./pinned-build.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
 
-/**
- * Serialize one envelope, or a stub standing in for it.
- *
- * `JSON.stringify` throws on more than size. V8 walks a value recursively, so a
- * payload nested about five thousand deep overflows the C++ stack and comes
- * back as `RangeError: Maximum call stack size exceeded` — and a 36 KB POST to
- * the open ingest route is enough to put one of those in the ring, measured on
- * Node 22.14. Letting that throw escape would truncate the array mid-write and
- * leave every later read of that ring answering with invalid JSON for as long
- * as the event survives, which is a 36 KB way to poison a route permanently.
- *
- * So the envelope is replaced rather than dropped, and it keeps its `seq`: a
- * caller paging with `?since=` still walks past it, instead of asking again for
- * a hole it can never be given — the same bargain resumeSse makes about the
- * events it cannot deliver. The reason is written to stderr and not to the
- * wire, under the rule sendInternalError explains: this body is readable by a
- * DNS-rebound page and error detail is not.
- */
-function envelopeJson(evt) {
-  try {
-    // `JSON.stringify(undefined)` is undefined, not a string, and inside an
-    // array literal that would be the text "undefined" — which is not JSON.
-    // `JSON.stringify([undefined])` says "null"; so does this.
-    return JSON.stringify(evt) ?? "null";
-  } catch (err) {
-    console.error(`${PRODUCT}: event ${evt?.seq} could not be serialized:`, err);
-    // Every field here is read defensively and typed to a primitive, because
-    // this is the path that must not throw twice: the status line has gone out
-    // and a second failure would leave the caller a truncated array.
-    return JSON.stringify({
-      seq: Number(evt?.seq) || 0,
-      epoch: typeof evt?.epoch === "string" ? evt.epoch : SEQ_EPOCH,
-      receivedAt: Number(evt?.receivedAt) || 0,
-      source: typeof evt?.source === "string" ? evt.source : "unknown",
-      payload: null,
-      unserializable: true,
-    });
-  }
-}
-
-/**
- * Answer with a JSON array without ever holding it as one string.
- *
- * `send` finishes a response by handing the whole body to a single
- * `JSON.stringify`, which for every other route is a few hundred bytes and for
- * `GET /api/events` is the entire ring buffer. V8 will not build a string
- * longer than `2^29 - 24` characters, so past 536,870,888 characters of
- * serialised envelopes that call throws `RangeError: Invalid string length`
- * straight out of the request listener — and there, as requestUrl and `guard`
- * both say in their own words, nothing catches it and the worker exits.
- * Measured on Node 22.14 / macOS: 112 posts of 4,900,061 characters, which
- * `POST /api/event` accepts from anyone with no credential at all, then one
- * plain unauthenticated GET, and the deck was gone — SSE stream, hook ingest
- * and event log with it. 112 events is a twentieth of MAX_BUFFER, so this is
- * not an exotic ring: a deck watching sessions whose Read and Bash responses
- * are "routinely a good fraction of" the five-million-character ingest cap
- * reaches it on its own at an average of 268 KB an event.
- *
- * Writing the array element by element removes the ceiling rather than raising
- * it. One envelope's worth of string exists at a time, so the limit applies per
- * envelope — and ingest caps an envelope at a hundredth of it — and the peak
- * cost is the ring plus one event instead of the ring plus a contiguous copy of
- * itself, which is the quieter half of the same bug: a 400 MB ring used to need
- * 800 MB and a synchronous stall on a route that feels free on a quiet deck.
- * This is the shape resumeSse already uses for the SSE replay, for the same
- * reason, and it borrows the same writeResume, so a caller that stops reading
- * is held at MAX_CLIENT_BUFFER_BYTES here too rather than having the whole ring
- * queued in userland on its behalf.
- *
- * `items` must be a snapshot the caller owns — eventsSince returns one, `filter`
- * always allocating — because each await lets pushEvent splice the head off the
- * live ring, and iterating that while it is spliced skips entries.
- *
- * No Content-Length: it is not knowable without building the string this exists
- * to avoid, so the answer is chunked. HTTP/1.1 requires nothing more and every
- * consumer reads to EOF.
- *
- * Exported so the one property that matters can be asserted directly, on a stub
- * rather than through a socket — the same reason queuedBytes is. "Never builds
- * the whole array as one string" is invisible from outside a real response,
- * which is how it went unnoticed here for as long as it did.
- */
-export async function writeJsonArray(res, items) {
-  res.writeHead(200, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-  });
-  let frame = "[";
-  for (const item of items) {
-    if (res.destroyed) return;
-    if (!await writeResume(res, frame + envelopeJson(item))) {
-      // Stalled past REPLAY_DRAIN_MS with the cap full. Nothing useful can be
-      // said in-band — the status line went out long ago and the array is half
-      // written — so hang up, exactly as the replay does.
-      try { res.destroy(); } catch {}
-      return;
-    }
-    frame = ",";
-  }
-  if (res.destroyed) return;
-  res.end(frame === "[" ? "[]" : "]");
-}
-
-// `persist` is false when the hook posted this event to another deck as well
-// and elected that one to write it to the log they share. The event is still
-// buffered and broadcast here — every matching deck draws it — it is only the
-// second copy on disk that is dropped.
-function handleEventIngest(req, res, persist = true) {
-  let body = "";
-  // Set once the cap is hit, because everything after that point is about an
-  // exchange that is already over: more `data` may still be in flight, and
-  // `end` must not go on to parse the truncated half.
-  let refused = false;
-  req.setEncoding("utf8");
-  req.on("data", c => {
-    if (refused) return;
-    body += c;
-    if (body.length > 5_000_000) {
-      refused = true;
-      body = "";              // nothing will read it now; let it go
-      // ANSWER, rather than vanish. `req.destroy()` on its own tore the socket
-      // down with no status line on it at all, so the poster learned only that
-      // the connection had gone — indistinguishable from a deck that died or
-      // was never there, and nothing in the exchange to tell those apart. `end`
-      // never fires on a destroyed request either, so the handler below got no
-      // second chance to speak. readBody was believed to get this right
-      // by rejecting into a caller that replies; it destroyed the socket first,
-      // so all eleven of its routes answered an oversized body with the same
-      // bare reset. It answers and drains now, in this shape.
-      send(res, 413, { error: "event too large" });
-      // Then keep reading, and throw it away. Answering is not enough on its
-      // own, because the poster is still mid-upload when the answer goes out:
-      // hang up now and its next write lands on a dead socket, it aborts with
-      // EPIPE, and the 413 that was already sitting in its receive buffer is
-      // discarded unread — the same disappearance in a different costume.
-      // `Connection: close` is the tempting version of hanging up and has
-      // exactly that effect: Node destroys the socket the moment such a
-      // response flushes. Draining lets the poster finish and then read the
-      // answer, which is the whole point of answering. `body` no longer grows,
-      // so it costs no memory.
-      req.resume();
-      // Bounded, because draining forever is its own denial of service: a
-      // poster that stops without ending would otherwise hold the socket for as
-      // long as it liked.
-      const grace = setTimeout(() => req.destroy(), OVERSIZE_DRAIN_MS);
-      grace.unref?.();
-      req.on("close", () => clearTimeout(grace));
-    }
-  });
-  req.on("end", () => {
-    if (refused) return;
-    let parsed;
-    try { parsed = JSON.parse(body); }
-    catch { return send(res, 400, { error: "invalid json" }); }
-    // Everything past the parse is inside one net, because this listener is the
-    // one place in the route table `guard` cannot reach. The route does wrap the
-    // call — `guard(handleEventIngest(req, res, …), res)` — but this function
-    // returns undefined and hands its work to a listener the event loop calls
-    // later, so `guard` has nothing to attach to and a synchronous throw in here
-    // is an uncaughtException: the whole deck, for one POST. That is exactly
-    // what the serialization inside pushEvent was until it was contained at the
-    // line itself, and this catch is what stops the next thing added below from
-    // costing a process the same way. sendInternalError puts the reason on
-    // stderr and a bare 500 on the wire, and does nothing but end the response
-    // if the status line has already gone out.
-    try {
-      noteLogWriter(parsed, persist);
-      const evt = pushEvent(parsed, "hook", { persist });
-      send(res, 200, { ok: true, seq: evt.seq });
-    } catch (err) {
-      sendInternalError(res, err);
-    }
-  });
-  // Guarded for the same reason `end` is, and more sharply: destroying the
-  // request above is itself what raises this, and answering a second time on a
-  // response already sent throws ERR_HTTP_HEADERS_SENT out of an error handler,
-  // where nothing is waiting to catch it. `refused` covers the 413 that
-  // destroyed the request; `headersSent` covers the other half of that
-  // sentence, an error arriving after `end` has already answered. That half
-  // resisted every attempt to drive it from a socket — once `end` has fired the
-  // message is complete and the failure goes to the socket rather than to the
-  // request — so it carries no test, and is guarded anyway on the strength of
-  // the hazard the sentence above already names: one condition against an
-  // uncaughtException, if it turns out to be reachable at all.
-  req.on("error", () => { if (!refused && !res.headersSent) send(res, 400, { error: "bad request" }); });
-}
-
-function handleSse(req, res) {
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",
-  });
-  res.write(`retry: 1500\n\n`);
-
-  // A stale or absent id replays the whole ring, and so does a malformed one:
-  // Number("nonsense") is NaN, every `seq <= NaN` is false, and the catch-up
-  // loop below would rather compare against a number.
-  //
-  // An id OLDER than the ring's oldest event is a stale id and takes exactly
-  // that path — nothing special-cases it, and #625 deliberately did not add a
-  // second answer when it gave the ring a byte budget. Every `e.seq <=
-  // sentThrough` test simply fails, so the client is handed everything still
-  // held, contiguously, and the sentinel behind it; the events that were
-  // evicted are missing from its HISTORY, never from its stream. The reducer's
-  // guard is `env.seq <= state.lastSeq`, so the gap costs it a step forward and
-  // nothing else. What the byte budget changed is how often and how far the
-  // head moves, not what happens to a client that lands behind it.
-  const asked = Number(req.headers["last-event-id"] ?? 0);
-  const lastId = Number.isFinite(asked) ? asked : 0;
-
-  // The replay waits on the socket now, so it can no longer be part of this
-  // synchronous handler. Nothing is waiting on the result here — the response
-  // is already committed to a 200 and its own failure path is to hang up — so
-  // start it, keep the router's contract of returning nothing, and make sure a
-  // rejection ends the stream rather than the process.
-  resumeSse(req, res, lastId, { tray: isTrayRequest(req) }).catch(() => dropSse(res));
-}
-
-/**
- * Drain the ring buffer into a newly connected client, then subscribe it.
- *
- * Two things had to change when this stopped being one synchronous burst.
- * `close` is registered before the first frame, because a tab closed mid-replay
- * has to stop it. And the replay repeats until it reaches the live tail: an
- * actual wait lets pushEvent run, and an event that lands after we have walked
- * past its place but before the client is in `sseClients` would otherwise be in
- * neither stream — a hole the client cannot even ask for again, its last id
- * having moved past it.
- */
-/**
- * Is this the desktop app's tray connection? Only with the deck's own token:
- * a page cannot opt itself out of being counted, because that would let any
- * tab switch on the closed-deck notifications over itself.
- */
-function isTrayRequest(req) {
-  const url = new URL(req.url ?? "/", "http://127.0.0.1");
-  return url.searchParams.get("role") === "tray" && presentsDeckToken(req.headers ?? {});
-}
-
-async function resumeSse(req, res, lastId, { tray = false } = {}) {
-  let sentThrough = lastId;
-  let ping = null;
-  let closed = false;
-  req.on("close", () => {
-    closed = true;
-    if (ping) clearInterval(ping);
-    sseClients.delete(res);
-    trayClients.delete(res);
-  });
-
-  for (;;) {
-    // A snapshot per pass, because a wait lets pushEvent splice the head of
-    // `events` off, and iterating an array being spliced from the front skips
-    // entries. Events evicted that way are gone for this client, which is the
-    // same bargain every resume against a rotated ring already makes.
-    //
-    // The snapshot earns more since #625 gave the ring a byte budget as well as
-    // a count. Under the count alone the head moved one entry per push; under
-    // the budget a single 5 MB event can evict hundreds at once. A replay
-    // already walking this array would have skipped every one of them — but the
-    // snapshot holds its own references, so the pass in flight still delivers
-    // what it was given and only a LATER pass sees the shortened ring. It also
-    // means a slow resumer pins one ring's worth of envelopes for as long as its
-    // pass lasts, which the budget bounds too: that pin used to be unbounded for
-    // the same reason the ring was.
-    const batch = ringSnapshot();
-    for (const e of batch) {
-      if (e.seq <= sentThrough) continue;
-      if (closed || res.destroyed) return;
-      // Marked with `replay:true` on the envelope for the page, which reads it in
-      // two places: the SSE handler coalesces renders while it is set and draws
-      // once at `replay-end`, and `chimeFor` stays quiet for it, so a reconnect
-      // does not play every Stop in the ring. The reducer never reads it — its
-      // turn cleanup keys on each event's own time, which comes out right for
-      // replayed and live events alike (HookEnvelope.replay in types.ts, and
-      // dead-surface-993 pins it). This used to say the reducer's
-      // UserPromptSubmit handler depended on the tag to tell a replayed prompt
-      // from a new turn; nothing there reads it.
-      const tagged = { ...e, replay: true };
-      // Through envelopeJson for the reason writeJsonArray is: the ring may be
-      // holding an envelope `JSON.stringify` cannot walk. pushEvent takes the
-      // payload out of every envelope it serializes, but it serializes nothing
-      // when there is no subscriber and no log — which is precisely the deck a
-      // browser is about to connect to — so the first read of such an entry can
-      // still be this one. Uncontained it rejected into handleSse's `.catch`,
-      // which drops the client; the browser reconnects on its own 1.5s timer,
-      // replays the same entry, and is dropped again, so a single small POST
-      // kept the canvas from ever loading. The stub loses the `replay` tag and
-      // nothing turns on that: it carries no payload for the reducer to act on,
-      // and the client's own replay gate runs until the `replay-end` sentinel
-      // regardless of what any one envelope says.
-      if (!await writeResume(res, `id: ${e.seq}\nevent: hook\ndata: ${envelopeJson(tagged)}\n\n`)) {
-        return dropSse(res);
-      }
-      sentThrough = e.seq;
-    }
-    // Caught up with the tail as it stands right now. Reached in one pass
-    // unless a wait let new events in, and it terminates for the same reason
-    // the client is still here at all: either it is taking bytes, in which case
-    // loopback outruns any hook, or it is not, in which case writeResume gives
-    // up on it.
-    if (!ringHoldsNewerThan(sentThrough)) break;
-  }
-
-  if (closed || res.destroyed) return;
-
-  // Sentinel: tells client "ring buffer drained, live stream starts now". It
-  // goes out under the same rule as the frames before it, so a client that has
-  // just been handed a large replay is not hung up on over the last 30 bytes of
-  // it before it has had the chance to read any.
-  //
-  // Subscribing before waiting on that write, rather than after, is what closes
-  // the last hole: writeResume puts the bytes on the socket before it returns,
-  // so the sentinel still precedes every live frame, and an event pushed while
-  // we wait reaches this client through the live fan-out instead of falling
-  // into the gap between the two. If the wait then ends in a drop, dropSse
-  // takes it back out of the set — the same exit writeSse uses.
-  const flushed = writeResume(res, `event: replay-end\ndata: {}\n\n`);
-  sseClients.add(res);
-  if (tray) trayClients.add(res);
-  // Through writeSse like every other frame: on a client that has stopped
-  // reading, the ping is the one thing still being written between events, and
-  // it is what eventually reveals the socket as unrecoverable.
-  ping = setInterval(() => writeSse(res, `: ping\n\n`), 15000);
-  if (!await flushed) dropSse(res);
-}
-
-// The tree this deck was told to capture, "" when it captures the whole
-// machine. Set by startServer and never changed afterwards.
-//
-// The browser had no way to learn it: the launcher prints the scope on stdout
-// and the hook reads it out of the discovery file, but nothing put it in an
-// HTTP response — so the deck's own empty state guessed, and guessed wrong for
-// everyone who passed --workspace or --scope. Health is where it belongs: it
-// already answers "which deck am I talking to", and it is the one route the UI
-// can read before a single event has arrived.
-let _workspace = "";
-
-// Which CLIs this deck is actually watching. Decided in bin/deck.js — from
-// whether each one is on the machine, and from --claude/--no-claude and
-// --codex/--no-codex — and passed in here, because the browser had no way to
-// learn it and so drew both sides of the UI on every machine.
-//
-// That is the whole of #402 and its mirror. A Codex-only machine got the
-// accounts panel open on first run, telling it to sign into a CLI it does not
-// have; a Claude-only machine permanently carried "Quota unavailable. / Run
-// codex login to authenticate." Same missing fact, two directions.
-//
-// Defaults are both true, which is what an older deck effectively reported by
-// saying nothing — and the browser reads a missing field as "could not say" and
-// shows both, so the two agree.
-let _providers = { claude: true, codex: true };
-
-/**
- * The deck's one irreversible action: empty the ring, and empty the log — both
- * of its generations, the live file and the archive rotation leaves beside it —
- * but only the log this deck is the one writing.
- *
- * The gate is the whole of #698. `truncate(persistPath, 0)` ran from whichever
- * deck was asked, and `persistPath` is one file several decks share by default,
- * so Clear on a deck scoped to a single tree deleted the machine-wide deck's
- * entire history while its canvas showed no change at all. Ownership is
- * electWriters, the election that already decides which of those decks appends a
- * line, so nothing new gets to disagree with it: the deck that fills the file is
- * the deck that may empty it, and a deck that writes nothing to it cannot
- * destroy it. See logSharing.
- *
- * A deck that does not own the log still clears its own canvas — that is what
- * the user pressed, and the ring is this deck's alone — and says which deck's
- * file it declined to touch, so the answer is a fact the UI can show rather than
- * a silent partial success. The dialog asked `GET /api/clear` before the press
- * and has already said the same thing in words.
- *
- * The `__clear` marker is broadcast and NOT persisted. It never belonged on
- * disk: replaying an empty log and then a marker that empties it produces the
- * same empty state, and appending it was how a deck that writes nothing else to
- * the shared file still left 134 bytes in it — the reproduction's whole
- * remainder. `{ persist: false }` is the same flag the hook sets on the decks it
- * did not elect.
- */
-async function handleClear(res) {
-  const sharing = await logSharing();
-  const mineToEmpty = Boolean(sharing.path && sharing.mine);
-  // THE PRESS IS ONE SYNCHRONOUS MOMENT, from the ring being emptied to the
-  // marker being pushed, and the log's turn on the append queue is taken
-  // inside it. Nothing from here awaits until the marker is out, so no event
-  // can be pushed in the middle: every event is on one side of the press, and
-  // it is the same side for the board, the ring and the file.
-  //
-  //   * Pushed before it: out of the ring by clearEventBuffer, numbered below
-  //     the marker so the reducer forgets it, and queued before the truncate —
-  //     written, then erased.
-  //   * Pushed after it: numbered above the marker so the board keeps it, and
-  //     queued AFTER the truncate, so its write cannot begin until the file has
-  //     been emptied. That is why a Clear cannot take an event posted after it
-  //     along with it: the chain in log-writer.mjs is the only way this process
-  //     writes the log, and it starts each step only when the one before it has
-  //     settled.
-  //
-  // Both halves were broken in turn. #1005: the truncate consulted the queue in
-  // neither direction, so the queue drained PRE-CLEAR lines into the freshly
-  // emptied file — 564 bytes and three events of a cleared session, 2.5s after
-  // a Clear that answered `{"log":"cleared"}`. Its fix waited for the queue and
-  // then truncated beside it, but the wait was for the queue as it stood when
-  // the wait began, and the session went on posting through it: MEASURED
-  // (#1130), five runs, 4, 5, 3, 3 and 2 events the Clear had taken off the
-  // board were in the file a restart replays. See emptyLog.
-  //
-  // This is #698's residue by a different route, and it survives the ownership
-  // gate that fixed #698 precisely because it happens on the deck that DOES own
-  // the file.
-  //
-  // Not `events.length = 0`: the ring is measured by a running total now, and
-  // emptying the array without the total leaves a debt that never clears. See
-  // clearEventBuffer.
-  clearEventBuffer();
-  // THE ARCHIVE GOES WITH IT. Since #1062 the replay reads events.jsonl.1
-  // whenever the live log cannot fill the ring, and a live log a Clear has just
-  // emptied never can — so a Clear on a log that had rotated once came back,
-  // whole, at the next boot. MEASURED (#1130): three events in the archive and
-  // one in the live log, `/api/clear` answering `log: "cleared"` over a live
-  // file of 0 bytes, and replayLog on the same path returning the three
-  // archived sessions.
-  //
-  // Removed, rather than fenced off by a `__clear` line the replay stops at,
-  // and the confirmation is why: it tells the user the history is gone and
-  // cannot be undone, and a marker would leave a whole rotated generation of it
-  // on disk behind a line asking readers not to look — readable by anything
-  // else that opens the file. It would also put back on disk the line #698
-  // took off it on purpose, and it would need a stopping rule the forwards
-  // replay does not have: that branch reads the archive FIRST, so it would push
-  // the cleared generation into the ring before it ever met the line saying to
-  // discard it. The ownership gate is the truncate's, and it covers the archive
-  // exactly: only the deck that writes a log may rotate it (#1062), so only
-  // that deck ever made its archive.
-  //
-  // Nothing else of the log's bookkeeping is reset, deliberately.
-  // `failedLines` / `failedChars` count what the DISK refused since this deck
-  // started, which a Clear does not change — `/api/health` documents them that
-  // way, and zeroing them would hide a volume that is still failing — and an
-  // open failure episode ends only on a line that lands, the one evidence that
-  // the condition is over, which a Clear is not. The rotation's byte count is
-  // a trigger for a `stat`, not a size: over-counting after a truncate costs at
-  // most one early look, which finds a small file and resets it. And a
-  // rotation running at the same moment needs nothing from here; emptyLog says
-  // why the order inside the turn is enough.
-  const emptyOutcome = {};
-  const emptied = mineToEmpty ? emptyLog(sharing.path, [sharing.path + ".1"], undefined, emptyOutcome) : null;
-  // Drop the caches that gate an emit on "has this changed", because the
-  // client is about to forget what they are comparing against: __clear makes
-  // the reducer return a fresh state, so every session's name and every
-  // subagent's model label go with it. maybeResolveSessionName then computes
-  // the same signature, takes its early return, and emits nothing — so the
-  // card falls back to cwd/prompt for the rest of that session while the
-  // server is sitting on the name.
-  //
-  // The root model survives without help because pushEvent stamps
-  // `raw.model` on every payload; there is no equivalent stamp for the name
-  // or for a subagent's model, which is why those two are listed and the
-  // rest of the per-session state is not.
-  //
-  // The rule, for the next cache that gates an emit: anything answering
-  // "has this changed" has to appear in BOTH places that mean the client no
-  // longer has it — here (clearEnrichmentGates), and in forgetSession
-  // (forgetEnrichment).
-  outputWatch.clear();
-  clearEnrichmentGates();
-  pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal", { persist: false });
-  // The end of the press. Awaited, where the truncate used to be fired and
-  // forgotten, so the answer does not go out before the file has actually
-  // reached zero — and bounded by emptyLog, so a disk that does not come back
-  // in time still gets an answer, with the turn left on the chain in order.
-  if (emptied) await emptied;
-  // WHAT THE FILE ACTUALLY DID (#1140). This answered "cleared" for any log this
-  // deck owns, whatever the truncate had done: emptyLog keeps the queue moving
-  // by swallowing its error, and nothing read it back, so on a read-only volume
-  // the page was told the history was gone and the next boot replayed all of
-  // it. The canvas IS clear either way — the ring was emptied above — so this
-  // stays `ok`, and says which half did not happen, here and in the terminal.
-  // A turn still on the chain at the deadline has no error yet and keeps the
-  // answer it always had.
-  //
-  // AND THE ARCHIVE, for the same reason: one that survives a Clear is the whole
-  // history again at the next boot, because the replay falls back to it once the
-  // live log is empty (#1130). Either half failing makes the answer "failed", and
-  // each says which it was.
-  const truncateFailed = mineToEmpty && emptyOutcome.error ? emptyOutcome.error : null;
-  const archiveFailed = mineToEmpty && emptyOutcome.archiveError ? emptyOutcome.archiveError : null;
-  const failed = truncateFailed ?? archiveFailed;
-  if (truncateFailed) {
-    console.error(`${PRODUCT}: Clear could not empty the event log ${sharing.path} (${truncateFailed.code ?? truncateFailed.message}) — the canvas is clear, but that history will come back at the next boot`);
-  }
-  if (archiveFailed) {
-    console.error(`${PRODUCT}: Clear could not remove the event log's archive ${sharing.path}.1 (${archiveFailed.code ?? archiveFailed.message}) — the canvas is clear, but that history will come back at the next boot`);
-  }
-  return send(res, 200, {
-    ok: true,
-    log: !sharing.path ? "none" : sharing.mine ? (failed ? "failed" : "cleared") : "kept",
-    ...(failed ? { error: failed.code ?? "EIO" } : {}),
-    path: sharing.path,
-    decks: sharing.decks,
-    mine: sharing.mine,
-    owner: sharing.owner ? { port: sharing.owner.port } : null,
-  });
-}
-
-function handleHealth(_req, res) {
-  send(res, 200, {
-    ok: true,
-    name: "agent-dag",
-    seq: lastSeq(),
-    clients: pageCount(),
-    // The desktop app's tray connections, which are not pages (#1160).
-    trays: trayClients.size,
-    uptimeMs: Math.round(process.uptime() * 1000),
-    workspace: _workspace,
-    providers: _providers,
-    // WHETHER THE EVENTS BEING DRAWN ARE BEING KEPT. `seq` above counts what
-    // the deck accepted, and it counted a deck whose every append was failing
-    // exactly the same as one whose every append landed. `log` is the other
-    // half of that sentence: `writable` is the newest evidence about the log —
-    // the boot probe's answer until a line lands after it and the appender's
-    // from then on, the same answer the Restart gate reads (#1130) — `failing`
-    // says the appender is inside a failure episode right now, and
-    // `failedLines` / `failedChars` are what has been attempted and lost since
-    // this deck started.
-    //
-    // No path. The health probe is a deliberately open route and this is the
-    // smallest set of facts that answers the question; the path is already in
-    // the banner for anyone standing at the terminal.
-    log: eventLogPath() ? { writable: logWritableNow(), ...appendFailureStats(eventLogPath()) } : null,
-  });
-}
-
-/** The token this deck expects to be challenged on. Written by writeDiscovery. */
-export function hookToken() { return HOOK_TOKEN; }
-
-// GET /api/hook-challenge?nonce=… — answer a hook's challenge.
-//
-// The nonce is the caller's, so the answer proves knowledge of the token
-// without disclosing it, and proves it for this exchange only. Answering
-// freely is what the exchange requires: the hook is asking whether the process
-// on this port is the deck that wrote the discovery file, and it asks precisely
-// because it does not yet know — a deck that demanded credentials before
-// answering could not be told apart from a stranger that refuses.
-//
-// So this route is an oracle, and it must stay one. That makes its answer
-// useless as a credential FOR this server, and nothing here may ever accept it
-// as one: a caller who can GET this can obtain a valid proof for any nonce, so
-// a gate honouring proofs is a gate honouring anybody. See presentsDeckToken,
-// which takes the token itself and refuses the hashed form for this reason.
-//
-// What the free answer does NOT give away is the token: the response is a
-// one-way hash of it, and after the read gate above a rebound page cannot see
-// even that.
-function handleHookChallenge(_req, res, url) {
-  const nonce = url.searchParams.get("nonce") ?? "";
-  if (!nonce || nonce.length > 256) return send(res, 400, { error: "bad nonce" });
-  send(res, 200, { proof: challengeProof(HOOK_TOKEN, nonce) });
-}
-
-async function sweepStaleDiscovery() {
-  // Same directory the installer writes and the hooks read — see claude-dir.mjs.
-  const dir = join(claudeConfigDir(), "agent-dag");
-  let files;
-  try { files = await readdir(dir); } catch { return 0; }
-  let removed = 0;
-  for (const f of files) {
-    if (!f.endsWith(".json")) continue;
-    const p = join(dir, f);
-    try {
-      const d = JSON.parse(await readFile(p, "utf8"));
-      if (d && typeof d.pid === "number" && !isProcessAlive(d.pid)) {
-        await unlink(p).catch(() => {});
-        removed++;
-      }
-    } catch { /* corrupt — leave it */ }
-  }
-  return removed;
-}
-
 // Parse a request target into a URL, or null when it cannot be parsed.
 //
 // The base is the constant "http://localhost", never the Host header. Node's
@@ -728,36 +166,18 @@ async function sweepStaleDiscovery() {
 // catches that — it becomes an uncaughtException, the worker exits 1 and the
 // supervisor tears the whole deck down for a single malformed request. Only
 // the path and the query are ever read from this URL, so the authority half
-// is free to be a constant — which is what every other new URL call site in
-// this file already does. Anything else unparseable answers 400 instead.
+// is free to be a constant — which is what every route handler that parses
+// `req.url` for itself already does. Anything else unparseable answers 400
+// instead.
 export function requestUrl(rawUrl) {
   try { return new URL(rawUrl ?? "/", "http://localhost"); }
   catch { return null; }
 }
 
-// A request handler rejected. Two audiences, two different amounts of detail:
-// the operator, who needs the whole error — stack included — to find the bug,
-// and the HTTP client, which needs to know only that the request failed.
-//
-// They used to get the same string, on the theory that this server binds
-// 127.0.0.1 and its only client is the user's own tab. A DNS-rebound page
-// reaches a loopback server as same-origin and can read the body, and the
-// errors that land here carry absolute paths out of the user's home directory
-// — a failed rename of ~/.claude/settings.json, an ENOENT from an import. So
-// stderr keeps every byte and the response body carries none of it; nothing is
-// swallowed, it just stops travelling over the wire.
-export function sendInternalError(res, err, log = console.error) {
-  log(`${PRODUCT}: request handler failed:`, err);
-  if (!res.headersSent) send(res, 500, { error: "internal error" });
-  else res.end();
-}
-
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
   armLifecycle({ onRestart, onStop, persist });
-  _workspace = typeof workspace === "string" ? workspace : "";
-  // `!== false` rather than a cast: a caller that omits the field means "yes",
-  // which is how every embedder that predates this option keeps working.
-  _providers = { claude: claude !== false, codex: codex !== false };
+  // Which tree and which CLIs, normalised once — see setDeckScope.
+  setDeckScope({ workspace, claude, codex });
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.
   resetLanLoaded();
@@ -766,7 +186,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see repairStaleCopyWith.
-  if (_providers.claude) {
+  if (deckProviders().claude) {
     // THIS WIRING IS WHERE AN IMPORT CYCLE SHOWED UP AS A SILENT NO-OP, and it
     // is the cycle that has been fixed rather than this line — see
     // claude-identity.mjs.
@@ -811,16 +231,16 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // event — see openEventLog.
   await openEventLog(persist);
   if (persist) {
-    // `_workspace`, not `workspace`: the field has just been normalised on the
-    // line above, and the replay has to answer the same question the live paths
-    // answer with the same string. Passed rather than read off the module scope
-    // so replayLog states what it depends on. See replayScope.
+    // `deckWorkspace()`, not `workspace`: setDeckScope has normalised the
+    // field above, and the replay has to answer the same question the live
+    // paths answer with the same string. Passed rather than read off
+    // deck-scope.mjs so replayLog states what it depends on. See replayScope.
     //
-    // `_providers` goes with it, and for the same reason: it gates the two live
-    // capture paths a few lines down (`if (codex) startCodexWatcher`, and the
-    // hook install above), and until #1004 it reached neither the replay nor
-    // anything else but the health payload.
-    const replayed = await replayLog(eventLogPath(), _workspace, { providers: _providers });
+    // `deckProviders()` goes with it, and for the same reason: it gates the two
+    // live capture paths a few lines down (`if (codex) startCodexWatcher`, and
+    // the hook install above), and until #1004 it reached neither the replay
+    // nor anything else but the health payload.
+    const replayed = await replayLog(eventLogPath(), deckWorkspace(), { providers: deckProviders() });
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.

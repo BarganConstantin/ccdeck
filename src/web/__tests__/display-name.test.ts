@@ -142,7 +142,8 @@ describe("the boundary the rename must not cross", () => {
     expect(read("hook", "hook.js")).toContain(`path.join(CLAUDE_DIR, "agent-dag")`);
     expect(read("src", "server", "installer.mjs")).toContain(`join(CLAUDE_DIR, "agent-dag")`);
     expect(read("src", "server", "discovery.mjs")).toContain(`join(CLAUDE_DIR, "agent-dag")`);
-    expect(read("src", "server", "index.mjs")).toContain(`join(claudeConfigDir(), "agent-dag")`);
+    // The deck's own read of that directory is the boot sweep, in stale-discovery.mjs.
+    expect(read("src", "server", "stale-discovery.mjs")).toContain(`join(claudeConfigDir(), "agent-dag")`);
     // THE LOG IS THE ONE THING THAT LEFT, and the discovery directory above is
     // why it could. The hook does not write events.jsonl — it POSTs to a deck
     // and the deck writes — so what it needs from that directory is the

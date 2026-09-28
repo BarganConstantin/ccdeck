@@ -119,8 +119,9 @@ export function queuedBytes(res) {
 }
 
 /** Hang up on a client we have decided not to keep. `delete` on a response
- *  that never made it into the set — the resume path (resumeSse, in index.mjs)
- *  hangs up on clients before they are subscribed — is a harmless no-op. */
+ *  that never made it into the set — the resume path (resumeSse, in
+ *  event-routes.mjs) hangs up on clients before they are subscribed — is a
+ *  harmless no-op. */
 function dropSse(res) {
   sseClients.delete(res);
   trayClients.delete(res);
@@ -214,7 +215,8 @@ async function writeResume(res, frame) {
   });
 }
 
-// What index.mjs calls besides the two exported above. Listed rather than
-// marked at each declaration, so the declarations read as they did where they
-// came from.
+// What the server's other modules call besides the two exported above —
+// pushEvent's fan-out, the event routes, health and the desktop-update routes.
+// Listed rather than marked at each declaration, so the declarations read as
+// they did where they came from.
 export { dropSse, notifyTrays, pageCount, sseClients, trayClients, writeResume, writeSse };

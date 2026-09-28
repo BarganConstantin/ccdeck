@@ -794,10 +794,10 @@ function readRecord(file, resolvedCwd, found, done) {
     // every tool call, and nothing removes the record: pid 1 is init, so
     // isAlive is true forever and the unlink below never fires.
     //
-    // index.mjs:2156 reads these same files and always refused them. Two
-    // readers of one directory disagreeing is the bug; this is the stronger
-    // half, which is the one that belongs in the process that cannot afford
-    // to throw.
+    // sweepStaleDiscovery, in src/server/stale-discovery.mjs, reads these same
+    // files and always refused them. Two readers of one directory disagreeing
+    // is the bug; this is the stronger half, which is the one that belongs in
+    // the process that cannot afford to throw.
     //
     // IT IS INSIDE THE fs CALLBACK NOW, and that is where it has to be rather
     // than merely where it ended up. The reads are asynchronous (#1018), so the

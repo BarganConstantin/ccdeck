@@ -6,9 +6,10 @@
 // ring's reader. They reach the pipeline through event-sink.mjs, as the
 // enrichment does, and take the log election, the live decks, the canonical
 // cwd and the chunked reader from the modules that own them — nothing here
-// reads the ring or the SSE clients. index.mjs starts the watcher, hands every
-// live event to maybeResolveCodex, and forgets a session through
-// forgetCodexSession. The bodies are unchanged.
+// reads the ring or the SSE clients. index.mjs starts the watcher, pushEvent
+// (event-pipeline.mjs) hands every live event to maybeResolveCodex, and
+// session-tracking.mjs forgets a session through forgetCodexSession. The
+// bodies are unchanged.
 import { stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
