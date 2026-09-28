@@ -128,3 +128,46 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
   say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${tone.reset}\n`);
   return 0;
 }
+
+// ── starting at login ─────────────────────────────────────────────────────────
+//
+// ONCE PER MACHINE, EVER. The record in the deck's own data directory is what
+// makes that true: without it, `--uninstall-service` would be undone by the next
+// start, which is not an uninstall — it is a tool arguing with its user.
+//
+// npx is excluded and AGENTS_DECK_NO_INSTALL is honoured — see
+// shouldOfferService, which owns both rules and says why. A failure is one line
+// and nothing else: the deck is already running, and the worst case is the
+// behaviour every version before this one had.
+//
+// Called by the boot, not by a one-shot, so it speaks in the boot's voice —
+// `P`, `G` and `write` — rather than the one-shot block's.
+export async function offerLoginItem({ P, G, write, deckDataDir, deckLogDir }) {
+  try {
+    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
+    const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    if (svc.shouldOfferService({
+      record: svc.readServiceRecord(deckDataDir()),
+      npx: isNpxInstall(PKG_ROOT),
+      checkout: isGitCheckout(PKG_ROOT),
+    })) {
+      const out = svc.installService({
+        script: join(PKG_ROOT, "bin", "agent-dag.js"),
+        logPath: join(deckLogDir(), "deck.log"),
+        product: PRODUCT,
+      });
+      svc.writeServiceRecord(deckDataDir(), out.ok
+        ? { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path }
+        : { failed: out.reason ?? "unknown", at: new Date().toISOString(), version: PKG_VERSION });
+      // Said once, on the one run that does it, and never again. A tool that
+      // adds itself to your login items and does not mention it is a tool you
+      // find later, in a settings pane, and stop trusting.
+      write(out.ok
+        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${P.reset}\n\n`
+        : `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`);
+    }
+  } catch (err) {
+    // Never fatal. The deck is up; this is a convenience that did not happen.
+    console.error(`${PRODUCT}: could not check the login item:`, err?.message ?? err);
+  }
+}

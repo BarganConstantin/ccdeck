@@ -73,7 +73,7 @@ describe("no service manager is given a restart policy", () => {
     // A login is not somebody asking to look at the deck. The auto-install and
     // the explicit command both pass this.
     expect(plistFor(JOB)).toContain("<string>--no-open</string>");
-    expect(DECK).toMatch(/installService\(\{[\s\S]{0,200}script: join\(PKG_ROOT/);
+    expect(LOGIN_ITEM).toMatch(/installService\(\{[\s\S]{0,200}script: join\(PKG_ROOT/);
   });
 });
 
@@ -474,10 +474,10 @@ describe("installing it, and saying so", () => {
   it("says it once, on the run that does it, and never again", () => {
     // A tool that adds itself to your login items and does not mention it is a
     // tool you find later, in a settings pane, and stop trusting.
-    expect(DECK).toContain("will now start when you log in");
+    expect(LOGIN_ITEM).toContain("will now start when you log in");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
-    expect(DECK).toContain("--uninstall-service\\` undoes it");
+    expect(LOGIN_ITEM).toContain("--uninstall-service\\` undoes it");
     // After the boot, not during it: a deck that could not come up has no
     // business teaching the machine to start it at every login. By the time
     // this runs the port is bound, the hooks are registered and the browser is
@@ -485,7 +485,10 @@ describe("installing it, and saying so", () => {
     // under a line that repaints itself every 800ms is a notice nobody reads.
     const registered = DECK.indexOf("discovery = keepDiscovery({");
     const browser = DECK.indexOf("openUrl(url);");
-    const offer = DECK.indexOf("shouldOfferService({");
+    // The offer itself is offerLoginItem in bin/cli/login-item.js; where the
+    // boot calls it is what decides when it runs.
+    expect(LOGIN_ITEM).toContain("shouldOfferService({");
+    const offer = DECK.indexOf("await offerLoginItem(");
     const pulse = DECK.indexOf("// ── Pulse indicator ");
     expect(offer).toBeGreaterThan(registered);
     expect(offer).toBeGreaterThan(browser);
