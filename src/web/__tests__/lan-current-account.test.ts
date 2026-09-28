@@ -23,6 +23,9 @@ import { exchangeLanes } from "../lan-exchange";
 const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const MODAL = code("../components/LanPeerModal.tsx");
+/** What the dialog says about the machine behind the row, which moved out of
+ *  the component into a module of its own. */
+const PEER = code("../lan-peer.ts");
 const SETUP = code("../components/LanSetupModal.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
@@ -123,7 +126,7 @@ describe("the switch", () => {
 
 describe("the dialog", () => {
   it("marks only while that deck answers", () => {
-    expect(MODAL).toMatch(/const current = link === "up" \? offers\?\.current \?\? null : null;/);
+    expect(PEER).toMatch(/const current = link === "up" \? offers\?\.current \?\? null : null;/);
   });
 
   it("says current account hidden under whichever machine is hiding it", () => {
