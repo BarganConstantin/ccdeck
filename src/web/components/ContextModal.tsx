@@ -260,8 +260,10 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
   const c = size / 2;
   const circ = 2 * Math.PI * r;
   const dash = circ * pct;
-  // Color shifts from accent → warning as we close on the ceiling.
-  const stroke = pct > 0.9 ? "var(--err)" : pct > 0.7 ? "var(--inflight)" : "var(--accent)";
+  // Color shifts from accent → warning as we close on the ceiling. The middle
+  // step is --warn: it was --inflight, the one hue that means "running right
+  // now", and a window filling up is a level, not something running (#1649).
+  const stroke = pct > 0.9 ? "var(--err)" : pct > 0.7 ? "var(--warn)" : "var(--accent)";
   return (
     <button
       type="button"

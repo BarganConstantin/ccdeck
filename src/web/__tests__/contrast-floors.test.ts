@@ -1317,3 +1317,98 @@ describe("--inflight is the only colour wearing the in-flight hue (#1283)", () =
     }
   });
 });
+
+// ── #1649: four surfaces that wore it with nothing running ─────────────────
+//
+// #1283 cleared the palette: no other token comes within 16 ΔE of --inflight.
+// That sweep reads the theme blocks, so it could not see a rule that paints
+// --inflight ITSELF somewhere nothing is running. Four did. The context window
+// meter and the session summary's tool bars drew their fill from --accent to
+// --inflight, so a finished session's bars ended in "running"; the context
+// donut turned --inflight between 70% and 90% full, using the running hue as
+// its "getting full" warning; and the empty canvas, which shows only when
+// nothing is running at all, orbited an --inflight dot around a core lit in
+// the dark --inflight's literal #f0abfc and rgba(240,171,252,…) — and in the
+// light theme's, rgba(126,34,206,…).
+
+/** Every colour a declaration can paint, with its var() references followed
+ *  to the end in `theme` — the theme blocks first, then the bare :root. It is a
+ *  scrape of every colour atom, ingredients of a mix included, which is the
+ *  strict direction for a sweep that asks what may NOT appear: a stop mixed
+ *  from --inflight wears it even if the mix is something else. */
+function paintedColours(value: string, theme: Theme, depth = 0): string[] {
+  if (depth > 8) throw new Error(`var() cycle in ${value}`);
+  const expanded = value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
+    const v = TOK[theme][name] ?? declFor(":root", name);
+    if (v == null) throw new Error(`${theme}: ${name} is declared nowhere`);
+    return paintedColours(v, theme, depth + 1).join(" ");
+  });
+  return expanded.match(/#(?:[0-9a-f]{6}|[0-9a-f]{3})\b|rgba?\([^)]*\)/gi) ?? [];
+}
+
+/** The colour-carrying properties a rule can paint with. */
+const PAINTS = ["color", "background", "background-color", "box-shadow", "border", "border-color"];
+
+/** What `selector` paints in `theme`: each property's winning value, where a
+ *  light-theme rule for the same selector outranks the base one. */
+function paintsOf(selector: string, theme: Theme): string[] {
+  return PAINTS.flatMap(prop => {
+    const light = theme === "light" ? declFor(`:root[data-theme="light"] ${selector}`, prop) : null;
+    const value = light ?? declFor(selector, prop);
+    return value == null ? [] : paintedColours(value, theme);
+  });
+}
+
+describe("nothing at rest paints --inflight itself (#1649)", () => {
+  const APART = 16;
+  const inflight = (theme: Theme) => parseColor(TOK[theme]["--inflight"]);
+  const far = (label: string, colours: string[], theme: Theme) => {
+    expect(colours.length, `${theme} ${label} paints nothing this sweep can read`).toBeGreaterThan(0);
+    for (const c of colours) {
+      const d = deltaE(parseColor(c), inflight(theme));
+      expect(d, `${theme} ${label} ${c} — ΔE ${d.toFixed(1)} from --inflight`).toBeGreaterThanOrEqual(APART);
+    }
+  };
+
+  it("fills the context meter and the summary's tool bars off it", () => {
+    // A fill level is a quantity, and it is the same quantity whether or not
+    // the session is still running.
+    for (const theme of themes) {
+      for (const sel of [".ctx-window-fill", ".session-summary .ss-tt-bar-fill"]) far(sel, paintsOf(sel, theme), theme);
+    }
+  });
+
+  it("warns that the context is filling up in a colour that means attention, not running", () => {
+    const donut = readFileSync(fileURLToPath(new URL("../components/ContextModal.tsx", import.meta.url)), "utf8");
+    const at = donut.indexOf("export function ContextDonut");
+    expect(at).toBeGreaterThan(0);
+    const body = donut.slice(at);
+    const stroke = /const stroke = ([^;]+);/.exec(body);
+    expect(stroke, "the donut's stroke ternary").not.toBeNull();
+    const steps = [...stroke![1].matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
+    // Three steps up the ramp: --accent while there is room, --err at the
+    // ceiling, and between them the one this issue is about.
+    expect(steps).toHaveLength(3);
+    for (const t of ["--accent", "--err"]) expect(steps).toContain(t);
+    for (const theme of themes) {
+      far("donut stroke", steps.flatMap(s => paintedColours(`var(${s})`, theme)), theme);
+      // And the rest of the ring — its track and its number.
+      for (const [, name] of body.matchAll(/var\((--[\w-]+)\)/g)) {
+        const colours = paintedColours(`var(${name})`, theme);
+        if (colours.length) far(`donut ${name}`, colours, theme);
+      }
+    }
+  });
+
+  it("draws the empty canvas, which only shows when nothing runs, in neither theme's --inflight", () => {
+    const hero = SHEET.filter(r => !r.at).flatMap(r => r.selectors).filter(s => s.startsWith(".empty-hero"));
+    // The orbits, their dots and the core must all be in the sweep.
+    for (const s of [".empty-hero .orbit.r2", ".empty-hero .orbit.r2 .dot", ".empty-hero .core"]) expect(hero, s).toContain(s);
+    for (const theme of themes) {
+      for (const sel of new Set(hero)) {
+        const colours = paintsOf(sel, theme);
+        if (colours.length) far(sel, colours, theme);
+      }
+    }
+  });
+});

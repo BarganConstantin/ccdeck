@@ -119,7 +119,8 @@ describe("a gradient two rules share, or a theme retunes, is a token (#1287)", (
       expect(tokens(blocks.dark, t)[t], `dark ${t}`).toMatch(/gradient\(/);
       expect(tokens(blocks.light, t)[t], `light ${t}`).toMatch(/gradient\(/);
     }
-    for (const t of ["--meter-grad", "--wire-dashed"]) {
+    // --meter-grad was the other shared one until #1649 made both its fills flat.
+    for (const t of ["--wire-dashed"]) {
       const declared = [...css.matchAll(new RegExp(`${t}\\s*:\\s*([^;]+);`, "g"))];
       expect(declared, t).toHaveLength(1);
       expect(/(:root[^{]*)\{[^}]*$/.exec(css.slice(0, declared[0].index))![1].trim(), t).toBe(":root");
