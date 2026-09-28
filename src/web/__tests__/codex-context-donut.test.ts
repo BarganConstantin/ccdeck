@@ -101,7 +101,9 @@ afterAll(() => {
 
 // @ts-expect-error — .mjs server module, no types
 const server = await import("../../server/index.mjs");
-const codexObjToPayload = server.codexObjToPayload as (o: unknown, sid: string, cwd: string) => HookPayload | null;
+// @ts-expect-error — .mjs server module, no types
+const translate = await import("../../server/codex-translate.mjs");
+const codexObjToPayload = translate.codexObjToPayload as (o: unknown, sid: string, cwd: string) => HookPayload | null;
 type MemoryScan = (cwd: string) => Promise<Array<{ path: string; bytes: number }>>;
 const scanAgentsMdFiles = server.scanAgentsMdFiles as MemoryScan | undefined;
 const scanClaudeMdFiles = server.scanClaudeMdFiles as MemoryScan | undefined;

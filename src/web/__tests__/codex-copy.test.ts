@@ -238,7 +238,8 @@ describe("the README tagline, which is the npm page", () => {
     // codexObjToPayload emits six event kinds and neither SubagentStart nor
     // SubagentStop, so a Codex session is a root and its tools — never a tree.
     expect(readme).not.toContain("OpenAI Codex fork subagents");
-    const server = read("src", "server", "index.mjs");
+    // The translation's own module, which is where the function is declared.
+    const server = read("src", "server", "codex-translate.mjs");
     // Both lookups are the assertion, not preparation for it (#652). `slice()`
     // on a -1 answers the LAST CHARACTER rather than nothing, and the inner
     // indexOf on that one character is -1 again, so `slice(0, -1)` is the empty
@@ -247,7 +248,7 @@ describe("the README tagline, which is the npm page", () => {
     // this line will ever see — left all 18 cases in this file green while the
     // sentence they are here to keep honest was being read from "".
     const start = server.indexOf("export function codexObjToPayload");
-    expect(start, "src/server/index.mjs no longer declares `export function codexObjToPayload` — the check below would be reading the empty string")
+    expect(start, "src/server/codex-translate.mjs no longer declares `export function codexObjToPayload` — the check below would be reading the empty string")
       .toBeGreaterThan(-1);
     const payload = server.slice(start);
     const end = payload.indexOf("\n}\n");
