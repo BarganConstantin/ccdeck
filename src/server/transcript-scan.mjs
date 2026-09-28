@@ -9,9 +9,11 @@
 // enrichment passes (session-enrichment.mjs now) ask `scanTranscript` for a
 // state and decide what to emit from it, the Codex watcher borrows the chunked
 // reader, and pushEvent asks the path gate before any of that runs. So the whole
-// reader moved as one piece, with its caches, and index.mjs imports the
-// operations it calls. The names are the ones the bodies always used, and the
-// five index.mjs exported it still exports, by re-export.
+// reader moved as one piece, with its caches, and its callers import the
+// operations they call. The names are the ones the bodies always used, and
+// index.mjs still re-exports the five it exported: two from here, and the
+// rest from jsonl-chunks.mjs and transcript-gate.mjs, where they have since
+// moved.
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 // Claude Code's "※ recap:" line — see session-recap.mjs.

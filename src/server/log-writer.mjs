@@ -182,8 +182,8 @@ export const MAX_PENDING_APPEND_CHARS = 128 * 1024 * 1024;
 // What has been accepted and not yet written, what has been refused because of
 // it, and whether we are inside an episode of refusing. These move with the
 // chain in appendLogLine and nowhere else — the same rule `bufferedChars` and
-// `events` keep in index.mjs, and for the same reason: a total that names lines
-// the queue no longer holds is a permanent debt against the budget.
+// `events` keep in event-ring.mjs, and for the same reason: a total that names
+// lines the queue no longer holds is a permanent debt against the budget.
 let pendingLines = 0;
 let pendingChars = 0;
 let droppedLines = 0;
@@ -235,9 +235,9 @@ const mb = chars => `${(chars / 1024 / 1024).toFixed(0)}MB`;
 //
 // Who gets there without trying: `--history` accepts any path — a read-only or
 // full volume, a removable drive unmounted while the deck runs, a directory
-// whose permissions changed under it. `startServer` even creates the parent
-// inside a bare `try {} catch {}`, so the failure is already swallowed once
-// before the first line is ever written.
+// whose permissions changed under it. `openEventLog` (event-log.mjs) even
+// creates the parent inside a bare `try {} catch {}`, so the failure is already
+// swallowed once before the first line is ever written.
 //
 // So the chain counts what it could not write, and says so once. The numbers
 // are what make the loss observable without watching a canvas come back empty,
