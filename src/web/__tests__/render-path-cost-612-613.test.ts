@@ -247,6 +247,10 @@ function stripComments(src: string): string {
 const sources: [string, string][] = clientSources(web)
   .map(p => [p.slice(web.length).replaceAll("\\", "/"), stripComments(readFileSync(p, "utf8"))]);
 const app = sources.find(([p]) => p === "App.tsx")![1];
+/** The theme, the palette and `cssVar` moved out of App.tsx into use-appearance.ts,
+ *  so the cases about them read that one file. Not the whole client: they count
+ *  mentions and compare positions, which only mean anything within one module. */
+const appearance = sources.find(([p]) => p === "use-appearance.ts")![1];
 
 /** The text between `useRef(` and its matching `)`, for every call in `src`,
  *  with an explicit type argument (`useRef<Foo>(…)`) allowed and skipped. */
@@ -345,7 +349,10 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // element's overflow when it locks scrolling, which happens on a modal
     // opening and not per frame.
     const callers = sources.filter(([, src]) => /getComputedStyle\s*\(/.test(src)).map(([p]) => p).sort();
-    expect(callers).toEqual(["App.tsx", "components/use-modal-dismiss.ts"]);
+    // App.tsx is off this list now: the one getComputedStyle it held was cssVar,
+    // which moved to use-appearance.ts. The render-heavy component no longer
+    // touches it at all, which is the confinement this case exists for.
+    expect(callers).toEqual(["components/use-modal-dismiss.ts", "use-appearance.ts"]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {
@@ -354,9 +361,9 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // `useState` initialiser, once in the effect that stamps `data-theme`. If
     // the mentions ever outnumber those, something is calling it again — and
     // the JSX is where it used to be called from.
-    const mentions = [...app.matchAll(/\bcssVar\b/g)].length;
-    const declared = [...app.matchAll(/function cssVar\s*\(/g)].length;
-    const handedOver = [...app.matchAll(/readPalette\(cssVar\)/g)].length;
+    const mentions = [...appearance.matchAll(/\bcssVar\b/g)].length;
+    const declared = [...appearance.matchAll(/function cssVar\s*\(/g)].length;
+    const handedOver = [...appearance.matchAll(/readPalette\(cssVar\)/g)].length;
     expect(declared).toBe(1);
     expect(handedOver).toBe(2);
     expect(mentions).toBe(declared + handedOver);
@@ -386,16 +393,16 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // Keyed on `palette`, which only a theme flip replaces. Keyed on `theme`
     // itself it would be rebuilt during the render that flips it — before the
     // effect writes `data-theme` — and would hold the OLD colours forever.
-    expect(app).toMatch(/const paletteToken = useMemo\(\(\) => paletteReader\(palette\), \[palette\]\);/);
+    expect(appearance).toMatch(/const paletteToken = useMemo\(\(\) => paletteReader\(palette\), \[palette\]\);/);
     expect(app).not.toMatch(/const minimapStyle\b/);
-    expect(app).toMatch(/\[paletteToken\],/);
+    expect(appearance).toMatch(/\[paletteToken\],/);
   });
 
   it("re-reads the palette in the effect that stamps data-theme, after the write", () => {
     // The ordering that keeps a flip from going stale. Both statements must
     // live in the same effect, with the attribute first — a palette read before
     // `data-theme` is written answers with the theme being replaced.
-    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(app);
+    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
     expect(effect, "the data-theme effect is no longer recognisable").not.toBeNull();
     expect(effect![0]).toMatch(/setPalette\(/);
     expect(effect![0].indexOf("dataset.theme")).toBeLessThan(effect![0].indexOf("setPalette"));
@@ -409,12 +416,18 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // and then never run again, because `theme` does not change twice. The
     // minimap and the grid would keep the old theme's colours for the life of
     // the tab, which is worse than the cost this whole change removes.
-    expect(app).toMatch(/const \[palette, setPalette\] = useState<Palette>\(\(\) => readPalette\(cssVar\)\);/);
+    expect(appearance).toMatch(/const \[palette, setPalette\] = useState<Palette>\(\(\) => readPalette\(cssVar\)\);/);
     // Spelled with or without a type argument, a memo may not produce it.
-    expect(app).not.toMatch(/useMemo\s*(<[^;=]*?>)?\s*\([^;]*\breadPalette\b/);
-    // And there are exactly three mentions of `readPalette` in the file: the
-    // import, that initialiser, and the effect above. A fourth is a new reader
-    // on some path this test has not been told about.
-    expect([...app.matchAll(/\breadPalette\b/g)]).toHaveLength(3);
+    // Asked of both files: the palette lives in use-appearance.ts now, so that is
+    // where the trap could come back — asking App.tsx alone would pass forever.
+    for (const src of [app, appearance]) {
+      expect(src).not.toMatch(/useMemo\s*(<[^;=]*?>)?\s*\([^;]*\breadPalette\b/);
+    }
+    // And there are exactly three mentions of `readPalette` in the file that
+    // owns the palette: the import, that initialiser, and the effect above. A
+    // fourth is a new reader on some path this test has not been told about —
+    // and App.tsx, which draws with the palette but no longer reads it, has none.
+    expect([...appearance.matchAll(/\breadPalette\b/g)]).toHaveLength(3);
+    expect([...app.matchAll(/\breadPalette\b/g)]).toHaveLength(0);
   });
 });

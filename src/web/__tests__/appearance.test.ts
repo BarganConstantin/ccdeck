@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_OPTIONS, resolveCharacterEnabled } from "../appearance";
+import { clientText } from "./client-source";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -27,7 +28,9 @@ describe("character appearance preference", () => {
   });
 
   it("gates the character at its App mount and persists the chosen state", () => {
-    const app = read("App.tsx");
+    // The state and its storage are in use-appearance.ts; the mount is still
+    // App.tsx's. Every match is positive, so this reads the client.
+    const app = clientText();
     expect(app).toContain("useState(storedCharacterEnabled)");
     expect(app).toContain('localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
     expect(app).toContain("{characterEnabled && (");
