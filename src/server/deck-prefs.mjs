@@ -41,6 +41,7 @@ import { chmod, mkdir, readFile, stat, unlink } from "node:fs/promises";
 // settings.json and auth.json already follow on files with the same stakes.
 import { createTemp, renameWithRetry, stripBom } from "./atomic-write.mjs";
 import { prefsDir, prefsPath } from "./prefs-path.mjs";
+import { NOT_JSON, prefsRefusalDetail, prefsWriteRefusal, unreadablePrefs } from "./prefs-refusal.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -272,74 +273,9 @@ export function normalise(raw) {
 export const quarantinePath = (home = deckDataDir(), at = Date.now()) =>
   `${prefsPath(home)}.corrupt-${at}`;
 
-/** The refusal `writePrefs` throws rather than merge onto a base it knows is
- *  not the user's. Shaped like installer.mjs's SETTINGS_UNREADABLE, which is
- *  the same policy on the other file this deck rewrites: a file we cannot
- *  reproduce is never treated as an empty one. */
-function unreadablePrefs(path, why, blocked) {
-  const err = new Error(
-    `${path} could not be read (${why}). Refusing to overwrite it — this deck's ` +
-    `LAN key and its pairings are in there and cannot be re-derived. Fix the ` +
-    `file or move it aside, then restart ${PRODUCT}.`,
-  );
-  err.code = "PREFS_UNREADABLE";
-  err.prefsPath = path;
-  err.why = why;
-  err.blocked = blocked;
-  return err;
-}
-
-/** The errors a filesystem raises for a place this user may not write — most
- *  often a settings folder a `sudo` run left owned by root (#1335). */
-const NOT_WRITABLE = new Set(["EACCES", "EPERM", "EROFS"]);
-
-/**
- * Why a settings write failed, as a reason the panel can name — or null when
- * the failure is not one of the two a person can fix from outside the deck.
- *
- * A code, never the message: the message carries the absolute path, and a
- * route's body is readable by a DNS-rebound page (see sendInternalError). The
- * deck's log keeps the path for the person who has to go and look.
- */
-export function prefsWriteRefusal(err) {
-  if (err?.code === "PREFS_UNREADABLE") return "prefs_unreadable";
-  if (NOT_WRITABLE.has(err?.code)) return "prefs_not_writable";
-  return null;
-}
-
-/** What blocked a prefs.json that is not JSON and could not be moved aside —
- *  no errno for it, so a name of the deck's own in the same shape. */
-const NOT_JSON = Object.freeze({ code: "BADJSON", owner: "unknown", on: "file" });
-
-const OWNERS = new Set(["you", "other", "unknown"]);
-/** An errno as Node spells one, or the deck's BADJSON. Anything else — which
- *  nothing here produces — is dropped rather than echoed to the page. */
-const ERRNO = /^E?[A-Z][A-Z0-9]{1,15}$/;
-
-/**
- * The same refusal, told precisely enough to act on from a screenshot (#1335).
- *
- * 3.29.3's panel could only guess — "the file may belong to another user" — and
- * the one Mac it was written for turned out not to be the case 3.29.4 repairs,
- * with nothing on the screen to say which case it was. So the page now gets the
- * errno, who owns what blocked the read (`you`, `other`, `unknown`), and whether
- * that is the `file` or its `folder`.
- *
- * Every field is picked from a closed set. Still no path and no uid: the route's
- * body is readable by a DNS-rebound page (see prefsWriteRefusal), and a path
- * names the user. Null when there is nothing precise to add.
- */
-export function prefsRefusalDetail(err) {
-  const blocked = err?.code === "PREFS_UNREADABLE" ? err.blocked
-    : NOT_WRITABLE.has(err?.code) ? { code: err.code, owner: "unknown", on: "folder" }
-    : null;
-  if (!blocked || typeof blocked !== "object") return null;
-  return {
-    code: ERRNO.test(blocked.code ?? "") ? blocked.code : "",
-    owner: OWNERS.has(blocked.owner) ? blocked.owner : "unknown",
-    on: blocked.on === "folder" ? "folder" : "file",
-  };
-}
+// How a refusal to write is told — the error writePrefs throws, and the reason
+// and the detail the route hands the panel: prefs-refusal.mjs.
+export { prefsRefusalDetail, prefsWriteRefusal };
 
 /** The read errors that can mean "not yours" rather than "broken". Only these
  *  send a read to setAsideForeign; EISDIR, EIO and EMFILE never do. */
