@@ -81,7 +81,10 @@ describe("the server counts it separately from the total", () => {
     // keep a copy of. Every poll reads the figure out of the accumulator, and
     // only a real read adds to it.
     expect(server).toMatch(/const seen = _lastRead\.get\(key\) \?\? nothingSeen\(\);/);
-    expect(server).toMatch(/if \(isProgramNavigation\(row\.transition\)\) seen\.byProgram \+= 1;/);
+    // The fold that adds a read to the accumulator has a module of its own.
+    const fold = readFileSync(
+      fileURLToPath(new URL("../../server/browser-watch-seen.mjs", import.meta.url)), "utf8");
+    expect(fold).toMatch(/if \(isProgramNavigation\(row\.transition\)\) seen\.byProgram \+= 1;/);
     expect(server).toMatch(/const \{ oldest, human, byProgram \} = seen;/);
   });
 
