@@ -47,12 +47,13 @@ import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
 import { useAgentFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
+import { useBoardLayout } from "./use-board-layout";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { clearStoredLayout, loadLayout, loadLayoutFrame, loadViewport, saveLayout, saveLayoutFrame, saveViewport } from "./layout-storage";
+import { clearStoredLayout, loadViewport, saveLayout, saveLayoutFrame, saveViewport } from "./layout-storage";
 import { isCanvasNodeElement } from "./canvas-node-element";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
@@ -70,7 +71,6 @@ import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
 import OldNameBanner from "./components/OldNameBanner";
 import { spotlightUnion } from "./spotlight";
-import { type Provisional } from "./placement";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -109,7 +109,6 @@ import { columnsWouldChange, type Frame } from "./layout";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds } from "./visibility";
 import { sessionGroupNodes } from "./session-group-nodes";
-import { restoreLayout } from "./stored-layout";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
@@ -447,23 +446,6 @@ function Inner() {
           restartCopy, restartFuseMs, loadAutoRestartPrefs }
     = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure });
 
-  // Restore pinned positions synchronously on first render so they're
-  // applied before snapshotToFlow runs autoLayout. Sessions outlast a
-  // browser refresh (their session_id is stable), so dragged positions
-  // come back where you left them.
-  //
-  // Once, in a `useState` initialiser — the form `restoredViewport` below has
-  // always used, and for the same reason. As a `useRef` argument the whole of
-  // this ran on EVERY render and every result but the first was discarded
-  // (#612): a getItem, a JSON.parse, and two Maps, four times a second on an
-  // idle deck and once per pointer move through a drag — the same drag that is
-  // in the middle of rewriting the value being re-read.
-  //
-  // The pinned half also stopped being quadratic in the process — see
-  // restoreLayout in stored-layout.ts, which is where that lives so it can be
-  // tested without a DOM.
-  const restoredLayout = useState(() => restoreLayout(loadLayout()))[0];
-  const pinnedRef = useRef(restoredLayout.pinned);
   const restoredViewport = useState(() => loadViewport())[0];
   // The deck's look — the theme, the pixel character, and the canvas palette
   // read from the theme's tokens — with the effects that keep the DOM, storage
@@ -482,6 +464,12 @@ function Inner() {
   // through, the fit every structural change runs, and the bookkeeping that
   // lets a move tell it has been superseded: see use-camera.ts.
   const { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef } = useCamera();
+
+  // The board's arrangement — the stored positions and pins it was restored
+  // from, the placeholders, the layout signature, the epoch R and the reframe
+  // move, and the frame it was packed for — in use-board-layout.ts.
+  const { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef }
+    = useBoardLayout();
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -601,30 +589,6 @@ function Inner() {
   // counters the layout keys off: see use-node-measurements.ts.
   const { measuredRef, measuredVersionRef, sizeVersion, domSizeVersion } = useNodeMeasurements(draggingRef);
 
-  // Position cache + structural signature. Layout reruns only when the set
-  // of visible agents OR sizes OR pin-set changes — NOT on every event.
-  // Seeded from storage so a reload resumes the arrangement that was on screen
-  // rather than re-deriving one. Anything without a stored position — a new
-  // agent, or one whose position was evicted — still gets laid out.
-  // Built once, beside the pinned half, in the initialiser up at
-  // `restoredLayout` — the argument here is a read and not a `new Map` (#612).
-  const positionsRef = useRef(restoredLayout.positions);
-  // Which of those positions are placeholders. Deliberately not persisted: the
-  // retry runs on the next render, at most a 250ms tick away, and the save
-  // below is debounced 1500ms — so a placeholder is overwritten by a real
-  // coordinate long before anything writes it to storage, and a mark restored
-  // from a previous run would only relayout a node that has been settled since.
-  const provisionalRef = useRef<Provisional>(new Set());
-  const lastLayoutSigRef = useRef<string>("");
-  // Moved wherever the cached positions are thrown away — R and the reframe
-  // below. The board is rebuilt inside the memo that calls snapshotToFlow, and
-  // emptying positionsRef moves none of that memo's deps, so the rerender both
-  // used to ask for handed back the cached board and the rebuild waited for the
-  // clock's next 250ms tick. The save and the fit each of them runs 80ms later
-  // then read the arrangement they had just discarded, most of the time: R was
-  // never stored, and a reload drew a different board (#1331). In the deps, the
-  // render they schedule is the one that rebuilds.
-  const [layoutEpoch, setLayoutEpoch] = useState(0);
   // Everything "Remove node" has taken off the board: the removed agents, what
   // descends from them, and every agent of a removed session. Worked out once
   // and subtracted from BOTH layoutSig and visibleAgentIds below, so the cards,
@@ -817,18 +781,6 @@ function Inner() {
     [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch, historyReplayed],
   );
 
-  // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
-  //
-  // Seeded from storage, because the frame a restored layout was built in is
-  // not this window's: a deck reopened after a monitor change comes back with
-  // coordinates that are internally consistent and shaped for a canvas that is
-  // no longer there.
-  //
-  // Read through a lazy initialiser and held in a ref, the shape `restoredLayout`
-  // uses: `useRef(loadLayoutFrame())` would put a localStorage read on the
-  // render path for an answer only the first render asks for (#612).
-  const restoredLayoutFrame = useState(loadLayoutFrame)[0];
-  const lastLayoutFrameRef = useRef<Frame | null>(restoredLayoutFrame);
   // Re-column when the frame changes ENOUGH TO CHANGE THE ANSWER.
   //
   // autoLayout picks the column count by scoring each arrangement against the
