@@ -9,6 +9,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { ccusageSurface } from "./ccusage-surface";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,10 +81,12 @@ describe("#790 — the one-repair budget", () => {
     // still holds a handle — so the flag was burned by a repair that never
     // happened, and every later poll for the life of the deck short-circuited
     // on it, including seconds later once the handle was released.
-    const src = read("../../server/ccusage.mjs");
+    // The repair moved to ccusage-install.mjs with the install it repairs.
+    const src = read("../../server/ccusage-install.mjs");
     expect(src).toContain("if (gone) _repairedThisRun = true;");
-    // And not before the attempt: the only assignment must be the guarded one.
-    expect((src.match(/_repairedThisRun = true/g) ?? []).length).toBe(1);
+    // And not before the attempt: the only assignment must be the guarded one —
+    // counted across ccusage.mjs and every file lifted out of it.
+    expect((ccusageSurface().match(/_repairedThisRun = true/g) ?? []).length).toBe(1);
     const guard = src.indexOf("if (_repairedThisRun || runner.kind");
     const set = src.indexOf("if (gone) _repairedThisRun = true;");
     const rm = src.indexOf("rmSync(PKG_DIR");
@@ -93,7 +96,7 @@ describe("#790 — the one-repair budget", () => {
 
   it("still refuses a second repair in one process once one has happened", () => {
     // The budget exists to stop a loop of installs, and must survive the fix.
-    const src = read("../../server/ccusage.mjs");
+    const src = read("../../server/ccusage-install.mjs");
     expect(src).toContain("if (_repairedThisRun || runner.kind !== \"node\" || installsDisabled()) return false;");
   });
 });

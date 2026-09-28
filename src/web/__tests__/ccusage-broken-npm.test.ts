@@ -282,7 +282,10 @@ process.env.PATH = FAKE_HOME;
 delete process.env.AGENTS_DECK_CCUSAGE;
 
 // @ts-expect-error — .mjs server module, no types
-const { cannotLoadModule, fetchCcusageDaily, primeCcusage } = await import("../../server/ccusage.mjs");
+const { fetchCcusageDaily, primeCcusage } = await import("../../server/ccusage.mjs");
+// The repair's test for a missing module moved to ccusage-install.mjs with it.
+// @ts-expect-error — .mjs server module, no types
+const { cannotLoadModule } = await import("../../server/ccusage-install.mjs");
 
 const CCUSAGE_DIR = join(FAKE_HOME, ".agents-deck", "ccusage");
 const PKG_DIR = join(CCUSAGE_DIR, "node_modules", "ccusage");

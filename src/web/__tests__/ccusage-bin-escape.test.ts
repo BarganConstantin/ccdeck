@@ -45,7 +45,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 // @ts-expect-error — plain JS module, no types
-const { resolveEntry } = await import("../../server/ccusage.mjs");
+const { resolveEntry } = await import("../../server/ccusage-install.mjs");
 
 afterAll(() => {
   for (const k of ["HOME", "USERPROFILE"]) {

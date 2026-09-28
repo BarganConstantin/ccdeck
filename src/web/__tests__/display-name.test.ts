@@ -159,7 +159,7 @@ describe("the boundary the rename must not cross", () => {
     for (const file of ["npm-latest.mjs", "cswap-install.mjs", "cswap-auto.mjs", "retire-sound-hook.mjs"]) {
       expect(read("src", "server", file)).toContain(`homedir(), ".agents-deck"`);
     }
-    expect(read("src", "server", "ccusage.mjs")).toContain(`os.homedir(), ".agents-deck"`);
+    expect(read("src", "server", "ccusage-install.mjs")).toContain(`os.homedir(), ".agents-deck"`);
     expect(read("src", "server", "uv-bootstrap.mjs")).toContain(`homedir(), ".agents-deck"`);
   });
 

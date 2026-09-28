@@ -477,7 +477,7 @@ describe("every environment variable the deck reads is in the README's table", (
   // caught only the literal forms, so it stayed green with CCDECK_HOME deleted
   // from the table, which is the very variable that prompted it.
   const names = new Set<string>();
-  for (const file of ["deck-home.mjs", "deck-prefs.mjs", "args.mjs", "ccusage.mjs", "claude-dir.mjs", "codex-dir.mjs"]) {
+  for (const file of ["deck-home.mjs", "deck-prefs.mjs", "args.mjs", "ccusage.mjs", "ccusage-install.mjs", "claude-dir.mjs", "codex-dir.mjs"]) {
     const src = read("src", "server", file);
     for (const m of src.matchAll(/\b(?:process\.)?env(?:\.|\[")([A-Z][A-Z0-9_]{3,})"?\]?/g)) names.add(m[1]);
     for (const m of src.matchAll(/const\s+[A-Za-z_]*ENV[A-Za-z_]*\s*=\s*"([A-Z][A-Z0-9_]{3,})"/g)) names.add(m[1]);
