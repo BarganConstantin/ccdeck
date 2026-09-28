@@ -35,6 +35,7 @@ export const LAN_SECTION_FILES = [
   "components/LanEntryRow.tsx",
   "components/LanViewHeader.tsx",
   "components/LanAsks.tsx",
+  "components/LanDiscoveryNotes.tsx",
 ] as const;
 
 let joined: string | null = null;
