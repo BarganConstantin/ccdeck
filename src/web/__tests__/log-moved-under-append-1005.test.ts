@@ -192,9 +192,10 @@ describe("waiting for the append queue", () => {
   it("is what the rotation path calls, before it moves the file", () => {
     // Pinned on the source because the real interleave cannot be produced at
     // this threshold — see the file header. Ordering is the whole of it: a
-    // flush after the rename is a flush into the archive.
+    // flush after the rename is a flush into the archive. The rotation is
+    // event-log.mjs's, with the rest of what the deck does to its log.
     const src = readFileSync(
-      fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+      fileURLToPath(new URL("../../server/event-log.mjs", import.meta.url)), "utf8");
     const flushAt = src.indexOf("await flushAppends(persistPath);");
     const renameAt = src.indexOf("await rename(persistPath, oldPath);");
     const unlinkAt = src.indexOf("try { await unlink(oldPath); } catch {}");

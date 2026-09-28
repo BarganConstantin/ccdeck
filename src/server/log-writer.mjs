@@ -466,9 +466,9 @@ const failingPaths = new Map();
  * — because a path that never failed has no episode to close, and a log that
  * could not be opened at boot and could be a minute later never failed an
  * append at all: its first one simply landed. A count answers that by being
- * compared with itself. index.mjs reads it once, when its boot probe answers,
- * and again whenever it asks; any difference is a line that reached the disk
- * after the probe spoke.
+ * compared with itself. event-log.mjs reads it once, when its boot probe
+ * answers, and again whenever it asks; any difference is a line that reached
+ * the disk after the probe spoke.
  *
  * One number per path this process has ever appended to, which on a deck is
  * one. Never deleted, unlike the entries in appendTails, because a count that
