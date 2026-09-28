@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resetCreditsLine } from "../reset-credits";
 import { sourceOf } from "./client-source";
+import { USAGE_FILES } from "./usage-surface";
 
 // Midday UTC, so the printed date is the same in every timezone a CI runner or
 // a contributor's machine might be in.
@@ -58,7 +59,8 @@ describe("the Claude card", () => {
   });
 
   it("wears the Codex row's class, so both inventories read as the same kind of fact", () => {
-    expect(panel.match(/className="up-quota-sub up-reset-credits"/g)).toHaveLength(2);
+    // Counted over the panel and every file lifted out of it.
+    expect(USAGE_FILES.map(sourceOf).join("\n").match(/className="up-quota-sub up-reset-credits"/g)).toHaveLength(2);
   });
 });
 

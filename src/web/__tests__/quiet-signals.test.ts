@@ -21,7 +21,7 @@
 //      carries layout, beating the global `:focus-visible` at (0,1,0) on
 //      specificity and on source order. `/` focuses that field.
 //
-// Plain node, no DOM — so this reads styles.css and UsagePanel.tsx the way
+// Plain node, no DOM — so this reads styles.css and QuotaBar.tsx the way
 // contrast-floors.test.ts, control-edges.test.ts and manage-block.test.ts do
 // and computes the ratios from the sheet's own token values. The helpers are
 // deliberately re-declared here rather than imported from contrast-floors:
@@ -45,7 +45,8 @@ import { gradientStops } from "./gradient-stops";
 const web = fileURLToPath(new URL("..", import.meta.url));
 /** Comments quote declarations while explaining them; strip before reading. */
 const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-const usagePanel = readFileSync(join(web, "components", "UsagePanel.tsx"), "utf8");
+// The quota bar, lifted out of UsagePanel.tsx with the fill and the marker it colours.
+const quotaBar = readFileSync(join(web, "components", "QuotaBar.tsx"), "utf8");
 
 /** WCAG 1.4.3 for the words, 1.4.11 for a meter, a boundary or a focus ring. */
 const BODY = 4.5;
@@ -252,9 +253,9 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
 describe("2. the quota pace marker (#368.2)", () => {
   // The fill and the marker are coloured in the component, not the sheet, so
   // the token sets come from there — a new state added to either is caught.
-  const FILLS = [...(/const\s+color\s*=\s*([^;]+);/.exec(usagePanel)![1])
+  const FILLS = [...(/const\s+color\s*=\s*([^;]+);/.exec(quotaBar)![1])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
-  const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(usagePanel)![0])
+  const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(quotaBar)![0])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
 
   it("still draws both ends from the tokens this test knows about", () => {

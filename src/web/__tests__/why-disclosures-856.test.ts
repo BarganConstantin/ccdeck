@@ -16,6 +16,8 @@ import { clientText } from "./client-source";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const accounts = read("../components/AccountsPanel.tsx");
 const usage = read("../components/UsagePanel.tsx");
+// The pace note is the quota bar's, which was lifted out of the panel.
+const quotaBar = read("../components/QuotaBar.tsx");
 const node = read("../components/AgentNode.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -59,7 +61,7 @@ describe("why a login failed is a button, not a title (#856)", () => {
 });
 
 describe("the pace note opens the number it is measured against (#856)", () => {
-  const note = /<button[\s\S]*?className="qb-pace"[\s\S]*?<\/button>/.exec(usage)?.[0] ?? null;
+  const note = /<button[\s\S]*?className="qb-pace"[\s\S]*?<\/button>/.exec(quotaBar)?.[0] ?? null;
 
   it("is a button that says whether its explanation is open", () => {
     expect(note, "the pace note is not a button").not.toBeNull();
@@ -68,7 +70,7 @@ describe("the pace note opens the number it is measured against (#856)", () => {
   });
 
   it("says the number on screen when open, which was a title on a 2px tick", () => {
-    expect(usage).toMatch(/<div id=\{whyId\} className="qb-why">\s*To last until reset, stay near \{Math\.round\(pace\.expectedPct\)\}% by now\.\s*<\/div>/);
+    expect(quotaBar).toMatch(/<div id=\{whyId\} className="qb-why">\s*To last until reset, stay near \{Math\.round\(pace\.expectedPct\)\}% by now\.\s*<\/div>/);
   });
 
   it("keeps the 11px the note set, and a 24px target", () => {

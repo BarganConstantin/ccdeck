@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { pressAccepted, pressState, selfPressAccepted, selfPressProps } from "../panel-press";
 import { lineOf, openTags, withoutComments } from "./tsx-scan";
 import { clientText } from "./client-source";
+import { USAGE_FILES } from "./usage-surface";
 
 // ── the sources, with comments blanked ──────────────────────────────────────
 
@@ -369,7 +370,8 @@ describe("a second press is refused by the handler, not by the browser", () => {
   });
 
   it("holds one forced quota read at a time, per hook, and never blocks the poll", () => {
-    const panel = codeOf("components/UsagePanel.tsx");
+    // The panel and every file lifted out of it, so the count follows the hooks.
+    const panel = USAGE_FILES.map(codeOf).join("\n");
     // Both hooks, and both gated on `forceRefresh`: a poll is not a press and
     // must not be refused by one.
     expect([...panel.matchAll(/if \(forceRefresh && !selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(2);

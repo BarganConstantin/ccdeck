@@ -7,7 +7,7 @@
 // Both are measured against the same thing — the pace that lasts until the
 // reset — so both are named by it now.
 import { describe, it, expect } from "vitest";
-import { computePace } from "../components/UsagePanel";
+import { computePace } from "../components/QuotaBar";
 
 const HOUR = 3600;
 const WINDOW = 5 * HOUR;

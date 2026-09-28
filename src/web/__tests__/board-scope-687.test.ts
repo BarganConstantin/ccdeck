@@ -65,6 +65,7 @@ import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
 /** The shipped constants — the same module App.tsx reads. The point is the deck as it runs. */
 import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "../board-limits";
 import { clientSources } from "./client-source";
+import { usageSurface } from "./usage-surface";
 
 // Sandboxed before anything can read a real one, the way api-events-streaming
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
@@ -305,6 +306,8 @@ const boardUsage = read("board-usage.ts");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 const app = code(read("App.tsx")) + "\n" + code(read("use-deck-shortcuts.ts"));
 const panel = code(read("components/UsagePanel.tsx"));
+/** The panel and every file lifted out of it, for the negatives. */
+const panelSurface = code(usageSurface());
 const sessionList = code(read("components/SessionList.tsx"));
 const sessionSummary = code(read("components/SessionSummary.tsx"));
 
@@ -408,8 +411,8 @@ describe("every surface that prints one of these figures prints the shared label
     // So the line is gone, and this is what keeps it gone. The board figures
     // are still on the topbar, with the sentence, and the board BRANCH below
     // still prints them when ccusage has not answered at all.
-    expect(panel).not.toContain('className="up-live"');
-    expect(panel).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
+    expect(panelSurface).not.toContain('className="up-live"');
+    expect(panelSurface).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
     // And the sheet lost its rules with it — a selector nothing emits is the
     // shape unstyled-class.test.ts and dead-css.test.ts both exist to prevent.
     expect(read("styles.css"), "the rule outlived its markup").not.toContain(".up-live");

@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import { recordSpend, spendRate, SPEND_WINDOW_MS, NO_SPEND_HISTORY, type SpendHistory, type SpendBySession } from "../spend-rate";
 
 /** One session on the board, at this cost. The rate is per-session since #987;
@@ -121,7 +122,7 @@ describe("the usage header's pill (#821)", () => {
   const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("no longer divides live agents' cost by the longest one's age", () => {
-    expect(panel).not.toMatch(/liveCost|liveSec/);
+    expect(usageSurface()).not.toMatch(/liveCost|liveSec/);
     expect(panel).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
   });
 

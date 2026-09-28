@@ -39,6 +39,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   billedInputTokens,
   contextWindowForModel,
@@ -73,6 +74,8 @@ const strip = (src: string) =>
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = strip(read("../components/UsagePanel.tsx"));
+/** The panel and every file lifted out of it, for the negatives and counts. */
+const panelSurface = strip(usageSurface());
 const card = strip(read("../components/AgentNode.tsx"));
 const css = strip(read("../styles.css"));
 
@@ -230,8 +233,8 @@ describe("a model with no rate says so instead of vanishing", () => {
   });
 
   it("stops the usage panel dropping rows whose tokens it still counts", () => {
-    expect(panel).not.toMatch(/filter\(m => m\.cost\.total > 0\)/);
-    expect(panel).not.toMatch(/filter\(s => s\.cost > 0\)/);
+    expect(panelSurface).not.toMatch(/filter\(m => m\.cost\.total > 0\)/);
+    expect(panelSurface).not.toMatch(/filter\(s => s\.cost > 0\)/);
     // Rows are selected on tokens now, in one place each rather than twice in
     // the markup — the old code called the same filter for the length check and
     // for the map.
@@ -249,7 +252,7 @@ describe("a model with no rate says so instead of vanishing", () => {
     // unpriced model got a two-number strip and no breakdown whatsoever.
     expect(panel).toMatch(/\{totalTokenSum > 0 \? \(/);
     expect(panel).toMatch(/\{hasCost && \(/);
-    expect(panel).not.toMatch(/\{hasCost \? \(/);
+    expect(panelSurface).not.toMatch(/\{hasCost \? \(/);
   });
 
   it("paints the marker as a state rather than as an amount", () => {
@@ -463,7 +466,7 @@ describe("the 7-day token line does not wait on an authenticated round trip", ()
     // to chatgpt.com, and it fails outright on no_token, api_key_mode, an
     // expired refresh or blocked egress. The local line used to render only
     // inside the success case of the second one.
-    const uses = [...panel.matchAll(/codexUsage\?\.ok/g)];
+    const uses = [...panelSurface.matchAll(/codexUsage\?\.ok/g)];
     expect(uses).toHaveLength(1);
     const at = panel.indexOf("codexUsage?.ok");
     // Scoped to the Codex section: the Claude quota above it has the same three
