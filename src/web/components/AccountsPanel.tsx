@@ -9,6 +9,7 @@
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
+import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AddAccountDialog from "./AddAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -124,19 +125,6 @@ const SAVED_MS = 1_800;
 // abort answers that were still coming.
 const RELOAD_TIMEOUT_MS = 30_000;
 const THRESHOLDS = [70, 80, 85, 90, 95];
-
-/** The panel's one warning mark, drawn at the header icons' spec — a triangle
- *  and a stroke, in whatever ink the words beside it are in. */
-function WarnGlyph() {
-  return (
-    <svg className="ap-warn-glyph" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-      strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M7 1.9 12.9 12H1.1Z" />
-      <path d="M7 5.6v2.9" />
-      <path d="M7 10.3v.05" />
-    </svg>
-  );
-}
 
 /** How full a window is, in the inks its bar uses: the warning past 70% and
  *  the error past 90%. Undefined below that — the shut row's numbers are
@@ -1567,49 +1555,23 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   </AnchoredPopover>
                 );
               })()}
-              {/* WHY, AND WHAT FIXES IT — for whichever warning was pressed. The
-                  sentences are claude-swap's verdicts in the product's voice, the
-                  same ones that lived in a title and then in a line that pushed
-                  the row open; the press is the sign-in the row used to carry as
-                  a second pill. Portalled like the ⋯ menu, so it moves nothing. */}
               {issueOpen && (() => {
                 const a = data.accounts?.find(x => x.num === issueOpen.num);
                 const issue = a ? accountIssue(a, nowSec) : null;
                 if (!a || !issue) return null;
                 return (
-                  <AnchoredPopover
+                  <AccountIssuePopover
                     anchorId={issueOpen.anchor}
                     // The notice over the list does not live in the fold, so it
                     // closes against the column however the roster is drawn.
                     boundaryId={issueOpen.anchor === "ap-notice" ? "ap-scroll" : rowBoundary(a.num)}
-                    id="ap-issue-pop"
-                    className="ap-pop ap-issue-pop"
-                    role="dialog"
-                    labelledBy="ap-issue-title"
-                    onClose={() => closeIssue()}
-                  >
-                    <div className="ap-pop-form">
-                      <p className="ap-pop-title ap-issue-title" id="ap-issue-title" data-tone={issue.tone}>
-                        {issue.tone === "warn" && <WarnGlyph />}
-                        {issue.text}
-                      </p>
-                      <p className="ap-pop-note ap-issue-hint">{issue.hint}</p>
-                      <p className="ap-pop-note ap-issue-when">
-                        <span className="ap-issue-who">{a.alias ?? a.email ?? `account ${a.num}`}</span>
-                        {" · "}
-                        {a.fetchedAt ? `last collected ${ago(a.fetchedAt, nowSec)}` : "never collected"}
-                      </p>
-                      <div className="ap-pop-actions">
-                        <button type="button" className="btn" onClick={() => closeIssue(true)}>Done</button>
-                        {issue.fix && (
-                          <button type="button" className="btn primary" onClick={() => { closeIssue(true); setAddOpen(true); }}
-                            title="Open the sign-in dialog. Signing in as this account puts its login back in this slot — it keeps its slot, its alias and its history.">
-                            {issue.fix}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </AnchoredPopover>
+                    issue={issue}
+                    who={a.alias ?? a.email ?? `account ${a.num}`}
+                    fetchedAt={a.fetchedAt}
+                    nowSec={nowSec}
+                    onClose={closeIssue}
+                    onSignIn={() => setAddOpen(true)}
+                  />
                 );
               })()}
             </>

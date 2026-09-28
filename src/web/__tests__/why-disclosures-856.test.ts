@@ -10,6 +10,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const accounts = read("../components/AccountsPanel.tsx");
@@ -43,9 +45,9 @@ describe("why a login failed is a button, not a title (#856)", () => {
   });
 
   it("opens the reason as text over the column, and never as a title", () => {
-    expect(accounts).not.toMatch(/className="ap-issue"[^>]*\stitle=/);
-    expect(accounts).toMatch(/<p className="ap-pop-note ap-issue-hint">\{issue\.hint\}<\/p>/);
-    expect(accounts).toMatch(/role="dialog"\s*labelledBy="ap-issue-title"/);
+    expect(accountsSurface()).not.toMatch(/className="ap-issue"[^>]*\stitle=/);
+    expect(clientText()).toMatch(/<p className="ap-pop-note ap-issue-hint">\{issue\.hint\}<\/p>/);
+    expect(clientText()).toMatch(/role="dialog"\s*labelledBy="ap-issue-title"/);
   });
 
   it("draws the failure as a mark and a word in the warning ink, with a 24px target", () => {

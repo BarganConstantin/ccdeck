@@ -25,6 +25,7 @@ const accounts = await import("../../server/claude-accounts.mjs");
 import { autoRecaptureState } from "../../server/cswap-admin.mjs";
 import { manifestFor } from "../../server/lan-sync.mjs";
 import { accountIssue, collectorText, staleCopyText } from "../account-issue";
+import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
 
 const src = (rel: string) =>
@@ -211,9 +212,17 @@ describe("what the panel is allowed to offer", () => {
     // in as is `staleCopy`, and that has no fix at all.
     expect(accountIssue({ error: null, stopped: false, staleCopy: true, repair: { state: "running" } }, 0)?.fix).toBeNull();
     expect(accountIssue({ error: "invalid_grant", stopped: false, staleCopy: false }, 0)?.fix).toBe("Sign in again");
-    expect(panel).toMatch(/\{issue\.fix && \(\s*<button type="button" className="btn primary" onClick=\{\(\) => \{ closeIssue\(true\); setAddOpen\(true\); \}\}/);
+    //
+    // The popover is its own component now, so the chain is three links, each
+    // asked of the file that holds it: the button renders only under
+    // `issue.fix` and is the popover's one call to `onSignIn`, and the panel
+    // hands it the dialog's opener and nothing else.
+    const popover = src("../components/AccountIssuePopover.tsx");
+    expect(popover).toMatch(/\{issue\.fix && \(\s*<button type="button" className="btn primary" onClick=\{\(\) => \{ onClose\(true\); onSignIn\(\); \}\}/);
+    expect((popover.match(/onSignIn\(\)/g) ?? []).length, "the popover signs in from somewhere other than its fix").toBe(1);
+    expect(panel).toMatch(/<AccountIssuePopover[^>]*onSignIn=\{\(\) => setAddOpen\(true\)\}/);
     expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
-    const openers = (panel.match(/setAddOpen\(true\)/g) ?? []).length;
+    const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
     expect(openers, "something opens the sign-in dialog outside the gated fix and the header's +").toBe(3);
   });
 
