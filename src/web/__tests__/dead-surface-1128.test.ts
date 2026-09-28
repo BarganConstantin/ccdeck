@@ -32,7 +32,7 @@ const src = (root: string, file: string) => readFileSync(join(root, file), "utf8
 const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegExp, reader: RegExp][] = [
   [SERVER, "deck-probe.mjs", "DECK_CHALLENGE_TIMEOUT_MS", /^const DECK_CHALLENGE_TIMEOUT_MS = 400;$/m, /timeout: DECK_CHALLENGE_TIMEOUT_MS,/],
   [SERVER, "lan-engine.mjs", "ROUND_MS",                  /^const ROUND_MS = 10_000;$/m,               /timeoutMs: ROUND_MS/],
-  [SERVER, "lan-socket.mjs", "REPLY_COOLDOWN_MS",         /^const REPLY_COOLDOWN_MS = 2_000;$/m,       /now\(\) - repliedAt > REPLY_COOLDOWN_MS/],
+  [SERVER, "lan-beacon.mjs", "REPLY_COOLDOWN_MS",         /^const REPLY_COOLDOWN_MS = 2_000;$/m,       /now\(\) - repliedAt > REPLY_COOLDOWN_MS/],
   [SERVER, "lan-sync.mjs",   "newKeypair",                /^function newKeypair\(\) \{$/m,             /const made = newKeypair\(\);/],
   // Moved out of LanSyncSection.tsx with deckRows, its one reader.
   [WEB, "lan-roster.ts", "presenceLabel",

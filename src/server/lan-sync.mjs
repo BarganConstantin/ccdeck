@@ -1,7 +1,7 @@
 // The rules for finding other decks on this network and agreeing who is in the
-// group. No sockets, no timers, no filesystem — those live in lan-socket.mjs,
-// and everything here is a pure function so the suite can run all of it on one
-// machine, which is the only machine there is.
+// group. No sockets, no timers, no filesystem — those live in lan-beacon.mjs and
+// lan-socket.mjs, and everything here is a pure function so the suite can run
+// all of it on one machine, which is the only machine there is.
 //
 // WHAT THIS IS FOR. An account's login dies on a machine that has not used it
 // for a while, while the same account stays alive on a machine that has. Today

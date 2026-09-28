@@ -1,10 +1,9 @@
 // The thing that actually heals an account: the beacon, the listener and
 // claude-swap, wired together.
 //
-// The two files under this one hold everything that can be reasoned about
-// without a network — lan-sync.mjs decides, lan-socket.mjs carries — and what
-// is left here is the part that has to touch the store. It is deliberately the
-// smallest of the three.
+// The files under this one hold everything that can be reasoned about without
+// a network — lan-sync.mjs decides, lan-beacon.mjs and lan-socket.mjs carry —
+// and what is left here is the part that has to touch the store.
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
 //
@@ -29,7 +28,8 @@
 // anything.
 import { accountKey, currentFor, manifestFor, onePerKey, open, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
-import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
+import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
+import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS, TAILNET_MS } from "./tailscale.mjs";
@@ -223,7 +223,7 @@ export function createEngine({
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
-   * lan-socket exposes it — and for one more that only showed up in use.
+   * lan-beacon exposes it — and for one more that only showed up in use.
    *
    * The suite runs whole engines over real sockets, which is right: a handshake
    * between two of them is the thing being tested and a mock would only check

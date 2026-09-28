@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
-import { createBeacon, DISCOVERY_PORT } from "../../server/lan-socket.mjs";
+import { createBeacon, DISCOVERY_PORT } from "../../server/lan-beacon.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { fingerprint, identityFrom } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
