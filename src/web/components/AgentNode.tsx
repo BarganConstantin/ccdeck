@@ -34,6 +34,7 @@ import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 import { AlertMark, StateMark } from "./StateMark";
+import { RecapMark } from "./RecapMark";
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual
  *  multiplication so the user can verify pricing is sane.
@@ -494,23 +495,6 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
       <span className="waiting-said">{waitingLabel(waiting)}</span>
       <b>{elapsed(waiting.since, undefined, now)}</b>
     </div>
-  );
-}
-
-/** Claude Code's own mark for a recap: the ※ the terminal prints in front of
- *  one. Drawn rather than typed — U+203B comes from whichever fallback font a
- *  platform has, at whatever weight that font chose, and this has to be the
- *  same small figure on macOS, Windows and Linux. Decoration beside the word
- *  "recap", so it is hidden from assistive technology. */
-export function RecapMark() {
-  return (
-    <svg className="recap-glyph" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
-      <path d="M3.3 3.3l5.4 5.4M8.7 3.3l-5.4 5.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-      <circle cx="6" cy="1.2" r="1.05" fill="currentColor" />
-      <circle cx="6" cy="10.8" r="1.05" fill="currentColor" />
-      <circle cx="1.2" cy="6" r="1.05" fill="currentColor" />
-      <circle cx="10.8" cy="6" r="1.05" fill="currentColor" />
-    </svg>
   );
 }
 

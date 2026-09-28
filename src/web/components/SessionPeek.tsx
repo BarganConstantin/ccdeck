@@ -13,7 +13,7 @@ import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
 import { promptTime } from "../relative-time";
 import type { AgentNodeData, SessionRecap } from "../types";
 import { stateLabel, waitingLabel } from "../agent-copy";
-import { RecapMark } from "./AgentNode";
+import { RecapMark } from "./RecapMark";
 import { AlertMark, StateMark } from "./StateMark";
 
 /**
