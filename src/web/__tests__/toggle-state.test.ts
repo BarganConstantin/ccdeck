@@ -582,7 +582,8 @@ describe("the category filter chips, handed over from #368", () => {
     expect(decl(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
     // The chip's glyph is drawn, monochrome, in currentColor, so it follows
     // the label into the off tier rather than needing a desaturation of its own.
-    expect(app).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
+    // CatGlyph moved to detail-category.tsx with the paths it draws.
+    expect(markup("detail-category.tsx")).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
   });
 
   it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {
