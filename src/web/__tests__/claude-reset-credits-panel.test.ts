@@ -37,7 +37,8 @@ describe("the sentence", () => {
 });
 
 describe("the Claude card", () => {
-  const panel = sourceOf("components/UsagePanel.tsx");
+  // The Claude section, lifted out of UsagePanel.tsx with the Codex one.
+  const panel = sourceOf("components/QuotaSections.tsx");
   const quota = readFileSync(fileURLToPath(new URL("../../server/quota.mjs", import.meta.url)), "utf8");
 
   it("declares the field the server sends", () => {

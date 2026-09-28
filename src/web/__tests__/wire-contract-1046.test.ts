@@ -28,7 +28,8 @@ const quota = read("../../server/quota.mjs");
 const selfUpdate = read("../../server/self-update.mjs");
 // The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.
 const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx");
-const panel = read("../components/UsagePanel.tsx");
+// The Claude quota section, which draws the top-up, was lifted out of UsagePanel.tsx.
+const quotaSections = read("../components/QuotaSections.tsx");
 // The quota reads, and the shapes their routes answer in, moved to use-quota.ts.
 const quotaReads = read("../use-quota.ts");
 const chip = read("../version-chip.ts");
@@ -158,9 +159,9 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // and this deck cannot confirm whether that is currency or cents. A
     // percentage is true in any unit; a "$3.40" off an unverified scale is the
     // confidently wrong money figure this panel is careful not to produce.
-    expect(panel).toMatch(/quota\.extraUsedCredits \/ quota\.extraMonthlyLimit/);
-    expect(panel).toMatch(/Extra credits \(month/);
+    expect(quotaSections).toMatch(/quota\.extraUsedCredits \/ quota\.extraMonthlyLimit/);
+    expect(quotaSections).toMatch(/Extra credits \(month/);
     // And no bar at all when there is no denominator to measure against.
-    expect(panel).toMatch(/extra usage credits: on/);
+    expect(quotaSections).toMatch(/extra usage credits: on/);
   });
 });

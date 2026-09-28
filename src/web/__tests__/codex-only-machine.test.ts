@@ -425,6 +425,8 @@ describe("which panels the UI draws for each machine", () => {
     + "\n" + readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8")
     + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
   const usageSrc = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+  // The two quota sections, lifted out of the panel; their gates stayed in it.
+  const sectionsSrc = readFileSync(fileURLToPath(new URL("../components/QuotaSections.tsx", import.meta.url)), "utf8");
 
   /** The source immediately before `needle`, which is where a JSX gate lives. */
   function leadUpTo(src: string, needle: string, chars = 400): string {
@@ -453,17 +455,18 @@ describe("which panels the UI draws for each machine", () => {
     //
     // Anchored on the two <section> tags rather than the headings, because
     // "Claude quota" and "Codex quota" both also appear in prose above them.
-    // There are exactly two, in render order, and each one's gate is the JSX
-    // immediately before it.
+    // There are exactly two, in render order, in QuotaSections.tsx; each one
+    // is mounted by the panel behind its own gate, the JSX immediately before
+    // it — one link per file.
     const SECTION = '<section className="up-section up-quota-section">';
-    const first  = usageSrc.indexOf(SECTION);
-    const second = usageSrc.indexOf(SECTION, first + 1);
+    const first  = sectionsSrc.indexOf(SECTION);
+    const second = sectionsSrc.indexOf(SECTION, first + 1);
     expect(first, "the quota sections are gone or renamed").toBeGreaterThan(-1);
     expect(second, "there is no longer a second quota section").toBeGreaterThan(first);
-    expect(usageSrc.slice(first + SECTION.length, second)).toContain("Claude quota");
-    expect(usageSrc.slice(second)).toContain("Codex quota");
-    expect(usageSrc.slice(Math.max(0, first - 400), first)).toContain("providers.claude");
-    expect(usageSrc.slice(second - 400, second)).toContain("providers.codex");
+    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("Claude quota");
+    expect(sectionsSrc.slice(second)).toContain("Codex quota");
+    expect(usageSrc).toMatch(/\{providers\.claude && \(\s*<ClaudeQuotaSection /);
+    expect(usageSrc).toMatch(/\{providers\.codex && \(\s*<CodexQuotaSection /);
   });
 
   it("stops polling the absent CLI rather than only hiding its output", () => {

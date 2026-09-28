@@ -53,6 +53,8 @@ const agentNode = src("../components/AgentNode.tsx");
 const usagePanel = src("../components/UsagePanel.tsx");
 // The usage panel's quota bars, and the countdown they print, are QuotaBar.tsx.
 const quotaBar = src("../components/QuotaBar.tsx");
+// And the two quota sections, with the age each one prints, are QuotaSections.tsx.
+const quotaSections = src("../components/QuotaSections.tsx");
 const accountRow = src("../components/AccountRow.tsx");
 const sessionSummary = src("../components/SessionSummary.tsx");
 const toolModal = src("../components/ToolModal.tsx");
@@ -424,8 +426,8 @@ describe("how long ago something happened", () => {
     // SECONDS — "40s ago" — where these count minutes. Two thresholds and a
     // whole tier apart, so it is a third rule rather than a third copy, and
     // folding it in would have changed what the panel says.
-    expect(code(usagePanel)).toMatch(/if \(s < 10\)\s+return "just now";/);
-    expect(code(usagePanel)).toMatch(/if \(s < 60\)\s+return `\$\{s\}s ago`;/);
+    expect(code(quotaSections)).toMatch(/if \(s < 10\)\s+return "just now";/);
+    expect(code(quotaSections)).toMatch(/if \(s < 60\)\s+return `\$\{s\}s ago`;/);
   });
 });
 
