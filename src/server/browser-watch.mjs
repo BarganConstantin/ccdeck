@@ -32,7 +32,9 @@ import { readFile } from "node:fs/promises";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { msToChromeTime, readVisitsSince } from "./browser-history.mjs";
 import { toEpisodes, defaultExclusions } from "./agent-activity.mjs";
-import { appendLog, logPath, logSize, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
+import { episodeKey, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
+// watch.log, the plain-text record a person reads without opening the panel.
+import { appendLog, logPath, logSize } from "./browser-watch-log.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST, hostsPath, readKillswitch, extensionReport, killswitchCommand, verdict } from "./relay-guard.mjs";
@@ -732,11 +734,12 @@ export async function browserWatchSnapshot({
   if (acting && changedFrom(store.episodes, kept)) {
     // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
     // grown, so writing the whole set every time would repeat one episode once
-    // per page it gained.
-    const known = new Set(store.episodes.map(e => `${e.host} ${e.startMs}`));
+    // per page it gained. "The same episode" is the store's own key, the one
+    // the merge and the dismissals use, rather than a spelling of its own.
+    const known = new Set(store.episodes.map(e => episodeKey(e.host, e.startMs)));
     // Already-dismissed episodes are not fresh news: the reader has seen them
     // and said so, and notifying about one again is the panel arguing.
-    const fresh = undismissed(kept.filter(e => !known.has(`${e.host} ${e.startMs}`)), store.dismissed);
+    const fresh = undismissed(kept.filter(e => !known.has(episodeKey(e.host, e.startMs))), store.dismissed);
     // Only when something actually arrived. "no new · 3 since this deck
     // started" is the deck telling itself it wrote a file, which is not news.
     if (fresh.length > 0) {
