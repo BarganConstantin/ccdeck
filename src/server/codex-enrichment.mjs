@@ -14,8 +14,13 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { STOP, rolloutNameId, walkRolloutDays } from "./codex-dir.mjs";
 // The per-session model and approval policy the translation remembers, which
-// forgetCodexSession drops with the rest — see codex-translate.mjs.
-import { codexSessionApproval, codexSessionModel } from "./codex-translate.mjs";
+// forgetCodexSession drops with the rest, and the record shapes readCodexRollout
+// reads a rollout's lines by, the ones the translation reads — see
+// codex-translate.mjs.
+import {
+  codexSessionApproval, codexSessionModel,
+  responseItemModel, sessionMeta, taskStartedWindow, tokenCountInfo,
+} from "./codex-translate.mjs";
 // The bounded chunk reads the Claude transcripts use — see jsonl-chunks.mjs.
 import { readByteRange } from "./jsonl-chunks.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
@@ -226,22 +231,20 @@ export async function readCodexRollout(path) {
       if (!line) continue;
       let obj;
       try { obj = JSON.parse(line); } catch { continue; }
-      const type = obj && obj.type;
-      const pl = obj && obj.payload;
-      if (type === "session_meta" && pl) {
-        if (typeof pl.cwd === "string") cwd = pl.cwd;
+      // One record is one of these at most: each asks the record's own type.
+      const meta = sessionMeta(obj);
+      if (meta) {
+        if (typeof meta.cwd === "string") cwd = meta.cwd;
         // session_meta sometimes carries the model in newer Codex versions.
-        if (typeof pl.model === "string") model = pl.model;
-      } else if (type === "event_msg" && pl) {
-        if (pl.type === "token_count" && pl.info && pl.info.total_token_usage) {
-          lastUsage = pl.info.total_token_usage;
-        } else if (pl.type === "task_started" && typeof pl.model_context_window === "number") {
-          contextWindow = pl.model_context_window;
-        }
-      } else if (type === "response_item" && pl && typeof pl.model === "string") {
-        // Fallback model source — response items carry the model id.
-        model = pl.model;
+        if (typeof meta.model === "string") model = meta.model;
       }
+      const usage = tokenCountInfo(obj)?.total_token_usage;
+      if (usage) lastUsage = usage;
+      const window = taskStartedWindow(obj);
+      if (window !== null) contextWindow = window;
+      // Fallback model source — response items carry the model id.
+      const itemModel = responseItemModel(obj);
+      if (itemModel !== null) model = itemModel;
     }
     if (!lastUsage && !model && !contextWindow) return null;
     return { usage: lastUsage, model, contextWindow, cwd };

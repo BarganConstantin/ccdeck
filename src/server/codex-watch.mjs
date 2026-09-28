@@ -12,9 +12,10 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
 import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
-// What one rollout line means as a hook payload — see codex-translate.mjs. The
-// watcher below still decides which lines are read and where each one goes.
-import { codexObjToPayload, codexSessionModel } from "./codex-translate.mjs";
+// What one rollout line means as a hook payload, and the shape of the header
+// record that says whose rollout it is — see codex-translate.mjs. The watcher
+// below still decides which lines are read and where each one goes.
+import { codexObjToPayload, codexSessionModel, sessionMeta } from "./codex-translate.mjs";
 import { codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
 // The one spelling of a rollout's cwd — see canonical-path.mjs.
 import { canonicalCwd } from "./canonical-path.mjs";
@@ -146,7 +147,8 @@ async function readCodexHeader(path) {
       const nl = text.indexOf("\n");
       if (nl >= 0) {
         const obj = JSON.parse(text.slice(0, nl));
-        if (obj && obj.type === "session_meta" && obj.payload) {
+        const meta = sessionMeta(obj);
+        if (meta) {
           // THE ID, WITH THE FILE NAME BEHIND IT (#996). Every other field this
           // file takes off a rollout goes through a type guard, and the event
           // names are read in both spellings because OpenAI has renamed a record
@@ -155,14 +157,14 @@ async function readCodexHeader(path) {
           // scan `continue`s on that — so every rollout was retried on every
           // tick, its first 64KB re-read each time, not one Codex session was
           // drawn, and nothing said why. The file name carries the same id.
-          const id = obj.payload.id;
+          const id = meta.id;
           const sid = typeof id === "string" && id !== "" ? id : sidFromRolloutName(path);
           if (!sid) warnUnplacedRollout("no-id", path, "its session_meta has no id, and its file name carries none");
           // Canonicalised here and nowhere else: everything downstream — the
           // workspace test below, the log election, the cwd on every event this
           // rollout produces — reads state.cwd, and this is the one place it is
           // read off disk. See canonicalCwd.
-          return { sid, cwd: await canonicalCwd(obj.payload.cwd) };
+          return { sid, cwd: await canonicalCwd(meta.cwd) };
         }
         // The other rename the scan would otherwise retry in silence: a first
         // line that is whole but is not a session_meta will never become one.
