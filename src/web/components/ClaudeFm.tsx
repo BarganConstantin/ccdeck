@@ -38,10 +38,8 @@
 // added to the page. Every message that comes back is checked against the
 // player's origin before it is read — see the handler.
 import { memo, type CSSProperties } from "react";
-import {
-  BALL_FLIGHT_MS, DANCES, PROP_ART, SKIP_BEAT_MS, spriteRects,
-  type Act,
-} from "../claude-fm";
+import { BALL_FLIGHT_MS, DANCES, SKIP_BEAT_MS, type Act } from "../claude-fm";
+import { PROP_ART, spriteRects } from "../claude-fm-sprite";
 import { embedSrc, listenCommand } from "../claude-fm-player";
 import type { FmSource } from "../appearance";
 import {
