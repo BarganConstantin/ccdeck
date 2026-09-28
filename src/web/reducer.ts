@@ -772,6 +772,36 @@ function releaseToolIds(state: GraphState, a: AgentNodeData): void {
   }
 }
 
+/** Record that a sweep changed something, and pass its answer through.
+ *
+ *  Every sweep here returns a boolean the caller uses to decide whether to
+ *  re-render, and every one of them used to return it without moving anything a
+ *  memo could see — see `revision` on GraphState for what that cost. One helper
+ *  rather than four `state.revision += 1` lines, so the next sweep written here
+ *  has an obvious thing to return through and no way to half-do it. */
+function bump(state: GraphState, changed: boolean): boolean {
+  if (changed) state.revision += 1;
+  return changed;
+}
+
+/** Told which sessions left the board entirely, so somebody can say so.
+ *
+ *  BOTH PRUNERS TAKE IT, and they take the same one (#1024). The server keeps
+ *  two caches that gate an emit on "has this changed" — `nameBySession` and
+ *  `modelBySession` — and `handleClear`'s comment states the rule they live
+ *  under: "anything answering 'has this changed' has to appear in BOTH places
+ *  that mean the client no longer has it". There was a third place, and it is
+ *  here: a session pruned out of `state.agents` is a session this page has
+ *  forgotten, and the server has no way to know it. So it is told, and
+ *  `forgetSession` on the other end drops the signature and the read stamps,
+ *  and the session's name arrives again on its next event.
+ *
+ *  CALLED ONLY FOR A SESSION WITH NOTHING LEFT ON THE BOARD. `pruneOldAgents`
+ *  evicts individual subtrees, and a root that goes while a sibling subagent
+ *  stays is not a session the page has forgotten — it still holds the name it
+ *  was sent. Reporting it would cost a transcript re-read for no change. */
+export type ForgetSession = (sessionId: string) => void;
+
 /** Evict the oldest "done" agents when the agents map exceeds `cap`. Only
  *  considers agents whose endedAt is older than `graceMs` so freshly-done
  *  agents (still in fade-out) aren't yanked from under the user. Mutates
@@ -805,36 +835,6 @@ function releaseToolIds(state: GraphState, a: AgentNodeData): void {
  *  evicting a root with six subagents to get one node back under the cap removes
  *  seven. That is the trade `pruneDoneSessions` has always made for the same
  *  reason, and undershooting a memory bound is the harmless direction. */
-/** Record that a sweep changed something, and pass its answer through.
- *
- *  Every sweep here returns a boolean the caller uses to decide whether to
- *  re-render, and every one of them used to return it without moving anything a
- *  memo could see — see `revision` on GraphState for what that cost. One helper
- *  rather than four `state.revision += 1` lines, so the next sweep written here
- *  has an obvious thing to return through and no way to half-do it. */
-function bump(state: GraphState, changed: boolean): boolean {
-  if (changed) state.revision += 1;
-  return changed;
-}
-
-/** Told which sessions left the board entirely, so somebody can say so.
- *
- *  BOTH PRUNERS TAKE IT, and they take the same one (#1024). The server keeps
- *  two caches that gate an emit on "has this changed" — `nameBySession` and
- *  `modelBySession` — and `handleClear`'s comment states the rule they live
- *  under: "anything answering 'has this changed' has to appear in BOTH places
- *  that mean the client no longer has it". There was a third place, and it is
- *  here: a session pruned out of `state.agents` is a session this page has
- *  forgotten, and the server has no way to know it. So it is told, and
- *  `forgetSession` on the other end drops the signature and the read stamps,
- *  and the session's name arrives again on its next event.
- *
- *  CALLED ONLY FOR A SESSION WITH NOTHING LEFT ON THE BOARD. `pruneOldAgents`
- *  evicts individual subtrees, and a root that goes while a sibling subagent
- *  stays is not a session the page has forgotten — it still holds the name it
- *  was sent. Reporting it would cost a transcript re-read for no change. */
-export type ForgetSession = (sessionId: string) => void;
-
 export function pruneOldAgents(
   state: GraphState, now: number, cap: number, graceMs: number, onForget?: ForgetSession,
 ): boolean {
@@ -1559,6 +1559,13 @@ function clearsWaiting(w: WaitingBlock, p: HookPayload, sessionId: string): bool
   return w.subagentId != null && subagentIdFor(sessionId, key) === w.subagentId;
 }
 
+/** How far back the activity spark looks, and the most stamps worth keeping
+ *  for it. The chart is 24 buckets over 60s, so a bucket is 2.5s and 64 stamps
+ *  is more than a block ever lands in that window — the measured median gap
+ *  between blocks is 4.1s, which is 15 in a minute. */
+const OUTPUT_WINDOW_MS = 60_000;
+const MAX_OUTPUTS = 64;
+
 export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // `seq` is only monotonic *within one server process*. A restart re-derives
   // the counter by replaying events.jsonl, so after a log rotation or an
@@ -1841,19 +1848,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     return state;
   }
 
-  // UsageObserved carries cumulative session usage from the transcript.
-  // Overwrite (not add) the session root's usage with the totals — the
-  // server re-reads on every event, so this is always the running total.
-  //
-  // WHAT "THE SESSION'S USAGE" COVERS (#685). Everything the session spent,
-  // its subagents included. CC writes a delegated turn to
-  // `<sessionId>/subagents/agent-<id>.jsonl` rather than into the session's own
-  // JSONL, and `sessionUsageTotals` on the server sums both halves before
-  // sending them here — so this one number is the session's whole bill and the
-  // deck no longer loses the delegated part of it. Subagent NODES stay at zero:
-  // the roll-ups in SessionList / SessionSummary / UsagePanel add the root and
-  // its subagents together, so a per-node share here would be the same tokens
-  // counted twice. That is also why nothing else in this file writes tokens.
   // WHAT THE MODEL IS PRODUCING, from the server's transcript watch. The one
   // signal on this surface that does not come from a hook, because there is no
   // hook for it: 16.5% of measured time is the model reading, reasoning and
@@ -1899,6 +1893,19 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     return state;
   }
 
+  // UsageObserved carries cumulative session usage from the transcript.
+  // Overwrite (not add) the session root's usage with the totals — the
+  // server re-reads on every event, so this is always the running total.
+  //
+  // WHAT "THE SESSION'S USAGE" COVERS (#685). Everything the session spent,
+  // its subagents included. CC writes a delegated turn to
+  // `<sessionId>/subagents/agent-<id>.jsonl` rather than into the session's own
+  // JSONL, and `sessionUsageTotals` on the server sums both halves before
+  // sending them here — so this one number is the session's whole bill and the
+  // deck no longer loses the delegated part of it. Subagent NODES stay at zero:
+  // the roll-ups in SessionList / SessionSummary / UsagePanel add the root and
+  // its subagents together, so a per-node share here would be the same tokens
+  // counted twice. That is also why nothing else in this file writes tokens.
   if (name === "UsageObserved") {
     const u = (p.usage ?? null) as Record<string, unknown> | null;
     if (u) {
@@ -2580,13 +2587,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
 }
 
 /** Deterministic per-session hue (0–360). Used to give each session a calm accent. */
-/** How far back the activity spark looks, and the most stamps worth keeping
- *  for it. The chart is 24 buckets over 60s, so a bucket is 2.5s and 64 stamps
- *  is more than a block ever lands in that window — the measured median gap
- *  between blocks is 4.1s, which is 15 in a minute. */
-const OUTPUT_WINDOW_MS = 60_000;
-const MAX_OUTPUTS = 64;
-
 export function sessionHue(sessionId: string): number {
   let h = 5381;
   for (let i = 0; i < sessionId.length; i++) h = ((h << 5) + h) ^ sessionId.charCodeAt(i);
