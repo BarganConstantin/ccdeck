@@ -45,7 +45,7 @@ describe("reading a child's output", () => {
     // falls wherever the pipe broke — measured on `ps` as 8192/8192/5718 — so a
     // multi-byte character split across two of them became two replacement
     // characters: `Яндекс Музыка` rendered as `Ян��екс Музыка`.
-    const metrics = read("../../server/system-metrics.mjs");
+    const metrics = read("../../server/metrics-run.mjs");
     expect(metrics).toContain('child.stdout?.setEncoding?.("utf8");');
     const exec = read("../../server/exec.mjs");
     // The optional CALL, not just the optional chain: a test double's stream
@@ -57,9 +57,9 @@ describe("reading a child's output", () => {
 
   it("does not open a stderr pipe nobody drains", () => {
     // A pipe nobody reads fills at 64 KB and the writer blocks there until the
-    // deadline kills it. system-metrics' `run` resolves on stdout or null and
-    // has never looked at stderr.
-    const metrics = read("../../server/system-metrics.mjs");
+    // deadline kills it. The Machine panel's `run` (metrics-run.mjs) resolves
+    // on stdout or null and has never looked at stderr.
+    const metrics = read("../../server/metrics-run.mjs");
     expect(metrics).toContain('stdio: ["ignore", "pipe", "ignore"],');
   });
 
