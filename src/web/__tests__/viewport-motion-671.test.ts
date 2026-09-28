@@ -132,6 +132,7 @@ function body(opening: string): string {
 
 const applyViewport = body("const applyViewport = useCallback");
 const fitLeft = body("const fitLeft = useCallback");
+const moveCamera = body("const moveCamera = useCallback");
 
 describe("the one door every viewport the deck asks for goes through", () => {
   it("asks the rule, and animates only when it says so", () => {
@@ -165,8 +166,12 @@ describe("the two fits the issue was reported for", () => {
     // fitLeft is both of them: the button calls it through
     // enableAutoFitAndRefit, the drift watchdog calls it on recovery. One
     // landing to fix, and one to keep fixed.
-    expect(fitLeft).toMatch(/applyViewport\(want, duration\)/);
+    // Through moveCamera, which is every deliberate move's one spelling of the
+    // door, the stamp and the pending target.
+    expect(fitLeft).toMatch(/const epoch = moveCamera\(want, duration\);/);
+    expect(moveCamera).toMatch(/applyViewport\(want, duration\)/);
     expect(fitLeft).not.toMatch(/\brf\.setViewport\(/);
+    expect(moveCamera).not.toMatch(/\brf\.setViewport\(/);
   });
 
   it("corrects a fit that never arrived through the door as well", () => {
@@ -182,7 +187,7 @@ describe("the two fits the issue was reported for", () => {
     // One matcher for the whole ternary, rather than three that each hold a
     // fragment: `: null` on its own would pass on any `null` anywhere in the
     // function, which is an assertion about the file rather than about this.
-    expect(fitLeft).toMatch(
+    expect(moveCamera).toMatch(
       /pendingFitRef\.current = shouldAnimateViewport\(\{ durationMs: duration, documentHidden: document\.hidden \}\)\s*\?\s*\{ target: want, until: Date\.now\(\) \+ duration \+ 60 \}\s*:\s*null;/,
     );
   });

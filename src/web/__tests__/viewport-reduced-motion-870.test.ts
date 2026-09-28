@@ -74,7 +74,9 @@ describe("every fit that frames a card asks the rule", () => {
     expect(start, "applyViewport is not in use-camera.ts").toBeGreaterThan(-1);
     const apply = camera.slice(start, camera.indexOf("}, [rf, storeApi]);", start));
     expect(apply).toMatch(/if \(shouldAnimateViewport\(\{ durationMs: duration, documentHidden: document\.hidden \}\)\)/);
-    expect(appCode).toMatch(/applyViewport\(want, FOCUS_MS\);/);
+    // The focus moves through moveCamera, which goes through applyViewport.
+    expect(appCode).toMatch(/moveCamera\(want, FOCUS_MS\);/);
+    expect(camera).toMatch(/const moveCamera = useCallback\([\s\S]*?applyViewport\(want, duration\);/);
   });
 
   it("relies on a synchronous branch React Flow's fitView still has", () => {
