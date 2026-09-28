@@ -30,7 +30,7 @@ mkdirSync(join(DIR, "claude"), { recursive: true });
 afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — .mjs server module, no types
-const { hasSubscriptionCredential, credentialsPath } = await import("../../server/quota.mjs");
+const { hasSubscriptionCredential, credentialsPath } = await import("../../server/quota-oauth.mjs");
 
 // The Claude section, and the hint it prints, were lifted out of UsagePanel.tsx.
 const panel = readFileSync(fileURLToPath(new URL("../components/QuotaSections.tsx", import.meta.url)), "utf8");
