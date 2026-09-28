@@ -53,7 +53,9 @@ import LanSetupModal from "./LanSetupModal";
 // says in lan-round.ts, who is on the list in lan-roster.ts, and what passes
 // between two decks in lan-exchange.ts; the poll's cadence and the sentence for
 // a write that did not land live with the section's writes, in
-// use-lan-section.ts. These are the names the dialogs and the pair-request hook
+// use-lan-section.ts; the share boxes' list while a write is out in
+// lan-share.ts, and a typed address and an invite's countdown in
+// lan-add-deck.ts. These are the names the dialogs and the pair-request hook
 // have always imported from here, passed through so that none of them had to
 // change with the move.
 export type { DeckAbout, LanAccount, LanReach, LanStatus, LanStranger, LanTailscale } from "../lan-types";
@@ -61,100 +63,14 @@ export { roundLabel, roundWhy, seenLabel, silenceNote } from "../lan-round";
 export { askedLabel, type DeckRow, type RowSource, withAliases } from "../lan-roster";
 export { exchangeLanes, type Lane, versionOrder } from "../lan-exchange";
 export { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, writeFailure } from "../use-lan-section";
+export { nextShared, sameKeys, settlePending } from "../lan-share";
+export { leftLabel, parseAddress } from "../lan-add-deck";
 
 /** The shortest gap between arming `unpair` and confirming it that counts as
  *  two decisions. A double-click on the right end of a row armed the verb and
  *  confirmed it in one gesture, and its second press lands before anybody
  *  could have read `confirm` — so a press sooner than this is not an answer. */
 export const CONFIRM_GAP_MS = 400;
-
-/**
- * An address somebody typed, or null.
- *
- * Deliberately strict about the PORT and loose about the host: a host can be a
- * name, an IPv4, or a bracketed IPv6, and this side cannot tell a typo from a
- * hostname it has never heard of — the network will. A port is a number in a
- * known range, and getting that wrong means dialling nothing forever, which is
- * a row that reports an error every minute and can never come right.
- *
- * The last colon splits, not the first, so `[fe80::1]:5000` keeps its address.
- */
-export function parseAddress(raw: string): { addr: string; port: number } | null {
-  const s = (raw ?? "").trim();
-  const at = s.lastIndexOf(":");
-  if (at <= 0 || at === s.length - 1) return null;
-  const addr = s.slice(0, at).trim();
-  const port = Number(s.slice(at + 1).trim());
-  if (!addr || !Number.isInteger(port) || port < 1 || port > 65_535) return null;
-  // AN UNBRACKETED IPv6 ADDRESS SPLITS ON THE WRONG COLON. `fe80::1` parsed as
-  // the host `fe80:` on port 1 — a well-formed entry pointing at nothing, which
-  // the list then reports as a failure every minute and no correction can fix,
-  // because there is nothing visibly wrong with what was typed. Refused here so
-  // the dialog can say which of the two forms this deck dials.
-  if (addr.includes(":") && !(addr.startsWith("[") && addr.endsWith("]"))) return null;
-  return { addr, port };
-}
-
-/** Two lists of account keys, same members or not. Order is not meaning here:
- *  the server stores what it is sent, and the panel sends a Set. */
-export function sameKeys(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false;
-  const seen = new Set(a);
-  return b.every(k => seen.has(k));
-}
-
-/**
- * The list one tick in "Share these accounts" sends.
- *
- * Built from what the dialog last SENT while that is still unconfirmed, and
- * from the server's list otherwise. `status.shared` only moves once a write has
- * landed AND the poll after it has returned, so a second tick inside that window
- * built from the server's list would silently drop the first one's account.
- */
-export function nextShared(
-  pending: readonly string[] | null, server: readonly string[], key: string, checked: boolean,
-): string[] {
-  const next = new Set(pending ?? server);
-  if (checked) next.add(key); else next.delete(key);
-  return [...next];
-}
-
-/**
- * What the share boxes draw from after news arrives: the list last sent, or —
- * as null — the server's own.
- *
- * `lastWrite` is the answer to the newest share write, or null when the news
- * is only a fresh read of the server's list. Three outcomes:
- *
- *   * REFUSED, or never answered: the deck stored nothing, so the server's list
- *     is the truth again and the boxes go back to it (#1175). Keeping what was
- *     sent drew an unticked login as not offered while the deck went on
- *     offering it — and the next tick re-sent the refused state with it.
- *   * The server's list MATCHES what was sent: it has caught up, and the
- *     optimistic copy is retired.
- *   * Accepted but not matching yet: kept. The server stores the list it is
- *     sent as it is, so a list that still differs after an accepted write is a
- *     read that left before the write landed — and going back to it would let
- *     the next tick build from it, which is the race `nextShared` exists for.
- *
- * Hands back the very list it was given when it keeps it, so a caller can tell
- * by identity whether a newer tick has replaced it since.
- */
-export function settlePending<T extends readonly string[]>(
-  pending: T | null, server: readonly string[], lastWrite: { ok: boolean } | null,
-): T | null {
-  if (pending == null) return null;
-  if (lastWrite != null && !lastWrite.ok) return null;
-  if (sameKeys(pending, server)) return null;
-  return pending;
-}
-
-/** A countdown a person reads while somebody else is reading the token out. */
-export function leftLabel(expiresAt: number, now: number): string {
-  const s = Math.max(0, Math.round((expiresAt - now) / 1000));
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, "0")}`;
-}
 
 /** How long the pointer has to stay on the way-in row before the peek opens.
  *  A pointer crossing the foot of the panel on its way to something else is not
