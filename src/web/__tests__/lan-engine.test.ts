@@ -2437,24 +2437,40 @@ describe("the invite, and the half of it that was never checked", () => {
     // joiner that demanded the proof from every listener would break the
     // feature exactly then. The token says which kind of deck minted it, so
     // this degrades to the behaviour that shipped rather than refusing.
-    const a = await deck(store([]), "Minter", []);
+    //
+    // THE OLDER DECK IS PLAYED BY THE LISTENER ITSELF, handed six digits. Only
+    // a deck from before #1137 holds a code like that, and this version never
+    // mints one, so no engine here can stand in for it — the socket layer is
+    // the same wire every deck since the invite speaks, and it proves back only
+    // what the joiner asks it to check.
     const b = await deck(store([]), "Joiner", []);
-    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
-    const real = readInvite(a.e.invite().token);
-    const fresh = mintInvite({
-      addrs: real.addrs.map((x: { addr: string; port: number }) => `${x.addr}:${x.port}`),
-      name: "Minter", code: real.code,
+    const { readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
+    const older = identityFrom("");
+    const minter = createSyncServer({
+      fp: older.fp, pub: older.pub, secret: older.secret, name: "Minter", host: "127.0.0.1",
+      invite: () => ({ code: "482100", expiresAt: Date.now() + 60_000 }),
     });
-    // The same token as a previous release wrote it: no `pb`.
-    const body = JSON.parse(Buffer.from(
-      fresh.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
-    delete body.pb;
-    const old = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    running.push(minter);
+    const port = await minter.start();
+    // The token as a previous release wrote it: six digits and no `pb`.
+    const old = INVITE_PREFIX + Buffer.from(JSON.stringify({
+      v: PROTOCOL, a: [`127.0.0.1:${port}`], n: "Minter", c: "482100", x: Date.now() + 60_000,
+    }), "utf8").toString("base64url");
     expect(readInvite(old).provesBack).toBe(false);
 
     const res = await b.e.join(old);
     expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
-    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    expect(b.e.status().trusted).toMatchObject([{ fp: older.fp }]);
+
+    // AND ONLY AN OLDER DECK'S TOKEN READS THAT WAY. A token of this version,
+    // with the flag taken out on the way, still asks for the proof back: the
+    // code itself says which kind of deck minted it.
+    const a = await deck(store([]), "New minter", []);
+    const body = JSON.parse(Buffer.from(
+      a.e.invite().token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
+    delete body.pb;
+    const stripped = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    expect(readInvite(stripped).provesBack).toBe(true);
   }, 20_000);
 });
 

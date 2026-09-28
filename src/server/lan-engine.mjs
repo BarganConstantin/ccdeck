@@ -33,7 +33,7 @@ import {
   offered, open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
   trustedPeer,
 } from "./lan-sync.mjs";
-import { mintInvite, readInvite } from "./lan-invite.mjs";
+import { MAX_WRONG_PROOFS, mintInvite, readInvite } from "./lan-invite.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
@@ -812,11 +812,17 @@ export function createEngine({
     learned.set(`${addr}:${port}`, met);
   };
 
-  /** Somebody used the token. They are pinned, and the token is retired —
-   *  one that pairs twice is one worth stealing twice. */
+  /** Somebody used the token. It is retired — one that pairs twice is one
+   *  worth stealing twice — and they are pinned.
+   *
+   *  RETIRED FIRST, so nothing that goes wrong in the pairing after it can
+   *  leave a spent token live (#1137). The listener calls this for every
+   *  proof that holds, a deck it already had included; pinning one of those
+   *  again changes nothing but its name, and dialling it back is what joining
+   *  does on the other end too. */
   const inviteUsed = entry => {
-    const { list } = pin(entry);
     invite = null;
+    const { list } = pin(entry);
     // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
     // deck with no way to reach it: an inbound connection puts nothing in
     // the dial list. Without this the pairing is mutual in the trusted
@@ -824,6 +830,24 @@ export function createEngine({
     // it would be one-way again after the next restart.
     if (entry.addr && entry.port) keepDialling(entry.addr, entry.port, { fp: entry.fp, name: entry.name || "" });
     onTrust?.(list);
+    onChange?.();
+  };
+
+  /** Somebody presented a proof of the token that did not hold. Counted on
+   *  the invite, written to the log with where it came from, and at
+   *  MAX_WRONG_PROOFS the invite is put away (#1137) — the owner makes a new
+   *  one, which is one press, and the old one stops being something anybody
+   *  can keep working at. */
+  const wrongInvite = from => {
+    if (!invite) return;
+    const refused = (invite.refused ?? 0) + 1;
+    invite = { ...invite, refused };
+    const where = from?.addr || "an unknown address";
+    onError?.("invite", new Error(`a proof of this deck's invite from ${where} did not hold (${refused} of ${MAX_WRONG_PROOFS})`));
+    if (refused >= MAX_WRONG_PROOFS) {
+      invite = null;
+      onError?.("invite", new Error(`put the invite away after ${MAX_WRONG_PROOFS} proofs that did not hold; make a new one`));
+    }
     onChange?.();
   };
 
@@ -1433,6 +1457,7 @@ export function createEngine({
         trusted: () => cfg.trusted,
         invite: () => (invite && invite.expiresAt > now() ? invite : null),
         onInviteUsed: inviteUsed,
+        onWrongInvite: wrongInvite,
         // Asked before the request is drawn, so a deck that was told no is
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
@@ -1518,7 +1543,7 @@ export function createEngine({
       const addrs = localAddresses().map(a => `${a}:${port}`);
       const made = mintInvite({ addrs, name: cfg.name, now: now() });
       if (!made) return null;
-      invite = made;
+      invite = { ...made, refused: 0 };
       onChange?.();
       return { token: made.token, expiresAt: made.expiresAt, addrs };
     },
@@ -1839,9 +1864,11 @@ export function createEngine({
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
         // The token this deck is offering, if any. Drawn as the one thing to do
-        // when nobody is paired yet, and put away once somebody is.
+        // when nobody is paired yet, and put away once somebody is. With how
+        // many proofs of it have failed so far — the record beside the log's,
+        // see wrongInvite.
         invite: invite && invite.expiresAt > now()
-          ? { token: invite.token, expiresAt: invite.expiresAt }
+          ? { token: invite.token, expiresAt: invite.expiresAt, refused: invite.refused ?? 0 }
           : null,
         // Decks somebody accepted, decks that asked and have not been answered,
         // and decks merely heard. Three lists because they are three different

@@ -179,8 +179,14 @@ export function createSyncServer({
    *  on arrival rather than queued behind a press. */
   invite = () => null,
   /** One was used. The caller stores the pairing and retires the invite: a
-   *  token that pairs twice is a token worth stealing twice. */
+   *  token that pairs twice is a token worth stealing twice. Called for EVERY
+   *  proof that holds, a deck already paired included — see auth (#1137). */
   onInviteUsed,
+  /** A caller brought a proof of the invite this deck is offering, and it did
+   *  not hold. The caller counts it against the invite and puts the invite
+   *  away after a few — see MAX_WRONG_PROOFS. Told the caller's address and
+   *  who it says it is, which is what the record of it is for. */
+  onWrongInvite,
   /** A connection arrived, before anything about it is known — called with the
    *  address it came from and nothing else.
    *
@@ -464,10 +470,21 @@ export function createSyncServer({
       // socket table one scope out is also `live`, and widening this block
       // widened the shadow with it.
       const offer = invite();
+      const brought = typeof msg.invite === "string";
       // Over the transcript the key came from — the ephemeral keys in it
       // when the two mix — which is the string the dialler proved over too.
-      const heldInvite = !!offer && typeof msg.invite === "string"
-        && proofOk(inviteProof(offer.code, transcript), msg.invite);
+      const heldInvite = !!offer && brought && proofOk(inviteProof(offer.code, transcript), msg.invite);
+      // A PROOF THAT DID NOT HOLD, against an invite that is live (#1137).
+      // Counted against that invite, which is put away after a few, and
+      // refused by name rather than read as a caller that brought nothing:
+      // that used to make a wrong token a pairing request here, and on the
+      // caller's screen "waiting for them to say yes" about a question
+      // nobody was going to be asked. With no invite live there is nothing
+      // to count against, and the caller is answered as it always was.
+      if (offer && brought && !heldInvite) {
+        onWrongInvite?.({ fp: peerFp, name: peerName, addr: from(sock) });
+        return refuse("wrong invite");
+      }
       // AND THE CODE, BACK. The session proof says "I hold the private half
       // of the key I just showed you", which anything with a socket can say.
       // This says "I am the deck whose owner minted that token", which only
@@ -475,24 +492,32 @@ export function createSyncServer({
       // check against, so it is the only thing standing between an invite
       // address and whoever else is reachable there.
       const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
+      // SPENT BY ANY PROOF THAT HOLDS, known deck or not (#1137). This was
+      // asked only on the stranger's path below, so a deck already on the list
+      // was shown the proof back and the token stayed live for the rest of its
+      // ten minutes — and "already on the list" includes a deck whose first
+      // pairing dropped out after this very proof, which is exactly the deck
+      // that comes back with a fresh invite. Whether the caller was known
+      // decides nothing about whether the token has been used; it has. So
+      // there is nothing to press, either: the deck is pinned here.
+      if (heldInvite) {
+        onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
+        welcome(back);
+        return;
+      }
       if (!known) {
-        if (heldInvite) {
-          // So there is nothing to press: the deck is pinned here.
-          onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
-          welcome(back);
-          return;
-        }
         // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
         // It is not asked again here, and — the half a held refusal cannot
         // do — the deck that asked is told, so its own panel can stop saying
         // "waiting" about a question that has been answered.
         if (declined(peerFp)) return refuse("declined");
-        // AN INVITE-ONLY DECK, and this caller brought none (a caller that
-        // did was paired above). Answered rather than queued: the engine
-        // records no request in this mode, so "pending" would leave the other
-        // deck's panel saying "waiting for them to say yes" about a question
-        // nobody here will ever see. After "declined", which is the more
-        // specific answer about this one deck.
+        // AN INVITE-ONLY DECK, and this caller holds no live invite of it (a
+        // caller that did was paired above, and one that got it wrong was
+        // refused). Answered rather than queued: the engine records no
+        // request in this mode, so "pending" would leave the other deck's
+        // panel saying "waiting for them to say yes" about a question nobody
+        // here will ever see. After "declined", which is the more specific
+        // answer about this one deck.
         if (inviteOnly()) return refuse("invite only");
         // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
         // addresses it already had, because an invite-paired deck is one of
@@ -516,11 +541,10 @@ export function createSyncServer({
       }
 
       // And ours, so the caller knows it reached the deck it pinned rather
-      // than something standing in the way of one. Plus the invite, when one
-      // was presented and held: a deck already on this list is not a reason
-      // to leave a caller's question unanswered. Nothing is retired on this
-      // path — nobody was paired, because they already were.
-      welcome(back);
+      // than something standing in the way of one. No invite on this path: a
+      // caller that held one was answered above, and a deck already on this
+      // list that holds no live one is simply a paired deck calling.
+      welcome({});
     };
 
     sock.on("data", frameReader(msg => {
@@ -665,6 +689,7 @@ const REFUSALS = Object.freeze({
   // is about the caller's own setting — the same words its own round uses.
   "not asking": "this deck pairs only by invite",
   impostor: "that deck has this one pinned under a different key",
+  "wrong invite": "that deck did not take this invite — ask them for a new one",
   "bad proof": "the other deck refused this one's proof",
 });
 

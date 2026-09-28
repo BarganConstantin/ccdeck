@@ -17,7 +17,9 @@
 // proves it holds the invite is not a stranger asking to be let in — it is
 // somebody the owner of this machine handed a token to. So it is paired on
 // arrival and nobody presses accept. That also closes the gap trust-on-first-use
-// left open: the first contact is verified rather than believed.
+// left open: the first contact is verified rather than believed — for as long
+// as the code cannot be guessed, which is why it is 128 random bits and not
+// something a person would type (#1137; see inviteCode).
 //
 // THE TOKEN IS THE SECRET, said plainly rather than implied. Whoever holds it
 // can pair with this deck until it expires. It is a door key with a timer, not
@@ -36,6 +38,17 @@ export const INVITE_MS = 10 * 60 * 1000;
  *  hand-built token from being a way to make this deck dial a list. */
 export const MAX_INVITE_ADDRS = 10;
 
+/** How many proofs of one invite may fail before it is put away (#1137).
+ *
+ *  Not a guard on the code — 128 bits is not something a few more tries get
+ *  any nearer — but a bound on how long a live invite can be worked at, and a
+ *  signal: a token presented wrong this often is circulating in some form
+ *  nobody here handed out, and the owner is better off making another. Five
+ *  rather than one, because one honest paste can reach the deck at several of
+ *  its addresses and an old token pasted by mistake should not cost the new
+ *  one. */
+export const MAX_WRONG_PROOFS = 5;
+
 /** What the token starts with, so a reader can tell at a glance what they have
  *  been sent and a wrong paste is refused before it is parsed. */
 export const INVITE_PREFIX = "ccdeck1.";
@@ -43,28 +56,46 @@ export const INVITE_PREFIX = "ccdeck1.";
 const b64url = buf => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64url = str => Buffer.from(str.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 
+/** How many random bytes an invite's code is: 128 bits, which is past anything
+ *  that can be counted through. See inviteCode. */
+export const INVITE_CODE_BYTES = 16;
+
+/** The code in a token this version mints: INVITE_CODE_BYTES in base64url,
+ *  which is 22 characters and no padding. */
+const CODE = /^[A-Za-z0-9_-]{22}$/;
+
+/** The code in a token an OLDER deck minted: six digits. Read, so a deck of
+ *  this version can still join one — never minted, so this deck never holds
+ *  one. See readInvite. */
+const OLDER_CODE = /^[0-9]{6}$/;
+
 /**
- * A code somebody could read out loud if they had to.
+ * The invite's secret: 128 bits from the system's random source, spelled in
+ * base64url so it rides in the token as 22 characters.
  *
- * Six digits, from rejection sampling rather than modulo — the same argument
- * the word list made and for the same reason: a bias here is a bias in the one
- * number that decides whether a stranger can pair.
+ * IT WAS SIX DIGITS, "a code somebody could read out loud if they had to", and
+ * nobody ever had to: the panel shows the whole token to copy, and `join` reads
+ * the code out of the pasted token and nowhere else. Six digits is about twenty
+ * bits, which a laptop counts through in a second, and both handshake proofs
+ * are made over the code and a transcript that crosses the wire — so the
+ * proofs kept the code only as well as it could not be guessed (#1137). A
+ * secret nobody types can be as long as it needs to be.
+ *
+ * The bytes go into the code as they came, with nothing reduced or sampled
+ * away, so every bit of it is the random source's.
  */
 export function inviteCode(rand = randomBytes) {
-  let out = "";
-  while (out.length < 6) {
-    for (const b of rand(12)) {
-      if (b >= 250) continue;            // 250 = 25 * 10, the largest clean multiple
-      out += String(b % 10);
-      if (out.length === 6) break;
-    }
-  }
-  return out;
+  return b64url(rand(INVITE_CODE_BYTES));
 }
 
 /** Mint one. `addrs` are already `host:port` strings, because which addresses
- *  this machine has is not a question this file can answer. */
+ *  this machine has is not a question this file can answer.
+ *
+ *  Never with an older deck's six digits, even when handed one: a code that
+ *  can be counted through, held by this deck, is exactly what #1137 retired.
+ *  A code that is not this version's kind is refused rather than used. */
 export function mintInvite({ addrs, name, now = Date.now(), code = inviteCode() } = {}) {
+  if (typeof code !== "string" || !CODE.test(code)) return null;
   const list = (Array.isArray(addrs) ? addrs : []).filter(a => typeof a === "string" && a).slice(0, MAX_INVITE_ADDRS);
   if (!list.length) return null;
   const expiresAt = now + INVITE_MS;
@@ -80,6 +111,12 @@ export function mintInvite({ addrs, name, now = Date.now(), code = inviteCode() 
   // code; whoever can rewrite it already holds the code and has no use for
   // this. What the flag can do is say "the deck that minted me is old", and the
   // worst that buys is the behaviour shipped today.
+  //
+  // SINCE #1137 THE CODE SAYS IT TOO. A token with this version's code was
+  // minted by a deck that proves back, so readInvite asks for the proof from
+  // one whether or not `pb` survived the trip. The flag stays for what it
+  // always meant; a token without it can only ever lower the bar for a token
+  // an older deck minted.
   const body = { v: PROTOCOL, a: list, n: cleanName(name), c: code, x: expiresAt, pb: 1 };
   return { token: INVITE_PREFIX + b64url(Buffer.from(JSON.stringify(body), "utf8")), code, expiresAt };
 }
@@ -103,7 +140,14 @@ export function readInvite(raw, now = Date.now()) {
   catch { return null; }
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   if (body.v !== PROTOCOL) return null;
-  if (typeof body.c !== "string" || !/^[0-9]{6}$/.test(body.c)) return null;
+  // THIS VERSION'S CODE, OR AN OLDER DECK'S SIX DIGITS. Every deck before
+  // #1137 mints six digits and refuses any other code, so a token from one of
+  // those still joins here, while a token from this version is refused THERE
+  // as not an invite, before that deck dials anything. This deck never mints
+  // six digits — see mintInvite — so the older kind only ever names a deck
+  // that is older.
+  const ours = typeof body.c === "string" && CODE.test(body.c);
+  if (!ours && !(typeof body.c === "string" && OLDER_CODE.test(body.c))) return null;
   if (typeof body.x !== "number" || !Number.isFinite(body.x)) return null;
   // Expired is its own answer and the caller says so — "that invite has run
   // out, ask for a new one" is a different instruction from "that is not an
@@ -121,8 +165,9 @@ export function readInvite(raw, now = Date.now()) {
     addrs, name: cleanName(body.n), code: body.c, expiresAt: body.x, expired,
     // Whether the deck that minted this will prove it holds the code — see
     // mintInvite. Absent means a deck older than that, and the caller degrades
-    // to what it did before rather than refusing the token.
-    provesBack: body.pb === 1,
+    // to what it did before rather than refusing the token. Always so for this
+    // version's code, which only a deck that proves back mints.
+    provesBack: ours || body.pb === 1,
   };
 }
 
