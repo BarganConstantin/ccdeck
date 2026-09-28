@@ -38,7 +38,7 @@ import {
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { sweepTick } from "./prune";
-import { removalsLiftedByWork, removalTimes, sessionsCalledBack, visibleBoard } from "./remove-node";
+import { visibleBoard } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -51,7 +51,7 @@ import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
 import { useAutoFit } from "./use-auto-fit";
 import { layoutSignature } from "./layout-signature";
-import { useRemovals } from "./use-removals";
+import { useRemovalCallBacks, useRemovals } from "./use-removals";
 import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
@@ -888,21 +888,9 @@ function Inner() {
     () => blockedSessions(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
   );
-  // Brought back rather than filtered out: see sessionsCalledBack. Filtering
-  // would leave the alarm counting one fewer than the sessions actually stuck.
-  // A removed card that goes back to work is brought back the same way, and
-  // through the same bringBack, so the restore is saved and a reload does not
-  // hide it again (#1315): see removalsLiftedByWork, and removalTimes for when
-  // its work starts to count.
-  const removedSinceRef = useRef<ReadonlyMap<string, number>>(new Map());
-  useEffect(() => {
-    removedSinceRef.current = removalTimes(removedSinceRef.current, removedNodes, Date.now());
-    const back = [
-      ...sessionsCalledBack(waitingSessions, removedAgentIds),
-      ...removalsLiftedByWork(stateRef.current.agents, removedAgentIds, removedNodes, removedSinceRef.current),
-    ];
-    if (back.length > 0) bringBack(back);
-  }, [waitingSessions, removedAgentIds, removedNodes, bringBack]);
+  // A removed session that starts waiting or working again comes back —
+  // use-removals.ts.
+  useRemovalCallBacks({ stateRef, waitingSessions, removedAgentIds, removedNodes, bringBack });
   // The tab strip's title and icon, which say what the deck says while it is
   // not on screen — use-tab-ambient.ts.
   useTabAmbient({ stateRef, waitingSessions, live });
