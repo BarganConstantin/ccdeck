@@ -4,11 +4,15 @@
 // The files under this one hold everything that can be reasoned about without
 // a network — lan-sync.mjs and lan-invite.mjs decide, lan-beacon.mjs and
 // lan-socket.mjs carry — and what is left here is the part that has to touch
-// the store. A few pieces of the engine's own state live beside it, each
-// behind named operations createEngine calls: the line every round waits in
-// (lan-turns.mjs), the invite on offer (lan-invite-offer.mjs), when the
-// tailnet is read (lan-tailnet-poll.mjs), and what a deck that cannot hear
-// says (lan-hearing.mjs).
+// the store. The engine's own state lives beside it, each piece behind named
+// operations createEngine calls: the decks waiting on somebody here and when a
+// switch answers them (lan-requests.mjs), the addresses it dials and what
+// answered at each (lan-dials.mjs), what a manifest says and what is kept of
+// one heard (lan-manifest.mjs), the store's rows in the rules' shape
+// (lan-accounts.mjs), the line every round waits in (lan-turns.mjs), the
+// invite on offer (lan-invite-offer.mjs), when the tailnet is read
+// (lan-tailnet-poll.mjs), and what a deck that cannot hear says
+// (lan-hearing.mjs).
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
 //
