@@ -445,6 +445,82 @@ function changedFrom(before, after) {
 }
 
 /**
+ * The feed's line for one read of one profile, and the running count its delta
+ * is taken against.
+ *
+ * One function because it is one rule: the delta is computed against the same
+ * map it then writes, so the deltas the feed shows add up to the total the
+ * overview shows (#989). A degraded read says why, a cached one — the file has
+ * not moved — says nothing at all, and a real read says what it added, if it
+ * added anything. `key` is the profile's browser/profile, the key `_lastCount`
+ * and `_lastRead` are kept under.
+ */
+function noteRead(profile, key, read, findings, now) {
+  const where = `${profile.name}/${profile.profile}`;
+  if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
+  // A poll that found the file unchanged says nothing at all.
+  else if (read.cached) { /* silent */ }
+  else {
+    // `, 0 flagged` on every line is what made them all look alike: the
+    // count that matters is the one that is not zero, and printing the zero
+    // beside it buried the difference. Absence is the message.
+    // THE DELTA, NOT THE RUNNING TOTAL. `n` is every visit since this deck
+    // started, so re-reporting it made the feed a counter dressed as a log:
+    // "2 visits", "4 visits", "7 visits" are not three events of those
+    // sizes, they are one number growing. Each row is now a discrete fact —
+    // what this browser added since the last time the file moved — which is
+    // what a log line is supposed to be.
+    //
+    // And a read that added nothing says nothing. Chrome touches this file
+    // for reasons of its own, so an mtime that moved is not proof that
+    // anything happened; only a row count that grew is.
+    //
+    // THE COUNT, NOT THE ROWS, SINCE #989. The rows were the running total
+    // while every read began at the deck's start. Now they are only what is
+    // newer than the last read, and a cleared history returns none of them —
+    // the same answer a quiet minute gives — so the fall below could never
+    // be seen. `read.total` is the running total again, counted above the
+    // deck's start from the same copy. With no count to go on (a sqlite3 that
+    // printed it some other way) the rows are what is known to have been
+    // added, and that is never mistaken for a fall.
+    const n = read.total ?? (_lastCount.get(key) ?? 0) + read.rows.length;
+    const added = n - (_lastCount.get(key) ?? 0);
+    _lastCount.set(key, n);
+    if (added < 0) {
+      // THE COUNT WENT DOWN, which within one deck's run means one thing:
+      // the browsing history was truncated or cleared. Swallowing it broke
+      // the panel's own arithmetic — the deltas in the feed would no longer
+      // telescope to the total in the overview — and it hid the exact event
+      // this watch is built around. Whoever can drive this browser can clear
+      // its history with the same button the user has, and that is the one
+      // action that destroys the evidence.
+      note("warn",
+           `${where} — history shrank by ${(-added).toLocaleString("en-US")}; it was cleared or trimmed`, now,
+           {
+             browser: profile.name,
+             profile: profile.profile,
+             value: `${added.toLocaleString("en-US")} entries`,
+             flagged: 0,
+           });
+    } else if (added > 0 || findings.length > 0) {
+      const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
+      note(findings.length > 0 ? "find" : "ok",
+           `${where} — ${added.toLocaleString("en-US")} new entr${added === 1 ? "y" : "ies"}${found}`, now,
+           {
+             browser: profile.name,
+             profile: profile.profile,
+             // `+` because the whole point of the change was that this is a
+             // DELTA and not a total, and a bare number in a column of
+             // numbers reads as a quantity of something rather than as
+             // growth. The noun matches the overview's caption above it.
+             value: `+${added.toLocaleString("en-US")} ${added === 1 ? "entry" : "entries"}`,
+             flagged: findings.length,
+           });
+    }
+  }
+}
+
+/**
  * Everything the panel draws, in one object.
  *
  * `deckOrigins` are the addresses this deck is listening on. They are excluded
@@ -567,7 +643,7 @@ export async function browserWatchSnapshot({
   for (const profile of profiles) {
     // From where this profile's last read finished, or from the deck's start
     // on its first. The count is always taken above the deck's start, which
-    // is what makes it the running total the delta below comes out of.
+    // is what makes it the running total noteRead's delta comes out of.
     const floor = _floor.get(profile.historyPath) ?? sinceChromeTime;
     let read = await visitsFor(profile, { sinceChromeTime: floor, countSince: sinceChromeTime, copyDir, deps });
     // A READ THAT ANOTHER READ OVERTOOK IS NOT ABSORBED (#1131). One read in
@@ -617,68 +693,7 @@ export async function browserWatchSnapshot({
     }
     const findings = seen.settled.concat(seen.open);
     const { oldest, human, byProgram } = seen;
-    const where = `${profile.name}/${profile.profile}`;
-    if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
-    // A poll that found the file unchanged says nothing at all.
-    else if (read.cached) { /* silent */ }
-    else {
-      // `, 0 flagged` on every line is what made them all look alike: the
-      // count that matters is the one that is not zero, and printing the zero
-      // beside it buried the difference. Absence is the message.
-      // THE DELTA, NOT THE RUNNING TOTAL. `n` is every visit since this deck
-      // started, so re-reporting it made the feed a counter dressed as a log:
-      // "2 visits", "4 visits", "7 visits" are not three events of those
-      // sizes, they are one number growing. Each row is now a discrete fact —
-      // what this browser added since the last time the file moved — which is
-      // what a log line is supposed to be.
-      //
-      // And a read that added nothing says nothing. Chrome touches this file
-      // for reasons of its own, so an mtime that moved is not proof that
-      // anything happened; only a row count that grew is.
-      //
-      // THE COUNT, NOT THE ROWS, SINCE #989. The rows were the running total
-      // while every read began at the deck's start. Now they are only what is
-      // newer than the last read, and a cleared history returns none of them —
-      // the same answer a quiet minute gives — so the fall below could never
-      // be seen. `read.total` is the running total again, counted above the
-      // deck's start from the same copy. With no count to go on (a sqlite3 that
-      // printed it some other way) the rows are what is known to have been
-      // added, and that is never mistaken for a fall.
-      const n = read.total ?? (_lastCount.get(key) ?? 0) + read.rows.length;
-      const added = n - (_lastCount.get(key) ?? 0);
-      _lastCount.set(key, n);
-      if (added < 0) {
-        // THE COUNT WENT DOWN, which within one deck's run means one thing:
-        // the browsing history was truncated or cleared. Swallowing it broke
-        // the panel's own arithmetic — the deltas in the feed would no longer
-        // telescope to the total in the overview — and it hid the exact event
-        // this watch is built around. Whoever can drive this browser can clear
-        // its history with the same button the user has, and that is the one
-        // action that destroys the evidence.
-        note("warn",
-             `${where} — history shrank by ${(-added).toLocaleString("en-US")}; it was cleared or trimmed`, now,
-             {
-               browser: profile.name,
-               profile: profile.profile,
-               value: `${added.toLocaleString("en-US")} entries`,
-               flagged: 0,
-             });
-      } else if (added > 0 || findings.length > 0) {
-        const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
-        note(findings.length > 0 ? "find" : "ok",
-             `${where} — ${added.toLocaleString("en-US")} new entr${added === 1 ? "y" : "ies"}${found}`, now,
-             {
-               browser: profile.name,
-               profile: profile.profile,
-               // `+` because the whole point of the change was that this is a
-               // DELTA and not a total, and a bare number in a column of
-               // numbers reads as a quantity of something rather than as
-               // growth. The noun matches the overview's caption above it.
-               value: `+${added.toLocaleString("en-US")} ${added === 1 ? "entry" : "entries"}`,
-               flagged: findings.length,
-             });
-      }
-    }
+    noteRead(profile, key, read, findings, now);
     allFindings = allFindings.concat(findings);
     if (oldest !== null && (oldestSeen === null || oldest < oldestSeen)) oldestSeen = oldest;
     if (human !== null && (lastHuman === null || human > lastHuman)) lastHuman = human;
