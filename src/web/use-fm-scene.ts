@@ -9,10 +9,11 @@
 // component draws whatever this says.
 import { useEffect, useRef, useState } from "react";
 import {
-  ballRollTo, BEAT_MS, crossSteps, facingFor, nextActivity, nextDance, nextDanceMs, nextIdleMs,
+  ballRollTo, crossSteps, facingFor, nextActivity, nextIdleMs,
   walkMsFor, WALK_MIN_MS, WALK_SPAN_PX,
-  type Act, type Dance, type Facing, type Ground, type Obstacle, type Place, type Prop, type Step,
+  type Act, type Facing, type Ground, type Obstacle, type Place, type Prop, type Step,
 } from "./claude-fm";
+import { BEAT_MS, nextDance, nextDanceMs, type Dance } from "./claude-fm-dance";
 import { createSceneTimer } from "./claude-fm-runtime";
 import type { Probe } from "./use-fm-player";
 

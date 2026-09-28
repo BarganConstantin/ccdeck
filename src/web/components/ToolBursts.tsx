@@ -156,64 +156,64 @@ function sameBubble(p: BubbleProps, q: BubbleProps): boolean {
  *  ticks four times a second and every Burst is rebuilt; a bubble none of whose
  *  drawn values changed now stays exactly as it is. */
 const Bubble = memo(function Bubble({ b, x, y, zoom, dim, onOpenTool }: BubbleProps) {
-        const px = b.worldX * zoom + x;
-        const py = b.worldY * zoom + y;
-        const wrapStyle: React.CSSProperties & Record<string, string> = {
-          left: `${px}px`,
-          top: `${py}px`,
-          transform: `scale(${zoom})`,
-          transformOrigin: "left top",
-          "--spawn-dx": `${b.spawnDx}px`,
-          "--spawn-dy": `${b.spawnDy}px`,
-        };
-        // Tooltip always shows the underlying tool (Bash/PowerShell/…) so
-        // the transport is never hidden, plus the input preview when present.
-        // A sub's word is the uncut one: the tooltip is where a cut name is
-        // read in full.
-        const titleHead = b.isSub ? `${b.toolName} · ${b.fullName ?? b.name}` : b.toolName;
-        const title = b.inputPreview ? `${titleHead} · ${b.inputPreview}` : titleHead;
-        const clickable = onOpenTool != null;
-        // For unknown MCP servers we hand the sheet the hashed hue and let
-        // .tool-burst.cat-mcp.mcp-hue build --cat-accent from it, so the same
-        // server reads the same on either canvas — the literal colour that
-        // used to be here was 1.40:1 on a white bubble at its worst hue.
-        const innerStyle: React.CSSProperties & Record<string, string | number> = b.mcpHue != null
-          ? { "--mcp-hue": b.mcpHue }
-          : {};
-        const dimClass = dim ? " dim" : "";
-        return (
-          <div className="tool-burst-wrap" style={wrapStyle}>
-            {/* Decoration, and now honest about it.
+  const px = b.worldX * zoom + x;
+  const py = b.worldY * zoom + y;
+  const wrapStyle: React.CSSProperties & Record<string, string> = {
+    left: `${px}px`,
+    top: `${py}px`,
+    transform: `scale(${zoom})`,
+    transformOrigin: "left top",
+    "--spawn-dx": `${b.spawnDx}px`,
+    "--spawn-dy": `${b.spawnDy}px`,
+  };
+  // Tooltip always shows the underlying tool (Bash/PowerShell/…) so
+  // the transport is never hidden, plus the input preview when present.
+  // A sub's word is the uncut one: the tooltip is where a cut name is
+  // read in full.
+  const titleHead = b.isSub ? `${b.toolName} · ${b.fullName ?? b.name}` : b.toolName;
+  const title = b.inputPreview ? `${titleHead} · ${b.inputPreview}` : titleHead;
+  const clickable = onOpenTool != null;
+  // For unknown MCP servers we hand the sheet the hashed hue and let
+  // .tool-burst.cat-mcp.mcp-hue build --cat-accent from it, so the same
+  // server reads the same on either canvas — the literal colour that
+  // used to be here was 1.40:1 on a white bubble at its worst hue.
+  const innerStyle: React.CSSProperties & Record<string, string | number> = b.mcpHue != null
+    ? { "--mcp-hue": b.mcpHue }
+    : {};
+  const dimClass = dim ? " dim" : "";
+  return (
+    <div className="tool-burst-wrap" style={wrapStyle}>
+      {/* Decoration, and now honest about it.
 
-                Every clickable bubble used to be a role="button" tabIndex={0}
-                with a carefully written aria-label, inside a layer marked
-                aria-hidden — the classic focusable-inside-aria-hidden failure,
-                and at the scale this layer works at: a live deck put 105 of the
-                page's 166 focusables in here, so two thirds of the tab order
-                was stops that announce as nothing and expire on their own
-                timer while the user is tabbing through them.
+          Every clickable bubble used to be a role="button" tabIndex={0}
+          with a carefully written aria-label, inside a layer marked
+          aria-hidden — the classic focusable-inside-aria-hidden failure,
+          and at the scale this layer works at: a live deck put 105 of the
+          page's 166 focusables in here, so two thirds of the tab order
+          was stops that announce as nothing and expire on their own
+          timer while the user is tabbing through them.
 
-                Of the two ways out, this is the one the layer's own behaviour
-                already argues for. The bubbles are a transient trace of what
-                each agent just ran; they fade, they move with the viewport, and
-                they are a second view of the tools the detail panel lists as
-                real <button>s (ToolRow), which is where a keyboard reaches the
-                exact same modal with a stable, ordered, announced list. So the
-                mouse affordance stays — hover, cursor and onClick are
-                untouched — and the accessibility tree keeps the one statement
-                that was already true about this layer. */}
-            <div
-              className={`tool-burst cat-${b.category}${b.mcpHue != null ? " mcp-hue" : ""} status-${b.status}${b.fading ? " fading" : ""}${clickable ? " clickable" : ""}${b.isSub ? " sub" : ""}${dimClass}`}
-              style={innerStyle}
-              title={title}
-              onClick={clickable ? () => onOpenTool!(b.agentId, b.toolId) : undefined}
-            >
-              <span className="tb-emoji">{b.emoji}</span>
-              <span className="tb-name">{b.name}</span>
-              {b.status === "inflight" && <span className="tb-spin" />}
-              {b.status === "done" && <span className="tb-mark done">✓</span>}
-              {b.status === "err" && <span className="tb-mark err">×</span>}
-            </div>
-          </div>
-        );
+          Of the two ways out, this is the one the layer's own behaviour
+          already argues for. The bubbles are a transient trace of what
+          each agent just ran; they fade, they move with the viewport, and
+          they are a second view of the tools the detail panel lists as
+          real <button>s (ToolRow), which is where a keyboard reaches the
+          exact same modal with a stable, ordered, announced list. So the
+          mouse affordance stays — hover, cursor and onClick are
+          untouched — and the accessibility tree keeps the one statement
+          that was already true about this layer. */}
+      <div
+        className={`tool-burst cat-${b.category}${b.mcpHue != null ? " mcp-hue" : ""} status-${b.status}${b.fading ? " fading" : ""}${clickable ? " clickable" : ""}${b.isSub ? " sub" : ""}${dimClass}`}
+        style={innerStyle}
+        title={title}
+        onClick={clickable ? () => onOpenTool!(b.agentId, b.toolId) : undefined}
+      >
+        <span className="tb-emoji">{b.emoji}</span>
+        <span className="tb-name">{b.name}</span>
+        {b.status === "inflight" && <span className="tb-spin" />}
+        {b.status === "done" && <span className="tb-mark done">✓</span>}
+        {b.status === "err" && <span className="tb-mark err">×</span>}
+      </div>
+    </div>
+  );
 }, sameBubble);
