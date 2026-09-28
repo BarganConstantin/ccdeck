@@ -12,7 +12,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
-import { clientText } from "./client-source";
+import { clientText, WEB_DIR } from "./client-source";
+import { LAN_SECTION_FILES } from "./lan-section-surface";
 import {
   leftLabel, parseAddress, nextShared, sameKeys, settlePending,
 } from "../components/LanSyncSection";
@@ -60,14 +61,12 @@ const LIST = readFileSync(fileURLToPath(new URL("../components/LanDeckList.tsx",
 /** The section's whole surface: the component and the files lifted out of it,
  *  comments gone the same way. Every rule below that says what the section
  *  never does reads all of it, so that moving a piece into a file of its own
- *  cannot move it out from under the rule. */
-const SURFACE = [
-  CODE,
-  HOOK,
-  LIST,
-  readFileSync(fileURLToPath(new URL("../components/LanPeek.tsx", import.meta.url)), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "),
-].join("\n");
+ *  cannot move it out from under the rule. The list is lan-section-surface.ts,
+ *  so a file lifted out of the section joins every such sweep at once; each
+ *  file is stripped on its own, as each always was. */
+const SURFACE = LAN_SECTION_FILES
+  .map(rel => readFileSync(`${WEB_DIR}${rel}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "))
+  .join("\n");
 
 const NOW = 1_700_000_000_000;
 

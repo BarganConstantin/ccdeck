@@ -39,6 +39,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { checkedLabel, type DeckRow, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
 import type { LanAccount, LanTailscale } from "../lan-types";
 import { armedPress } from "../panel-press";
+import { PEEK_DELAY_MS, useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
@@ -65,22 +66,13 @@ export { exchangeLanes, type Lane, versionOrder } from "../lan-exchange";
 export { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, writeFailure } from "../use-lan-section";
 export { nextShared, sameKeys, settlePending } from "../lan-share";
 export { leftLabel, parseAddress } from "../lan-add-deck";
+export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
 
 /** The shortest gap between arming `unpair` and confirming it that counts as
  *  two decisions. A double-click on the right end of a row armed the verb and
  *  confirmed it in one gesture, and its second press lands before anybody
  *  could have read `confirm` — so a press sooner than this is not an answer. */
 export const CONFIRM_GAP_MS = 400;
-
-/** How long the pointer has to stay on the way-in row before the peek opens.
- *  A pointer crossing the foot of the panel on its way to something else is not
- *  asking a question, and a card that flashes at every crossing is noise. */
-export const PEEK_DELAY_MS = 160;
-/** How long the card outlives the pointer leaving it, or the row. Enough to
- *  cross the 4px between the two and to leave by the shortest way without the
- *  card blinking; short enough that a card nobody wants is gone before it is
- *  noticed. */
-export const PEEK_GRACE_MS = 140;
 
 /**
  * What to say when this machine sends its local network through a tunnel. The
@@ -128,14 +120,8 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  each machine. Opened from a press only — the card while the section is
    *  off, and the word under an empty list — never from a flag. */
   const [guideOpen, setGuideOpen] = useState(false);
-  /** Whether the peek is showing — who is on, beside the way-in row. Only the
-   *  accounts view has that row; in this section's own view the list is the
-   *  answer and the card would be saying it twice. */
-  const [peek, setPeek] = useState(false);
-  /** The hover's delay, held so a pointer that leaves before it fires cancels
-   *  it rather than opening a card behind the pointer. */
-  const peekTimer = useRef(0);
-  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
+  // The peek beside the way-in row, and the one timer that opens and shuts it.
+  const { peek, openPeek, shutPeek, holdPeek, dropPeek } = useHoverPeek();
   /** Whether the decks that are not on are showing. Shut by default and kept
    *  for the session only: which decks are off changes while you watch, and a
    *  remembered fold would be about a list that no longer exists. */
@@ -288,28 +274,6 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   // stays with it, so a request or a failure that arrives while the reader is on
   // the accounts is still announced.
   if (!view) {
-    // The peek's verbs. One timer does all three, because only one of them can
-    // be pending at a time: a pointer arriving cancels a shut, a pointer
-    // leaving cancels an open.
-    const openPeek = (delay: number) => {
-      window.clearTimeout(peekTimer.current);
-      peekTimer.current = window.setTimeout(() => setPeek(true), delay);
-    };
-    // NOT AT ONCE. The card opens 4px from the row, and a pointer moving onto
-    // it crosses those 4px of nothing — an immediate shut there closed the card
-    // under a pointer that was on its way into it, which is the one move a
-    // reader makes after seeing a list appear. The grace is what makes the gap
-    // crossable; it is also what lets the pointer leave by the shortest way
-    // without the card flickering behind it.
-    const shutPeek = () => {
-      window.clearTimeout(peekTimer.current);
-      peekTimer.current = window.setTimeout(() => setPeek(false), PEEK_GRACE_MS);
-    };
-    // The pointer is on the card: whatever was pending, it is not wanted.
-    const holdPeek = () => window.clearTimeout(peekTimer.current);
-    // The press is leaving this view for the section's own. No grace: the card
-    // would outlive the view it belongs to.
-    const dropPeek = () => { window.clearTimeout(peekTimer.current); setPeek(false); };
     return (
       <div className="ap-foot">
         <button type="button" id="ap-lan-entry" className="ap-nav"

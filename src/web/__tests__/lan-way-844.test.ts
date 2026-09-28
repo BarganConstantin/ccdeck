@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { entryLine, type DeckRow } from "../lan-roster";
 import { accountsSurface } from "./accounts-surface";
+import { lanSectionSurface } from "./lan-section-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
@@ -24,6 +25,9 @@ const lan = read("../components/LanSyncSection.tsx");
 const card = read("../components/LanPeek.tsx");
 /** The view's rows, which the section draws through a list of their own. */
 const list = read("../components/LanDeckList.tsx");
+/** The card's timing — whether it is showing, its one timer and the verbs the
+ *  row calls — which moved out of the section into a hook of its own. */
+const peekHook = read("../use-hover-peek.ts");
 const guide = read("../components/guide-art.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -181,9 +185,9 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
     // A pointer that leaves before the delay fires cancels it, rather than
     // opening a card the pointer has already walked away from. One timer does
     // open, shut and hold, because only one of them can ever be pending.
-    expect(lan).toMatch(/peekTimer\.current = window\.setTimeout\(\(\) => setPeek\(false\), PEEK_GRACE_MS\);/);
-    expect(lan).toMatch(/const holdPeek = \(\) => window\.clearTimeout\(peekTimer\.current\);/);
-    expect(lan).toMatch(/useEffect\(\(\) => \(\) => window\.clearTimeout\(peekTimer\.current\), \[\]\);/);
+    expect(peekHook).toMatch(/peekTimer\.current = window\.setTimeout\(\(\) => setPeek\(false\), PEEK_GRACE_MS\);/);
+    expect(peekHook).toMatch(/const holdPeek = \(\) => window\.clearTimeout\(peekTimer\.current\);/);
+    expect(peekHook).toMatch(/useEffect\(\(\) => \(\) => window\.clearTimeout\(peekTimer\.current\), \[\]\);/);
   });
 
   it("is told to a screen reader too, and only while the card is there", () => {
@@ -192,7 +196,7 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
     // not something a reader can be stuck inside, and App.tsx stays the one
     // place that reads that key. Held by modal-dismiss.test.ts for every
     // component; said here because this is the surface that raised it.
-    for (const src of [lan, card]) expect(src).not.toMatch(/"Escape"/);
+    expect(lanSectionSurface()).not.toMatch(/"Escape"/);
   });
 
   it("lets the pointer rest on it, and stays while it is there", () => {
@@ -202,7 +206,7 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
     expect(lan).toMatch(/onHold=\{holdPeek\} onLet=\{shutPeek\}/);
     expect(block(".ap-peek")).not.toMatch(/pointer-events/);
     // The grace is what makes the 4px between row and card crossable at all.
-    expect(lan).toMatch(/export const PEEK_GRACE_MS = 140;/);
+    expect(peekHook).toMatch(/export const PEEK_GRACE_MS = 140;/);
     expect(card).toMatch(/const POPOVER_GAP|placeBeside/);
   });
 
@@ -240,7 +244,7 @@ describe("the view (#844)", () => {
   });
 
   it("adds no focus stop of its own", () => {
-    for (const src of [lan, card, list]) expect(src).not.toMatch(/tabIndex=\{-1\}/);
+    expect(lanSectionSurface()).not.toMatch(/tabIndex=\{-1\}/);
   });
 });
 
