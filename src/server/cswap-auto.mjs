@@ -477,6 +477,10 @@ let _enabled  = false;
 // `_timer` cannot do that job: it is assigned AFTER an await, and the window in
 // between is what #537 was. See startLoop.
 let _starting = false;
+/** Set when a restart is asked for while `startLoop` is mid-read, so the read
+ *  that is already running takes the new value instead of installing the old
+ *  one. Module-level beside `_starting`, which it exists to answer for. */
+let _restartWanted = false;
 // The tick in flight, so the interval can skip rather than stack. See tick.
 let _ticking = null;
 // What every tick waits for before it runs anything: the launcher's word that
@@ -659,11 +663,6 @@ async function startLoop() {
   tick().catch(() => {});   // don't make the user wait a full interval for the first one
 }
 
-/** Set when a restart is asked for while `startLoop` is mid-read, so the read
- *  that is already running takes the new value instead of installing the old
- *  one. Module-level beside `_starting`, which it exists to answer for. */
-let _restartWanted = false;
-
 function stopLoop() {
   if (_timer) { clearInterval(_timer); _timer = null; }
 }
@@ -712,7 +711,7 @@ export async function autoStatus() {
  *  mutations of claude-swap's store, and this was the one that was neither.
  *
  *  `cswap enable/disable` writes `accounts[N].disabled` in sequence.json, which
- *  is the field the roster reads at claude-accounts.mjs:734 — so it is the
+ *  is the field claude-accounts.mjs's roster reads as `disabled` — so it is the
  *  read-modify-write cswap-admin.mjs opens by explaining is why every mutation
  *  goes through one mutex.
  *

@@ -303,31 +303,6 @@ export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
 }
 
 /**
- * Keep the store moving while someone is looking at it.
- *
- * Without this the panel is only as live as whatever else is running: with no
- * `cswap watch`/`auto`/TUI open, nothing ever writes the store and the panel
- * shows frozen numbers while looking current.
- *
- * Two ways to ask, and the cheaper one is preferred:
- *   - something is due by claude-swap's own plan → `cswap list`, the ordinary
- *     on-demand pass every surface uses;
- *   - nothing is due but the active account's numbers have aged past the serve
- *     TTL → one `cswap auto --once --dry-run`, which is the engine path and so
- *     is judged on staleness rather than on the plan.
- *
- * What dry run guarantees is narrower than the name suggests, and worth stating
- * exactly: it never switches accounts and never writes autoswitch state — the
- * switch call is unreachable behind its dry-run return. Its collect pass, on
- * the other hand, runs unconditionally, which is the point: it fetches, writes
- * usage rows, and can rotate and persist an OAuth token exactly as `cswap list`
- * does. So this is not a read-only call; it is the same collection every other
- * surface performs, minus the switch.
- *
- * Either way claude-swap decides whether a network call actually happens, and
- * this is throttled on top of that.
- */
-/**
  * What claude-swap says about each slot, in its own words.
  *
  * `usage.json` records numbers and a failure COUNTER; `cswap list --json`
@@ -353,6 +328,9 @@ let _verdicts = { at: 0, byNum: {}, identities: {} };
  *  verdict: "no credentials" under an account somebody has since signed into is
  *  a sentence that sends them to fix what is already fixed. */
 const VERDICT_TTL_MS = 10 * 60_000;
+/** Long enough for a cold collection over a slow network, short enough that a
+ *  wedged claude-swap does not hold a child for the rest of the day. */
+const VERDICT_TIMEOUT_MS = 90_000;
 /** Run one `cswap list --json` at a time. A post-write question must start
  * after any older collection has finished; routine readers can share the
  * latest pending answer without starting another slow collection. */
@@ -481,6 +459,31 @@ export function readVerdicts(stdout) {
   } catch { return {}; }
 }
 
+/**
+ * Keep the store moving while someone is looking at it.
+ *
+ * Without this the panel is only as live as whatever else is running: with no
+ * `cswap watch`/`auto`/TUI open, nothing ever writes the store and the panel
+ * shows frozen numbers while looking current.
+ *
+ * Two ways to ask, and the cheaper one is preferred:
+ *   - something is due by claude-swap's own plan → `cswap list`, the ordinary
+ *     on-demand pass every surface uses;
+ *   - nothing is due but the active account's numbers have aged past the serve
+ *     TTL → one `cswap auto --once --dry-run`, which is the engine path and so
+ *     is judged on staleness rather than on the plan.
+ *
+ * What dry run guarantees is narrower than the name suggests, and worth stating
+ * exactly: it never switches accounts and never writes autoswitch state — the
+ * switch call is unreachable behind its dry-run return. Its collect pass, on
+ * the other hand, runs unconditionally, which is the point: it fetches, writes
+ * usage rows, and can rotate and persist an OAuth token exactly as `cswap list`
+ * does. So this is not a read-only call; it is the same collection every other
+ * surface performs, minus the switch.
+ *
+ * Either way claude-swap decides whether a network call actually happens, and
+ * this is throttled on top of that.
+ */
 function nudgeCollector(rows, slots, now, activeNum) {
   // Did the last ask accomplish anything? Cheap proxy: the newest collection
   // timestamp in the store.
@@ -513,10 +516,6 @@ function nudgeCollector(rows, slots, now, activeNum) {
   // aware of it than before.
   void verdictsNow();
 }
-
-/** Long enough for a cold collection over a slow network, short enough that a
- *  wedged claude-swap does not hold a child for the rest of the day. */
-const VERDICT_TIMEOUT_MS = 90_000;
 
 async function readJson(path) {
   try {
@@ -966,6 +965,25 @@ export function switchClaudeAccount(accountNum) {
     }));
 }
 
+/**
+ * How many accounts a sequence.json holds.
+ *
+ * claude-swap writes `accounts` as an object keyed by slot number — {"2": {…},
+ * "3": {…}} — not as a list. An Array.isArray guard here read that as "no
+ * accounts" and ran `cswap add` against a populated store, which is exactly
+ * what the guard existed to prevent. Both shapes are accepted now, and
+ * anything unrecognised counts as -1: unknown is not the same as empty, and
+ * only a confident zero may lead to a write.
+ */
+export function accountCount(seq) {
+  const a = seq?.accounts;
+  if (Array.isArray(a)) return a.length;
+  if (a && typeof a === "object") return Object.keys(a).length;
+  if (a == null && seq && typeof seq === "object") return 0;   // store exists, no accounts yet
+  return -1;                                                    // unreadable — do nothing
+}
+
+const SEED_MARKER = join(homedir(), ".agents-deck", ".cswap-seeded");
 
 /**
  * Register the account already signed in, the first time and only the first
@@ -990,26 +1008,6 @@ export function switchClaudeAccount(accountNum) {
  * Failure is normal and quiet: on a machine where Claude Code has never signed
  * in there is nothing to record.
  */
-const SEED_MARKER = join(homedir(), ".agents-deck", ".cswap-seeded");
-
-/**
- * How many accounts a sequence.json holds.
- *
- * claude-swap writes `accounts` as an object keyed by slot number — {"2": {…},
- * "3": {…}} — not as a list. An Array.isArray guard here read that as "no
- * accounts" and ran `cswap add` against a populated store, which is exactly
- * what the guard existed to prevent. Both shapes are accepted now, and
- * anything unrecognised counts as -1: unknown is not the same as empty, and
- * only a confident zero may lead to a write.
- */
-export function accountCount(seq) {
-  const a = seq?.accounts;
-  if (Array.isArray(a)) return a.length;
-  if (a && typeof a === "object") return Object.keys(a).length;
-  if (a == null && seq && typeof seq === "object") return 0;   // store exists, no accounts yet
-  return -1;                                                    // unreadable — do nothing
-}
-
 export async function seedFirstAccount() {
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") return { state: "skipped" };
   if (existsSync(SEED_MARKER)) return { state: "already-tried" };
