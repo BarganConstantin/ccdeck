@@ -275,8 +275,15 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // `now` move constantly, so handing the hook a fresh closure would re-run its
   // fetch on every 250ms tick; the ref is reassigned each render and the
   // callback that reads it never changes.
-  const boardNowRef = useRef<() => ReadonlyMap<string, SessionUsage>>(() => new Map());
-  boardNowRef.current = () => boardBySession(state.agents.values(), now);
+  //
+  // Nothing at all while the page is still replaying its log (#1407). A reading
+  // that lands then would take its baseline over sessions caught part-way
+  // through their history, and the rest of that history — already inside the
+  // reading — would be added on top of it as new spend. With no baseline the
+  // reading stands alone until the next one, which lands on a board the replay
+  // has finished: the same `liveSince` the header's $/min counts from.
+  const boardNowRef = useRef<() => ReadonlyMap<string, SessionUsage> | null>(() => new Map());
+  boardNowRef.current = () => (liveSince == null ? null : boardBySession(state.agents.values(), now));
   const takeBaseline = useCallback(() => boardNowRef.current(), []);
 
   const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline } =

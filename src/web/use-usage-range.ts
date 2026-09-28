@@ -42,10 +42,12 @@ export function useUsageRange(
   period: PeriodKey,
   refreshKey: number,
   /** The board, right now, as a per-session map — called at the instant a
-   *  reading lands so the two are committed together. Stable by construction
-   *  in the caller (a ref-backed callback), because a changing identity here
-   *  would re-run the fetch on every 250ms tick. */
-  takeBaseline: () => ReadonlyMap<string, SessionUsage>,
+   *  reading lands so the two are committed together — or null while the page
+   *  is still replaying its log, when the board is not yet one to measure from
+   *  (#1407). Stable by construction in the caller (a ref-backed callback),
+   *  because a changing identity here would re-run the fetch on every 250ms
+   *  tick. */
+  takeBaseline: () => ReadonlyMap<string, SessionUsage> | null,
 ) {
   // THE ANSWER AND THE QUESTION IT ANSWERS, together.
   //
