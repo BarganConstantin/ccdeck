@@ -186,8 +186,13 @@ describe("the shape of both guards", () => {
     // node:sqlite case makes the same argument for the same reason.
     const src = withoutComments(readFileSync(new URL("../../server/installer.mjs", import.meta.url), "utf8"));
     expect(src).not.toContain(".catch(() => ({ raw: before }))");
-    // And both write paths must consult a re-read at all.
+    // And both write paths must consult a re-read at all. They share one guard
+    // now, unchangedSince, so neither can lose the unreadable check while the
+    // other keeps it — but each has to call it before its write.
+    expect((src.match(/await unchangedSince\(cfg\.settingsPath, before\)/g) ?? []).length,
+      "one of the two write paths stopped consulting the re-read").toBe(2);
     expect((src.match(/unreadable = true/g) ?? []).length,
-      "one of the two write paths lost its unreadable check").toBe(2);
+      "the shared guard lost its unreadable check").toBe(1);
+    expect(src, "a failed re-read no longer reads as a change").toContain("return !(unreadable || onDisk !== before);");
   });
 });

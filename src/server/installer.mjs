@@ -210,6 +210,32 @@ function dedupeOurEntries(group) {
   return group.filter(g => !isOurEntry(g));
 }
 
+/**
+ * Whether a settings file still holds exactly the bytes a pass read at its
+ * start: false when another writer has changed it since, and false when it
+ * cannot be read back at all. installHooks and uninstallHooks both ask it at
+ * the last moment before they write, and both decline on false.
+ *
+ * A READ THE GUARD COULD NOT PERFORM IS NOT PROOF NOTHING CHANGED (#788).
+ * This used to be `.catch(() => ({ raw: before }))`, which substituted the
+ * snapshot and so answered "unchanged" for every failed re-read. ENOENT is
+ * the one case that substitution would be right for, and it does not reach
+ * here at all — readSettingsForWrite returns `{ raw: null }` for it without
+ * throwing. What does reach here is EACCES/EBUSY on a file written
+ * microseconds ago, which is the condition atomic-write.mjs's rename retry
+ * names:
+ * "a virus scanner or the search indexer opens files the instant they are
+ * written, so the target is briefly untouchable on a perfectly healthy
+ * machine". Precisely when another deck has just written it.
+ */
+async function unchangedSince(settingsPath, before) {
+  let onDisk;
+  let unreadable = false;
+  try { ({ raw: onDisk } = await readSettingsForWrite(settingsPath)); }
+  catch { unreadable = true; }
+  return !(unreadable || onDisk !== before);
+}
+
 /** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}. */
 export async function installHooks({ provider = "claude", beforeWrite = null } = {}) {
   const cfg = PROVIDERS[provider];
@@ -312,28 +338,12 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
     // real fs work, so a test that raced it by wall clock would pass or fail by
     // how fast the machine is. Production passes nothing.
     if (beforeWrite) await beforeWrite();
-    // A READ THE GUARD COULD NOT PERFORM IS NOT PROOF NOTHING CHANGED (#788).
-    // This used to be `.catch(() => ({ raw: before }))`, which substituted the
-    // snapshot and so answered "unchanged" for every failed re-read. ENOENT is
-    // the one case that substitution would be right for, and it does not reach
-    // here at all — readSettingsForWrite returns `{ raw: null }` for it without
-    // throwing. What does reach here is EACCES/EBUSY on a file written
-    // microseconds ago, which is the condition atomic-write.mjs's rename retry
-    // names:
-    // "a virus scanner or the search indexer opens files the instant they are
-    // written, so the target is briefly untouchable on a perfectly healthy
-    // machine". Precisely when another deck has just written it.
-    //
     // So an unreadable re-read declines, like a changed one. Declining is safe
     // for the reason above: every boot reinstalls and the next pass converges.
     // Being wrong the other way is not — it is the lost update this guard
     // exists to prevent, with the user's own sound hook gone from settings.json
     // and from the park that was its only other copy.
-    let onDisk;
-    let unreadable = false;
-    try { ({ raw: onDisk } = await readSettingsForWrite(cfg.settingsPath)); }
-    catch { unreadable = true; }
-    if (unreadable || onDisk !== before) {
+    if (!(await unchangedSince(cfg.settingsPath, before))) {
       return {
         settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider,
         changed: false, raced: true, retire: { ...retire, pending: false },
@@ -429,11 +439,7 @@ export async function uninstallHooks({ provider = "claude", beforeWrite = null }
     // raced it by wall clock would pass or fail by how fast the machine is.
     // Production passes nothing.
     if (beforeWrite) await beforeWrite();
-    let onDisk;
-    let unreadable = false;
-    try { ({ raw: onDisk } = await readSettingsForWrite(cfg.settingsPath)); }
-    catch { unreadable = true; }
-    if (unreadable || onDisk !== before) {
+    if (!(await unchangedSince(cfg.settingsPath, before))) {
       return {
         ok: false, reason: "raced", changed: false, provider,
         settingsPath: cfg.settingsPath,
