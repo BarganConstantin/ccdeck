@@ -1201,6 +1201,120 @@ export function createEngine({
     return mine;
   };
 
+  /** What status() says about Tailscale, for a deck that has a reader: whether
+   *  the machine has it at all, and what it can see. */
+  const tailnetStatus = () => {
+    const t = tailnet.snapshot?.() ?? null;
+    return {
+      found: !!tailnet.found?.(),
+      state: t?.state ?? null,
+      running: !!t?.running,
+      on: !!cfg.tailscale,
+      ask: cfg.tailscaleAsk !== false,
+      accept: cfg.tailscaleAccept !== false,
+      login: t?.self?.login ?? null,
+      addr: t?.self?.ips?.[0] ?? null,
+      exitNode: !!t?.exitNode,
+      // The owner's machines a beacon goes to right now.
+      devices: beaconTargets(t).length,
+    };
+  };
+
+  /** The heard decks status() offers to pair with — see its `strangers`. */
+  const strangerRows = () => {
+    // A deck that was told no is not somebody to offer pairing with. It
+    // has its own row, with the one control that undoes the decision.
+    const heard = [...strangers.values()].filter(p => !declined.has(p.fp));
+    // pairable() collapses the rest by machine — see hostId. A computer
+    // that has run the deck a few times holds a key per run, and every
+    // one of them was a row of its own on everybody else's panel.
+    const { shown, more } = pairable(heard, now(), { mine: localAddresses() });
+    return shown.map(p => ({
+      fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more,
+      via: p.via ?? "lan", own: !!p.own,
+    }));
+  };
+
+  /** Every deck this one dials or is paired with, one row each — see
+   *  status()'s `peers`. Asked only while the beacon is up. */
+  const deckRows = () => {
+    // ONE DECK, ONE ROW, and it takes work because a deck can arrive here
+    // twice by two different routes: heard on the network, and dialled at
+    // an address somebody typed or that an invite carried. Both are the
+    // same machine and neither knows it — the beacon row is keyed by the
+    // fingerprint it announced, the typed row by `host:port`, and until a
+    // connection succeeds nothing joins them.
+    //
+    // What joins them is `learned`: the fingerprint that actually
+    // answered at that address. So every row is given the identity it is
+    // really about, and rows that turn out to share one are merged — the
+    // heard half brings liveness, the dialled half brings the last round.
+    const rows = [];
+    const byId = new Map();
+    const put = row => {
+      const had = byId.get(row.id);
+      if (!had) { byId.set(row.id, row); rows.push(row); return; }
+      // Keep what each half is the authority on.
+      had.lastSeen = had.lastSeen ?? row.lastSeen;
+      had.last = had.last ?? row.last;
+      had.manual = had.manual || row.manual;
+      had.met = had.met || row.met;
+      if (row.name && !had.name) had.name = row.name;
+    };
+    // WHAT THE DECK'S OWN DIALOG DRAWS, by identity: the card it sent,
+    // the logins it offered last, and when somebody here said yes. All
+    // three are keyed by the fingerprint that proved itself, so both
+    // halves of a merged row read the same answer.
+    const card = id => ({
+      about: aboutBy.get(id) ?? null,
+      offers: offersBy.get(id) ?? null,
+      pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
+    });
+    for (const p of [...beacon.peers.values(), ...manual.values()]) {
+      if (!stillListed(p, now())) continue;
+      const met = p.manual ? learned.get(`${p.addr}:${p.port}`) : null;
+      const id = met?.fp ?? p.fp;
+      put({
+        ...p,
+        id,
+        // How it is reached. A heard row says which route its last beacon
+        // took; a typed one is read from its address.
+        via: p.via ?? (routeTo(p.addr) ? "tailscale" : "lan"),
+        // The fingerprint an unpair has to name. A typed row's own `fp` is
+        // a placeholder built from its address and matches nothing.
+        peerFp: p.manual ? met?.fp ?? null : p.fp,
+        name: met?.name || p.name,
+        met: !!met,
+        paired: !!trustedPeer(cfg.trusted, id),
+        last: lastRound.get(p.fp) ?? null,
+        ...card(id),
+      });
+    }
+    // A DECK WE ARE PAIRED WITH AND DO NOT DIAL. It called us, we accepted
+    // it, and nothing here has its address — which used to mean the panel
+    // listed failing addresses under "paired decks" and left out the one
+    // deck that actually was.
+    for (const t of cfg.trusted) {
+      if (byId.has(t.fp)) continue;
+      put({
+        id: t.fp, fp: t.fp, peerFp: t.fp, name: t.name || t.fp, addr: "", port: 0,
+        paired: true, waiting: true, last: lastRound.get(t.fp) ?? null,
+        // What it is to be "here" for a deck nothing dials: it called,
+        // and this is when. Undefined until it has, which is a row the
+        // panel draws as unknown rather than as live.
+        lastSeen: spokeAt.get(t.fp),
+        // Which way it called, once it has.
+        ...(spokeFrom.has(t.fp) ? { via: routeTo(spokeFrom.get(t.fp)) ? "tailscale" : "lan" } : {}),
+        // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
+        // of those it is on. The card was kept and never handed over, so
+        // the dialog said "it runs an older version" about a deck that
+        // had just told it exactly which version it runs.
+        ...card(t.fp),
+      });
+    }
+    return rows;
+  };
+
   return {
     async apply(next) {
       /** The engine itself, for the callbacks handed to the socket below: they
@@ -1728,22 +1842,7 @@ export function createEngine({
         shareActive: cfg.shareActive !== false,
         // Discovery over Tailscale: whether this machine has it at all, which
         // decides whether the dialog shows the switch, and what it can see.
-        tailscale: tailnet ? (() => {
-          const t = tailnet.snapshot?.() ?? null;
-          return {
-            found: !!tailnet.found?.(),
-            state: t?.state ?? null,
-            running: !!t?.running,
-            on: !!cfg.tailscale,
-            ask: cfg.tailscaleAsk !== false,
-            accept: cfg.tailscaleAccept !== false,
-            login: t?.self?.login ?? null,
-            addr: t?.self?.ips?.[0] ?? null,
-            exitNode: !!t?.exitNode,
-            // The owner's machines a beacon goes to right now.
-            devices: beaconTargets(t).length,
-          };
-        })() : null,
+        tailscale: tailnet ? tailnetStatus() : null,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the
@@ -1770,100 +1869,12 @@ export function createEngine({
         // Only the ones somebody could actually pair with right now, one row
         // per machine, newest first — see pairable, which is where the rule
         // that keeps this from becoming a wall of ghosts lives.
-        strangers: (() => {
-          // A deck that was told no is not somebody to offer pairing with. It
-          // has its own row, with the one control that undoes the decision.
-          const heard = [...strangers.values()].filter(p => !declined.has(p.fp));
-          // pairable() collapses the rest by machine — see hostId. A computer
-          // that has run the deck a few times holds a key per run, and every
-          // one of them was a row of its own on everybody else's panel.
-          const { shown, more } = pairable(heard, now(), { mine: localAddresses() });
-          return shown.map(p => ({
-            fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more,
-            via: p.via ?? "lan", own: !!p.own,
-          }));
-        })(),
+        strangers: strangerRows(),
         // Said no to, by somebody at this keyboard. Listed rather than merely
         // silenced, because a refusal nobody can see is a refusal nobody can
         // take back.
         declined: [...declined.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
-        peers: beacon ? (() => {
-          // ONE DECK, ONE ROW, and it takes work because a deck can arrive here
-          // twice by two different routes: heard on the network, and dialled at
-          // an address somebody typed or that an invite carried. Both are the
-          // same machine and neither knows it — the beacon row is keyed by the
-          // fingerprint it announced, the typed row by `host:port`, and until a
-          // connection succeeds nothing joins them.
-          //
-          // What joins them is `learned`: the fingerprint that actually
-          // answered at that address. So every row is given the identity it is
-          // really about, and rows that turn out to share one are merged — the
-          // heard half brings liveness, the dialled half brings the last round.
-          const rows = [];
-          const byId = new Map();
-          const put = row => {
-            const had = byId.get(row.id);
-            if (!had) { byId.set(row.id, row); rows.push(row); return; }
-            // Keep what each half is the authority on.
-            had.lastSeen = had.lastSeen ?? row.lastSeen;
-            had.last = had.last ?? row.last;
-            had.manual = had.manual || row.manual;
-            had.met = had.met || row.met;
-            if (row.name && !had.name) had.name = row.name;
-          };
-          // WHAT THE DECK'S OWN DIALOG DRAWS, by identity: the card it sent,
-          // the logins it offered last, and when somebody here said yes. All
-          // three are keyed by the fingerprint that proved itself, so both
-          // halves of a merged row read the same answer.
-          const card = id => ({
-            about: aboutBy.get(id) ?? null,
-            offers: offersBy.get(id) ?? null,
-            pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
-          });
-          for (const p of [...beacon.peers.values(), ...manual.values()]) {
-            if (!stillListed(p, now())) continue;
-            const met = p.manual ? learned.get(`${p.addr}:${p.port}`) : null;
-            const id = met?.fp ?? p.fp;
-            put({
-              ...p,
-              id,
-              // How it is reached. A heard row says which route its last beacon
-              // took; a typed one is read from its address.
-              via: p.via ?? (routeTo(p.addr) ? "tailscale" : "lan"),
-              // The fingerprint an unpair has to name. A typed row's own `fp` is
-              // a placeholder built from its address and matches nothing.
-              peerFp: p.manual ? met?.fp ?? null : p.fp,
-              name: met?.name || p.name,
-              met: !!met,
-              paired: !!trustedPeer(cfg.trusted, id),
-              last: lastRound.get(p.fp) ?? null,
-              ...card(id),
-            });
-          }
-          // A DECK WE ARE PAIRED WITH AND DO NOT DIAL. It called us, we accepted
-          // it, and nothing here has its address — which used to mean the panel
-          // listed failing addresses under "paired decks" and left out the one
-          // deck that actually was.
-          for (const t of cfg.trusted) {
-            if (byId.has(t.fp)) continue;
-            put({
-              id: t.fp, fp: t.fp, peerFp: t.fp, name: t.name || t.fp, addr: "", port: 0,
-              paired: true, waiting: true, last: lastRound.get(t.fp) ?? null,
-              // What it is to be "here" for a deck nothing dials: it called,
-              // and this is when. Undefined until it has, which is a row the
-              // panel draws as unknown rather than as live.
-              lastSeen: spokeAt.get(t.fp),
-              // Which way it called, once it has.
-              ...(spokeFrom.has(t.fp) ? { via: routeTo(spokeFrom.get(t.fp)) ? "tailscale" : "lan" } : {}),
-              // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
-              // of those it is on. The card was kept and never handed over, so
-              // the dialog said "it runs an older version" about a deck that
-              // had just told it exactly which version it runs.
-              ...card(t.fp),
-            });
-          }
-          return rows;
-        })() : [],
+        peers: beacon ? deckRows() : [],
       };
     },
     stop(restarting = false) {
