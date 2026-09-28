@@ -224,7 +224,7 @@ function normaliseLan(raw) {
     // ASK FIRST. A deck heard on the broadcast is sent a pairing request without
     // anybody pressing `ask` — the outbound half, which gives nothing away: the
     // machine on the other end still answers it, by hand or by the switch below.
-    autoAsk: typeof src.autoAsk === "boolean" ? src.autoAsk : true,
+    autoAsk: typeof src.autoAsk === "boolean" ? src.autoAsk : DEFAULTS.lan.autoAsk,
     // AND SAY YES, once somebody has turned this on. Every deck that finishes a
     // handshake and is not already trusted is then pinned without anybody being
     // asked — the accept button pressed in advance, and it hands whoever asks a
