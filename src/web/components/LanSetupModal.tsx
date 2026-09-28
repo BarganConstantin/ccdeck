@@ -15,7 +15,8 @@
 // twice, and that is what is left here.
 //
 // Two fields, then, and both of them are about this machine. Everything that
-// takes an address, a token or another deck's name is in LanSyncSection.tsx.
+// takes an address or a token is in LanAddDeckModal.tsx, and another deck's
+// name is given in that deck's own dialog, LanPeerModal.tsx.
 //
 // THE FINGERPRINT IS BACK, WITHOUT THE PROSE (#815). It was taken out of here
 // once, with the sentence that told the reader to read it out, as the cost of

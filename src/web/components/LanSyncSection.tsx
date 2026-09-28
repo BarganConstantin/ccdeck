@@ -192,7 +192,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
           onClose={() => setPeerOpen(null)}
           onRename={name => rename(openRow.fp, name)}
           onCheck={() => checkOne(openRow.fp)}
-          // The row's own verb, through the row's own call — see the row.
+          // The row's own verb, through the row's own call — see LanDeckList.
           onVerb={() => {
             switch (openRow.kind) {
               case "paired": return answer("unpair", openRow.fp, "unpair that deck");

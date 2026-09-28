@@ -165,10 +165,11 @@ export default function OtherAccounts({ peers, strained, armed, threshold, open,
         // tap would open a card the tap is already replacing with the list.
         onPointerEnter={e => { if (e.pointerType === "mouse") openPeek(PEEK_DELAY_MS); }}
         onPointerLeave={shutPeek}
-        // A KEYBOARD'S FOCUS, NOT EVERY FOCUS — the rule LanSyncSection's row
-        // learned from a card that opened on a programmatic hand-back and then
-        // had nothing to close it. `:focus-visible` is the browser's own answer
-        // to which of the two happened.
+        // A KEYBOARD'S FOCUS, NOT EVERY FOCUS — the rule Local network's way-in
+        // row (LanEntryRow.tsx) learned from a card that opened on a
+        // programmatic hand-back and then had nothing to close it.
+        // `:focus-visible` is the browser's own answer to which of the two
+        // happened.
         onFocus={e => { if (e.target.matches(":focus-visible")) openPeek(0); }}
         onBlur={shutPeek}>
         {/* AND NO GLYPH. It had one — two stacked rows, for what is behind the
