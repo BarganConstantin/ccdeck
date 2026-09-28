@@ -204,7 +204,9 @@ describe("where Remove lives and what follows it", () => {
 
   it("is one key from a selection, since a plain click shuts the panel it lives in", () => {
     expect(app).toMatch(/if \(e\.key === "Delete"\) removeSelectedRef\.current\(\);/);
-    expect(app).toMatch(/removeSelectedRef\.current = removeSelectedNode;/);
+    // The mirror is `useMirroredRef` now — the keydown handler outlives the
+    // render that registered it, so it has to read the current callback.
+    expect(app).toMatch(/const removeSelectedRef = useMirroredRef\(removeSelectedNode\);/);
   });
 
   it("draws nothing after a removal, and keeps focus on the board", () => {
