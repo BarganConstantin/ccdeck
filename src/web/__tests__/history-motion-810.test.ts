@@ -23,6 +23,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { withoutComments } from "./tsx-scan";
+import { usageHistorySurface } from "./usage-history-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const css = read("../styles.css");
@@ -64,7 +65,8 @@ describe("the wait stands in the room the answer needs", () => {
     // everywhere else. The largest single fixed piece is taken; the rest
     // arrives.
     expect(css).not.toMatch(/\.uh-(totals|legend|agents)-skeleton/);
-    expect(code).not.toMatch(/skeleton|shimmer|placeholder-bar/i);
+    // Asked of the modal and every file lifted out of it.
+    expect(withoutComments(usageHistorySurface())).not.toMatch(/skeleton|shimmer|placeholder-bar/i);
     // And the wait draws exactly one thing: the axis.
     const wait = modal.slice(modal.indexOf('className="uh-status uh-status-wait"'), modal.indexOf('view.phase === "error"'));
     expect([...wait.matchAll(/className="uh-wait-/g)]).toHaveLength(2);

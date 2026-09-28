@@ -24,9 +24,8 @@ import { fileURLToPath } from "node:url";
 // so the shapes below could be run at all. It is usage-history.ts's now, and
 // this file runs the rule that ships rather than a copy of it.
 import { asDay, asResp } from "../usage-history";
+import { usageHistorySurface } from "./usage-history-surface";
 
-const src = readFileSync(
-  fileURLToPath(new URL("../components/UsageHistoryModal.tsx", import.meta.url)), "utf8");
 const rows = readFileSync(fileURLToPath(new URL("../usage-history.ts", import.meta.url)), "utf8");
 /** The modal's ccusage run, where the reply is first read, lifted out of it. */
 const hook = readFileSync(fileURLToPath(new URL("../use-ccusage.ts", import.meta.url)), "utf8");
@@ -68,7 +67,7 @@ describe("a day row whose shape moved upstream", () => {
     // Six dereference sites today; a seventh added later must not have to
     // remember the rule.
     expect(hook).toContain("setLanded({ range, resp: asResp(raw) })");
-    expect(src + "\n" + hook, "the untrusted body must not reach state directly")
+    expect(usageHistorySurface(), "the untrusted body must not reach state directly")
       .not.toContain("setLanded({ range, resp })");
     expect(rows).toContain("days: Array.isArray(o.days) ? o.days.map(asDay) : undefined");
   });

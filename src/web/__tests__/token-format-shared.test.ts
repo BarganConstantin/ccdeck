@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { usageSurface } from "./usage-surface";
+import { usageHistorySurface } from "./usage-history-surface";
 import { fmtTokens } from "../token-format";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -153,7 +154,8 @@ describe("the panels that show abbreviated token counts", () => {
 
   it("declare no second token formatter of their own", () => {
     // The usage panel as a whole: the component and every file lifted out of it.
-    for (const file of [app, usageSurface(), modal]) {
+    // The usage panel and the history modal each with every file lifted out of it.
+    for (const file of [app, usageSurface(), usageHistorySurface()]) {
       expect(file).not.toMatch(/function fmtTokens\b/);
       expect(file).not.toMatch(/function fmtN\b/);
     }

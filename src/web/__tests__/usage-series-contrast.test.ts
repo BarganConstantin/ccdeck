@@ -57,6 +57,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
+import { USAGE_HISTORY_FILES } from "./usage-history-surface";
+
 const web = fileURLToPath(new URL("..", import.meta.url));
 
 /** Comments quote the very declarations this file asserts are gone, so every
@@ -102,6 +104,8 @@ function sourceOf(name: string): string {
 const historySrc = sourceOf("UsageHistoryModal.tsx");
 /** The modal's rows and the colour each model is drawn in, lifted out of it. */
 const historyRowsSrc = sourceOf("usage-history.ts");
+/** The selected day's breakdown, lifted out of the modal. */
+const dayDetailSrc = sourceOf("UsageDayDetail.tsx");
 const agentsSrc = sourceOf("usage-agents.ts");
 
 /** WCAG 1.4.3 for a word, 1.4.11 for a graphic that carries meaning. */
@@ -506,7 +510,7 @@ describe("no two bands are told apart by luminance, which is why there is a hair
     // breakdown panel prints the same list in words. The bar is the one place
     // colour stood alone, and the cut is where the fix belongs.
     expect(historySrc).toMatch(/<span className="uh-legend-dot"[^>]*\/>\s*\n\s*\{shortModel\(m\)\}/);
-    expect(historySrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
+    expect(dayDetailSrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
   });
 });
 
@@ -759,7 +763,8 @@ describe("the sweep that could not see a .tsx literal, which is why none of this
     // deck's. If this number collapses, the scanner broke and every assertion
     // below went vacuous with it.
     expect(INLINE.length).toBeGreaterThanOrEqual(10);
-    const modal = INLINE.filter(c => isModule(c.file, "UsageHistoryModal.tsx"));
+    // The modal and every file lifted out of it: the day's breakdown draws two.
+    const modal = INLINE.filter(c => USAGE_HISTORY_FILES.some(f => isModule(c.file, f)));
     expect(modal.length).toBe(6);
     expect(new Set(modal.map(c => c.prop))).toEqual(new Set(["background"]));
   });

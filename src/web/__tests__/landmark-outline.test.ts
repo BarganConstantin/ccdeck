@@ -39,6 +39,7 @@ import { join } from "node:path";
 import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
 import { usageSurface } from "./usage-surface";
+import { usageHistorySurface } from "./usage-history-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -95,6 +96,8 @@ const accounts = source("AccountsPanel.tsx");
 const accountsHeader = source("AccountsHeader.tsx");
 const sessions = source("SessionList.tsx");
 const history = source("UsageHistoryModal.tsx");
+/** The history modal and every file lifted out of it, for negatives. */
+const historyAll = usageHistorySurface();
 const summary = source("SessionSummary.tsx");
 // The stacked cost bar, which was written out in three of the files above until
 // #374 gave it a file of its own.
@@ -681,7 +684,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // now and something has to park it on today — so the match allows the
     // attributes before `className` while still pinning the role and the name.
     expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label="Daily cost by model">/);
-    expect(code(history)).not.toMatch(/role="img"/);
+    expect(code(historyAll)).not.toMatch(/role="img"/);
   });
 
   it("names each day with the figure its tooltip already carried", () => {
@@ -697,8 +700,8 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // contract, so the swap is to group + aria-pressed, which is the shape the
     // canvas category chips already use.
     expect(code(history)).toMatch(/<div className="uh-range" role="group" aria-label="Range">/);
-    expect(code(history)).not.toMatch(/role="tab(list)?"/);
-    expect(code(history)).not.toMatch(/aria-selected/);
+    expect(code(historyAll)).not.toMatch(/role="tab(list)?"/);
+    expect(code(historyAll)).not.toMatch(/aria-selected/);
   });
 
   it("hands the one real tab set over to the test that can hold it (#581)", () => {

@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { usageView } from "../usage-view";
 import { withoutComments } from "./tsx-scan";
+import { usageHistorySurface } from "./usage-history-surface";
 
 const answered = (range: number, days: number) => ({ range, ok: true, days });
 const failed = (range: number) => ({ range, ok: false, days: 0 });
@@ -92,7 +93,7 @@ describe("the modal itself", () => {
 
   it("leaves the decision to the rule above rather than counting days again", () => {
     expect(src).toContain("usageView(");
-    expect(src).not.toMatch(/loading && days\.length/);
+    expect(usageHistorySurface()).not.toMatch(/loading && days\.length/);
   });
 
   // Markup is read with the comments gone, for #513's reason and for one of
@@ -111,7 +112,7 @@ describe("the modal itself", () => {
     // `stops[0]`, the dialog's first control, not where the reader was. So the
     // refusal moved into `load`, where #518 put it, and the controls keep their
     // place in the tab order while saying `aria-busy`.
-    expect([...bare.matchAll(/disabled=\{loading\}/g)]).toHaveLength(0);
+    expect([...withoutComments(usageHistorySurface()).matchAll(/disabled=\{loading\}/g)]).toHaveLength(0);
     expect([...bare.matchAll(/\{\.\.\.selfPressProps\(loading\)\}/g)]).toHaveLength(2);
     // The refusal is the modal's ccusage hook's, lifted out of it.
     expect(withoutComments(readFileSync(fileURLToPath(new URL("../use-ccusage.ts", import.meta.url)), "utf8")))

@@ -21,6 +21,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CCUSAGE_REASONS, commandOutput, explainCcusageFailure } from "../admin-failure";
+import { usageHistorySurface } from "./usage-history-surface";
 
 // ccusage.mjs resolves ~/.agents-deck/ccusage out of the home directory at
 // import time, and nothing here may touch the real one — so every home-shaped
@@ -220,7 +221,9 @@ describe("the modal itself", () => {
   );
 
   it("no longer renders the server's raw string as the explanation", () => {
-    expect(src).not.toMatch(/ccusage failed:/);
+    // The modal and every file lifted out of it: the negative must not pass
+    // because the message moved.
+    expect(usageHistorySurface()).not.toMatch(/ccusage failed:/);
     expect(src).toContain("explainCcusageFailure(");
   });
 
