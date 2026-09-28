@@ -1059,11 +1059,15 @@ describe("the gap between rounds", () => {
     // the one lan-socket.mjs sends for "a real deck, not yet accepted" — the
     // same string WIRE_ANSWERS keys on in the panel, so the two files cannot
     // drift apart silently.
-    const src = readFileSync(fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
-    expect(src).toContain('"waiting for the other deck to accept this one"');
+    //
+    // The check reads the round's record — see lan-round-record.mjs, and
+    // lan-round-record.test.ts for what counts as still deciding.
+    const record = readFileSync(fileURLToPath(new URL("../../server/lan-round-record.mjs", import.meta.url)), "utf8");
+    expect(record).toContain('"waiting for the other deck to accept this one"');
     // The engine hands that check to the clock, which picks the gap by it —
     // see lan-round-timer.mjs, and lan-round-timer.test.ts for the gaps run.
-    expect(src).toMatch(/createRoundTimer\(\{ round, waiting: waitingOnSomebody \}\)/);
+    const src = readFileSync(fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
+    expect(src).toMatch(/createRoundTimer\(\{ round, waiting: lastRound\.waitingOnSomebody \}\)/);
     const timer = readFileSync(fileURLToPath(new URL("../../server/lan-round-timer.mjs", import.meta.url)), "utf8");
     expect(timer).toMatch(/waiting\(\) \? ASKING_MS : SYNC_MS/);
     const socket = readFileSync(fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
