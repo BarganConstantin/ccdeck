@@ -160,15 +160,21 @@ async function waitFor(cond: () => boolean, ms = 8000) {
 describe("a Codex session id no rollout under this tree carries", () => {
   it("walks the whole tree once, not once per throttle window", async () => {
     const sid = "ffffffff-0000-4000-8000-00000000dead";
-    const startedAt = Date.now();
     let before = underOld();
     await post(sid);
+    // Timed from the answer, not from before the request. The server stamps the
+    // id's lookup before it replies, so this is never early; a stamp taken
+    // before the request left only THROTTLE_MS's 150ms margin for the request
+    // itself, and under a loaded machine the first POST took longer than that,
+    // the second landed inside the window it was meant to clear, and no lookup
+    // happened at all.
+    const missedAt = Date.now();
     await settle();
     // The first lookup is owed the whole history, and gets it: this is what
     // makes the next number mean something rather than pass on an empty tree.
     expect(underOld() - before).toBe(OLD_DIRS);
 
-    await tick(Math.max(0, startedAt + THROTTLE_MS - Date.now()));
+    await tick(Math.max(0, missedAt + THROTTLE_MS - Date.now()));
     const looked = lookups();
     before = underOld();
     await post(sid);
@@ -184,13 +190,13 @@ describe("a Codex session id no rollout under this tree carries", () => {
     // moment before its rollout is on disk, and a lookup that never looks again
     // would leave that session without usage for the rest of its life.
     const sid = "eeeeeeee-0000-4000-8000-00000000late";
-    const startedAt = Date.now();
     await post(sid);
+    const missedAt = Date.now(); // from the answer; see the case above
     await settle();
     expect(usageFor(sid)).toBe(false);
 
     put(NEWEST_DAY, sid, "2026-09-15T11-00-00");
-    await tick(Math.max(0, startedAt + THROTTLE_MS - Date.now()));
+    await tick(Math.max(0, missedAt + THROTTLE_MS - Date.now()));
     const before = underOld();
     await post(sid);
     expect(await waitFor(() => usageFor(sid))).toBe(true);
