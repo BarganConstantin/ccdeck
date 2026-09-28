@@ -347,6 +347,9 @@ describe("the wiring, which is the half no pure function can hold", () => {
   });
 
   it("dismisses the browser notice per name, not with a flag", () => {
+    // The notice moved to use-old-name-notice.ts, key and all. Every match below
+    // is positive, so it reads the whole client.
+    const client = clientText();
     // Somebody who dismisses it under agent-dag and later starts a second
     // install as agents-deck has not heard this yet.
     //
@@ -357,13 +360,13 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // invoked name differing from the product. None of that moves when the
     // surrounding code is reformatted, and all of it fails if the per-name
     // dismissal goes back to being a flag.
-    expect(app, "the dismissal key was renamed, which silently un-dismisses everyone")
+    expect(client, "the dismissal key was renamed, which silently un-dismisses everyone")
       .toMatch(/const OLD_NAME_DISMISSED_KEY\s*=\s*"agent-dag\.oldNameNoticeDismissed"/);
-    expect(app, "the dismissal stores something other than the name it dismissed")
+    expect(client, "the dismissal stores something other than the name it dismissed")
       .toMatch(/localStorage\.setItem\(\s*OLD_NAME_DISMISSED_KEY\s*,\s*oldName\s*\)/);
-    expect(app, "the notice no longer compares the dismissal against the current name")
+    expect(client, "the notice no longer compares the dismissal against the current name")
       .toMatch(/oldNameDismissed\s*!==\s*oldName/);
-    expect(app, "the notice no longer keys off the name the deck was invoked as")
+    expect(client, "the notice no longer keys off the name the deck was invoked as")
       .toMatch(/version\.invokedAs\s*!==\s*PRODUCT/);
   });
 });
