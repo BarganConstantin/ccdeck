@@ -40,10 +40,14 @@ describe("the canvas says when auto-fit is off (#820)", () => {
   it("shows a status and an action while it is off, and resumes from the action", () => {
     // Not one big button any more: the words say the state and are not a
     // control, and Resume does what the whole chip used to.
-    expect(app).toMatch(/\{autoFitDisabled && \(\s*<div className="autofit-chip">/);
-    expect(app).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
-    expect(app).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
-    expect(app).toMatch(/aria-label="Resume auto-fit"/);
+    // Two links: App.tsx mounts the chip only while auto-fit is off, and the
+    // chip is components/AutoFitChip.tsx.
+    const chip = read("../components/AutoFitChip.tsx");
+    expect(app).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
+    expect(chip).toMatch(/return \(\s*<div className="autofit-chip">/);
+    expect(chip).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
+    expect(chip).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
+    expect(chip).toMatch(/aria-label="Resume auto-fit"/);
   });
 
   it("draws it on the canvas, clear of the corners, on the canvas chrome's surface", () => {

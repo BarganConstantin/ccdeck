@@ -62,6 +62,8 @@ import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadout
 import SelectedRibbon from "./components/SelectedRibbon";
 import CanvasControls from "./components/CanvasControls";
 import CategoryFilterBar from "./components/CategoryFilterBar";
+import AutoFitChip from "./components/AutoFitChip";
+import DragTrashZone from "./components/DragTrashZone";
 import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
 import OldNameBanner from "./components/OldNameBanner";
@@ -2119,22 +2121,7 @@ function Inner() {
           {/* A status and an action, not one big button. The words say what
               the state is and are not a control; Resume is the one thing here
               that can be pressed, and it does what the whole chip used to. */}
-          {autoFitDisabled && (
-            <div className="autofit-chip">
-              <span className="autofit-state" title="New sessions are not brought into view while you are moving it yourself">
-                Auto-fit off
-              </span>
-              <button
-                type="button"
-                className="autofit-resume"
-                onClick={enableAutoFitAndRefit}
-                title="Bring new sessions into view again"
-                aria-label="Resume auto-fit"
-              >
-                Resume
-              </button>
-            </div>
-          )}
+          {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
           {/* No React Flow fit-view button (#840). Recenter below does the same
               fit and also turns autofit back on, so two near-identical buttons
               sat side by side and the reader had to guess the difference. F
@@ -2171,25 +2158,7 @@ function Inner() {
           )}
         </ReactFlow>
         {isMounted(trashPhase) && (
-          <div
-            ref={trashZoneRef}
-            className={`drag-trash-zone ${trashState}${trashPhase === "leaving" ? " leaving" : ""}`}
-            role="status"
-          >
-            <svg className="drag-trash-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 7V5.8C8 4.8 8.8 4 9.8 4h4.4c1 0 1.8.8 1.8 1.8V7m-10 0h12M8 10v8m4-8v8m4-8v8M7 7l.7 13h8.6L17 7" />
-            </svg>
-            <span className="drag-trash-copy">
-              <span className="drag-trash-text">
-                {trashState === "over"
-                  ? <>Release to remove <strong className="drag-trash-name">{trashLabel || "this card"}</strong></>
-                  : "Drop here to remove from the board"}
-              </span>
-              <span className="drag-trash-hint">
-                {trashState === "over" ? "The session list (L) brings it back" : "The session keeps running"}
-              </span>
-            </span>
-          </div>
+          <DragTrashZone trashZoneRef={trashZoneRef} trashState={trashState} trashPhase={trashPhase} trashLabel={trashLabel} />
         )}
         <SessionPeek
           agentFor={peekAgent}
