@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SEEN_KEY, unseenEpisodes } from "./browser-watch-seen";
 import type { WatchEpisode } from "./browser-watch-model";
+import { readStored, writeStored } from "./storage";
 
 export interface BrowserWatchBadge {
   /** Whether the watch is switched on, as of the last poll or the dialog's switch. */
@@ -34,9 +35,7 @@ export function useBrowserWatchBadge(): BrowserWatchBadge {
    *  acquires a number when something happened that nobody has read. #720 took
    *  a resting pill OUT of this bar for saying nothing; a second one that said
    *  "no findings" all day would be the same mistake with a different icon. */
-  const [watchSeenMs, setWatchSeenMs] = useState(() => {
-    try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; }
-  });
+  const [watchSeenMs, setWatchSeenMs] = useState(() => Number(readStored(SEEN_KEY)) || 0);
   const [watchEpisodes, setWatchEpisodes] = useState<WatchEpisode[]>([]);
   const [watchOn, setWatchOn] = useState(false);
 
@@ -75,7 +74,7 @@ export function useBrowserWatchBadge(): BrowserWatchBadge {
 
   const markWatchSeen = useCallback((ms: number) => {
     setWatchSeenMs(ms);
-    try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
+    writeStored(SEEN_KEY, String(ms));
   }, []);
 
   return { watchOn, setWatchOn, watchUnseen, markWatchSeen };

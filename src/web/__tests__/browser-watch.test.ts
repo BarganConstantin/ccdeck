@@ -223,7 +223,7 @@ describe("how App.tsx wires it up", () => {
   it("marks the episodes read on the way out of the dialog", () => {
     // The badge — its poll, its count and the seen stamp — moved to
     // use-browser-watch-badge.ts; these matches are positive, so they read the client.
-    expect(clientText()).toMatch(/localStorage\.setItem\(SEEN_KEY, String\(ms\)\)/);
+    expect(clientText()).toMatch(/writeStored\(SEEN_KEY, String\(ms\)\)/);
   });
 
   it("says whether the watch is armed, in the shape and not only the hue", () => {
