@@ -850,6 +850,23 @@ export function createEngine({
     if (!had) onChange?.();
   };
 
+  /**
+   * Dial a deck just paired with from now on, and keep the address: in the
+   * dial list, and through onDial in prefs, so a restart does not make the
+   * pairing one-way again.
+   *
+   * AND SAY WHO IS THERE, NOW. `learned` is what joins a dialled row to a
+   * heard one, and it was only ever filled by a round that succeeded — so
+   * between accepting a deck and the next round, one machine appeared as two
+   * rows. We already know the answer here: the handshake that just finished
+   * said so.
+   */
+  const keepDialling = (addr, port, met) => {
+    engine.addPeer(addr, port);
+    onDial?.(`${addr}:${port}`);
+    learned.set(`${addr}:${port}`, met);
+  };
+
   /** Somebody used the token. They are pinned, and the token is retired —
    *  one that pairs twice is one worth stealing twice. */
   const inviteUsed = entry => {
@@ -860,16 +877,7 @@ export function createEngine({
     // the dial list. Without this the pairing is mutual in the trusted
     // list and one-way in fact — and `addPeer` alone lives in memory, so
     // it would be one-way again after the next restart.
-    if (entry.addr && entry.port) {
-      engine.addPeer(entry.addr, entry.port);
-      onDial?.(`${entry.addr}:${entry.port}`);
-      // AND SAY WHO IS THERE, NOW. `learned` is what joins a dialled row
-      // to a heard one, and it was only ever filled by a round that
-      // succeeded — so between accepting a deck and the next round, one
-      // machine appeared as two rows. We already know the answer here:
-      // the handshake that just finished said so.
-      learned.set(`${entry.addr}:${entry.port}`, { fp: entry.fp, name: entry.name || "" });
-    }
+    if (entry.addr && entry.port) keepDialling(entry.addr, entry.port, { fp: entry.fp, name: entry.name || "" });
     onTrust?.(list);
     onChange?.();
   };
@@ -1625,9 +1633,7 @@ export function createEngine({
           // identity was restarted). Never persist a pin from that old join.
           if (!stillJoining()) return { ok: false, reason: "not_running", tried };
           const { list } = pin({ fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name });
-          this.addPeer(at.addr, at.port);
-          onDial?.(`${at.addr}:${at.port}`);
-          learned.set(`${at.addr}:${at.port}`, { fp: conn.peerFp, name: conn.peerName || inv.name });
+          keepDialling(at.addr, at.port, { fp: conn.peerFp, name: conn.peerName || inv.name });
           onTrust?.(list);
           onChange?.();
           return {
