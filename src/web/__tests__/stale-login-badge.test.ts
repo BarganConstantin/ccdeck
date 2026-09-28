@@ -24,7 +24,8 @@ import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
 const accounts = await import("../../server/claude-accounts.mjs");
 import { autoRecaptureState } from "../../server/cswap-admin.mjs";
 import { manifestFor } from "../../server/lan-sync.mjs";
-import { accountIssue, collectorText, staleCopyText } from "../components/AccountsPanel";
+import { accountIssue, collectorText, staleCopyText } from "../account-issue";
+import { clientText } from "./client-source";
 
 const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -233,7 +234,7 @@ describe("what the panel is allowed to offer", () => {
     expect(collectorText(null)).toBeNull();
     expect(collectorText("something_new")?.fix).toBeUndefined();
     // The panel asks `fix` rather than deciding for itself.
-    expect(panel).toContain("fix: v.fix ? sentence(v.fix) : null,");
+    expect(clientText()).toContain("fix: v.fix ? sentence(v.fix) : null,");
     expect(accountIssue({ error: null, stopped: true, collector: null }, 0)?.fix).toBeNull();
     expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.fix).toBeNull();
     expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.fix).toBe("Sign in");
@@ -248,11 +249,11 @@ describe("what the panel is allowed to offer", () => {
     // answer there is. The server starts it now, and the row says how it went.
     expect(panel).not.toMatch(/action: "recapture"/);
     expect(panel).not.toMatch(/pressProps\("recapture"\)/);
-    expect(panel).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
+    expect(clientText()).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
   });
 
   it("says the quieter true thing instead", () => {
-    expect(panel).toMatch(/if \(a\.staleCopy\) \{/);
+    expect(clientText()).toMatch(/if \(a\.staleCopy\) \{/);
     expect(accountIssue({ error: null, staleCopy: true, repair: { state: "running" } }, 0))
       .toMatchObject({ text: "Resuming…", tone: "quiet", fix: null, blocksSwitch: false });
     // And names the remedy that actually applies, rather than the one that

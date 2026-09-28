@@ -85,7 +85,7 @@ describe("shareExpiry", () => {
 // with nothing to do about it. That string is claude-swap's, not ours, and the
 // two codes that mean "the stored login is dead" are the only failures here that
 // waiting does not fix — so they say so, and the row offers the fix.
-import { errorText } from "../components/AccountsPanel";
+import { errorText } from "../account-issue";
 
 describe("errorText", () => {
   it("turns a dead refresh token into a sentence and an offer", () => {
