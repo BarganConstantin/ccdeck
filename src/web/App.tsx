@@ -1342,6 +1342,15 @@ function Inner() {
   // from a previous run would only relayout a node that has been settled since.
   const provisionalRef = useRef<Provisional>(new Set());
   const lastLayoutSigRef = useRef<string>("");
+  // Moved wherever the cached positions are thrown away — R and the reframe
+  // below. The board is rebuilt inside the memo that calls snapshotToFlow, and
+  // emptying positionsRef moves none of that memo's deps, so the rerender both
+  // used to ask for handed back the cached board and the rebuild waited for the
+  // clock's next 250ms tick. The save and the fit each of them runs 80ms later
+  // then read the arrangement they had just discarded, most of the time: R was
+  // never stored, and a reload drew a different board (#1331). In the deps, the
+  // render they schedule is the one that rebuilds.
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
   // Everything "Remove node" has taken off the board: the removed agents, what
   // descends from them, and every agent of a removed session. Worked out once
   // and subtracted from BOTH layoutSig and visibleAgentIds below, so the cards,
@@ -1664,7 +1673,7 @@ function Inner() {
       );
       return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes],
+    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch],
   );
 
   // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
@@ -1732,11 +1741,11 @@ function Inner() {
     }
     provisionalRef.current.clear();
     lastLayoutSigRef.current = "";
-    rerender();
+    setLayoutEpoch(e => e + 1);
     // Same 80ms handleRelayout waits: React and React Flow get one paint to
     // settle the new positions before the camera is asked to frame them.
     window.setTimeout(() => {
-      // The board is only rebuilt during the render `rerender` scheduled —
+      // The board is only rebuilt during the render the epoch schedules —
       // positionsRef holds nothing but the pins until then — so this is the
       // first moment there is a new arrangement to store. It has to be stored
       // here because the debounced save is keyed on layoutSig, which a frame
@@ -1763,7 +1772,7 @@ function Inner() {
     // `nodes` and `edges` are read, not watched: they are rebuilt four times a
     // second and this has to run when the FRAME moves, on whatever board was on
     // screen at that moment.
-  }, [availableWidth, availableHeight, settled, dragging, rerender, fitLeft, rf, applyViewport]);
+  }, [availableWidth, availableHeight, settled, dragging, fitLeft, rf, applyViewport]);
 
   // Invisible per-session drag-handle nodes. One per session, sized to the
   // bounding box of that session's agent nodes and rendered behind them
@@ -1947,11 +1956,21 @@ function Inner() {
     positionsRef.current.clear();
     lastLayoutSigRef.current = "";
     clearStoredLayout();
-    rerender();
+    setLayoutEpoch(e => e + 1);
     // After dagre runs on the next render, fit-view so the user sees the
     // result. 80ms gives React + RF one paint to settle the new positions.
-    window.setTimeout(() => fitLeft(500), 80);
-  }, [rerender, rf, fitLeft]);
+    window.setTimeout(() => {
+      // And store it, for the reason the reframe above does: the debounced save
+      // is keyed on layoutSig, which R does not move, so the board R drew was
+      // never written — the storage it had just emptied stayed empty, and a
+      // reload rebuilt the board from the replay instead (#1331). With it goes
+      // the frame it was packed for, which clearStoredLayout removed with the
+      // arrangement it described.
+      saveLayout(positionsRef.current, pinnedRef.current);
+      if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
+      fitLeft(500);
+    }, 80);
+  }, [rf, fitLeft]);
 
   // Same anchoring as relayout — F and the fit button land where it does.
   const handleFit = useCallback(() => fitLeft(500), [fitLeft]);
