@@ -67,14 +67,14 @@ interface Props {
   onToggleLanes: () => void;
   busy: RequestSlot["busy"];
   pressProps: RequestSlot["pressProps"];
-  doSwitch: (num: number, name: string) => void;
+  onSwitch: (num: number, name: string) => void;
   /** This row's ⋯ is the one open. */
   menuOpen: boolean;
-  openMenu: (num: number, start?: "first" | "last") => void;
-  closeMenu: (only?: number) => void;
+  onOpenMenu: (num: number, start?: "first" | "last") => void;
+  onCloseMenu: (only?: number) => void;
   /** Why a switch pressed on this row did not work, if one did not. */
   refusal: Failure | null;
-  onDismissFailure: () => void;
+  onDismissRefusal: () => void;
   /** A switch from the panel just landed on this account. */
   switchedHere: boolean;
   /** The swap a move into a taken slot made, when it landed on this row. */
@@ -83,12 +83,12 @@ interface Props {
   displaced: Account | undefined;
   /** This row's warning has its explanation open. */
   issueExpanded: boolean;
-  openIssue: (num: number, anchor: string) => void;
+  onOpenIssue: (num: number, anchor: string) => void;
 }
 
 export default function AccountRow({
-  a, nowSec, opened, onToggleLanes, busy, pressProps, doSwitch, menuOpen, openMenu, closeMenu,
-  refusal, onDismissFailure, switchedHere, swapped, displaced, issueExpanded, openIssue,
+  a, nowSec, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
+  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue,
 }: Props) {
   const { shown, fuller } = laneSplit(a.lanes);
   const issue = accountIssue(a, nowSec);
@@ -174,7 +174,7 @@ export default function AccountRow({
             type="button"
             className="ap-switch"
             {...pressProps(`switch-${a.num}`)}
-            onClick={() => doSwitch(a.num, name)}
+            onClick={() => onSwitch(a.num, name)}
             aria-label={`Switch to ${name}`}
             title={`Switch to ${a.alias ?? a.email}`}
           >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
@@ -191,13 +191,13 @@ export default function AccountRow({
           aria-haspopup="menu" aria-expanded={menuOpen}
           aria-controls={menuOpen ? `ap-menu-${a.num}` : undefined}
           title="More actions"
-          onClick={() => (menuOpen ? closeMenu() : openMenu(a.num))}
+          onClick={() => (menuOpen ? onCloseMenu() : onOpenMenu(a.num))}
           onKeyDown={e => {
             // Down opens at the first item and Up at the last, the way
             // a native menu button does. Enter and Space are the click.
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
-            openMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
+            onOpenMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
           }}>
           {/* AUTHORED, NOT TYPED, like the header's four: three dots on
               the same 14px grid the header draws at. */}
@@ -216,7 +216,7 @@ export default function AccountRow({
       {refusal && (
         <div className="ap-failure ap-row-failure" role="alert">
           <span className="ap-failure-text" title={refusal.raw || undefined}>{refusal.text}</span>
-          <button type="button" className="ap-failure-x" onClick={() => onDismissFailure()}
+          <button type="button" className="ap-failure-x" onClick={() => onDismissRefusal()}
             aria-label="Dismiss this message" title="Dismiss">×</button>
         </div>
       )}
@@ -252,7 +252,7 @@ export default function AccountRow({
             aria-haspopup="dialog"
             aria-expanded={issueExpanded}
             aria-controls={issueExpanded ? "ap-issue-pop" : undefined}
-            onClick={() => openIssue(a.num, `ap-issue-${a.num}`)}>
+            onClick={() => onOpenIssue(a.num, `ap-issue-${a.num}`)}>
             {issue.tone === "warn" && <WarnGlyph />}
             <span className="ap-issue-text">{issue.text}</span>
           </button>

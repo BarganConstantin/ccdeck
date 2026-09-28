@@ -56,9 +56,10 @@ describe("a switch answers on the row it was about (#827)", () => {
     expect(doSwitch).toMatch(/else setSwitched\(\{ num, name \}\);/);
     expect(doSwitch).toMatch(/clearFailure\(\);\s*setSwitched\(null\);/);
     expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
-    expect(clientText()).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, name\)\}/);
-    // The row presses the panel's own doSwitch — the one above that says it.
-    expect(panel).toMatch(/<AccountRow key=\{a\.num\}[\s\S]{0,400}?\bdoSwitch=\{doSwitch\}/);
+    expect(clientText()).toMatch(/onClick=\{\(\) => onSwitch\(a\.num, name\)\}/);
+    // The row presses the panel's own doSwitch — the one above that says it —
+    // handed in as its onSwitch.
+    expect(panel).toMatch(/<AccountRow key=\{a\.num\}[\s\S]{0,400}?\bonSwitch=\{doSwitch\}/);
   });
 });
 

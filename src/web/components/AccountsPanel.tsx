@@ -419,11 +419,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     return (
       <AccountRow key={a.num} a={a} nowSec={nowSec}
         opened={opened} onToggleLanes={() => setOpenLanes(o => toggleLane(o, a))}
-        busy={busy} pressProps={pressProps} doSwitch={doSwitch}
-        menuOpen={menuOpen} openMenu={openMenu} closeMenu={closeMenu}
-        refusal={refusal} onDismissFailure={() => clearFailure()}
+        busy={busy} pressProps={pressProps} onSwitch={doSwitch}
+        menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
+        refusal={refusal} onDismissRefusal={() => clearFailure()}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
-        issueExpanded={issueExpanded} openIssue={openIssue} />
+        issueExpanded={issueExpanded} onOpenIssue={openIssue} />
     );
   };
 

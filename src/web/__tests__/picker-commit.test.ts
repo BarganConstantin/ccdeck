@@ -200,7 +200,7 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // admin route, not the auto route, not fetch, and not the two helpers that
     // wrap them.
     for (const body of handlers(surfaceCode, "onChange")) {
-      expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
+      expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|onSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
       // A setter, or one of the two drafts the ⋯ menu's hook writes by name —
       // and each of those is one setter call and nothing else.
       expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot)\(/);
