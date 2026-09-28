@@ -158,6 +158,23 @@ function usageBucketFor(state, model) {
   return fresh;
 }
 
+/** The counters a `"usage"` block carries flat, and the two its
+ *  `cache_creation` sub-object splits cache writes into by TTL. */
+const USAGE_BLOCK_FIELDS = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"];
+const CACHE_SPLIT_FIELDS = ["ephemeral_1h_input_tokens", "ephemeral_5m_input_tokens"];
+
+/** Charge `fields` of one usage blob to the file's flat totals and, when the
+ *  tokens can be attributed, to their model's bucket too — the same number
+ *  into both, read once, so the split and the total it splits go on summing
+ *  to each other. */
+function chargeUsage(state, bucket, blob, fields) {
+  for (const k of fields) {
+    const n = grabUsageField(blob, k);
+    state.usage[k] += n;
+    if (bucket) bucket[k] += n;
+  }
+}
+
 /** Add `src`'s per-model buckets into `dst`, key for key, and return `dst`.
  *  Under the same cap as the per-file map, so a session that delegates to
  *  hundreds of files cannot assemble an unbounded one out of bounded parts. */
@@ -204,8 +221,7 @@ function newUsageTotals() {
  *  and each subagent file's totals are all asked this, and each of those three
  *  used to spell the four tests out for itself. */
 function hasSpend(u) {
-  return u.input_tokens !== 0 || u.output_tokens !== 0
-    || u.cache_read_input_tokens !== 0 || u.cache_creation_input_tokens !== 0;
+  return USAGE_BLOCK_FIELDS.some(k => u[k] !== 0);
 }
 
 function newTranscriptState() {
@@ -470,31 +486,10 @@ function foldTranscriptLine(state, line) {
   const billed = billedUsageText(line);
   const bucket = usageBucketFor(state, state.lastModel);
   for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
-    const blob = m[1];
-    const inTok    = grabUsageField(blob, "input_tokens");
-    const outTok   = grabUsageField(blob, "output_tokens");
-    const cacheR   = grabUsageField(blob, "cache_read_input_tokens");
-    const cacheC   = grabUsageField(blob, "cache_creation_input_tokens");
-    state.usage.input_tokens += inTok;
-    state.usage.output_tokens += outTok;
-    state.usage.cache_read_input_tokens += cacheR;
-    state.usage.cache_creation_input_tokens += cacheC;
-    if (bucket) {
-      bucket.input_tokens += inTok;
-      bucket.output_tokens += outTok;
-      bucket.cache_read_input_tokens += cacheR;
-      bucket.cache_creation_input_tokens += cacheC;
-    }
+    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS);
   }
   for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
-    const h1 = grabUsageField(m[1], "ephemeral_1h_input_tokens");
-    const m5 = grabUsageField(m[1], "ephemeral_5m_input_tokens");
-    state.usage.ephemeral_1h_input_tokens += h1;
-    state.usage.ephemeral_5m_input_tokens += m5;
-    if (bucket) {
-      bucket.ephemeral_1h_input_tokens += h1;
-      bucket.ephemeral_5m_input_tokens += m5;
-    }
+    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS);
   }
 
   // Context counts only what follows the most recent /clear or /compact.
