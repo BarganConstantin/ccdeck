@@ -20,6 +20,7 @@ const SECTION = code("../components/LanSyncSection.tsx");
 const LIST = code("../components/LanDeckList.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
 const PRESS = code("../panel-press.ts");
+const ROW_UNPAIR = code("../use-row-unpair.ts");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 describe("LAN warning visibility", () => {
@@ -384,7 +385,8 @@ describe("the row is the door", () => {
     // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
     expect(MODAL).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); armedAt\.current = now; return; \}/);
-    for (const src of [MODAL, SECTION]) {
+    // The row's press lives in the section's own hook for it.
+    for (const src of [MODAL, ROW_UNPAIR]) {
       expect(src).toMatch(/if \(press === "ignore"\) return;/);
     }
     // The gap is armedPress's own constant, beside it in panel-press.ts.

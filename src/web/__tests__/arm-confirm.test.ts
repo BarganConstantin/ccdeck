@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { armedPress, CONFIRM_GAP_MS } from "../panel-press";
 import { withoutComments } from "./tsx-scan";
 import { accountsSurface } from "./accounts-surface";
+import { lanSectionSurface } from "./lan-section-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
 
 const GAP = 400;
@@ -84,7 +85,11 @@ describe("every arm-then-confirm press asks armedPress", () => {
   /** Remove's press, lifted out of the panel's markup into the ⋯ menu's hook
    *  with the armed account and the time it was armed. */
   const accountMenu = withoutComments(readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8"));
-  const section = read("LanSyncSection.tsx");
+  /** The row's unpair, lifted out of the section into a hook of its own with
+   *  the armed row and the time it was armed; the section and every file
+   *  lifted out of it, for the sweeps. */
+  const rowUnpair = withoutComments(readFileSync(fileURLToPath(new URL("../use-row-unpair.ts", import.meta.url)), "utf8"));
+  const section = withoutComments(lanSectionSurface());
   const list = read("LanDeckList.tsx");
   const modal = read("LanPeerModal.tsx");
   /** A custom sound's Delete, lifted out of the menu with the rest of the
@@ -110,7 +115,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
   });
 
   it("routes all three unpairs through it", () => {
-    expect(section).toMatch(/armedFor: armed, target: p\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(rowUnpair).toMatch(/armedFor: armed, target: p\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect(modal).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect(modal).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect([...section.matchAll(/if \(press === "ignore"\) return;/g)]).toHaveLength(1);
@@ -137,7 +142,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
     // press lives in use-account-menu.ts now, and a sweep of the component alone
     // would pass over it.
     const panel = withoutComments(accountsSurface());
-    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx and its lifted files", soundMenu]]) {
+    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx and its lifted files", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx and its lifted files", soundMenu]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }

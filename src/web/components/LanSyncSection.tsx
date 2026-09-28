@@ -35,12 +35,12 @@
 // not happened yet; a refresh token that has left this machine is gone, and the
 // only real revocation is a re-login at Anthropic, which kills the session on
 // every machine at once.
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { checkedLabel, type DeckRow, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
+import { useEffect, useState, type ReactNode } from "react";
+import { checkedLabel, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
 import type { LanAccount, LanTailscale } from "../lan-types";
-import { armedPress, CONFIRM_GAP_MS } from "../panel-press";
 import { PEEK_DELAY_MS, useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
+import { useRowUnpair } from "../use-row-unpair";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
@@ -98,23 +98,6 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   closeButton?: ReactNode;
 }) {
   const [setupOpen, setSetupOpen] = useState(false);
-  /** Which unpair is armed. The account rows above have made an irreversible
-   *  press cost a second deliberate one since the panel was written; this row
-   *  is the same act against a different noun. */
-  const [armed, setArmed] = useState<string | null>(null);
-  /** When `armed` was set, so a double-click cannot be its own confirmation —
-   *  see CONFIRM_GAP_MS. */
-  const armedAt = useRef(0);
-  // An armed unpair stands down on its own, four seconds after THAT arm (#1539).
-  // The timer used to be set by the press and left running, and it only asked
-  // whether the same row was still armed — so a row armed, left for another,
-  // and armed again was stood down by the first arm's timer, a second or two
-  // into its own four. Keyed on the arm, a new arm clears the old timer.
-  useEffect(() => {
-    if (armed == null) return;
-    const t = window.setTimeout(() => setArmed(null), 4_000);
-    return () => window.clearTimeout(t);
-  }, [armed]);
   /** The dialog that holds the two ways of reaching a deck the network could
    *  not offer. A DIALOG RATHER THAN A DRAWER IN THIS COLUMN: an address is
    *  monospace, an invite is 140 characters and the firewall block is a
@@ -140,26 +123,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
     status, manual, now, busy, failure, dismissFailure, pressProps, load,
     toggle, answer, dropAddress, rename, checkOne, checkNow,
   } = useLanSection(onChanged, () => setSetupOpen(true));
-  /** A press on a paired row's unpair. The row draws the button; the decision
-   *  — arm, confirm, or a double-click that is neither — and the state it reads
-   *  stay here, so a row armed a moment ago is still armed when the view comes
-   *  back inside its four seconds. */
-  const pressUnpair = (p: DeckRow) => {
-    const now = Date.now();
-    const press = armedPress({
-      armedFor: armed, target: p.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
-    });
-    if (press === "arm") {
-      setArmed(p.fp);
-      armedAt.current = now;
-      return;
-    }
-    // A double-click is one decision, not two: its second
-    // press lands before anybody could have read `confirm`.
-    if (press === "ignore") return;
-    setArmed(null);
-    void answer("unpair", p.fp, "unpair that deck");
-  };
+  // Which paired row's unpair is armed, and what a press on one means. Held
+  // here rather than in the list, which the view takes away with it.
+  const { armed, pressUnpair } = useRowUnpair(answer);
   /** Which deck's own dialog is open, by the fingerprint its row is keyed on.
    *  A key rather than a row, so the dialog redraws from every poll — and a
    *  deck that changes kind under it, asked and then paired, stays open on the
