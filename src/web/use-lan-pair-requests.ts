@@ -8,8 +8,9 @@
 // there by position. Both setters are private now.
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 
-import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
-import type { LanStranger } from "./components/LanSyncSection";
+import { withAliases } from "./lan-roster";
+import type { LanStranger } from "./lan-types";
+import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS } from "./use-lan-section";
 
 export interface LanPairRequests {
   /** Decks asking to pair with this one, with the names given to them here. */

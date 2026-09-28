@@ -25,8 +25,8 @@
 import { useRef } from "react";
 import { pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { askedLabel } from "./LanSyncSection";
-import type { LanStranger } from "./LanSyncSection";
+import { askedLabel } from "../lan-roster";
+import type { LanStranger } from "../lan-types";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
 
 /** Which request to put in front of somebody, and how many are behind it.

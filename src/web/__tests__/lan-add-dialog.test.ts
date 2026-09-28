@@ -16,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { addressFault, faultLine } from "../components/LanAddDeckModal";
-import { parseAddress } from "../components/LanSyncSection";
+import { parseAddress } from "../lan-add-deck";
 import { writeFailure } from "../use-lan-section";
 
 /** The dialog, with its comments taken out, so no rule here can be satisfied by

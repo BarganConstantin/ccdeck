@@ -14,9 +14,8 @@ import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
 import { clientText, WEB_DIR } from "./client-source";
 import { LAN_SECTION_FILES } from "./lan-section-surface";
-import {
-  leftLabel, parseAddress, nextShared, sameKeys, settlePending,
-} from "../components/LanSyncSection";
+import { leftLabel, parseAddress } from "../lan-add-deck";
+import { nextShared, sameKeys, settlePending } from "../lan-share";
 import { faultText, roundLabel } from "../lan-round";
 import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
 import { writeFailure } from "../use-lan-section";
@@ -1413,12 +1412,12 @@ describe("what an off network is allowed to cost", () => {
 
   it("asks slowly while the switch is off, and quickly while it is on", () => {
     // The section's own poller is its hook's now, and the pair is declared
-    // there; the section passes them through to the import below.
+    // there; the pair-request hook imports them from it, below.
     expect(HOOK_SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
     expect(HOOK_SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
     // One pair of numbers, used by both pollers, rather than one each.
     // Other names may ride the same import; the two constants must be on it.
-    expect(app).toMatch(/import \{ LAN_POLL_OFF_MS, LAN_POLL_ON_MS(, \w+)* \} from "\.\/components\/LanSyncSection";/);
+    expect(app).toMatch(/import \{ LAN_POLL_OFF_MS, LAN_POLL_ON_MS(, \w+)* \} from "\.\/use-lan-section";/);
     for (const src of [HOOK_SRC, app]) {
       expect(src).toMatch(/enabled === true \? LAN_POLL_ON_MS : LAN_POLL_OFF_MS/);
     }

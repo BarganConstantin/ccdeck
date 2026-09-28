@@ -66,9 +66,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
-import { nextShared, settlePending, writeFailure } from "./LanSyncSection";
+import { nextShared, settlePending } from "../lan-share";
+import { writeFailure } from "../use-lan-section";
 import { copyText } from "../copy-text";
-import type { LanAccount, LanStatus, LanTailscale } from "./LanSyncSection";
+import type { LanAccount, LanStatus, LanTailscale } from "../lan-types";
 
 /**
  * The line under "Look for my devices": whose devices those are, and how many
