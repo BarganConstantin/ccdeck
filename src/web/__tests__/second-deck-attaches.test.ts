@@ -80,6 +80,7 @@ const SRC = readFileSync(
 );
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
 const INDEX = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+const LISTEN = readFileSync(fileURLToPath(new URL("../../server/listen.mjs", import.meta.url)), "utf8");
 
 describe("a start keeps at most one deck", () => {
   it("starts when nothing is running", () => {
@@ -369,7 +370,8 @@ describe("what the attach does and does not disturb", () => {
     // and Docker Desktop, so it can be unavailable with nothing listening on it.
     // A deck coming up on 4322 beats a deck refusing to come up.
     expect(INDEX).toContain("portRange = [4318, 4400]");
-    expect(INDEX).toMatch(/portRetryable = \(err\) =>[\s\S]{0,120}EADDRINUSE[\s\S]{0,40}EACCES/);
+    // The rule that sends a refused bind to the next candidate is listen.mjs's.
+    expect(LISTEN).toMatch(/portRetryable = \(err\) =>[\s\S]{0,120}EADDRINUSE[\s\S]{0,40}EACCES/);
   });
 
   it("waits for the launcher chain instead of exiting out from under it", () => {
