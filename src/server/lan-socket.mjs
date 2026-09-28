@@ -926,8 +926,7 @@ export function createSyncServer({
         if (!known) {
           if (heldInvite) {
             // So there is nothing to press: the deck is pinned here.
-            onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort,
-              addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "" });
+            onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
             authed = true;
             chan = sealedChannel();
             clearTimeout(deadline);
@@ -966,7 +965,7 @@ export function createSyncServer({
           // happens until somebody presses it.
           onPending?.({
             fp: peerFp, pub: peerPub, name: peerName,
-            addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "",
+            addr: from(sock),
             // Where it LISTENS, from the hello — not this socket's remote port,
             // which is ephemeral. This is what lets an accept dial back.
             port: peerPort,
