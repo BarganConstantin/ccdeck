@@ -239,29 +239,12 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
   const tries = candidates(cmd);
   const lineSubs = [];
   let child = null;
-  let pending = "";           // partial line carried between chunks
+  // Every stdout/stderr chunk goes through here to the `onLine` subscribers.
+  const lines = lineFeed(lineSubs);
   let stdout = "", stderr = "";
   let timedOut = false, killed = false;
   let settle;
   const done = new Promise((resolve) => { settle = resolve; });
-
-  // Subscribers get `(text, partial)`. A subscriber must not throw and must
-  // tolerate repeats: `partial` is the still-unterminated tail, re-offered as
-  // it grows, because a prompt is written WITHOUT a newline —
-  // "Paste code here if prompted > " never terminates a line, so a
-  // newline-only reader would wait for it forever.
-  const emitLines = (text) => {
-    pending += text;
-    let nl;
-    while ((nl = pending.indexOf("\n")) !== -1) {
-      const line = pending.slice(0, nl).replace(/\r$/, "");
-      pending = pending.slice(nl + 1);
-      for (const cb of lineSubs) { try { cb(line, false); } catch { /* a subscriber must not kill the child */ } }
-    }
-    if (pending) {
-      for (const cb of lineSubs) { try { cb(pending, true); } catch { /* ignore */ } }
-    }
-  };
 
   let graceTimer = null;
 
@@ -377,8 +360,8 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     // become two replacement characters in the line it emits.
     proc.stdout?.setEncoding?.("utf8");
     proc.stderr?.setEncoding?.("utf8");
-    proc.stdout?.on("data", (d) => { if (stale()) return; const t = String(d); stdout = keep(stdout, t); emitLines(t); });
-    proc.stderr?.on("data", (d) => { if (stale()) return; const t = String(d); stderr = keep(stderr, t); emitLines(t); });
+    proc.stdout?.on("data", (d) => { if (stale()) return; const t = String(d); stdout = keep(stdout, t); lines.push(t); });
+    proc.stderr?.on("data", (d) => { if (stale()) return; const t = String(d); stderr = keep(stderr, t); lines.push(t); });
     proc.on("close", (code) => {
       if (stale()) return;
       // Already answered — by the deadline above, or by kill()'s grace below.
@@ -394,7 +377,7 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
       // the whole command, and these commands remove accounts.
       if (code !== 0 && isBatch(raw) && looksMissing(`${stderr}\n${stdout}`, launch, code)) {
         if (i + 1 < tries.length) {
-          stdout = ""; stderr = ""; pending = "";
+          stdout = ""; stderr = ""; lines.reset();
           child = null;
           return attempt(i + 1);
         }
@@ -435,6 +418,43 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     },
     onLine(cb) { lineSubs.push(cb); },
     done,
+  };
+}
+
+/**
+ * Cut a child's output into lines for `subs`, as it arrives.
+ *
+ * Subscribers get `(text, partial)`. A subscriber must not throw and must
+ * tolerate repeats: `partial` is the still-unterminated tail, re-offered as
+ * it grows, because a prompt is written WITHOUT a newline —
+ * "Paste code here if prompted > " never terminates a line, so a
+ * newline-only reader would wait for it forever.
+ *
+ * `subs` is read at every push rather than copied, so a subscriber added
+ * after the child started hears everything from then on. `reset` drops the
+ * carried tail, for a retry that starts the output over under the next
+ * spelling.
+ *
+ * Exported for its test. Three fakes in the suite restate this rule by hand
+ * to stand in for runInteractive, so it is pinned by running it rather than
+ * by reading it.
+ */
+export function lineFeed(subs) {
+  let pending = "";           // partial line carried between chunks
+  return {
+    push(text) {
+      pending += text;
+      let nl;
+      while ((nl = pending.indexOf("\n")) !== -1) {
+        const line = pending.slice(0, nl).replace(/\r$/, "");
+        pending = pending.slice(nl + 1);
+        for (const cb of subs) { try { cb(line, false); } catch { /* a subscriber must not kill the child */ } }
+      }
+      if (pending) {
+        for (const cb of subs) { try { cb(pending, true); } catch { /* ignore */ } }
+      }
+    },
+    reset() { pending = ""; },
   };
 }
 
