@@ -212,6 +212,67 @@ export function fixSteps({ category, alias, exePath, rules = [] }) {
   return steps;
 }
 
+/**
+ * Whether other decks can reach this Windows machine, from what the probe read:
+ * the network the deck is on, the firewall profile that network answers to,
+ * and the rules for this program.
+ *
+ * Null for a probe that did not come back, for a network that is not Public,
+ * Private or Domain, and for rules that could not be read on a network that is
+ * not Public — see below for why that last one is silence rather than a guess.
+ */
+function windowsReach({ probe = null, aliases = [], exePath = "", inbound = null } = {}) {
+  if (!probe) return null;
+  // The broadcast route first, then the interfaces the deck holds an address
+  // on. The routing table is the authority on where a beacon goes; the deck's
+  // own addresses are the fallback for a machine where that read came back
+  // empty, and the probe's first connected network is the fallback for that.
+  const net = lanNet(probe.nets, [probe.bcast, ...aliases]);
+  const category = net?.category ?? "";
+  const name = profileFor(category);
+  if (!name) return null;
+  // MEASURED BEATS READ, here as on Linux: a connection from another machine
+  // has arrived on the sync listener, so the path is open whatever rule this
+  // was about to fail to find. See inboundAt in lan-inbound.mjs.
+  if (inbound) return { blocked: false, why: "inbound seen", category, alias: net?.alias ?? "" };
+  const prof = probe.profiles.find(p => p.name.toLowerCase() === name.toLowerCase());
+  // A firewall that is off blocks nothing, and saying otherwise would send
+  // somebody to add a rule that changes nothing.
+  if (prof && !prof.enabled) return { blocked: false, why: "firewall off", category, alias: net?.alias ?? "" };
+  if (ruleCovers(probe.rules, name)) {
+    return { blocked: false, why: "rule present", category, alias: net?.alias ?? "" };
+  }
+  // COULD NOT READ THE RULES, SO CANNOT SAY THERE IS NONE. An empty list here
+  // is "Access is denied", not "no rule" (see PROBE_PS), so claiming a missing
+  // rule would be a guess dressed as a read — and the command that guess hands
+  // over adds a duplicate rule on a machine that may already be covered. On a
+  // Public network the fix is the category, which was read reliably, so that
+  // verdict still stands; anywhere else the honest answer is the measurement,
+  // which `refreshReach` falls back to when this returns null.
+  // Only an EMPTY list is ambiguous — a rule in hand was plainly readable,
+  // whatever the flag says.
+  if (!probe.rulesReadable && probe.rules.length === 0 && name !== "Public") return null;
+  return {
+    blocked: true,
+    why: "no inbound rule",
+    category,
+    alias: net?.alias ?? "",
+    // Which shell the steps are written in, so the panel says where to paste
+    // them without asking what platform it is drawing for. Every other field
+    // here is already the verdict's to choose; this is one more.
+    shell: "powershell",
+    // The reason in the reader's terms, not the registry's. What they need to
+    // know is which half is broken, because the other half is what makes the
+    // workaround below obvious rather than magic.
+    text: name === "Public"
+      ? "This network is set to Public, and Windows drops what other decks send. They can still hear this deck — that is why one of them may already show it."
+      : name === "Domain" && probe.rules.length
+        ? "Windows lets this deck in on Private networks only, and this one is a company (Domain) network, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine."
+        : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
+    steps: fixSteps({ category, alias: net?.alias ?? "", exePath, rules: probe.rules }),
+  };
+}
+
 // ── linux ───────────────────────────────────────────────────────────────────
 //
 // THE SAME FAILURE, ONE DISTRIBUTION FURTHER. Reported from a pair of decks on
@@ -472,55 +533,7 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   if (platform === "linux") return linux ? linuxReach({ ...linux, inbound }) : null;
   if (platform === "darwin") return mac ? macReach({ probe: mac, exePath, inbound }) : null;
   if (platform !== "win32") return null;
-  if (!probe) return null;
-  // The broadcast route first, then the interfaces the deck holds an address
-  // on. The routing table is the authority on where a beacon goes; the deck's
-  // own addresses are the fallback for a machine where that read came back
-  // empty, and the probe's first connected network is the fallback for that.
-  const net = lanNet(probe.nets, [probe.bcast, ...aliases]);
-  const category = net?.category ?? "";
-  const name = profileFor(category);
-  if (!name) return null;
-  // MEASURED BEATS READ, here as on Linux: a connection from another machine
-  // has arrived on the sync listener, so the path is open whatever rule this
-  // was about to fail to find. See inboundAt in lan-inbound.mjs.
-  if (inbound) return { blocked: false, why: "inbound seen", category, alias: net?.alias ?? "" };
-  const prof = probe.profiles.find(p => p.name.toLowerCase() === name.toLowerCase());
-  // A firewall that is off blocks nothing, and saying otherwise would send
-  // somebody to add a rule that changes nothing.
-  if (prof && !prof.enabled) return { blocked: false, why: "firewall off", category, alias: net?.alias ?? "" };
-  if (ruleCovers(probe.rules, name)) {
-    return { blocked: false, why: "rule present", category, alias: net?.alias ?? "" };
-  }
-  // COULD NOT READ THE RULES, SO CANNOT SAY THERE IS NONE. An empty list here
-  // is "Access is denied", not "no rule" (see PROBE_PS), so claiming a missing
-  // rule would be a guess dressed as a read — and the command that guess hands
-  // over adds a duplicate rule on a machine that may already be covered. On a
-  // Public network the fix is the category, which was read reliably, so that
-  // verdict still stands; anywhere else the honest answer is the measurement,
-  // which `refreshReach` falls back to when this returns null.
-  // Only an EMPTY list is ambiguous — a rule in hand was plainly readable,
-  // whatever the flag says.
-  if (!probe.rulesReadable && probe.rules.length === 0 && name !== "Public") return null;
-  return {
-    blocked: true,
-    why: "no inbound rule",
-    category,
-    alias: net?.alias ?? "",
-    // Which shell the steps are written in, so the panel says where to paste
-    // them without asking what platform it is drawing for. Every other field
-    // here is already the verdict's to choose; this is one more.
-    shell: "powershell",
-    // The reason in the reader's terms, not the registry's. What they need to
-    // know is which half is broken, because the other half is what makes the
-    // workaround below obvious rather than magic.
-    text: name === "Public"
-      ? "This network is set to Public, and Windows drops what other decks send. They can still hear this deck — that is why one of them may already show it."
-      : name === "Domain" && probe.rules.length
-        ? "Windows lets this deck in on Private networks only, and this one is a company (Domain) network, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine."
-        : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
-    steps: fixSteps({ category, alias: net?.alias ?? "", exePath, rules: probe.rules }),
-  };
+  return windowsReach({ probe, aliases, exePath, inbound });
 }
 
 // ── the machine nothing can be asked about ──────────────────────────────────
