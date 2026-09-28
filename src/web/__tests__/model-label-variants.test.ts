@@ -2,7 +2,7 @@
 //
 // `shortModel` matched `gpt-<version>` and returned before it looked at what
 // followed, so `gpt-5.4-nano` ($0.20/$1.25 per Mtok) and `gpt-5.4-pro`
-// ($30/$180) both printed "GPT-5.4". Nothing was mis-billed — pricing.ts holds
+// ($30/$180) both printed "GPT-5.4". Nothing was mis-billed — rate-table.ts holds
 // an ordered row per variant and every one of them is right — which is what made
 // it worse than a label bug: the usage-history modal could put two rows a 150x
 // price apart under one word, and a reader comparing them could only conclude
@@ -66,11 +66,11 @@ function agent(id: string, model: string): AgentNodeData {
 // Every model id the deck can plausibly draw a label for. Three sources, all
 // enumerated rather than sampled:
 //
-//   · pricing.ts — one id per RATES row, plus the aliases each row's comment
+//   · rate-table.ts — one id per RATES row, plus the aliases each row's comment
 //     names (`gpt-5.6` is documented as an alias for `-sol`; the 5.1 row covers
 //     `-codex`, `-codex-max` and `-chat-latest`).
 //   · context-window.ts CODEX_CONTEXT_DEFAULTS — `gpt-5.3-codex-spark` is sized there
-//     and priced by the `-codex` row, so it exists and pricing.ts never spells
+//     and priced by the `-codex` row, so it exists and rate-table.ts never spells
 //     it out on its own.
 //   · this machine's logs — the ids actually observed in
 //     ~/.claude/agent-dag/events.jsonl (claude-opus-5, claude-opus-4-8,
@@ -135,7 +135,7 @@ const CORPUS: string[] = [
   "o3-pro",
   "o4-mini",
   "o3",
-  // The underscore spellings every `[-_]` in pricing.ts exists to accept
+  // The underscore spellings every `[-_]` in rate-table.ts exists to accept
   "gpt_5_4_nano",
   "gpt_5_1_codex",
 ];
@@ -265,7 +265,7 @@ describe("the pairs the issue is about", () => {
   });
 
   it("reads the underscore spelling of a variant the same as the hyphen one", () => {
-    // `[-_]` appears in every pattern in pricing.ts because both spellings
+    // `[-_]` appears in every pattern in rate-table.ts because both spellings
     // reach the deck; a label that handled one and not the other would put the
     // same model on two rows.
     expect(shortModel("gpt_5_4_nano")).toBe("GPT-5.4 Nano");
@@ -328,7 +328,7 @@ describe("the label still fits where it is drawn", () => {
 
 describe("what the money surfaces do with the label now", () => {
   it("agrees with the rate the row is priced at, for the pair the issue opens with", () => {
-    // pricing.ts was never wrong; it holds an ordered row per variant and the
+    // rate-table.ts was never wrong; it holds an ordered row per variant and the
     // by-model table keys on the raw id. What changed is that the name beside
     // the figure now identifies which of the two rows is which.
     expect(shortModel("gpt-5.4-nano")).toBe("GPT-5.4 Nano");

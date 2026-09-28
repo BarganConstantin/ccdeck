@@ -44,7 +44,7 @@ export function stampSessionFacts(state: GraphState, p: HookPayload, sessionId: 
   // it. This has to run *before* the enrichment branches, all of which
   // return early, otherwise the value never lands anywhere. It is a property
   // of the session, so it goes on the root; the UI prefers it over the static
-  // table in pricing.ts.
+  // table in context-window.ts.
   if (typeof p.model_context_window === "number" && p.model_context_window > 0) {
     const root = state.agents.get(sessionId);
     if (root) root.contextWindow = p.model_context_window;

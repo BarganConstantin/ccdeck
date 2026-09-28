@@ -2,8 +2,8 @@
 //
 // #462: the GPT branch matched `gpt-<version>` and returned before it looked at
 // anything that followed, so `gpt-5.4-nano` at $0.20/Mtok and `gpt-5.4-pro` at
-// $30/Mtok both printed "GPT-5.4". pricing.ts holds an ordered row per variant
-// and bills each of them correctly, which is what made this the bad kind of
+// $30/Mtok both printed "GPT-5.4". rate-table.ts holds an ordered row per
+// variant and each is billed correctly, which is what made this the bad kind of
 // label bug rather than a cosmetic one: the usage-history modal could stack two
 // rows a 150x price apart under one word, with the money right and the names
 // identical, and a reader comparing them had no way to conclude anything except
