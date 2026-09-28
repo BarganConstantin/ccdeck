@@ -15,12 +15,13 @@ import { readFileSync } from "node:fs";
 
 import { WEB_DIR } from "./client-source";
 
-/** The menu and what was lifted out of it, relative to `src/web`, in the order
- *  the menu renders them. A file extracted from SoundMenu.tsx is added here in
- *  the same change. */
+/** The menu and what was lifted out of it, relative to `src/web`, the menu
+ *  first. A file extracted from SoundMenu.tsx, or from a file lifted out of
+ *  it, is added here in the same change. */
 export const SOUND_MENU_FILES = [
   "components/SoundMenu.tsx",
   "components/CustomSoundsSection.tsx",
+  "use-clip-recorder.ts",
 ] as const;
 
 let joined: string | null = null;
