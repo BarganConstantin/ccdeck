@@ -18,17 +18,21 @@
 // that is an effect on the list's state rather than a step each caller must
 // remember.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { writeStored } from "./storage";
+import { readStored, writeStored } from "./storage";
 
 const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
 const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
 
 function loadSessionListOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  try { return window.localStorage.getItem(SESSION_LIST_OPEN_KEY) === "1"; } catch { return false; }
+  return readStored(SESSION_LIST_OPEN_KEY) === "1";
 }
 function saveSessionListOpen(open: boolean): void {
   writeStored(SESSION_LIST_OPEN_KEY, open ? "1" : "0");
+}
+/** Open unless the reader closed it: a first run gets the panel. */
+function loadAccountsPanelOpen(): boolean {
+  const stored = readStored(ACCOUNTS_PANEL_OPEN_KEY);
+  return stored === null ? true : stored === "1";
 }
 
 export interface LeftColumn {
@@ -53,12 +57,7 @@ export function useLeftColumn(): LeftColumn {
    *  is remembered here, never written as one, and undone when the list goes. */
   const accountsEvictedRef = useRef(false);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
-    const wanted = (() => {
-      try {
-        const stored = window.localStorage.getItem(ACCOUNTS_PANEL_OPEN_KEY);
-        return stored === null ? true : stored === "1";
-      } catch { return true; }
-    })();
+    const wanted = loadAccountsPanelOpen();
     // The list holds the column on this load, so the panel waits behind it.
     if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
     return wanted;

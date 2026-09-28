@@ -19,7 +19,7 @@ import { useCallback, useState } from "react";
 
 import { PRODUCT } from "./brand";
 import type { VersionInfo } from "./use-version-check";
-import { writeStored } from "./storage";
+import { readStored, writeStored } from "./storage";
 
 // Which old command the name notice has already been dismissed for — the name
 // itself, not a boolean. Somebody who dismisses it under `agent-dag` and later
@@ -37,10 +37,7 @@ export interface OldNameNotice {
 }
 
 export function useOldNameNotice(version: VersionInfo | null): OldNameNotice {
-  const [oldNameDismissed, setOldNameDismissed] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    try { return window.localStorage.getItem(OLD_NAME_DISMISSED_KEY) ?? ""; } catch { return ""; }
-  });
+  const [oldNameDismissed, setOldNameDismissed] = useState<string>(() => readStored(OLD_NAME_DISMISSED_KEY) ?? "");
   // PRODUCT is both halves of the comparison on purpose: the name the deck
   // calls itself and the command we ask people to type are the same string
   // since the rename (#324), and display-name.test.ts is what holds them there.

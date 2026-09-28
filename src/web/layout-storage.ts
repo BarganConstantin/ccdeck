@@ -2,13 +2,14 @@
 //
 // Moved out of App.tsx's module scope: the storage half of the layout, beside
 // the format half (stored-layout.ts, stored-viewport.ts), which parses and
-// serialises what these read and write. Every read and write is wrapped,
-// because the storage accessor itself can throw — a private window, blocked
-// site data — and a layout that cannot be read is an empty one, not a crash.
+// serialises what these read and write. Every read and write goes through
+// storage.ts's guarded helpers, because the storage accessor itself can throw —
+// a private window, blocked site data — and a layout that cannot be read is an
+// empty one, not a crash.
 import type { Frame } from "./layout";
 import { parseLayoutFrame, parseStoredLayout, serializeLayout, type StoredLayout } from "./stored-layout";
 import { parseStoredViewport, type StoredViewport } from "./stored-viewport";
-import { removeStored, writeStored } from "./storage";
+import { readStored, removeStored, writeStored } from "./storage";
 
 const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 /** The frame the stored layout was packed into columns for — see #995. */
@@ -16,13 +17,11 @@ const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
 const VIEWPORT_STORAGE_KEY = "agent-dag.viewport";
 
 /** The stored arrangement. The format, its v1 migration and what a garbled
- *  value reads as are parseStoredLayout's (#1174); the try is for the storage
- *  read itself, which can throw on its own. */
+ *  value reads as are parseStoredLayout's (#1174); readStored is for the
+ *  storage read itself, which can throw on its own, and reads a refusal as
+ *  nothing stored — the empty layout. */
 export function loadLayout(): StoredLayout {
-  if (typeof window === "undefined") return { positions: [], pins: [] };
-  try {
-    return parseStoredLayout(window.localStorage.getItem(LAYOUT_STORAGE_KEY));
-  } catch { return { positions: [], pins: [] }; }
+  return parseStoredLayout(readStored(LAYOUT_STORAGE_KEY));
 }
 
 export function saveLayout(
@@ -48,10 +47,7 @@ export function saveLayout(
  * the first measurement and compares nothing.
  */
 export function loadLayoutFrame(): Frame | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return parseLayoutFrame(window.localStorage.getItem(LAYOUT_FRAME_KEY));
-  } catch { return null; }
+  return parseLayoutFrame(readStored(LAYOUT_FRAME_KEY));
 }
 
 export function saveLayoutFrame(frame: Frame): void {
@@ -60,12 +56,9 @@ export function saveLayoutFrame(frame: Frame): void {
 
 /** The viewport the canvas was last left at, or null. What it has to be to
  *  count — and why a zero zoom does not — is parseStoredViewport's (#1006);
- *  the try is for the storage read itself, which can throw on its own. */
+ *  readStored is for the storage read itself, which can throw on its own. */
 export function loadViewport(): StoredViewport | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return parseStoredViewport(window.localStorage.getItem(VIEWPORT_STORAGE_KEY));
-  } catch { return null; }
+  return parseStoredViewport(readStored(VIEWPORT_STORAGE_KEY));
 }
 
 export function saveViewport(vp: { x: number; y: number; zoom: number }): void {

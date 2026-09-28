@@ -21,7 +21,7 @@ import { selfPressAccepted } from "./panel-press";
 import { activeCount, autoRestartRemainingMs, autoRestartStep, restartEndedInFailure, restartLandingStep, restartSafety } from "./restart";
 import type { GraphState } from "./reducer";
 import type { VersionInfo, VersionNotice } from "./use-version-check";
-import { removeStored } from "./storage";
+import { readStored, removeStored } from "./storage";
 
 const AUTO_RESTART_KEY = "agent-dag.autoRestart";
 // Per-tab, not per-browser: it guards one reload, not a preference.
@@ -46,10 +46,7 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
   // ── restart ───────────────────────────────────────────────────────────────
   // The server cannot restart itself without racing its own listener onto a
   // random fallback port, so the supervisor owns it and this only asks.
-  const [autoRestart, setAutoRestart] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    try { return window.localStorage.getItem(AUTO_RESTART_KEY) !== "0"; } catch { return true; }
-  });
+  const [autoRestart, setAutoRestart] = useState<boolean>(() => readStored(AUTO_RESTART_KEY) !== "0");
   /** Whether this page has pressed the switch. A press is newer than anything
    *  the prefs load can bring back, so that load leaves the switch alone. */
   const autoTouchedRef = useRef(false);
@@ -225,11 +222,8 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     // over once, and then the key is gone. Not over a press made while this
     // answer was on its way — see autoTouchedRef.
     if (!autoTouchedRef.current) {
-      let legacyOff = false;
-      try {
-        legacyOff = window.localStorage.getItem(AUTO_RESTART_KEY) === "0";
-        window.localStorage.removeItem(AUTO_RESTART_KEY);
-      } catch { /* private mode */ }
+      const legacyOff = readStored(AUTO_RESTART_KEY) === "0";
+      removeStored(AUTO_RESTART_KEY);
       if (legacyOff && d.prefs?.autoUpdate !== false) {
         setAutoRestart(false);
         fetch("/api/prefs", {
