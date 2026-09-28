@@ -309,9 +309,9 @@ describe("the canvas wiring the pure halves depend on", () => {
     // card that re-rendered per pinch frame would cost every card every frame.
     expect(node).not.toMatch(/useViewport|useStore\(/);
     // Worked out in use-zoom-lod.ts, fed by the canvas's viewport handler in
-    // App.tsx, and written only when the band changes.
+    // use-canvas-viewport.ts, and written only when the band changes.
     const lod = read("../use-zoom-lod.ts");
-    expect(app).toMatch(/if \(applyZoom\(vp\.zoom\) === "detail"\) hidePeek\(\);/);
+    expect(read("../use-canvas-viewport.ts")).toMatch(/if \(applyZoom\(vp\.zoom\) === "detail"\) hidePeek\(\);/);
     expect(lod).toMatch(/nextLod\(lodRef\.current, zoom, lodCard\(\)\)/);
     expect(lod).toMatch(/if \(mode === lodRef\.current\) return null;/);
     expect(app).toContain('data-lod={lod}');
@@ -356,7 +356,7 @@ describe("the canvas wiring the pure halves depend on", () => {
 
   it("opens the peek only where the card cannot say it itself", () => {
     expect(app).toMatch(/if \(lodRef\.current == null \|\| lodRef\.current === "detail"\) return;\s*showPeek\(n\.id, e\.currentTarget as Element\);/);
-    expect(app).toContain('if (applyZoom(vp.zoom) === "detail") hidePeek();');
+    expect(read("../use-canvas-viewport.ts")).toContain('if (applyZoom(vp.zoom) === "detail") hidePeek();');
     // And for the keyboard, not only the pointer.
     expect(app).toMatch(/el\.matches\(":focus-visible"\)\) showPeek\(id, el, "focus"\)/);
   });

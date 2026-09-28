@@ -5,9 +5,10 @@
 // Moved out of App.tsx unchanged. The rules — what a removal hides, what brings
 // one back, how the set is stored — are remove-node.ts's; this is the state
 // and the operations on it.
-import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import type { BlockedSession } from "./ambient-counts";
 import type { GraphState } from "./reducer";
-import { readRemovedNodes, removalHiddenIds, REMOVED_NODES_KEY, saveRemovedNodes, withoutRemovals } from "./remove-node";
+import { readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, REMOVED_NODES_KEY, saveRemovedNodes, sessionsCalledBack, withoutRemovals } from "./remove-node";
 import type { useBoardLayout } from "./use-board-layout";
 
 type Layout = ReturnType<typeof useBoardLayout>;
@@ -94,4 +95,30 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
   // through one of the operations above.
   return { removedNodes, lastRemoval, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
            bringBack, bringBackAll, forgetRemovals };
+}
+
+/** The two ways a removed card comes back without being asked for, moved out
+ *  of App.tsx unchanged: called once the waiting sessions are worked out. */
+export function useRemovalCallBacks({ stateRef, waitingSessions, removedAgentIds, removedNodes, bringBack }: {
+  stateRef: MutableRefObject<GraphState>;
+  waitingSessions: BlockedSession[];
+  removedAgentIds: ReadonlySet<string>;
+  removedNodes: ReadonlySet<string>;
+  bringBack: (ids: Iterable<string>) => void;
+}): void {
+  // Brought back rather than filtered out: see sessionsCalledBack. Filtering
+  // would leave the alarm counting one fewer than the sessions actually stuck.
+  // A removed card that goes back to work is brought back the same way, and
+  // through the same bringBack, so the restore is saved and a reload does not
+  // hide it again (#1315): see removalsLiftedByWork, and removalTimes for when
+  // its work starts to count.
+  const removedSinceRef = useRef<ReadonlyMap<string, number>>(new Map());
+  useEffect(() => {
+    removedSinceRef.current = removalTimes(removedSinceRef.current, removedNodes, Date.now());
+    const back = [
+      ...sessionsCalledBack(waitingSessions, removedAgentIds),
+      ...removalsLiftedByWork(stateRef.current.agents, removedAgentIds, removedNodes, removedSinceRef.current),
+    ];
+    if (back.length > 0) bringBack(back);
+  }, [waitingSessions, removedAgentIds, removedNodes, bringBack]);
 }
