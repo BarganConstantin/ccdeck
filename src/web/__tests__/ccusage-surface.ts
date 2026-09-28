@@ -24,6 +24,7 @@ export const CCUSAGE_FILES = [
   "ccusage.mjs",
   "ccusage-failure.mjs",
   "ccusage-install.mjs",
+  "ccusage-runner.mjs",
 ] as const;
 
 let joined: string | null = null;

@@ -17,7 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { nativeCcusage } from "../../server/ccusage.mjs";
+import { nativeCcusage } from "../../server/ccusage-runner.mjs";
 
 const supervisor = readFileSync(fileURLToPath(new URL("../../../bin/agent-dag.js", import.meta.url)), "utf8");
 

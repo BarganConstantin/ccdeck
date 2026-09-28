@@ -239,7 +239,11 @@ delete process.env.AGENTS_DECK_NO_INSTALL;
 delete process.env.AGENTS_DECK_CCUSAGE;
 
 // @ts-expect-error — .mjs server module, no types
-const { fetchCcusageDaily, primeCcusage, userCcusage, userSpec } = await import("../../server/ccusage.mjs");
+const { fetchCcusageDaily, primeCcusage } = await import("../../server/ccusage.mjs");
+// Finding the user's copy, and the command line for it, moved to
+// ccusage-runner.mjs with the rest of choosing which ccusage runs.
+// @ts-expect-error — .mjs server module, no types
+const { userCcusage, userSpec } = await import("../../server/ccusage-runner.mjs");
 
 const CCUSAGE_DIR = join(FAKE_HOME, ".agents-deck", "ccusage");
 const PKG_DIR = join(CCUSAGE_DIR, "node_modules", "ccusage");

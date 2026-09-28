@@ -274,8 +274,8 @@ function installTreeReport() {
  *     it started, and on Windows a `.cmd` runs THROUGH cmd.exe — so the signal
  *     would land on the wrapper and leave npm downloading, which is the same
  *     distinction exec.mjs's `run` states and the reason killTree exists. Same
- *     shape as runOnce in ccusage.mjs, so ccusage's children have one deadline
- *     pattern rather than two.
+ *     shape as runOnce in ccusage-runner.mjs, so ccusage's children have one
+ *     deadline pattern rather than two.
  *
  * Diagnosis is unchanged too: `installFailureText` is handed the same four
  * fields spawnSync used to hand it — a failure to LAUNCH in `error`, the exit
