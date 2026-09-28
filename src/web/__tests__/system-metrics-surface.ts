@@ -3,13 +3,14 @@
 //
 // system-metrics.mjs is being taken apart one concern at a time — the command
 // runner, the process list, the thermal and memory sources, the load-average
-// rule, the minute ring and the network sampler have each moved into a module
-// of their own — and an assertion that means "the sampler does this" reads the
-// file that owns the code. A sweep cannot: "every name the ring is keyed by",
-// read out of system-metrics.mjs alone, quietly loses the network's three the
-// moment the network sampler moves out, and a set that shrinks when code moves
-// is a set that no longer means what the test says it does. So those read this
-// instead: system-metrics.mjs and every file lifted out of it, in one string.
+// rule, the minute ring, the network sampler and the thermal sampler have each
+// moved into a module of their own — and an assertion that means "the sampler
+// does this" reads the file that owns the code. A sweep cannot: "every name the
+// ring is keyed by", read out of system-metrics.mjs alone, quietly loses the
+// network's three the moment the network sampler moves out, and a set that
+// shrinks when code moves is a set that no longer means what the test says it
+// does. So those read this instead: system-metrics.mjs and every file lifted
+// out of it, in one string.
 //
 // Raw rather than comment-stripped, like browser-watch-server-surface.ts, and
 // joined by a newline and nothing else so a line-anchored pattern cannot span
@@ -31,6 +32,7 @@ export const SYSTEM_METRICS_FILES = [
   "load-average.mjs",
   "metrics-history.mjs",
   "network-sampler.mjs",
+  "thermal-sampler.mjs",
 ] as const;
 
 let joined: string | null = null;

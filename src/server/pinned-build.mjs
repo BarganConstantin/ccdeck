@@ -71,7 +71,7 @@ const PINNED_MODULES = [
   "good-life-radio.mjs",
   "cafe-music-bgm.mjs",
   // The thermal readers' two (thermal-metrics.mjs imports both; macmon's
-  // download is still started from system-metrics.mjs), on the platforms that
+  // download is still started from thermal-sampler.mjs), on the platforms that
   // have them, and the one installer.mjs reaches for while it rewrites the hooks.
   "macmon.mjs",
   "hwmonitor.mjs",
