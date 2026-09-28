@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clientText, sourceOf } from "./client-source";
+import { claudeFmSurface } from "./claude-fm-surface";
 import {
   CLAUDE_FM_CHANNEL, CACHE_MS, MISS_CACHE_MS, READ_LIMIT,
   fetchClaudeFm, forgetClaudeFm, FORCE_POLL_MS, isChannelId, liveUrl,
@@ -37,12 +38,17 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
  *  The comment that names a thing to rule it out would otherwise fail the test
  *  that rules it out — the trap card-focus-ring-869 already strips the sheet
  *  for, here for TypeScript as well. */
-const code = (rel: string) => read(rel)
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  .replace(/^\s*\/\/.*$/gm, "");
+const code = (rel: string) => withoutProse(read(rel));
+function withoutProse(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
 
 const css = code("../styles.css");
-const component = code("../components/ClaudeFm.tsx");
+// The component and the files lifted out of it (the player is use-fm-player.ts),
+// read as one, so a negative asked of "the component" still sees all of it.
+const component = withoutProse(claudeFmSurface());
 const probeSrc = code("../../server/claude-fm.mjs");
 const server = code("../../server/index.mjs");
 // The route's own module, since the music routes left index.mjs. The route

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clientText } from "./client-source";
+import { claudeFmSurface } from "./claude-fm-surface";
 import {
   FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableNote, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
@@ -11,7 +12,9 @@ import {
 // the props they are handed on are still App.tsx's. This reads the client:
 // every match on it is positive, and the slices taken by name stay inside the hook.
 const app = clientText();
-const player = readFileSync(fileURLToPath(new URL("../components/ClaudeFm.tsx", import.meta.url)), "utf8");
+// The player's component and the files lifted out of it, read as one: the
+// probe, the pick counter and the direct stream live in use-fm-player.ts now.
+const player = claudeFmSurface();
 const menu = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
 const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../../package.json", import.meta.url)), "utf8"));
 
@@ -312,7 +315,7 @@ describe("the deck's music off switch, whatever link a station was given as", ()
 
 describe("a silent station says why (#1267)", () => {
   const menuSource = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
-  const playerSource = readFileSync(fileURLToPath(new URL("../components/ClaudeFm.tsx", import.meta.url)), "utf8");
+  const playerSource = claudeFmSurface();
 
   it("keeps a built-in station's availability under its own value and a custom one's under its id", () => {
     expect(fmAvailabilityKey("cafe-music-bgm")).toBe("cafe-music-bgm");
