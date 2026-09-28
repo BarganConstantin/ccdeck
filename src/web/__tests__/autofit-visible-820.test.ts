@@ -13,18 +13,22 @@ import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
+// The flag moved to use-auto-fit-switch.ts; the chip, the resume button and the
+// gesture that turns it off stayed here. Where it is declared and whether it is
+// stored are asked of both files, the negatives included.
+const autofit = app + "\n" + read("../use-auto-fit-switch.ts");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("auto-fit off is a moment, not a setting (#820)", () => {
   it("starts every load fitting, whatever an older build stored", () => {
-    expect(app).toMatch(/const autoFitDisabledRef = useRef\(false\);/);
-    expect(app).toMatch(/const \[autoFitDisabled, setAutoFitDisabled\] = useState\(false\);/);
-    expect(app).not.toMatch(/getItem\(AUTOFIT_KEY\)/);
+    expect(autofit).toMatch(/const autoFitDisabledRef = useRef\(false\);/);
+    expect(autofit).toMatch(/const \[autoFitDisabled, setAutoFitDisabled\] = useState\(false\);/);
+    expect(autofit).not.toMatch(/getItem\(AUTOFIT_KEY\)/);
   });
 
   it("does not store a pan, and clears the key older builds wrote", () => {
-    expect(app).not.toMatch(/setItem\(AUTOFIT_KEY/);
-    expect(app).toMatch(/useEffect\(\(\) => \{ try \{ window\.localStorage\.removeItem\(AUTOFIT_KEY\); \} catch \{\} \}, \[\]\);/);
+    expect(autofit).not.toMatch(/setItem\(AUTOFIT_KEY/);
+    expect(autofit).toMatch(/useEffect\(\(\) => \{ try \{ window\.localStorage\.removeItem\(AUTOFIT_KEY\); \} catch \{\} \}, \[\]\);/);
   });
 
   it("still turns off on the reader's own pan or zoom", () => {

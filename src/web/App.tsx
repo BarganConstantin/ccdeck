@@ -112,6 +112,7 @@ import { fmtTokens } from "./token-format";
 import { fmtMonthlyCost } from "./monthly-usage";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
+import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import {
   desktopAppVersion,
   readDesktopUpdate,
@@ -1141,31 +1142,7 @@ function Inner() {
     lastDeckFitAt: lastFitTimeRef.current,
     lastCanvasInputAt: lastCanvasInputRef.current,
   }), []);
-  // Sticky "user took the wheel" flag. Once the user manually pans, zooms,
-  // or drags a node, autofitting is suspended until they hit the recenter
-  // button, or the chip the canvas shows while it is off.
-  //
-  // NOT PERSISTED (#820). It was, "so a refresh respects the user's
-  // preference", and what that bought was a pan from some earlier day still in
-  // force across every reload after it: new sessions landing off to one side
-  // of a mostly empty canvas that said nothing about why, the only sign a tint
-  // on a 14px crosshair. A pan is a decision about this look at the board, not
-  // a setting, so every load starts with the canvas fitting again. The key
-  // older builds wrote is cleared once, below, so it stops meaning anything.
-  const AUTOFIT_KEY = "agent-dag.autoFitDisabled";
-  const autoFitDisabledRef = useRef(false);
-  const [autoFitDisabled, setAutoFitDisabled] = useState(false);
-  useEffect(() => { try { window.localStorage.removeItem(AUTOFIT_KEY); } catch {} }, []);
-  const disableAutoFit = useCallback(() => {
-    if (autoFitDisabledRef.current) return;
-    autoFitDisabledRef.current = true;
-    setAutoFitDisabled(true);
-  }, []);
-  const enableAutoFitAndRefit = useCallback(() => {
-    autoFitDisabledRef.current = false;
-    setAutoFitDisabled(false);
-    fitLeft(400);
-  }, [rf, fitLeft]);
+  const { autoFitDisabled, autoFitDisabledRef, disableAutoFit, enableAutoFitAndRefit } = useAutoFitSwitch(fitLeft);
   useEffect(() => {
     const id = setInterval(() => {
       if (autoFitDisabledRef.current) return;
