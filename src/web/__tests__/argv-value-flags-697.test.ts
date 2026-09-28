@@ -73,6 +73,7 @@ import { isPortValue, looksLikeFlag, parseArgs } from "../../server/args.mjs";
 
 const ARGS_MJS = fileURLToPath(new URL("../../server/args.mjs", import.meta.url));
 const DECK_JS = fileURLToPath(new URL("../../../bin/deck.js", import.meta.url));
+const HELP_JS = fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url));
 const AGENT_DAG_JS = fileURLToPath(new URL("../../../bin/agent-dag.js", import.meta.url));
 
 // ── the table, read out of the parser ───────────────────────────────────────
@@ -432,8 +433,8 @@ describe("a malformed --port names the flag and the value", () => {
 
 describe("--help says what the parser now does", () => {
   it("tells the reader a value-taking flag will not swallow the next flag", () => {
-    const deck = readFileSync(DECK_JS, "utf8");
-    expect(deck).toMatch(/never swallows the next flag/);
+    const help = readFileSync(HELP_JS, "utf8");
+    expect(help).toMatch(/never swallows the next flag/);
   });
 });
 

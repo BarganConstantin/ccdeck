@@ -43,9 +43,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { parseArgs } from "../../server/args.mjs";
+import { cliSurface } from "./cli-surface";
 
 const ARGS_MJS = fileURLToPath(new URL("../../server/args.mjs", import.meta.url));
 const DECK_JS = fileURLToPath(new URL("../../../bin/deck.js", import.meta.url));
+const HELP_JS = fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url));
 const PKG_JSON = fileURLToPath(new URL("../../../package.json", import.meta.url));
 
 // ── the fifteen tokens that already worked ──────────────────────────────────
@@ -181,7 +183,7 @@ describe("--version and -v", () => {
   }
 
   it("is listed in --help, where someone would look for it", () => {
-    expect(readFileSync(DECK_JS, "utf8")).toMatch(/-v, --version\s+Print the version and exit/);
+    expect(readFileSync(HELP_JS, "utf8")).toMatch(/-v, --version\s+Print the version and exit/);
   });
 });
 
@@ -254,7 +256,8 @@ describe("bin/deck.js reads the parser rather than carrying its own", () => {
     // the one every assertion above is about.
     const deck = readFileSync(DECK_JS, "utf8");
     expect(deck).toMatch(/import \{[^}]*\bparseArgs\b[^}]*\} from "\.\.\/src\/server\/args\.mjs";/);
-    expect(deck).not.toMatch(/^function parseArgs\(/m);
+    // Nor anywhere lifted out of it: a copy in bin/cli/ drifts the same way.
+    expect(cliSurface()).not.toMatch(/^function parseArgs\(/m);
   });
 });
 

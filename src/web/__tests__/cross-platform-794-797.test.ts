@@ -12,6 +12,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { CLI_FILES } from "./cli-surface";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -169,8 +170,8 @@ describe("#797 — punctuation the console may not have", () => {
 
   it("leaves no hardcoded em dash in the four bin and supervisor lines", () => {
     // The sites the audit named. Comments are allowed to contain one — this
-    // reads the code only.
-    for (const rel of ["../../../bin/deck.js", "../../../bin/agent-dag.js", "../../server/supervisor.mjs"]) {
+    // reads the code only. deck.js comes with everything lifted out of it.
+    for (const rel of [...CLI_FILES.map(f => `../../../${f}`), "../../../bin/agent-dag.js", "../../server/supervisor.mjs"]) {
       const code = read(rel)
         .split("\n")
         .filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l))

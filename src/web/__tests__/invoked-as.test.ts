@@ -37,6 +37,7 @@ import { glyphs, labelColumn, palette, statusLine, stripAnsi } from "../../serve
 // @ts-expect-error — plain JS module, no types
 import { upgradeBlock, upgradeMode } from "../../server/self-update.mjs";
 import { clientText } from "./client-source";
+import { cliSurface } from "./cli-surface";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -325,7 +326,7 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // AGENTS_DECK_*, like every other variable the deck reads — display-name
     // .test.ts owns that boundary and this is the new one it applies to.
     expect(worker).toContain("invokedName({ pkgRoot: PKG_ROOT })");
-    expect(worker).not.toContain("process.argv[1]");
+    expect(cliSurface()).not.toContain("process.argv[1]");
   });
 
   it("warns and returns, rather than refusing to run", () => {

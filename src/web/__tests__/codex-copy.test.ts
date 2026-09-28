@@ -37,6 +37,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { cliSurface } from "./cli-surface";
 import { ASSUMED, type Providers } from "../providers";
 import { captureHints } from "../provider-copy";
 import { emptyScope } from "../scope";
@@ -221,7 +222,7 @@ describe("the one-time report that a deck could not register", () => {
     // The dash travels with it now, so this console can render it (#797).
     expect(deckCode).toContain("unregisteredDetail({ file, claude: wantClaude, dash: G.dash })");
     expect(deckCode).toContain("claude: wantClaude");
-    expect(deckCode).not.toContain("hooks find this deck through");
+    expect(codeOf(cliSurface())).not.toContain("hooks find this deck through");
   });
 });
 

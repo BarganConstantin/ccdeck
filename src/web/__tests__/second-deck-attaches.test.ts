@@ -21,6 +21,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — .mjs server module, no types
 const mod = await import("../../server/running-deck.mjs");
@@ -79,6 +80,7 @@ const SRC = readFileSync(
   "utf8",
 );
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
+const HELP = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
 const INDEX = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
 const LISTEN = readFileSync(fileURLToPath(new URL("../../server/listen.mjs", import.meta.url)), "utf8");
 
@@ -166,7 +168,7 @@ describe("a start keeps at most one deck", () => {
     // lesson of `ccdeck --stpo` building a second deck through the old guard.
     expect(call).not.toMatch(/unknown|incomplete/);
     // And no gate in front of it that a respawn or a flag could walk around.
-    expect(DECK).not.toContain("asksForOwnDeck");
+    expect(cliSurface()).not.toContain("asksForOwnDeck");
     expect(DECK).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}process\.exit\(0\);/);
   });
 
@@ -196,7 +198,7 @@ describe("a start keeps at most one deck", () => {
       fileURLToPath(new URL("../../server/args.mjs", import.meta.url)), "utf8",
     );
     expect(args).toContain('a === "--new"');
-    expect(DECK).toContain("--new                Replace the running deck with a fresh one.");
+    expect(HELP).toContain("--new                Replace the running deck with a fresh one.");
   });
 });
 
@@ -392,7 +394,7 @@ describe("what the attach does and does not disturb", () => {
   });
 
   it("has nothing left to warn about older decks, because they are replaced", () => {
-    expect(DECK).not.toContain("too old to be recognised");
+    expect(cliSurface()).not.toContain("too old to be recognised");
   });
 });
 
@@ -401,7 +403,7 @@ describe("the off switch ends every deck", () => {
     // There is meant to be one. A second is a leftover, and an off switch that
     // ended one of two would leave the machine running.
     expect(DECK).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
-    expect(DECK).toContain("--stop               Stop the running deck.");
+    expect(HELP).toContain("--stop               Stop the running deck.");
   });
 });
 
@@ -420,7 +422,7 @@ describe("a newer deck kept on the port is said out loud", () => {
 
   it("prints it on the attach and carries on", () => {
     expect(DECK).toMatch(/const note = versionNote\(live\.version, PKG_VERSION\);/);
-    expect(DECK).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
+    expect(cliSurface()).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
   });
 });
 

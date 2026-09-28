@@ -30,6 +30,7 @@ import { ambientSignal } from "../ambient";
 import { SCHEMA_KEY, SHAPE_KEYS } from "../storage";
 import { PRODUCT as SERVER_PRODUCT } from "../../server/brand.mjs";
 import { wordmark } from "../../server/term.mjs";
+import { cliSurface } from "./cli-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
@@ -173,7 +174,7 @@ describe("the boundary the rename must not cross", () => {
     const text = readdirSync(serverDir)
       .filter(n => n.endsWith(".mjs"))
       .map(n => readFileSync(join(serverDir, n), "utf8"))
-      .concat(read("bin", "deck.js"), read("bin", "agent-dag.js"), read("hook", "hook.js"))
+      .concat(cliSurface(), read("bin", "agent-dag.js"), read("hook", "hook.js"))
       .join("\n");
     // `process.env.` OR a bare `env.`, because the second spelling is now the
     // common one: every resolver this repo makes testable takes `env` as a
