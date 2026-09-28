@@ -23,7 +23,9 @@ import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const types = read("../types.ts");
-const server = read("../../server/index.mjs");
+// What the server emits: pushEvent's own events and the synthetic ones the
+// transcript enrichment sends back through it.
+const server = read("../../server/index.mjs") + "\n" + read("../../server/session-enrichment.mjs");
 const quota = read("../../server/quota.mjs");
 const selfUpdate = read("../../server/self-update.mjs");
 // The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.

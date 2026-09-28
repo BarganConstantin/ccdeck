@@ -4,9 +4,9 @@
 //
 // These lived in src/server/index.mjs, between the log rotation and the model
 // enrichment, and nothing in them ever reached the event pipeline: the
-// enrichment passes that stayed behind ask `scanTranscript` for a state and
-// decide what to emit from it, the Codex watcher borrows the chunked reader,
-// and pushEvent asks the path gate before any of that runs. So the whole
+// enrichment passes (session-enrichment.mjs now) ask `scanTranscript` for a
+// state and decide what to emit from it, the Codex watcher borrows the chunked
+// reader, and pushEvent asks the path gate before any of that runs. So the whole
 // reader moved as one piece, with its caches, and index.mjs imports the
 // operations it calls. The names are the ones the bodies always used, and the
 // five index.mjs exported it still exports, by re-export.
@@ -242,9 +242,9 @@ function newTranscriptState() {
 //
 // 8 MiB is picked against the only measurement that bears on it — the longest
 // single line in a real transcript. The note above `maybeResolveSessionName`
-// in index.mjs measures that at 710 KB in the 46.4 MB session on this machine,
-// one big tool result on one line, so the ceiling is about eleven times the
-// worst line seen and no real transcript line is ever split by it. Its worst
+// in session-enrichment.mjs measures that at 710 KB in the 46.4 MB session on
+// this machine, one big tool result on one line, so the ceiling is about eleven
+// times the worst line seen and no real transcript line is ever split by it. Its worst
 // case is 8 MiB of Buffer plus up to 8 MiB of string per in-flight scan, which
 // is an eighth of the 128 MiB the ring buffer is already allowed to hold.
 export const MAX_SCAN_CHUNK = 8 * 1024 * 1024;
@@ -372,8 +372,8 @@ export async function readAppendedLines(path, cursor, size, chunkMax = MAX_SCAN_
 // Measured on the two largest transcripts on this machine: 685 `ai-title`
 // entries carrying 2 DISTINCT values (46.4 MB session) and 406 carrying 1
 // (19.6 MB session). So "the last one wins" is right, but the value is nearly
-// always the value we already had — which is why the emit in index.mjs is gated
-// on a change rather than fired per pass.
+// always the value we already had — which is why the emit in
+// session-enrichment.mjs is gated on a change rather than fired per pass.
 //
 // `aiTitle` is NOT reliably the sentence it looks like. In the 46.4 MB session
 // the first 332 entries read "Inspect repository to understand current state"
@@ -411,8 +411,8 @@ function foldTranscriptLine(state, line) {
 
   // Rides the scan that is already reading these bytes for the model, the usage
   // totals and the context counts, so naming costs no read of its own — see the
-  // block above `maybeResolveSessionName` in index.mjs for why that beat a tail
-  // read.
+  // block above `maybeResolveSessionName` in session-enrichment.mjs for why
+  // that beat a tail read.
   foldSessionNamingLine(state, line);
   // The recap rides the same pass for the same reason, and costs the ordinary
   // line two substring tests. See session-recap.mjs.
@@ -657,7 +657,7 @@ function scanTranscript(path) {
 // removes half of that failure mode. The other half is why the refusal is
 // logged rather than silent.
 function claudeTranscriptRoots() {
-  // Resolved per call, like every other claudeConfigDir() reader in index.mjs,
+  // Resolved per call, like every other claudeConfigDir() reader in src/server,
   // so nothing captures the answer from an environment that has moved.
   const roots = [resolve(claudeConfigDir(), "projects")];
   const byDefault = resolve(homedir(), ".claude", "projects");
@@ -698,8 +698,9 @@ function noteRefusedTranscript(p) {
   console.warn(`${PRODUCT}: not reading transcript_path outside ${claudeTranscriptRoots().join(" or ")}: ${p}`);
 }
 
-// What index.mjs calls. Listed here rather than marked at each declaration so
-// that every declaration above reads exactly as it did where it came from.
+// What index.mjs and session-enrichment.mjs call. Listed here rather than
+// marked at each declaration so that every declaration above reads exactly as
+// it did where it came from.
 export {
   scanTranscript, readByteRange, newUsageTotals, mergeUsageByModel,
   noteRefusedTranscript,

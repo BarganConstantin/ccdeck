@@ -143,7 +143,9 @@ describe("the extension id", () => {
 
 describe("the comment at readSessionNamingFromTranscript", () => {
   it("no longer claims an export the function does not have", () => {
-    const text = src(SERVER, "index.mjs");
+    // Declared with the rest of the enrichment, which is the only file it can
+    // be exported from.
+    const text = src(SERVER, "session-enrichment.mjs");
     expect(text).toContain("async function readSessionNamingFromTranscript(path) {");
     expect(text).not.toContain("export async function readSessionNamingFromTranscript");
     expect(text, "the comment states a test contract that does not exist")

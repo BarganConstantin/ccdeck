@@ -666,8 +666,10 @@ describe("no cost surface multiplies a whole session by its last model", () => {
 
   it("carries the split from the scanner to the client on the usage event", () => {
     // The scanner's state is transcript-scan.mjs's; the readers and the event
-    // that carries the split are index.mjs's. The chain is the two together.
-    const server = srcOf("../server/index.mjs") + srcOf("../server/transcript-scan.mjs");
+    // that carries the split are session-enrichment.mjs's, and index.mjs is the
+    // pipeline the event leaves by. The chain is the three together.
+    const server = srcOf("../server/index.mjs") + srcOf("../server/transcript-scan.mjs")
+      + srcOf("../server/session-enrichment.mjs");
     expect(server).toMatch(/usageByModel: \{\}/);
     expect(server).toMatch(/readUsageByModelFromTranscript/);
     // And from BOTH places the total is read from — the main transcript and the
