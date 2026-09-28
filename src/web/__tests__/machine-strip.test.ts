@@ -28,6 +28,8 @@ const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const metrics = readFileSync(at("../../server/system-metrics.mjs"), "utf8");
 /** The load-average rule, which both of the sampler's uses of it ask. */
 const loadRule = readFileSync(at("../../server/load-average.mjs"), "utf8");
+/** The minute ring the sampler records into, lifted out of system-metrics.mjs. */
+const ring = readFileSync(at("../../server/metrics-history.mjs"), "utf8");
 const strip = readFileSync(at("../components/MachineStrip.tsx"), "utf8");
 const css = readFileSync(at("../styles.css"), "utf8");
 
@@ -193,7 +195,7 @@ describe("the window, and what it is allowed to claim", () => {
     // Buckets are a minute wide; anything quicker re-fetches a ring that has
     // not changed. The NUMBER is live at the panel's own three seconds.
     expect(REFRESH_MS).toBe(60_000);
-    expect(metrics).toContain("const BUCKET_MS = 60_000;");
+    expect(ring).toContain("export const BUCKET_MS = 60_000;");
   });
 
   it("asks for the four groups the server allows, in the panel's order", () => {

@@ -113,7 +113,10 @@ describe("stopSystemMetrics — the one the audit named that stays", () => {
     // three above, there is no shipped counterpart for it to drift away from.
     expect(Object.keys(metricsMod)).toContain("stopSystemMetrics");
     const text = src(SERVER, "system-metrics.mjs");
-    expect(text).toContain("history.length = 0;");
+    // The ring lives in metrics-history.mjs, and the stop empties it through
+    // the one operation that file offers for it.
+    expect(text).toContain("resetHistory();");
+    expect(src(SERVER, "metrics-history.mjs")).toContain("history.length = 0;");
     expect(text, "the reason it stays is not written down").toContain("THE SUITE'S, AND SAID PLAINLY (#798)");
   });
 });
