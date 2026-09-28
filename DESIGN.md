@@ -402,25 +402,28 @@ own system scrollbar in every state, so the forced-colours block has nothing to 
 
 ## Elevation & Depth
 
-**Elevation is two tokens, and that is the rule:**
+**Elevation is three tokens and a contact line, and that is the rule:**
 
 | Token | Dark | Light | Uses |
 |---|---|---|---|
-| `--shadow-1` | `0 6px 18px rgba(0,0,0,0.25)` | `0 4px 14px rgba(15,23,42,0.10)` | panels, popovers |
-| `--shadow-2` | `0 10px 24px rgba(0,0,0,0.32)` | `0 10px 28px rgba(15,23,42,0.16)` | modals |
+| `--shadow-1` | `0 6px 18px rgba(0,0,0,0.25)` | `0 4px 14px rgba(15,23,42,0.10)` | canvas objects at rest (node, recap note), the drag-trash zone |
+| `--shadow-2` | `0 10px 24px rgba(0,0,0,0.32)` | `0 10px 28px rgba(15,23,42,0.16)` | modals, a hovered or selected node, the lift under a popover |
+| `--shadow-3` | `0 1px 2px rgba(0,0,0,0.30), 0 14px 34px rgba(0,0,0,0.34)` | `0 1px 2px rgba(15,23,42,0.10), 0 14px 34px rgba(15,23,42,0.16)` | the topbar's menus |
+| `--shadow-contact` | `0 1px 2px rgba(0,0,0,0.30)` | `0 1px 2px rgba(15,23,42,0.10)` | under `--shadow-2`, the anchored popovers |
 
-`var(--shadow-1|2)` appears 13 times. Depth is otherwise carried by surface tier
-(`--bg` → `--bg-soft` → `--panel`, which is only two tiers in light) and a 1px
-`--line` edge.
+A popover is `var(--shadow-contact), var(--shadow-2)`: the tight line is what reads
+as sitting *on* something, the wide one is its height. Every theme retune lives in
+the token, so no rule writes a light override for a shadow it reads (#1287).
+Depth is otherwise carried by surface tier (`--bg` → `--bg-soft` → `--panel`, which
+is only two tiers in light) and a 1px `--line` edge.
 
 **Halos and rings are a different job and are allowed.** A state colour at zero
 offset is a mark, not elevation: `0 0 8px var(--ok|warn|err|inflight)`,
 `0 0 22px var(--accent)`, and `0 0 0 1px` identity rings. Reach for these to say
 *this one*, never to lift something off the page.
 
-**Known debt:** about 47 `box-shadow` declarations carry literal values, and at
-least one of them is a genuine third elevation in both themes; 25 of the 27
-gradient calls are untokenised. Tracked in #1287 — do not add to it.
+**Known debt:** 25 of the 27 gradient calls are untokenised. Tracked in #1287 — do
+not add to it.
 
 ## Shapes
 
@@ -615,7 +618,7 @@ are literals today.
 - Don't put readable words in `--muted-dim`, and don't put `--dim-stale` over text.
 - Don't lift `--muted` without re-running the contrast tests — it has two tenths of
   headroom.
-- Don't introduce a webfont, a third elevation, or a third surface tier in light.
+- Don't introduce a webfont, a fourth elevation, or a third surface tier in light.
 - Don't bring a canvas object down to the chrome radius; 10px and 16px are
   deliberate.
 - Don't give a button an accent hover. Neutral hover is a decision, not an

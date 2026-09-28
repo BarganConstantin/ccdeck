@@ -79,6 +79,15 @@
   --inflight: #f0abfc;
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  /* THE THIRD ELEVATION, and the line that seats a surface ON something
+     (#1287). Both were literals, each said once per theme in a rule of its
+     own: the topbar's two menus carried the contact line over a lift of their
+     own, 14px/34px, and the three anchored popovers the same contact line over
+     --shadow-2 — five light overrides that existed only to repeat a shadow in
+     slate. A menu is --shadow-3; a popover is --shadow-contact under --shadow-2.
+     The values are the ones those rules wrote, so nothing moves. */
+  --shadow-3: 0 1px 2px rgba(0,0,0,0.30), 0 14px 34px rgba(0,0,0,0.34);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
   --node-grad: linear-gradient(180deg, var(--panel), var(--bg-soft));
   --topbar-grad: linear-gradient(to bottom, var(--panel), var(--bg-soft));
   --grid-line: #1a1d24;
@@ -227,6 +236,11 @@
   --inflight: #7e22ce;
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
   --shadow-2: 0 10px 28px rgba(15,23,42,0.16);
+  /* The same two layers on white, in the light theme's slate and at its own
+     shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
+     third stayed black at a third on the white page (#876). */
+  --shadow-3: 0 1px 2px rgba(15,23,42,0.10), 0 14px 34px rgba(15,23,42,0.16);
+  --shadow-contact: 0 1px 2px rgba(15,23,42,0.10);
   --node-grad: linear-gradient(180deg, #ffffff, #f2f5fa);
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);
   --grid-line: #d0d5dd;
@@ -1070,8 +1084,8 @@ button:focus-visible { outline-offset: 1px; }
   /* Two layers rather than one. The tight, nearly opaque first line is what a
      surface sitting ON something reads as; the wide soft second is the height
      it sits at. One 24px blur alone had to be dark enough to do both jobs and
-     ended up reading as a drop shadow on a sticker. */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+     ended up reading as a drop shadow on a sticker. They are --shadow-3. */
+  box-shadow: var(--shadow-3);
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
@@ -1089,7 +1103,7 @@ button:focus-visible { outline-offset: 1px; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+  box-shadow: var(--shadow-3);
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
@@ -1102,15 +1116,6 @@ button:focus-visible { outline-offset: 1px; }
   max-width: none;
   max-height: calc(100vh - 32px);
   overflow: auto;
-}
-/* The same two layers on white, in the light theme's slate and at its own
-   shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
-   third stayed black at a third on the white page (#876). */
-:root[data-theme="light"] .sound-menu {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
-}
-:root[data-theme="light"] .appearance-menu {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
 }
 /* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
    open, and sections under the uppercase caption their sections use
@@ -1405,13 +1410,10 @@ button:focus-visible { outline-offset: 1px; }
   border-radius: var(--r-ctl);
   /* The deck's popover shadow (.anchored-popover): a tight line for sitting on
      something over --shadow-2 for its height. Its own black 0.22 stayed black
-     on the white page, the thing #876 took off the menus beside it; the wide
-     layer is themed already, so only the tight line is said twice. */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+     on the white page, the thing #876 took off the menus beside it. Both layers
+     are tokens now, so neither is said twice (#1287). */
+  box-shadow: var(--shadow-contact), var(--shadow-2);
   scrollbar-color: var(--muted) transparent;
-}
-:root[data-theme="light"] .appearance-source-list {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 .appearance-source-group {
   padding: 6px 8px 3px;
@@ -9325,15 +9327,12 @@ button.qb-pace::after {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
   /* Opacity only. The card is unasked-for and arrives where the eye is not
      looking; travel would make it a thing that happened rather than a thing
      that is there — which is also why there is no reduced-motion rule to write:
      a fade is what that rule leaves behind everywhere else in this sheet. */
   animation: fadeIn 110ms ease-out;
-}
-:root[data-theme="light"] .ap-peek {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 /* The label over the names sits UNDER them in weight, not over. A card this
    small cannot have two loud lines, and the names are what was asked for — the
@@ -10273,9 +10272,9 @@ button.qb-pace::after {
    The surface is the sound menu's, the deck's other popover: the panel's own
    ground, its hairline, a tight line for sitting ON something under a soft one
    for its height, and the same z-index 40 — above the canvas and its controls,
-   below every dialog and its scrim. The wide layer is --shadow-2, so each
-   theme block already tunes it for its own ground; only the tight line needs
-   saying twice. */
+   below every dialog and its scrim. Both layers are theme tokens —
+   --shadow-contact under --shadow-2 — so each theme block tunes them for its
+   own ground and no light rule repeats them (#1287). */
 .anchored-popover {
   position: fixed;
   top: 0;
@@ -10286,12 +10285,9 @@ button.qb-pace::after {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
   animation: pop-from-anchor 120ms cubic-bezier(0.23, 1, 0.32, 1);
   text-align: left;
-}
-:root[data-theme="light"] .anchored-popover {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 /* Out of the anchor, not up from nowhere: 3px away from the button over
    120ms, with the opacity, and no scale. A menu that grows reads as something
