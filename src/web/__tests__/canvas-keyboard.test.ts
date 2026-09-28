@@ -156,9 +156,17 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
   });
 
   it("leaves the card the keys the card owns", () => {
-    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Delete", "Backspace", "Escape"]) {
+    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Escape"]) {
       expect(canvasKeyIntent({ key, shiftKey: false }, NODE)).toEqual({ kind: "node", nodeId: NODE });
     }
+  });
+
+  it("hands Delete to the deck, which removes the card a click just selected (#1668)", () => {
+    // A click on a card selects it and puts focus on it, so a Delete left to
+    // the card was dead exactly where the shortcut is pressed.
+    expect(canvasKeyIntent({ key: "Delete", shiftKey: false }, NODE)).toEqual({ kind: "deck", nodeId: NODE });
+    // Backspace is not the shortcut, and a stray one must not take a card away.
+    expect(canvasKeyIntent({ key: "Backspace", shiftKey: false }, NODE)).toEqual({ kind: "node", nodeId: NODE });
   });
 
   it("hands every other key straight back to the deck's shortcuts", () => {

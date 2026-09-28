@@ -133,8 +133,8 @@ export function useDeckShortcuts({
         selectAgent(intent.nodeId, intent.additive);
         return;
       }
-      // Arrows and Delete belong to the card, whatever React Flow does or does
-      // not do with them.
+      // Arrows belong to the card, whatever React Flow does or does not do with
+      // them. Delete does not: it is the deck's Remove from board (#1668).
       if (intent.kind === "node") return;
       // A focused control owns its own keys: Space presses a button, letters
       // run a <select>'s type-ahead. Answering them stole the button's
