@@ -112,9 +112,11 @@ export function sectionState(
   // is still paired, and counting it as ready was this line's second lie about
   // the same row. What it has to go on is when it last spoke — lan-engine.mjs
   // times every authenticated frame — held to the same window a beacon is.
+  // Asked of calledLately, which is what draws that deck's row live, so the
+  // line and the row cannot count one machine two ways (#1690).
   const waiting = peers.filter(p => p.waiting);
   const dialled = peers.filter(p => !p.waiting);
-  const calling = waiting.filter(p => !p.last?.error && p.lastSeen != null && now - p.lastSeen < ONLINE_MS);
+  const calling = waiting.filter(p => calledLately(p.lastSeen, now));
   const { online, offline: notAnswering } = rosterSplit(dialled, now);
   const offline = [...notAnswering, ...waiting.filter(p => !calling.includes(p))];
   const here = online.length + calling.length;
@@ -204,6 +206,22 @@ export interface DeckRow {
   via?: LanRoute;
 }
 
+/**
+ * Is a deck that calls in here? It is when it has called inside the window a
+ * beacon is held to, and that is the whole rule — both the row (callsIn) and
+ * the line under the switch (sectionState) ask it.
+ *
+ * NOT ITS LAST ROUND. A deck this one holds no address for is never dialled,
+ * so a round it carries is left over from when it still was — heard and not
+ * reached, then silent for a day, then calling in. The line used to refuse it
+ * for that error while the row drew it live, and said `this deck cannot reach
+ * the one it is paired with` over a row saying `online · one-way, it calls in`
+ * (#1690).
+ */
+function calledLately(lastSeen: number | undefined, now: number): boolean {
+  return lastSeen != null && now - lastSeen < ONLINE_MS;
+}
+
 /** A deck that is paired, holds no address here, and reaches this one by
  *  calling it.
  *
@@ -222,7 +240,7 @@ export interface DeckRow {
  *  a machine nothing here can reach: whether it has been in touch. */
 function callsIn(lastSeen: number | undefined, now: number): { text: string; here: boolean } {
   if (lastSeen == null) return { text: "one-way · has not called yet", here: false };
-  const fresh = now - lastSeen < ONLINE_MS;
+  const fresh = calledLately(lastSeen, now);
   return {
     text: fresh ? "online · one-way, it calls in" : `one-way · last online ${seenLabel(lastSeen, now)}`,
     here: fresh,
