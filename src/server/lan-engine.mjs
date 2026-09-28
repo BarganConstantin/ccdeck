@@ -29,8 +29,8 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  accountKey, addTrusted, credentialAad, currentFor, dropTrusted, identityFrom, manifestFor, onePerKey,
-  open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
+  accountKey, addTrusted, credentialAad, currentFor, dropTrusted, heardCurrent, identityFrom, manifestFor,
+  offered, open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
   trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
@@ -143,61 +143,6 @@ export const anotherMachine = (from, mine = []) => {
   const at = String(from ?? "").replace(/^::ffff:/, "").trim();
   return !!at && at !== "127.0.0.1" && at !== "::1" && !mine.includes(at);
 };
-
-/** One peer-supplied string as the panel may draw it: no control or format
- *  characters, whitespace collapsed, bounded. The rule cleanName applies to a
- *  deck's name and lan-about's `field` to a card, applied to the two strings
- *  that sit next to the fingerprint in the import dialog. */
-function flatten(v, max) {
-  if (typeof v !== "string") return "";
-  const flat = v.replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
-  return [...flat].slice(0, max).join("");
-}
-
-/**
- * The accounts a peer's manifest listed, as the panel may keep them.
- *
- * It arrived from another machine, so it is read rather than trusted: strings
- * where strings belong, a boolean for the verdict, and no more rows than a
- * manifest may carry. What is kept is only what the deck's dialog draws.
- */
-export function offered(list) {
-  return onePerKey((Array.isArray(list) ? list : [])
-    .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
-    // Character-filtered, not merely cut. These two are drawn beside the
-    // fingerprint at the moment the operator picks which of a peer's logins to
-    // import (LanPeerModal.tsx:497), and a bare slice let a format character
-    // through — the same class cleanName strips from the name one frame over.
-    .map(a => ({
-      key: flatten(a.key, 320),
-      email: flatten(a.email, 254),
-      alive: storedCopyAlive(a.alive, a.collector),
-      // Additive wire field: an older peer omitted it, which means shareable.
-      ...(a.shareable === false ? { shareable: false } : {}),
-    }))
-    .filter(a => a.key && a.email))
-    // Fifty IDENTITIES, so the cap is spent after onePerKey rather than before
-    // it: a peer with duplicate slots could otherwise push a live copy past
-    // row fifty and out of the list while offering far fewer than fifty
-    // logins. The raw array is already bounded by MAX_FRAME_BYTES.
-    .slice(0, 50);
-}
-
-/**
- * Which account a peer said it is on, as the panel may keep it: the key of one
- * of the accounts it listed in the same frame, that its owner is hiding it, or
- * that it is on one it does not share — and nothing for anything else. A key
- * that is not in its own list is dropped rather than drawn: a deck only ever
- * names an account it shares, and one that names another is saying something
- * this deck will not show.
- */
-export function heardCurrent(raw, list) {
-  if (!raw || typeof raw !== "object") return null;
-  if (raw.hidden === true) return { hidden: true };
-  if (raw.other === true) return { other: true };
-  if (typeof raw.key !== "string") return null;
-  return list.some(a => a.key === raw.key) ? { key: raw.key } : null;
-}
 
 /**
  * Whether an account this round just placed is ticked for sharing here (#1188).

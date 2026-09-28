@@ -99,6 +99,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import os from "node:os";
+import { storedCopyAlive } from "./account-health.mjs";
 
 /** Marks a packet as ours before anything reads a field of it. Four bytes of
  *  ASCII rather than a number, so a stray packet on the port is recognisable
@@ -1172,47 +1173,6 @@ export function accountKey(email, orgUuid) {
   return `${String(email ?? "").trim().toLowerCase()}@@${String(orgUuid ?? "")}`;
 }
 
-// ── why a login did not move ────────────────────────────────────────────────
-
-/**
- * The reason a sending deck gives for a login it holds and cannot read: on a
- * Mac, claude-swap could not open the Keychain from the session this deck runs
- * in. A fixed code, never the CLI's words — export's stdout IS the credential,
- * and nothing it printed is any business of the deck asking.
- */
-export const SENDER_UNREADABLE = "keychain_unavailable";
-
-/** Every reason `serve` answers a `want` with. */
-const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]);
-
-/**
- * A peer's refusal, as this deck records it. The panel prints these, so a peer
- * must not be able to put words in its mouth — least of all one of the HERE
- * codes, which are sentences about this machine. Anything outside the closed
- * set is "refused", which is all it ever proved.
- */
-export function peerWhy(why) {
-  return typeof why === "string" && WIRE_REFUSALS.has(why) ? why : "refused";
-}
-
-/**
- * What this deck found wrong with a login it received. Produced by the local
- * adapters only and never read off a frame — see peerWhy — so a code here is
- * always about THIS machine, and on an arrived row it is a warning rather than
- * a failure: the credential landed and something about this machine stops it
- * being used.
- */
-export const HERE = Object.freeze({
-  // claude-swap cannot open this Mac's Keychain from the deck's session.
-  unreadable: "unreadable_here",
-  // It landed, and claude-swap still holds no login for it.
-  noLogin: "no_credentials_here",
-  // It landed, and the login it carried was rejected.
-  expired: "relogin_required_here",
-  // It landed, and claude-swap could not be asked whether it is readable.
-  unverified: "unverified_here",
-});
-
 /**
  * What to do about one account, given what I have and what a peer has.
  *
@@ -1362,3 +1322,99 @@ export function currentFor(accounts, shared, shareActive) {
   if (!on) return {};
   return new Set(shared).has(on.key) ? { current: { key: on.key } } : { current: { other: true } };
 }
+
+/** One peer-supplied string as the panel may draw it: no control or format
+ *  characters, whitespace collapsed, bounded. The rule cleanName applies to a
+ *  deck's name and lan-about's `field` to a card, applied to the two strings
+ *  that sit next to the fingerprint in the import dialog. */
+function flatten(v, max) {
+  if (typeof v !== "string") return "";
+  const flat = v.replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
+  return [...flat].slice(0, max).join("");
+}
+
+/**
+ * The accounts a peer's manifest listed, as the panel may keep them.
+ *
+ * It arrived from another machine, so it is read rather than trusted: strings
+ * where strings belong, a boolean for the verdict, and no more rows than a
+ * manifest may carry. What is kept is only what the deck's dialog draws.
+ */
+export function offered(list) {
+  return onePerKey((Array.isArray(list) ? list : [])
+    .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
+    // Character-filtered, not merely cut. These two are drawn beside the
+    // fingerprint at the moment the operator picks which of a peer's logins to
+    // import (LanPeerModal.tsx:497), and a bare slice let a format character
+    // through — the same class cleanName strips from the name one frame over.
+    .map(a => ({
+      key: flatten(a.key, 320),
+      email: flatten(a.email, 254),
+      alive: storedCopyAlive(a.alive, a.collector),
+      // Additive wire field: an older peer omitted it, which means shareable.
+      ...(a.shareable === false ? { shareable: false } : {}),
+    }))
+    .filter(a => a.key && a.email))
+    // Fifty IDENTITIES, so the cap is spent after onePerKey rather than before
+    // it: a peer with duplicate slots could otherwise push a live copy past
+    // row fifty and out of the list while offering far fewer than fifty
+    // logins. The raw array is already bounded by MAX_FRAME_BYTES.
+    .slice(0, 50);
+}
+
+/**
+ * Which account a peer said it is on, as the panel may keep it: the key of one
+ * of the accounts it listed in the same frame, that its owner is hiding it, or
+ * that it is on one it does not share — and nothing for anything else. A key
+ * that is not in its own list is dropped rather than drawn: a deck only ever
+ * names an account it shares, and one that names another is saying something
+ * this deck will not show.
+ */
+export function heardCurrent(raw, list) {
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.hidden === true) return { hidden: true };
+  if (raw.other === true) return { other: true };
+  if (typeof raw.key !== "string") return null;
+  return list.some(a => a.key === raw.key) ? { key: raw.key } : null;
+}
+
+// ── why a login did not move ────────────────────────────────────────────────
+
+/**
+ * The reason a sending deck gives for a login it holds and cannot read: on a
+ * Mac, claude-swap could not open the Keychain from the session this deck runs
+ * in. A fixed code, never the CLI's words — export's stdout IS the credential,
+ * and nothing it printed is any business of the deck asking.
+ */
+export const SENDER_UNREADABLE = "keychain_unavailable";
+
+/** Every reason `serve` answers a `want` with. */
+const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]);
+
+/**
+ * A peer's refusal, as this deck records it. The panel prints these, so a peer
+ * must not be able to put words in its mouth — least of all one of the HERE
+ * codes, which are sentences about this machine. Anything outside the closed
+ * set is "refused", which is all it ever proved.
+ */
+export function peerWhy(why) {
+  return typeof why === "string" && WIRE_REFUSALS.has(why) ? why : "refused";
+}
+
+/**
+ * What this deck found wrong with a login it received. Produced by the local
+ * adapters only and never read off a frame — see peerWhy — so a code here is
+ * always about THIS machine, and on an arrived row it is a warning rather than
+ * a failure: the credential landed and something about this machine stops it
+ * being used.
+ */
+export const HERE = Object.freeze({
+  // claude-swap cannot open this Mac's Keychain from the deck's session.
+  unreadable: "unreadable_here",
+  // It landed, and claude-swap still holds no login for it.
+  noLogin: "no_credentials_here",
+  // It landed, and the login it carried was rejected.
+  expired: "relogin_required_here",
+  // It landed, and claude-swap could not be asked whether it is readable.
+  unverified: "unverified_here",
+});

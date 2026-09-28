@@ -13,9 +13,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { currentFor } from "../../server/lan-sync.mjs";
-// @ts-expect-error — plain .mjs server module, no types
-import { heardCurrent } from "../../server/lan-engine.mjs";
+import { currentFor, heardCurrent } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
 import { exchangeLanes } from "../lan-exchange";

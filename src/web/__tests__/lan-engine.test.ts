@@ -25,11 +25,11 @@ import { readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, offered, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 import { faultText } from "../lan-round";
 // @ts-expect-error — plain .mjs server module, no types
-import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
+import { accountKey, hostId, identityFrom, offered, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "../../server/lan-socket.mjs";
 
