@@ -34,6 +34,9 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 
 const SERVER = fileURLToPath(new URL("../../server/index.mjs", import.meta.url));
+// Where the scan cache and its two caps are declared. The cases import the
+// scanner through index.mjs, which re-exports it; the source read is this file.
+const SCANNER_SOURCE = fileURLToPath(new URL("../../server/transcript-scan.mjs", import.meta.url));
 
 type Scanner = {
   readUsageFromTranscript(path: string): Promise<{ input_tokens: number } | null>;
@@ -50,8 +53,8 @@ async function freshScanner(): Promise<Scanner> {
   return await import(SERVER);
 }
 
-// Matches MAX_TRANSCRIPT_SCAN_SESSIONS in src/server/index.mjs, and the last
-// case in this file fails if the two ever drift.
+// Matches MAX_TRANSCRIPT_SCAN_SESSIONS in src/server/transcript-scan.mjs, and
+// the last case in this file fails if the two ever drift.
 const SESSION_CAP = 256;
 
 function assistant(inputTokens: number): string {
@@ -238,8 +241,8 @@ describe("the session a transcript path belongs to", () => {
 });
 
 describe("the cap this file is written against", () => {
-  it("is the one src/server/index.mjs actually uses", () => {
-    const source = readFileSync(SERVER, "utf8");
+  it("is the one src/server/transcript-scan.mjs actually uses", () => {
+    const source = readFileSync(SCANNER_SOURCE, "utf8");
     const sessions = /^const MAX_TRANSCRIPT_SCAN_SESSIONS = ([0-9_]+);/m.exec(source);
     expect(sessions, "MAX_TRANSCRIPT_SCAN_SESSIONS is no longer declared where this test can read it").not.toBeNull();
     expect(Number(sessions![1].replace(/_/g, "")), "SESSION_CAP in this file has drifted from the server's").toBe(SESSION_CAP);

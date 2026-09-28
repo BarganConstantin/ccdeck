@@ -377,12 +377,12 @@ describe("the server's transcript filter", () => {
   // step, so it cannot import model-id.ts. This reads it back out of the source
   // and holds it to the exact rule the shared helper states, which is the only
   // thing keeping the two copies from drifting.
-  const literal = /const MODEL_ID_RE = (\/(?:[^/\\\n]|\\.)+\/[a-z]*)/.exec(src("../../server/index.mjs"));
+  const literal = /const MODEL_ID_RE = (\/(?:[^/\\\n]|\\.)+\/[a-z]*)/.exec(src("../../server/transcript-scan.mjs"));
   const body = /^\/((?:[^/\\]|\\.)+)\/([a-z]*)$/.exec(literal?.[1] ?? "");
   const MODEL_ID_RE = new RegExp(body?.[1] ?? "$^", body?.[2] ?? "");
 
   it("is still a regex this test could find", () => {
-    expect(literal, "MODEL_ID_RE literal in src/server/index.mjs").not.toBeNull();
+    expect(literal, "MODEL_ID_RE literal in src/server/transcript-scan.mjs").not.toBeNull();
   });
 
   it("accepts exactly the ids whose bare form is a Claude id", () => {
