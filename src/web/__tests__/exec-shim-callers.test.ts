@@ -180,8 +180,8 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
 
   it("names a cswap shim by its full path wherever one exists", () => {
     // cswapBin() answers the bare word whenever `cswap --version` worked, and
-    // every mutation in cswap-admin.mjs plus the polls in cswap-auto.mjs and
-    // claude-accounts.mjs go through it. uv and pipx normally leave a
+    // every mutation in cswap-admin.mjs plus the polls in cswap-auto-readers.mjs
+    // and claude-accounts.mjs go through it. uv and pipx normally leave a
     // `cswap.exe`, which is not a batch file and never had this bug — but the
     // candidate loop reaches `cswap.cmd` whenever the .exe is absent, which is
     // what an older pipx or a scoop shim leaves, and that spelling must not be
