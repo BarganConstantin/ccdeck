@@ -626,6 +626,21 @@ export function invalidateClaudeAccountsCache() {
 }
 
 /**
+ * The slot an account argument names, as a number, or null when it names none.
+ *
+ * A slot number goes straight into an exec argument as `String(n)`, so the
+ * bound is what keeps a value there from being read as anything but a slot:
+ * `String(-1)` is "-1", which a child's parser takes for an option, and a
+ * fraction or NaN names no slot at all. Whole numbers from 1 to 999 only. The
+ * account switch here and the rotation flag in cswap-auto.mjs both ask this
+ * rather than restating it. Exported for that caller and for its test.
+ */
+export function slotNumber(accountNum) {
+  const num = Number(accountNum);
+  return Number.isInteger(num) && num >= 1 && num <= 999 ? num : null;
+}
+
+/**
  * Switch the active Claude account by delegating to `cswap`.
  *
  * Not reimplemented here on purpose. A correct switch has to hold three of
@@ -649,8 +664,8 @@ export function invalidateClaudeAccountsCache() {
  */
 export function switchClaudeAccount(accountNum) {
   // Straight into an exec argument, so nothing but a slot number gets through.
-  const num = Number(accountNum);
-  if (!Number.isInteger(num) || num < 1 || num > 999) {
+  const num = slotNumber(accountNum);
+  if (num == null) {
     return Promise.resolve({ ok: false, reason: "bad_account" });
   }
 

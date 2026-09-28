@@ -11,7 +11,7 @@
 // on and the setting survives restarts.
 import { run } from "./exec.mjs";
 import { cswapBin } from "./cswap-install.mjs";
-import { invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
+import { invalidateClaudeAccountsCache, slotNumber } from "./claude-accounts.mjs";
 import { invalidateQuotaCache } from "./quota.mjs";
 // The one store mutex. A tick is the only thing in the deck that moves the live
 // account with nobody watching, which is why it of all writers must queue.
@@ -742,8 +742,8 @@ export async function autoStatus() {
  *  so, and calls a floor that answers ?refresh=1 with the stale roster "the
  *  guard being the bug". */
 export async function setAccountEnabled(accountNum, enabled) {
-  const num = Number(accountNum);
-  if (!Number.isInteger(num) || num < 1 || num > 999) return { ok: false, reason: "bad_account" };
+  const num = slotNumber(accountNum);
+  if (num == null) return { ok: false, reason: "bad_account" };
   // Statically, from store-lock.mjs, like the tick above. #950 reached for it
   // through a dynamic `import("./cswap-admin.mjs")` to avoid adding a static
   // edge between two modules that already imported each other, which was the
