@@ -13,16 +13,18 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clustersSurface } from "./clusters-surface";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
-const clusters = read("../components/SessionClusters.tsx");
+/** The pill's style, built in cluster-bounds.ts since it left the component. */
+const clusters = read("../cluster-bounds.ts");
 const app = read("../App.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("cluster labels stay readable at any zoom (#846)", () => {
   it("draws the label at 1× on screen, not min(1, zoom)", () => {
     expect(clusters).toMatch(/transform: `scale\(\$\{1 \/ \(zoom \|\| 1\)\}\)`/);
-    expect(clusters).not.toMatch(/Math\.min\(1, zoom\) \/ \(zoom \|\| 1\)/);
+    expect(clustersSurface()).not.toMatch(/Math\.min\(1, zoom\) \/ \(zoom \|\| 1\)/);
   });
 
   it("divides the lift out too, so the tab keeps its 1× geometry", () => {

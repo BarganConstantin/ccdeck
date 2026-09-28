@@ -23,8 +23,8 @@
 // returned the button from 0.5 down — so a drag there was captured by a label
 // belonging to a session on the other side of it, instead of panning.
 //
-// 0.32 is not a corner: SessionClusters' own note records a real board settling
-// there, and styles.css names the same figure. The header measured is this
+// 0.32 is not a corner: cluster-bounds.ts's own note records a real board
+// settling there, and styles.css names the same figure. The header measured is this
 // file's ordinary one, a workspace plus an ai-title already cut to the 32-column
 // cap. `.session-clusters` is `z-index: 0`, so the paint slid under the nodes
 // and the damage was all in the hit box: `focusSession` for the wrong session,
@@ -40,7 +40,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { labelMaxWidth } from "../cluster-bounds";
+import { clusterLabelStyle, labelMaxWidth, type Cluster } from "../cluster-bounds";
 
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const css = at("../styles.css");
@@ -101,11 +101,16 @@ describe("the header pill is bounded in the unit it is drawn in (#977)", () => {
   });
 
   it("is the cap the component actually puts on the pill", () => {
-    // The rule is only worth pinning if labelStyle is where it lands.
-    expect(
-      /maxWidth:\s*labelMaxWidth\(c\.w,\s*zoom\)/.test(component),
-      "labelStyle does not cap the pill — the rule below is not the one on screen",
-    ).toBe(true);
+    // The rule is only worth pinning if the pill's style is where it lands.
+    // Called rather than matched, now that the style is built outside the
+    // render, at every zoom the table above measured.
+    const cluster: Cluster = { sessionId: "s1", label: "vcrm-core", fullLabel: "vcrm-core", x: -18, y: 0, w: BOX, h: 200 };
+    for (const zoom of [1, 0.5, 0.38, 0.32, 0.2]) {
+      expect(clusterLabelStyle(cluster, zoom, 0).maxWidth, `zoom ${zoom}`).toBe(labelMaxWidth(BOX, zoom));
+    }
+    // And the component draws the pill with that style rather than one of its own.
+    expect(component, "labelStyle is not clusterLabelStyle's — the rule below is not the one on screen")
+      .toContain("const labelStyle = clusterLabelStyle(c, zoom, hue);");
   });
 });
 
