@@ -78,6 +78,8 @@ const toneSection = withoutComments(read("components/ToneSection.tsx"));
 // The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
 // that file; the negatives read the menu and every file lifted out of it.
 const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"));
+// And its spoken-voice form moved on again, to SpokenVoiceForm.tsx.
+const voiceForm = withoutComments(read("components/SpokenVoiceForm.tsx"));
 const menuSurface = withoutComments(soundMenuSurface());
 const sheet = withoutComments(read("components/KeyboardHelp.tsx"));
 const css = read("styles.css");
@@ -913,6 +915,12 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(custom, "a custom-sound control was disabled").not.toMatch(/\bdisabled\b/);
     expect(custom, "a custom-sound control was dimmed").not.toMatch(/\bopacity\b/);
     expect(custom).not.toMatch(/\bsoundOn\b/);
+    // The voice form was inside that markup too, until it moved on again.
+    const voice = voiceForm.slice(voiceForm.indexOf("  return ("));
+    expect(voice).toContain('<details className="sm-voice">');     // the right slice
+    expect(voice, "a voice-form control was disabled").not.toMatch(/\bdisabled\b/);
+    expect(voice, "a voice-form control was dimmed").not.toMatch(/\bopacity\b/);
+    expect(voice).not.toMatch(/\bsoundOn\b/);
   });
 
   it("gives the tooltip the exception and the description the reason", () => {

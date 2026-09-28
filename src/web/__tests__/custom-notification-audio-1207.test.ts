@@ -158,6 +158,8 @@ const source = (rel: string) => readFileSync(fileURLToPath(new URL(`../${rel}`, 
 const customSounds = withoutComments(source("components/CustomSoundsSection.tsx"));
 /** The section's recorder, lifted out of it into a hook. */
 const recorder = withoutComments(source("use-clip-recorder.ts"));
+/** The section's spoken-voice form, lifted out of it with its own state. */
+const voiceForm = withoutComments(source("components/SpokenVoiceForm.tsx"));
 /** The menu and every file lifted out of it, for the negatives, counts and lists. */
 const menuSurface = withoutComments(soundMenuSurface());
 const app = withoutComments(source("App.tsx"));
@@ -358,7 +360,7 @@ describe("the custom section of the sound menu (#1207)", () => {
     // form stays shut rather than being filled in for nothing.
     expect(recorder).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
     expect(customSounds).toMatch(/onClick=\{e => \{ if \(full\) e\.preventDefault\(\); \}\}/);
-    expect(customSounds).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
+    expect(voiceForm).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
     // Four controls carry the refusal: import, record, the form, Add voice.
     expect([...menuSurface.matchAll(/\{\.\.\.fullProps\}/g)]).toHaveLength(4);
   });
