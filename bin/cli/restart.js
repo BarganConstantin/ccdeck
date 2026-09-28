@@ -121,7 +121,7 @@ export function restartLatch({ shutdown, releaseRestart }) {
 
   // A restart that could not be started, said out loud and then let go of.
   //
-  // Both halves of the latch have to come down — this file's and the server's —
+  // Both halves of the latch have to come down — this one's and the server's —
   // because a latch nothing clears is precisely how one failed request turned
   // into a deck that refused every restart afterwards while answering "ok" to
   // each one (#448). The reason is folded onto one line by oneLine: the terminal
