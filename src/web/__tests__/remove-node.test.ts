@@ -7,7 +7,7 @@ import { blockedSessions } from "../ambient-counts";
 import { applyEvent, initialState, pruneDoneSessions, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "../reducer";
 import { lastWorkedAt, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
 import { AUTO_PAN_EDGE_PX, clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
-import { clientText } from "./client-source";
+import { clientPairs, clientText } from "./client-source";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -132,6 +132,21 @@ describe("the canvas wiring (#1237)", () => {
 // way back was Clear. A removed session that started waiting was still counted
 // by the alarm and still listed, and clicking either selected a card that was
 // not drawn.
+
+describe("what is off the board changes in one place", () => {
+  it("is written only by use-removals.ts, through its named operations", () => {
+    // The removed set and the last-removal notice used to be set from three
+    // places in App.tsx — Clear, the session list's bring-back-all, and the
+    // removal itself. The setters stay private to the hook now, and every
+    // change is one of its operations.
+    const writers = clientPairs()
+      .filter(([, src]) => /\bsetRemovedNodes\(|\bsetLastRemoval\(/.test(src))
+      .map(([path]) => path.replaceAll("\\", "/"));
+    expect(writers).toEqual(["use-removals.ts"]);
+    expect(clientText()).toMatch(/onBringBackAll=\{bringBackAll\}/);
+    expect(clientText()).toMatch(/const handleClear = useCallback\(async \(\) => \{[\s\S]*?forgetRemovals\(\);/);
+  });
+});
 
 describe("bringing removed cards back", () => {
   it("takes the named ids out and leaves the rest removed", () => {
@@ -544,7 +559,11 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("forgets the last removal on Clear", () => {
+    // Two links: Clear forgets the removals, and forgetting them drops the notice.
     const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
-    expect(clear).toMatch(/setLastRemoval\(null\);/);
+    expect(clear).toMatch(/forgetRemovals\(\);/);
+    const forget = /const forgetRemovals = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(removals)?.[0] ?? "";
+    expect(forget).toMatch(/setLastRemoval\(null\);/);
+    expect(forget).toMatch(/setRemovedNodes\(new Set\(\)\);/);
   });
 });

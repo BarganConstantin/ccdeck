@@ -7,7 +7,7 @@
 // and the operations on it.
 import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from "react";
 import type { GraphState } from "./reducer";
-import { readRemovedNodes, removalHiddenIds, saveRemovedNodes, withoutRemovals } from "./remove-node";
+import { readRemovedNodes, removalHiddenIds, REMOVED_NODES_KEY, saveRemovedNodes, withoutRemovals } from "./remove-node";
 import type { useBoardLayout } from "./use-board-layout";
 
 type Layout = ReturnType<typeof useBoardLayout>;
@@ -75,6 +75,23 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
     });
   }, []);
 
-  return { removedNodes, setRemovedNodes, lastRemoval, setLastRemoval, removedAgentIds,
-           removeNode, removeSelectedNode, removalNotice, bringBack };
+  // The session list's "bring back all": every removed card at once, and the
+  // notice about the last one goes with them.
+  const bringBackAll = useCallback(() => {
+    bringBack([...removedNodes]);
+    setLastRemoval(null);
+  }, [bringBack, removedNodes]);
+
+  // Clear empties the board, and nothing stays removed from a board that is
+  // gone: the set, the notice and the stored copy all go.
+  const forgetRemovals = useCallback(() => {
+    setRemovedNodes(new Set());
+    setLastRemoval(null);
+    try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
+  }, []);
+
+  // No setter leaves this file: every change to what is off the board goes
+  // through one of the operations above.
+  return { removedNodes, lastRemoval, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
+           bringBack, bringBackAll, forgetRemovals };
 }

@@ -38,7 +38,7 @@ import {
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { sweepTick } from "./prune";
-import { REMOVED_NODES_KEY, removalsLiftedByWork, removalTimes, sessionsCalledBack, visibleBoard } from "./remove-node";
+import { removalsLiftedByWork, removalTimes, sessionsCalledBack, visibleBoard } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -542,8 +542,8 @@ function Inner() {
 
   // What Remove node has taken off the board, the way back, and the sentence
   // that says so — use-removals.ts.
-  const { removedNodes, setRemovedNodes, lastRemoval, setLastRemoval, removedAgentIds,
-          removeNode, removeSelectedNode, removalNotice, bringBack }
+  const { removedNodes, lastRemoval, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
+          bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
   // What the layout keys off: the visible, not-removed agents and their
   // parents, plus the two size versions — layout-signature.ts.
@@ -761,12 +761,10 @@ function Inner() {
     positionsRef.current.clear();
     lastLayoutSigRef.current = "";
     clearStoredLayout();
-    setRemovedNodes(new Set());
-    setLastRemoval(null);
-    try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
+    forgetRemovals();
     clearSelection();
     rerender();
-  }, [rerender, clearSelection]);
+  }, [rerender, clearSelection, forgetRemovals]);
 
 
 
@@ -1387,7 +1385,7 @@ function Inner() {
           onSelect={openSession}
           onClose={closeSessionList}
           removedIds={removedAgentIds}
-          onBringBackAll={() => { bringBack([...removedNodes]); setLastRemoval(null); }}
+          onBringBackAll={bringBackAll}
         />
       )}
       {/* <main>, because the canvas is what this page is: everything else on
