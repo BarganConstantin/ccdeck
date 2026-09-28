@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import type { createChimePlayer } from "./chime-player";
 import { clampLevel, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS, PREVIEW_DELAY_MS, readPrefs,
          type Chime, type TonePrefs, type ToneSettings } from "./sound";
-import { readStored } from "./storage";
+import { readStored, writeStored } from "./storage";
 import { useMirroredRef } from "./use-mirrored-ref";
 
 type ChimePlayer = ReturnType<typeof createChimePlayer>;
@@ -100,10 +100,8 @@ export function useTonePrefs(chimesRef: MutableRefObject<ChimePlayer | null>): T
         level: clampLevel(patch.level ?? prev[chime].level),
         figure: figureIdFrom(chime, patch.figure ?? prev[chime].figure),
       };
-      try {
-        localStorage.setItem(LEVEL_KEYS[chime], String(next.level));
-        localStorage.setItem(FIGURE_KEYS[chime], next.figure);
-      } catch { /* no storage */ }
+      writeStored(LEVEL_KEYS[chime], String(next.level));
+      writeStored(FIGURE_KEYS[chime], next.figure);
       return { ...prev, [chime]: next };
     });
     previewTone(chime, true);

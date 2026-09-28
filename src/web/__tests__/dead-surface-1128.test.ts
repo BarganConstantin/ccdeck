@@ -104,17 +104,14 @@ describe("readStored / seenStore — one guard for the store, not one per hook",
     expect(src(WEB, "use-welcome-and-notes.ts")).toContain("const store = localStore();");
   });
 
-  // The files that still touch `localStorage` themselves, with the reason each
-  // one does. Code only — comments are stripped. A new hand-rolled guard fails
-  // here; moving one of these onto storage.ts's helpers takes it off the list.
+  // The files that touch `localStorage` themselves, with the reason each one
+  // does. Code only — comments are stripped. A new hand-rolled guard fails
+  // here. Seven more were listed until #1128's last pass moved them onto
+  // storage.ts's helpers: App.tsx and the appearance, browser-watch badge,
+  // Claude FM, custom-tone, sound-switch and tone-settings hooks.
   const DIRECT: Record<string, string> = {
     "storage.ts": "the helpers themselves",
     "main.tsx": "the boot prune, handed the store inside its own try before App exists",
-    // Left for the change their owners are making now, not for a reason of
-    // their own. Each already wraps every read and write.
-    "use-custom-tones.ts": "the custom chimes",
-    "use-sound-switch.ts": "the finish-sound switch",
-    "use-tone-prefs.ts": "the chime levels and figures",
   };
 
   it("is touched directly only by the files that say why", () => {

@@ -59,7 +59,7 @@ import { finishSoundTitle } from "../provider-copy";
 import { ASSUMED } from "../providers";
 import { KEY_HELP } from "../key-help";
 import { openTags, withoutComments } from "./tsx-scan";
-import { clientText } from "./client-source";
+import { clientText, sourceOf } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
@@ -1086,11 +1086,12 @@ describe("App owns the settings, the write and the round trip", () => {
   it("writes both of a tone's settings, checked, under the namespaced keys", () => {
     expect(client).toMatch(/level: clampLevel\(patch\.level \?\? prev\[chime\]\.level\)/);
     expect(client).toMatch(/figure: figureIdFrom\(chime, patch\.figure \?\? prev\[chime\]\.figure\)/);
-    expect(client).toMatch(/localStorage\.setItem\(LEVEL_KEYS\[chime\], String\(next\.level\)\)/);
-    expect(client).toMatch(/localStorage\.setItem\(FIGURE_KEYS\[chime\], next\.figure\)/);
+    expect(client).toMatch(/writeStored\(LEVEL_KEYS\[chime\], String\(next\.level\)\)/);
+    expect(client).toMatch(/writeStored\(FIGURE_KEYS\[chime\], next\.figure\)/);
     // Wrapped, like every other preference here: a blocked store costs the
-    // setting and nothing else.
-    expect(client).toMatch(/try \{[\s\S]{0,200}localStorage\.setItem\(LEVEL_KEYS\[chime\][\s\S]{0,200}\} catch/);
+    // setting and nothing else. writeStored is the wrapped write —
+    // storage-blocked.test.ts drives it under a getter that throws.
+    expect(sourceOf("use-tone-prefs.ts")).toMatch(/import \{[^}]*\bwriteStored\b[^}]*\} from "\.\/storage";/);
   });
 
   it("hands the player the settings through a ref, the way it hands it the flag", () => {
