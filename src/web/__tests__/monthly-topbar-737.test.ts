@@ -13,10 +13,12 @@ import {
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(join(web, "App.tsx"), "utf8");
-// The read moved to use-monthly-usage.ts; the phrase it fills stayed in App.tsx.
-// The feature is the two together, and what is asked of the read — including
-// the negative, which now has two files to be true of — is asked of both.
-const feature = app + "\n" + readFileSync(join(web, "use-monthly-usage.ts"), "utf8");
+// The read moved to use-monthly-usage.ts, and the phrase it fills to
+// components/TopbarReadouts.tsx, which App.tsx mounts. The feature is the three
+// together, and what is asked of the read — including the negative, which now
+// has three files to be true of — is asked of all of them.
+const phrase = readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8");
+const feature = app + "\n" + phrase + "\n" + readFileSync(join(web, "use-monthly-usage.ts"), "utf8");
 const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("month-to-date topbar usage (#737)", () => {
@@ -43,9 +45,9 @@ describe("month-to-date topbar usage (#737)", () => {
 
   it("fetches ccusage for that month and labels the figures together", () => {
     expect(feature).toContain('fetch(`/api/ccusage?since=${since}`)');
-    expect(app).toContain('className="month-usage-label">this month</span>');
-    expect(app).toContain("fmtTokens(monthlyUsage.tokens)");
-    expect(app).toContain("fmtMonthlyCost(monthlyUsage.cost)");
+    expect(phrase).toContain('className="month-usage-label">this month</span>');
+    expect(phrase).toContain("fmtTokens(monthlyUsage.tokens)");
+    expect(phrase).toContain("fmtMonthlyCost(monthlyUsage.cost)");
     expect(feature).not.toContain("boardTotals(state.agents.values())");
   });
 
@@ -166,7 +168,7 @@ describe("the month is read only while it is shown (#737)", () => {
     // Not a copy of the breakpoints: a box inside display: none has no client
     // rects, whichever rule put it there.
     expect(effect).toContain("shown: !!phrase && phrase.getClientRects().length > 0,");
-    expect(app).toMatch(/ref=\{monthUsageRef\}\s+className="month-usage"/);
+    expect(phrase).toMatch(/ref=\{monthUsageRef\}\s+className="month-usage"/);
     expect(effect).toContain("seen = new ResizeObserver(poll);");
     expect(effect).toContain("seen.observe(monthUsageRef.current);");
     expect(effect).toContain('document.addEventListener("visibilitychange", poll);');

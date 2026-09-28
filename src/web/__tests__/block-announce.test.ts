@@ -69,6 +69,10 @@ const appCode = codeOf(app);
  *  decides what it says. Not the whole client — block-announce.ts builds the
  *  sentence on purpose, so a negative asked of it would fail for the right code. */
 const surfaceCode = codeOf(app + "\n" + read("../use-live-announcements.ts"));
+/** The strip, the waiting chip and the notification acknowledgement, which App.tsx
+ *  mounts from components/TopbarReadouts.tsx; the topbar is the two read as one. */
+const readoutsCode = codeOf(read("../components/TopbarReadouts.tsx"));
+const topbarCode = appCode + "\n" + readoutsCode;
 
 /** A blocked session as far as the wording is concerned. */
 const at = (label: string) => ({ label });
@@ -206,10 +210,11 @@ describe("the quietness", () => {
 
 describe("the stat strip is not a live region any more", () => {
   /** The opening tag of the element carrying `className="status"`. */
-  const stripTag = /<span className="status"[^>]*>/.exec(appCode)?.[0];
+  const stripTag = /<span className="status"[^>]*>/.exec(readoutsCode)?.[0];
 
   it("still renders the strip, so this file is not asserting over a deletion", () => {
-    expect(stripTag, "the .status strip is gone from App.tsx entirely").toBeTruthy();
+    expect(stripTag, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
+    expect(appCode, "App.tsx stopped mounting the strip").toContain("<StatusStrip");
   });
 
   it("carries no role and no aria-live at all", () => {
@@ -218,7 +223,7 @@ describe("the stat strip is not a live region any more", () => {
     // it stops doing is reading itself out, unasked, once per hook event.
     expect(stripTag).not.toMatch(/\brole=/);
     expect(stripTag).not.toMatch(/\baria-live=/);
-    expect(appCode).not.toContain(`<span className="status" role="status">`);
+    expect(topbarCode).not.toContain(`<span className="status" role="status">`);
   });
 
   it("still holds a readout that changes on its own, so the rule above is not vacuous", () => {
@@ -247,14 +252,14 @@ describe("the stat strip is not a live region any more", () => {
     // goes. A live region around the strip would read that flap out loud, every
     // time, over whatever the user was actually doing — the same defect the
     // counters caused, from content nobody would call a stream of digits.
-    const stripSrc = appCode.slice(
-      appCode.indexOf(`<span className="status">`),
-      appCode.indexOf(`<div className="vis-hidden"`),
-    );
+    const opens = readoutsCode.indexOf(`<span className="status">`);
+    expect(opens, "the strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
+    const next = readoutsCode.indexOf("export function", opens);
+    const stripSrc = readoutsCode.slice(opens, next === -1 ? undefined : next);
     expect(stripSrc, "the strip lost the readout that changes").toContain("title={pill.title}");
     expect(stripSrc, "the pill stopped carrying the tone that makes it appear")
       .toMatch(/className=\{`pill \$\{pill\.tone\}`\}/);
-    expect(appCode, "the pill stopped being built from the connection state")
+    expect(readoutsCode, "the pill stopped being built from the connection state")
       .toMatch(/statusPill\(\{\s*connected: live, paused,/);
   });
 });
@@ -285,9 +290,9 @@ describe("the block is announced, and the region is always there to announce it"
     // The whole element, not just its opening tag: an arrow function in an
     // `onClick` carries a `>` of its own, so a regex ending at the first one
     // reads about a quarter of the attributes and passes for the rest.
-    const opens = appCode.indexOf(`className="waiting-stat"`);
-    expect(opens, "the waiting chip is gone from App.tsx").toBeGreaterThan(-1);
-    const chip = appCode.slice(opens, appCode.indexOf("</button>", opens));
+    const opens = readoutsCode.indexOf(`className="waiting-stat"`);
+    expect(opens, "the waiting chip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
+    const chip = readoutsCode.slice(opens, readoutsCode.indexOf("</button>", opens));
     expect(chip).not.toMatch(/\brole=/);
     expect(chip).not.toMatch(/\baria-live=/);
     // The name it already had is the one thing here that was right, and it stays.
