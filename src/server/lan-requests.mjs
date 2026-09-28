@@ -204,8 +204,17 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     dropHeard(fp) {
       strangers.delete(fp);
     },
-    /** Say no, and stop being asked. The deck is dropped from both lists; if it
-     *  connects again it is a new request, because refusing is not a block. */
+    /** Say no, and stop being asked. The deck comes off the first list it is
+     *  on — its request if it asked, its heard row if it was only heard — and
+     *  onto the declined list, which is what stops the asking: a dial from it
+     *  is refused as "declined" (lan-socket.mjs), askToAccept draws no request
+     *  for it, and nothing here asks it. Not a block, though: `allow` undoes it.
+     *
+     *  A deck that asked AND was heard keeps its heard row. That is fine: the
+     *  next beacon would write that row back whatever this did, because
+     *  heardStranger records a declined deck like any other and only never
+     *  asks it, and what offers or asks from the heard list — strangerRows,
+     *  heardStranger and switched — checks the declined list first. */
     dismiss(fp) {
       // Whatever the row said, kept — the panel draws a declined deck by name
       // and address, and after the delete below there is nowhere else to read
