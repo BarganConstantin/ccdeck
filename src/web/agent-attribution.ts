@@ -13,7 +13,7 @@ import type { AgentNodeData, HookPayload } from "./types";
 /** The name a card shows for a directory: its basename, or the nearest
  *  ancestor's when the basename is an id (#842). Every caller is a label —
  *  `cwdBasename` and a root's default name — and nothing keys on it. */
-export function basename(p?: string): string | undefined {
+function basename(p?: string): string | undefined {
   return readableBasename(p);
 }
 
@@ -29,6 +29,25 @@ export function explicitSubagentKey(p: HookPayload): string | null {
   if (p.agent_id) return p.agent_id;
   if (p.parent_tool_use_id) return p.parent_tool_use_id;
   return null;
+}
+
+/** A node's directory, from the first payload that names one. Later payloads
+ *  never move it: the directory a card was first drawn under is the one it
+ *  keeps. */
+export function adoptCwd(a: AgentNodeData, p: HookPayload): void {
+  if (!a.cwd && p.cwd) { a.cwd = p.cwd; a.cwdBasename = basename(p.cwd); }
+}
+
+/** A root still under its placeholder name takes its directory's. */
+export function adoptRootLabel(root: AgentNodeData, p: HookPayload): void {
+  if (root.label === "session" && p.cwd) root.label = basename(p.cwd) ?? "session";
+}
+
+/** A subagent still under its placeholder name takes the type the payload
+ *  spawned it as, when that type is a name a reader can use. */
+function adoptSubagentLabel(a: AgentNodeData, p: HookPayload): void {
+  const lbl = subagentLabel(p);
+  if (lbl && (a.label === "subagent" || !a.label)) a.label = lbl;
 }
 
 export function ensureRoot(state: GraphState, sessionId: string, now: number, synthetic: boolean): AgentNodeData {
@@ -66,9 +85,8 @@ export function lookupSubagent(state: GraphState, sessionId: string, key: string
   const id = subagentIdFor(sessionId, key);
   const a = state.agents.get(id);
   if (!a) return null;
-  if (!a.cwd && p.cwd) { a.cwd = p.cwd; a.cwdBasename = basename(p.cwd); }
-  const lbl = subagentLabel(p);
-  if (lbl && (a.label === "subagent" || !a.label)) a.label = lbl;
+  adoptCwd(a, p);
+  adoptSubagentLabel(a, p);
   return a;
 }
 
@@ -100,7 +118,7 @@ export function resolveOwner(state: GraphState, p: HookPayload, now: number): Ag
   if (topKey) {
     const sub = state.agents.get(subagentIdFor(sessionId, topKey));
     if (sub) {
-      if (!sub.cwd && p.cwd) { sub.cwd = p.cwd; sub.cwdBasename = basename(p.cwd); }
+      adoptCwd(sub, p);
       return sub;
     }
   }
@@ -139,8 +157,8 @@ export function resolveOwner(state: GraphState, p: HookPayload, now: number): Ag
   // root conjured by its first real event, marked, with no start time asserted
   // for it.
   const root = ensureRoot(state, sessionId, now, /*synthetic*/ p.hook_event_name !== "SessionStart");
-  if (!root.cwd && p.cwd) { root.cwd = p.cwd; root.cwdBasename = basename(p.cwd); }
-  if (root.label === "session" && p.cwd) root.label = basename(p.cwd) ?? "session";
+  adoptCwd(root, p);
+  adoptRootLabel(root, p);
   return root;
 }
 
@@ -153,9 +171,8 @@ export function ensureSubagent(state: GraphState, sessionId: string, key: string
 
   let a = state.agents.get(id);
   if (a) {
-    if (!a.cwd && p.cwd) { a.cwd = p.cwd; a.cwdBasename = basename(p.cwd); }
-    const lbl = subagentLabel(p);
-    if (lbl && (a.label === "subagent" || !a.label)) a.label = lbl;
+    adoptCwd(a, p);
+    adoptSubagentLabel(a, p);
     return a;
   }
   a = {
