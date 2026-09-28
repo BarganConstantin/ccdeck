@@ -31,9 +31,8 @@ import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
 import {
   activeCount, autoRestartLabel, autoRestartRemainingMs, autoRestartStep, restartEndedInFailure,
-  restartLandingStep, restartSafety, upgradeFailureId,
+  restartLandingStep, restartSafety,
 } from "./restart";
-import { copyText } from "./copy-text";
 import { laneMap, snapshotToFlow, type FlowNodeData } from "./canvas-flow";
 import { exportFileName, sessionExport } from "./session-export";
 import { canvasModalOpen, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
@@ -62,6 +61,7 @@ import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
+import { useDeckUpgrade } from "./use-deck-upgrade";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { useOldNameNotice } from "./use-old-name-notice";
@@ -907,7 +907,7 @@ function Inner() {
   const [tabCapped, setTabCapped] = useState(false);
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
-  const { version, notice, noticeOpen, showNotice, dismissNotice, cmdCopied, setCmdCopied,
+  const { version, notice, noticeOpen, showNotice, dismissNotice,
           versionChecking, loadVersion } = useVersionCheck(live);
   // Everything about the desktop app's own updater — its state, the press rule
   // behind Restart to update, and the stream event that releases a press — is in
@@ -1061,44 +1061,11 @@ function Inner() {
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
   const { oldName, oldNameOpen, dismissOldName } = useOldNameNotice(version);
-  // Installing runs on the server and reports back through /api/version, so the
-  // only thing the click owns is starting it and polling a little faster while
-  // it runs — an npm install is a minute, not five.
-  const upgradeState = version?.upgrade?.state ?? "idle";
-  // A string, not the object, so an effect can key off it: /api/version answers
-  // with a fresh object every poll, and only its identity would ever change.
-  const upgradeFailure = upgradeFailureId(version?.upgrade);
-  // The press's own in-flight flag, and the only one this button has: `running`
-  // is the SERVER's answer and does not arrive until the next /api/version, so
-  // between the click and that poll there is nothing else saying a run started.
-  // Released once the poll has been asked for — from then on `upgradeState`
-  // carries the fact, and a POST that changed nothing leaves the button usable
-  // rather than locked out for the life of the page.
-  const upgradeAskedRef = useRef(false);
-  const startUpgrade = useCallback(async () => {
-    if (!selfPressAccepted(upgradeAskedRef.current || upgradeState === "running")) return;
-    upgradeAskedRef.current = true;
-    try { await fetch("/api/upgrade", { method: "POST" }); } catch { /* reported via /api/version */ }
-    await loadVersion();
-    upgradeAskedRef.current = false;
-  }, [upgradeState, loadVersion]);
-  useEffect(() => {
-    if (upgradeState !== "running") return;
-    const iv = window.setInterval(loadVersion, 3000);
-    return () => window.clearInterval(iv);
-  }, [upgradeState, loadVersion]);
-
-  const copyCommand = useCallback(async () => {
-    const cmd = version?.command;
-    if (!cmd) return;
-    // The ladder — secure-context clipboard raced against a timer, then the
-    // selection trick — moved to copy-text.ts when the Browser Watch killswitch
-    // became the second caller showing the user a command to paste.
-    const ok = await copyText(cmd);
-    if (!ok) return; // the command stays on screen and selectable
-    setCmdCopied(true);
-    window.setTimeout(() => setCmdCopied(false), 1600);
-  }, [version?.command]);
+  // Upgrading the deck from its banner — the press, the faster poll while npm
+  // runs, and copying the command for anyone who would rather type it — lives
+  // in use-deck-upgrade.ts.
+  const { upgradeState, upgradeFailure, startUpgrade, copyCommand, cmdCopied }
+    = useDeckUpgrade({ version, loadVersion });
 
   // One left column, two things that want it. Opening either evicts the other
   // rather than fighting over the same grid slot.
