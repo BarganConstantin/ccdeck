@@ -32,7 +32,8 @@ afterAll(() => rmTempDir(DIR));
 // @ts-expect-error — .mjs server module, no types
 const { hasSubscriptionCredential, credentialsPath } = await import("../../server/quota.mjs");
 
-const panel = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+// The Claude section, and the hint it prints, were lifted out of UsagePanel.tsx.
+const panel = readFileSync(fileURLToPath(new URL("../components/QuotaSections.tsx", import.meta.url)), "utf8");
 // The quota read, and the shape its route answers in, moved to use-quota.ts.
 const quotaReads = readFileSync(fileURLToPath(new URL("../use-quota.ts", import.meta.url)), "utf8");
 const server = readFileSync(fileURLToPath(new URL("../../server/quota.mjs", import.meta.url)), "utf8");

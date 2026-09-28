@@ -76,6 +76,8 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 const panel = strip(read("../components/UsagePanel.tsx"));
 /** The panel and every file lifted out of it, for the negatives and counts. */
 const panelSurface = strip(usageSurface());
+/** The two quota sections, lifted out of the panel. */
+const sections = strip(read("../components/QuotaSections.tsx"));
 const card = strip(read("../components/AgentNode.tsx"));
 const css = strip(read("../styles.css"));
 
@@ -466,23 +468,28 @@ describe("the 7-day token line does not wait on an authenticated round trip", ()
     // to chatgpt.com, and it fails outright on no_token, api_key_mode, an
     // expired refresh or blocked egress. The local line used to render only
     // inside the success case of the second one.
+    //
+    // The section is QuotaSections.tsx's now, so the positions are read there;
+    // the count reads the panel and everything lifted out of it.
     const uses = [...panelSurface.matchAll(/codexUsage\?\.ok/g)];
     expect(uses).toHaveLength(1);
-    const at = panel.indexOf("codexUsage?.ok");
+    const at = sections.indexOf("codexUsage?.ok");
     // Scoped to the Codex section: the Claude quota above it has the same three
     // branches, and an unanchored search for the loading one finds Claude's.
-    const section = panel.indexOf("Codex quota");
+    const section = sections.indexOf("Codex quota");
     expect(section).toBeGreaterThan(-1);
-    const successBranch = panel.indexOf("codexQuota?.ok ? (", section);
-    const failureBranch = panel.indexOf("codexQuota?.ok === false", section);
-    const loadingBranch = panel.indexOf("up-quota-loading", failureBranch);
+    const successBranch = sections.indexOf("codexQuota?.ok ? (", section);
+    const failureBranch = sections.indexOf("codexQuota?.ok === false", section);
+    const loadingBranch = sections.indexOf("up-quota-loading", failureBranch);
     expect(successBranch).toBeGreaterThan(-1);
     expect(failureBranch).toBeGreaterThan(successBranch);
     expect(loadingBranch).toBeGreaterThan(failureBranch);
     // After the last of the three: outside the ternary entirely.
     expect(at).toBeGreaterThan(loadingBranch);
-    // And still inside the Codex section rather than adrift in the cost half.
-    expect(at).toBeLessThan(panel.indexOf("up-total-value"));
+    // And still inside the Codex section rather than adrift after it.
+    expect(at).toBeLessThan(sections.indexOf("</section>", loadingBranch));
+    // Which the panel hands the local reading, whatever the quota call did.
+    expect(panel).toMatch(/<CodexQuotaSection [^>]*codexUsage=\{codexUsage\}/);
   });
 
   it("keeps polling it on its own timer, which is what makes that worth doing", () => {
@@ -500,7 +507,7 @@ describe("the 7-day token line does not wait on an authenticated round trip", ()
     // Nothing consumed window5h. It goes in the title rather than on the line:
     // the panel is 280px wide (#369) and a second visible figure costs more
     // than it says.
-    expect(panel).toMatch(/codexUsage\.window5h/);
-    expect(panel).toMatch(/last 5h/);
+    expect(sections).toMatch(/codexUsage\.window5h/);
+    expect(sections).toMatch(/last 5h/);
   });
 });

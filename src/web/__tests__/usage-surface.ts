@@ -25,6 +25,7 @@ export const USAGE_FILES = [
   "components/UsagePanel.tsx",
   "components/QuotaBar.tsx",
   "use-quota.ts",
+  "components/QuotaSections.tsx",
 ] as const;
 
 let joined: string | null = null;

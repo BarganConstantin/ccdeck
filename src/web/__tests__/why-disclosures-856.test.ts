@@ -15,7 +15,8 @@ import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const accounts = read("../components/AccountsPanel.tsx");
-const usage = read("../components/UsagePanel.tsx");
+// Where a quota reading came from is the quota sections', lifted out of the panel.
+const quotaSections = read("../components/QuotaSections.tsx");
 // The pace note is the quota bar's, which was lifted out of the panel.
 const quotaBar = read("../components/QuotaBar.tsx");
 const node = read("../components/AgentNode.tsx");
@@ -86,6 +87,6 @@ describe("what stays a title, because it decides nothing (#856)", () => {
   });
 
   it("keeps where a quota reading came from a title", () => {
-    expect(usage).toMatch(/className="up-section-age" title=\{quotaSourceHint\(quota\?\.source\)\}/);
+    expect(quotaSections).toMatch(/className="up-section-age" title=\{quotaSourceHint\(quota\?\.source\)\}/);
   });
 });
