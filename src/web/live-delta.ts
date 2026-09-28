@@ -42,12 +42,13 @@ export const NO_DELTA: LiveDelta = {
 };
 
 /** The agents this counts: session roots, which are the only nodes that carry
- *  usage. A subagent's tokens are already inside its root's total — see the
- *  note in reducer.ts — so counting nodes would count them twice. */
+ *  usage. A subagent's tokens are already inside its root's total — see
+ *  `applyUsageObserved` in transcript-events.ts — so counting nodes would count
+ *  them twice. */
 export interface CountableAgent extends UsageBearing {
   kind?: string;
   sessionId?: string;
-  /** The deck never saw this session begin (reducer.ts, #677). */
+  /** The deck never saw this session begin (`resolveOwner`, #677). */
   synthetic?: boolean;
 }
 

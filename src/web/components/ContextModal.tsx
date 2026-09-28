@@ -141,8 +141,8 @@ export default function ContextModal({ agent, onClose }: Props) {
   // answer the same for every real session, but #383 deliberately took it off
   // pricing.ts's public surface — and the fact this line needs is about which
   // CLI reported the numbers, not which model produced them. `agent.provider`
-  // is that fact, and it is already what reducer.ts branches on for the
-  // turn-end sweep.
+  // is that fact, and it is already what `applyTurnEnd` (session-lifecycle.ts)
+  // branches on for the turn-end sweep.
   const cumulative = agent.provider === "codex"
     ? usage.inputTokens + usage.outputTokens
     : usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheCreateTokens;

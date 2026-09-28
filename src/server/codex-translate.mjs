@@ -109,9 +109,10 @@ export function codexObjToPayload(obj, sid, cwd) {
     // `response_item` with role "user" and never gets an item of its own.
     //
     // This matters far beyond the prompt text. `UserPromptSubmit` is what puts
-    // a settled root back to `active` (reducer.ts), so on 0.147 it is the ONLY
-    // thing that reopens a session for its second turn — without it the `Stop`
-    // below would trade "live forever" for "done forever", which is not better.
+    // a settled root back to `active` (session-lifecycle.ts in the client), so
+    // on 0.147 it is the ONLY thing that reopens a session for its second turn —
+    // without it the `Stop` below would trade "live forever" for "done
+    // forever", which is not better.
     if (pl.type === "item_completed" && pl.item && pl.item.type === "UserMessage") {
       return { ...base, hook_event_name: "UserPromptSubmit", prompt: codexItemText(pl.item), model };
     }

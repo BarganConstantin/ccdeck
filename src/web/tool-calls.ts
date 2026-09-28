@@ -38,8 +38,9 @@ export const MAX_TOOLS_PER_AGENT = 200;
  *
  * OUT HERE RATHER THAN INLINE IN App.tsx BECAUSE OF WHAT IT COSTS (#997). The
  * tool modal's render body resolves the open tool on every render, and cannot
- * skip it — `modalOpenRef` reads the result on the next line — while `setNow`
- * re-renders the deck four times a second whether or not anything is happening.
+ * skip it — `modalOpenRef` reads the result later in the same render — while
+ * `setNow` re-renders the deck four times a second whether or not anything is
+ * happening.
  * The form this replaces was
  *
  *     Array.from(agents.values()).flatMap(a => a.tools).find(t => t.id === id)
@@ -50,10 +51,12 @@ export const MAX_TOOLS_PER_AGENT = 200;
  * second, to answer a question that stops at the first hit. Walking stops at the
  * agent that owns the call and allocates nothing.
  *
- * NOT `toolIndex`, which is O(1) and answers this exact question. It would
- * change the ANSWER: that map is keyed by tool_use_id with no session scope and
- * keeps only the newest copy (#1009, open), where this returns the first match
- * in insertion order. Picking a side in that belongs with #1009, not here.
+ * NOT `toolIndex`, which is O(1) but answers a different question. It holds
+ * only the calls still in flight, where the modal opens settled ones too, and
+ * since #1009 it is keyed on the session as well as the id — which this is not
+ * handed, since the modal opens a call by its id alone. This returns the first
+ * match in agent insertion order, as the walk it replaced did — which is the
+ * wrong call when two sessions share an id (#1483, open).
  *
  * Here rather than in App.tsx also so it can be measured without a DOM — the
  * same reason `usage-range.ts` gives for living outside its component.
@@ -236,9 +239,9 @@ export function settleUnanswered(
 /** Whether this envelope is the answer to a call the graph is still waiting on
  *  — a `PostToolUse` / `PostToolUseFailure` whose id is in flight right now.
  *
- *  Written for the pause gate's `protect` (#676) and exported so App.tsx and
- *  the tests ask the same question of the same graph rather than each spelling
- *  it out. The gate reads `seq` and `epoch` and nothing else on purpose; this
+ *  Written for the pause gate's `protect` (#676) and exported so
+ *  use-pause-gate.ts and the tests ask the same question of the same graph
+ *  rather than each spelling it out. The gate reads `seq` and `epoch` and nothing else on purpose; this
  *  is the payload half of the question, and it belongs next to the map it
  *  reads.
  *
