@@ -264,14 +264,14 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     // `cswap add` for the account the user had just cancelled, racing
     // cancelLogin's own restore, with the dialog flipping to `done`.
     //
-    // The memo guard eleven lines below already distrusted a kill for the same
-    // reason (`if (code === 0 && !killed && !timedOut)`), so the two halves of
-    // this function disagreed about what a killed exit means.
+    // The memo guard in the child's 'close' handler below already distrusted a
+    // kill for the same reason (`if (code === 0 && !killed && !timedOut)`), so
+    // the two halves of this function disagreed about what a killed exit means.
     s({ ok: code === 0 && !err && !timedOut && !killed, code: err?.code ?? code ?? -1, killed, timedOut, stdout, stderr });
   };
 
-  // The deadline states the outcome and only then kills — the order `run` uses
-  // forty lines above, for the reason its own header already spells out.
+  // The deadline states the outcome and only then kills — the order `run`'s own
+  // deadline uses, for the reason run's header already spells out.
   //
   // This used to set the flag, kill, and leave `done` to the child's 'close'.
   // 'close' waits for the stdio pipes, not merely for the exit, so ONE
