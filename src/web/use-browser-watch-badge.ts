@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SEEN_KEY, unseenEpisodes } from "./browser-watch-seen";
-import type { WatchEpisode } from "./components/BrowserWatchModal";
+import type { WatchEpisode } from "./browser-watch-model";
 
 export interface BrowserWatchBadge {
   /** Whether the watch is switched on, as of the last poll or the dialog's switch. */

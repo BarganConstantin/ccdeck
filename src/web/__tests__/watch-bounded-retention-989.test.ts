@@ -34,7 +34,7 @@ import { flooredReader, type Visit } from "./floored-reader";
 import { browserWatchSnapshot, invalidateBrowserWatchCache } from "../../server/browser-watch.mjs";
 import { msToChromeTime } from "../../server/browser-history.mjs";
 import { appendLog, logPath, logSize, rolledLogPath } from "../../server/browser-watch-store.mjs";
-import { logBytesLabel } from "../components/BrowserWatchModal";
+import { logBytesLabel } from "../browser-watch-model";
 
 const FROM_API = 0x08000000;
 const PROFILE = {
