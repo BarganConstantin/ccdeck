@@ -46,9 +46,11 @@ import { escapeOutcome } from "../modal-dismiss";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+// The detail panel moved to components/Detail.tsx and the selected ribbon to
+// components/SelectedRibbon.tsx; App.tsx and they are read as one.
 const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8")
-  + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
+  + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8")
+  + "\n" + readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8");
 // Which element is a card's wrapper is canvas-node-element.ts's now.
 const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");

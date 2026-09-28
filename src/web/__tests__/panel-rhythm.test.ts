@@ -536,7 +536,7 @@ describe("the 24px target floor", () => {
     // saying why in the place that would otherwise be tempted by it: the × is
     // inside the ribbon, and the ribbon is itself a button, so a 24px circle
     // centred on the × intersects a target by construction.
-    expect(read("../App.tsx")).toMatch(/className="selected-ribbon"/);
+    expect(read("../components/SelectedRibbon.tsx")).toMatch(/className="selected-ribbon"/);
   });
 
   it("already covered the context donut, which the report measured zoomed", () => {
