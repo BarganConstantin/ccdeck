@@ -23,7 +23,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { collectBursts, mcpChipIdentity } from "../components/ToolBursts";
+import { collectBursts } from "../components/ToolBursts";
+import { mcpChipIdentity } from "../tool-skin";
 import type { AgentNodeData, ToolCall } from "../types";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
@@ -361,7 +362,7 @@ describe("the chip's hue IS the bubble's hue, drawn from the same call", () => {
     //
     // Two modules spell this arithmetic and the second is NOT the defect #374
     // removed. `session-hue.sessionHue` hashes a session id and
-    // `ToolBursts.hashHue` hashes an MCP server segment: same body, different
+    // `tool-skin.hashHue` hashes an MCP server segment: same body, different
     // domains, neither derived from the other, and #374's sweep
     // (duplicated-helpers.test.ts) went through seven helper pairs without
     // listing them. They are named here
@@ -371,11 +372,11 @@ describe("the chip's hue IS the bubble's hue, drawn from the same call", () => {
       .filter(p => /h = \(\(h << 5\) \+ h\)/.test(readFileSync(p, "utf8")))
       .map(p => p.slice(web.length).replace(/\\/g, "/"))
       .sort();
-    expect(spelt).toEqual(["components/ToolBursts.tsx", "session-hue.ts"]);
+    expect(spelt).toEqual(["session-hue.ts", "tool-skin.ts"]);
     // The MCP one is private, so a second copy is the only way to get one.
-    const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
-    expect(bursts).toMatch(/^function hashHue\(/m);
-    expect(bursts, "hashHue is exported again with no reader outside the file")
+    const skin = readFileSync(join(web, "tool-skin.ts"), "utf8");
+    expect(skin).toMatch(/^function hashHue\(/m);
+    expect(skin, "hashHue is exported again with no reader outside the file")
       .not.toMatch(/^export function hashHue\b/m);
     expect(app, "App.tsx imports a hash it no longer has a use for")
       .not.toMatch(/\bhashHue\b/);

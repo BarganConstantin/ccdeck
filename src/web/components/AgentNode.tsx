@@ -30,7 +30,7 @@ import { useNow } from "../use-now";
 import { recapShown } from "../session-recap";
 import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
-import { primaryDisplayFor, toolSubject } from "./ToolBursts";
+import { primaryDisplayFor, toolSubject } from "../tool-skin";
 import { AlertMark, StateMark } from "./StateMark";
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual

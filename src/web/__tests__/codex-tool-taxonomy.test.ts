@@ -159,7 +159,11 @@ describe("every Codex tool the deck knows, drawn from the one spec table", () =>
 // ── the six tables have exactly one source now ──────────────────────────────
 
 describe("where the six tables get their Codex names from", () => {
-  const toolBursts = readFileSync(join(web, "components", "ToolBursts.tsx"), "utf8");
+  // The five tables left components/ToolBursts.tsx for tool-skin.ts with the skin
+  // code that reads them. The positives read the module that owns them now; the
+  // negatives read both files, so a copy put back in either one still fails.
+  const toolSkin = readFileSync(join(web, "tool-skin.ts"), "utf8");
+  const toolBursts = toolSkin + "\n" + readFileSync(join(web, "components", "ToolBursts.tsx"), "utf8");
   // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
   const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
 
@@ -177,15 +181,15 @@ describe("where the six tables get their Codex names from", () => {
     for (const src of [app, detail]) expect(src).not.toMatch(/const DETAIL_TOOL_CAT/);
   });
 
-  it("has ToolBursts.tsx deriving its five tables rather than listing them", () => {
+  it("has tool-skin.ts deriving its five tables rather than listing them", () => {
     // Each of the five is spread or aliased from the shared spec; none of them
     // spells a Codex tool name itself any more.
-    expect(toolBursts).toMatch(/from "\.\.\/tool-taxonomy"/);
+    expect(toolSkin).toMatch(/from "\.\/tool-taxonomy"/);
     expect(toolBursts).not.toMatch(/const TOOL_CATEGORY/);
-    expect(toolBursts).toMatch(/\.\.\.CODEX_TOOL_EMOJI/);
-    expect(toolBursts).toMatch(/\.\.\.CODEX_SHELL_TOOLS/);
-    expect(toolBursts).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
-    expect(toolBursts).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
+    expect(toolSkin).toMatch(/\.\.\.CODEX_TOOL_EMOJI/);
+    expect(toolSkin).toMatch(/\.\.\.CODEX_SHELL_TOOLS/);
+    expect(toolSkin).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
+    expect(toolSkin).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
     expect(toolBursts).not.toMatch(/const CODEX_TOOLS\s*=/);
   });
 });
