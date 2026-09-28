@@ -110,15 +110,18 @@ describe("the tool sparkline's tooltip", () => {
     // `max` is floored at 1 so an empty spark can be drawn; the peak is a
     // measurement, and the floor made an idle card read
     // "0 tool calls in last 60s · peak 0.4/s".
+    // The counting is tool-spark.ts's, lifted out of the card; the negative
+    // below holds the card and it together.
     const node = read("../components/AgentNode.tsx");
-    expect(node).toContain("const observedPeak = Math.max(0, ...counts);");
-    expect(node).toContain("const peakRate = observedPeak / (BUCKET_MS / 1000);");
+    const spark = read("../tool-spark.ts");
+    expect(spark).toContain("const observedPeak = Math.max(0, ...counts);");
+    expect(spark).toContain("const peakRate = observedPeak / (BUCKET_MS / 1000);");
     // The wording moved off "tool calls" when the chart stopped counting only
     // those: it marks a completed block of the model's own output too, so a
     // minute of thinking is no longer drawn as a flat line. What this test is
     // about is unchanged — an empty window still reports no peak, because a
     // floor talking is worse than a chart saying nothing.
-    expect(node).toContain('? "nothing in the last 60s"');
-    expect(node).not.toMatch(/peak[^"]*"\s*:\s*`?\$\{?0/);
+    expect(spark).toContain('? "nothing in the last 60s"');
+    expect(node + "\n" + spark).not.toMatch(/peak[^"]*"\s*:\s*`?\$\{?0/);
   });
 });

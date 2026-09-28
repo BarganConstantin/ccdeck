@@ -126,10 +126,12 @@ describe("a block of the model's own output reaches the graph", () => {
 
 describe("the chart stops calling a working session idle", () => {
   const node = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
+  /** The chart's counting, lifted out of the card's ToolRateSpark. */
+  const spark = readFileSync(fileURLToPath(new URL("../tool-spark.ts", import.meta.url)), "utf8");
 
   it("marks a block the same way it marks a tool call", () => {
-    expect(node).toContain("for (const t of tools) mark(t.startedAt);");
-    expect(node).toMatch(/for \(const at of outputs \?\? \[\]\) mark\(at\);/);
+    expect(spark).toContain("for (const t of tools) mark(t.startedAt);");
+    expect(spark).toMatch(/for \(const at of outputs \?\? \[\]\) mark\(at\);/);
   });
 
   it("draws itself for a session that has produced but called nothing", () => {
@@ -141,7 +143,7 @@ describe("the chart stops calling a working session idle", () => {
   it("says what it counted, both halves", () => {
     // A chart moving on a card with no tool call in a minute is otherwise a
     // reader's puzzle.
-    expect(node).toContain("of thinking and writing");
-    expect(node).toContain("const blockMarks = total - toolMarks;");
+    expect(spark).toContain("of thinking and writing");
+    expect(spark).toContain("const blockMarks = total - toolMarks;");
   });
 });
