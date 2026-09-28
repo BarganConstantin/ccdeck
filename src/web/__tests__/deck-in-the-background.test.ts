@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
+import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
@@ -41,6 +42,7 @@ const { termColumns } = await import("../../server/term.mjs");
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const SUPERVISOR = read("../../../bin/agent-dag.js");
 const DECK = read("../../../bin/deck.js");
+const HELP = read("../../../bin/cli/help.js");
 const SRC = read("../../server/detach.mjs");
 
 describe("the child's output is a file, never a pipe", () => {
@@ -89,7 +91,7 @@ describe("the deck from before this version that is still running", () => {
     // ("2 decks from an older ccdeck are still running on 4317, 4363"). A start
     // keeps one deck now, so the older one is stopped and this one takes its
     // place — the line that says so names the version it replaced.
-    expect(DECK).not.toContain("too old to be recognised");
+    expect(cliSurface()).not.toContain("too old to be recognised");
     expect(DECK).toMatch(/olderVersion\(d\.version, PKG_VERSION\)[\s\S]{0,120}it was v\$\{d\.version\}/);
   });
 });
@@ -196,7 +198,7 @@ describe("a command line that is not a start", () => {
     // A start, not a one-shot: it still boots a deck, it just does not leave.
     expect(isOneShot(parseArgs(["--foreground"]))).toBe(false);
     expect(SUPERVISOR).toContain("FLAGS.foreground !== true");
-    expect(DECK).toContain("--foreground");
+    expect(HELP).toContain("--foreground");
   });
 });
 

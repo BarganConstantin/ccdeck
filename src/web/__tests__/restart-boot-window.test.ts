@@ -25,6 +25,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { rmTempDir } from "./rm-temp-dir";
+import { copyWorker } from "./cli-surface";
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -290,7 +291,8 @@ writeFileSync(join(PKG, "package.json"), JSON.stringify({
   name: "agents-deck", version: "1.35.17", type: "module",
 }));
 copyFileSync(join(REAL_BIN, "agent-dag.js"), join(PKG, "bin", "agent-dag.js"));
-copyFileSync(join(REAL_BIN, "deck.js"), join(PKG, "bin", "deck.js"));
+// The worker is deck.js and what was lifted out of it — see cli-surface.ts.
+copyWorker(REAL_BIN, join(PKG, "bin"));
 
 for (const mod of readdirSync(REAL_SERVER).filter(f => f.endsWith(".mjs"))) {
   const real = new URL(`../../server/${mod}`, import.meta.url).href;

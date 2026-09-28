@@ -335,6 +335,8 @@ const deckSrc = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", impor
 // stopped meaning starting a deck. The two flags this file cares about are
 // recognised there now; everything else it asks about is still boot sequence.
 const argsSrc = readFileSync(fileURLToPath(new URL("../../server/args.mjs", import.meta.url)), "utf8");
+// And `--help` moved out of it into bin/cli/help.js, so the flag is documented there.
+const helpSrc = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
 
 describe("what a Codex-only boot does on the user's behalf", () => {
   /** The body of startupWork, which is where all three jobs are created. */
@@ -353,7 +355,7 @@ describe("what a Codex-only boot does on the user's behalf", () => {
     // the mirror of --no-codex.
     expect(argsSrc).toContain('a === "--claude"');
     expect(argsSrc).toContain('a === "--no-claude"');
-    expect(deckSrc).toContain("--no-claude          Skip Claude");
+    expect(helpSrc).toContain("--no-claude          Skip Claude");
   });
 
   for (const [what, needle] of [

@@ -32,6 +32,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 // Everything the modules below read at import time is pointed inside a temp
 // tree, so nothing here can reach — or be answered by — the developer's own
@@ -512,7 +513,9 @@ describe("the flag as bin/deck.js publishes it", () => {
     // The exact shape that shipped: `const workspace = flags.workspace ...`,
     // which put a relative path into the discovery file for the hook to resolve
     // in the wrong process.
-    expect(code.filter(l => /const workspace\b/.test(l) && /flags\./.test(l))).toEqual([]);
+    // Nor anywhere lifted out of this file, which is where it would go next.
+    const surface = cliSurface().split("\n").filter(l => !l.trimStart().startsWith("//"));
+    expect(surface.filter(l => /const workspace\b/.test(l) && /flags\./.test(l))).toEqual([]);
   });
 });
 

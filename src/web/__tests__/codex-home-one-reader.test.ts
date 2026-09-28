@@ -33,6 +33,7 @@
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { CLI_FILES } from "./cli-surface";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -438,7 +439,7 @@ describe("where CODEX_HOME is allowed to be read", () => {
 
   const shipped = () => {
     const files = readdirSync(SERVER).filter(f => f.endsWith(".mjs")).map(f => join(SERVER, f));
-    for (const rel of ["bin/deck.js", "bin/agent-dag.js", "hook/hook.js"]) {
+    for (const rel of [...CLI_FILES, "bin/agent-dag.js", "hook/hook.js"]) {
       try { readFileSync(join(ROOT, rel), "utf8"); files.push(join(ROOT, rel)); }
       catch { /* renamed or gone; the directory scan above is the load-bearing half */ }
     }

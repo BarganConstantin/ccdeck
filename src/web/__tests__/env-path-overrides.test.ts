@@ -28,6 +28,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "ccdeck-env-paths-"));
 const FAKE_HOME   = join(SANDBOX, "home");
@@ -193,9 +194,9 @@ describe("the Codex sessions directory the boot banner names", () => {
 
   it("is nowhere rebuilt from the home directory in bin/deck.js", () => {
     // The exact expression that shipped. Spelled loosely enough that reordering
-    // the join's arguments or switching quote style cannot smuggle it back.
-    const deck = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
-    const rebuilt = deck
+    // the join's arguments or switching quote style cannot smuggle it back. Read
+    // with everything lifted out of deck.js, which is where a rebuild would go.
+    const rebuilt = cliSurface()
       .split("\n")
       .filter(l => !l.trimStart().startsWith("//"))
       .filter(l => /homedir\(\)/.test(l) && /\.codex/.test(l));
