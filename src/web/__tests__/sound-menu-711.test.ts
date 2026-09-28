@@ -47,12 +47,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  CHIME_ORDER, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
+  CHIME_ORDER, clampLevel, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
   DEFAULT_PREFS, ENVELOPE_FLOOR, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
   GAIN_CEILING, GAIN_FLOOR, gainForLevel, LEVEL_KEYS, levelFrom, LEVEL_MAX,
   LEVEL_MIN, LEVEL_STEP, PEAK_GAIN, peakFor, PREVIEW_DELAY_MS, readPrefs,
   type Chime, type Figure, type Note, type TonePrefs,
 } from "../sound";
+import { createChimePlayer } from "../chime-player";
 import { readStored } from "../storage";
 import { finishSoundTitle } from "../provider-copy";
 import { ASSUMED } from "../providers";
@@ -73,8 +74,12 @@ const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-
 // `app` stays App.tsx for the rest, including the one negative case.
 const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
-// Each tone's row — its preview, volume and sound — moved to ToneSection.tsx.
+// The outside-press rule SoundMenu shares with AnchoredPopover.
+const outsidePress = withoutComments(read("components/use-outside-press.ts"));
+// Each tone's row — its preview, volume and sound — moved to ToneSection.tsx,
+// and the volume on from there to VolumeRow.tsx.
 const toneSection = withoutComments(read("components/ToneSection.tsx"));
+const volumeRow = withoutComments(read("components/VolumeRow.tsx"));
 // The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
 // that file; the negatives read the menu and every file lifted out of it.
 const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"));
@@ -901,6 +906,14 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(row).toContain("TONE_NOTE[chime]");               // the right slice
     expect(row, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
     expect(row, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
+    // The volume slider left the row for VolumeRow.tsx, and is held to the same
+    // two there.
+    const volume = volumeRow.slice(volumeRow.indexOf("  return ("));
+    expect(row).toContain("<VolumeRow");                     // the row still draws it
+    expect(volume).toContain('type="range"');                 // the right slice
+    expect(volume, "the volume slider was disabled").not.toMatch(/\bdisabled\b/);
+    expect(volume, "the volume slider was dimmed").not.toMatch(/\bopacity\b/);
+    expect(volume).not.toMatch(/\bsoundOn\b/);
     // Two uses of `soundOn` in there, and they are the sentence rather than a
     // state: the tooltip and the description that says the preview will sound.
     expect([...row.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
@@ -987,13 +1000,18 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // rather than click, so a press that starts outside dismisses even if the
     // pointer travels back in before release — and in the capture phase, so a
     // control that stops propagation cannot keep the menu open.
-    expect(menu).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
-    expect(menu).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
+    //
+    // The listener is use-outside-press.ts's now, shared with AnchoredPopover,
+    // so the phase and the event are read there and the menu is held to
+    // handing it the right two elements.
+    expect(outsidePress).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
+    expect(outsidePress).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
     // The two exclusions, and the opener is the one that matters: without it
     // the outside-press closes the menu and the button's own onClick reopens it
     // in the same gesture.
-    expect(menu).toMatch(/if \(dialogRef\.current\?\.contains\(target\)\) return;/);
-    expect(menu).toMatch(/if \(openerRef\.current\?\.contains\(target\)\) return;/);
+    expect(outsidePress).toMatch(/if \(popover\?\.contains\(target\)\) return false;/);
+    expect(outsidePress).toMatch(/if \(opener\?\.contains\(target\)\) return false;/);
+    expect(menu).toMatch(/useOutsidePress\(dialogRef, \(\) => openerRef\.current, onClose\);/);
     expect(app).toMatch(/openerRef=\{soundButtonRef\}/);
     expect(app).toMatch(/ref=\{soundButtonRef\}/);
   });

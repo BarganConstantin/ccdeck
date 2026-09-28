@@ -21,10 +21,13 @@ import { WEB_DIR } from "./client-source";
 export const SOUND_MENU_FILES = [
   "components/SoundMenu.tsx",
   "components/ToneSection.tsx",
+  "components/VolumeRow.tsx",
   "components/CustomSoundsSection.tsx",
   "components/SpokenVoiceForm.tsx",
   "use-clip-recorder.ts",
   "tone-option.ts",
+  // Shared with AnchoredPopover, which is why it lives beside the hooks.
+  "components/use-outside-press.ts",
 ] as const;
 
 let joined: string | null = null;

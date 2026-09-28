@@ -12,7 +12,8 @@
 // What still needs eyes: whether the two tones are TELLABLE APART by ear, and
 // whether they are pleasant. No assertion can answer either.
 import { describe, it, expect } from "vitest";
-import { chimeFor, createChimePlayer, FIGURES, PEAK_GAIN } from "../sound";
+import { chimeFor, FIGURES, PEAK_GAIN } from "../sound";
+import { createChimePlayer } from "../chime-player";
 
 const env = (hook_event_name: string) => ({ payload: { hook_event_name } });
 

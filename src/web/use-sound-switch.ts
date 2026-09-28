@@ -9,7 +9,7 @@
 // toggle for the menu's control, and the refs for M.
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 
-import type { createChimePlayer } from "./sound";
+import type { createChimePlayer } from "./chime-player";
 import { useMirroredRef } from "./use-mirrored-ref";
 
 type ChimePlayer = ReturnType<typeof createChimePlayer>;

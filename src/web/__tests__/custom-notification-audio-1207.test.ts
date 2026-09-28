@@ -9,7 +9,8 @@ import {
   summarizeCustomAsset, validateAudioImport,
   type CustomAudioAsset, type CustomNotificationAsset, type CustomVoiceAsset,
 } from "../notification-audio";
-import { createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
+import { createChimePlayer } from "../chime-player";
+import { DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
 import { withoutComments } from "./tsx-scan";
 import { clientText } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";

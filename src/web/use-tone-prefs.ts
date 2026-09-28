@@ -12,8 +12,9 @@
 // tone settings ever touched them.
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 
+import type { createChimePlayer } from "./chime-player";
 import { clampLevel, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS, PREVIEW_DELAY_MS, readPrefs,
-         type Chime, type createChimePlayer, type TonePrefs, type ToneSettings } from "./sound";
+         type Chime, type TonePrefs, type ToneSettings } from "./sound";
 import { readStored } from "./storage";
 import { useMirroredRef } from "./use-mirrored-ref";
 

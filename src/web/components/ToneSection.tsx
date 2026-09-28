@@ -4,14 +4,12 @@
 // Lifted out of SoundMenu.tsx, where it was the body of the loop over the two
 // tones. The menu hands each row its tone, what the tone is set to and the
 // callbacks that change it; the row owns the two lines of copy that say which
-// tone it is.
-import { type CSSProperties } from "react";
-import {
-  FIGURE_SETS, LEVEL_MAX, LEVEL_MIN, LEVEL_STEP,
-  type Chime, type ToneSettings,
-} from "../sound";
+// tone it is. Its volume is VolumeRow.tsx, which the appearance menu draws
+// too.
+import { FIGURE_SETS, type Chime, type ToneSettings } from "../sound";
 import { type CustomAssetSummary, type CustomSelections } from "../notification-audio";
 import { customIdOf, customOptionValue } from "../tone-option";
+import VolumeRow from "./VolumeRow";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -103,35 +101,7 @@ export default function ToneSection({
         </button>
       </div>
 
-      <div className="sm-row">
-        <label htmlFor={levelId}>Volume</label>
-        {/* Native, and left native on purpose. A custom track and thumb
-            would have to re-earn the arrow keys, Home and End, the drag,
-            the announced percentage and the focus ring — all of which the
-            browser gives for nothing, and #620 is what this deck's record
-            on dropped focus is worth. */}
-        <input
-          id={levelId}
-          type="range"
-          min={LEVEL_MIN}
-          max={LEVEL_MAX}
-          step={LEVEL_STEP}
-          value={tone.level}
-          onChange={e => onLevel(chime, Number(e.target.value))}
-          /* The filled half, as a number the sheet can read. Chrome 152
-             has no `::slider-fill`, so a thinner track means painting one
-             — and painting one means knowing where the value is. This is
-             NOT a listener: `tone.level` already drives `value` on this
-             element and React already re-renders on every change, so the
-             property rides a render that was happening anyway. Nothing
-             new runs on drag.
-             The sheet only uses it inside `@supports`; where the custom
-             track is not taken up, the native widget and `accent-color`
-             still paint the fill and this attribute is inert. */
-          style={{ "--sm-level": `${((tone.level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
-        />
-        <span className="sm-read">{tone.level}%</span>
-      </div>
+      <VolumeRow id={levelId} value={tone.level} onLevel={level => onLevel(chime, level)} />
 
       <div className="sm-row">
         <label htmlFor={figureId}>Tone</label>

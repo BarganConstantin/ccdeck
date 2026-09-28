@@ -14,7 +14,8 @@
 import { useEffect, useState, type MutableRefObject } from "react";
 
 import { getCustomNotificationAsset, type CustomSelections } from "./notification-audio";
-import { createChimePlayer, type Chime, type ChimeState, type TonePrefs } from "./sound";
+import { createChimePlayer, type ChimeState } from "./chime-player";
+import { type Chime, type TonePrefs } from "./sound";
 
 type ChimePlayer = ReturnType<typeof createChimePlayer>;
 
