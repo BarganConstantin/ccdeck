@@ -40,7 +40,7 @@ const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegEx
   [SERVER, "stop-deck.mjs",         "STOP_ASK_MS",         /^const STOP_ASK_MS = 2000;$/m,           /timeoutMs = STOP_ASK_MS/],
   [SERVER, "stop-deck.mjs",         "STOP_GONE_MS",        /^const STOP_GONE_MS = 3000;$/m,          /goneMs = STOP_GONE_MS/],
   [SERVER, "supervisor.mjs",        "CRASH_BACKOFF_MS",    /^const CRASH_BACKOFF_MS = 1000;$/m,      /backoffMs = CRASH_BACKOFF_MS/],
-  [SERVER, "index.mjs",             "awayUpdateTick",      /^async function awayUpdateTick\(\) \{$/m, /setInterval\(\(\) => \{ awayUpdateTick\(\)/],
+  [SERVER, "lifecycle.mjs",         "awayUpdateTick",      /^async function awayUpdateTick\(\) \{$/m, /setInterval\(\(\) => \{ awayUpdateTick\(\)/],
   [WEB,    "spend-rate.ts",         "SPEND_MIN_SPAN_MS",   /^const SPEND_MIN_SPAN_MS = 60_000;$/m,   /spanMs < SPEND_MIN_SPAN_MS/],
   [WEB,    "usage-from-ccusage.ts", "sessionIdFromPeriod", /^function sessionIdFromPeriod\(period: string\): string \{$/m, /= sessionIdFromPeriod\(period\)/],
 ];

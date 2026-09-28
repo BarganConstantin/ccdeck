@@ -313,7 +313,8 @@ describe("the wiring, which is the half no pure function can hold", () => {
   const worker = read("bin", "deck.js");
   // Where the worker works out which package it is and the name it was typed as.
   const identity = read("bin", "cli", "package.js");
-  const server = read("src", "server", "index.mjs");
+  // /api/version's handler, where the name is attached to the report.
+  const server = read("src", "server", "lifecycle.mjs");
   const app = read("src", "web", "App.tsx");
 
   it("resolves the name in the only process whose argv[1] carries it", () => {
@@ -393,7 +394,10 @@ describe("one fact, one place: which line the rename notice ends with", () => {
   // branch that mounts it. The negatives below read both.
   const banner = read("src", "web", "components", "OldNameBanner.tsx");
   const app = read("src", "web", "App.tsx") + "\n" + banner;
-  const server = read("src", "server", "index.mjs");
+  // /api/version's handler computes the notice; the negative below reads the
+  // route table's file as well, so no second caller can pass a dash either.
+  const server = read("src", "server", "lifecycle.mjs");
+  const serverSurface = read("src", "server", "index.mjs") + "\n" + server;
 
   // The JSX comments carry the reasoning, including the name of the field this
   // must no longer branch on, so the assertion below reads the code only.
@@ -485,7 +489,7 @@ describe("one fact, one place: which line the rename notice ends with", () => {
     expect(server).toContain("renameFix: rename?.fix ?? null");
     // No `dash`: the glyph tier is a terminal concern and the default is the em
     // dash a browser should get. bin/deck.js is the only caller that passes one.
-    expect(server).not.toMatch(/renameNotice\(\{[^}]*dash/);
+    expect(serverSurface).not.toMatch(/renameNotice\(\{[^}]*dash/);
   });
 
   it("is rendered by the browser, not decided there", () => {
