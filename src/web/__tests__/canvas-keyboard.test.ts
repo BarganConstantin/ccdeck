@@ -52,7 +52,8 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8")
   + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8")
   + "\n" + readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")
-  + "\n" + readFileSync(join(web, "use-agent-focus.ts"), "utf8");
+  + "\n" + readFileSync(join(web, "use-agent-focus.ts"), "utf8")
+  + "\n" + readFileSync(join(web, "use-canvas-clicks.ts"), "utf8");
 // Which element is a card's wrapper is canvas-node-element.ts's now.
 const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
@@ -149,7 +150,9 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     expect(canvasKeyIntent({ key: "Enter", shiftKey: true }, NODE))
       .toEqual({ kind: "activate", nodeId: NODE, additive: true });
     expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\)/);
-    expect(app).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\)/);
+    // The click handler is use-canvas-clicks.ts's; App.tsx hands it to <ReactFlow>.
+    expect(app).toMatch(/onNodeClick=\{onNodeClick\}/);
+    expect(app).toMatch(/const onNodeClick = \(e: React\.MouseEvent, n: Node\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\)/);
   });
 
   it("leaves the card the keys the card owns", () => {

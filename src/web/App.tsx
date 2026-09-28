@@ -54,6 +54,7 @@ import { layoutSignature } from "./layout-signature";
 import { useRemovalCallBacks, useRemovals } from "./use-removals";
 import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
+import { useCanvasClicks } from "./use-canvas-clicks";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
@@ -795,6 +796,11 @@ function Inner() {
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
   });
 
+  // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
+  const { onNodeClick, onPaneClick, onNodeDoubleClick, onNodeMouseEnter, onNodeMouseLeave } = useCanvasClicks({
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
+  });
+
   // What the peek reads, made once — use-peek-readers.ts.
   const { peekAgent, peekLabel, peekRecap, peekBounds } = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
   // Delete reaches the removal through a ref for the same reason: the handler
@@ -1452,53 +1458,11 @@ function Inner() {
           // and Backspace stops being a key React Flow listens for at all.
           disableKeyboardA11y
           deleteKeyCode={null}
-          onNodeClick={(e, n) => {
-            if (n.type === "sessionGroup") { clearSelection(); return; }
-            // A click on a card SELECTS it and GOES TO its session — the frame
-            // focusAgent builds, the card and its session at a readable zoom —
-            // and leaves the detail panel shut: that is the double-click's, one
-            // press further in. Shift+click only widens the selection, as ever.
-            // A recap note speaks for its session, so a click on it is a click
-            // on the root.
-            const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
-            selectAgent(id, e.shiftKey, false);
-            if (e.shiftKey) return;
-            // AND SHUTS THE PANEL, whether or not it is showing. `detailOpen` is
-            // persisted, so every deck that clicked a card under #814 has it
-            // stored open — and after a reload nothing is selected, so nothing
-            // is SHOWN, and a test of what is on screen let this very click
-            // select the card and bring the stored panel up with it. The frame
-            // waits a paint only when a panel was really there, for the canvas
-            // it gives back, the way the double-click's does for the one it takes.
-            if (detailOpen) setDetailOpen(false);
-            if (detailShown) {
-              window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
-            } else {
-              focusAgent(id);
-            }
-          }}
-          onPaneClick={() => { hidePeek(); clearSelection(); }}
-          // The details, one press past the click that went to the session:
-          // the panel opens on the card — the prompt, every tool call, tokens
-          // and timing — and the frame is built again a paint later, for the
-          // canvas the panel has just narrowed. React Flow's own double-click
-          // zoom never reaches a card (its filter drops a dblclick inside a
-          // draggable node), so nothing else answers here.
-          onNodeDoubleClick={(_, n) => {
-            if (n.type !== "agent" && n.type !== "recapNote") return;
-            const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
-            selectAgent(id, false);
-            window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
-          }}
-          // The peek (SessionPeek) is for the distances where the card cannot
-          // say it itself. At the detail tier the card is readable and a copy
-          // over it would be noise, so it never opens there.
-          onNodeMouseEnter={(e, n) => {
-            if ((n.type !== "agent" && n.type !== "recapNote") || draggingRef.current) return;
-            if (lodRef.current == null || lodRef.current === "detail") return;
-            showPeek(n.id, e.currentTarget as Element);
-          }}
-          onNodeMouseLeave={(_, n) => hidePeek(n.id)}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onNodeMouseEnter={onNodeMouseEnter}
+          onNodeMouseLeave={onNodeMouseLeave}
           onMoveStart={onMoveStart}
           onMove={onMove}
           onNodeDragStart={onNodeDragStart}
