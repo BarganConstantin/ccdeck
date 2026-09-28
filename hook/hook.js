@@ -56,8 +56,9 @@ const PROVIDER = parseProvider(process.argv.slice(2));
  * arrived short — `%TEMP%` under a shortened profile directory, which is what
  * every GitHub Windows runner has — the two canonicalisers that exist to agree
  * disagreed by a whole path: C:\Users\RUNNER~1\… against C:\Users\runneradmin\….
- * canonicalWorkspace in src/server/index.mjs says the rest of it, including why
- * the long form is the canonical one; all three sites name `.native` out loud.
+ * canonicalWorkspace in src/server/canonical-path.mjs says the rest of it,
+ * including why the long form is the canonical one; all three sites name
+ * `.native` out loud.
  *
  * Exported for that test: it is half of what `--workspace` means, and a
  * predicate handed an already-canonical path cannot show that the caller
