@@ -63,6 +63,7 @@ import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
 import { useVersionCheck, VERSION_DISMISSED_KEY } from "./use-version-check";
@@ -154,16 +155,8 @@ import {
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
-import {
-  CHIME_ORDER, chimeFor, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
-  FIGURE_KEYS, type Chime, type ChimeState
-} from "./sound";
-import {
-  CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
-  getCustomNotificationAsset, importCustomAudio, libraryFullReason, listCustomNotificationAssets,
-  readCustomSelections, renameCustomNotificationAsset, saveCustomNotificationAsset, summarizeCustomAsset,
-  type CustomAssetSummary, type CustomSelections,
-} from "./notification-audio";
+import { chimeFor, createChimePlayer, type ChimeState } from "./sound";
+import { getCustomNotificationAsset } from "./notification-audio";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -859,132 +852,15 @@ function Inner() {
   // below writes `setTonePrefs` when a clip it points at goes away.
   const { tonePrefs, setTonePrefs, tonePrefsRef, previewTone, changeTone } = useTonePrefs(chimesRef);
 
-  // Custom sounds are selected independently from the built-in figure. Keeping
-  // the figure intact gives every custom choice a deterministic local fallback
-  // without changing the shape #711 stores and tests.
-  const [customSelections, setCustomSelections] = useState<CustomSelections>(() => readCustomSelections(readStored));
-  const customSelectionsRef = useMirroredRef(customSelections);
-  // The listing only — names, kinds and lengths. A clip's bytes stay in the
-  // store until the player asks for the one it is about to play (loadCustom).
-  const [customAssets, setCustomAssets] = useState<CustomAssetSummary[]>([]);
-
-  const clearCustomOnly = useCallback((chime: Chime) => {
-    setCustomSelections(prev => {
-      const next = { ...prev, [chime]: null };
-      customSelectionsRef.current = next;
-      return next;
-    });
-    try { localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]); } catch { /* no storage */ }
-  }, []);
-
-  const fallbackCustom = useCallback((chime: Chime, expectedId?: string) => {
-    const selected = customSelectionsRef.current[chime];
-    if (expectedId && selected !== expectedId) return;
-    clearCustomOnly(chime);
-    setTonePrefs(prev => {
-      const next = { ...prev, [chime]: { ...prev[chime], figure: DEFAULT_FIGURE_ID } };
-      tonePrefsRef.current = next;
-      return next;
-    });
-    try { localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID); } catch { /* no storage */ }
-  }, [clearCustomOnly]);
-  const fallbackCustomRef = useMirroredRef(fallbackCustom);
-
-  useEffect(() => {
-    let live = true;
-    void listCustomNotificationAssets().then(assets => {
-      if (!live) return;
-      setCustomAssets(assets);
-      const ids = new Set(assets.map(asset => asset.id));
-      for (const chime of CHIME_ORDER) {
-        const selected = customSelectionsRef.current[chime];
-        if (selected && !ids.has(selected)) fallbackCustomRef.current(chime, selected);
-      }
-    }, () => { /* storage unavailable: keep the stored selection for a later retry */ });
-    return () => { live = false; };
-  }, []);
-
-  /** The trailing timer for the tone a changed setting plays back. */
-
-  const selectCustomTone = useCallback((chime: Chime, id: string) => {
-    if (!customAssets.some(asset => asset.id === id)) return;
-    const next = { ...customSelectionsRef.current, [chime]: id };
-    customSelectionsRef.current = next;
-    setCustomSelections(next);
-    try { localStorage.setItem(CUSTOM_AUDIO_KEYS[chime], id); } catch { /* no storage */ }
-    previewTone(chime, true);
-  }, [customAssets, previewTone]);
-
-  const importNotificationAudio = useCallback(async (file: File) => {
-    const full = libraryFullReason(customAssets.length);
-    if (full) throw new Error(full);
-    const Ctx = window.AudioContext
-      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) throw new Error("This browser cannot decode audio files.");
-    const decoder = new Ctx();
-    try {
-      const asset = await importCustomAudio(file, bytes => decoder.decodeAudioData(bytes));
-      await saveCustomNotificationAsset(asset);
-      // The row, not the clip: keeping the bytes here would be the boot load
-      // this state stopped holding, one import at a time.
-      const row = summarizeCustomAsset(asset);
-      setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
-    } finally {
-      void decoder.close?.();
-    }
-  }, [customAssets.length]);
-
-  const createNotificationVoice = useCallback(async (input: {
-    name: string; text: string; voiceURI: string; rate: number; pitch: number;
-  }) => {
-    const full = libraryFullReason(customAssets.length);
-    if (full) throw new Error(full);
-    const asset = createCustomVoice(input);
-    await saveCustomNotificationAsset(asset);
-    const row = summarizeCustomAsset(asset);
-    setCustomAssets(prev => [...prev.filter(item => item.id !== row.id), row]);
-  }, [customAssets.length]);
-
-  const renameCustomAsset = useCallback(async (id: string, name: string) => {
-    const current = customAssets.find(asset => asset.id === id);
-    const nextName = name.trim().slice(0, 80);
-    if (!current || !nextName || nextName === current.name) return;
-    // By id, not by writing this row back: the row has no bytes to write.
-    await renameCustomNotificationAsset(id, nextName);
-    setCustomAssets(prev => prev.map(asset => asset.id === id ? { ...asset, name: nextName } : asset));
-  }, [customAssets]);
-
-  const deleteCustomAsset = useCallback(async (id: string) => {
-    await deleteCustomNotificationAsset(id);
-    setCustomAssets(prev => prev.filter(asset => asset.id !== id));
-    const before = customSelectionsRef.current;
-    const after = clearCustomAssetSelections(before, id);
-    customSelectionsRef.current = after;
-    setCustomSelections(after);
-    const affected = CHIME_ORDER.filter(chime => before[chime] === id);
-    for (const chime of affected) {
-      try {
-        localStorage.removeItem(CUSTOM_AUDIO_KEYS[chime]);
-        localStorage.setItem(FIGURE_KEYS[chime], DEFAULT_FIGURE_ID);
-      } catch { /* no storage */ }
-    }
-    if (affected.length > 0) {
-      setTonePrefs(prev => {
-        const next = { ...prev };
-        for (const chime of affected) next[chime] = { ...next[chime], figure: DEFAULT_FIGURE_ID };
-        tonePrefsRef.current = next;
-        return next;
-      });
-    }
-  }, []);
-
-  const previewCustomAsset = useCallback((id: string) => {
-    const selectedTone = CHIME_ORDER.find(chime => customSelectionsRef.current[chime] === id);
-    const level = selectedTone ? tonePrefsRef.current[selectedTone].level : DEFAULT_LEVEL;
-    chimesRef.current?.unlock();
-    chimesRef.current?.previewCustom(id, level);
-  }, []);
-
+  // Custom sounds — the clips somebody imported or recorded, which tone points
+  // at which, and every way one is added, renamed, chosen or removed — live in
+  // use-custom-tones.ts. It sits on the tone settings above: removing a clip a
+  // tone points at resets that tone's figure, which is the one write it makes
+  // outside its own state.
+  const { customSelections, customSelectionsRef, customAssets, clearCustomOnly, fallbackCustomRef,
+          selectCustomTone, importNotificationAudio, createNotificationVoice, renameCustomAsset,
+          deleteCustomAsset, previewCustomAsset }
+    = useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewTone });
 
   /** The menu the topbar button opens (#711). Not persisted: a popover is a
    *  thing you are doing, not a thing you have set, and a deck that reloaded
