@@ -808,7 +808,12 @@ describe("splitting a note title at its leading emoji", () => {
 });
 
 describe("how App.tsx wires it up", () => {
-  const app = src("../App.tsx");
+  // The feature's surface: App.tsx, which renders the dialog and the tour, and
+  // use-welcome-and-notes.ts, which decides when each opens. Not the whole
+  // client — six cases here are negatives, and asking them of release-notes.ts
+  // (the pure rules) would be asking the wrong file. The slices taken by indexOf
+  // land in the hook's half, where the decision effect is.
+  const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts");
   const modal = src("../components/ReleaseNotesModal.tsx");
 
   it("decides from the version the SERVER is running, not the bundle's", () => {
@@ -905,7 +910,11 @@ describe("how App.tsx wires it up", () => {
     // open was a tour recorded as seen in a tab nobody was watching — the
     // defect reported the day 3.21.3 shipped. It is marked when closed.
     expect(effect).not.toMatch(/writeTourSeen/);
-    expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(seenStore\(\)\);/);
+    // Two links now, because the close moved out of the markup: the tour calls
+    // closeTour, and closeTour closes it and then marks it seen. Both are pinned,
+    // so "marked when closed" is proved end to end rather than assumed.
+    expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{closeTour\}/);
+    expect(app).toMatch(/const closeTour = useCallback\(\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(seenStore\(\)\);/);
     expect([...app.matchAll(/writeTourSeen\(/g)]).toHaveLength(1);
     expect(effect).toMatch(/if \(plan\.notes === "now"\) setReleaseNotes\(notes\);\s*else if \(plan\.notes === "after"\) notesAfterTour\.current = notes;/);
     expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
