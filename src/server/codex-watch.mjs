@@ -9,9 +9,9 @@
 // reads the ring or the SSE clients. index.mjs starts the watcher. The bodies
 // are unchanged.
 import { stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
-import { STOP, walkRolloutDays } from "./codex-dir.mjs";
+import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
 // What one rollout line means as a hook payload — see codex-translate.mjs. The
 // watcher below still decides which lines are read and where each one goes.
 import { codexObjToPayload, codexSessionModel } from "./codex-translate.mjs";
@@ -116,21 +116,6 @@ async function listRecentCodexRollouts() {
     if (++dayDirs >= 2) return STOP;
   });
   return out;
-}
-
-/**
- * The session id a rollout's own file name carries, or null.
- *
- * Codex names every rollout `rollout-<YYYY-MM-DDTHH-MM-SS>-<uuid>.jsonl` —
- * codex-usage.mjs reads the timestamp half as parseRolloutTime — and the uuid
- * is the id `session_meta.payload.id` states. findCodexRolloutPath already leans
- * on that, matching a session id against file names, so the name is the
- * fallback when the header stops saying it (#996). A compressed `.jsonl.zst`
- * is not matched: this reader never opens one.
- */
-export function sidFromRolloutName(path) {
-  const m = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(basename(String(path ?? "")));
-  return m ? m[1] : null;
 }
 
 /** Which of the two ways a rollout can fail to say whose it is has been printed
