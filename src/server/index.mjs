@@ -1,9 +1,9 @@
 // agent-dag server: HTTP ingest + SSE broadcast + static file serving.
-// Single-file pure Node HTTP server, zero deps.
-// `request` is the client half, and it has exactly one caller: challengeDeck,
-// which asks another deck's port to prove it is the deck its discovery record
-// describes. Nothing else in this file talks to anything but 127.0.0.1 clients.
-import { createServer, request as httpRequest } from "node:http";
+// Pure Node HTTP server, zero deps. Nothing in this file talks to anything but
+// 127.0.0.1 clients. It used to import `request` for challengeDeck, which asks
+// another deck's port to prove it is the deck its discovery record describes;
+// that moved to deck-probe.mjs, and the client half went with it.
+import { createServer } from "node:http";
 import { readFile, stat, mkdir, open, readdir, unlink } from "node:fs/promises";
 import { existsSync, realpath as realpathCb, realpathSync } from "node:fs";
 import { basename, extname, join, resolve, sep, dirname as pdirname } from "node:path";
