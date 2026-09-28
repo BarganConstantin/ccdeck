@@ -63,6 +63,7 @@ import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
 import { useVersionCheck, VERSION_DISMISSED_KEY } from "./use-version-check";
 import { readStored } from "./storage";
@@ -154,9 +155,8 @@ import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
 import {
-  CHIME_ORDER, chimeFor, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
-  figureIdFrom, FIGURE_KEYS, LEVEL_KEYS, PREVIEW_DELAY_MS, readPrefs,
-  type Chime, type ChimeState, type TonePrefs, type ToneSettings,
+  CHIME_ORDER, chimeFor, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
+  FIGURE_KEYS, type Chime, type ChimeState
 } from "./sound";
 import {
   CUSTOM_AUDIO_KEYS, clearCustomAssetSelections, createCustomVoice, deleteCustomNotificationAsset,
@@ -843,22 +843,21 @@ function Inner() {
    *  invert yet, and "not false" would arm the tones on a guess. */
   const soundOnRef = useMirroredRef(soundOn);
 
-  // ── what each tone is set to (#711) ───────────────────────────────────────
-  //
-  // Read in the initialiser rather than in an effect, unlike the on/off flag
-  // above. That one waits a render because the SWITCH would otherwise flash
-  // through "off" on a deck where it is on; these have nothing to flash — they
-  // are read by a menu nobody has opened yet, and by the player at play time.
-  // `readPrefs` takes the reader as an argument so the whole round trip is a
-  // pure function the suite can drive, and the one it is handed is `readStored`
-  // — the wrapped read. A private window and a browser with site data blocked
-  // throw out of the `localStorage` GETTER, and this is a useState initialiser,
-  // which is exactly where storage-blocked.test.ts says a throw takes the whole
-  // deck down with it.
-  const [tonePrefs, setTonePrefs] = useState<TonePrefs>(() => readPrefs(readStored));
-  // The player is built once, on mount, and reads these through the ref at play
-  // time — the same shape `enabled` already uses for the flag.
-  const tonePrefsRef = useMirroredRef(tonePrefs);
+
+  // ── the deck's own two tones (#704) ───────────────────────────────────────
+  // Built lazily on the first gesture rather than here: an AudioContext
+  // constructed before the page has been interacted with is created suspended,
+  // and a suspended one is what you are then stuck with. The ref holds null
+  // until `unlock` runs — and holds a FUNCTION rather than the result, because
+  // a `useRef` seed that does work runs on every render and throws the result
+  // away (#612).
+  const chimesRef = useRef<ReturnType<typeof createChimePlayer> | null>(null);
+
+  // What each tone is set to, how a change is written and auditioned, and the
+  // preview timer behind it, live in use-tone-prefs.ts. The chime player reads
+  // the settings through `tonePrefsRef` at play time; the custom-sound layer
+  // below writes `setTonePrefs` when a clip it points at goes away.
+  const { tonePrefs, setTonePrefs, tonePrefsRef, previewTone, changeTone } = useTonePrefs(chimesRef);
 
   // Custom sounds are selected independently from the built-in figure. Keeping
   // the figure intact gives every custom choice a deterministic local fallback
@@ -906,60 +905,6 @@ function Inner() {
   }, []);
 
   /** The trailing timer for the tone a changed setting plays back. */
-  const previewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /**
-   * Play one tone as it is currently set.
-   *
-   * `unlock` first because pressing this may well be the first gesture of a
-   * reloaded tab, and the autoplay rules hold the context suspended until
-   * something is pressed — the wake listeners cover it, but these are the only
-   * controls in the app whose entire purpose is to make a sound, so they ask
-   * rather than assume.
-   *
-   * `true` is the audition flag: the switch governs the deck's own reports, not
-   * a press whose whole meaning is "let me hear it". See sound.ts.
-   *
-   * `soon` is what separates a drag from a press. A slider crossing a dozen
-   * steps must collapse to one figure, so a changed setting waits out
-   * PREVIEW_DELAY_MS and is superseded by the next change; the Hear-it button
-   * is not a stream and fires at once, cancelling anything pending so the two
-   * cannot overlap.
-   */
-  const previewTone = useCallback((chime: Chime, soon = false) => {
-    chimesRef.current?.unlock();
-    if (previewRef.current !== null) clearTimeout(previewRef.current);
-    previewRef.current = null;
-    if (!soon) { chimesRef.current?.play(chime, true); return; }
-    previewRef.current = setTimeout(() => {
-      previewRef.current = null;
-      chimesRef.current?.play(chime, true);
-    }, PREVIEW_DELAY_MS);
-  }, []);
-
-  /**
-   * One tone's settings, written and then played back.
-   *
-   * The level is clamped and the figure id is resolved here as well as inside
-   * the player, because this is what gets WRITTEN: a value that survived the
-   * round trip unchecked would come back on the next boot and be corrected
-   * silently forever after, which is a stored preference that does not match
-   * the control showing it.
-   */
-  const changeTone = useCallback((chime: Chime, patch: Partial<ToneSettings>) => {
-    setTonePrefs(prev => {
-      const next: ToneSettings = {
-        level: clampLevel(patch.level ?? prev[chime].level),
-        figure: figureIdFrom(chime, patch.figure ?? prev[chime].figure),
-      };
-      try {
-        localStorage.setItem(LEVEL_KEYS[chime], String(next.level));
-        localStorage.setItem(FIGURE_KEYS[chime], next.figure);
-      } catch { /* no storage */ }
-      return { ...prev, [chime]: next };
-    });
-    previewTone(chime, true);
-  }, [previewTone]);
 
   const selectCustomTone = useCallback((chime: Chime, id: string) => {
     if (!customAssets.some(asset => asset.id === id)) return;
@@ -1040,9 +985,6 @@ function Inner() {
     chimesRef.current?.previewCustom(id, level);
   }, []);
 
-  // A timer outliving the tab it belongs to is a tone fired into an unmounted
-  // tree. Cheap to clear, and the only thing this component leaves running.
-  useEffect(() => () => { if (previewRef.current !== null) clearTimeout(previewRef.current); }, []);
 
   /** The menu the topbar button opens (#711). Not persisted: a popover is a
    *  thing you are doing, not a thing you have set, and a deck that reloaded
@@ -1056,14 +998,6 @@ function Inner() {
   const appearanceButtonRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => { if (soundMenuOpen) setAppearanceMenuOpen(false); }, [soundMenuOpen]);
 
-  // ── the deck's own two tones (#704) ───────────────────────────────────────
-  // Built lazily on the first gesture rather than here: an AudioContext
-  // constructed before the page has been interacted with is created suspended,
-  // and a suspended one is what you are then stuck with. The ref holds null
-  // until `unlock` runs — and holds a FUNCTION rather than the result, because
-  // a `useRef` seed that does work runs on every render and throws the result
-  // away (#612).
-  const chimesRef = useRef<ReturnType<typeof createChimePlayer> | null>(null);
   const [chimeState, setChimeState] = useState<ChimeState>("locked");
   useEffect(() => {
     const player = createChimePlayer({

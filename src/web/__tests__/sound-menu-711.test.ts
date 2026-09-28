@@ -58,12 +58,18 @@ import { finishSoundTitle } from "../provider-copy";
 import { ASSUMED } from "../providers";
 import { KEY_HELP } from "../key-help";
 import { openTags, withoutComments } from "./tsx-scan";
+import { clientText } from "./client-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 /** Comment-stripped, so a paragraph explaining a decision cannot satisfy an
  *  assertion about the code that carries it out (#513). */
 const app = withoutComments(read("App.tsx"));
+// The tone settings, their write-through and the preview timer moved to
+// use-tone-prefs.ts. The cases about them read the whole client — every one of
+// them is a positive match, so the wider text cannot make one pass falsely.
+// `app` stays App.tsx for the rest, including the one negative case.
+const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
 const sheet = withoutComments(read("components/KeyboardHelp.tsx"));
 const css = read("styles.css");
@@ -983,19 +989,19 @@ describe("hearing it is the point, not a nicety", () => {
     // Two buttons, one per tone, each playing THAT tone.
     expect(menu).toMatch(/onClick=\{\(\) => onPreview\(chime\)\}/);
     expect(menu).toMatch(/aria-label=\{`Hear the \$\{TONE_LABEL\[chime\]\.toLowerCase\(\)\} tone`\}/);
-    expect(app).toMatch(/onPreview=\{chime => previewTone\(chime\)\}/);
-    expect(app).toMatch(/chimesRef\.current\?\.play\(chime, true\)/);
+    expect(client).toMatch(/onPreview=\{chime => previewTone\(chime\)\}/);
+    expect(client).toMatch(/chimesRef\.current\?\.play\(chime, true\)/);
   });
 
   it("answers a press at once and a drag after it settles", () => {
     // The distinction that makes both usable: a slider crossing a dozen steps
     // must collapse to one figure, and a deliberate press must not feel laggy.
-    expect(app).toMatch(/if \(!soon\) \{ chimesRef\.current\?\.play\(chime, true\); return; \}/);
-    expect(app).toMatch(/previewRef\.current = setTimeout\(/);
-    expect(app).toMatch(/\}, PREVIEW_DELAY_MS\);/);
+    expect(client).toMatch(/if \(!soon\) \{ chimesRef\.current\?\.play\(chime, true\); return; \}/);
+    expect(client).toMatch(/previewRef\.current = setTimeout\(/);
+    expect(client).toMatch(/\}, PREVIEW_DELAY_MS\);/);
     // A pending debounce is cancelled before either path runs, so a press and a
     // drag can never overlap into two figures at once.
-    expect(app).toMatch(/if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\);\n\s*previewRef\.current = null;/);
+    expect(client).toMatch(/if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\);\n\s*previewRef\.current = null;/);
     expect(PREVIEW_DELAY_MS).toBeGreaterThan(80);
     expect(PREVIEW_DELAY_MS).toBeLessThan(200);
     // Shorter than the figure it plays, so a settled change is heard before the
@@ -1006,41 +1012,41 @@ describe("hearing it is the point, not a nicety", () => {
   it("plays the tone back whenever a setting of that tone changes", () => {
     // Not just the slider: picking a sound you cannot hear is the same guess as
     // setting a level in silence.
-    expect(app).toMatch(/previewTone\(chime, true\);/);
-    expect(app).toMatch(/onLevel=\{\(chime, level\) => changeTone\(chime, \{ level \}\)\}/);
-    expect(app).toMatch(/onFigure=\{\(chime, figure\) => changeTone\(chime, \{ figure \}\)\}/);
+    expect(client).toMatch(/previewTone\(chime, true\);/);
+    expect(client).toMatch(/onLevel=\{\(chime, level\) => changeTone\(chime, \{ level \}\)\}/);
+    expect(client).toMatch(/onFigure=\{\(chime, figure\) => changeTone\(chime, \{ figure \}\)\}/);
   });
 
   it("unlocks before it asks, because this may be the tab's first gesture", () => {
-    expect(app).toMatch(/chimesRef\.current\?\.unlock\(\);\n\s*if \(previewRef\.current !== null\)/);
+    expect(client).toMatch(/chimesRef\.current\?\.unlock\(\);\n\s*if \(previewRef\.current !== null\)/);
   });
 
   it("does not leave a timer running past the tab", () => {
-    expect(app).toMatch(/useEffect\(\(\) => \(\) => \{ if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\); \}, \[\]\);/);
+    expect(client).toMatch(/useEffect\(\(\) => \(\) => \{ if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\); \}, \[\]\);/);
   });
 });
 
 describe("App owns the settings, the write and the round trip", () => {
   it("reads them back through the wrapped read, in an initialiser that must not throw", () => {
-    expect(app).toMatch(/useState<TonePrefs>\(\(\) => readPrefs\(readStored\)\)/);
+    expect(client).toMatch(/useState<TonePrefs>\(\(\) => readPrefs\(readStored\)\)/);
   });
 
   it("writes both of a tone's settings, checked, under the namespaced keys", () => {
-    expect(app).toMatch(/level: clampLevel\(patch\.level \?\? prev\[chime\]\.level\)/);
-    expect(app).toMatch(/figure: figureIdFrom\(chime, patch\.figure \?\? prev\[chime\]\.figure\)/);
-    expect(app).toMatch(/localStorage\.setItem\(LEVEL_KEYS\[chime\], String\(next\.level\)\)/);
-    expect(app).toMatch(/localStorage\.setItem\(FIGURE_KEYS\[chime\], next\.figure\)/);
+    expect(client).toMatch(/level: clampLevel\(patch\.level \?\? prev\[chime\]\.level\)/);
+    expect(client).toMatch(/figure: figureIdFrom\(chime, patch\.figure \?\? prev\[chime\]\.figure\)/);
+    expect(client).toMatch(/localStorage\.setItem\(LEVEL_KEYS\[chime\], String\(next\.level\)\)/);
+    expect(client).toMatch(/localStorage\.setItem\(FIGURE_KEYS\[chime\], next\.figure\)/);
     // Wrapped, like every other preference here: a blocked store costs the
     // setting and nothing else.
-    expect(app).toMatch(/try \{[\s\S]{0,200}localStorage\.setItem\(LEVEL_KEYS\[chime\][\s\S]{0,200}\} catch/);
+    expect(client).toMatch(/try \{[\s\S]{0,200}localStorage\.setItem\(LEVEL_KEYS\[chime\][\s\S]{0,200}\} catch/);
   });
 
   it("hands the player the settings through a ref, the way it hands it the flag", () => {
-    expect(app).toMatch(/prefs: \(\) => tonePrefsRef\.current,/);
-    expect(app).toMatch(/enabled: \(\) => soundOnRef\.current === true,/);
+    expect(client).toMatch(/prefs: \(\) => tonePrefsRef\.current,/);
+    expect(client).toMatch(/enabled: \(\) => soundOnRef\.current === true,/);
     // The mirror is `useMirroredRef` now — same fact, named: the ref holds the
     // current settings so the player, built once on mount, reads them at play time.
-    expect(app).toMatch(/const tonePrefsRef = useMirroredRef\(tonePrefs\);/);
+    expect(client).toMatch(/const tonePrefsRef = useMirroredRef\(tonePrefs\);/);
   });
 
   it("gives the menu everything it needs and nothing it does not", () => {

@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText, sourceOf } from "./client-source";
 import {
   CLAUDE_FM_CHANNEL, CACHE_MS, MISS_CACHE_MS, READ_LIMIT,
   fetchClaudeFm, forgetClaudeFm, FORCE_POLL_MS, isChannelId, liveUrl,
@@ -355,12 +356,16 @@ describe("the deck's own sound plays over the music", () => {
 
   it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
     expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
-    expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
+    // The audition moved with the tone settings into use-tone-prefs.ts.
+    expect(clientText()).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
     expect(app).toContain("<ClaudeFm");
     expect(app).toContain("volume={fmVolume}");
     expect(app).toContain("muted={fmMuted}");
     expect(app).toContain("source={fmSource}");
     expect(app).not.toMatch(/duck/i);
+    // …and not in the hook that now plays the audition either. Named rather than
+    // widened to the whole client, because claude-fm.ts may say "duck" legitimately.
+    expect(sourceOf("use-tone-prefs.ts")).not.toMatch(/duck/i);
   });
 });
 
