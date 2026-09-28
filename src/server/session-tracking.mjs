@@ -14,13 +14,13 @@ import { readBody, send } from "./http-io.mjs";
 // time the hooks cannot see. See output-watch.mjs.
 import { createOutputWatch } from "./output-watch.mjs";
 import { forgetEnrichment, onRecapTail } from "./session-enrichment.mjs";
-import { forgetCodexSession } from "./codex-watch.mjs";
+import { forgetCodexSession } from "./codex-enrichment.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
 
 // ─── Per-session cache expiry ────────────────────────────────────────────
-// Every enrichment cache (session-enrichment.mjs, codex-watch.mjs) is keyed by
+// Every enrichment cache (session-enrichment.mjs, codex-enrichment.mjs) is keyed by
 // session id and nothing ever removed an entry: a deck left up for weeks — the 24/7 use this thing is
 // built for — kept a model string, a subagent signature and four read-throttle
 // stamps for every session it had ever seen, plus the Codex rollout path and

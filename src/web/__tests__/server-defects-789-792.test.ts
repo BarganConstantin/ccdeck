@@ -130,17 +130,18 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // The rule OPEN_MUTATIONS states about this very route: the deck's memory
     // "cannot be a function of anything but the two constants named here".
     // 44.4 MB read whole was 185 MB resident and 95ms of synchronous parsing on
-    // the credential-free ingest path. The reader is codex-watch.mjs's; the
-    // negative reads index.mjs too, where it used to live.
-    const src = read("../../server/codex-watch.mjs");
+    // the credential-free ingest path. The reader is codex-enrichment.mjs's;
+    // the negative reads codex-watch.mjs and index.mjs too, where it used to
+    // live.
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toContain("const CODEX_HEAD_BYTES = 256 * 1024;");
     expect(src).toContain("const CODEX_TAIL_BYTES = 2 * 1024 * 1024;");
-    expect(src + read("../../server/index.mjs"), "the whole-file read is back")
+    expect(src + read("../../server/codex-watch.mjs") + read("../../server/index.mjs"), "the whole-file read is back")
       .not.toMatch(/const buf = Buffer\.alloc\(s\.size\);\s*\n\s*await fh\.read\(buf, 0, s\.size, 0\);/);
   });
 
   it("reads a small rollout in one piece, so nothing changes for the ordinary one", () => {
-    const src = read("../../server/codex-watch.mjs");
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toContain("if (s.size <= CODEX_HEAD_BYTES + CODEX_TAIL_BYTES) {");
     expect(src).toContain("text = await readByteRange(path, 0, s.size);");
   });
@@ -150,7 +151,7 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // while the last token_count, the last task_started and the newest
     // response_item model are all at the end. A pure tail read would silently
     // lose the working directory of every long session.
-    const src = read("../../server/codex-watch.mjs");
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toContain("const head = await readByteRange(path, 0, CODEX_HEAD_BYTES);");
     expect(src).toContain("const tail = await readByteRange(path, s.size - CODEX_TAIL_BYTES, s.size);");
   });
@@ -159,7 +160,7 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // Without it the head's last partial line and the tail's first partial line
     // would be concatenated into a line that never existed in the file, and
     // JSON.parse might well accept it.
-    const src = read("../../server/codex-watch.mjs");
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toMatch(/text = `\$\{head\}\\n\$\{tail\}`;/);
   });
 
