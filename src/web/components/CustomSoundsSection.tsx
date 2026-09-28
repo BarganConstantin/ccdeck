@@ -68,12 +68,15 @@ export default function CustomSoundsSection({
     return () => window.clearTimeout(t);
   }, [armedDelete]);
 
+  // The browser's voices fill the dropdown and nothing else. The form starts on
+  // "System default" and stays there until the person picks a voice (#1562):
+  // it used to take the first voice listed, which is whatever the browser
+  // happens to put first — a novelty voice on macOS, another language on a
+  // machine with several — and not the voice the system speaks with.
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const refresh = () => {
-      const next = window.speechSynthesis.getVoices();
-      setVoices(next);
-      setVoiceURI(current => current || next[0]?.voiceURI || "");
+      setVoices(window.speechSynthesis.getVoices());
     };
     refresh();
     window.speechSynthesis.addEventListener("voiceschanged", refresh);
