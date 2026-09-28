@@ -18,6 +18,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { execSurface } from "./exec-surface";
+
 const src = readFileSync(fileURLToPath(new URL("../../server/exec.mjs", import.meta.url)), "utf8");
 
 describe("the current directory is out of the executable search", () => {
@@ -46,6 +48,8 @@ describe("the current directory is out of the executable search", () => {
     // search is the parent's either way.
     const guard = src.slice(src.indexOf("NoDefaultCurrentDirectoryInExePath"));
     expect(guard).toMatch(/process\.env\.NoDefaultCurrentDirectoryInExePath = "1";/);
-    expect(src).not.toMatch(/env:\s*\{[^}]*NoDefaultCurrentDirectoryInExePath/);
+    // Every spawn in the process layer, including the ones lifted out of
+    // exec.mjs — the tree kill's taskkill is one of them.
+    expect(execSurface()).not.toMatch(/env:\s*\{[^}]*NoDefaultCurrentDirectoryInExePath/);
   });
 });
