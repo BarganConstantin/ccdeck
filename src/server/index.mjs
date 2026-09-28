@@ -42,7 +42,10 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
+import { cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, withAlias, withManualEntry, withShared } from "./deck-prefs.mjs";
+// The settings as this process holds them, and every write that changes them —
+// see prefs-state.mjs.
+import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
@@ -3392,27 +3395,6 @@ function redactDeckToken(raw) {
  * has no notification daemon" mid-session, the deck is not broken by it, and
  * every in-page surface still says everything it said before.
  */
-/**
- * The deck's own settings, in memory, refreshed whenever they are written.
- *
- * Read once at boot and then kept here rather than read per event: `consider`
- * is on the ingest path every hook event goes through, and a file read there
- * would be a syscall per event to answer a question that changes when somebody
- * presses a switch. The write path below updates this, so the in-memory copy
- * and the file cannot drift within one process — and a second deck writing the
- * file is picked up on ITS next write or this one's next boot, which is the
- * same freshness every other cross-deck setting has.
- */
-let _prefs = { ...PREF_DEFAULTS };
-// Read at import, so `consider` has its answer from the first event. LAN sync
-// used to start from this same read, and it must not: bin/deck.js imports this
-// module to ASK whether a deck is already up, and a launcher that then attaches
-// and exits had already bound the beacon and the sync port on the way in —
-// which is the `lan sync (listen): EADDRINUSE` line a second `ccdeck` printed
-// above `deck already running`. The engine starts from the listen that
-// succeeds, in startServer, which is the only process that may hold a port.
-const _prefsRead = readPrefs().then(p => { _prefs = p; }).catch(() => {});
-
 const blockNotifier = createBlockNotifier({
   // The desktop app, while it is connected, raises the notification itself —
   // under its own name, icon and permission, with a click that opens its
@@ -3422,7 +3404,7 @@ const blockNotifier = createBlockNotifier({
   // A function, not a boolean: this is a switch a person flips from the sound
   // menu while the deck is running, and a mute that waited for a restart would
   // not be a mute. The env var still wins inside `notificationsOn`.
-  enabled: () => notificationsOn(_prefs),
+  enabled: () => notificationsOn(heldPrefs.current()),
   onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
 });
 
@@ -3440,14 +3422,15 @@ const blockNotifier = createBlockNotifier({
  * half.
  */
 function prefsPayload() {
+  const prefs = heldPrefs.current();
   return {
     ok: true,
-    // `publicPrefs`, never `_prefs`. This route answers anything that can reach
-    // the loopback port, and the LAN group passphrase is in the stored object —
-    // one field, and sending it here would put it in front of every page on the
-    // machine. What goes out is whether one is set.
-    prefs: publicPrefs(_prefs),
-    notificationsAllowed: notificationsOn(_prefs),
+    // `publicPrefs`, never the held prefs whole. This route answers anything
+    // that can reach the loopback port, and the LAN group passphrase is in the
+    // stored object — one field, and sending it here would put it in front of
+    // every page on the machine. What goes out is whether one is set.
+    prefs: publicPrefs(prefs),
+    notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
   };
 }
@@ -3462,7 +3445,7 @@ async function handlePrefsWrite(req, res) {
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
-  _prefs = await writePrefs(body);
+  await heldPrefs.write(body);
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.
@@ -3497,7 +3480,7 @@ let _awayNothingUntil = 0;
 async function awayUpdateTick() {
   const now = Date.now();
   if (!awayGate({
-    enabled: _prefs?.autoUpdate !== false,
+    enabled: heldPrefs.current()?.autoUpdate !== false,
     supervised: _onRestart != null && _canRestart,
     restarting: _restarting,
     sinceBootMs: now - _bootedAt,
@@ -3738,7 +3721,7 @@ const lanEngine = createEngine({
   // still reaches this deck after it restarts. Written only when it differs
   // from what is stored, so a normal start writes nothing.
   onPort: async port => {
-    try { _prefs = await writePrefs({ lan: { port } }); }
+    try { await heldPrefs.write({ lan: { port } }); }
     catch { /* the address field still works this session; next start re-pins */ }
     // The Linux fix lines name this number, so a verdict taken before the
     // listener had one is missing half of them — see forgetReach.
@@ -3749,10 +3732,10 @@ const lanEngine = createEngine({
   // leaves the tick on disk rather than only in the running engine's copy.
   onShared: async key => {
     try {
-      const before = _prefs;
-      _prefs = await updatePrefs(withShared(key));
-      if (_prefs?.lan?.shared === before?.lan?.shared) return;   // it was already ticked
-      await lanEngine.apply({ shared: _prefs.lan.shared });
+      const before = heldPrefs.current();
+      const after = await heldPrefs.update(withShared(key));
+      if (after?.lan?.shared === before?.lan?.shared) return;   // it was already ticked
+      await lanEngine.apply({ shared: after.lan.shared });
     } catch (err) {
       console.error(`${PRODUCT}: lan sync could not share the account it just received:`, err?.message ?? err);
     }
@@ -3761,14 +3744,14 @@ const lanEngine = createEngine({
   // trusted list is the whole of who this deck will talk to and a list that
   // only existed in memory would drop every pairing on restart.
   onTrust: async trusted => {
-    try { _prefs = await writePrefs({ lan: { trusted } }); }
+    try { await heldPrefs.write({ lan: { trusted } }); }
     catch (err) { console.error(`${PRODUCT}: lan sync could not save the pairing:`, err?.message ?? err); }
   },
   // An explicit unpair must outlive the process too. Manual dial rows are kept
   // deliberately, so without this marker the next successful round could pin
   // the same fingerprint again without another press.
   onUnpaired: async unpaired => {
-    try { _prefs = await writePrefs({ lan: { unpaired } }); }
+    try { await heldPrefs.write({ lan: { unpaired } }); }
     catch (err) { console.error(`${PRODUCT}: lan sync could not save the unpair decision:`, err?.message ?? err); }
   },
   // An address this deck must keep dialling: the far end of a pairing that
@@ -3778,31 +3761,32 @@ const lanEngine = createEngine({
   onDial: async entry => {
     try {
       // COMPUTED INSIDE THE JOB, out of what the write is about to read, rather
-      // than out of `_prefs` — which is a module-level copy refreshed only when
-      // a previous write resolves, not "the one on disk". `writePrefs` merges
-      // field by field and cannot merge two writes of one field: the patch here
-      // is the WHOLE array, so a stale one wins. Pressing accept on a heard deck
-      // at the moment an invite round fires this dropped the dialled address out
-      // of `lan.manual`, which is the failure the comment above describes.
-      _prefs = await updatePrefs(withManualEntry(entry));
+      // than out of `heldPrefs.current()` — which is an in-memory copy refreshed
+      // only when a previous write resolves, not "the one on disk". `writePrefs`
+      // merges field by field and cannot merge two writes of one field: the
+      // patch here is the WHOLE array, so a stale one wins. Pressing accept on a
+      // heard deck at the moment an invite round fires this dropped the dialled
+      // address out of `lan.manual`, which is the failure the comment above
+      // describes.
+      const next = await heldPrefs.update(withManualEntry(entry));
       // AND RECONCILE THE ENGINE'S DIAL LIST with what was just written. The
-      // disk is now right, but `setPeers` replaces the list wholesale from
-      // `_prefs` on every settings write — so a write that raced this one, and
-      // whose `_prefs` predates it, would still take the address away.
-      lanEngine.setPeers(_prefs.lan.manual);
+      // disk is now right, but `setPeers` replaces the list wholesale from the
+      // held prefs on every settings write — so a write that raced this one, and
+      // whose copy predates it, would still take the address away.
+      lanEngine.setPeers(next.lan.manual);
     } catch { /* dialled this session; the next round re-adds it */ }
   },
   onIdentity: async secret => {
     try {
-      _prefs = await writePrefs({ lan: { secret } });
+      await heldPrefs.write({ lan: { secret } });
       // AND PUT IT TO WORK. Writing it alone was not enough: a clash was
       // detected, a new id was stored, and both decks kept broadcasting the old
       // one — so they stayed invisible to each other with a correct file on
       // disk. `apply` restarts only when the id it is holding differs from the
       // one it is given, so this settles after one pass rather than looping.
       //
-      // The key is handed over HERE rather than read back off `_prefs`, because
-      // `applyLanPrefs` no longer round-trips the fields the engine
+      // The key is handed over HERE rather than read back off the held prefs,
+      // because `applyLanPrefs` no longer round-trips the fields the engine
       // authors — see what it does and does not pass. This is the one caller
       // that legitimately changes one of them, and it is holding the new value.
       await applyLanPrefs({ secret });
@@ -3830,7 +3814,7 @@ const lanEngine = createEngine({
  * accept on deck B, and `lanEngine.accept` adds it to `cfg.trusted`
  * synchronously and queues `onTrust`. In the same second another tab flips
  * notifications; that handler's `writePrefs` is queued BEHIND `onTrust`'s, but
- * its `applyLanPrefs` runs on the `_prefs` it assigned — merged from a disk read
+ * its `applyLanPrefs` runs on the prefs that write kept — merged from a disk read
  * taken before `onTrust` wrote. `apply` does `cfg = { ...cfg, ...next }`, so the
  * whole array is replaced:
  *
@@ -3893,11 +3877,12 @@ let _lanLoaded = false;
  *  `also` is for a caller holding a value the engine itself just produced and
  *  that has to take effect now; nothing else may name one of the three. */
 async function applyLanPrefs(also = null) {
-  const lan = _prefs?.lan ?? {};
+  const prefs = heldPrefs.current();
+  const lan = prefs?.lan ?? {};
   const load = !_lanLoaded;
   _lanLoaded = true;
   try {
-    await lanEngine.apply({ ...lanApplyFields(_prefs, { load }), ...(also ?? {}) });
+    await lanEngine.apply({ ...lanApplyFields(prefs, { load }), ...(also ?? {}) });
     // Wholesale, so removing an address in the panel really stops it being
     // dialled rather than only taking the row away.
     lanEngine.setPeers(lan.manual);
@@ -4095,7 +4080,7 @@ function handleLanStatus(req, res) {
   refreshReach();
   // Behind the answer, like the reach probe: the dialog's poll is what finds a
   // Tailscale somebody installed while the deck was running.
-  if (lanEnabled(_prefs)) void tailnet.freshen(TAILNET_IDLE_MS);
+  if (lanEnabled(heldPrefs.current())) void tailnet.freshen(TAILNET_IDLE_MS);
   return send(res, 200, { ok: true, ...lanEngine.status(), reach: reachSaid });
 }
 
@@ -4161,7 +4146,7 @@ async function handleLanPeer(req, res) {
         // Inside the job, like `onDial` — the same whole-array patch computed
         // from the same stale copy, and the same address lost when two of them
         // land in one turn.
-        try { _prefs = await updatePrefs(withManualEntry(entry)); }
+        try { await heldPrefs.update(withManualEntry(entry)); }
         catch { /* it is dialled this session; the next accept re-adds it */ }
       }
       return send(res, 200, { ok: true, added, ...lanEngine.status() });
@@ -4180,15 +4165,15 @@ async function handleLanPeer(req, res) {
     //
     // The whole map is rebuilt from the one on disk rather than sent by the
     // page, so two tabs renaming two decks cannot undo each other. It is
-    // rebuilt inside the write's own job for that to be true: `_prefs` is a
-    // module-level copy refreshed only when a previous write resolves, and the
-    // patch is the whole map — so two renames in one turn both read before
+    // rebuilt inside the write's own job for that to be true: the held prefs
+    // are an in-memory copy refreshed only when a previous write resolves, and
+    // the patch is the whole map — so two renames in one turn both read before
     // either job ran, both answered 200, and the first name was never written.
     case "alias": {
       if (!isAliasKey(fp)) return send(res, 400, { ok: false, reason: "bad_request" });
       const name = cleanAlias(body.name);
-      _prefs = await updatePrefs(withAlias(fp, name));
-      await lanEngine.apply({ aliases: _prefs.lan.aliases });
+      const next = await heldPrefs.update(withAlias(fp, name));
+      await lanEngine.apply({ aliases: next.lan.aliases });
       return send(res, 200, { ok: true, ...lanEngine.status() });
     }
     default:
@@ -6451,7 +6436,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // LAN sync, from the prefs the import read — and only from here, so a
       // deck that had it on comes back with it on, and a launcher that only
       // asked the registry never binds a port it is about to walk away from.
-      _prefsRead.then(() => applyLanPrefs()).catch(() => {});
+      prefsRead.then(() => applyLanPrefs()).catch(() => {});
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise. Its
       // ticks wait for `cswapQuiet`, the launcher's word that claude-swap is not
