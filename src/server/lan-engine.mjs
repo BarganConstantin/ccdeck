@@ -36,12 +36,13 @@ import {
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
-import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
+import { createBeacon } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { createTurns } from "./lan-turns.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
+import { createHearing } from "./lan-hearing.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -485,22 +486,10 @@ export function createEngine({
    *  asked about. */
   let listeningSince = null;
 
-  /** Who held the discovery port the last time it was asked, for as long as
-   *  this deck cannot hear: the answer does not change between two tries half a
-   *  minute apart, and on Windows asking costs a PowerShell start. Undefined
-   *  until asked, null when the machine would not say. */
-  let holder;
-
-  /** What the panel says while this deck cannot hear — see createBeacon's
-   *  `hearing`. Null whenever it can. */
-  const deafLine = () => {
-    if (!beacon || beacon.hearing()) return null;
-    const err = beacon.deafError?.();
-    if (err && err.code !== "EADDRINUSE") {
-      return `This deck cannot listen on UDP ${DISCOVERY_PORT} (${err.code ?? err.message}), so it hears no other deck announce itself. Other decks still find it and pair with it.`;
-    }
-    return `${holder ?? "Another program"} is holding UDP ${DISCOVERY_PORT}, so this deck hears no new decks. Others still find it and pair with it, and it takes the port back as soon as it is free.`;
-  };
+  /** Whether this deck can hear other decks announce, who is holding the
+   *  discovery port while it cannot, and the sentence the panel says about
+   *  it — see lan-hearing.mjs. */
+  const hearing = createHearing({ beaconNow: () => beacon, portHolder, onChange });
 
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
@@ -839,17 +828,6 @@ export function createEngine({
     // Only a deck that is new to us is news. A beacon every thirty
     // seconds from one already on the list is not a reason to redraw.
     if (!had) onChange?.();
-  };
-
-  /** The beacon took the discovery port, or lost it: say so, and while it
-   *  cannot hear, ask once which program is holding the port. See deafLine. */
-  const hearingChanged = now => {
-    if (now) { holder = undefined; onChange?.(); return; }
-    if (holder === undefined && portHolder && beacon?.deafError?.()?.code === "EADDRINUSE") {
-      holder = null;
-      void Promise.resolve().then(() => portHolder()).then(who => { holder = who ?? null; onChange?.(); }, () => {});
-    }
-    onChange?.();
   };
 
   /** Another deck is using this one's key. Take a new key and keep it. Two
@@ -1400,7 +1378,7 @@ export function createEngine({
         // spell, behind the sentence that does not need the name.
         rebindMs: bindRetryMs,
         routes,
-        onHearing: hearingChanged,
+        onHearing: hearing.hearingChanged,
         onStranger: heardStranger,
         onIdClash: idClash,
         onError, now,
@@ -1716,8 +1694,9 @@ export function createEngine({
         // Said only while it is true, and it is only ever true of a deck that
         // is switched on and has no listener.
         stalled: cfg.enabled && !beacon ? stalled : null,
-        // Running, and unable to hear other decks announce — see deafLine.
-        deaf: deafLine(),
+        // Running, and unable to hear other decks announce — see deafLine in
+        // lan-hearing.mjs.
+        deaf: hearing.deafLine(),
         // Every local broadcast held back, because this machine sends its
         // local network through a tunnel — see leavesByTunnel.
         lanTunneled: !!beacon?.tunneled?.(),
@@ -1779,7 +1758,7 @@ export function createEngine({
       if (!restarting) session++;
       if (timer) clearTimeout(timer);
       tailPoll.stop();
-      holder = undefined;
+      hearing.forget();
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
       timer = null;
