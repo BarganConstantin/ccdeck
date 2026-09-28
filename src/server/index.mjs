@@ -497,6 +497,13 @@ async function handleDesktopUpdateRequest(req, res, event) {
 
 let persistPath = null;             // absolute path to events.jsonl, or null
 
+/** The log this deck was told to keep, resolved, or null when it keeps none.
+ *  Read through here by everything but the code that owns the file;
+ *  openEventLog is the one writer. */
+function eventLogPath() {
+  return persistPath;
+}
+
 // ─── Which deck records which session ─────────────────────────────────────
 // The hook posts an event to every deck whose workspace matches, and by
 // default all of them append to one events.jsonl — so each event landed in
@@ -2031,7 +2038,7 @@ async function codexScanOnce(firstRun) {
       // them tail this rollout, cannot change inside one batch of appended
       // lines, and the answer must be the same for every event in it — a root
       // written by one deck and its tool calls by another is worse than either.
-      const persist = !persistPath
+      const persist = !eventLogPath()
         || writesCodexLog({ decks: await liveDecks(), pid: process.pid, cwd: state.cwd });
 
       for (const line of consume.split("\n")) {
@@ -2791,7 +2798,7 @@ function pushEvent(raw, source, opts = {}) {
   // there), not when the hook told us another deck owns this session's log,
   // and not when we have no log. Decided before serializing because it is half
   // of the answer to whether serializing is worth doing.
-  const persisting = persistPath && !opts.replay && opts.persist !== false && writesLogFor(raw);
+  const persisting = eventLogPath() && !opts.replay && opts.persist !== false && writesLogFor(raw);
 
   // One serialization, shared by both consumers — and skipped entirely when
   // neither wants it. This used to stringify the whole envelope twice on the
@@ -2881,7 +2888,7 @@ function pushEvent(raw, source, opts = {}) {
     // SSE frame also used, and the token was taken out of the payload before
     // either existed.
     const line = json + "\n";
-    appendLogLine(persistPath, line);
+    appendLogLine(eventLogPath(), line);
     // Throttled check — every 30s, or every fifth of the threshold written,
     // whichever comes first. The byte arm is what keeps the 50 MB cap from
     // being advisory at any real ingest rate; see maybeRotatePersistFile.
@@ -3739,6 +3746,29 @@ async function probeLogWritable(path) {
   }
 }
 
+/**
+ * Point the deck at the log it was told to keep, and probe it once.
+ *
+ * Lifted out of startServer, which calls it once per boot, before the replay.
+ * A boot with no log leaves `persistPath` as it was and only resets the probe,
+ * which is what startServer always did: the path is assigned when there is one
+ * and never cleared.
+ */
+async function openEventLog(persist) {
+  _persistWritable = false;
+  if (!persist) return;
+  persistPath = resolve(persist);
+  try { await mkdir(pdirname(persistPath), { recursive: true }); } catch {}
+  // Asked before the first event, so a log that cannot be written is a fact
+  // the deck states rather than one the user discovers by pressing Restart.
+  // The mkdir above is inside a bare try/catch, so its failure is already
+  // swallowed once by the time we get here — see _persistWritable.
+  _persistWritable = await probeLogWritable(persistPath);
+  // Taken the moment the probe answers, so that a line landing from here on
+  // is evidence newer than it. See logWritableNow.
+  _landedAtProbe = appendsLanded(persistPath);
+}
+
 async function handleVersion(req, res) {
   const { versionReport } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href
@@ -4371,7 +4401,7 @@ function handleHealth(_req, res) {
     // No path. The health probe is a deliberately open route and this is the
     // smallest set of facts that answers the question; the path is already in
     // the banner for anyone standing at the terminal.
-    log: persistPath ? { writable: logWritableNow(), ...appendFailureStats(persistPath) } : null,
+    log: eventLogPath() ? { writable: logWritableNow(), ...appendFailureStats(eventLogPath()) } : null,
   });
 }
 
@@ -4547,18 +4577,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   }
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);
-  _persistWritable = false;
+  // Where the log is and whether it can be written, asked before the first
+  // event — see openEventLog.
+  await openEventLog(persist);
   if (persist) {
-    persistPath = resolve(persist);
-    try { await mkdir(pdirname(persistPath), { recursive: true }); } catch {}
-    // Asked before the first event, so a log that cannot be written is a fact
-    // the deck states rather than one the user discovers by pressing Restart.
-    // The mkdir above is inside a bare try/catch, so its failure is already
-    // swallowed once by the time we get here — see _persistWritable.
-    _persistWritable = await probeLogWritable(persistPath);
-    // Taken the moment the probe answers, so that a line landing from here on
-    // is evidence newer than it. See logWritableNow.
-    _landedAtProbe = appendsLanded(persistPath);
     // `_workspace`, not `workspace`: the field has just been normalised on the
     // line above, and the replay has to answer the same question the live paths
     // answer with the same string. Passed rather than read off the module scope
@@ -4568,7 +4590,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // capture paths a few lines down (`if (codex) startCodexWatcher`, and the
     // hook install above), and until #1004 it reached neither the replay nor
     // anything else but the health payload.
-    const replayed = await replayLog(persistPath, _workspace, { providers: _providers });
+    const replayed = await replayLog(eventLogPath(), _workspace, { providers: _providers });
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.
