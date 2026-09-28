@@ -21,6 +21,7 @@ import { WEB_DIR } from "./client-source";
 export const SOUND_MENU_FILES = [
   "components/SoundMenu.tsx",
   "components/ToneSection.tsx",
+  "components/VolumeRow.tsx",
   "components/CustomSoundsSection.tsx",
   "components/SpokenVoiceForm.tsx",
   "use-clip-recorder.ts",

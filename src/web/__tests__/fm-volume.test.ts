@@ -60,15 +60,21 @@ describe("the Claude FM volume preference", () => {
   });
 
   it("reuses the sound menu's slider row rather than inventing a second shape", () => {
+    // The row is VolumeRow.tsx now, which each tone's section draws too, so
+    // "the same shape" is the same component rather than a copy of its markup.
     const menu = read("components/AppearanceMenu.tsx");
+    const row = read("components/VolumeRow.tsx");
+    expect(menu).toContain("<VolumeRow");
     expect(menu).toContain('id="appearance-fm-volume"');
-    expect(menu).toContain('className="sm-row"');
-    expect(menu).toContain('className="sm-read"');
-    expect(menu).toContain('"--sm-level"');
-    expect(menu).toContain("onChange={e => onFmVolume(Number(e.target.value))}");
+    expect(menu).toContain("onLevel={onFmVolume}");
+    expect(read("components/ToneSection.tsx")).toContain("<VolumeRow");
+    expect(row).toContain('className="sm-row"');
+    expect(row).toContain('className="sm-read"');
+    expect(row).toContain('"--sm-level"');
+    expect(row).toContain("onChange={e => onLevel(Number(e.target.value))}");
     // Native, for the same reasons SoundMenu's is: the arrows, Home and End and
     // the announced percentage are the browser's to give.
-    expect(menu).toContain('type="range"');
+    expect(row).toContain('type="range"');
   });
 
   it("sends setVolume at the ready handshake and again whenever the level moves", () => {

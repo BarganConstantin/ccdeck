@@ -75,8 +75,10 @@ const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
 // The outside-press rule SoundMenu shares with AnchoredPopover.
 const outsidePress = withoutComments(read("components/use-outside-press.ts"));
-// Each tone's row — its preview, volume and sound — moved to ToneSection.tsx.
+// Each tone's row — its preview, volume and sound — moved to ToneSection.tsx,
+// and the volume on from there to VolumeRow.tsx.
 const toneSection = withoutComments(read("components/ToneSection.tsx"));
+const volumeRow = withoutComments(read("components/VolumeRow.tsx"));
 // The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
 // that file; the negatives read the menu and every file lifted out of it.
 const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"));
@@ -903,6 +905,14 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(row).toContain("TONE_NOTE[chime]");               // the right slice
     expect(row, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
     expect(row, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
+    // The volume slider left the row for VolumeRow.tsx, and is held to the same
+    // two there.
+    const volume = volumeRow.slice(volumeRow.indexOf("  return ("));
+    expect(row).toContain("<VolumeRow");                     // the row still draws it
+    expect(volume).toContain('type="range"');                 // the right slice
+    expect(volume, "the volume slider was disabled").not.toMatch(/\bdisabled\b/);
+    expect(volume, "the volume slider was dimmed").not.toMatch(/\bopacity\b/);
+    expect(volume).not.toMatch(/\bsoundOn\b/);
     // Two uses of `soundOn` in there, and they are the sentence rather than a
     // state: the tooltip and the description that says the preview will sound.
     expect([...row.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
