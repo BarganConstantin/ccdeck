@@ -32,6 +32,7 @@ export const REDUCER_FILES = [
   "session-hue.ts",
   "transcript-events.ts",
   "subagent-lifecycle.ts",
+  "session-lifecycle.ts",
 ] as const;
 
 let joined: string | null = null;
