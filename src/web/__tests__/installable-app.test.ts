@@ -19,6 +19,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { offerManifest, MANIFEST_PATH } from "../../server/app-manifest.mjs";
+import { sourceOf } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const PUBLIC = (name: string) => fileURLToPath(new URL(`../public/${name}`, import.meta.url));
@@ -116,6 +117,9 @@ describe("the document that points at it", () => {
   });
 
   it("re-writes that meta whenever the theme flips", () => {
+    // The meta effect moved to use-appearance.ts with the palette it reads. A slice
+    // taken by indexOf, so it reads that one file rather than the client.
+    const app = sourceOf("use-appearance.ts");
     // A media-queried pair in the head would follow the OS past a stored
     // choice, which is wrong for exactly the people who pressed T.
     const at = app.indexOf('meta[name="theme-color"]');

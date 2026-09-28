@@ -26,6 +26,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { prefersLight, resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
+import { sourceOf } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const html = read("../index.html");
@@ -214,6 +215,10 @@ describe("the inline bootstrap in index.html", () => {
 // fails on a reformat teaches people to delete tests.
 describe("App", () => {
   it("starts from the same resolution the bootstrap used, not a second rule", () => {
+    // The React side's theme lives in use-appearance.ts now. Read that file, not
+    // the client: this case holds a negative, and widening it would ask a
+    // question about files that have nothing to do with the first theme.
+    const app = sourceOf("use-appearance.ts");
     // `useState<Theme>(storedTheme)` and `useState<Theme>(() => storedTheme())`
     // are the same lazy initialiser written two ways. What may not change is
     // WHICH function answers, because a second rule here is the drift the whole
@@ -224,6 +229,10 @@ describe("App", () => {
   });
 
   it("keeps the effect that persists the toggle", () => {
+    // The React side's theme lives in use-appearance.ts now. Read that file, not
+    // the client: this case holds a negative, and widening it would ask a
+    // question about files that have nothing to do with the first theme.
+    const app = sourceOf("use-appearance.ts");
     // Redundant on first mount — the bootstrap already wrote that attribute
     // from that value — and deliberately not guarded: see App.tsx. Every later
     // run is the T toggle, which is the only reason it is still here.
