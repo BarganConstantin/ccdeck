@@ -26,6 +26,7 @@ export const REDUCER_FILES = [
   "graph-state.ts",
   "tool-calls.ts",
   "board-sweeps.ts",
+  "agent-attribution.ts",
 ] as const;
 
 let joined: string | null = null;
