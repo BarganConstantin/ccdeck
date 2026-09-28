@@ -657,9 +657,9 @@ describe("no cost surface multiplies a whole session by its last model", () => {
     expect(table).not.toMatch(/const key = a\.model \?\? UNKNOWN_MODEL/);
     expect(table).toMatch(/for \(const e of usageByModelEntries\(a\)\)/);
     expect(table).toMatch(/const key = e\.model \?\? UNKNOWN_MODEL/);
-    // And the panel has no fold of its own left to disagree with it.
-    const panel = srcOf("components/UsagePanel.tsx");
-    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    // And the panel has no fold of its own left to disagree with it: its
+    // By model rows come from use-board-spend.ts, which calls the table.
+    expect(srcOf("use-board-spend.ts")).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
     // Nor anything lifted out of it.
     expect(USAGE_FILES.map(srcOf).join("\n")).not.toMatch(/usageByModelEntries/);
   });

@@ -261,9 +261,12 @@ describe("the panel draws its two board tables from these", () => {
   // how the replicas came to be testing code the panel had stopped running.
   const panel = readFileSync(
     fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+  /** The headline memo, lifted out of the panel with the By model rows it builds. */
+  const spend = readFileSync(
+    fileURLToPath(new URL("../use-board-spend.ts", import.meta.url)), "utf8");
 
   it("calls boardModelTable and boardSessionTable, and folds nothing itself", () => {
-    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    expect(spend).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
     expect(panel).toMatch(/\(\): BoardSessionRow\[\] => boardSessionTable\(state\.agents\.values\(\)\)/);
     // Nor does anything lifted out of it: the negatives and the count read
     // the panel's whole surface.

@@ -2,11 +2,10 @@
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fmtCost, fmtCostRate, UNPRICED_LABEL } from "../pricing";
+import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
-import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
 import {
-  boardModelTable, boardSessionTable, boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
+  boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -27,6 +26,7 @@ import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
+import { useBoardSpend } from "../use-board-spend";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
@@ -78,72 +78,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
     const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
     return () => window.clearInterval(t);
   }, []);
-  /** Per-session spend against the clock, for the header's $/min (#821). A ref,
-   *  because the samples are history the memo below reads and extends — not
-   *  state, which would re-render the panel for every sample it takes. */
-  const spendSamples = useRef<SpendHistory>(NO_SPEND_HISTORY);
-  /** The replay the samples above were taken after. A new one — a reconnect —
-   *  starts them again, since it re-applies the ring the board was built from. */
-  const spendSince = useRef<number | null>(null);
+  // The By model rows, the board's own headline figures and the header's
+  // $/min, with the samples that rate is measured from — use-board-spend.ts.
+  const { byModel, totalCost, totalTokens, burnRate } = useBoardSpend(state, now, liveSince);
 
-  // Both memos below key on `state.revision`, not on `state.lastSeq`. The
-  // `state` prop is `stateRef.current` and `applyEvent` mutates it in place, so
-  // its identity never moves after mount and the second dep is the whole of
-  // what decides whether either of these recomputes. `lastSeq` answers "when did
-  // the last envelope arrive", which is a different question from "has anything
-  // in here changed": the four periodic sweeps mutate this same object every
-  // 250ms tick and move only `revision` — see the note on GraphState.
+  // Keyed on `state.revision` for the reason use-board-spend.ts gives.
   //
-  // This one carries `now` as well, because `burnRate` samples the board total
-  // against the clock (spend-rate.ts, #821) and has to keep moving while nothing
-  // arrives. That third dep is
-  // also what hid the wrong second one: `now` is a fresh Date.now() every tick,
-  // so this recomputed four times a second whatever `lastSeq` said, and the
-  // headline strip stayed honest through a prune by luck rather than by rule.
-  // `bySessions` below has no clock in it, and it is the one that went stale.
-  const { byModel, totalCost, totalTokens, burnRate } = useMemo(() => {
-    // The headline's own arithmetic is `boardTotals`, called once below rather
-    // than accumulated here (#687). It was a second copy of the topbar's, and
-    // the file it moved to is the file that declares what the figure may be
-    // called — which is the whole of the fix: the sum walks the agents on the
-    // canvas, the pruners take agents off the canvas, and the only honest label
-    // for such a number names the canvas. Splitting the label from the sum is
-    // how "total spend" came to stand over a figure that falls by a third on a
-    // quiet tick.
-    //
-    // The table is one pass per MODEL SHARE (#686), in board-usage.ts beside
-    // `boardTotals` so the rows and the headline price the same shares through
-    // the same helper — see boardModelTable.
-    const byModel = boardModelTable(state.agents.values());
-
-    const board = boardTotals(state.agents.values());
-    // How fast the board is spending: its total's rise over the last ten minutes
-    // (#821), not live agents' cost over the longest one's age — see
-    // spend-rate.ts for why that swung eightfold between two tabs of one deck.
-    // And only once the replay has landed: before that the board total is
-    // history arriving, not spending (see liveSince in App.tsx).
-    if (spendSince.current !== liveSince) {
-      spendSince.current = liveSince;
-      spendSamples.current = NO_SPEND_HISTORY;
-    }
-    // PER SESSION, not the board total (#987). The board gains a session's whole
-    // accumulated cost the moment it first reaches the canvas, and against one
-    // total that is indistinguishable from spending: a joining session carrying
-    // $15 of history took a true $0.20/min to $1.70/min and held it for the
-    // full ten-minute window. This is the same map the live delta below is
-    // built on, and the same rule — only work the deck watched happen counts.
-    const bySession = boardBySession(state.agents.values(), now);
-    if (liveSince != null) spendSamples.current = recordSpend(spendSamples.current, now, bySession);
-    const rate = liveSince == null ? null : spendRate(spendSamples.current, now, bySession);
-    const burnRate = rate ? { label: fmtCostRate(rate.spent, rate.spanSec), spanMin: rate.spanMin } : null;
-    return {
-      byModel,
-      totalCost: board.cost,
-      totalTokens: board,
-      burnRate,
-    };
-  }, [state, state.revision, now, liveSince]);
-
   // No clock in these deps, and none wanted — every figure in a row is a running
   // total, not an elapsed time. That made this the one memo in the panel with
   // nothing to mask the wrong dependency, and #575 is what it cost: on a quiet

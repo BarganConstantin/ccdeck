@@ -134,14 +134,15 @@ describe("the per-session key is the fix, not the threshold (#987)", () => {
 });
 
 describe("the panel samples what the rule needs (#987)", () => {
-  const panel = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+  /** The headline memo and the samples it keeps, lifted out of the panel. */
+  const spend = readFileSync(fileURLToPath(new URL("../use-board-spend.ts", import.meta.url)), "utf8");
 
   it("hands the rate per-session costs, not the board's one total", () => {
-    // The same map the live delta below it is built on — one shape, one place,
+    // The same map the panel's live delta is built on — one shape, one place,
     // so the two cannot drift apart.
-    expect(panel).toMatch(/const bySession = boardBySession\(state\.agents\.values\(\), now\);/);
-    expect(panel).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
-    expect(panel).toMatch(/spendRate\(spendSamples\.current, now, bySession\)/);
+    expect(spend).toMatch(/const bySession = boardBySession\(state\.agents\.values\(\), now\);/);
+    expect(spend).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
+    expect(spend).toMatch(/spendRate\(spendSamples\.current, now, bySession\)/);
     expect(usageSurface()).not.toMatch(/recordSpend\([^)]*board\.cost\.total/);
     expect(usageSurface()).not.toMatch(/spendRate\([^)]*board\.cost\.total/);
   });
