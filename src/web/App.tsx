@@ -54,6 +54,7 @@ import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { TOOL_LANE_ALLOWANCE, useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
+import { clearStoredLayout, loadLayout, loadLayoutFrame, loadViewport, saveLayout, saveLayoutFrame, saveViewport } from "./layout-storage";
 import { focusCanvasNode, isCanvasNodeElement } from "./canvas-node-element";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
@@ -102,8 +103,8 @@ import { columnsWouldChange, type Frame } from "./layout";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds } from "./visibility";
 import { SESSION_GROUP_TYPE } from "./minimap";
-import { parseLayoutFrame, parseStoredLayout, restoreLayout, serializeLayout, type StoredLayout } from "./stored-layout";
-import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport, type StoredViewport } from "./stored-viewport";
+import { restoreLayout } from "./stored-layout";
+import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
@@ -175,10 +176,6 @@ const OPENING_FIT_MS = 400;
 /** How long a focus takes to arrive (focusAgent): the fit's own pace, a little
  *  quicker, because the reader asked for this one and is waiting on it. */
 const FOCUS_MS = 450;
-const LAYOUT_STORAGE_KEY = "agent-dag.layout";
-/** The frame the stored layout was packed into columns for — see #995. */
-const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
-const VIEWPORT_STORAGE_KEY = "agent-dag.viewport";
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
 /** Named for the panel it opens rather than for the button, which is how it
@@ -233,80 +230,6 @@ function loadMachinePanelOpen(): boolean {
 function saveMachinePanelOpen(open: boolean): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
-}
-
-/** The stored arrangement. The format, its v1 migration and what a garbled
- *  value reads as are parseStoredLayout's (#1174); the try is for the storage
- *  read itself, which can throw on its own. */
-function loadLayout(): StoredLayout {
-  if (typeof window === "undefined") return { positions: [], pins: [] };
-  try {
-    return parseStoredLayout(window.localStorage.getItem(LAYOUT_STORAGE_KEY));
-  } catch { return { positions: [], pins: [] }; }
-}
-
-function saveLayout(
-  positions: Map<string, { x: number; y: number }>,
-  pinned: Map<string, { x: number; y: number }>,
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(LAYOUT_STORAGE_KEY, serializeLayout(positions, pinned));
-  } catch { /* quota / private mode — ignore */ }
-}
-
-/**
- * The frame the stored layout's column count was chosen for.
- *
- * Kept beside the layout rather than inside it because it answers a different
- * question: `loadLayout` restores WHERE the nodes were, this restores WHAT THE
- * BOARD WAS SHAPED FOR. A deck reopened on a different monitor restores a
- * perfectly valid set of coordinates that were packed for a frame this window
- * does not have, and without this there is nothing to compare the new frame
- * against — the board comes back as however many columns the old window wanted
- * and stays that way until R (#995).
- *
- * Null when absent, which is what every layout stored before this existed reads
- * as. That is "no evidence", not "a frame of zero": the reframe effect records
- * the first measurement and compares nothing.
- */
-function loadLayoutFrame(): Frame | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return parseLayoutFrame(window.localStorage.getItem(LAYOUT_FRAME_KEY));
-  } catch { return null; }
-}
-
-function saveLayoutFrame(frame: Frame): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(LAYOUT_FRAME_KEY, JSON.stringify(frame)); } catch {}
-}
-
-/** The viewport the canvas was last left at, or null. What it has to be to
- *  count — and why a zero zoom does not — is parseStoredViewport's (#1006);
- *  the try is for the storage read itself, which can throw on its own. */
-function loadViewport(): StoredViewport | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return parseStoredViewport(window.localStorage.getItem(VIEWPORT_STORAGE_KEY));
-  } catch { return null; }
-}
-
-function saveViewport(vp: { x: number; y: number; zoom: number }): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(vp)); } catch {}
-}
-
-function clearStoredLayout(): void {
-  if (typeof window === "undefined") return;
-  // Per-key try/catch so a failure removing one (quota / locked store)
-  // doesn't strand the other.
-  try { window.localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch {}
-  try { window.localStorage.removeItem(VIEWPORT_STORAGE_KEY); } catch {}
-  // The frame goes with the layout it describes. Left behind, it claims the
-  // board that R is about to rebuild was packed for a window that may not be
-  // the one on screen, and the first frame change would relayout again.
-  try { window.localStorage.removeItem(LAYOUT_FRAME_KEY); } catch {}
 }
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)

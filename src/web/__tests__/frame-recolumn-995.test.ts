@@ -164,13 +164,15 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     // whatever window wrote them. Without a stored frame there is nothing for
     // the first measurement to be compared against, and the board comes back in
     // the old window's column count and stays there.
-    appHas('const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame"', "the frame the layout was packed for is not persisted");
+    // The keys and their reads and writes are layout-storage.ts's.
+    const storage = readFileSync(fileURLToPath(new URL("../layout-storage.ts", import.meta.url)), "utf8");
+    expect(storage.includes('const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame"'), "the frame the layout was packed for is not persisted").toBe(true);
     appHas(/useRef<Frame \| null>\(restoredLayoutFrame\)/, "the restored frame does not seed the reframe comparison");
     appHas(/const restoredLayoutFrame = useState\(loadLayoutFrame\)\[0\]/, "the stored frame is not read through a lazy initialiser (#612)");
     // And it goes when the layout it describes goes, or Clear and R leave a
     // frame record pointing at a board that no longer exists.
-    const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(app);
-    expect(cleared, "clearStoredLayout is gone from App.tsx").not.toBeNull();
+    const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(storage);
+    expect(cleared, "clearStoredLayout is gone from layout-storage.ts").not.toBeNull();
     expect(cleared![0]).toMatch(/removeItem\(LAYOUT_FRAME_KEY\)/);
   });
 
