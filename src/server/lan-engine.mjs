@@ -40,7 +40,8 @@ import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { createTurns } from "./lan-turns.mjs";
-import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS, TAILNET_MS } from "./tailscale.mjs";
+import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
+import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -484,11 +485,6 @@ export function createEngine({
    *  asked about. */
   let listeningSince = null;
 
-  /** The tailnet read's own timer, running only while the switch is on. */
-  let tailTimer = null;
-  // An in-flight refresh may finish after discovery is disabled or restarted.
-  let tailRefreshGeneration = 0;
-
   /** Who held the discovery port the last time it was asked, for as long as
    *  this deck cannot hear: the answer does not change between two tries half a
    *  minute apart, and on Windows asking costs a PowerShell start. Undefined
@@ -541,33 +537,11 @@ export function createEngine({
     return { list, added };
   };
 
-  /**
-   * Read the tailnet on a timer while the switch is on, and not at all while it
-   * is off — the read at start covers telling a tailnet address from a local
-   * one, and the dialog's own poll covers whether Tailscale is there at all.
-   *
-   * TURNING IT ON ANNOUNCES AT ONCE, after one read, so the owner's machines
-   * hear about this one in the second after the press rather than on the next
-   * beacon, up to half a minute later.
-   */
-  const syncTailnet = () => {
-    const want = !!(beacon && tailnet && cfg.enabled && cfg.tailscale);
-    if (want && !tailTimer) {
-      const startedIn = ++tailRefreshGeneration;
-      const currentBeacon = beacon;
-      void tailnet.refresh().then(() => {
-        if (startedIn === tailRefreshGeneration && beacon === currentBeacon && cfg.enabled && cfg.tailscale) {
-          currentBeacon.announce();
-        }
-      }, () => {});
-      tailTimer = setInterval(() => { void tailnet.refresh(); }, TAILNET_MS);
-      tailTimer.unref?.();
-    } else if (!want && tailTimer) {
-      tailRefreshGeneration++;
-      clearInterval(tailTimer);
-      tailTimer = null;
-    }
-  };
+  /** Reading the tailnet on a timer while the switch is on, announcing at
+   *  once when it is turned on — see lan-tailnet-poll.mjs. */
+  const tailPoll = createTailnetPoll({
+    tailnet, beaconNow: () => beacon, wanted: () => cfg.enabled && cfg.tailscale,
+  });
 
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
@@ -1349,14 +1323,14 @@ export function createEngine({
       const mayAsk = p => (p.via === "tailscale" ? turnedOn(asksOn, "tailscale") && p.own : turnedOn(asksOn, "lan"));
       for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !wasUnpaired(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
       // OFF MEANS THE TAILNET GOES QUIET HERE: nobody heard over it is offered,
-      // and syncTailnet stops the reads. Decks already paired stay paired.
+      // and tailPoll.sync stops the reads. Decks already paired stay paired.
       if (was.tailscale && !cfg.tailscale) {
         for (const [fp, p] of [...strangers]) if (p.via === "tailscale") strangers.delete(fp);
       }
       const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
-      if (!restart) { syncTailnet(); return; }
+      if (!restart) { tailPoll.sync(); return; }
       this.stop(cfg.enabled);
       if (!cfg.enabled) return;
       const startedIn = generation;
@@ -1438,7 +1412,7 @@ export function createEngine({
       // One read of the tailnet whatever the switch says, so a packet from a
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
-      syncTailnet();
+      tailPoll.sync();
       // A self-scheduling loop rather than one interval, because the gap
       // between rounds is not one number: see ASKING_MS.
       const tick = async () => {
@@ -1803,10 +1777,8 @@ export function createEngine({
     stop(restarting = false) {
       generation++;
       if (!restarting) session++;
-      tailRefreshGeneration++;
       if (timer) clearTimeout(timer);
-      if (tailTimer) clearInterval(tailTimer);
-      tailTimer = null;
+      tailPoll.stop();
       holder = undefined;
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
