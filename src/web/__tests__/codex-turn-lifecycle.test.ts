@@ -43,7 +43,7 @@ import {
 import { runningSessionCount } from "../ambient-counts";
 import type { HookEnvelope, HookPayload } from "../types";
 // @ts-expect-error — .mjs server module, no types
-import { codexObjToPayload } from "../../server/index.mjs";
+import { codexObjToPayload } from "../../server/codex-translate.mjs";
 
 const SESSION = "01a00e9e-1905-7093-bca2-efa3b1d07752";
 const CWD = "/repo";

@@ -46,7 +46,7 @@ import { ambientSignal } from "../ambient";
 import { canAskForApproval, codexApprovalTell } from "../codex-approval";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
 // @ts-expect-error — .mjs server module, no types
-import { codexObjToPayload } from "../../server/index.mjs";
+import { codexObjToPayload } from "../../server/codex-translate.mjs";
 
 const SESSION = "019ff475-79c7-7783-97e6-414efa702b67";
 const CLAUDE_SESSION = "c0ffee00-0000-4000-8000-000000000001";
