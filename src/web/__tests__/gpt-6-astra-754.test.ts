@@ -18,9 +18,9 @@
 // (rate-sheet-2026-09 makes the same argument).
 
 import { describe, it, expect } from "vitest";
+import { contextWindowForModel } from "../context-window";
 import {
   billedInputTokens,
-  contextWindowForModel,
   costForUsage,
   ratesForModel,
   type TokenUsage,

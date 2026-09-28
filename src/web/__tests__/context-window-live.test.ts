@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { applyEvent, initialState } from "../reducer";
 import type { GraphState } from "../reducer";
-import { effectiveContextWindow, contextWindowForModel } from "../pricing";
+import { effectiveContextWindow, contextWindowForModel } from "../context-window";
 import type { HookEnvelope, HookPayload } from "../types";
 
 const SESSION = "sess-ctx-window";

@@ -29,9 +29,9 @@
 // Neither is the kind of mistake a test that reads the table can catch, so
 // these read the published numbers instead.
 import { describe, it, expect } from "vitest";
+import { contextWindowForModel } from "../context-window";
 import {
   billedInputTokens,
-  contextWindowForModel,
   costForUsage,
   ratesForModel,
   type TokenUsage,

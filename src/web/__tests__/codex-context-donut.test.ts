@@ -59,7 +59,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
-import { effectiveContextWindow, contextWindowForModel } from "../pricing";
+import { effectiveContextWindow, contextWindowForModel } from "../context-window";
 import type { HookEnvelope, HookPayload, Provider } from "../types";
 
 // ── the sandbox the two memory scanners are pointed at ─────────────────────
