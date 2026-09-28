@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain JS module, no types
-import { maySelfPoll, freshest, quotaClaudeBin } from "../../server/quota.mjs";
+import { maySelfPoll, freshest } from "../../server/quota.mjs";
+// @ts-expect-error — plain JS module, no types
+import { quotaClaudeBin } from "../../server/quota-cli.mjs";
 // The two mappings moved to quota-shape.mjs with the rest of the pure ones.
 // @ts-expect-error — plain JS module, no types
 import { clampPct, mapOAuthUsage, parseResetToSec, parseUsageText, quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "../../server/quota-shape.mjs";

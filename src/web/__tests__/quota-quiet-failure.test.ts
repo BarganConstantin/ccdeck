@@ -65,7 +65,10 @@ vi.mock("../../server/claude-dir.mjs", async (importOriginal) => {
 
 // @ts-expect-error — a plain .mjs module, no types
 const quota = await import("../../server/quota.mjs");
-const { fetchClaudeQuota, invalidateQuotaCache, forgetQuotaFailureNotice, resetQuotaPollFloor } = quota;
+const { fetchClaudeQuota, invalidateQuotaCache, resetQuotaPollFloor } = quota;
+// The notice's memory moved to quota-cli.mjs with the run that says it.
+// @ts-expect-error — a plain .mjs module, no types
+const { forgetQuotaFailureNotice } = await import("../../server/quota-cli.mjs");
 
 // Nothing here talks to a network, and a test that quietly did would be a test
 // whose result depends on the machine it ran on.
@@ -172,7 +175,7 @@ describe("a Claude Code that is there and answering badly", () => {
 
   it("still reads the quota lines when the CLI prints them and then exits non-zero", async () => {
     // The other half, and the reason the gate is on the FALLBACK rather than
-    // on the parse: _execOnce keeps the output either way on purpose, because
+    // on the parse: runUsageOnce keeps the output either way on purpose, because
     // the quota lines can be on stdout with a non-zero exit. Numbers that were
     // actually printed must still win.
     world.reply = {

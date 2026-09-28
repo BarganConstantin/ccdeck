@@ -34,7 +34,7 @@ import { join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
 import { candidateSpec, candidates, looksMissing, run, runInteractive } from "../../server/exec.mjs";
 // @ts-expect-error — .mjs server module, no types
-import { quotaClaudeBin } from "../../server/quota.mjs";
+import { quotaClaudeBin } from "../../server/quota-cli.mjs";
 // @ts-expect-error — plain JS module, no types
 import { upgradeSpec } from "../../server/self-update.mjs";
 

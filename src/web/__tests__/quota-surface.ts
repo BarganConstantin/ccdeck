@@ -26,6 +26,7 @@ export const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url
 export const QUOTA_FILES = [
   "quota.mjs",
   "quota-shape.mjs",
+  "quota-cli.mjs",
 ] as const;
 
 let joined: string | null = null;
