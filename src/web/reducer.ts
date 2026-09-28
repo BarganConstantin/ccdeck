@@ -3,7 +3,7 @@ import { bareModelId } from "./model-id";
 import { salientInput } from "./tool-input";
 import { injectedPrompt } from "./injected-prompt";
 import { looksLikeId, readableBasename } from "./readable-name";
-import { cacheTtlSplit, emptyUsage, extractUsage, usageByModelFromWire } from "./usage-wire";
+import { emptyUsage, extractUsage, usageByModelFromWire, usageFromWire } from "./usage-wire";
 import type { AgentNodeData, BlockedTool, ContextBreakdown, HookEnvelope, HookPayload, ToolCall, WaitingBlock } from "./types";
 
 // NOTHING IN THIS FILE ADDS TOKENS TO AN AGENT ANY MORE, and that is the point
@@ -1819,33 +1819,14 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     if (u) {
       const root = state.agents.get(sessionId);
       if (root) {
-        // Codex emits `cached_input_tokens` (single underscore); Claude
-        // transcripts use `cache_read_input_tokens` / `cache_creation_…`.
-        // Accept both shapes — whichever provider's reader emitted this.
-        //
-        // The cache-WRITE line took both spellings only from #400 on. Codex has
-        // carried `cache_write_input_tokens` in every `total_token_usage` object
-        // this machine holds, and it arrives here verbatim from the rollout, but
-        // the read below asked for Claude's spelling alone and so dropped it —
-        // which mattered because gpt-5.6 is the first OpenAI family to publish a
-        // separate cache-write price ($6.25/Mtok on sol), and a rate with no
-        // token count to multiply is a line item pinned at $0.00 forever.
-        root.usage.inputTokens = Number(u.input_tokens ?? 0);
-        root.usage.outputTokens = Number(u.output_tokens ?? 0);
-        root.usage.cacheReadTokens = Number(
-          u.cache_read_input_tokens ?? u.cached_input_tokens ?? 0,
-        );
-        root.usage.cacheCreateTokens = Number(
-          u.cache_creation_input_tokens ?? u.cache_write_input_tokens ?? 0,
-        );
         // Overwrite, not merge: these are cumulative totals for the whole
-        // transcript, so a pass that saw no split must clear a stale one.
-        const ttl = cacheTtlSplit(u);
-        root.usage.cacheCreate1hTokens = ttl.cacheCreate1hTokens;
-        root.usage.cacheCreate5mTokens = ttl.cacheCreate5mTokens;
-        if (typeof u.reasoning_output_tokens === "number") {
-          root.usage.reasoningOutputTokens = Number(u.reasoning_output_tokens);
-        }
+        // transcript, so a pass that saw no split must clear a stale one. The
+        // same read as each per-model bucket below, both spellings of the cache
+        // lines included — see `usageFromWire`. Assigned into the node's own
+        // object rather than replacing it, and `reasoningOutputTokens` is only
+        // written when the wire carries it, exactly as the field-by-field read
+        // this replaced did.
+        Object.assign(root.usage, usageFromWire(u));
         // The same totals, split by the model that produced them (#686). The
         // flat bucket above answers "how many tokens"; this answers "at whose
         // rate", and until this landed the second question was answered with
@@ -1853,7 +1834,7 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
         // its whole history re-priced at whichever model wrote its final line.
         //
         // Assigned unconditionally, null included, for exactly the reason the
-        // TTL split two lines up is: both are cumulative descriptions of the
+        // TTL split above is: both are cumulative descriptions of the
         // whole file, so a pass that carries no split is saying there is none,
         // not that the previous one still stands. An `undefined` map sends every
         // cost surface back to the single-model arithmetic, which is what a
