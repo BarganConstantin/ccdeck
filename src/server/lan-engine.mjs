@@ -1245,12 +1245,12 @@ export function createEngine({
    * their turn in one line, above. A round joins only another whole round,
    * never a check: joining a check would answer "ask every deck" with one
    * deck's work and leave the rest waiting another minute.
+   *
+   * NEVER A ROUND FROM A SESSION THAT ENDED. LAN switched off and on again
+   * while one ran: that round stops at its next peer and reports nothing, so
+   * joining it would answer the new session's first tick with nothing and
+   * leave every deck unasked for a whole SYNC_MS. The new one queues behind it.
    */
-  //
-  // NEVER A ROUND FROM A SESSION THAT ENDED. LAN switched off and on again
-  // while one ran: that round stops at its next peer and reports nothing, so
-  // joining it would answer the new session's first tick with nothing and
-  // leave every deck unasked for a whole SYNC_MS. The new one queues behind it.
   const round = () => {
     if (_round && _roundIn === session) return _round;
     _roundIn = session;
