@@ -513,11 +513,11 @@ export function createSyncServer({
         if (declined(peerFp)) return refuse("declined");
         // AN INVITE-ONLY DECK, and this caller holds no live invite of it (a
         // caller that did was paired above, and one that got it wrong was
-        // refused). Answered rather than queued: the engine
-        // records no request in this mode, so "pending" would leave the other
-        // deck's panel saying "waiting for them to say yes" about a question
-        // nobody here will ever see. After "declined", which is the more
-        // specific answer about this one deck.
+        // refused). Answered rather than queued: the engine records no
+        // request in this mode, so "pending" would leave the other deck's
+        // panel saying "waiting for them to say yes" about a question nobody
+        // here will ever see. After "declined", which is the more specific
+        // answer about this one deck.
         if (inviteOnly()) return refuse("invite only");
         // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
         // addresses it already had, because an invite-paired deck is one of
@@ -543,7 +543,7 @@ export function createSyncServer({
       // And ours, so the caller knows it reached the deck it pinned rather
       // than something standing in the way of one. No invite on this path: a
       // caller that held one was answered above, and a deck already on this
-      // list that brought none is simply a paired deck calling.
+      // list that holds no live one is simply a paired deck calling.
       welcome({});
     };
 
