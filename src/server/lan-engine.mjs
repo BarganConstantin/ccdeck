@@ -562,6 +562,9 @@ export function createEngine({
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
   const routeTo = addr => routeOf(tailnet?.snapshot?.() ?? null, addr);
+  /** The same answer by the name a row carries: "tailscale" for a tailnet
+   *  address, "lan" for every other. */
+  const viaAt = addr => (routeTo(addr) ? "tailscale" : "lan");
 
   /** A pairing somebody explicitly removed. Unlike `declined`, this survives a
    * restart because the old dial row survives too; forgetting the decision
@@ -923,8 +926,8 @@ export function createEngine({
     [...lastRound.values()].some(r => r?.error === "waiting for the other deck to accept this one");
 
   /** How this deck reached that peer. A beacon row says so; a typed address is
-   *  read from the routing table, the way the peer list reads it. */
-  const viaOf = peer => peer.via ?? (routeTo(peer.addr) ? "tailscale" : "lan");
+   *  read from the routing table. The round and the peer list both ask this. */
+  const viaOf = peer => peer.via ?? viaAt(peer.addr);
 
   /** Checks the logins a round brought, once, and records any reason one is
    *  unusable here on its row. An unanswered check is not a failure. */
@@ -1361,7 +1364,7 @@ export function createEngine({
         id,
         // How it is reached. A heard row says which route its last beacon
         // took; a typed one is read from its address.
-        via: p.via ?? (routeTo(p.addr) ? "tailscale" : "lan"),
+        via: viaOf(p),
         // The fingerprint an unpair has to name. A typed row's own `fp` is
         // a placeholder built from its address and matches nothing.
         peerFp: p.manual ? met?.fp ?? null : p.fp,
@@ -1386,7 +1389,7 @@ export function createEngine({
         // panel draws as unknown rather than as live.
         lastSeen: spokeAt.get(t.fp),
         // Which way it called, once it has.
-        ...(spokeFrom.has(t.fp) ? { via: routeTo(spokeFrom.get(t.fp)) ? "tailscale" : "lan" } : {}),
+        ...(spokeFrom.has(t.fp) ? { via: viaAt(spokeFrom.get(t.fp)) } : {}),
         // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
         // of those it is on. The card was kept and never handed over, so
         // the dialog said "it runs an older version" about a deck that
