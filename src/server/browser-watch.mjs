@@ -629,6 +629,69 @@ async function coverageOf({ oldestVisitMs, lastHumanMs, quietMs, archived, now, 
 }
 
 /**
+ * Read one profile, and fold what the read found into what the profile has
+ * contributed since the deck started.
+ *
+ * This is the half of a poll #989 and #1131 were about — where a read starts,
+ * whether it counts, and where the next one starts — so it lives apart from
+ * what the snapshot does with the answer. Resolves to the read (real, cached,
+ * degraded, or overtaken and demoted to cached), the browser/profile key the
+ * accumulators are kept under, and the accumulator itself, already folded.
+ */
+async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude }) {
+  // From where this profile's last read finished, or from the deck's start
+  // on its first. The count is always taken above the deck's start, which
+  // is what makes it the running total noteRead's delta comes out of.
+  const floor = _floor.get(profile.historyPath) ?? sinceChromeTime;
+  let read = await visitsFor(profile, { sinceChromeTime: floor, countSince: sinceChromeTime, copyDir, deps });
+  // A READ THAT ANOTHER READ OVERTOOK IS NOT ABSORBED (#1131). One read in
+  // flight at a time is `fetchBrowserWatch`'s rule, and a forced read slipping
+  // past it is what counted five program pages as seven. This is the same
+  // rule where the floor is read and moved, so it holds for every caller: if
+  // the floor is not where it was when this read took it, another read of
+  // this profile finished meanwhile and absorbed the rows above it, which are
+  // the rows this one holds. Such a read is dropped whole and moves nothing.
+  // Its cache entry goes too, so a visit only it had seen is read on the next
+  // poll rather than whenever the browser next writes.
+  //
+  // ON THE FLOOR, NOT ON A VISIT ID. Rows carry no id, and giving them one
+  // means a second column in both backends' SELECT and a set of ids that
+  // either grows with every visit since boot — the retention #989 took out —
+  // or is pruned with the window and misses a copy older than it, which the
+  // first read after an afternoon with the panel shut returns. A row's time
+  // cannot stand in for an id either: `timeMs` is truncated to the
+  // millisecond while the floor is in microseconds, so two visits in one
+  // millisecond compare equal and the later is dropped as a copy of the
+  // first. The floor is exact, being the value every row of the read was
+  // selected against.
+  if (!read.cached && !read.degraded && (_floor.get(profile.historyPath) ?? sinceChromeTime) !== floor) {
+    cache.delete(profile.historyPath);
+    read = { ...read, rows: [], cached: true };
+  }
+  const key = `${profile.browser}/${profile.profile}`;
+  // Everything this profile has contributed since the deck started. A read
+  // that says "unchanged", or that could not be taken, means "as before", not
+  // "nothing": the list must not empty itself because one poll found the file
+  // untouched or the browser holding a lock.
+  const seen = _lastRead.get(key) ?? nothingSeen();
+  const judge = { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser };
+  if (!read.cached && !read.degraded) {
+    // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
+    // nothing new hands its floor back as the watermark, so storing that
+    // changes nothing.
+    _floor.set(profile.historyPath, read.watermark);
+    absorb(seen, read.rows, judge);
+    _lastRead.set(key, seen);
+  } else {
+    // Nothing read, and the gate may still have changed since the open
+    // verdicts were judged: `?quiet=` overrides it per request and drops no
+    // cache. `absorb` does nothing unless it has.
+    absorb(seen, [], judge);
+  }
+  return { read, key, seen };
+}
+
+/**
  * Everything the panel draws, in one object.
  *
  * `deckOrigins` are the addresses this deck is listening on. They are excluded
@@ -745,56 +808,8 @@ export async function browserWatchSnapshot({
   let lastHuman = null;
 
   for (const profile of profiles) {
-    // From where this profile's last read finished, or from the deck's start
-    // on its first. The count is always taken above the deck's start, which
-    // is what makes it the running total noteRead's delta comes out of.
-    const floor = _floor.get(profile.historyPath) ?? sinceChromeTime;
-    let read = await visitsFor(profile, { sinceChromeTime: floor, countSince: sinceChromeTime, copyDir, deps });
-    // A READ THAT ANOTHER READ OVERTOOK IS NOT ABSORBED (#1131). One read in
-    // flight at a time is `fetchBrowserWatch`'s rule, and a forced read slipping
-    // past it is what counted five program pages as seven. This is the same
-    // rule where the floor is read and moved, so it holds for every caller: if
-    // the floor is not where it was when this read took it, another read of
-    // this profile finished meanwhile and absorbed the rows above it, which are
-    // the rows this one holds. Such a read is dropped whole and moves nothing.
-    // Its cache entry goes too, so a visit only it had seen is read on the next
-    // poll rather than whenever the browser next writes.
-    //
-    // ON THE FLOOR, NOT ON A VISIT ID. Rows carry no id, and giving them one
-    // means a second column in both backends' SELECT and a set of ids that
-    // either grows with every visit since boot — the retention #989 took out —
-    // or is pruned with the window and misses a copy older than it, which the
-    // first read after an afternoon with the panel shut returns. A row's time
-    // cannot stand in for an id either: `timeMs` is truncated to the
-    // millisecond while the floor is in microseconds, so two visits in one
-    // millisecond compare equal and the later is dropped as a copy of the
-    // first. The floor is exact, being the value every row of the read was
-    // selected against.
-    if (!read.cached && !read.degraded && (_floor.get(profile.historyPath) ?? sinceChromeTime) !== floor) {
-      cache.delete(profile.historyPath);
-      read = { ...read, rows: [], cached: true };
-    }
+    const { read, key, seen } = await readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude });
     if (read.degraded) anyDegraded = true;
-    const key = `${profile.browser}/${profile.profile}`;
-    // Everything this profile has contributed since the deck started. A read
-    // that says "unchanged", or that could not be taken, means "as before", not
-    // "nothing": the list must not empty itself because one poll found the file
-    // untouched or the browser holding a lock.
-    const seen = _lastRead.get(key) ?? nothingSeen();
-    const judge = { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser };
-    if (!read.cached && !read.degraded) {
-      // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
-      // nothing new hands its floor back as the watermark, so storing that
-      // changes nothing.
-      _floor.set(profile.historyPath, read.watermark);
-      absorb(seen, read.rows, judge);
-      _lastRead.set(key, seen);
-    } else {
-      // Nothing read, and the gate may still have changed since the open
-      // verdicts were judged: `?quiet=` overrides it per request and drops no
-      // cache. `absorb` does nothing unless it has.
-      absorb(seen, [], judge);
-    }
     const findings = seen.settled.concat(seen.open);
     const { oldest, human, byProgram } = seen;
     noteRead(profile, key, read, findings, now);
