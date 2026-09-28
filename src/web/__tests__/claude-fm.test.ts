@@ -45,6 +45,9 @@ const css = code("../styles.css");
 const component = code("../components/ClaudeFm.tsx");
 const probeSrc = code("../../server/claude-fm.mjs");
 const server = code("../../server/index.mjs");
+// The route's own module, since the music routes left index.mjs. The route
+// table stays in index.mjs, so a count of callers reads both.
+const routes = code("../../server/music-routes.mjs");
 const app = code("../App.tsx");
 
 /** A page shaped like the one YouTube serves for `/channel/<id>/live`. */
@@ -414,20 +417,20 @@ describe("absent, not broken", () => {
   });
 
   it("lets a deck refuse to contact YouTube at all", () => {
-    expect(server).toContain('process.env.AGENTS_DECK_NO_MUSIC === "1"');
+    expect(routes).toContain('process.env.AGENTS_DECK_NO_MUSIC === "1"');
     // The off switch answers the same shape an off-air channel does, so it
     // needs no second code path on the canvas.
-    expect(server).toContain("{ ok: true, live: false, off: true }");
+    expect(routes).toContain("{ ok: true, live: false, off: true }");
   });
 
   it("can be pointed at another channel without a release", () => {
-    expect(server).toContain("process.env.AGENTS_DECK_FM_CHANNEL");
+    expect(routes).toContain("process.env.AGENTS_DECK_FM_CHANNEL");
   });
 
   it("makes no request of its own accord", () => {
     // No boot probe and no timer: a deck nobody has opened calls youtube.com
     // zero times. The route is the only caller.
-    expect(server.match(/fetchClaudeFm\(/g) ?? []).toHaveLength(1);
+    expect((server + routes).match(/fetchClaudeFm\(/g) ?? []).toHaveLength(1);
     expect(probeSrc).not.toMatch(/setInterval|setTimeout\(/);
   });
 

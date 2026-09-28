@@ -65,6 +65,8 @@ import { OVERSIZE_DRAIN_MS, readBody, send } from "./http-io.mjs";
 import { CHECKS_IMPORTS, cswapAdminModule, cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
+// The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
+import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl } from "./music-routes.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -329,39 +331,6 @@ export function payloadChars(raw) {
     }
   }
   return n;
-}
-
-async function handleLiveRadioMix(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
-    return send(res, 200, { ok: true, live: false, off: true });
-  }
-
-  const { fetchLiveRadioMix } = await import(
-    pathToFileURL(join(PKG_ROOT, "src/server/live-radio-mix.mjs")).href
-  );
-  const answer = await fetchLiveRadioMix();
-  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Radio Mix is not live" });
-}
-
-async function handleBestOfNostalgia(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
-  const { fetchBestOfNostalgia } = await import(pathToFileURL(join(PKG_ROOT, "src/server/best-of-nostalgia.mjs")).href);
-  const answer = await fetchBestOfNostalgia();
-  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Best of Nostalgia is not live" });
-}
-
-async function handleGoodLifeRadio(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
-  const { fetchGoodLifeRadio } = await import(pathToFileURL(join(PKG_ROOT, "src/server/good-life-radio.mjs")).href);
-  const answer = await fetchGoodLifeRadio();
-  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "The Good Life Radio is not live" });
-}
-
-async function handleCafeMusicBgm(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, live: false, off: true });
-  const { fetchCafeMusicBgm } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cafe-music-bgm.mjs")).href);
-  const answer = await fetchCafeMusicBgm();
-  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Cafe Music BGM is not live" });
 }
 
 // Where the charge rides. A Symbol key rather than an ordinary field, because
@@ -5530,90 +5499,6 @@ async function handleCodexUsage(req, res) {
   const force = url.searchParams.get("refresh") === "1";
   const usage = await fetchCodexUsage({ force });
   send(res, 200, usage);
-}
-
-/**
- * Whether Claude FM is broadcasting — the one question the canvas's music
- * control needs answered before it draws itself.
- *
- * NO REQUEST LEAVES THIS MACHINE UNTIL A PAGE ASKS FOR IT. There is no boot
- * probe and no timer behind this route: a deck nobody has opened calls
- * youtube.com zero times, and the first canvas to mount answers every other one
- * for the next ten minutes out of claude-fm.mjs's cache.
- *
- * Two environment variables, in the shape the notification and LAN switches
- * already use (deck-prefs.mjs names both):
- *
- *   AGENTS_DECK_NO_MUSIC=1        this deck never contacts YouTube at all. The
- *                                 answer is a plain no and the canvas draws
- *                                 nothing, which is the same thing it does when
- *                                 the channel is off air — so the off switch
- *                                 needs no second code path to test.
- *   AGENTS_DECK_FM_CHANNEL=UC...  play a different channel's live stream. The
- *                                 built-in one is a channel id rather than a
- *                                 video id precisely so it does not go stale,
- *                                 but a channel can be renamed, retired or
- *                                 handed over, and a deck that can be pointed
- *                                 elsewhere in one line does not need a release
- *                                 to keep working. Anything that is not a
- *                                 well-formed channel id is ignored rather than
- *                                 fetched.
- */
-async function handleClaudeFm(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
-    return send(res, 200, { ok: true, live: false, off: true });
-  }
-  const { fetchClaudeFm } = await import(
-    pathToFileURL(join(PKG_ROOT, "src/server/claude-fm.mjs")).href
-  );
-  const url = new URL(req.url, "http://localhost");
-  const answer = await fetchClaudeFm({
-    force: url.searchParams.get("refresh") === "1",
-    channel: process.env.AGENTS_DECK_FM_CHANNEL,
-  });
-  send(res, 200, answer);
-}
-
-/**
- * A custom station's YouTube link, resolved to the channel and video the
- * embed plays (#1208). fm-station.mjs rebuilds the request from the parsed
- * link rather than fetching it as given, and caches the answer.
- *
- * AGENTS_DECK_NO_MUSIC is the promise that this deck never contacts YouTube,
- * and a station somebody added is not an exception to it: the answer is the
- * same plain no /api/claude-fm gives, and the canvas draws nothing for it.
- */
-async function handleFmStation(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
-    return send(res, 200, { ok: false, off: true });
-  }
-  const url = new URL(req.url, "http://localhost");
-  const stationUrl = url.searchParams.get("url") ?? "";
-  const { parseYouTubeStationUrl, resolveYouTubeStation } = await import(
-    pathToFileURL(join(PKG_ROOT, "src/server/fm-station.mjs")).href
-  );
-  if (!parseYouTubeStationUrl(stationUrl)) {
-    return send(res, 400, { ok: false, error: "unsupported_url" });
-  }
-  const answer = await resolveYouTubeStation(stationUrl);
-  send(res, answer.ok ? 200 : 404, answer);
-}
-
-async function handleLofiGirl(req, res) {
-  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
-    return send(res, 200, { ok: true, live: false, off: true });
-  }
-  const url = new URL(req.url, "http://localhost");
-  const station = url.searchParams.get("station");
-  if (!["relax", "game", "vibe", "sleep"].includes(station)) {
-    return send(res, 400, { ok: false, error: "unknown Lofi Girl station" });
-  }
-  const { fetchLofiStations } = await import(
-    pathToFileURL(join(PKG_ROOT, "src/server/lofi-girl.mjs")).href
-  );
-  const stations = await fetchLofiStations();
-  const answer = stations[station];
-  send(res, answer ? 200 : 404, answer ?? { ok: false, error: "station is not live" });
 }
 
 async function handleCodexQuota(req, res) {
