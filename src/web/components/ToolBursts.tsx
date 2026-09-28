@@ -37,7 +37,7 @@ interface ToolBurstsProps {
   hiddenCategories?: Set<ToolCategory>;
   now: number;
   /** Open the existing ToolModal for the given tool id. */
-  onOpenTool?: (toolId: string) => void;
+  onOpenTool?: (agentId: string, toolId: string) => void;
 }
 
 export default function ToolBursts({ agents, visibleAgentIds, positions, pinned, measured, spotlight, hiddenCategories, now, onOpenTool }: ToolBurstsProps) {
@@ -67,7 +67,7 @@ export default function ToolBursts({ agents, visibleAgentIds, positions, pinned,
 interface BurstLayerProps {
   bursts: Burst[];
   spotlight?: Set<string> | null;
-  onOpenTool?: (toolId: string) => void;
+  onOpenTool?: (agentId: string, toolId: string) => void;
 }
 
 /** The part that genuinely depends on the camera: bursts carry world-space
@@ -136,7 +136,7 @@ interface BubbleProps {
   y: number;
   zoom: number;
   dim: boolean;
-  onOpenTool?: (toolId: string) => void;
+  onOpenTool?: (agentId: string, toolId: string) => void;
 }
 
 /** What a bubble draws, value by value (#873). `collectBursts` builds a fresh
@@ -206,7 +206,7 @@ const Bubble = memo(function Bubble({ b, x, y, zoom, dim, onOpenTool }: BubblePr
               className={`tool-burst cat-${b.category}${b.mcpHue != null ? " mcp-hue" : ""} status-${b.status}${b.fading ? " fading" : ""}${clickable ? " clickable" : ""}${b.isSub ? " sub" : ""}${dimClass}`}
               style={innerStyle}
               title={title}
-              onClick={clickable ? () => onOpenTool!(b.toolId) : undefined}
+              onClick={clickable ? () => onOpenTool!(b.agentId, b.toolId) : undefined}
             >
               <span className="tb-emoji">{b.emoji}</span>
               <span className="tb-name">{b.name}</span>

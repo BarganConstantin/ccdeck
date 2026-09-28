@@ -31,7 +31,8 @@ export default function Detail({
 }: {
   agent: AgentNodeData;
   now: number;
-  onOpenTool: (toolId: string) => void;
+  /** Opens the tool modal on one of this agent's calls, named by both (#1483). */
+  onOpenTool: (agentId: string, toolId: string) => void;
   onShowSummary?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onRemove?: () => void;
@@ -266,7 +267,7 @@ export default function Detail({
         {agent.tools.length === 0 && <div className="empty">No tool calls yet.</div>}
         <div>
           {agent.tools.slice().reverse().map(t => (
-            <ToolRow key={t.id} t={t} onClick={() => onOpenTool(t.id)} />
+            <ToolRow key={t.id} t={t} onClick={() => onOpenTool(agent.id, t.id)} />
           ))}
         </div>
       </section>

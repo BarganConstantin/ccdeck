@@ -306,7 +306,7 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
   });
 
   it("leaves the mouse exactly where it was", () => {
-    expect(bursts).toMatch(/onClick=\{clickable \? \(\) => onOpenTool!\(b\.toolId\) : undefined\}/);
+    expect(bursts).toMatch(/onClick=\{clickable \? \(\) => onOpenTool!\(b\.agentId, b\.toolId\) : undefined\}/);
     expect(bursts).toMatch(/\$\{clickable \? " clickable" : ""\}/);
     expect(css).toMatch(/\.tool-burst\.clickable:hover \{/);
   });
@@ -319,7 +319,7 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
     // This is what makes decoration the right answer rather than the other one:
     // the tools are already a keyboard-reachable, ordered, announced list.
     expect(app).toMatch(/<button className="tool clickable"/);
-    expect(app).toMatch(/<ToolRow key=\{t\.id\}[^>]*onClick=\{\(\) => onOpenTool\(t\.id\)\}/);
+    expect(app).toMatch(/<ToolRow key=\{t\.id\}[^>]*onClick=\{\(\) => onOpenTool\(agent\.id, t\.id\)\}/);
   });
 });
 

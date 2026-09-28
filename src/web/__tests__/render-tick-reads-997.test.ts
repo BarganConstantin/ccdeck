@@ -93,10 +93,12 @@ function counted(m: Map<string, AgentNodeData>): { agents: Map<string, AgentNode
 describe("the open tool is found without building a list of the ones it is not", () => {
   it("returns the call, and null when the board does not have it", () => {
     const b = board(4, 5);
-    expect(findToolOnBoard(b, "a2-t3")?.id).toBe("a2-t3");
-    expect(findToolOnBoard(b, "a0-t0")?.id).toBe("a0-t0");
-    expect(findToolOnBoard(b, "nobody")).toBeNull();
-    expect(findToolOnBoard(new Map(), "a0-t0")).toBeNull();
+    expect(findToolOnBoard(b, "a2", "a2-t3")?.id).toBe("a2-t3");
+    expect(findToolOnBoard(b, "a0", "a0-t0")?.id).toBe("a0-t0");
+    expect(findToolOnBoard(b, "a2", "nobody")).toBeNull();
+    // Keyed on the agent too (#1483): another agent's call is not this one's.
+    expect(findToolOnBoard(b, "a1", "a2-t3")).toBeNull();
+    expect(findToolOnBoard(new Map(), "a0", "a0-t0")).toBeNull();
   });
 
   it("stops at the agent that owns the call instead of opening every one", () => {
@@ -105,42 +107,47 @@ describe("the open tool is found without building a list of the ones it is not",
     // looking at. The old form read `tools` off all 200 to build the flat array
     // before it compared a single id — 40,200 array entries written to answer a
     // question that was settled by the first.
+    // Since #1483 the lookup is handed the agent, so it opens that one and no
+    // other wherever it sits — the last agent on the board as cheaply as the first.
     const { agents, reads } = counted(board(200, 200));
-    expect(findToolOnBoard(agents, "a0-t199")?.id).toBe("a0-t199");
+    expect(findToolOnBoard(agents, "a0", "a0-t199")?.id).toBe("a0-t199");
+    expect(reads()).toBe(1);
+    expect(findToolOnBoard(agents, "a199", "a199-t0")?.id).toBe("a199-t0");
+    expect(reads()).toBe(2);
+  });
+
+  it("opens one agent at most, even when the board does not have the call", () => {
+    // A miss used to walk every agent: the ceiling was the ceiling. Keyed on the
+    // agent (#1483), a miss reads that agent's list and stops, and an agent that
+    // has left the board is not opened at all.
+    const { agents, reads } = counted(board(200, 200));
+    expect(findToolOnBoard(agents, "a7", "nobody")).toBeNull();
+    expect(reads()).toBe(1);
+    expect(findToolOnBoard(agents, "gone", "a0-t0")).toBeNull();
     expect(reads()).toBe(1);
   });
 
-  it("opens every agent only when the board really does not have the call", () => {
-    // The ceiling is still the ceiling — nothing here claims the walk is free,
-    // only that it is not paid up front. A miss is the one case that costs the
-    // same either way, and it is the case the modal cannot reach: `openedToolId`
-    // is set from a call that was on the board when it was clicked.
-    const { agents, reads } = counted(board(200, 200));
-    expect(findToolOnBoard(agents, "nobody")).toBeNull();
-    expect(reads()).toBe(200);
-  });
-
-  it("returns the FIRST match in agent order, which is what it replaced", () => {
-    // tool_use_id is a global key with no session scope (#1009, open), so two
-    // agents can hold a call under one id. `toolIndex` would answer this lookup
-    // in O(1) and would answer it with the NEWEST copy; the walk answers with
-    // the first in insertion order, which is what `Array.from(...).flatMap(...)
-    // .find(...)` did. Pinned so the index cannot be swapped in as a pure
-    // speed-up: it would be a different answer, and choosing between them is
-    // #1009's business rather than this one's.
+  it("answers with the named agent's own call when two agents share an id (#1483)", () => {
+    // tool_use_id is a key with no session scope, so two agents can hold a call
+    // under one id. The walk this replaced answered with the first in insertion
+    // order, which was the wrong call for every click on the other one (#1483).
+    // Handed the agent, each click gets its own. `toolIndex` is still not a
+    // substitute: it holds only the calls in flight, where the modal opens
+    // settled ones too.
     const m = new Map<string, AgentNodeData>();
     const first = { id: "dup", name: "Bash", startedAt: 1 } as ToolCall;
     const second = { id: "dup", name: "Read", startedAt: 2 } as ToolCall;
     m.set("older", { id: "older", tools: [first] } as AgentNodeData);
     m.set("newer", { id: "newer", tools: [second] } as AgentNodeData);
-    expect(findToolOnBoard(m, "dup")).toBe(first);
+    expect(findToolOnBoard(m, "older", "dup")).toBe(first);
+    expect(findToolOnBoard(m, "newer", "dup")).toBe(second);
   });
 
   it("is what App.tsx uses, with no flat copy left on the render path", () => {
     // The shape half. `openedTool` is computed in the render body and cannot be
     // gated on anything — `modalOpenRef` reads it on the next line — so the only
     // place the cost can be removed is the lookup itself.
-    expect(app).toMatch(/openedToolId \? findToolOnBoard\(stateRef\.current\.agents, openedToolId\) : null;/);
+    expect(app).toMatch(/openedToolKey \? findToolOnBoard\(stateRef\.current\.agents, openedToolKey\.agentId, openedToolKey\.toolId\) : null;/);
     expect(app).not.toMatch(/\.flatMap\(a => a\.tools\)/);
   });
 });

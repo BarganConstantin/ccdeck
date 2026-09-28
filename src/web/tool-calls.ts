@@ -51,22 +51,25 @@ export const MAX_TOOLS_PER_AGENT = 200;
  * second, to answer a question that stops at the first hit. Walking stops at the
  * agent that owns the call and allocates nothing.
  *
- * NOT `toolIndex`, which is O(1) but answers a different question. It holds
- * only the calls still in flight, where the modal opens settled ones too, and
- * since #1009 it is keyed on the session as well as the id — which this is not
- * handed, since the modal opens a call by its id alone. This returns the first
- * match in agent insertion order, as the walk it replaced did — which is the
- * wrong call when two sessions share an id (#1483, open).
+ * NOT `toolIndex`, which is O(1) but answers a different question: it holds
+ * only the calls still in flight, where the modal opens settled ones too.
+ *
+ * KEYED ON THE AGENT AS WELL AS THE ID (#1483). A tool_use_id is only unique
+ * within one session — Codex forwards the rollout's own call_id, and nothing
+ * keeps two sessions' ids apart — so a walk that returned the first call on the
+ * board with the clicked id opened another session's call whenever two shared
+ * one; #1009 had fixed the same collision in the in-flight index. Both places
+ * that open the modal know whose call they are showing (a bubble carries its
+ * agent, the detail panel lists one agent's calls), so the modal is opened by
+ * both, and the lookup reads that one agent's list and no other. A call whose
+ * agent has left the board is not found at all, and the modal closes rather
+ * than showing somebody else's.
  *
  * Here rather than in App.tsx also so it can be measured without a DOM — the
  * same reason `usage-range.ts` gives for living outside its component.
  */
-export function findToolOnBoard(agents: Map<string, AgentNodeData>, id: string): ToolCall | null {
-  for (const a of agents.values()) {
-    const hit = a.tools.find(t => t.id === id);
-    if (hit) return hit;
-  }
-  return null;
+export function findToolOnBoard(agents: Map<string, AgentNodeData>, agentId: string, id: string): ToolCall | null {
+  return agents.get(agentId)?.tools.find(t => t.id === id) ?? null;
 }
 
 /** How many of those retained calls keep their full `tool_input` /
