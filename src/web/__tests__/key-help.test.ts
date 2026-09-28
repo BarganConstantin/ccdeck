@@ -192,14 +192,18 @@ describe("the sound switch, which had a control and no key", () => {
     // stopped toggling — it opens the menu — so the two routes to the switch
     // are now M and the menu's own control, and both still land on toggleSound.
     // A second setter, on either of them, is what this refuses.
+    // The switch itself lives in use-sound-switch.ts; the key and the menu's
+    // control that reach it stay in App.tsx. The door is the two together.
+    const door = app + "\n" + read("use-sound-switch.ts");
     expect(app).toMatch(/activateSoundRef\.current\(e\.shiftKey\)/);
-    expect(app).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
+    expect(door).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
     expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
     // Two writers of the flag and no more: the effect that reads the stored
     // value back on mount, and the toggle itself. A third would be a second
-    // door — the exact thing this case exists to refuse.
-    expect([...app.matchAll(/setSoundOn\(/g)]).toHaveLength(2);
-    expect(app).toMatch(/const toggleSound = useCallback\(\(\) => \{\s*\n\s*setSoundOn\(prev => \{/);
+    // door — the exact thing this case exists to refuse. Counted across both
+    // files, so a writer added back to App.tsx is a third, not a first.
+    expect([...door.matchAll(/setSoundOn\(/g)]).toHaveLength(2);
+    expect(door).toMatch(/const toggleSound = useCallback\(\(\) => \{\s*\n\s*setSoundOn\(prev => \{/);
   });
 
   it("keeps a one-press route to silence now that the click opens a menu", () => {
