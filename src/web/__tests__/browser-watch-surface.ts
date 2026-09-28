@@ -28,6 +28,8 @@ export const BROWSER_WATCH_FILES = [
   "components/BrowserWatchProfiles.tsx",
   "components/BrowserWatchFindings.tsx",
   "components/BrowserWatchFeed.tsx",
+  "components/BrowserWatchSettings.tsx",
+  "components/BrowserWatchStatus.tsx",
 ] as const;
 
 let joined: string | null = null;
