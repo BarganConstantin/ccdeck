@@ -274,7 +274,7 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockedKeys, liveSince]);
 
-  /** The notifications half of the one /api/prefs read App.tsx makes. */
+  /** The notifications half of the one /api/prefs read — use-prefs-read.ts. */
   const loadNotifyPrefs = useCallback((d: NotifyPrefsAnswer) => {
     setNotifyOn(d.prefs?.notifications === true);
     setNotifyVetoed(d.notificationsVetoed === true);

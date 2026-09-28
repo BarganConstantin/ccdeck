@@ -35,8 +35,8 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
 
   // Everything "Remove node" has taken off the board: the removed agents, what
   // descends from them, and every agent of a removed session. Worked out once
-  // and subtracted from BOTH layoutSig and visibleAgentIds in App.tsx, so the
-  // cards, the tool bubbles and the layout drop a removed agent together.
+  // and subtracted from BOTH layoutSig and visibleAgentIds (use-board-graph.ts),
+  // so the cards, the tool bubbles and the layout drop a removed agent together.
   const removedAgentIds = useMemo(
     () => removalHiddenIds(stateRef.current.agents.values(), removedNodes),
     [stateRef.current, stateRef.current.revision, removedNodes],

@@ -861,8 +861,10 @@ describe("how App.tsx wires it up", () => {
 
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
-    // stray "c" would reach Clear behind it.
-    expect(app).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
+    // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's;
+    // App.tsx hands it the notes.
+    expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
+    expect(app).toMatch(/useModalGate\(\{[^}]*\breleaseNotes\b/);
   });
 
   it("opens the browse route with nothing marked seen, so it shows everything", () => {
@@ -924,8 +926,10 @@ describe("how App.tsx wires it up", () => {
     // first, so a tour opened by hand from the empty canvas never replays them.
     expect(app).toMatch(/const held = notesAfterTour\.current;\s*notesAfterTour\.current = null;\s*if \(held\) setReleaseNotes\(held\);/);
     // And the tour is a dialog like the rest: the canvas shortcuts are gated
-    // while it is up, and the empty canvas is the way back to it.
-    expect(app).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
+    // while it is up, and the empty canvas is the way back to it. The gate is
+    // use-modal-gate.ts's; App.tsx hands it the tour's flag.
+    expect(src("../use-modal-gate.ts")).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
+    expect(app).toMatch(/useModalGate\(\{[^}]*\btourOpen\b/);
     expect(app).toMatch(/<GuideModal title="What the deck shows you" steps=\{WELCOME_STEPS\}/);
     expect(app).toMatch(/className="btn empty-tour" onClick=\{onTour\}/);
   });

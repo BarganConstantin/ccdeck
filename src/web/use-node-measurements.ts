@@ -95,3 +95,16 @@ export function useNodeMeasurements(draggingRef: MutableRefObject<boolean>) {
 
   return { measuredRef, measuredVersionRef, sizeVersion, domSizeVersion };
 }
+
+/** Whether the cards have had time to mount and measure: false for the page's
+ *  first 2.5s, then true for good. Moved out of App.tsx unchanged, and called
+ *  there where it was; the layout and the reframe hold back until it is. */
+export function useSettled(): boolean {
+  // Sizes only mean something once the cards have all mounted and measured.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSettled(true), 2500);
+    return () => window.clearTimeout(t);
+  }, []);
+  return settled;
+}

@@ -1,9 +1,7 @@
-import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   MiniMap,
-  type Edge,
-  type Node,
   ReactFlowProvider,
   useReactFlow,
 } from "reactflow";
@@ -23,7 +21,6 @@ import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { snapshotToFlow, type FlowNodeData } from "./canvas-flow";
 import { exportFileName, sessionExport } from "./session-export";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
@@ -32,13 +29,8 @@ import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
-import {
-  customFmId, customFmSelection,
-} from "./fm-stations";
+import { customFmSelection } from "./fm-stations";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
-import { clearActionFor, type ClearSource } from "./clear-confirm";
-import { sweepTick } from "./prune";
-import { visibleBoard } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -49,19 +41,19 @@ import { useAgentFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
+import { useBoardGraph, useLayoutSig } from "./use-board-graph";
 import { useAutoFit } from "./use-auto-fit";
-import { layoutSignature } from "./layout-signature";
 import { useRemovalCallBacks, useRemovals } from "./use-removals";
 import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
 import { useCanvasClicks } from "./use-canvas-clicks";
 import { useCanvasSize } from "./use-canvas-size";
-import { useNodeMeasurements } from "./use-node-measurements";
+import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { clearStoredLayout } from "./layout-storage";
 import { isCanvasNodeElement } from "./canvas-node-element";
+import { releasePointerFocus } from "./canvas-pointer-focus";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
@@ -77,7 +69,6 @@ import DragTrashZone from "./components/DragTrashZone";
 import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
 import OldNameBanner from "./components/OldNameBanner";
-import { spotlightUnion } from "./spotlight";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -93,17 +84,18 @@ import { useLeftColumn } from "./use-left-column";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { useModalGate } from "./use-modal-gate";
+import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
+import { usePrefsRead } from "./use-prefs-read";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { readStored, writeStored } from "./storage";
 import { PRODUCT } from "./brand";
 import { blockedSessions } from "./ambient-counts";
-import { canAsk } from "./notify";
-import type { NotifyPermission } from "./notify";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
@@ -112,8 +104,6 @@ const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { computeVisibleIds } from "./visibility";
-import { sessionGroupNodes } from "./session-group-nodes";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
 import { shouldAnimateViewport } from "./viewport-motion";
@@ -121,46 +111,15 @@ import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
-import {
-  readDesktopUpdate,
-  readyDesktopUpdate,
-  UPDATE_RESTART_WAIT_MS,
-  updateRestartFailureText,
-  updateRestartRefusal,
-  type DesktopUpdateState,
-  type UpdateRestartFailure,
-} from "./desktop-update";
-import { useRecapNotesVersion } from "./recap-note";
-import type { Providers } from "./providers";
+import { updateRestartFailureText } from "./desktop-update";
 import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./chime-player";
-import type { AgentNodeData, ToolCall } from "./types";
+import type { ToolCall } from "./types";
 
 const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
-
-/** What a mouse press can put focus on: the elements the browser looks for,
- *  walking up from whatever was pressed, when it decides where a click's focus
- *  goes. Written out here because releasePointerFocus has to predict that walk
- *  before the browser makes it — a press whose nearest candidate is the canvas
- *  itself is one the canvas should not answer (#434).
- *
- *  `[tabindex]` is the entry that makes the rule work at all: <main> carries
- *  tabindex="-1" for the skip link, which is exactly what puts it in this list.
- *  The disabled controls are excluded because the browser skips them too and
- *  keeps walking — a click on a disabled button lands its focus on the nearest
- *  enabled ancestor, which on this canvas is <main>. */
-const FOCUS_CANDIDATES = [
-  "a[href]",
-  "button:not(:disabled)",
-  "input:not(:disabled)",
-  "select:not(:disabled)",
-  "textarea:not(:disabled)",
-  "summary",
-  "[tabindex]",
-].join(",");
 
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
@@ -280,9 +239,6 @@ function Inner() {
    *  clicking the donut on the session's root node. */
   const [contextFor, setContextFor] = useState<string | null>(null);
   const openContext = useCallback((sid: string) => setContextFor(sid), []);
-  /** Whether the Clear confirmation is up. Clear truncates the server's event
-   *  log, so nothing destructive happens until this dialog is answered. */
-  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   /** Whether the shortcuts sheet is up. Deliberately not persisted: it is a
    *  reference someone reaches for and closes again, and a deck that reopened
    *  it on every refresh would be answering a question nobody asked twice. */
@@ -467,8 +423,7 @@ function Inner() {
   // from, the placeholders, the layout signature, the epoch R and the reframe
   // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
   const layout = useBoardLayout(fitLeft);
-  const { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
-          handleRelayout } = layout;
+  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout } = layout;
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -501,15 +456,12 @@ function Inner() {
 
   // What Remove node has taken off the board, the way back, and the sentence
   // that says so — use-removals.ts.
-  const { removedNodes, lastRemoval, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
+  const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
           bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
   // What the layout keys off: the visible, not-removed agents and their
-  // parents, plus the two size versions — layout-signature.ts.
-  const layoutSig = useMemo(
-    () => layoutSignature(stateRef.current.agents.values(), now, removedAgentIds, sizeVersion, domSizeVersion),
-    [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds],
-  );
+  // parents, plus the two size versions — use-board-graph.ts.
+  const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });
 
   // Stored whenever the arrangement's signature moves — use-board-layout.ts.
   useLayoutAutosave(layoutSig, layout);
@@ -522,84 +474,9 @@ function Inner() {
     autoFitDisabledRef, lastFitTimeRef, fitLeft,
   });
 
-  // Union spotlight set — lineage of every selected agent merged. Multi-
-  // select widens the spotlight without losing the "follow the chain"
-  // semantics for a single click.
-  const spotlightSet = useMemo<Set<string> | null>(
-    () => spotlightUnion(stateRef.current, selectedIds),
-    [stateRef.current, stateRef.current.revision, selectedIds],
-  );
-
-  // The visibility set drives BOTH the React Flow nodes prop and the
-  // burst overlay's render gate — single source of truth so the two
-  // can never disagree (which previously left orphan bursts on screen
-  // when an agent was filtered out via one path but not the other).
-  const visibleAgentIds = useMemo<Set<string>>(
-    () => {
-      const ids = computeVisibleIds(stateRef.current, now);
-      for (const id of removedAgentIds) ids.delete(id);
-      return ids;
-    },
-    [stateRef.current, stateRef.current.revision, now, removedAgentIds],
-  );
-
-  /** The pointer half of the skip link's focus target (#434).
-   *
-   *  `tabIndex={-1}` is on <main> so the skip link has somewhere to land, and
-   *  it buys a second thing nobody asked for: an element a MOUSE can focus. A
-   *  click on empty canvas parked focus on the canvas with nothing on screen to
-   *  say so, and the next keystroke — any keystroke, including the ones the
-   *  deck has no shortcut for — made the browser change its mind about
-   *  `:focus-visible` for the element that was already focused. Selectors 4
-   *  allows exactly that, and Chrome does it: the ring the skip link needs lit
-   *  up around the whole window on a press the user reads as re-layout or a
-   *  theme swap, and stayed until focus moved.
-   *
-   *  So the fix is here and not in the stylesheet, which cannot reach this.
-   *  `:focus-visible` is the browser's own judgement, re-made AFTER focus has
-   *  landed, so no selector can tell the two arrivals apart — CSS could only
-   *  overrule the ring with `outline: none`, and the sheet is allowed exactly
-   *  one of those (#368 pins the count, because a rule that quietly removes a
-   *  focus ring is how the search field lost its own). Dropping the ring
-   *  altogether is not on offer either: #381 put it there because landing
-   *  somewhere with no sign you landed is the failure the skip link exists to
-   *  fix. What is left is to take away the arrival that was never wanted. The
-   *  ring is untouched, and the one path that can still reach it is the
-   *  programmatic focus it was written for.
-   *
-   *  Capture phase, which is a measurement and not a preference: React Flow's
-   *  pan handler calls stopImmediatePropagation() on the pane's mousedown, so a
-   *  bubbling handler on <main> never sees the click that causes this at all.
-   *  Cancelling the default costs the canvas nothing — panning, node drags,
-   *  onPaneClick and the context menu all run off events of their own, and none
-   *  of them is a default action. */
-  const releasePointerFocus = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    // What the browser is about to focus: the nearest focus candidate at or
-    // above the press. <main> is one of them — that is what tabindex="-1"
-    // means — so a press that finds anything else found a real control, and a
-    // real control keeps the click-to-focus every other control on the page
-    // has. Asked with closest() rather than from a list of our own, because
-    // the browser's own answer is the one that has to be predicted here.
-    const target = e.target as Element | null;
-    if (!target?.closest || target.closest(FOCUS_CANDIDATES) !== e.currentTarget) return;
-    e.preventDefault();
-    // And the other half: clicking empty canvas has always been how the mouse
-    // puts focus down — canvas-keys.ts calls it the only route back to <body>
-    // that existed before Escape learned to release one. Cancelling the
-    // default focus on its own would leave the search box or a card still
-    // holding it, so the click would stop meaning what it has always meant.
-    (document.activeElement as HTMLElement | null)?.blur?.();
-  }, []);
-  // How big each session was last frame, so a session that fans out subagents
-  // can be told apart from one that merely re-rendered. Owned here rather than
-  // in layout.ts because it is memory, not geometry.
-  const prevSessionSizeRef = useRef<Map<string, { w: number; h: number }>>(new Map());
-  // Sizes only mean something once the cards have all mounted and measured.
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setSettled(true), 2500);
-    return () => window.clearTimeout(t);
-  }, []);
+  // Sizes only mean something once the cards have all mounted and measured —
+  // use-node-measurements.ts.
+  const settled = useSettled();
   const { bubbling, endBubble, onBubble } = useBubbleAnimation();
   // True for the length of any drag gesture. React Flow marks the node under
   // the cursor with .dragging, and the stylesheet drops its transition — but
@@ -636,31 +513,13 @@ function Inner() {
   const { railInsetRef, availableWidth, availableHeight } =
     useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown });
 
-  // Put away and brought back through recap-note.ts, and the note nodes are
-  // built from it: a × has to rebuild the canvas now, not on the next tick.
-  const recapNotesVersion = useRecapNotesVersion();
-
-  // Rebuilt on every render, drags included.
-  //
-  // Freezing it during a drag was tried and reverted: it looks like an obvious
-  // win — the rebuild is the most expensive thing here — but the node under the
-  // cursor then stopped moving until the mouse came up. React Flow is given
-  // `nodes` with no onNodesChange, so this array and React Flow's own store
-  // both believe they own positions, and holding this one still meant the
-  // stale one won. Anything done here has to keep the two in agreement.
-  const { nodes, edges } = useMemo(
-    () => {
-      const flow = snapshotToFlow(
-      stateRef.current, now, availableWidth, availableHeight, pinnedRef.current,
-      measuredRef.current, prevSessionSizeRef.current, onBubble, settled, dragging,
-      positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
-      selectedIds, spotlightSet, visibleAgentIds, openContext, historyReplayed,
-      restoredLayout.restored,
-      );
-      return visibleBoard(flow.nodes, flow.edges, removedNodes);
-    },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch, historyReplayed],
-  );
+  // Which agents are drawn and which are spotlit, and the arrays React Flow is
+  // handed, a drag in flight patched over them — use-board-graph.ts.
+  const { spotlightSet, visibleAgentIds, nodes, edges, allNodes } = useBoardGraph({
+    stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
+    layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
+    dragTick, dragPatchRef, dragMoveTick,
+  });
 
   // Re-column when the frame changes enough to change the answer, keeping what
   // the reader was looking at — use-reframe.ts.
@@ -670,47 +529,11 @@ function Inner() {
     measuredRef, stateRef, lastFocusRef, primarySelectedIdRef, focusAgentRef, autoFitDisabledRef,
   });
 
-  // Invisible per-session drag-handle nodes, one behind each session's cards;
-  // see session-group-nodes.ts.
-  const groupNodes = useMemo(() => sessionGroupNodes(nodes), [nodes]);
-
-  /**
-   * The array React Flow renders, with the in-flight drag applied on top.
-   *
-   * React Flow is given `nodes` without `onNodesChange`. That makes it fully
-   * controlled: it does not move nodes itself, it reports the position changes
-   * it would make and expects them to be applied. Nothing applied them, so the
-   * only thing that has ever moved a node here is this array being rebuilt —
-   * and that happens on the clock tick, four times a second.
-   *
-   * Hence the shape of the bug: a slow drag looked fine because four updates a
-   * second is enough to look continuous, and a fast one visibly stepped and
-   * trailed, because the gap between updates is however far the cursor got in
-   * 250ms.
-   *
-   * So the drag is applied here instead, on every pointer move: the base array
-   * is left to rebuild at its own pace, and the positions of the nodes being
-   * dragged are patched over it. A patch is one shallow copy per node, which
-   * is nothing next to rebuilding the graph from the event log — and it is the
-   * whole reason the previous two attempts failed. Both tried to make the
-   * rebuild happen less often, when the rebuild was the only thing moving the
-   * node; the node then did not move at all until the mouse came up.
-   */
-  const allNodes = useMemo(() => {
-    const base = [...groupNodes, ...nodes];
-    const patch = dragPatchRef.current;
-    if (!patch || patch.size === 0) return base;
-    return base.map(nd => {
-      const p = patch.get(nd.id);
-      return p ? { ...nd, position: p } : nd;
-    });
-  }, [groupNodes, nodes, dragMoveTick]);
-
   // `selected` is declared with the rail measurement further up this file,
   // which needs to know whether the detail panel is mounted.
 
   // The tool the modal is showing, found without building a list of the ones it
-  // is not (#997). In the render body and not skippable — `modalOpenRef` below
+  // is not (#997). In the render body and not skippable — the modal gate below
   // reads `openedTool != null` — so while the modal is open this runs on every
   // render, four times a second on an idle deck. What it must not do on that
   // tick is why the walk lives in the reducer; see findToolOnBoard.
@@ -720,54 +543,15 @@ function Inner() {
   // it is evicted the modal draws nothing, and the tick closes it (#781).
   const contextAgent = contextFor ? stateRef.current.agents.get(contextFor) : undefined;
 
-  const handleClear = useCallback(async () => {
-    try { await fetch("/api/clear", { method: "POST" }); } catch {}
-    stateRef.current = initialState();
-    pinnedRef.current.clear();
-    measuredRef.current.clear();
-    positionsRef.current.clear();
-    lastLayoutSigRef.current = "";
-    clearStoredLayout();
-    forgetRemovals();
-    clearSelection();
-    rerender();
-  }, [rerender, clearSelection, forgetRemovals]);
-
-
-
-
-  // The keydown listener below is registered once and must stay that way, so
-  // the gate reads what is on screen through refs rather than closing over it.
-  // Assigned during render, the way nodesRef is, so a keystroke in the same
-  // commit sees the dialogs that were just drawn.
-  const clearConfirmOpenRef = useMirroredRef(clearConfirmOpen);
-  // The same treatment for the shortcuts sheet, because `?` is a toggle and the
-  // gate below has to be able to tell "the sheet is the modal" from "a modal is
-  // open" — the first still answers `?`, the second must not stack a second one.
-  const keyHelpOpenRef = useMirroredRef(keyHelpOpen);
-  const modalOpenRef = useRef(false);
-  // The shortcuts sheet counts, for the reason clearActionFor gives: a clear
-  // prompt raised over another dialog is two things competing for one Escape.
-  // It cannot normally happen from the keyboard — the sheet holds focus and a
-  // focused control keeps its own keys — but a click on the sheet's own prose
-  // drops focus to <body>, and from there a stray "c" would reach Clear.
-  modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null
-    // The tour, for the same reason as the shortcuts sheet: a click on its
-    // caption drops focus to <body>, and from there a stray "c" reaches Clear.
-    || tourOpen
-    || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;
-
-  /** The single door to Clear. Both the toolbar button and the "c" shortcut
-   *  come through here, so the confirmation cannot hold for one and not the
-   *  other, and only the dialog's own button reaches handleClear. */
-  const requestClear = useCallback((source: ClearSource) => {
-    const action = clearActionFor(source, {
-      confirmOpen: clearConfirmOpenRef.current,
-      modalOpen: modalOpenRef.current,
-    });
-    if (action === "confirm") setClearConfirmOpen(true);
-    else if (action === "clear") { setClearConfirmOpen(false); handleClear(); }
-  }, [handleClear]);
+  // Whether a dialog is up that the keys must not reach past, and whether it
+  // is the shortcuts sheet — use-modal-gate.ts.
+  const { keyHelpOpenRef, modalOpenRef } = useModalGate({
+    openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
+  });
+  // Clear, the confirmation it waits on, and the one door to it — use-clear-flow.ts.
+  const { clearConfirmOpen, setClearConfirmOpen, requestClear } = useClearFlow({
+    stateRef, pinnedRef, measuredRef, positionsRef, lastLayoutSigRef, forgetRemovals, clearSelection, rerender, modalOpenRef,
+  });
 
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.
@@ -876,18 +660,9 @@ function Inner() {
   const { notifyPermission, notifySaid, notifyOn, notifyVetoed, toggleNotify,
           notifySupported, askForNotifications, loadNotifyPrefs }
     = useOsNotifications({ waitingSessions, liveSince, focusSession });
-  // One read of the deck's server-side prefs answers two switches, and each
-  // hook is handed its half: auto-update to loadAutoRestartPrefs, notifications
-  // to loadNotifyPrefs. Split, it would be two requests for one answer.
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/prefs").then(r => (r.ok ? r.json() : null)).then(d => {
-      if (!alive || !d?.ok) return;
-      loadAutoRestartPrefs(d);
-      loadNotifyPrefs(d);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
+  // One read of the deck's server-side prefs, each hook handed its half —
+  // use-prefs-read.ts.
+  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs });
 
   return (
     <div className="app">
@@ -1332,9 +1107,9 @@ function Inner() {
           What tabIndex={-1} must NOT do is make the canvas a thing the mouse
           focuses, which it also is by default and which lit the skip link's
           ring for every click on empty canvas one keystroke later (#434).
-          releasePointerFocus is where that half is taken back, and it has to be
-          the capture phase: React Flow stops the pane's mousedown dead before
-          it can bubble this far. */}
+          releasePointerFocus (canvas-pointer-focus.ts) is where that half is
+          taken back, and it has to be the capture phase: React Flow stops the
+          pane's mousedown dead before it can bubble this far. */}
       <main
         id="canvas"
         tabIndex={-1}
@@ -1351,7 +1126,7 @@ function Inner() {
            behalf lives inside this element — the pane, the Controls
            stack, the minimap — so one listener at the top of it covers the
            controls the deck mounts today and the ones it mounts next.
-           Capture, for the reason releasePointerFocus above is: React Flow
+           Capture, for the reason releasePointerFocus is: React Flow
            calls stopImmediatePropagation() on the pane's press, so a bubbling
            handler here would never see the gesture that matters most.
            Press AND release, because a Controls button only calls zoomIn() on

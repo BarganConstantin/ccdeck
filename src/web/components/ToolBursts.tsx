@@ -17,8 +17,8 @@ interface ToolBurstsProps {
   /** The full agents Map. */
   agents: Map<string, AgentNodeData>;
   /** The exact set of agent ids currently on the canvas (computed in
-   *  App.tsx via computeVisibleIds). Bursts only render for agents in this
-   *  set — guarantees burst visibility matches card visibility. */
+   *  use-board-graph.ts via computeVisibleIds). Bursts only render for agents
+   *  in this set — guarantees burst visibility matches card visibility. */
   visibleAgentIds: Set<string>;
   /** Same maps that feed ReactFlow's `nodes` prop. Reading from these means
    *  bursts and agents share a single source of truth for positions — they

@@ -101,24 +101,30 @@ describe("the canvas wiring (#1237)", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
   // The removal state and its operations are use-removals.ts's, which App.tsx calls.
   const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
+  // The layout signature, the visibility set and the nodes are use-board-graph.ts's,
+  // which App.tsx hands the removals.
+  const graph = readFileSync(fileURLToPath(new URL("../use-board-graph.ts", import.meta.url)), "utf8");
 
   it("works the removal out once, from the removed-node store", () => {
     expect(removals).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
   });
 
   it("subtracts it from the visibility set the cards AND the tool bubbles both gate on", () => {
-    const memo = /const visibleAgentIds = useMemo<Set<string>>\([\s\S]*?\n  \);/.exec(app)?.[0] ?? "";
+    expect(app).toMatch(/const \{ spotlightSet, visibleAgentIds, nodes, edges, allNodes \} = useBoardGraph\(\{[^}]*\bremovedAgentIds\b/);
+    const memo = /const visibleAgentIds = useMemo<Set<string>>\([\s\S]*?\n  \);/.exec(graph)?.[0] ?? "";
     expect(memo).toMatch(/for \(const id of removedAgentIds\) ids\.delete\(id\);/);
     expect(memo).toMatch(/removedAgentIds\],/);
     // The two readers of that set: the cards and the bubble overlay.
-    expect(app).toMatch(/selectedIds, spotlightSet, visibleAgentIds, openContext,/);
+    expect(graph).toMatch(/selectedIds, spotlightSet, visibleAgentIds, openContext,/);
     expect(app).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
   });
 
   it("keeps the layout signature in step with it, so the board reflows around a removal", () => {
-    // Two links: App.tsx's memo hands the removals to layoutSignature and
-    // recomputes when they change, and layoutSignature skips them.
-    const sig = /const layoutSig = useMemo\([\s\S]*?\n  \);/.exec(app)?.[0] ?? "";
+    // Three links: App.tsx hands the removals to useLayoutSig, its memo hands
+    // them to layoutSignature and recomputes when they change, and
+    // layoutSignature skips them.
+    expect(app).toMatch(/const layoutSig = useLayoutSig\(\{[^}]*\bremovedAgentIds\b/);
+    const sig = /const layoutSig = useMemo\([\s\S]*?\n  \);/.exec(graph)?.[0] ?? "";
     expect(sig).toMatch(/layoutSignature\(stateRef\.current\.agents\.values\(\), now, removedAgentIds, /);
     expect(sig).toMatch(/removedAgentIds\],\s*\);$/);
     const fn = readFileSync(fileURLToPath(new URL("../layout-signature.ts", import.meta.url)), "utf8");
@@ -506,6 +512,8 @@ describe("where Remove lives and what follows it", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
   // The removal state and its operations are use-removals.ts's, which App.tsx calls.
   const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
+  // Clear is use-clear-flow.ts's, which App.tsx hands forgetRemovals.
+  const clearFlow = readFileSync(fileURLToPath(new URL("../use-clear-flow.ts", import.meta.url)), "utf8");
   const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
   const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
@@ -559,8 +567,10 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("forgets the last removal on Clear", () => {
-    // Two links: Clear forgets the removals, and forgetting them drops the notice.
-    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
+    // Three links: App.tsx hands Clear the removals' forget, Clear forgets
+    // them, and forgetting them drops the notice.
+    expect(app).toMatch(/useClearFlow\(\{[^}]*\bforgetRemovals\b/);
+    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(clearFlow)?.[0] ?? "";
     expect(clear).toMatch(/forgetRemovals\(\);/);
     const forget = /const forgetRemovals = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(removals)?.[0] ?? "";
     expect(forget).toMatch(/setLastRemoval\(null\);/);
