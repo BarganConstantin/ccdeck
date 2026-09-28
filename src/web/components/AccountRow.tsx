@@ -9,16 +9,17 @@
 // on it, its trouble, the two numbers it rests on and the bars it opens to —
 // some two hundred and thirty lines of closure that only ever read the panel.
 //
-// Nothing here holds state. Every value is the panel's, handed in under the
-// name the closure used, and the two writes the row makes — opening its own
-// detail and dismissing a refusal — are callbacks the panel spells.
+// Nothing here holds state. Every value is the panel's, and what the panel's
+// state says about this row arrives already answered — whether its ⋯ is the
+// open one, the refusal a switch on it left, the note a swap left on it — so
+// the row never reads another account's part of that state. The writes it
+// makes are callbacks the panel spells.
 import { WarnGlyph } from "./AccountIssuePopover";
 import { accountIssue } from "../account-issue";
 import { ago, due } from "../account-freshness";
 import { type Failure } from "../accounts-reload";
 import { type SwapNote } from "../account-move";
 import { type Account, type Lane } from "../claude-accounts";
-import { laneKey } from "../lane-open";
 import { laneSplit } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
@@ -60,43 +61,35 @@ function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?
 interface Props {
   a: Account;
   nowSec: number;
-  /** Which of the other accounts the reader has opened, by laneKey. */
-  openLanes: readonly string[];
+  /** The reader has opened this row's detail. */
+  opened: boolean;
   /** Open this row's detail, or shut it. */
   onToggleLanes: () => void;
   busy: RequestSlot["busy"];
   pressProps: RequestSlot["pressProps"];
   doSwitch: (num: number, name: string) => void;
-  /** Which account's ⋯ is open, if any. */
-  menuFor: number | null;
+  /** This row's ⋯ is the one open. */
+  menuOpen: boolean;
   openMenu: (num: number, start?: "first" | "last") => void;
   closeMenu: (only?: number) => void;
-  failure: Failure | null;
+  /** Why a switch pressed on this row did not work, if one did not. */
+  refusal: Failure | null;
   onDismissFailure: () => void;
-  switched: { num: number; name: string } | null;
-  swapNote: SwapNote | null;
-  /** The whole roster, for the name of the account a swap displaced. */
-  roster: readonly Account[];
-  issueOpen: { num: number; anchor: string } | null;
+  /** A switch from the panel just landed on this account. */
+  switchedHere: boolean;
+  /** The swap a move into a taken slot made, when it landed on this row. */
+  swapped: SwapNote | null;
+  /** The account that swap sent to the other slot, for its name. */
+  displaced: Account | undefined;
+  /** This row's warning has its explanation open. */
+  issueExpanded: boolean;
   openIssue: (num: number, anchor: string) => void;
 }
 
 export default function AccountRow({
-  a, nowSec, openLanes, onToggleLanes, busy, pressProps, doSwitch, menuFor, openMenu, closeMenu,
-  failure, onDismissFailure, switched, swapNote, roster, issueOpen, openIssue,
+  a, nowSec, opened, onToggleLanes, busy, pressProps, doSwitch, menuOpen, openMenu, closeMenu,
+  refusal, onDismissFailure, switchedHere, swapped, displaced, issueExpanded, openIssue,
 }: Props) {
-  // What the panel's state says about THIS row, each read once: whether the
-  // reader has opened it, whether its ⋯ is the one open, the refusal a switch
-  // on it left, whether a switch from the panel just landed on it, the note a
-  // swap left on it and who that swap displaced, and whether its warning's
-  // explanation is open.
-  const opened = openLanes.includes(laneKey(a));
-  const menuOpen = menuFor === a.num;
-  const refusal = failure?.row === a.num ? failure : null;
-  const switchedHere = switched?.num === a.num;
-  const swapped = swapNote?.at === a.num ? swapNote : null;
-  const displaced = swapped ? roster.find(x => x.num === swapped.displaced) : undefined;
-  const issueExpanded = issueOpen?.anchor === `ap-issue-${a.num}`;
   const { shown, fuller } = laneSplit(a.lanes);
   const issue = accountIssue(a, nowSec);
   // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.

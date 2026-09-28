@@ -263,10 +263,19 @@ describe("what the column folds, and when it does not", () => {
     // Written twice, the live row and the folded ones would drift apart. The
     // row is a component of its own now, and `accountRow` is the one place its
     // props are spelled — so it is the one `<AccountRow` in the panel.
-    expect(panel).toMatch(/const accountRow = \(a: Account\) => \(\s*<AccountRow key=\{a\.num\}/);
+    // It reads what the panel's state says about the account first, then
+    // draws the row with it.
+    expect(panel).toMatch(/const accountRow = \(a: Account\) => \{[\s\S]{0,1500}?return \(\s*<AccountRow key=\{a\.num\}/);
     expect(panel.match(/<AccountRow\b/g)).toHaveLength(1);
     expect(panel.match(/\bmap\(accountRow\)/g)).toHaveLength(2);
     expect(accountsSurface()).not.toMatch(/data\.accounts\?\.map\(a => \{/);
+    // What it hands the row is what the panel's state says about THAT account,
+    // never the state itself: no row can read another account's open menu,
+    // refusal, switch, swap, warning or disclosure.
+    const rowCode = read("../components/AccountRow.tsx")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // (`ap-failure` and `ap-switched` are class names, and stay.)
+    expect(rowCode).not.toMatch(/\b(menuFor|openLanes|issueOpen|swapNote|roster)\b|(?<![-\w])(failure|switched)(?![-\w])/);
   });
 
   it("opens shut, every time, and stays open across a switch", () => {

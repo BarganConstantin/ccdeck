@@ -403,15 +403,29 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    * draws is AccountRow's; this is the one place its props are spelled, so the
    * two lists cannot be handed different ones.
    */
-  const accountRow = (a: Account) => (
-    <AccountRow key={a.num} a={a} nowSec={nowSec}
-      openLanes={openLanes} onToggleLanes={() => setOpenLanes(o => toggleLane(o, a))}
-      busy={busy} pressProps={pressProps} doSwitch={doSwitch}
-      menuFor={menuFor} openMenu={openMenu} closeMenu={closeMenu}
-      failure={failure} onDismissFailure={() => clearFailure()}
-      switched={switched} swapNote={swapNote} roster={roster}
-      issueOpen={issueOpen} openIssue={openIssue} />
-  );
+  const accountRow = (a: Account) => {
+  // What the panel's state says about THIS row, each read once: whether the
+  // reader has opened it, whether its ⋯ is the one open, the refusal a switch
+  // on it left, whether a switch from the panel just landed on it, the note a
+  // swap left on it and who that swap displaced, and whether its warning's
+  // explanation is open.
+  const opened = openLanes.includes(laneKey(a));
+  const menuOpen = menuFor === a.num;
+  const refusal = failure?.row === a.num ? failure : null;
+  const switchedHere = switched?.num === a.num;
+  const swapped = swapNote?.at === a.num ? swapNote : null;
+  const displaced = swapped ? roster.find(x => x.num === swapped.displaced) : undefined;
+  const issueExpanded = issueOpen?.anchor === `ap-issue-${a.num}`;
+    return (
+      <AccountRow key={a.num} a={a} nowSec={nowSec}
+        opened={opened} onToggleLanes={() => setOpenLanes(o => toggleLane(o, a))}
+        busy={busy} pressProps={pressProps} doSwitch={doSwitch}
+        menuOpen={menuOpen} openMenu={openMenu} closeMenu={closeMenu}
+        refusal={refusal} onDismissFailure={() => clearFailure()}
+        switchedHere={switchedHere} swapped={swapped} displaced={displaced}
+        issueExpanded={issueExpanded} openIssue={openIssue} />
+    );
+  };
 
   /**
    * THE POLICY, AS ONE VALUE, because the column now draws it from two places.
