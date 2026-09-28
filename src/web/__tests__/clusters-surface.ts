@@ -25,6 +25,7 @@ export const CLUSTER_FILES = [
   "components/SessionClusters.tsx",
   "cluster-header.ts",
   "cluster-bounds.ts",
+  "session-chrome.ts",
 ] as const;
 
 let joined: string | null = null;

@@ -31,6 +31,7 @@ import { useAccountSwitching } from "../use-account-switching";
 import { useThresholdDraft } from "../use-threshold-draft";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { useRosterFocus } from "../use-roster-focus";
+import { usePanelClock } from "../use-panel-clock";
 import { type Account, type AccountsData } from "../claude-accounts";
 
 interface Props {
@@ -60,7 +61,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const [issueOpen, setIssueOpen] = useState<{ num: number; anchor: string } | null>(null);
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
-  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const [addOpen, setAddOpen] = useState(false);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
@@ -150,10 +150,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
 
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
-  useEffect(() => {
-    const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
+  // Asked for here, after the hooks above rather than beside the panel's other
+  // state, because its interval is an effect: registered after the roster's
+  // poll, as it always was, a tick and a poll due at the same moment still run
+  // in that order. See use-panel-clock.ts.
+  const nowSec = usePanelClock();
 
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec) : null;

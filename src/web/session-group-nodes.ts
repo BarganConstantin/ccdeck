@@ -8,12 +8,13 @@
 // traces it.
 import type { Node } from "reactflow";
 import { SESSION_GROUP_TYPE } from "./minimap";
+import { PAD } from "./session-chrome";
 import type { AgentNodeData } from "./types";
 
-// Padding of the invisible session drag-handle node. Matches cluster-bounds.ts'
-// PAD so the handle lines up with the card's body (the card's header strip is
-// left uncovered so its label stays clickable).
-export const GROUP_PAD = 18;
+// Padding of the invisible session drag-handle node: the box's own PAD, from
+// session-chrome.ts, so the handle lines up with the card's body (the card's
+// header strip is left uncovered so its label stays clickable).
+export const GROUP_PAD = PAD;
 
 /** One handle per session with a measured, non-retiring card, covering those
  *  cards plus GROUP_PAD. A card React Flow has not measured yet is skipped for

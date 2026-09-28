@@ -27,6 +27,7 @@ import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
+import { usePanelClock } from "../use-panel-clock";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 
@@ -74,11 +75,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   const { data: codexUsage } = useCodexUsage(providers.codex);
 
   // Tick every 30s so countdowns + pace stay live without parent re-render
-  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
+  const nowSec = usePanelClock();
   // The By model rows, the board's own headline figures and the header's
   // $/min, with the samples that rate is measured from — use-board-spend.ts.
   const { byModel, totalCost, totalTokens, burnRate } = useBoardSpend(state, now, liveSince);

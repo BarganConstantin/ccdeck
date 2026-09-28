@@ -11,6 +11,7 @@ import type React from "react";
 import { isAlarming } from "./ambient-counts";
 import { clusterHeader, type ClusterHeader } from "./cluster-header";
 import { branchShort, type BranchSummary } from "./node-face";
+import { HEADER_H, LABEL_LIFT, PAD } from "./session-chrome";
 import { sessionDisplay } from "./session-display";
 import type { AgentNodeData } from "./types";
 
@@ -35,20 +36,6 @@ export interface ClusterNode {
   height?: number | null;
   data?: AgentNodeData;
 }
-
-// PAD must match GROUP_PAD in session-group-nodes.ts so the decorative card's
-// rim lines up with the invisible draggable group-handle node sitting under it —
-// the handle is the cards' box plus GROUP_PAD on every side.
-//
-// HEADER_H and LABEL_LIFT are this file's own and are deliberately NOT part of
-// the handle: the header strip is where the clickable fit-view label lives, so
-// extending the handle over it would swallow the click (see
-// session-group-nodes.ts). layout-geometry.ts folds all three into
-// SESSION_CHROME, which the layout budgets the space between two stacked
-// sessions with.
-const PAD = 18;
-const HEADER_H = 26;
-const LABEL_LIFT = 12; // px the label tab sits above the box's top edge
 
 /**
  * How far past its own cluster box the header may reach, in LAYOUT units.
