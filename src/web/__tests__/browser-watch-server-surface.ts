@@ -29,6 +29,8 @@ export const WATCH_SERVER_FILES = [
   "browser-watch-decks.mjs",
   "browser-watch-feed.mjs",
   "browser-watch-seen.mjs",
+  "browser-watch-mtime.mjs",
+  "browser-watch-relay.mjs",
 ] as const;
 
 let joined: string | null = null;
