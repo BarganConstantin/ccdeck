@@ -14,6 +14,8 @@ const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const SECTION = code("../components/LanSyncSection.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
+/** The dialog's two unpairs, which moved out of it into a hook of their own. */
+const PEER_UNPAIR = code("../use-peer-unpair.ts");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 const peer = (fp: string, over: Record<string, unknown> = {}) => ({
@@ -111,10 +113,12 @@ describe("the dialog lists every deck at the address", () => {
   });
 
   it("unpairs a folded deck with the same two presses as everywhere else", () => {
-    expect(MODAL).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
-    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmedTwin\(fpT\); setArmed\(false\); armedAt\.current = now; return; \}/);
-    expect(MODAL).toMatch(/if \(press === "ignore"\) return;/);
-    expect(MODAL).toMatch(/void run\(\(\) => onUnpair\(fpT\)\)/);
+    // The press itself is the dialog's unpair hook's; the button asks it.
+    expect(MODAL).toMatch(/onClick=\{\(\) => pressTwin\(fpT\)\}/);
+    expect(PEER_UNPAIR).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(PEER_UNPAIR).toMatch(/if \(press === "arm"\) \{ setArmedTwin\(fpT\); setArmed\(false\); armedAt\.current = now; return; \}/);
+    expect(PEER_UNPAIR).toMatch(/if \(press === "ignore"\) return;/);
+    expect(PEER_UNPAIR).toMatch(/void run\(\(\) => onUnpair\(fpT\)\)/);
     // A held key is one decision, as it is on the dialog's own unpair.
     expect(MODAL).toMatch(/lan-twin-do[\s\S]{0,200}onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
   });

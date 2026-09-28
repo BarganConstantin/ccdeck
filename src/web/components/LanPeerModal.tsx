@@ -29,7 +29,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { peerView, sinceLabel } from "../lan-peer";
-import { armedPress, CONFIRM_GAP_MS, pressState } from "../panel-press";
+import { pressState } from "../panel-press";
+import { usePeerUnpair } from "../use-peer-unpair";
 import { useModalDismiss } from "./use-modal-dismiss";
 import LanPeerMap from "./LanPeerMap";
 import { askedLabel, roundWhy, seenLabel } from "./LanSyncSection";
@@ -89,14 +90,6 @@ export default function LanPeerModal({
   /** The name being typed, or null while nobody is renaming. */
   const [draft, setDraft] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  /** Unpair costs two presses here as it does on the row. */
-  const [armed, setArmed] = useState(false);
-  /** When it was armed, so a double-click cannot be its own confirmation. */
-  const armedAt = useRef(0);
-  /** Which folded deck's unpair is armed, by fingerprint: the same two presses,
-   *  one deck at a time. Shares armedAt, since only one can be armed — arming
-   *  either stands the other down (#1607), as a row armed in the list does. */
-  const [armedTwin, setArmedTwin] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   /** Bumped when a check comes back, so the lanes draw themselves again: the
    *  picture that answered the press is visibly a new one. */
@@ -108,17 +101,6 @@ export default function LanPeerModal({
   // Selected rather than merely focused: renaming is almost always replacing,
   // and the name that is there is the one being replaced.
   useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
-  // An armed unpair stands down on its own, the way the row's does.
-  useEffect(() => {
-    if (!armed) return;
-    const t = window.setTimeout(() => setArmed(false), 4_000);
-    return () => window.clearTimeout(t);
-  }, [armed]);
-  useEffect(() => {
-    if (!armedTwin) return;
-    const t = window.setTimeout(() => setArmedTwin(null), 4_000);
-    return () => window.clearTimeout(t);
-  }, [armedTwin]);
 
   const press = (tag: string) => {
     const s = pressState(busy, tag);
@@ -131,6 +113,9 @@ export default function LanPeerModal({
     if (alive.current) setFailure(said);
     return said == null;
   };
+  // The two unpairs this dialog draws — its own, and one per folded deck —
+  // and the one moment of arming they share. See use-peer-unpair.ts.
+  const { armed, armedTwin, pressOwn, pressTwin } = usePeerUnpair({ row, run, onVerb, onUnpair });
 
   // What the dialog says about the machine, decided in lan-peer.ts from the
   // row, the peer or stranger behind it and this deck's own status.
@@ -309,16 +294,7 @@ export default function LanPeerModal({
                           className={`ap-manage-btn danger lan-twin-do${armedTwin === fpT ? " armed" : ""}`}
                           {...press(`unpair:${fpT}`)}
                           onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
-                          onClick={() => {
-                            const now = Date.now();
-                            const press = armedPress({
-                              armedFor: armedTwin, target: fpT, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
-                            });
-                            if (press === "arm") { setArmedTwin(fpT); setArmed(false); armedAt.current = now; return; }
-                            if (press === "ignore") return;
-                            setArmedTwin(null);
-                            void run(() => onUnpair(fpT));
-                          }}
+                          onClick={() => pressTwin(fpT)}
                           aria-label={armedTwin === fpT ? `Confirm unpairing ${named}` : `Unpair ${named}`}
                           title={armedTwin === fpT
                             ? "Press again to stop talking to this deck. Logins it already has stay with it."
@@ -361,23 +337,13 @@ export default function LanPeerModal({
           {row.kind === "paired" && (
             <button type="button" className={`btn danger lan-peer-verb${armed ? " armed" : ""}`}
               {...press(`unpair:${row.fp}`)}
-              // A HELD KEY IS ONE DECISION TOO. The clock below is the rule
-              // for a mouse, where the second press cannot arrive before the
-              // hand can mean it; a keyboard repeats at around half a second,
-              // which clears that bar while the finger has never come up. The
-              // repeat never reaches the click at all.
+              // A HELD KEY IS ONE DECISION TOO. The clock in pressOwn is the
+              // rule for a mouse, where the second press cannot arrive before
+              // the hand can mean it; a keyboard repeats at around half a
+              // second, which clears that bar while the finger has never come
+              // up. The repeat never reaches the click at all.
               onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
-              onClick={() => {
-                const now = Date.now();
-                const press = armedPress({
-                  armedFor: armed ? row.fp : null, target: row.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
-                });
-                if (press === "arm") { setArmed(true); setArmedTwin(null); armedAt.current = now; return; }
-                // A double-click is one decision, not two — the row's rule.
-                if (press === "ignore") return;
-                setArmed(false);
-                void run(onVerb);
-              }}
+              onClick={() => pressOwn()}
               // The row's own unpair names the machine; this one said only
               // "Unpair", and it is the same irreversible verb.
               aria-label={armed ? `Confirm unpairing ${row.name}` : `Unpair ${row.name}`}

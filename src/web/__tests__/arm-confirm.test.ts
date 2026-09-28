@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { armedPress, CONFIRM_GAP_MS } from "../panel-press";
 import { withoutComments } from "./tsx-scan";
 import { accountsSurface } from "./accounts-surface";
+import { lanPeerSurface } from "./lan-peer-surface";
 import { lanSectionSurface } from "./lan-section-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
 
@@ -92,6 +93,11 @@ describe("every arm-then-confirm press asks armedPress", () => {
   const section = withoutComments(lanSectionSurface());
   const list = read("LanDeckList.tsx");
   const modal = read("LanPeerModal.tsx");
+  /** The deck dialog's two unpairs, lifted out of it into a hook of their own
+   *  with the moment of arming they share; the dialog and every file lifted
+   *  out of it, for the sweeps. */
+  const peerUnpair = withoutComments(readFileSync(fileURLToPath(new URL("../use-peer-unpair.ts", import.meta.url)), "utf8"));
+  const dialog = lanPeerSurface(withoutComments);
   /** A custom sound's Delete, lifted out of the menu with the rest of the
    *  custom sounds; the menu and what was lifted out of it, for the sweeps. */
   const customSounds = read("CustomSoundsSection.tsx");
@@ -116,10 +122,10 @@ describe("every arm-then-confirm press asks armedPress", () => {
 
   it("routes all three unpairs through it", () => {
     expect(rowUnpair).toMatch(/armedFor: armed, target: p\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
-    expect(modal).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
-    expect(modal).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(peerUnpair).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(peerUnpair).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect([...section.matchAll(/if \(press === "ignore"\) return;/g)]).toHaveLength(1);
-    expect([...modal.matchAll(/if \(press === "ignore"\) return;/g)]).toHaveLength(2);
+    expect([...dialog.matchAll(/if \(press === "ignore"\) return;/g)]).toHaveLength(2);
   });
 
   it("routes a custom sound's Delete through it, and only a fire deletes", () => {
@@ -142,7 +148,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
     // press lives in use-account-menu.ts now, and a sweep of the component alone
     // would pass over it.
     const panel = withoutComments(accountsSurface());
-    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx and its lifted files", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx and its lifted files", soundMenu]]) {
+    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx and its lifted files", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx and its lifted files", dialog], ["SoundMenu.tsx and its lifted files", soundMenu]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }
