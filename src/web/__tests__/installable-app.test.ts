@@ -135,7 +135,8 @@ describe("the document that points at it", () => {
 
 describe("the server that serves it", () => {
   it("knows the type, without which a browser fetches it and parses nothing", () => {
-    expect(server).toMatch(/"\.webmanifest":\s*"application\/manifest\+json/);
+    // The type table is the static handler's, in static-serve.mjs.
+    expect(read("../../server/static-serve.mjs")).toMatch(/"\.webmanifest":\s*"application\/manifest\+json/);
   });
 
   it("compresses it like the other text it serves", () => {
