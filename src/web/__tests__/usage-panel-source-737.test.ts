@@ -53,6 +53,8 @@ const panel = read("../components/UsagePanel.tsx");
 const surface = usageSurface();
 /** The ccusage read, lifted out of the panel into a hook of its own. */
 const rangeHook = read("../use-usage-range.ts");
+/** The period strip and the sentence it speaks, lifted out of the panel. */
+const strip = read("../components/UsagePeriodStrip.tsx");
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -391,29 +393,33 @@ describe("markup, read as source", () => {
     // PERIODS is the single list: `sinceFor` switches on the same keys, so a
     // period the component offered and the shaper did not know would silently
     // request the wrong range.
-    expect(panel).toContain("{PERIODS.map((p, i) => (");
-    expect(panel).toContain("aria-pressed={period === p.key}");
-    expect(panel).toContain("onClick={() => setPeriod(p.key)}");
+    expect(strip).toContain("{PERIODS.map((p, i) => (");
+    expect(strip).toContain("aria-pressed={period === p.key}");
+    expect(strip).toContain("onClick={() => setPeriod(p.key)}");
     // The hint is the shaper's too, for the same reason: `month` means what
     // `sinceFor` makes it mean, and a sentence written here could drift from it.
     // The tooltip is now a pair — what the span covers at rest, and what is
     // being read while it reads — so the assertion is that `p.hint` is still
     // the resting half rather than that it is the only half.
-    expect(panel).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
+    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
     expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
   it("shows the selector only when there is a source with periods in it", () => {
     // The board has exactly one span — now — so three chips over a board-only
     // panel would be three words for the same figure.
-    expect(panel).toMatch(/\{fromRange && \([\s\S]{0,1600}?<div\s+className="uh-range up-period"/);
+    // Two links, one per file: the panel mounts the strip behind the gate, and
+    // the strip is the chips.
+    expect(panel).toMatch(/\{fromRange && <UsagePeriodStrip /);
+    expect(strip).toMatch(/<div\s+className="uh-range up-period"/);
   });
 
   it("puts the selector outside the token gate, so an empty period cannot strand the reader", () => {
     // A session started at 23:50 and still running at 00:05 makes "today"
     // empty, which used to remove the whole panel body — including the only
     // control that could have reached "month".
-    expect(panel.indexOf('className="uh-range up-period"')).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
     expect(panel).toContain("? <>No usage {periodNoun}.<br />Try a longer period.</>");
   });
 
@@ -421,7 +427,7 @@ describe("markup, read as source", () => {
     // #583's luminance inversion lives on this selector, and toggle-state
     // coverage is written against it. A private copy would ship a selected
     // state that fails contrast on the panel while passing in the modal.
-    expect(panel).toContain("uh-range up-period");
+    expect(strip).toContain("uh-range up-period");
     expect(css).toContain('.uh-range-btn[aria-pressed="true"] { background: var(--accent); color: var(--bg); }');
     expect(css).toContain(".up-period {");
   });
@@ -439,11 +445,17 @@ describe("markup, read as source", () => {
     // the pending signal was drawn without disabling anything. What it was
     // reaching for is below.
     expect(surface).not.toContain("up-period-busy");
-    const strip = panel.slice(panel.indexOf('className="uh-range up-period"'), panel.indexOf("</div>\n      )}"));
-    expect(strip).not.toMatch(/\bdisabled\b/);
-    expect(strip).not.toMatch(/pointer-events/);
+    // The toolbar, from its class to its own closing tag — the first `</div>`
+    // after it, since the segments are buttons.
+    const from = strip.indexOf('className="uh-range up-period"');
+    const to = strip.indexOf("</div>", from);
+    expect(from, "the strip is gone or renamed").toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    const toolbar = strip.slice(from, to);
+    expect(toolbar).not.toMatch(/\bdisabled\b/);
+    expect(toolbar).not.toMatch(/pointer-events/);
     // And the press still commits unconditionally — no guard in front of it.
-    expect(strip).toContain("onClick={() => setPeriod(p.key)}");
+    expect(toolbar).toContain("onClick={() => setPeriod(p.key)}");
   });
 
   it("dims the figures, not the control, and with the token that means stale", () => {
@@ -582,19 +594,19 @@ describe("the period strip's keyboard and memory", () => {
     // tablist-contract.test.ts's rule, applied to the neighbouring role: a
     // toolbar promises one tab stop and arrows across the members. Both are
     // here, or the role is a lie.
-    expect(panel).toContain('role="toolbar"');
-    expect(panel).toContain('aria-orientation="horizontal"');
-    expect(panel).toContain("tabIndex={period === p.key ? 0 : -1}");
+    expect(strip).toContain('role="toolbar"');
+    expect(strip).toContain('aria-orientation="horizontal"');
+    expect(strip).toContain("tabIndex={period === p.key ? 0 : -1}");
     // From the focused segment, never from the selected one. Reckoning off
     // `period` walks one step and then stops — Right three times from `today`
     // gives `month`, `month`, `month` — and it looked correct in the source.
-    expect(panel).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
-    expect(panel).toContain("periodFocusMove(e.key, from)");
+    expect(strip).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
+    expect(strip).toContain("periodFocusMove(e.key, from)");
     expect(surface).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
     // The arrows have to stop being the page's arrows, or the panel scrolls
     // under the ring the moment it moves.
-    expect(panel).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
-    expect(panel).toContain("periodRefs.current[to]?.focus();");
+    expect(strip).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
+    expect(strip).toContain("periodRefs.current[to]?.focus();");
     // And it must not have become the thing #381 deleted. Read with the
     // comments stripped: the block above this markup names that role in order
     // to say why it is wrong, and a substring match cannot tell the two apart.
@@ -607,7 +619,8 @@ describe("the period strip's keyboard and memory", () => {
     // Arrowing PAST `all` would otherwise start a read of every transcript on
     // disk on the way to something else. The arrows move the ring; the click
     // handler is the only place a period is chosen.
-    const handler = panel.slice(panel.indexOf("onKeyDown={e => {"), panel.indexOf("periodRefs.current[to]?.focus();"));
+    const handler = strip.slice(strip.indexOf("onKeyDown={e => {"), strip.indexOf("periodRefs.current[to]?.focus();"));
+    expect(handler, "the key handler is gone or renamed").toContain("periodFocusMove");
     expect(handler).not.toContain("setPeriod");
   });
 
@@ -638,8 +651,8 @@ describe("the period strip's keyboard and memory", () => {
     // `stale` alone would keep saying "reading" for good after a fetch that
     // FAILED, because a failure leaves the figures stale and nothing coming.
     expect(panel).toContain("const rangePending = rangeLoading && rangeStale;");
-    expect(panel).toContain('data-pending={period === p.key && rangePending ? "" : undefined}');
-    expect(panel).toContain("aria-busy={rangePending || undefined}");
+    expect(strip).toContain('data-pending={period === p.key && rangePending ? "" : undefined}');
+    expect(strip).toContain("aria-busy={rangePending || undefined}");
     // The mark that already says WHICH period is the one that says it is being
     // fetched — nothing new appears. Keyed on the attribute alone so it stays
     // out of the set of scoped state rules usage-series-contrast holds to three.
@@ -673,12 +686,13 @@ describe("the period strip's keyboard and memory", () => {
     // region and its one sentence on screen together, and take it away again
     // before it could say the wait was over. App.tsx's blocked-session region
     // is the precedent and carries the whole argument.
-    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">/);
-    expect(panel).toContain('{rangePending ? `Reading ${nounFor(period, period)}…` : ""}');
+    expect(strip).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">/);
+    expect(strip).toContain('{rangePending ? `Reading ${nounFor(period, period)}…` : ""}');
     // Polite, not assertive: a figure two seconds late costs nothing and
     // talking over the reader costs a sentence.
-    const at = panel.indexOf('<div className="vis-hidden" role="status"');
-    expect(panel.slice(at, at + 200)).not.toContain('role="alert"');
+    const at = strip.indexOf('<div className="vis-hidden" role="status"');
+    expect(at).toBeGreaterThan(-1);
+    expect(strip.slice(at, at + 200)).not.toContain('role="alert"');
   });
 
   it("says what each span actually covers, from the shaper that decides it", () => {
