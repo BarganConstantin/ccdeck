@@ -237,8 +237,9 @@ export const SPINNER_ELAPSED_AFTER_MS = 3_000;
  *
  * Whole seconds, floored, and never a tenth: a number that changes ten times a
  * second is a second spinner rather than an answer about the first one. Here
- * rather than in bin/deck.js because that file runs a deck when it is imported,
- * and this is the one part of `step` worth holding still in a test.
+ * rather than beside `step` in bin/cli/screen.js, which asks the real terminal
+ * its questions the moment it is imported, and this is the one part of `step`
+ * worth holding still in a test.
  */
 export function elapsedSuffix(ms, after = SPINNER_ELAPSED_AFTER_MS) {
   return ms < after ? "" : `  ${Math.floor(ms / 1000)}s`;
@@ -441,6 +442,7 @@ export function statusLine({
 // Strings rather than writers: hiding the cursor is trivial and restoring it is
 // not — it has to happen on the normal exit, on SIGINT/SIGTERM/SIGHUP and after
 // an uncaught throw, and getting that half-right leaves the user's shell with
-// no cursor after the deck is gone. The lifecycle owns it; see bin/deck.js.
+// no cursor after the deck is gone. The lifecycle owns it; see takeCursor in
+// bin/cli/screen.js.
 export const CURSOR_HIDE = "\x1b[?25l";
 export const CURSOR_SHOW = "\x1b[?25h";
