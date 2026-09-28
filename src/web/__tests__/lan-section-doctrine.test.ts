@@ -24,9 +24,10 @@ const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
   "utf8",
 );
-/** The server's side of the section: the routes in index.mjs, and the engine
- *  wiring and the rule about what prefs may tell it, which moved to lan-deck.mjs. */
-const SERVER = ["index.mjs", "lan-deck.mjs"]
+/** The server's side of the section: the route table in index.mjs, the engine
+ *  wiring and the rule about what prefs may tell it, which moved to
+ *  lan-deck.mjs, and the panel's routes, which moved to lan-routes.mjs. */
+const SERVER = ["index.mjs", "lan-deck.mjs", "lan-routes.mjs"]
   .map(f => readFileSync(fileURLToPath(new URL(`../../server/${f}`, import.meta.url)), "utf8"))
   .join("\n");
 const SERVER_ENGINE = readFileSync(
