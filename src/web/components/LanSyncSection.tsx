@@ -52,24 +52,12 @@ import LanReachNote from "./LanReachNote";
 import LanSetupModal from "./LanSetupModal";
 import LanViewHeader from "./LanViewHeader";
 
-// What the status route reports is described in lan-types.ts, what a round
-// says in lan-round.ts, who is on the list in lan-roster.ts, and what passes
-// between two decks in lan-exchange.ts; the poll's cadence and the sentence for
-// a write that did not land live with the section's writes, in
-// use-lan-section.ts; the share boxes' list while a write is out in
-// lan-share.ts, a typed address and an invite's countdown in lan-add-deck.ts,
-// the peek's timing in use-hover-peek.ts, and the gap an arm-then-confirm
-// press needs beside the rule that reads it, in panel-press.ts. These are the
-// names the dialogs, the pair-request hook, the fold at the foot of the
-// accounts and the other arm-then-confirm presses have always imported from
-// here, passed through so that none of them had to change with the move.
-export type { DeckAbout, LanAccount, LanReach, LanStatus, LanStranger, LanTailscale } from "../lan-types";
-export { roundLabel, roundWhy, seenLabel, silenceNote } from "../lan-round";
-export { askedLabel, type DeckRow, type RowSource, withAliases } from "../lan-roster";
-export { exchangeLanes, type Lane, versionOrder } from "../lan-exchange";
-export { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, writeFailure } from "../use-lan-section";
-export { nextShared, sameKeys, settlePending } from "../lan-share";
-export { leftLabel, parseAddress } from "../lan-add-deck";
+// The peek's timing lives in use-hover-peek.ts and the gap an arm-then-confirm
+// press needs in panel-press.ts, beside the rule that reads it. The fold at
+// the foot of the accounts, the account menu's Remove and the custom sounds'
+// Delete have always imported those from here, and are passed them through so
+// that none of them had to change with the move. Every other name that used
+// to pass through here is imported from the module that owns it.
 export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
 export { CONFIRM_GAP_MS } from "../panel-press";
 

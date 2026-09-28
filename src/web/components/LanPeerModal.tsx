@@ -35,8 +35,8 @@ import { useModalDismiss } from "./use-modal-dismiss";
 import LanPeerFoot from "./LanPeerFoot";
 import LanPeerMap from "./LanPeerMap";
 import LanPeerTwins from "./LanPeerTwins";
-import { askedLabel } from "./LanSyncSection";
-import type { DeckRow, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
+import { askedLabel, type DeckRow, type RowSource } from "../lan-roster";
+import type { LanAccount, LanStatus } from "../lan-types";
 
 interface Props {
   row: DeckRow;

@@ -31,7 +31,7 @@
 // name. See lan-reach.mjs, which refuses the same thing at the other end.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
-import type { LanReach } from "./LanSyncSection";
+import type { LanReach } from "../lan-types";
 
 /**
  * The way out that needs no firewall rule at all, per surface.
