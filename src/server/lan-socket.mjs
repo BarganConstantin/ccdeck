@@ -333,6 +333,195 @@ export function createSyncServer({
       setTimeout(bye, 250).unref?.();
     };
 
+    /** Step 1 of the four, answered: a caller's hello, checked, and this
+     *  end's challenge back — with the connection's key derived first. */
+    const hello = msg => {
+      // A string of letters, digits, `.`, `_` and `-` — a `|` inside it
+      // would let the transcript come out the same on both ends while each
+      // read a different challenge. See readChallenge.
+      if (theirChallenge || !readChallenge(msg.challenge)) return refuse("bad hello");
+      const them = readPub(msg.pub);
+      // The fingerprint is a hash of the key, so a hello whose two halves
+      // disagree is not a deck with a stale field, it is somebody trying to
+      // be announced as one deck and prove they are another.
+      if (!them || them.fp !== msg.fp) return refuse("bad hello");
+      theirChallenge = msg.challenge;
+      peerFp = them.fp;
+      peerPub = them.pub;
+      // THROUGH cleanName, like the beacon and the invite. This path — the
+      // handshake — was the one that skipped it, and it is the one that
+      // feeds the pairing prompt and cfg.trusted, which lan-deck.mjs writes to
+      // prefs.json. So the only bound on the name an operator reads before
+      // pressing Accept was the 128 KB frame cap.
+      //
+      // cleanName caps at MAX_NAME (40) and collapses \s+, which includes
+      // U+00A0 — and 200 non-breaking spaces neither collapse in HTML nor
+      // offer a break opportunity, so a name of "Alice's laptop at
+      // 192.168.1.10 wants to pair" + padding pushed the REAL address out
+      // of a fixed 288px column and left a complete, plausible sentence.
+      peerName = cleanName(msg.name, "");
+      peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
+      peerNoAsk = msg.ask === false;
+      // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
+      // the proofs bind decide it, never whether a field turned up. Once
+      // both say so, a hello with no usable key is refused rather than
+      // answered the old way, because answering the old way is the
+      // downgrade. See EPHEMERAL in lan-sync.mjs.
+      //
+      // A KEY OFFERED IS A KEY ANSWERED, whatever the challenges say, so
+      // what this end sends depends only on what it was sent. When the two
+      // do not mix, ours goes out and is never used. That happens only
+      // between two decks of this version whose challenges somebody edited
+      // on the way, and there it takes the dialler on to a proof this end
+      // refuses by name — `bad proof`, as for every other edit to a
+      // challenge — rather than stopping it one message short. Made here
+      // and not when the socket opened, so a connection that never says
+      // hello costs what it always did.
+      const theirEphemeral = readEphemeral(msg.epk);
+      const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
+      if (mixing && !theirEphemeral) return refuse("bad hello");
+      let mine = theirEphemeral && mixesEphemeral(myChallenge) ? ephemeralPair() : null;
+      const epk = mine?.pub;
+      transcript = mixing
+        ? handshakeTranscript(peerFp, fp, theirChallenge, myChallenge, theirEphemeral, epk)
+        : handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
+      // A key X25519 cannot use throws in here, and nothing above this
+      // handler catches it — see readPub for what that throw used to do.
+      try {
+        key = sessionKey(secret, peerPub, transcript,
+          mixing ? { role: "listener", priv: mine.priv, peer: theirEphemeral } : null);
+      } catch {
+        return refuse("bad hello");
+      } finally {
+        // The private half, let go before a byte of the reply is written.
+        mine = null;
+      }
+      sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
+    };
+
+    /**
+     * Step 4, and the only way `authed` turns true: sealed from here when both
+     * challenges said so, the handshake deadline off, and this deck's own proof
+     * sent — with the invite's proof back when the caller held one. `ok` goes
+     * out in the clear; the frames after it are the sealed kind.
+     */
+    const welcome = back => {
+      authed = true;
+      chan = sealedChannel();
+      clearTimeout(deadline);
+      sendFrame(sock, {
+        t: "ok", fp, name,
+        proof: proof(key, {
+          challenge: myChallenge, peerChallenge: theirChallenge,
+          fromFp: fp, toFp: peerFp, direction: "reply",
+        }),
+        ...back,
+      });
+    };
+
+    /** Step 3: the caller's proof, and then who it turns out to be — a deck
+     *  somebody here accepted, one holding this deck's invite, or a refusal
+     *  that says which. */
+    const auth = msg => {
+      // A key, too: a challenge on record says a `hello` arrived, not that one
+      // was accepted. Unreachable after the guard at the top of the frame
+      // handler, and stated anyway, because it is the rule `proof` below
+      // depends on.
+      if (msg.t !== "auth" || !theirChallenge || !key) return refuse("expected auth");
+      const want = proof(key, {
+        challenge: theirChallenge, peerChallenge: myChallenge,
+        fromFp: peerFp, toFp: fp, direction: "hello",
+      });
+      // A recording of a previous exchange fails here, because `myChallenge`
+      // was made when this socket opened and has never been sent before.
+      if (!proofOk(want, msg.proof)) return refuse("bad proof");
+
+      // WHO IS THIS, and it is the only question left. The handshake proves
+      // they hold the key they claimed; the trusted list says whether anybody
+      // here ever agreed to talk to it.
+      const known = trustedPeer(trusted(), peerFp);
+      if (known && known.pub !== peerPub) {
+        // The fingerprint we pinned, presented with a different key. 48 bits
+        // is far past accident, so this is somebody wearing a paired deck's
+        // name — refused loudly rather than quietly re-pinned.
+        return refuse("impostor");
+      }
+      // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
+      // holds a token the owner of this machine copied and sent, which is the
+      // same decision the accept button is — made earlier, and made once.
+      //
+      // The proof is over the transcript, so it is worth nothing to somebody
+      // who recorded an earlier exchange, and the code itself never travels.
+      //
+      // ASKED BEFORE "DO I KNOW THIS DECK", because the two questions are
+      // independent and the answer to this one is owed to the caller either
+      // way. A caller that sent a code is waiting to be shown one back, and a
+      // deck it has ALREADY paired with is not exempt from that — somebody
+      // pasting a token into a deck that happens to be paired already would
+      // otherwise be told the minter does not hold its own invite.
+      // `offer` rather than `live`, which is what this used to be called: the
+      // socket table one scope out is also `live`, and widening this block
+      // widened the shadow with it.
+      const offer = invite();
+      // Over the transcript the key came from — the ephemeral keys in it
+      // when the two mix — which is the string the dialler proved over too.
+      const heldInvite = !!offer && typeof msg.invite === "string"
+        && proofOk(inviteProof(offer.code, transcript), msg.invite);
+      // AND THE CODE, BACK. The session proof says "I hold the private half
+      // of the key I just showed you", which anything with a socket can say.
+      // This says "I am the deck whose owner minted that token", which only
+      // the minter can — and a caller joining on an invite has no pin to
+      // check against, so it is the only thing standing between an invite
+      // address and whoever else is reachable there.
+      const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
+      if (!known) {
+        if (heldInvite) {
+          // So there is nothing to press: the deck is pinned here.
+          onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
+          welcome(back);
+          return;
+        }
+        // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
+        // It is not asked again here, and — the half a held refusal cannot
+        // do — the deck that asked is told, so its own panel can stop saying
+        // "waiting" about a question that has been answered.
+        if (declined(peerFp)) return refuse("declined");
+        // AN INVITE-ONLY DECK, and this caller brought none (a caller that
+        // did was paired above). Answered rather than queued: the engine
+        // records no request in this mode, so "pending" would leave the other
+        // deck's panel saying "waiting for them to say yes" about a question
+        // nobody here will ever see. After "declined", which is the more
+        // specific answer about this one deck.
+        if (inviteOnly()) return refuse("invite only");
+        // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
+        // addresses it already had, because an invite-paired deck is one of
+        // them; one that turns out not to know it must not become a request
+        // here — with the accept switch on, that request would have pinned a
+        // deck whose owner said it pairs only by invite.
+        if (peerNoAsk) return refuse("not asking");
+
+        // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
+        // a port scan, and it told us a name and an address a person can
+        // recognise. That is a row with an accept on it, and nothing else
+        // happens until somebody presses it.
+        onPending?.({
+          fp: peerFp, pub: peerPub, name: peerName,
+          addr: from(sock),
+          // Where it LISTENS, from the hello — not this socket's remote port,
+          // which is ephemeral. This is what lets an accept dial back.
+          port: peerPort,
+        });
+        return refuse("pending");
+      }
+
+      // And ours, so the caller knows it reached the deck it pinned rather
+      // than something standing in the way of one. Plus the invite, when one
+      // was presented and held: a deck already on this list is not a reason
+      // to leave a caller's question unanswered. Nothing is retired on this
+      // path — nobody was paired, because they already were.
+      welcome(back);
+    };
+
     sock.on("data", frameReader(msg => {
       // NOTHING AFTER A REFUSAL. The reader hands over every frame in a chunk,
       // and `refuse` destroys the socket without stopping it. So a `hello`
@@ -361,187 +550,8 @@ export function createSyncServer({
         // they buy is a connection key that is gone once both ends have let go
         // of the private halves, whoever takes either long-term key later —
         // see sessionKey.
-        if (msg.t === "hello") {
-          // A string of letters, digits, `.`, `_` and `-` — a `|` inside it
-          // would let the transcript come out the same on both ends while each
-          // read a different challenge. See readChallenge.
-          if (theirChallenge || !readChallenge(msg.challenge)) return refuse("bad hello");
-          const them = readPub(msg.pub);
-          // The fingerprint is a hash of the key, so a hello whose two halves
-          // disagree is not a deck with a stale field, it is somebody trying to
-          // be announced as one deck and prove they are another.
-          if (!them || them.fp !== msg.fp) return refuse("bad hello");
-          theirChallenge = msg.challenge;
-          peerFp = them.fp;
-          peerPub = them.pub;
-          // THROUGH cleanName, like the beacon and the invite. This path — the
-          // handshake — was the one that skipped it, and it is the one that
-          // feeds the pairing prompt and cfg.trusted, which lan-deck.mjs writes to
-          // prefs.json. So the only bound on the name an operator reads before
-          // pressing Accept was the 128 KB frame cap.
-          //
-          // cleanName caps at MAX_NAME (40) and collapses \s+, which includes
-          // U+00A0 — and 200 non-breaking spaces neither collapse in HTML nor
-          // offer a break opportunity, so a name of "Alice's laptop at
-          // 192.168.1.10 wants to pair" + padding pushed the REAL address out
-          // of a fixed 288px column and left a complete, plausible sentence.
-          peerName = cleanName(msg.name, "");
-          peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
-          peerNoAsk = msg.ask === false;
-          // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
-          // the proofs bind decide it, never whether a field turned up. Once
-          // both say so, a hello with no usable key is refused rather than
-          // answered the old way, because answering the old way is the
-          // downgrade. See EPHEMERAL in lan-sync.mjs.
-          //
-          // A KEY OFFERED IS A KEY ANSWERED, whatever the challenges say, so
-          // what this end sends depends only on what it was sent. When the two
-          // do not mix, ours goes out and is never used. That happens only
-          // between two decks of this version whose challenges somebody edited
-          // on the way, and there it takes the dialler on to a proof this end
-          // refuses by name — `bad proof`, as for every other edit to a
-          // challenge — rather than stopping it one message short. Made here
-          // and not when the socket opened, so a connection that never says
-          // hello costs what it always did.
-          const theirEphemeral = readEphemeral(msg.epk);
-          const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
-          if (mixing && !theirEphemeral) return refuse("bad hello");
-          let mine = theirEphemeral && mixesEphemeral(myChallenge) ? ephemeralPair() : null;
-          const epk = mine?.pub;
-          transcript = mixing
-            ? handshakeTranscript(peerFp, fp, theirChallenge, myChallenge, theirEphemeral, epk)
-            : handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
-          // A key X25519 cannot use throws in here, and nothing above this
-          // handler catches it — see readPub for what that throw used to do.
-          try {
-            key = sessionKey(secret, peerPub, transcript,
-              mixing ? { role: "listener", priv: mine.priv, peer: theirEphemeral } : null);
-          } catch {
-            return refuse("bad hello");
-          } finally {
-            // The private half, let go before a byte of the reply is written.
-            mine = null;
-          }
-          sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
-          return;
-        }
-        // A key, too: a challenge on record says a `hello` arrived, not that one
-        // was accepted. Unreachable after the guard at the top of this handler,
-        // and stated anyway, because it is the rule `proof` below depends on.
-        if (msg.t !== "auth" || !theirChallenge || !key) return refuse("expected auth");
-        const want = proof(key, {
-          challenge: theirChallenge, peerChallenge: myChallenge,
-          fromFp: peerFp, toFp: fp, direction: "hello",
-        });
-        // A recording of a previous exchange fails here, because `myChallenge`
-        // was made when this socket opened and has never been sent before.
-        if (!proofOk(want, msg.proof)) return refuse("bad proof");
-
-        // WHO IS THIS, and it is the only question left. The handshake proves
-        // they hold the key they claimed; the trusted list says whether anybody
-        // here ever agreed to talk to it.
-        const known = trustedPeer(trusted(), peerFp);
-        if (known && known.pub !== peerPub) {
-          // The fingerprint we pinned, presented with a different key. 48 bits
-          // is far past accident, so this is somebody wearing a paired deck's
-          // name — refused loudly rather than quietly re-pinned.
-          return refuse("impostor");
-        }
-        // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
-        // holds a token the owner of this machine copied and sent, which is the
-        // same decision the accept button is — made earlier, and made once.
-        //
-        // The proof is over the transcript, so it is worth nothing to somebody
-        // who recorded an earlier exchange, and the code itself never travels.
-        //
-        // ASKED BEFORE "DO I KNOW THIS DECK", because the two questions are
-        // independent and the answer to this one is owed to the caller either
-        // way. A caller that sent a code is waiting to be shown one back, and a
-        // deck it has ALREADY paired with is not exempt from that — somebody
-        // pasting a token into a deck that happens to be paired already would
-        // otherwise be told the minter does not hold its own invite.
-        // `offer` rather than `live`, which is what this used to be called: the
-        // socket table one scope out is also `live`, and widening this block
-        // widened the shadow with it.
-        const offer = invite();
-        // Over the transcript the key came from — the ephemeral keys in it
-        // when the two mix — which is the string the dialler proved over too.
-        const heldInvite = !!offer && typeof msg.invite === "string"
-          && proofOk(inviteProof(offer.code, transcript), msg.invite);
-        // AND THE CODE, BACK. The session proof says "I hold the private half
-        // of the key I just showed you", which anything with a socket can say.
-        // This says "I am the deck whose owner minted that token", which only
-        // the minter can — and a caller joining on an invite has no pin to
-        // check against, so it is the only thing standing between an invite
-        // address and whoever else is reachable there.
-        const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
-        if (!known) {
-          if (heldInvite) {
-            // So there is nothing to press: the deck is pinned here.
-            onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
-            authed = true;
-            chan = sealedChannel();
-            clearTimeout(deadline);
-            sendFrame(sock, {
-              t: "ok", fp, name,
-              proof: proof(key, {
-                challenge: myChallenge, peerChallenge: theirChallenge,
-                fromFp: fp, toFp: peerFp, direction: "reply",
-              }),
-              ...back,
-            });
-            return;
-          }
-          // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
-          // It is not asked again here, and — the half a held refusal cannot
-          // do — the deck that asked is told, so its own panel can stop saying
-          // "waiting" about a question that has been answered.
-          if (declined(peerFp)) return refuse("declined");
-          // AN INVITE-ONLY DECK, and this caller brought none (a caller that
-          // did was paired above). Answered rather than queued: the engine
-          // records no request in this mode, so "pending" would leave the other
-          // deck's panel saying "waiting for them to say yes" about a question
-          // nobody here will ever see. After "declined", which is the more
-          // specific answer about this one deck.
-          if (inviteOnly()) return refuse("invite only");
-          // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
-          // addresses it already had, because an invite-paired deck is one of
-          // them; one that turns out not to know it must not become a request
-          // here — with the accept switch on, that request would have pinned a
-          // deck whose owner said it pairs only by invite.
-          if (peerNoAsk) return refuse("not asking");
-
-          // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
-          // a port scan, and it told us a name and an address a person can
-          // recognise. That is a row with an accept on it, and nothing else
-          // happens until somebody presses it.
-          onPending?.({
-            fp: peerFp, pub: peerPub, name: peerName,
-            addr: from(sock),
-            // Where it LISTENS, from the hello — not this socket's remote port,
-            // which is ephemeral. This is what lets an accept dial back.
-            port: peerPort,
-          });
-          return refuse("pending");
-        }
-
-        authed = true;
-        chan = sealedChannel();
-        clearTimeout(deadline);
-        // And ours, so the caller knows it reached the deck it pinned rather
-        // than something standing in the way of one. Plus the invite, when one
-        // was presented and held: a deck already on this list is not a reason
-        // to leave a caller's question unanswered. Nothing is retired on this
-        // path — nobody was paired, because they already were.
-        sendFrame(sock, {
-          t: "ok", fp, name,
-          proof: proof(key, {
-            challenge: myChallenge, peerChallenge: theirChallenge,
-            fromFp: fp, toFp: peerFp, direction: "reply",
-          }),
-          ...back,
-        });
-        return;
+        if (msg.t === "hello") return hello(msg);
+        return auth(msg);
       }
       // SEALED FROM HERE WHEN BOTH ENDS SAID SO, AND ONLY SEALED. A frame that
       // does not open is refused and the socket goes with it — see
