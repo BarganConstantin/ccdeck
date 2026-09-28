@@ -113,7 +113,8 @@ describe("month-to-date topbar usage (#737)", () => {
     // Glyphs: W - g meets 24vw at g / 0.76. Words: W - w meets 380 at w + 380.
     expect(gEnd).toBe(Math.floor(g / 0.76) - 1);
     expect(wEnd).toBe(w + 380 - 1);
-    expect(app).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`Zoom to \$\{selected\.label\} and its session \(Z\)\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
+    // The ribbon is components/SelectedRibbon.tsx's.
+    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`Zoom to \$\{selected\.label\} and its session \(Z\)\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
   });
 
   it("never lets a selection decide whether the phrase is there", () => {

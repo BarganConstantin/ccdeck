@@ -63,6 +63,7 @@ import Detail from "./components/Detail";
 import VersionChip from "./components/VersionChip";
 import { SessionRun, SourceRun } from "./components/TopbarRuns";
 import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
+import SelectedRibbon from "./components/SelectedRibbon";
 import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
 import OldNameBanner from "./components/OldNameBanner";
@@ -115,12 +116,6 @@ import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox } from "./drift";
 import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
-import { fmtCost, fmtCostRate } from "./pricing";
-// The topbar strip, the burn ticker, the selected-session ribbon and the detail
-// panel all multiply usage by a price, and all four used to multiply a whole
-// session's cumulative tokens by the one model it was last seen on. See
-// usage-models.ts (#686).
-import { agentCost } from "./usage-models";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
@@ -1656,43 +1651,9 @@ function Inner() {
               the outcome of something they just did, not an interruption. */}
           {notifySaid && <NotifySaid notifySaid={notifySaid} />}
         </div>
-        {selected && (() => {
-          const c = agentCost(selected);
-          const elapsedSec = Math.max(0, ((selected.endedAt ?? now) - selected.startedAt) / 1000);
-          const rate = selected.state === "active" ? fmtCostRate(c.total, elapsedSec) : null;
-          const extra = selectedIds.size - 1;
-          return (
-            <button
-              type="button"
-              className="selected-ribbon"
-              /* The cost rides in the title as well as in the chip, because the
-                 chip drops it where the bar is short (see WHERE THE MONTH GIVES
-                 WAY in styles.css) and a hover should still find it there. */
-              title={`Zoom to ${selected.label} and its session (Z)${
-                c.total > 0 ? `\n${fmtCost(c.total)} spent${rate ? ` · ${rate}` : ""}` : ""}`}
-              onClick={() => { try { focusAgent(selected.id); } catch {} }}
-            >
-              <span className={`state-pill state-${selected.state}`}>
-                {selected.state === "active" ? "live" : selected.state}
-              </span>
-              <span className="selected-label">{selected.label}</span>
-              {c.total > 0 && <span className="selected-cost">{fmtCost(c.total)}{rate ? <span className="selected-rate"> · {rate}</span> : null}</span>}
-              {extra > 0 && <span className="selected-extra">+{extra}</span>}
-              {/* A mouse shortcut, not a control. It sits inside the ribbon's
-                  own <button>, so it can never be a button itself — nesting one
-                  is invalid, and it carried no tabIndex, which left a
-                  role="button" labelled "Deselect" that no keyboard could ever
-                  reach or operate. The keyboard has the same verb on Escape
-                  from anywhere on the page, so the honest markup is decoration
-                  with a click on it. */}
-              <span
-                aria-hidden
-                className="selected-close"
-                onClick={(e) => { e.stopPropagation(); clearSelection(); }}
-              >×</span>
-            </button>
-          );
-        })()}
+        {selected && (
+          <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
+        )}
         <div className="actions">
           {/* Three runs, 4px inside and 12px between, and the settings run a
               further 12px out, so it stands at the 24px that separates this
