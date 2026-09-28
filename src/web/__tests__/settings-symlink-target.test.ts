@@ -344,7 +344,7 @@ describe("resolveWriteTarget answers with the file the name really means", () =>
         .split("\n").filter(l => !/^\s*(?:\/\/|\*|\/\*)/.test(l)).join("\n");
     };
 
-    const write = body(src("../../server/installer.mjs"), "async function writeFileAtomic(");
+    const write = body(src("../../server/atomic-write.mjs"), "async function writeFileAtomic(");
     expect(write, "writeFileAtomic does not resolve its target").toContain("resolveWriteTarget(");
     expect(write.indexOf("resolveWriteTarget("), "writeFileAtomic stages before it resolves")
       .toBeLessThan(write.indexOf("createTemp("));
