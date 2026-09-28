@@ -10,6 +10,7 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { steppedClock } from "./clock-step";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -110,8 +111,11 @@ const idle = (sid: string, transcript: string) => post("/api/event", {
   session_id: sid, cwd: DIR, transcript_path: transcript,
 });
 
-/** Past MODEL_READ_THROTTLE_MS, so the next hook event reads the file again. */
-const pastThrottle = () => new Promise(r => setTimeout(r, 2700));
+/** Past MODEL_READ_THROTTLE_MS, so the next hook event reads the file again.
+ *  The deck's clock is stepped over it rather than slept through (#994): the
+ *  throttle compares wall-clock stamps and nothing else. See clock-step.ts. */
+const step = steppedClock();
+const pastThrottle = () => step(2700);
 
 describe("a recap reaches the wire", () => {
   it("off the transcript cursor, when a hook event has the file read", async () => {
@@ -142,12 +146,12 @@ describe("a recap reaches the wire", () => {
     writeFileSync(t, RECAP("Done for now.", T0));
     await idle("retire", t);
     await until("retire", "SessionRecapped", 1);
-    await pastThrottle();
+    pastThrottle();
     await idle("retire", t);
     await new Promise(r => setTimeout(r, 300));
     expect(await recaps("retire"), "the same recap, read again, was sent again").toHaveLength(1);
     appendFileSync(t, ASSISTANT(T0 + 60_000));
-    await pastThrottle();
+    pastThrottle();
     await post("/api/event", { hook_event_name: "UserPromptSubmit", session_id: "retire", cwd: DIR, transcript_path: t, prompt: "go" });
     await until("retire", "SessionRecapped", 2);
     expect(await recaps("retire")).toEqual([{ text: "Done for now.", at: T0 }, null]);
