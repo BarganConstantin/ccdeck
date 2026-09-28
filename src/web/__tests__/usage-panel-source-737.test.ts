@@ -55,6 +55,8 @@ const surface = usageSurface();
 const rangeHook = read("../use-usage-range.ts");
 /** The period strip and the sentence it speaks, lifted out of the panel. */
 const strip = read("../components/UsagePeriodStrip.tsx");
+/** The per-session breakdown, lifted out of the panel. */
+const sessions = read("../components/UsageSessionBreakdown.tsx");
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -302,15 +304,15 @@ describe("the join to the canvas", () => {
     // ccusage remembers sessions this deck never drew — last week's, another
     // machine's. Eight characters under the full id, marked as the machine
     // string it is rather than dressed as a project name.
-    expect(panel).toContain("{s.label ?? s.sessionId.slice(0, 8)}");
+    expect(sessions).toContain("{s.label ?? s.sessionId.slice(0, 8)}");
     expect(css).toContain(".up-session-id {");
   });
 
   it("draws a state dot only for a session the canvas is drawing", () => {
     // A ✓ on a session from three weeks ago is a state this deck never
     // observed. The placeholder keeps the labels aligned.
-    expect(panel).toContain("const live = boardStates.get(s.sessionId);");
-    expect(panel).toContain('<span className="sl-dot up-dot-past" aria-hidden />');
+    expect(sessions).toContain("const live = boardStates.get(s.sessionId);");
+    expect(sessions).toContain('<span className="sl-dot up-dot-past" aria-hidden />');
     expect(css).toContain(".up-dot-past { visibility: hidden; }");
   });
 
@@ -324,9 +326,9 @@ describe("the join to the canvas", () => {
     // What survives every version is the arithmetic on screen, so the panel
     // sums the rows and compares. `sessionListScale` is given the WHOLE range
     // rather than `rangeSessionRows`, which is cut at twelve.
-    expect(panel).toContain(">active {periodNoun}</span>");
+    expect(sessions).toContain(">active {periodNoun}</span>");
     expect(panel).toContain("sessionListScale(range, rangeSum.cost)");
-    expect(panel).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
+    expect(sessions).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
   });
 
   it("says why the session list is empty rather than dropping the section", () => {
@@ -370,8 +372,11 @@ describe("markup, read as source", () => {
     expect(panel).toContain("{(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (");
     expect(panel).toContain("? rangeModelRows.map(m => (");
     expect(panel).toContain(": boardModelRows.map(m => (");
-    expect(panel).toContain("{fromRange && rangeSessionRows.map(s => {");
-    expect(panel).toContain("{!fromRange && boardSessionRows.map(s => (");
+    // The session table's two branches are UsageSessionBreakdown.tsx's, which
+    // the panel mounts behind the gate above: one link per file.
+    expect(panel).toMatch(/\{\(fromRange \? rangeSessionRows\.length : boardSessionRows\.length\) > 0 && \(\s*<UsageSessionBreakdown\b/);
+    expect(sessions).toContain("{fromRange && rangeSessionRows.map(s => {");
+    expect(sessions).toContain("{!fromRange && boardSessionRows.map(s => (");
   });
 
   it("totals every token class in a ccusage model row, not input plus output", () => {
@@ -729,12 +734,12 @@ describe("the session section's disclosure", () => {
     // The ARIA disclosure pattern, and the one spelling that keeps four
     // headings in the document outline while still giving the reader a real
     // control — landmark-outline.test.ts counts them and would have lost one.
-    expect(panel).toMatch(/<h3 className="up-section-title">\s*<button/);
-    expect(panel).toContain('className="up-disclose"');
-    expect(panel).toContain("aria-expanded={sessionsOpen}");
-    expect(panel).toContain('aria-controls="up-sessions"');
-    expect(panel).toContain('id="up-sessions"');
-    expect(panel).toContain("hidden={!sessionsOpen}");
+    expect(sessions).toMatch(/<h3 className="up-section-title">\s*<button/);
+    expect(sessions).toContain('className="up-disclose"');
+    expect(sessions).toContain("aria-expanded={sessionsOpen}");
+    expect(sessions).toContain('aria-controls="up-sessions"');
+    expect(sessions).toContain('id="up-sessions"');
+    expect(sessions).toContain("hidden={!sessionsOpen}");
   });
 
   it("hides the list in CSS as well as in the attribute", () => {
@@ -771,7 +776,7 @@ describe("the session section's disclosure", () => {
     // `.bw-chev` prints ▾ and ▸ and is at the mercy of whichever font answers
     // for them on Windows and Linux. A path is the same three strokes on every
     // OS, and it can rotate instead of being replaced.
-    expect(panel).toContain('<svg className="up-chev"');
+    expect(sessions).toContain('<svg className="up-chev"');
     expect(surface).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
     expect(block('.up-disclose[aria-expanded="true"] .up-chev')).toMatch(/transform:\s*rotate\(180deg\)/);
     // Under reduced motion it still turns — it just stops travelling.
@@ -798,9 +803,9 @@ describe("the session section's disclosure", () => {
     // Shut, the reader cannot see how many sessions there are, and that is the
     // one fact the collapse actually takes away. The heading already carries
     // two things; a third in ink would be the noise this panel is short of.
-    expect(panel).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
-    expect(panel).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
-    expect(panel).toContain('"Hide the per-session breakdown"');
+    expect(sessions).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
+    expect(sessions).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
+    expect(sessions).toContain('"Hide the per-session breakdown"');
   });
 });
 
