@@ -35,6 +35,9 @@ import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
+/** The ⋯ popover's state and the requests pressed in it: the slot draft, the
+ *  move and the press that sends it live here since they left the panel. */
+const accountMenuCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8"));
 
 /** The same file with its comments gone. The prose here quotes the handler it
  *  retired — explaining why `onChange` could not be the commit needs the old
@@ -60,7 +63,7 @@ const surfaceCode = withoutComments(accountsSurface());
  * The body of every `attr={…}` in the source, brace-matched.
  *
  * A lazy `[^}]*` stops at the first brace inside the handler, which for
- * `onChange={e => setSlotDraft(Number(e.target.value))}` is not the end of
+ * `onChange={e => pickSlot(Number(e.target.value))}` is not the end of
  * anything. Quotes are tracked so a brace inside a string does not count.
  */
 function handlers(source: string, attr: string): string[] {
@@ -195,9 +198,13 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // admin route, not the auto route, not fetch, and not the two helpers that
     // wrap them.
     for (const body of handlers(surfaceCode, "onChange")) {
-      expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|load|fetch)\s*\(/);
-      expect(body, body).toMatch(/\bset[A-Z]/);
+      expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
+      // A setter, or one of the two drafts the ⋯ menu's hook writes by name —
+      // and each of those is one setter call and nothing else.
+      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot)\(/);
     }
+    expect(accountMenuCode).toMatch(/const typeAlias = \(text: string\) => setAliasDraft\(text\);/);
+    expect(accountMenuCode).toMatch(/const pickSlot = \(slot: number\) => setSlotDraft\(slot\);/);
   });
 
   it("commits both pickers from a press instead", () => {
@@ -209,14 +216,14 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // is the call — one of them, inside doSlot, reachable from nowhere a
     // keystroke can get to.
     expect([...surfaceCode.matchAll(/doMove\(/g)]).toHaveLength(1);
-    expect(panelCode).toMatch(/const doSlot = async[\s\S]*?doMove\(from, to\)/);
+    expect(accountMenuCode).toMatch(/const doSlot = async[\s\S]*?doMove\(from, to\)/);
   });
 
   it("keeps the picked slot in state rather than in the request", () => {
     // The retired shape, which must not come back in either picker.
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
-    expect(panelCode).toMatch(/onChange=\{e => setSlotDraft\(Number\(e\.target\.value\)\)\}/);
+    expect(panelCode).toMatch(/onChange=\{e => pickSlot\(Number\(e\.target\.value\)\)\}/);
     expect(clientText()).toMatch(/onChange=\{e => setThresholdDraft\(e\.target\.value\)\}/);
   });
 
@@ -230,7 +237,7 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // A draft left standing would arm the next block the user opens with a slot
     // they chose for somebody else — the shape #327 fixed for the alias draft,
     // the armed remove and the share blob.
-    expect(panelCode).toMatch(/setSlotDraft\(null\)/);
+    expect(accountMenuCode).toMatch(/setSlotDraft\(null\)/);
     expect([...surfaceCode.matchAll(/setSlotDraft\(null\)/g)].length).toBeGreaterThanOrEqual(2);
   });
 });

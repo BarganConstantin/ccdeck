@@ -495,11 +495,13 @@ describe("no row grid, and one form at a time", () => {
 
   it("keeps the two-step arm and its four-second expiry", () => {
     expect(panel).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
-    expect(panel).toMatch(/setConfirmRemove\(c => \(c === a\.num \? null : c\)\), REMOVE_ARMED_MS\)/);
+    // The press itself is the ⋯ menu's hook's, which holds the armed account.
+    const menu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
+    expect(menu).toMatch(/setConfirmRemove\(c => \(c === num \? null : c\)\), REMOVE_ARMED_MS\)/);
     // The window is one named length, and the bar draining along the item is
     // timed to the same number: a bar that emptied early or late would be
     // lying about how long the next press still removes.
-    const armed = Number(panel.match(/const REMOVE_ARMED_MS = ([\d_]+);/)?.[1].replace(/_/g, ""));
+    const armed = Number(menu.match(/const REMOVE_ARMED_MS = ([\d_]+);/)?.[1].replace(/_/g, ""));
     expect(armed).toBe(4000);
     expect(bare).toMatch(new RegExp(`ap-disarm ${armed}ms linear forwards`));
   });

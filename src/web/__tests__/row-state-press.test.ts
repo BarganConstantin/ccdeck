@@ -39,9 +39,15 @@ import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
+/** The ⋯ popover's state and the requests pressed in it, lifted out of the
+ *  panel with the two rescues a move and a remove make. */
+const accountMenu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const panelCode = panel
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+const accountMenuCode = accountMenu
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 /** The same, for every file the panel has been split into — what a count or a
@@ -305,8 +311,10 @@ describe("a press never disables the control it came from (#518)", () => {
     // Exactly the three sites that unmount, and no others: a rescue on a press
     // that kept its control would take focus off it for no reason.
     expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(3);
+    // The switch's is the panel's; the move's and the remove's went to the
+    // menu's hook with the requests that make them.
     expect(panelCode).toMatch(/rescueFocus\(num\);/);
-    expect(panelCode).toMatch(/rescueFocus\(next\.menuFor\);/);
-    expect(panelCode).toMatch(/rescueFocus\(null\);/);
+    expect(accountMenuCode).toMatch(/rescueFocus\(next\.menuFor\);/);
+    expect(accountMenuCode).toMatch(/rescueFocus\(null\);/);
   });
 });

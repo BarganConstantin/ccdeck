@@ -31,6 +31,7 @@ export const ACCOUNTS_FILES = [
   "auto-switch-threshold.ts",
   "components/AutoSwitchPolicy.tsx",
   "use-request-slot.ts",
+  "use-account-menu.ts",
 ] as const;
 
 let joined: string | null = null;
