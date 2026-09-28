@@ -94,7 +94,8 @@ export default function LanPeerModal({
   /** When it was armed, so a double-click cannot be its own confirmation. */
   const armedAt = useRef(0);
   /** Which folded deck's unpair is armed, by fingerprint: the same two presses,
-   *  one deck at a time. Shares armedAt, since only one can be armed. */
+   *  one deck at a time. Shares armedAt, since only one can be armed — arming
+   *  either stands the other down (#1607), as a row armed in the list does. */
   const [armedTwin, setArmedTwin] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   /** Bumped when a check comes back, so the lanes draw themselves again: the
@@ -313,7 +314,7 @@ export default function LanPeerModal({
                             const press = armedPress({
                               armedFor: armedTwin, target: fpT, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
                             });
-                            if (press === "arm") { setArmedTwin(fpT); armedAt.current = now; return; }
+                            if (press === "arm") { setArmedTwin(fpT); setArmed(false); armedAt.current = now; return; }
                             if (press === "ignore") return;
                             setArmedTwin(null);
                             void run(() => onUnpair(fpT));
@@ -371,7 +372,7 @@ export default function LanPeerModal({
                 const press = armedPress({
                   armedFor: armed ? row.fp : null, target: row.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
                 });
-                if (press === "arm") { setArmed(true); armedAt.current = now; return; }
+                if (press === "arm") { setArmed(true); setArmedTwin(null); armedAt.current = now; return; }
                 // A double-click is one decision, not two — the row's rule.
                 if (press === "ignore") return;
                 setArmed(false);
