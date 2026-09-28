@@ -525,6 +525,12 @@ export function cachedModelId(cached) {
   return typeof rootModel === "string" && rootModel ? rootModel : null;
 }
 
+/** The root model already resolved for this session, or null — what pushEvent
+ *  stamps on a payload that arrives without one. */
+function knownModelId(sid) {
+  return cachedModelId(modelBySession.get(sid));
+}
+
 /** Read the main session JSONL. Returns the root model and any
  *  legacy-schema subagent models (older CC versions kept subagent blocks
  *  inline with `isSidechain:true` + `parentToolUseID`). Current CC versions
@@ -1239,6 +1245,24 @@ function forgetEnrichment(sid) {
   lastUsageReadAt.delete(sid);
   lastContextReadAt.delete(sid);
   lastCodexMemoryReadAt.delete(sid);
+}
+
+/**
+ * Every session's "has this changed" gates, and the read stamps that would hold
+ * the next re-read back, dropped at once. Its one caller is handleClear, which
+ * says why a Clear has to.
+ */
+function clearEnrichmentGates() {
+  nameBySession.clear();
+  recapBySession.clear();
+  modelBySession.clear();
+  // The read stamps go with them. Clearing only the signatures would leave
+  // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript
+  // would not be re-read at all and the name would stay missing until the
+  // throttle expired — a clear followed by a keystroke is exactly when a
+  // user is watching.
+  lastNameReadAt.clear();
+  modelLastReadAt.clear();
 }
 
 // ─── Codex transcript enrichment ──────────────────────────────────────────
@@ -2320,7 +2344,7 @@ function pushEvent(raw, source, opts = {}) {
   // Synchronous enrichment: if we already know this session's model, stamp
   // it on the payload so the client's recursive scanner picks it up.
   if (raw && typeof raw === "object" && raw.session_id && !raw.model) {
-    const modelId = cachedModelId(modelBySession.get(raw.session_id));
+    const modelId = knownModelId(raw.session_id);
     if (modelId) raw.model = modelId;
   }
 
@@ -3410,18 +3434,10 @@ async function handleClear(res) {
   //
   // The rule, for the next cache that gates an emit: anything answering
   // "has this changed" has to appear in BOTH places that mean the client no
-  // longer has it — here, and in forgetSession.
+  // longer has it — here (clearEnrichmentGates), and in forgetSession
+  // (forgetEnrichment).
   outputWatch.clear();
-  nameBySession.clear();
-  recapBySession.clear();
-  modelBySession.clear();
-  // The read stamps go with them. Clearing only the signatures would leave
-  // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript
-  // would not be re-read at all and the name would stay missing until the
-  // throttle expired — a clear followed by a keystroke is exactly when a
-  // user is watching.
-  lastNameReadAt.clear();
-  modelLastReadAt.clear();
+  clearEnrichmentGates();
   pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal", { persist: false });
   // The end of the press. Awaited, where the truncate used to be fired and
   // forgotten, so the answer does not go out before the file has actually

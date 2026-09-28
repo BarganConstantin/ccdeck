@@ -4,7 +4,8 @@
 // `handleClear` states the rule out loud:
 //
 //     anything answering "has this changed" has to appear in BOTH places that
-//     mean the client no longer has it — here, and in forgetSession.
+//     mean the client no longer has it — here (clearEnrichmentGates), and in
+//     forgetSession (forgetEnrichment).
 //
 // There is a third place, and the server never heard about it: the page's own
 // `pruneDoneSessions` and `pruneOldAgents`, which run every 250ms at cap 6 /
