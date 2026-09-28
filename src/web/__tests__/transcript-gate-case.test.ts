@@ -9,6 +9,7 @@
 // disagree about whether /Users/a and /users/a are one directory. The gate asks
 // foldsCase now, and this walks the three platforms through both.
 import { afterEach, describe, it, expect } from "vitest";
+import { join, resolve } from "node:path";
 
 // @ts-expect-error — plain .mjs server module, no types
 const { isClaudeTranscriptPath } = await import("../../server/transcript-gate.mjs");
@@ -20,16 +21,22 @@ const pretend = (platform: string) =>
   Object.defineProperty(process, "platform", { value: platform, configurable: true });
 afterEach(() => { Object.defineProperty(process, "platform", real); });
 
-// POSIX-shaped on purpose: node:path is chosen when it loads, so `resolve`
-// stays POSIX whatever platform is pretended, and only the fold is under test.
-const ROOTS = ["/home/me/.claude/projects"];
-const SAME_CASE = "/home/me/.claude/projects/-w-demo/abc.jsonl";
-const OTHER_CASE = "/HOME/Me/.Claude/Projects/-w-demo/abc.jsonl";
+// Built with this machine's own path functions. node:path is chosen when it
+// loads, so the gate's `resolve` is POSIX on Linux and macOS and win32 on
+// Windows — a drive letter and backslashes — whatever platform is pretended
+// below. A POSIX-shaped fixture therefore never matched on a Windows runner
+// (`D:\home\me\...` against `/home/me/...`), and only the fold is under test.
+const ROOT = resolve("/home/me/.claude/projects");
+const ROOTS = [ROOT];
+const SAME_CASE = join(ROOT, "-w-demo", "abc.jsonl");
+const OTHER_CASE = SAME_CASE
+  .replace("home", "HOME").replace("me", "Me").replace(".claude", ".Claude").replace("projects", "Projects");
 
 describe("isClaudeTranscriptPath on each platform", () => {
   for (const platform of ["linux", "darwin", "win32", "freebsd"]) {
     it(`${platform}: accepts another casing exactly when foldsCase says the filesystem folds it`, () => {
       pretend(platform);
+      expect(OTHER_CASE, "the fixture lost its other casing").not.toBe(SAME_CASE);
       expect(isClaudeTranscriptPath(SAME_CASE, ROOTS)).toBe(true);
       expect(isClaudeTranscriptPath(OTHER_CASE, ROOTS)).toBe(foldsCase(platform));
     });

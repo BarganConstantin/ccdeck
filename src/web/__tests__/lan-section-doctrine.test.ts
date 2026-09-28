@@ -272,6 +272,19 @@ describe("a write that did not happen says so", () => {
     }
     expect(writeFailure("share that account", null)).not.toMatch(/api|prefs|POST|\b\d{3}\b/);
   });
+
+  it("tells someone whose settings are out of the deck's reach where to look (#1335)", () => {
+    // A code in brackets is a panel bug's next move. This one is the machine's,
+    // and the reader is the only one who can make it.
+    for (const reason of ["prefs_unreadable", "prefs_not_writable"]) {
+      const said = writeFailure("share that account", { ok: false, reason });
+      expect(said, reason).toContain("share that account");
+      expect(said, reason).toMatch(/settings/);
+      expect(said, reason).toMatch(/sudo/);
+      expect(said, reason).toMatch(/log/);
+      expect(said, reason).not.toContain(reason);
+    }
+  });
 });
 
 describe("what we last sent, against what the server says", () => {
