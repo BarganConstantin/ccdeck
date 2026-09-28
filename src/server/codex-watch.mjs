@@ -228,10 +228,11 @@ function emitCodexEvent(payload, persist) {
  * `sawBeginning` is the one fact that separates the two, and it is not a
  * filesystem question. It is set where the tail cursor is: TRUE when this
  * watcher opened the rollout at byte 0 and therefore holds every line the
- * session ever wrote, FALSE when codexScanOnce's `firstRun` skipped a
- * pre-existing file's history by seeking to its current size. That is the same
- * fact the event states, read off the only thing that actually knows it, and it
- * is the same on Linux, macOS and Windows because no platform API is consulted.
+ * session ever wrote, FALSE when openCodexCursor, on codexScanOnce's
+ * `firstRun`, skipped a pre-existing file's history by seeking to its current
+ * size. That is the same fact the event states, read off the only thing that
+ * actually knows it, and it is the same on Linux, macOS and Windows because no
+ * platform API is consulted.
  *
  * WHY NOT `fs.watch`, AND WHY NOT `birthtime` — both measured rather than
  * assumed, on Node 22.14 / darwin, plus the documented behaviour elsewhere:
@@ -274,6 +275,112 @@ function ensureCodexRoot(state, persist) {
   emitCodexEvent({ session_id: state.sid, cwd: state.cwd, provider: "codex", hook_event_name: "SessionStart" }, persist);
 }
 
+/**
+ * A cursor for a rollout this watcher holds none for yet, recorded in
+ * codexFileState, and returned when this tick should go on to read from it.
+ * Null when it should not: the header cannot be read yet, so the file is
+ * retried next tick; the rollout runs outside this deck's workspace, so a
+ * skipping cursor is parked at its end; or this is the first scan, and the
+ * file's history is skipped.
+ */
+async function openCodexCursor(path, st, now, firstRun) {
+  // New file — read the header for sid + cwd, then decide whether to
+  // capture it. Skip files outside our workspace.
+  const header = await readCodexHeader(path);
+  if (!header || !header.sid) return null; // not ready yet — retry next tick
+  if (!codexCwdInWorkspace(header.cwd, codexWorkspace)) {
+    codexFileState.set(path, { offset: st.size, sid: header.sid, cwd: header.cwd, skip: true, sawBeginning: false, rootOpened: false, seenAt: now });
+    return null;
+  }
+  // Opened at byte 0, so every line this session ever wrote is about to
+  // be read: this watcher HAS its beginning, and ensureCodexRoot may say
+  // so. The `firstRun` branch below is the one case that takes it away.
+  //
+  // UNLESS THIS PROCESS HAS SEEN THE PATH BEFORE, in which case there is
+  // no beginning to claim and nothing to replay: the cursor was dropped
+  // by the TTL sweep and this is a RE-discovery. Parking at the current
+  // size costs whatever was appended while the tree was unreachable,
+  // which is the same trade `firstRun` already makes below — against
+  // re-emitting every prompt, every PreToolUse/PostToolUse and every
+  // UsageObserved in the file to every tab, and re-appending the lot to
+  // the shared events.jsonl if this deck is the elected writer (#981).
+  const fresh = !codexSeenEver.has(path);
+  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now };
+  codexFileState.set(path, state);
+  rememberCodexPath(path);
+  if (firstRun) {
+    // On startup, skip a pre-existing session's history entirely — no
+    // replay. Only future appends (a live session that keeps going) will
+    // lazily open the root via ensureCodexRoot.
+    //
+    // And it opens WITHOUT a `SessionStart` (#684). Seeking to the
+    // current size is precisely the admission that this deck did not
+    // watch the session begin, so it must not go on to emit the event
+    // that says it did — that is the input #683's joined-late marker is
+    // entitled to trust. A deck RESTARTING over a session that is still
+    // running lands here too, and correctly: the new process holds none
+    // of the old one's history either. If the log it replays at boot
+    // already contains a `SessionStart` this deck minted honestly in an
+    // earlier life, the root is rebuilt unmarked from that line and stays
+    // unmarked, because nothing here emits a second one to disturb it.
+    //
+    // NOT because the reducer would refuse to listen. It used to say so
+    // here — "the reducer only honours `synthetic` on the call that
+    // CREATES the node" — and that is false: `applySessionStart`, in
+    // src/web/session-lifecycle.ts, clears `root.synthetic` on EVERY
+    // `SessionStart`, deliberately, so that one arriving after the event
+    // that created the root retracts a marker the deck no longer
+    // deserves to be wearing (#677). Which makes the marker exactly as
+    // honest as the emitter above it, and is why the rule this branch
+    // states — do not emit a `SessionStart` for a beginning this process
+    // did not watch — is the whole guarantee rather than a belt beside a
+    // brace (#981).
+    state.offset = st.size;
+    state.sawBeginning = false;
+    return null;
+  }
+  return state;
+}
+
+/**
+ * Send on each complete line of one batch appended to a rollout, as the hook
+ * payload it translates to, opening the session's root before its first event.
+ * A line that changes the session's model is preceded by a ModelObserved.
+ * `persist` is the batch's one verdict — see emitCodexEvent.
+ */
+function emitCodexLines(state, consume, persist) {
+  for (const line of consume.split("\n")) {
+    if (!line) continue;
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+    const prevModel = codexSessionModel.get(state.sid);
+    const payload = codexObjToPayload(obj, state.sid, state.cwd);
+    // If the model changed (turn_context/response_item), surface it.
+    const nowModel = codexSessionModel.get(state.sid);
+    if (nowModel && nowModel !== prevModel) {
+      ensureCodexRoot(state, persist);
+      emitCodexEvent({ session_id: state.sid, cwd: state.cwd, provider: "codex", hook_event_name: "ModelObserved", model: nowModel }, persist);
+    }
+    if (payload) {
+      ensureCodexRoot(state, persist);
+      emitCodexEvent(payload, persist);
+    }
+  }
+}
+
+/**
+ * Rollout files fall out of the newest-2-days listing and never come back,
+ * but their tail cursors used to live as long as the process did. Expire by
+ * "not seen for a while" rather than "absent from this listing": a single
+ * unreadable directory mid-scan would otherwise drop a live file's cursor,
+ * and re-adding it at offset 0 replays that entire rollout as fresh events.
+ */
+function sweepCodexCursors(now) {
+  for (const [p, s] of codexFileState) {
+    if (now - (s.seenAt ?? 0) > CODEX_STATE_TTL_MS) codexFileState.delete(p);
+  }
+}
+
 async function codexScanOnce(firstRun) {
   if (codexScanRunning) return;
   codexScanRunning = true;
@@ -292,61 +399,8 @@ async function codexScanOnce(firstRun) {
       if (state) state.seenAt = now;
 
       if (!state) {
-        // New file — read the header for sid + cwd, then decide whether to
-        // capture it. Skip files outside our workspace.
-        const header = await readCodexHeader(path);
-        if (!header || !header.sid) continue; // not ready yet — retry next tick
-        if (!codexCwdInWorkspace(header.cwd, codexWorkspace)) {
-          codexFileState.set(path, { offset: st.size, sid: header.sid, cwd: header.cwd, skip: true, sawBeginning: false, rootOpened: false, seenAt: now });
-          continue;
-        }
-        // Opened at byte 0, so every line this session ever wrote is about to
-        // be read: this watcher HAS its beginning, and ensureCodexRoot may say
-        // so. The `firstRun` branch below is the one case that takes it away.
-        //
-        // UNLESS THIS PROCESS HAS SEEN THE PATH BEFORE, in which case there is
-        // no beginning to claim and nothing to replay: the cursor was dropped
-        // by the TTL sweep and this is a RE-discovery. Parking at the current
-        // size costs whatever was appended while the tree was unreachable,
-        // which is the same trade `firstRun` already makes below — against
-        // re-emitting every prompt, every PreToolUse/PostToolUse and every
-        // UsageObserved in the file to every tab, and re-appending the lot to
-        // the shared events.jsonl if this deck is the elected writer (#981).
-        const fresh = !codexSeenEver.has(path);
-        state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now };
-        codexFileState.set(path, state);
-        rememberCodexPath(path);
-        if (firstRun) {
-          // On startup, skip a pre-existing session's history entirely — no
-          // replay. Only future appends (a live session that keeps going) will
-          // lazily open the root via ensureCodexRoot.
-          //
-          // And it opens WITHOUT a `SessionStart` (#684). Seeking to the
-          // current size is precisely the admission that this deck did not
-          // watch the session begin, so it must not go on to emit the event
-          // that says it did — that is the input #683's joined-late marker is
-          // entitled to trust. A deck RESTARTING over a session that is still
-          // running lands here too, and correctly: the new process holds none
-          // of the old one's history either. If the log it replays at boot
-          // already contains a `SessionStart` this deck minted honestly in an
-          // earlier life, the root is rebuilt unmarked from that line and stays
-          // unmarked, because nothing here emits a second one to disturb it.
-          //
-          // NOT because the reducer would refuse to listen. It used to say so
-          // here — "the reducer only honours `synthetic` on the call that
-          // CREATES the node" — and that is false: `applySessionStart`, in
-          // src/web/session-lifecycle.ts, clears `root.synthetic` on EVERY
-          // `SessionStart`, deliberately, so that one arriving after the event
-          // that created the root retracts a marker the deck no longer
-          // deserves to be wearing (#677). Which makes the marker exactly as
-          // honest as the emitter above it, and is why the rule this branch
-          // states — do not emit a `SessionStart` for a beginning this process
-          // did not watch — is the whole guarantee rather than a belt beside a
-          // brace (#981).
-          state.offset = st.size;
-          state.sawBeginning = false;
-          continue;
-        }
+        state = await openCodexCursor(path, st, now, firstRun);
+        if (!state) continue;
       }
 
       if (state.skip) { state.offset = st.size; continue; }
@@ -374,23 +428,7 @@ async function codexScanOnce(firstRun) {
       const persist = !eventLogPath()
         || writesCodexLog({ decks: await liveDecks(), pid: process.pid, cwd: state.cwd });
 
-      for (const line of consume.split("\n")) {
-        if (!line) continue;
-        let obj;
-        try { obj = JSON.parse(line); } catch { continue; }
-        const prevModel = codexSessionModel.get(state.sid);
-        const payload = codexObjToPayload(obj, state.sid, state.cwd);
-        // If the model changed (turn_context/response_item), surface it.
-        const nowModel = codexSessionModel.get(state.sid);
-        if (nowModel && nowModel !== prevModel) {
-          ensureCodexRoot(state, persist);
-          emitCodexEvent({ session_id: state.sid, cwd: state.cwd, provider: "codex", hook_event_name: "ModelObserved", model: nowModel }, persist);
-        }
-        if (payload) {
-          ensureCodexRoot(state, persist);
-          emitCodexEvent(payload, persist);
-        }
-      }
+      emitCodexLines(state, consume, persist);
 
       // Once per batch of appended lines rather than once per line — the scan
       // throttles itself per session, but the cheapest call is the one that is
@@ -407,30 +445,21 @@ async function codexScanOnce(firstRun) {
       if (state.rootOpened) maybeResolveCodexMemory(state.sid, state.cwd, persist);
     }
 
-    // Rollout files fall out of the newest-2-days listing and never come back,
-    // but their tail cursors used to live as long as the process did. Expire by
-    // "not seen for a while" rather than "absent from this listing": a single
-    // unreadable directory mid-scan would otherwise drop a live file's cursor,
-    // and re-adding it at offset 0 replays that entire rollout as fresh events.
-    //
     // AN EMPTY LISTING IS NOT EVIDENCE THAT ANYTHING WENT AWAY, and skipping
-    // the sweep on those ticks is the other half of the same argument. The
-    // "not seen for a while" clock was meant to ride out a directory that is
-    // unreadable for a moment, and it did — but it ran on ticks where `seenAt`
-    // had been refreshed for NOBODY, because walkRolloutDays swallows its
-    // readdir error at every level and answers `[]` rather than throwing. Ten
-    // minutes of an unreachable $CODEX_HOME — a network or removable volume, an
-    // encrypted home not yet unlocked, a permission change — and every cursor
-    // was gone, which is the whole window the clock was sized to survive (#981).
+    // the sweep on those ticks is the other half of sweepCodexCursors'
+    // argument. The "not seen for a while" clock was meant to ride out a
+    // directory that is unreadable for a moment, and it did — but it ran on
+    // ticks where `seenAt` had been refreshed for NOBODY, because
+    // walkRolloutDays swallows its readdir error at every level and answers
+    // `[]` rather than throwing. Ten minutes of an unreachable $CODEX_HOME — a
+    // network or removable volume, an encrypted home not yet unlocked, a
+    // permission change — and every cursor was gone, which is the whole window
+    // the clock was sized to survive (#981).
     //
     // Nothing is lost by waiting: an empty listing means no file can be read
     // this tick anyway, and a tree that really is empty stays empty, so the
     // first tick that lists anything at all sweeps what is genuinely stale.
-    if (files.length) {
-      for (const [p, s] of codexFileState) {
-        if (now - (s.seenAt ?? 0) > CODEX_STATE_TTL_MS) codexFileState.delete(p);
-      }
-    }
+    if (files.length) sweepCodexCursors(now);
   } catch {
     /* swallow — watcher must never crash the server */
   } finally {
