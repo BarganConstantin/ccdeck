@@ -28,6 +28,7 @@ export const REDUCER_FILES = [
   "board-sweeps.ts",
   "agent-attribution.ts",
   "waiting-block.ts",
+  "redelivery.ts",
 ] as const;
 
 let joined: string | null = null;
