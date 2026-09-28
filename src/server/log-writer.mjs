@@ -26,16 +26,6 @@ import { basename, dirname, join, resolve, win32, posix } from "node:path";
 import { PRODUCT } from "./brand.mjs";
 
 /**
- * Does this platform's filesystem treat two spellings that differ only in case
- * as the same file? The platform is a parameter so both answers can be checked
- * from either kind of machine.
- *
- * Windows always does, and macOS does by default (APFS and HFS+ are formatted
- * case-insensitive unless the user deliberately chose otherwise). Linux does
- * not, and folding case there would be a bug of its own: /srv/a/events.jsonl and
- * /srv/A/events.jsonl are two real files, each of which needs a writer.
- */
-/**
  * The one spelling of an events log, so two decks pointed at one file land in
  * one group (#793).
  *
@@ -73,6 +63,16 @@ export function canonicalLogPath(raw) {
   try { return join(realpathSync.native(dirname(abs)), basename(abs)); } catch { return abs; }
 }
 
+/**
+ * Does this platform's filesystem treat two spellings that differ only in case
+ * as the same file? The platform is a parameter so both answers can be checked
+ * from either kind of machine.
+ *
+ * Windows always does, and macOS does by default (APFS and HFS+ are formatted
+ * case-insensitive unless the user deliberately chose otherwise). Linux does
+ * not, and folding case there would be a bug of its own: /srv/a/events.jsonl and
+ * /srv/A/events.jsonl are two real files, each of which needs a writer.
+ */
 export const foldsCase = (platform = process.platform) =>
   platform === "win32" || platform === "darwin";
 
