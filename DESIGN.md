@@ -402,25 +402,35 @@ own system scrollbar in every state, so the forced-colours block has nothing to 
 
 ## Elevation & Depth
 
-**Elevation is two tokens, and that is the rule:**
+**Elevation is three tokens and a contact line, and that is the rule:**
 
 | Token | Dark | Light | Uses |
 |---|---|---|---|
-| `--shadow-1` | `0 6px 18px rgba(0,0,0,0.25)` | `0 4px 14px rgba(15,23,42,0.10)` | panels, popovers |
-| `--shadow-2` | `0 10px 24px rgba(0,0,0,0.32)` | `0 10px 28px rgba(15,23,42,0.16)` | modals |
+| `--shadow-1` | `0 6px 18px rgba(0,0,0,0.25)` | `0 4px 14px rgba(15,23,42,0.10)` | canvas objects at rest (node, recap note), the drag-trash zone |
+| `--shadow-2` | `0 10px 24px rgba(0,0,0,0.32)` | `0 10px 28px rgba(15,23,42,0.16)` | modals, a hovered or selected node, the lift under a popover |
+| `--shadow-3` | `0 1px 2px rgba(0,0,0,0.30), 0 14px 34px rgba(0,0,0,0.34)` | `0 1px 2px rgba(15,23,42,0.10), 0 14px 34px rgba(15,23,42,0.16)` | the topbar's menus |
+| `--shadow-contact` | `0 1px 2px rgba(0,0,0,0.30)` | `0 1px 2px rgba(15,23,42,0.10)` | under `--shadow-2`, the anchored popovers |
 
-`var(--shadow-1|2)` appears 13 times. Depth is otherwise carried by surface tier
-(`--bg` → `--bg-soft` → `--panel`, which is only two tiers in light) and a 1px
-`--line` edge.
+A popover is `var(--shadow-contact), var(--shadow-2)`: the tight line is what reads
+as sitting *on* something, the wide one is its height. Every theme retune lives in
+the token, so no rule writes a light override for a shadow it reads (#1287).
+Depth is otherwise carried by surface tier (`--bg` → `--bg-soft` → `--panel`, which
+is only two tiers in light) and a 1px `--line` edge.
 
 **Halos and rings are a different job and are allowed.** A state colour at zero
 offset is a mark, not elevation: `0 0 8px var(--ok|warn|err|inflight)`,
 `0 0 22px var(--accent)`, and `0 0 0 1px` identity rings. Reach for these to say
 *this one*, never to lift something off the page.
 
-**Known debt:** about 47 `box-shadow` declarations carry literal values, and at
-least one of them is a genuine third elevation in both themes; 25 of the 27
-gradient calls are untokenised. Tracked in #1287 — do not add to it.
+**A gradient is a token when two rules share it or a theme retunes it** (#1287):
+`--node-grad`, `--topbar-grad`, `--conn-wash` (the disconnected banner),
+`--burst-live-wash` (a running tool bubble) and `--hero-core` (the empty-canvas orb)
+in both theme blocks; `--meter-grad` (the context meter and the session summary's
+tool bars) and `--wire-dashed` (a LAN wire that is down or cut) once, in a
+theme-independent `:root`, because they are made of theme tokens already. A
+gradient only one rule draws, from theme tokens, stays in its rule.
+`elevation-tokens-1287.test.ts` fails a gradient written in two rules or retuned by
+a light rule.
 
 ## Shapes
 
@@ -431,13 +441,17 @@ a panel.
 | Tier | Values | Used by |
 |---|---|---|
 | Chrome | `--r-tag: 4px` · `--r-ctl: 6px` · `--r-panel: 8px` | tags, controls, panels, modals |
-| Canvas | `10px` · `16px` | `.agent-node` and `.recap-note` at 10px, `.cluster-card` at 16px |
+| Canvas | `--r-node: 10px` · `--r-cluster: 16px` | `.agent-node` and `.recap-note`, `.cluster-card` — and nothing in the chrome |
 | Sub-scale | `3px` ×15 · `2px` ×10 · `1px` ×7 | hairlines, stripes, meter fills |
 | Round | `50%` ×41 · `999px` | dots, knobs, pills |
 
-The canvas tier has no token yet — #1288. **Do not bring the agent node down to
-8px**; it is 10px on purpose. Note also that only 35 declarations use `var(--r-*)`
-while `6px` ×22, `4px` ×20 and `8px` ×15 are the same values written as literals.
+Both tiers are tokens in the geometry `:root` block (#1288), and
+`radius-tiers-1288.test.ts` holds the canvas tier rounder than the chrome and
+keeps chrome from reading it. **Do not bring the agent node down to 8px**; it is
+10px on purpose. Many chrome rules still write `4px`, `6px` and `8px` as literals.
+They were not bulk-converted, because the same number is not always the same
+decision: 4px is also the focus ring's radius and a `kbd`'s, and 6px is also the
+overview face's. Convert one when its role is a tag, a control or a panel.
 
 Control height is `--ctl-h: 30px`. Panel padding is `--panel-inset: 14px`.
 
@@ -491,7 +505,7 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Canvas objects
 
-- **Agent node** — the canvas's primary object. `--node-grad` fill, `10px` radius,
+- **Agent node** — the canvas's primary object. `--node-grad` fill, `--r-node` radius,
   the session's hashed accent as its own `--accent`. State is carried by **both the
   border and the state pill** (`stateLabel()`: `live` / `done` / `err`), never the
   border alone — 1.4.1. It has **level-of-detail variants** via `@container lod`:
@@ -615,7 +629,7 @@ are literals today.
 - Don't put readable words in `--muted-dim`, and don't put `--dim-stale` over text.
 - Don't lift `--muted` without re-running the contrast tests — it has two tenths of
   headroom.
-- Don't introduce a webfont, a third elevation, or a third surface tier in light.
+- Don't introduce a webfont, a fourth elevation, or a third surface tier in light.
 - Don't bring a canvas object down to the chrome radius; 10px and 16px are
   deliberate.
 - Don't give a button an accent hover. Neutral hover is a decision, not an

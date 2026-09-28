@@ -79,8 +79,25 @@
   --inflight: #f0abfc;
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  /* THE THIRD ELEVATION, and the line that seats a surface ON something
+     (#1287). Both were literals, each said once per theme in a rule of its
+     own: the topbar's two menus carried the contact line over a lift of their
+     own, 14px/34px, and the three anchored popovers the same contact line over
+     --shadow-2 — five light overrides that existed only to repeat a shadow in
+     slate. A menu is --shadow-3; a popover is --shadow-contact under --shadow-2.
+     The values are the ones those rules wrote, so nothing moves. */
+  --shadow-3: 0 1px 2px rgba(0,0,0,0.30), 0 14px 34px rgba(0,0,0,0.34);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
   --node-grad: linear-gradient(180deg, var(--panel), var(--bg-soft));
   --topbar-grad: linear-gradient(to bottom, var(--panel), var(--bg-soft));
+  /* THE GRADIENTS A THEME RETUNES (#1287). Each of these was a literal in a
+     rule and a second literal in a light rule beside it — the tint behind the
+     disconnected banner, the wash inside a running tool bubble, and the
+     empty-canvas orb — so the theme lived in two selectors instead of one
+     block. The values are the ones those rules wrote. */
+  --conn-wash: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
+  --burst-live-wash: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));
+  --hero-core: radial-gradient(circle at 30% 30%, #f0abfc, #7dd3fc 55%, #14161b);
   --grid-line: #1a1d24;
   --minimap-mask: rgba(11,12,16,0.85);
   /* Per-session and per-MCP-server hues are hashed in JS (reducer.sessionHue,
@@ -227,8 +244,16 @@
   --inflight: #7e22ce;
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
   --shadow-2: 0 10px 28px rgba(15,23,42,0.16);
+  /* The same two layers on white, in the light theme's slate and at its own
+     shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
+     third stayed black at a third on the white page (#876). */
+  --shadow-3: 0 1px 2px rgba(15,23,42,0.10), 0 14px 34px rgba(15,23,42,0.16);
+  --shadow-contact: 0 1px 2px rgba(15,23,42,0.10);
   --node-grad: linear-gradient(180deg, #ffffff, #f2f5fa);
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);
+  --conn-wash: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
+  --burst-live-wash: linear-gradient(180deg, rgba(126,34,206,0.06), transparent);
+  --hero-core: radial-gradient(circle at 30% 30%, #c084fc, #0ea5e9 55%, #1e293b);
   --grid-line: #d0d5dd;
   --minimap-mask: rgba(238,241,246,0.85);
   /* The same six jobs, re-tuned for a white canvas — the whole point of #330.
@@ -360,10 +385,18 @@
      a 12px dialog, an 18px bar and 999px pills on most small things, which is
      most of what made it read as a generic dashboard. Pills stay where the
      shape is the meaning: an atomic state (active, expired), a count, and the
-     switch's own track. */
+     switch's own track.
+     AND A SECOND TIER, FOR THE CANVAS (#1288). A card and a recap note are
+     10px and a session's cluster 16px, rounder than any panel on purpose: a
+     canvas object reads as a thing you can pick up, and chrome reads as the
+     frame around it. That was true and unwritten, so the first reader of the
+     three steps above would have brought the node down to 8px. The tier is
+     named now, and nothing in the chrome may read it. */
   --r-tag: 4px;
   --r-ctl: 6px;
   --r-panel: 8px;
+  --r-node: 10px;
+  --r-cluster: 16px;
 }
 
 /* The two dimmings, in their own block and in neither theme for the same reason
@@ -542,6 +575,18 @@
    nothing moves either; what changes is that it is our choice now. */
 :root {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+}
+
+/* THE GRADIENTS TWO RULES SHARE (#1287), in neither theme because they are
+   made of theme tokens already: the meter fill the context window and the
+   session summary's tool bars both draw, and the dash a LAN wire takes when
+   the link is down or the flow is cut. A shared gradient written twice is two
+   values that happen to agree; one token is one decision. A gradient only one
+   rule draws, and that no theme retunes, stays in its rule — a token with one
+   reader is indirection, not a decision. */
+:root {
+  --meter-grad: linear-gradient(90deg, var(--accent), var(--inflight));
+  --wire-dashed: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
 }
 
 * { box-sizing: border-box; }
@@ -1070,8 +1115,8 @@ button:focus-visible { outline-offset: 1px; }
   /* Two layers rather than one. The tight, nearly opaque first line is what a
      surface sitting ON something reads as; the wide soft second is the height
      it sits at. One 24px blur alone had to be dark enough to do both jobs and
-     ended up reading as a drop shadow on a sticker. */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+     ended up reading as a drop shadow on a sticker. They are --shadow-3. */
+  box-shadow: var(--shadow-3);
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
@@ -1089,7 +1134,7 @@ button:focus-visible { outline-offset: 1px; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+  box-shadow: var(--shadow-3);
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
@@ -1102,15 +1147,6 @@ button:focus-visible { outline-offset: 1px; }
   max-width: none;
   max-height: calc(100vh - 32px);
   overflow: auto;
-}
-/* The same two layers on white, in the light theme's slate and at its own
-   shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
-   third stayed black at a third on the white page (#876). */
-:root[data-theme="light"] .sound-menu {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
-}
-:root[data-theme="light"] .appearance-menu {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
 }
 /* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
    open, and sections under the uppercase caption their sections use
@@ -1405,13 +1441,10 @@ button:focus-visible { outline-offset: 1px; }
   border-radius: var(--r-ctl);
   /* The deck's popover shadow (.anchored-popover): a tight line for sitting on
      something over --shadow-2 for its height. Its own black 0.22 stayed black
-     on the white page, the thing #876 took off the menus beside it; the wide
-     layer is themed already, so only the tight line is said twice. */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+     on the white page, the thing #876 took off the menus beside it. Both layers
+     are tokens now, so neither is said twice (#1287). */
+  box-shadow: var(--shadow-contact), var(--shadow-2);
   scrollbar-color: var(--muted) transparent;
-}
-:root[data-theme="light"] .appearance-source-list {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 .appearance-source-group {
   padding: 6px 8px 3px;
@@ -3419,7 +3452,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   align-items: center;
   gap: 10px;
   padding: 8px 18px;
-  background: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
+  background: var(--conn-wash);
   border-bottom: 1px solid rgba(252,165,165,0.30);
   color: var(--err);
   font-size: 12px;
@@ -4252,7 +4285,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   padding: 10px 12px 10px 16px;
   background: var(--node-grad);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-node);
   color: var(--text);
   font-size: 12px;
   box-shadow: var(--shadow-1);
@@ -4638,7 +4671,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .ctx-window-fill {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--accent), var(--inflight));
+  background: var(--meter-grad);
   transform-origin: left center;
   transition: transform 400ms ease;
 }
@@ -4854,7 +4887,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   padding: 10px 12px 12px;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-  border-radius: 10px;
+  border-radius: var(--r-node);
   box-shadow: var(--shadow-1);
   color: var(--text);
   font-size: 12px;
@@ -5346,7 +5379,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    arithmetic with nothing on the other side of it. */
 .cluster-card {
   position: absolute;
-  border-radius: 16px;
+  border-radius: var(--r-cluster);
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
   background: hsl(var(--session-hue, 200) 70% 50% / 0.04);
   /* All four are kept, and all four are now worth keeping, because since #353
@@ -5670,7 +5703,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 
 .tool-burst.status-inflight {
   border-color: rgba(240, 171, 252, 0.55);
-  background: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05)), var(--panel);
+  background: var(--burst-live-wash), var(--panel);
   box-shadow: 0 0 0 1px rgba(240,171,252,0.30), 0 6px 18px rgba(240,171,252,0.25);
 }
 .tool-burst.status-inflight .tb-emoji {
@@ -5964,7 +5997,6 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 :root[data-theme="light"] .tool-burst.status-inflight {
   border-color: rgba(126,34,206,0.55);
-  background: linear-gradient(180deg, rgba(126,34,206,0.06), transparent), var(--panel);
   box-shadow: 0 0 0 1px rgba(126,34,206,0.20), 0 6px 14px rgba(126,34,206,0.18);
 }
 :root[data-theme="light"] .tool-burst.status-done {
@@ -7165,7 +7197,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .session-summary .ss-tt-bar-fill {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--inflight));
+  background: var(--meter-grad);
   border-radius: 3px;
 }
 .session-summary .ss-tt-count {
@@ -7238,8 +7270,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   width: 56px; height: 56px;
   margin: -28px 0 0 -28px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 30%, #f0abfc 0%, #7dd3fc 55%, #14161b 100%);
+  background: var(--hero-core);
   box-shadow:
     0 0 28px rgba(240,171,252,0.55),
     0 0 64px rgba(125,211,252,0.35);
@@ -7350,12 +7381,10 @@ button.tool.clickable:last-child { border-bottom: none; }
 :root[data-theme="light"] .empty-hero .orbit.r2 { border-color: rgba(126,34,206,0.30); }
 :root[data-theme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
 :root[data-theme="light"] .empty-hero .core {
-  background: radial-gradient(circle at 30% 30%, #c084fc 0%, #0ea5e9 55%, #1e293b 100%);
   box-shadow: 0 0 28px rgba(126,34,206,0.40), 0 0 64px rgba(3,105,161,0.25);
 }
 
 :root[data-theme="light"] .conn-banner {
-  background: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
   border-bottom-color: rgba(185,28,28,0.45);
 }
 
@@ -9325,15 +9354,12 @@ button.qb-pace::after {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
   /* Opacity only. The card is unasked-for and arrives where the eye is not
      looking; travel would make it a thing that happened rather than a thing
      that is there — which is also why there is no reduced-motion rule to write:
      a fade is what that rule leaves behind everywhere else in this sheet. */
   animation: fadeIn 110ms ease-out;
-}
-:root[data-theme="light"] .ap-peek {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 /* The label over the names sits UNDER them in weight, not over. A card this
    small cannot have two loud lines, and the names are what was asked for — the
@@ -10273,9 +10299,9 @@ button.qb-pace::after {
    The surface is the sound menu's, the deck's other popover: the panel's own
    ground, its hairline, a tight line for sitting ON something under a soft one
    for its height, and the same z-index 40 — above the canvas and its controls,
-   below every dialog and its scrim. The wide layer is --shadow-2, so each
-   theme block already tunes it for its own ground; only the tight line needs
-   saying twice. */
+   below every dialog and its scrim. Both layers are theme tokens —
+   --shadow-contact under --shadow-2 — so each theme block tunes them for its
+   own ground and no light rule repeats them (#1287). */
 .anchored-popover {
   position: fixed;
   top: 0;
@@ -10286,12 +10312,9 @@ button.qb-pace::after {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
   animation: pop-from-anchor 120ms cubic-bezier(0.23, 1, 0.32, 1);
   text-align: left;
-}
-:root[data-theme="light"] .anchored-popover {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
 }
 /* Out of the anchor, not up from nowhere: 3px away from the button over
    120ms, with the opacity, and no scale. A menu that grows reads as something
@@ -12784,7 +12807,7 @@ input, textarea { caret-color: var(--accent); }
   background: repeating-linear-gradient(90deg, var(--warn) 0 4px, transparent 4px 8px);
 }
 .lan-map:is([data-link="down"], [data-link="loose"]) .lan-link .lan-wire {
-  background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
+  background: var(--wire-dashed);
 }
 /* Under the network: how it was found and how the last round went, then
    anything the machine said in its own words. Centred on the line it is
@@ -12905,7 +12928,7 @@ input, textarea { caret-color: var(--accent); }
 
 /* A dashed lane is a login with no copy that can move either way. */
 .lan-wire[data-flow="cut"] {
-  background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
+  background: var(--wire-dashed);
 }
 .lan-chev {
   position: absolute;

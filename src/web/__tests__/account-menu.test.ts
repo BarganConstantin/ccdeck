@@ -143,7 +143,12 @@ describe("where the surface sits", () => {
   });
 
   it("keeps the black shadow off the white page", () => {
-    expect(decl(":root[data-theme=\"light\"] .anchored-popover", "box-shadow")).toMatch(/^0 1px 2px rgba\(15, 23, 42,/);
+    // Through tokens since #1287: the popover reads the contact line and
+    // --shadow-2, and the light block tunes both, so there is no light rule
+    // left to repeat them in slate.
+    expect(decl(".anchored-popover", "box-shadow")).toBe("var(--shadow-contact), var(--shadow-2)");
+    const light = /:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/.exec(css)![1];
+    expect(/--shadow-contact\s*:\s*([^;]+);/.exec(light)![1].trim()).toMatch(/^0 1px 2px rgba\(15,\s*23,\s*42,/);
   });
 });
 
