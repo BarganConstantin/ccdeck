@@ -79,7 +79,7 @@ describe("what an upgrade failure says", () => {
     // code, and the close handler replaced "spawn npm ENOENT" with
     // "npm exited -2" — the one message that says what is wrong, overwritten by
     // the one that does not.
-    expect(read("../../server/self-update.mjs")).toContain('} else if (!timedOut && _upgrade?.state !== "failed") {');
+    expect(read("../../server/npm-upgrade.mjs")).toContain('} else if (!timedOut && _upgrade?.state !== "failed") {');
   });
 });
 

@@ -81,7 +81,7 @@ describe("#795 — asking whether a directory is writable", () => {
     // because no machine but a Windows one can tell accessSync's answer from a
     // write's — everywhere else the two agree. What each branch ANSWERS is
     // driven below, on every leg.
-    const src = read("../../server/self-update.mjs");
+    const src = read("../../server/npm-upgrade.mjs");
     expect(src).toContain('if (process.platform !== "win32") {');
   });
 
