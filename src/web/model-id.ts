@@ -44,7 +44,7 @@
 const BEDROCK_REGIONS = ["us-gov", "global", "apac", "us", "eu", "jp", "au"] as const;
 
 /** `<region>.anthropic.` or a bare `anthropic.`, and nothing else. Exported so
- *  the gates that only need to RECOGNISE a prefixed id — reducer.ts's
+ *  the gates that only need to RECOGNISE a prefixed id — payload-model.ts's
  *  `MODEL_PATTERN` — can build on the same list instead of a second one. */
 export const VENDOR_PREFIX_RE = new RegExp(
   `^(?:(?:${BEDROCK_REGIONS.join("|")})\\.)?anthropic\\.`,
