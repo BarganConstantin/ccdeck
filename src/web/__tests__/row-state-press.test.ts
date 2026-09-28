@@ -50,6 +50,11 @@ const panelCode = panel
 const accountMenuCode = accountMenu
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The switch and the auto-switch POST, lifted out of the panel into a hook of
+ *  their own with the guard each keeps and the switch's focus rescue. */
+const switchingCode = readFileSync(fileURLToPath(new URL("../use-account-switching.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 /** The same, for every file the panel has been split into — what a count or a
  *  negative reads, so code that moved out of the component is still counted. */
 const surfaceCode = accountsSurface()
@@ -272,8 +277,8 @@ describe("a press never disables the control it came from (#518)", () => {
     // `switch` during one in-flight request sent exactly one POST.
     expect(pressAccepted(null)).toBe(true);
     expect(pressAccepted("share-2")).toBe(false);
-    expect(panelCode).toMatch(/if \(!claim\(tag\)\) return null;/);
-    expect(panelCode).toMatch(/if \(!claim\(`switch-\$\{num\}`\)\) return;/);
+    expect(switchingCode).toMatch(/if \(!claim\(tag\)\) return null;/);
+    expect(switchingCode).toMatch(/if \(!claim\(`switch-\$\{num\}`\)\) return;/);
     expect(clientText()).toMatch(/if \(!pressAccepted\(busyRef\.current\)\) return false;/);
     // A ref, not the state, because the state a handler closes over is a render
     // old and the second press happens before the next one.
@@ -323,9 +328,10 @@ describe("a press never disables the control it came from (#518)", () => {
     // that kept its control would take focus off it for no reason.
     expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(5);
     expect(panelCode).toMatch(/setProjectsFor\(null\);\s*rescueFocus\(null\);/);
-    // The switch's and the retry's are the panel's; the move's and the
-    // remove's went to the menu's hook with the requests that make them.
-    expect(panelCode).toMatch(/rescueFocus\(num\);/);
+    // The retry's is the panel's; the switch's went to the switching hook and
+    // the move's and the remove's to the menu's, with the requests that make
+    // them.
+    expect(switchingCode).toMatch(/rescueFocus\(num\);/);
     expect(panelCode).toMatch(/onClick=\{\(\) => load\(true\)\.then\(\(\) => rescueFocus\(null\)\)\}/);
     expect(accountMenuCode).toMatch(/rescueFocus\(next\.menuFor\);/);
     expect(accountMenuCode).toMatch(/rescueFocus\(null\);/);

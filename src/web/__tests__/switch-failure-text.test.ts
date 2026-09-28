@@ -116,8 +116,8 @@ describe("a refusal from the deck's own gate, which is not a command failing", (
   });
 
   it("is read off the response, not guessed from the body", () => {
-    const panel = read("../components/AccountsPanel.tsx");
-    expect(panel).toMatch(/explainCommandFailure\(out, "command failed", res\.status\)/);
+    // The auto-switch POST moved to the switching hook with the switch.
+    expect(read("../use-account-switching.ts")).toMatch(/explainCommandFailure\(out, "command failed", res\.status\)/);
     // The admin route's caller moved to the ⋯ menu's hook, whose presses are
     // the only ones that reach it.
     expect(read("../use-account-menu.ts")).toMatch(/explainFailure\(out, "command failed", res\.status\)/);

@@ -19,16 +19,15 @@ import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { type Peer } from "../other-accounts";
-import { commandOutput, explainCommandFailure } from "../admin-failure";
 import { type PickerCommit, thresholdCommit } from "../picker-commit";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
-import { activeSwitchNote } from "../active-switch-note";
 import { accountIssue } from "../account-issue";
 import LanSyncSection from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
+import { useAccountSwitching } from "../use-account-switching";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { type Account, type AccountsData } from "../claude-accounts";
 
@@ -48,11 +47,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
   const { busy, claim, release, pressProps } = useRequestSlot();
-  /** The account a switch from this panel just landed on (#827), said on its
-   *  own row until the next switch or until it stops being the active one. The
-   *  `active` chip moving rows used to be the only answer, and a screen reader
-   *  heard nothing at all. */
-  const [switched, setSwitched] = useState<{ num: number; name: string } | null>(null);
   /** Which of the column's two views is up: the accounts, or Local network's
    *  own. Local network used to be the last section of one long scroll, with a
    *  line under the header to jump down to it (#844); it is a view now, opened
@@ -151,44 +145,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const accountMenu = useAccountMenu({ claim, release, load, clearFailure, rescueFocus });
   const { menu, menuFor, swapNote, showMenu, dropMenu, closeMenu, sayInMenu } = accountMenu;
 
-  /** Every auto-switch control is one POST; they all reload afterwards. The
-   *  refusal is said where the press was: at the foot of the column for the
-   *  policy row, and inside the ⋯ menu for an account held out or put back. */
-  const post = useCallback(async (body: Record<string, unknown>, tag: string, where: "panel" | "menu" = "panel") => {
-    if (!claim(tag)) return null;
-    const say = where === "menu" ? sayInMenu : sayFailure;
-    say(null);
-    try {
-      const res = await fetch("/api/cswap-auto", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const out = await res.json().catch(() => null);
-      // This route's `detail` is cswap's stderr verbatim, not a sentence
-      // anybody wrote — same as the switch below, and unlike the admin route.
-      // The status matters, not only the body: the deck's own gate refuses a
-      // mutation before any command runs, and says so with no `reason` for the
-      // map to find. See GATE_REASONS.
-      if (!out?.ok) say({ text: explainCommandFailure(out, "command failed", res.status), raw: commandOutput(out) });
-      return out;
-    } catch {
-      say({ text: "server unreachable" });
-      return null;
-    } finally {
-      release();
-    }
-  }, [claim, release, sayInMenu, sayFailure]);
+  // Switching to an account, every auto-switch control's POST, and the
+  // confirmation a switch that took leaves on its row — see
+  // use-account-switching.ts.
+  const { switched, post, doSwitch } = useAccountSwitching({
+    data, claim, release, load, sayFailure, clearFailure, sayInMenu, rescueFocus,
+  });
 
-  // A switch from the panel can be superseded by auto-switch or by a command
-  // outside the panel. Clear its confirmation when a fresh roster says that
-  // account is no longer active, so it cannot reappear if it becomes active
-  // again later. This runs on roster changes rather than on `switched` changes:
-  // the previous roster may still describe the account before our POST lands.
-  useEffect(() => {
-    if (!data?.ok || !data.accounts) return;
-    setSwitched(previous => activeSwitchNote(previous, data.accounts));
-  }, [data]);
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
   useEffect(() => {
@@ -254,34 +217,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    *  would stay open over a row that had already scrolled out of view. */
   const rowBoundary = (num: number) =>
     restOpen && rest.some(a => a.num === num) ? "ap-rest-list" : "ap-scroll";
-
-  const doSwitch = async (num: number, name: string) => {
-    if (!claim(`switch-${num}`)) return;
-    clearFailure();
-    setSwitched(null);
-    try {
-      const res = await fetch("/api/claude-accounts/switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account: num }),
-      });
-      const body = await res.json().catch(() => null);
-      // Both answers land on the row that was pressed (#827): the refusal is
-      // tagged with it, and a switch that took names the account it took to.
-      if (!body?.ok) sayFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
-      else setSwitched({ num, name });
-      await load(true);
-    } catch {
-      sayFailure({ text: "server unreachable", row: num });
-    } finally {
-      release();
-      // A switch that landed replaces this button with the `active` marker,
-      // which is a span and cannot hold focus. One that failed leaves the
-      // button standing, still focused, and this is a no-op — the rescue only
-      // fires when focus was actually dropped. See panel-press.ts.
-      rescueFocus(num);
-    }
-  };
 
   /** Open an account's ⋯ on its menu, closing any other one first — and a
    *  warning's explanation, which never stands beside one. */
