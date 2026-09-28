@@ -1041,7 +1041,7 @@ function main() {
       // /private/tmp/proj) and then comes back empty after a restart. Silently —
       // replayLog does not count or warn about an out-of-scope line.
       //
-      // The Codex watcher already stores the canonical form (index.mjs:2203,
+      // The Codex watcher already stores the canonical form (codex-watch.mjs,
       // `cwd: await canonicalCwd(...)`, the same resolve+realpath this is), which
       // is why the two providers disagreed on one board. One spelling in the log
       // is the whole fix.

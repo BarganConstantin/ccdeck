@@ -112,8 +112,8 @@ const realpathNative = promisify(realpathCb.native);
  * models the OTHER decks' capture with this same predicate against their
  * published (canonical) workspaces, so it was picking the wrong group.
  *
- * Called at the one read of the header (readCodexHeader, in index.mjs) rather
- * than inside codexCwdInWorkspace: the result is cached in codexFileState for
+ * Called at the one read of the header (readCodexHeader, in codex-watch.mjs)
+ * rather than inside codexCwdInWorkspace: the result is cached in codexFileState for
  * the life of the file, so it costs one realpath per rollout instead of one per
  * tick, and it leaves the predicate the pure string function that lets it be
  * pinned against hook.js's copy in a test.

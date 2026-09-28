@@ -3,7 +3,7 @@
 // deck the record describes (#695).
 //
 // This lived in src/server/index.mjs, inside the Codex rollout watcher, and has
-// two readers: the watcher's log election (writesCodexLog), still in index.mjs,
+// two readers: the watcher's log election (writesCodexLog) in codex-watch.mjs,
 // and logSharing in event-log.mjs, which tells the Clear dialog who owns the
 // log. Neither needs anything from the server but the registry directory and
 // the challenge, so it moved to a leaf both can import. The verdict cache moved with it and is still
