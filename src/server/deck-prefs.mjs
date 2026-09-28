@@ -696,15 +696,6 @@ async function save(mutate, home, deps) {
 }
 
 /**
- * May the deck raise a desktop notification right now?
- *
- * The env var wins. A machine launched with AGENTS_DECK_NO_NOTIFY=1 has been
- * told by whoever started it to stay off the desktop, and a page posting to
- * /api/prefs must not be able to overrule that — the person at the keyboard and
- * the person who wrote the launch script are not always the same person, and
- * only one of them is making a claim about the machine.
- */
-/**
  * The preferences as a PAGE may see them.
  *
  * THE PRIVATE KEY NEVER LEAVES THIS PROCESS. `GET /api/prefs` is readable by
@@ -729,6 +720,15 @@ export function publicPrefs(prefs) {
   };
 }
 
+/**
+ * May the deck raise a desktop notification right now?
+ *
+ * The env var wins. A machine launched with AGENTS_DECK_NO_NOTIFY=1 has been
+ * told by whoever started it to stay off the desktop, and a page posting to
+ * /api/prefs must not be able to overrule that — the person at the keyboard and
+ * the person who wrote the launch script are not always the same person, and
+ * only one of them is making a claim about the machine.
+ */
 export function notificationsOn(prefs, env = process.env) {
   if (env[OFF_ENV] === "1") return false;
   return normalise(prefs).notifications;
