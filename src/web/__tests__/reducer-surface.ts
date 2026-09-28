@@ -30,6 +30,7 @@ export const REDUCER_FILES = [
   "waiting-block.ts",
   "redelivery.ts",
   "session-hue.ts",
+  "transcript-events.ts",
 ] as const;
 
 let joined: string | null = null;
