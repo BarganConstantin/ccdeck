@@ -22,7 +22,8 @@ afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — .mjs server module, no types
 const { writeFileAtomic } = await import("../../server/installer.mjs");
-const src = readFileSync(fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8");
+// writeFileAtomic is declared in atomic-write.mjs; installer.mjs re-exports it.
+const src = readFileSync(fileURLToPath(new URL("../../server/atomic-write.mjs", import.meta.url)), "utf8");
 
 describe("writing over a file the filesystem calls read-only", () => {
   it("replaces it, and leaves it read-only afterwards", async () => {
