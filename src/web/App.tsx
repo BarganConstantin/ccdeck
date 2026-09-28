@@ -49,7 +49,7 @@ import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
 import { pruneSelection, sweepTick } from "./prune";
 import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
-import { clientPointOf, trashProximity, type TrashProximity } from "./trash-zone";
+import { useDragTrash } from "./use-drag-trash";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -1468,16 +1468,7 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
-  const [trashDragging, setTrashDragging] = useState(false);
-  const [trashLabel, setTrashLabel] = useState("");
-  const [trashState, setTrashState] = useState<TrashProximity>("far");
-  const trashZoneRef = useRef<HTMLDivElement>(null);
-  const trashPhase = usePanelPresence(trashDragging, 140);
-  const trashProximityOf = useCallback((event: Parameters<typeof clientPointOf>[0]): TrashProximity => {
-    const rect = trashZoneRef.current?.getBoundingClientRect();
-    const point = clientPointOf(event);
-    return rect && point ? trashProximity(point, rect) : "far";
-  }, []);
+  const { trashDragging, trashLabel, trashState, trashZoneRef, trashPhase, beginTrashDrag, trackTrashDrag, endTrashDrag } = useDragTrash();
   /** WHICH CARD IS DRAWN AT THIS DISTANCE — detail, compact or overview.
    *
    *  The canvas zooms to 0.2, and below the full card every word on it is drawn
@@ -3750,11 +3741,7 @@ function Inner() {
             draggingRef.current = true;
             dragPatchRef.current = new Map();
             setDragging(true);
-            if (n.type === "agent") {
-              setTrashLabel(stateRef.current.agents.get(n.id)?.label ?? "");
-              setTrashDragging(true);
-            }
-            setTrashState("far");
+            beginTrashDrag(n.type === "agent" ? (stateRef.current.agents.get(n.id)?.label ?? "") : null);
             markInteract();
             disableAutoFit();
             if (n.type === "sessionGroup") {
@@ -3775,7 +3762,7 @@ function Inner() {
           }}
           onNodeDrag={(event, n) => {
             markInteract();
-            if (n.type === "agent") setTrashState(trashProximityOf(event));
+            if (n.type === "agent") trackTrashDrag(event);
             if (n.type === "sessionGroup") {
               const g = groupDragRef.current;
               if (!g) return;
@@ -3809,11 +3796,10 @@ function Inner() {
           }}
           onNodeDragStop={(event, n) => {
             markInteract();
-            const droppedOnTrash = n.type === "agent" && trashProximityOf(event) === "over";
+            const droppedOnTrash = endTrashDrag(event, n.type === "agent");
             draggingRef.current = false;
             dragPatchRef.current = null;
             setDragging(false);
-            setTrashDragging(false);
             setDragTick(t => t + 1);   // one rebuild, from the refs, at the end
             if (n.type === "sessionGroup") {
               const g = groupDragRef.current;
