@@ -495,8 +495,13 @@ describe("no row grid, and one form at a time", () => {
 
   it("keeps the two-step arm and its four-second expiry", () => {
     expect(panel).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
-    expect(panel).toMatch(/setConfirmRemove\(c => \(c === a\.num \? null : c\)\), 4000\)/);
-    expect(bare).toMatch(/ap-disarm 4000ms linear forwards/);
+    expect(panel).toMatch(/setConfirmRemove\(c => \(c === a\.num \? null : c\)\), REMOVE_ARMED_MS\)/);
+    // The window is one named length, and the bar draining along the item is
+    // timed to the same number: a bar that emptied early or late would be
+    // lying about how long the next press still removes.
+    const armed = Number(panel.match(/const REMOVE_ARMED_MS = ([\d_]+);/)?.[1].replace(/_/g, ""));
+    expect(armed).toBe(4000);
+    expect(bare).toMatch(new RegExp(`ap-disarm ${armed}ms linear forwards`));
   });
 
   it("binds a form's title to its field and sets the answers apart", () => {
