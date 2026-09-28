@@ -9,8 +9,9 @@ import { pathToFileURL } from "node:url";
 import { dieOfSignal } from "../../src/server/supervisor.mjs";
 import {
   CURSOR_HIDE, CURSOR_SHOW, colorProfile, elapsedSuffix, fit, glyphs, labelColumn, link, motionOK,
-  palette, spinnerFrames, statusLine, supportsHyperlinks, termColumns, unicodeOK, visibleWidth, wordmark,
+  palette, spinnerFrames, statusLine, supportsHyperlinks, termColumns, unicodeOK, visibleWidth,
 } from "../../src/server/term.mjs";
+import { wordmark } from "../../src/server/wordmark.mjs";
 import { PKG_VERSION } from "./package.js";
 
 // ── the terminal we are printing into ─────────────────────────────────────────

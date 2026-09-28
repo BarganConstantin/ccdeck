@@ -1,6 +1,6 @@
 // The name the server prints, in one place — the console half of what
-// src/web/brand.ts holds for the browser and src/server/term.mjs draws as the
-// banner wordmark. Every `PRODUCT:` prefix below is a line a user reads when
+// src/web/brand.ts holds for the browser and src/server/wordmark.mjs draws as
+// the banner wordmark. Every `PRODUCT:` prefix below is a line a user reads when
 // something has already gone wrong, which is the worst moment to introduce
 // yourself by a name that appears nowhere else they have seen.
 //

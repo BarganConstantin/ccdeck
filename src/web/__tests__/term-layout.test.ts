@@ -45,8 +45,11 @@ afterAll(() => {
 const term = await import("../../server/term.mjs");
 const {
   CURSOR_HIDE, CURSOR_SHOW, fit, labelColumn, palette, pulseText, statusLine, stripAnsi,
-  termColumns, visibleWidth, wordmark, WORDMARK_WIDTH,
+  termColumns, visibleWidth,
 } = term as any;
+// The drawn mark, which moved out of term.mjs into a module of its own.
+// @ts-expect-error — .mjs server module, no types
+const { wordmark, WORDMARK_WIDTH } = (await import("../../server/wordmark.mjs")) as any;
 
 // The URL, not the path. The child process below imports this module by name,
 // and an ESM specifier that is an absolute Windows path — `C:\…\term.mjs` —

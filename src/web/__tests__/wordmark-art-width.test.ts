@@ -14,17 +14,18 @@
 // user ever sees. WORDMARK_LINES is exported for exactly this comparison, which
 // is why #383 kept the export rather than removing it as unused surface.
 //
-// Plain node: term.mjs draws with string arithmetic and never touches a DOM.
+// Plain node: wordmark.mjs draws with string arithmetic and never touches a DOM.
 import { describe, it, expect } from "vitest";
 
 // @ts-expect-error — .mjs server module, no types
-const term = await import("../../server/term.mjs");
-const { WORDMARK_LINES, WORDMARK_WIDTH, wordmark, stripAnsi } = term as {
+const mark = await import("../../server/wordmark.mjs");
+const { WORDMARK_LINES, WORDMARK_WIDTH, wordmark } = mark as {
   WORDMARK_LINES: string[];
   WORDMARK_WIDTH: number;
   wordmark: (o: Record<string, unknown>) => { kind: string; lines: string[] };
-  stripAnsi: (s: string) => string;
 };
+// @ts-expect-error — .mjs server module, no types
+const { stripAnsi } = (await import("../../server/term.mjs")) as { stripAnsi: (s: string) => string };
 
 /** Columns the string occupies. Counted in code points rather than UTF-16 code
  *  units so the count is the terminal's, not JavaScript's — the half-blocks
