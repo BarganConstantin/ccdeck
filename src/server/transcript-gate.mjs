@@ -11,6 +11,9 @@ import { resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
+// Whether this platform's filesystem folds case — the one answer every
+// server-side path comparison gives. See foldsCase in log-election.mjs.
+import { foldsCase } from "./log-election.mjs";
 
 // ─── Which paths the deck will follow at all ─────────────────────────────
 // `payload.transcript_path` is a string in the body of `POST /api/event`, and
@@ -76,7 +79,7 @@ function claudeTranscriptRoots() {
 export function isClaudeTranscriptPath(p, roots = claudeTranscriptRoots()) {
   if (!p || typeof p !== "string") return false;
   if (!/\.jsonl$/i.test(p)) return false;      // the only extension CC writes
-  const fold = process.platform === "win32" || process.platform === "darwin";
+  const fold = foldsCase();
   const full = fold ? resolve(p).toLowerCase() : resolve(p);
   for (const root of roots) {
     const prefix = (fold ? root.toLowerCase() : root) + sep;
