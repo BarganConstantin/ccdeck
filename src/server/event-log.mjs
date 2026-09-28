@@ -12,7 +12,8 @@
 import { mkdir, open, stat, unlink } from "node:fs/promises";
 import { resolve, dirname as pdirname } from "node:path";
 import { PRODUCT } from "./brand.mjs";
-import { appendFailureStats, appendsLanded, electWriters, flushAppends, foldsCase } from "./log-writer.mjs";
+import { appendFailureStats, appendsLanded, flushAppends } from "./log-writer.mjs";
+import { electWriters, foldsCase } from "./log-election.mjs";
 // Every deck registered right now that proved it is the deck its record
 // describes — the group logSharing counts. See live-decks.mjs.
 import { readLiveDecks } from "./live-decks.mjs";
@@ -205,7 +206,7 @@ async function maybeRotatePersistFile(wroteBytes = 0) {
     if (!s || s.size < ROTATE_AT_BYTES) return;
     // ONLY THE DECK THAT WRITES THIS LOG MAY MOVE IT, the same gate `/api/clear`
     // already keeps and for the same reason. Two decks appending to one log is
-    // explicitly permitted as the fail-safe — log-writer.mjs says "a line
+    // explicitly permitted as the fail-safe — log-election.mjs says "a line
     // written twice is recoverable" — so both cross 50 MB and both rotate. If
     // B's stat lands before A's rename, B's `unlink` deletes the archive A has
     // just made and B's `rename` moves the new, near-empty live file into its

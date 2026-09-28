@@ -176,7 +176,7 @@ const { deckDataDir, deckLogDir, legacyDeckDir, migrateDeckFiles, sweepTempFiles
 // `resolve` alone was not enough and #793 is what that cost — see
 // canonicalLogPath, which owns the rule and explains it beside the election it
 // serves.
-const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
+const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-election.mjs")).href);
 const persist = flags.noPersist
   ? null
   // The log follows the deck rather than Claude Code now — a hundred megabytes
@@ -439,7 +439,7 @@ else reportReady({ url, persist, openBrowser, flags });
 // log and elect a single writer for it. See electWriters in hook/hook.js. The
 // Codex setting goes in for the half of that election no hook is part of: the
 // rollout files this deck tails itself, which a --no-codex deck must never be
-// elected to record. See writesCodexLog in src/server/log-writer.mjs.
+// elected to record. See writesCodexLog in src/server/log-election.mjs.
 let registered = null;
 discovery = keepDiscovery({
   port: realPort,

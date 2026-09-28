@@ -103,11 +103,11 @@ export async function registeredDeckPorts(deps = {}) {
  * live on this machine (ports 4317 and 4393), so the collision is the ordinary
  * case and not a corner.
  *
- * The rule is log-writer.mjs's, reused rather than reinvented: among live decks,
- * the LOWEST PORT wins, with the pid breaking a tie a stale discovery file could
- * invent. Deterministic, needs no lock file, and cannot strand the feature — a
- * deck that reads a directory it cannot open decides it is alone, which for the
- * common case of one deck is the right answer anyway.
+ * The rule is log-election.mjs's, reused rather than reinvented: among live
+ * decks, the LOWEST PORT wins, with the pid breaking a tie a stale discovery
+ * file could invent. Deterministic, needs no lock file, and cannot strand the
+ * feature — a deck that reads a directory it cannot open decides it is alone,
+ * which for the common case of one deck is the right answer anyway.
  *
  * Reading only, never writing: this is a question about who else is running, and
  * a watcher that had to claim something to answer it could leave the claim

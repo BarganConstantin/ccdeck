@@ -4,12 +4,12 @@
 // These lived in src/server/index.mjs, after pushEvent. They push through
 // event-sink.mjs as every other emitter outside index.mjs does, size their
 // read against the ring's own two bounds (ring-bounds.mjs), and judge scope by
-// the same predicate the Codex watcher runs (log-writer.mjs) — nothing here
+// the same predicate the Codex watcher runs (log-election.mjs) — nothing here
 // reads the ring. startServer calls replayLog once, with the log openEventLog
 // resolved. The bodies are unchanged.
 import { existsSync } from "node:fs";
 import { PRODUCT } from "./brand.mjs";
-import { codexCwdInWorkspace } from "./log-writer.mjs";
+import { codexCwdInWorkspace } from "./log-election.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
 import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, payloadChars } from "./ring-bounds.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see

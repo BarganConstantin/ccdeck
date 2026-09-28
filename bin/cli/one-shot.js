@@ -133,7 +133,7 @@ function printLogs(deckLogDir, { say, tone, dash, bullet }) {
  * it opens.
  */
 async function defaultShape(deckLogDir) {
-  const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
+  const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-election.mjs")).href);
   const { hasCodexInstalled, codexHomeField } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
   const { hasClaudeInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
 

@@ -15,7 +15,7 @@ import { STOP, walkRolloutDays } from "./codex-dir.mjs";
 // What one rollout line means as a hook payload — see codex-translate.mjs. The
 // watcher below still decides which lines are read and where each one goes.
 import { codexObjToPayload, codexSessionModel } from "./codex-translate.mjs";
-import { codexCwdInWorkspace, writesCodexLog } from "./log-writer.mjs";
+import { codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
 // The one spelling of a rollout's cwd — see canonical-path.mjs.
 import { canonicalCwd } from "./canonical-path.mjs";
 import { eventLogPath } from "./event-log.mjs";
@@ -201,7 +201,7 @@ async function readCodexHeader(path) {
 // `persist` is false when another deck tailing this same rollout was elected to
 // write it to the log they share. The event is still buffered and broadcast —
 // every deck watching the session draws it — it is only the second copy on disk
-// that is dropped. See writesCodexLog in log-writer.mjs.
+// that is dropped. See writesCodexLog in log-election.mjs.
 function emitCodexEvent(payload, persist) {
   pushEvent(payload, "codex", { persist });
 }

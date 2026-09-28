@@ -55,8 +55,8 @@ const { AGENT_DAG_DIR, CODEX_DIR, discoveryPath, writeDiscovery, ensureDiscovery
   ensureDiscovery: (o: Record<string, unknown>) => Promise<{ file: string; rewritten: boolean }>;
 };
 // @ts-expect-error — .mjs server module, no types
-const logWriter = await import("../../server/log-writer.mjs");
-const { codexCwdInWorkspace, electWriters, sameCodexTree, writesCodexLog } = logWriter as {
+const logElection = await import("../../server/log-election.mjs");
+const { codexCwdInWorkspace, electWriters, sameCodexTree, writesCodexLog } = logElection as {
   codexCwdInWorkspace: (cwd: string | null, workspace: string, platform?: string) => boolean;
   electWriters: (decks: Deck[], platform?: string) => Set<Deck>;
   sameCodexTree: (a: unknown, b: unknown, platform?: string) => boolean;
