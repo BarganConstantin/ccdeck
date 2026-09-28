@@ -50,6 +50,7 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canva
 import { pruneSelection, sweepTick } from "./prune";
 import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
+import { useBubbleAnimation } from "./use-bubble-animation";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -222,15 +223,6 @@ const FOCUS_CANDIDATES = [
   "summary",
   "[tabindex]",
 ].join(",");
-
-/**
- * How long a session takes to slide out of the way of one that grew.
- *
- * Long enough to be followed — the point of animating it at all is that the
- * user sees WHY a card moved — and short enough that the canvas is settled
- * again before they act on it. Mirrored in the .bubbling rule in styles.css.
- */
-const BUBBLE_MS = 420;
 
 // Padding of the invisible session drag-handle node. Matches SessionClusters'
 // PAD so the handle lines up with the card's body (the card's header strip is
@@ -1455,11 +1447,7 @@ function Inner() {
     const t = window.setTimeout(() => setSettled(true), 2500);
     return () => window.clearTimeout(t);
   }, []);
-  // While true, node movement is animated instead of instant. Held only for
-  // the length of the transition: a permanent transition would make dragging
-  // lag behind the cursor.
-  const [bubbling, setBubbling] = useState(false);
-  const bubbleTimerRef = useRef<number | null>(null);
+  const { bubbling, endBubble, onBubble } = useBubbleAnimation();
   // True for the length of any drag gesture. React Flow marks the node under
   // the cursor with .dragging, and the stylesheet drops its transition — but
   // dragging a SESSION moves its member cards through state rather than
@@ -1506,21 +1494,6 @@ function Inner() {
     lodCardRef.current = { version, card };
     return card;
   }, []);
-  const endBubble = useCallback(() => {
-    if (bubbleTimerRef.current) { window.clearTimeout(bubbleTimerRef.current); bubbleTimerRef.current = null; }
-    setBubbling(false);
-  }, []);
-  const onBubble = useCallback((movedSessions: string[]) => {
-    if (movedSessions.length === 0) return;
-    // Raised from inside a useMemo, so the state change has to leave the
-    // render pass before React sees it.
-    queueMicrotask(() => {
-      setBubbling(true);
-      if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
-      bubbleTimerRef.current = window.setTimeout(() => setBubbling(false), BUBBLE_MS + 80);
-    });
-  }, []);
-  useEffect(() => () => { if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current); }, []);
 
   // The selected agent. Declared this high because the rail measurement below
   // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
