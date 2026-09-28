@@ -196,6 +196,18 @@ function newUsageTotals() {
   };
 }
 
+/** Have these totals been billed for anything at all?
+ *
+ *  The four flat counters are the whole of what a usage block charges. The two
+ *  `ephemeral_*` counters split cache_creation_input_tokens by TTL rather than
+ *  adding to it, so they are not asked. One file's totals, one model's bucket
+ *  and each subagent file's totals are all asked this, and each of those three
+ *  used to spell the four tests out for itself. */
+function hasSpend(u) {
+  return u.input_tokens !== 0 || u.output_tokens !== 0
+    || u.cache_read_input_tokens !== 0 || u.cache_creation_input_tokens !== 0;
+}
+
 function newTranscriptState() {
   return {
     offset: 0,          // bytes already folded in
@@ -702,6 +714,6 @@ function noteRefusedTranscript(p) {
 // marked at each declaration so that every declaration above reads exactly as
 // it did where it came from.
 export {
-  scanTranscript, readByteRange, newUsageTotals, mergeUsageByModel,
+  scanTranscript, readByteRange, newUsageTotals, hasSpend, mergeUsageByModel,
   noteRefusedTranscript,
 };
