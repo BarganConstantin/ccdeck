@@ -12,7 +12,7 @@ import {
 import {
   PERIODS, modelRows as ccModelRows, sessionRows as ccSessionRows,
   rangeTotals, sessionListScale, nounFor, panelFigures,
-  type PeriodKey, type UsageRange,
+  type PeriodKey,
 } from "../usage-from-ccusage";
 import { readStored } from "../storage";
 import type { GraphState } from "../reducer";
@@ -218,11 +218,6 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   const [sessionsOpen, setSessionsOpen] = useState<boolean>(loadSessionsOpen);
   useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);
   const [rangeRefresh, setRangeRefresh] = useState(0);
-  // `loading` on its own is not a state this panel shows, and that has not
-  // changed: a refresh of the range already on screen moves no figure the
-  // reader can act on, and dimming for it would make the panel flicker every
-  // five minutes on its own poll. What is read below is `loading AND stale` —
-  // a fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   // What the board sums to right now, behind a stable identity. `state` and
   // `now` move constantly, so handing the hook a fresh closure would re-run its
   // fetch on every 250ms tick; the ref is reassigned each render and the
@@ -242,6 +237,11 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
     useUsageRange(period, rangeRefresh, takeBaseline);
   const fromRange = range != null;
 
+  // `loading` on its own is not a state this panel shows, and that has not
+  // changed: a refresh of the range already on screen moves no figure the
+  // reader can act on, and dimming for it would make the panel flicker once a
+  // minute on its own poll. What is read below is `loading AND stale` — a
+  // fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   /**
    * A read for the pressed period is running, and what is on screen is not it.
    *
