@@ -39,9 +39,10 @@
 // player's origin before it is read — see the handler.
 import { memo, type CSSProperties } from "react";
 import {
-  BALL_FLIGHT_MS, DANCES, embedSrc, listenCommand, PROP_ART, SKIP_BEAT_MS, spriteRects,
+  BALL_FLIGHT_MS, DANCES, PROP_ART, SKIP_BEAT_MS, spriteRects,
   type Act,
 } from "../claude-fm";
+import { embedSrc, listenCommand } from "../claude-fm-player";
 import type { FmSource } from "../appearance";
 import {
   customFmId, customFmSelection,

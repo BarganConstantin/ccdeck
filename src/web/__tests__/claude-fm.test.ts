@@ -17,7 +17,10 @@ import {
 } from "../../server/claude-fm.mjs";
 import {
   command, embedSrc, FATAL_ERRORS, STOPPED_STATES,
-  listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
+  listenCommand, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
+} from "../claude-fm-player";
+import {
+  nextIdleMs, nextWalk,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
   ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps, fishSteps, skipSteps, SKIP_BEAT_MS, ballRollTo,
@@ -243,7 +246,7 @@ describe("the embed", () => {
   });
 
   it("loads no third-party script to do it", () => {
-    for (const src2 of [component, code("../claude-fm.ts")]) {
+    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-player.ts")]) {
       expect(src2).not.toContain("iframe_api");
       expect(src2).not.toContain("<script");
     }
@@ -784,7 +787,7 @@ describe("the character", () => {
     // The player is a cross-origin iframe: the page cannot reach its audio
     // element, and a tainted source hands an analyser silence. Anything here
     // claiming to react to sound would be a lie told with a timer.
-    for (const src2 of [component, code("../claude-fm.ts")]) {
+    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-player.ts")]) {
       expect(src2).not.toMatch(/AnalyserNode|createMediaElementSource|getByteFrequency|getDisplayMedia/);
     }
   });
