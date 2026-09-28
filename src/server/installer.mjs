@@ -810,13 +810,13 @@ async function ensureDiscoveryDir() {
  * The record used to go down with a plain writeFile, which truncates the target
  * and then fills it, so the file existed and was empty for a moment on every
  * rewrite. Everything that reads this directory parses each record whole —
- * electWriters in hook/hook.js, readLiveDecks and sweepStaleDiscovery in
- * index.mjs — and a record that fails to parse is a deck missing from that
- * cycle: the event it should have logged is either logged by nobody or logged
- * twice by the decks that remain, which is the exact failure the single-writer
- * election exists to prevent, reached through the file the election reads. A
- * rename is atomic on Linux, macOS and Windows alike, so a reader now sees the
- * previous record or the new one and never half of either.
+ * electWriters in hook/hook.js, readLiveDecks in live-decks.mjs and
+ * sweepStaleDiscovery in index.mjs — and a record that fails to parse is a deck
+ * missing from that cycle: the event it should have logged is either logged by
+ * nobody or logged twice by the decks that remain, which is the exact failure
+ * the single-writer election exists to prevent, reached through the file the
+ * election reads. A rename is atomic on Linux, macOS and Windows alike, so a
+ * reader now sees the previous record or the new one and never half of either.
  *
  * The token is the deck's proof of identity, so the file holding it is the
  * deck's key material: readable and writable by its owner, nobody else. The mode
