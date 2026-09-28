@@ -213,6 +213,28 @@ export function appendQueueStats() {
 }
 
 const mb = chars => `${(chars / 1024 / 1024).toFixed(0)}MB`;
+
+/**
+ * One line has left the queue. Give its charge back, and close the episode if
+ * that was the last of them.
+ *
+ * The episode ends when the queue is EMPTY rather than the moment it dips back
+ * under the bound, because it dips under the bound once per completed write:
+ * keyed on the bound this would print a pair of lines per event for the length
+ * of the burst. Empty is also the honest boundary for the number being
+ * reported — while anything is still queued the next line can still be refused,
+ * and the total would have to be retracted.
+ */
+function releaseCharge(charged) {
+  pendingLines--;
+  pendingChars -= charged;
+  if (pendingLines > 0 || !shedding) return;
+  console.error(`${PRODUCT}: the log append queue drained — ${episodeLines} event(s) (${mb(episodeChars)}) were dropped and are not in the log`);
+  shedding = false;
+  episodeLines = 0;
+  episodeChars = 0;
+}
+
 // ─── What the queue failed to write ───────────────────────────────────────
 //
 // `.catch(() => {})` was the only handler anywhere on this path, and a failed
@@ -636,27 +658,6 @@ export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
     .catch(() => {});
   installTail(filePath, turn);
   return flushAppends(filePath, ms);
-}
-
-/**
- * One line has left the queue. Give its charge back, and close the episode if
- * that was the last of them.
- *
- * The episode ends when the queue is EMPTY rather than the moment it dips back
- * under the bound, because it dips under the bound once per completed write:
- * keyed on the bound this would print a pair of lines per event for the length
- * of the burst. Empty is also the honest boundary for the number being
- * reported — while anything is still queued the next line can still be refused,
- * and the total would have to be retracted.
- */
-function releaseCharge(charged) {
-  pendingLines--;
-  pendingChars -= charged;
-  if (pendingLines > 0 || !shedding) return;
-  console.error(`${PRODUCT}: the log append queue drained — ${episodeLines} event(s) (${mb(episodeChars)}) were dropped and are not in the log`);
-  shedding = false;
-  episodeLines = 0;
-  episodeChars = 0;
 }
 
 /**
