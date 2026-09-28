@@ -86,6 +86,19 @@ let _generation = 0;
 
 const CACHE_MS = 60_000;
 
+// How long an answer with no fresh numbers in it stays cached: the "no reading
+// yet" of the poll-floor branch, and both answers _doFetch gives when the CLI
+// printed no windows — the last good reading held over, or the zero or failure
+// when there never was one. A whole CACHE_MS would keep the panel on one of
+// those for a minute when the next attempt may well succeed, so they are
+// stamped CACHE_MS - SHORT_CACHE_MS in the past and expire this long after they
+// were written.
+const SHORT_CACHE_MS = 5_000;
+
+/** The cache stamp that makes an answer published at `now` expire
+ *  SHORT_CACHE_MS later. */
+const shortLived = (now) => now - (CACHE_MS - SHORT_CACHE_MS);
+
 // The refresh button may beat SELF_POLL_MS — the floor for polls we pay for,
 // kept in quota-oauth.mjs beside the cooldown — but not turn into a poll loop
 // when held down. It never beats the 429 cooldown.
@@ -341,7 +354,7 @@ async function _doFetch(now, force = false, gen = _generation) {
     const held = freshest(store, _lastGood);
     if (held) return publish(gen, { ...held, stale: true }, now);
     const result = noReading(now);
-    return publish(gen, result, now - (CACHE_MS - 5_000));
+    return publish(gen, result, shortLived(now));
   }
   _lastSelfPollAt = now;
 
@@ -387,7 +400,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // vouches for numbers this branch already knows are stale. Short-cache so we
   // retry the CLI again soon.
   if (_lastGood) {
-    return publish(gen, { ..._lastGood, stale: true }, now - (CACHE_MS - 5_000));
+    return publish(gen, { ..._lastGood, stale: true }, shortLived(now));
   }
 
   // Never had good data. A CLI that RAN and printed no quota lines is two
@@ -420,7 +433,7 @@ async function _doFetch(now, force = false, gen = _generation) {
     ? { ok: true, session5hPct: 0, session5hWindowSec: WIN_5H_SEC,
         week7dPct: 0, week7dWindowSec: WIN_7D_SEC, fetchedAt: now }
     : { ok: false, reason: cliOk && cliRan ? "no_subscription" : "cli_failed", fetchedAt: now };
-  return publish(gen, result, now - (CACHE_MS - 5_000));
+  return publish(gen, result, shortLived(now));
 }
 
 /**
