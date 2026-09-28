@@ -37,6 +37,12 @@ import { currentIdentity } from "./claude-identity.mjs";
 // file: the dependency has to go the other way, and a lock imported over a
 // cycle is a lock that may not be there yet when a mutation wants it.
 import { withStoreLock } from "./store-lock.mjs";
+// The identity of one account, spelled once. claude-swap keys on `(email,
+// organizationUuid)`; the verdict cache files each verdict under the pair it was
+// collected for, and lan-sync.mjs matches accounts across two stores on the same
+// pair. lan-sync.mjs imports nothing of this project's, so the edge closes no
+// cycle.
+import { accountKey } from "./lan-sync.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -402,7 +408,7 @@ async function collectVerdicts({ runner, bin }) {
     const identities = {};
     for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
       if (Number.isInteger(a?.number) && typeof a?.email === "string" && a.email.trim()) {
-        identities[String(a.number)] = `${a.email.trim().toLowerCase()}@@${a.organizationUuid ?? ""}`;
+        identities[String(a.number)] = accountKey(a.email, a.organizationUuid);
       }
     }
     _verdicts = { at: Date.now(), byNum, identities };
@@ -437,7 +443,7 @@ function verdictFor(num, now, email, org) {
 /** Only attach a cached slot verdict to the identity it was collected for. */
 export function cachedVerdictFor(cache, num, now, email, org) {
   if (now - cache.at > VERDICT_TTL_MS) return null;
-  const identity = `${String(email ?? "").trim().toLowerCase()}@@${org ?? ""}`;
+  const identity = accountKey(email, org);
   if (cache.identities[String(num)] !== identity) return null;
   const v = cache.byNum[String(num)];
   return typeof v === "string" && v !== "" ? v : null;
@@ -524,6 +530,41 @@ async function readJson(path) {
   } catch {
     return null;
   }
+}
+
+/** The usage rows in claude-swap's cache/usage.json, keyed by slot — see
+ *  usageRows for which of them may be believed. */
+async function readUsageRows(root) {
+  return usageRows(await readJson(join(root, "cache", "usage.json")));
+}
+
+/**
+ * The rows of a parsed usage.json, or none at all.
+ *
+ * A schema bump means the rows may not mean what this code thinks they do, so
+ * a file in any schema but 2 has no rows. Three readers go through this — the
+ * roster, the Usage panel's active account and the refresh button's collection
+ * request — and a rule spelled three times is three places for one of them to
+ * trust a row the other two refuse. Exported for its test.
+ */
+export function usageRows(usage) {
+  return usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
+}
+
+/**
+ * Whether a usage row was written for this account.
+ *
+ * claude-swap keys usage rows by slot but guards them on identity, because a
+ * removed account leaves its row behind and slots get reused. Without the same
+ * check the panel would show the previous occupant's numbers, and the Usage
+ * panel — which reads the active account's row through activeAccountUsage —
+ * would put them under this account's name. Both readers ask here, so they
+ * cannot disagree about whose row it is. Exported for its test.
+ */
+export function rowIsFor(row, acct) {
+  return Boolean(row)
+    && row.email === acct.email
+    && (row.organizationUuid ?? "") === (acct.organizationUuid ?? "");
 }
 
 function pctOf(win) {
@@ -647,9 +688,7 @@ async function readRoster(now, gen) {
       : { ok: false, reason: "no_cswap", hint: await installHint(), fetchedAt: now });
   }
 
-  const usage = await readJson(join(root, "cache", "usage.json"));
-  // A schema bump means the rows may not mean what this code thinks they do.
-  const rows = usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
+  const rows = await readUsageRows(root);
 
   // Kick a collection for the NEXT poll if anything is due — either because
   // claude-swap's schedule says so, or because an account has never been
@@ -677,12 +716,7 @@ async function readRoster(now, gen) {
     if (!acct) continue;                       // sequence lists a slot that no longer exists
 
     const row = rows[num];
-    // claude-swap keys usage rows by slot but guards them on identity, because
-    // a removed account leaves its row behind and slots get reused. Without
-    // the same check the panel would show the previous occupant's numbers.
-    const matches = row
-      && row.email === acct.email
-      && (row.organizationUuid ?? "") === (acct.organizationUuid ?? "");
+    const matches = rowIsFor(row, acct);
     const good = matches ? row.lastGood : null;
 
     const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
@@ -856,16 +890,10 @@ export async function activeAccountUsage() {
   const acct = num ? seq?.accounts?.[num] : null;
   if (!acct) return null;
 
-  const usage = await readJson(join(root, "cache", "usage.json"));
-  if (usage?.schemaVersion !== 2) return null;
-
-  const row = usage.accounts?.[num];
+  const row = (await readUsageRows(root))[num];
   // Same identity guard the panel uses: rows are keyed by slot, and slots are
   // reused, so a row can outlive the account it was written for.
-  if (!row?.lastGood
-      || row.email !== acct.email
-      || (row.organizationUuid ?? "") !== (acct.organizationUuid ?? "")
-      || typeof row.fetchedAt !== "number") return null;
+  if (!row?.lastGood || !rowIsFor(row, acct) || typeof row.fetchedAt !== "number") return null;
 
   return {
     num:       Number(num),
@@ -891,8 +919,7 @@ export async function requestCollection() {
   const root  = backupRoot();
   const seq   = await readJson(join(root, "sequence.json"));
   if (!seq?.accounts) return false;
-  const usage = await readJson(join(root, "cache", "usage.json"));
-  const rows  = usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
+  const rows  = await readUsageRows(root);
   const before = _lastNudge;
   nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
   return _lastNudge !== before;
