@@ -9,11 +9,12 @@ import type { Dispatch, SetStateAction } from "react";
 import type { WatchSettings, WatchSnapshot } from "../browser-watch-model";
 
 /**
- * What the bar says about the watch, and which of four things it is saying.
+ * What the bar says about the watch, and which of three things it is saying: a
+ * setting on its way to the server, paused, or watching.
  *
- * The kind exists so the text can cross-fade when the meaning changes without
- * flickering while the countdown counts: `counting` holds for fourteen minutes
- * while its own last characters move every second.
+ * The kind exists so the word can cross-fade when the meaning changes. The word
+ * is keyed on it, so a new state mounts a new word and plays its entrance, and a
+ * render that leaves the state where it was leaves the word alone.
  */
 function modeState(
   snap: { settings: { enabled: boolean } },
@@ -24,8 +25,8 @@ function modeState(
   // · nothing captured yet" — and the two ideas fought: a reader with visible
   // browser activity in the feed below was being told nothing had been
   // captured, which is true of episodes and reads as false of the panel.
-  // Persistence belongs to the footer, which says it in the same noun the
-  // Episodes tab uses. This line says whether the watch is running.
+  // Persistence belongs to the count beside it, which says it in the same noun
+  // the Findings section uses. The word says whether the watch is running.
   if (!snap.settings.enabled) return { kind: "off", word: "Paused" };
   return { kind: "on", word: "Watching" };
 }
