@@ -6,8 +6,8 @@
 //     pipx install claude-swap
 //
 // which is "whatever that project publishes next, forever", resolved on a
-// machine the author will never see. Forty lines away in uv-bootstrap.mjs the
-// same deck refuses to execute a 35 MB uv it cannot hash. The package holding
+// machine the author will never see. In uv-bootstrap.mjs the same deck
+// refuses to execute a 35 MB uv it cannot hash. The package holding
 // the credentials had no floor, no ceiling and no check of any kind, on the
 // install or on the upgrade, and `cswap --version` was read afterwards only to
 // confirm that SOMETHING answered — never that it was the something asked for.

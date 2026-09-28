@@ -34,8 +34,8 @@ const MARKER = join(homedir(), ".agents-deck", ".cswap-update-check");
 // means "whatever that project publishes next, forever", resolved on a machine
 // the author will never see, and then handed `cswap export -`, `add` and
 // `import`: every command in the accounts panel that carries a Claude refresh
-// token. Forty lines away, uv itself is fetched only after its SHA-256 is
-// checked against the one Astral publishes beside it (uv-bootstrap.mjs). The
+// token. On the same install path, uv itself is fetched only after its SHA-256
+// is checked against the one Astral publishes beside it (uv-bootstrap.mjs). The
 // package that holds the credentials had no bound of any kind.
 //
 // FLOOR: the newest release at the time this bound was written, which is the
