@@ -221,9 +221,10 @@ function newUsageTotals() {
  *
  *  The four flat counters are the whole of what a usage block charges. The two
  *  `ephemeral_*` counters split cache_creation_input_tokens by TTL rather than
- *  adding to it, so they are not asked. One file's totals, one model's bucket
- *  and each subagent file's totals are all asked this, and each of those three
- *  used to spell the four tests out for itself. */
+ *  adding to it, so they are not asked. One file's totals, one model's bucket,
+ *  each subagent file's totals and each line the Projects report folds
+ *  (account-projects.mjs) are all asked this, and each of those four used to
+ *  spell the four tests out for itself. */
 function hasSpend(u) {
   return USAGE_BLOCK_FIELDS.some(k => u[k] !== 0);
 }
@@ -353,8 +354,9 @@ function foldModelLine(state, obj) {
  * 14,138 assistant usage records were such repeats, identical to the block 0
  * before them, and summing them all came to 1.94x the request-by-request
  * total. This is the rule the Projects report (account-projects.mjs) and
- * ccusage already count by. A record without the field was written before
- * Claude Code marked its blocks, and is counted as it always was.
+ * ccusage count by, and the Projects report asks this function. A record
+ * without the field was written before Claude Code marked its blocks, and is
+ * counted as it always was.
  *
  * The same lines are one reply, so the context breakdown asks this too before
  * it counts an assistant message (#1650).
@@ -552,9 +554,10 @@ function scanTranscript(path) {
   });
 }
 
-// What session-enrichment.mjs calls. Listed here rather than marked at each
-// declaration so that every declaration above reads exactly as it did where it
-// came from.
+// What session-enrichment.mjs calls, and the two rules the Projects report
+// (account-projects.mjs) reads its own pass of the transcripts by. Listed here
+// rather than marked at each declaration so that every declaration above reads
+// exactly as it did where it came from.
 export {
-  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel,
+  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, repeatsRequestUsage,
 };

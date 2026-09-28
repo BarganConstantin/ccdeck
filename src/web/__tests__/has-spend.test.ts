@@ -1,8 +1,9 @@
-// "Has this been billed for anything?" — the one question three readers of a
+// "Has this been billed for anything?" — the one question four readers of a
 // transcript's usage ask before they report it: a file's own totals, one
-// model's bucket of them, and each subagent file a session delegated to. Each
-// spelled the four tests out by hand, two as `=== 0` and one as truthiness, so
-// the rule is held here once, on the function they all call now.
+// model's bucket of them, each subagent file a session delegated to, and each
+// line the Projects report folds. Each spelled the four tests out by hand, two
+// as `=== 0` and two as truthiness, so the rule is held here once, on the
+// function they all call now.
 import { afterAll, describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,6 +14,8 @@ import { rmTempDir } from "./rm-temp-dir";
 const { hasSpend, newUsageTotals } = await import("../../server/transcript-scan.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { readUsageFromTranscript, readUsageByModelFromTranscript } = await import("../../server/session-enrichment.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { foldLine } = await import("../../server/account-projects.mjs");
 
 type Totals = Record<string, number>;
 const zero = (): Totals => newUsageTotals();
@@ -58,6 +61,18 @@ describe("the readers that ask it", () => {
     writeFileSync(path, line({ ...zero(), cache_creation: { ephemeral_1h_input_tokens: 7, ephemeral_5m_input_tokens: 0 } }));
     expect(await readUsageFromTranscript(path)).toBeNull();
     expect(await readUsageByModelFromTranscript(path)).toBeNull();
+  });
+
+  it("give the Projects report no row for a block whose only tokens are the TTL split", () => {
+    // Its own pass over the same transcripts asks the same question, of each
+    // line, and used to spell the four tests out as truthiness.
+    const tally: Record<string, unknown> = {};
+    const at = { timestamp: "2026-09-22T10:00:00Z", cwd: "/p" };
+    const split = { ...zero(), cache_creation: { ephemeral_1h_input_tokens: 7, ephemeral_5m_input_tokens: 0 } };
+    foldLine(tally, JSON.stringify({ ...at, message: { model: "claude-opus-4-7", usage: split } }), []);
+    expect(tally).toEqual({});
+    foldLine(tally, JSON.stringify({ ...at, message: { model: "claude-opus-4-7", usage: { ...split, output_tokens: 1 } } }), []);
+    expect(Object.keys(tally)).toHaveLength(1);
   });
 
   it("report the totals, and the model they belong to, once one billed counter is non-zero", async () => {
