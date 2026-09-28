@@ -3,6 +3,13 @@
 // lan-socket.mjs, and everything here is a pure function so the suite can run
 // all of it on one machine, which is the only machine there is.
 //
+// Three files beside it hold the rest of the rules, pure in the same way: the
+// keys, proofs and seals two decks talk under once one has dialled
+// (lan-wire.mjs), which copy of a login wins and what a deck says about the
+// ones it holds (lan-copies.mjs), and the invite (lan-invite.mjs). This file
+// re-exports the first two, so what imports a rule from here still finds it;
+// the invite builds on this file and is imported from its own.
+//
 // WHAT THIS IS FOR. An account's login dies on a machine that has not used it
 // for a while, while the same account stays alive on a machine that has. Today
 // the fix is a blob copied out of one deck and pasted into another. This is
@@ -47,7 +54,8 @@
 // Its other lesson is about WHERE a check goes. The group secret authenticates
 // the channel; LocalSend still puts a separate PIN on the transfer endpoint
 // itself, so the sensitive operation carries its own proof rather than
-// inheriting one from a session that may be old. See `transferChallenge`.
+// inheriting one from a session that may be old. See `transferChallenge` in
+// lan-wire.mjs.
 //
 // KDE CONNECT had CVE-2020-26164: several issues in the daemon that listens on
 // the LAN, in a design whose protocol was fine. The lesson is not "do TLS
@@ -92,7 +100,7 @@
 // implementing. The one PAKE package on npm was last published in 2022, has 37
 // downloads a week and four dependencies of its own; running unmaintained
 // cryptography to protect live credentials is worse than the plain construction
-// below.
+// in lan-wire.mjs.
 import { createHash } from "node:crypto";
 import os from "node:os";
 // What two decks say once one has dialled the other — the keys, the proofs and

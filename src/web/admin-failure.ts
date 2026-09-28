@@ -139,7 +139,7 @@ export const KEYCHAIN =
 
 /**
  * What this deck found wrong with a login that had just landed — the HERE codes
- * lan-sync.mjs defines, said once for both places that report an arrival: a LAN
+ * lan-copies.mjs defines, said once for both places that report an arrival: a LAN
  * round and the Add Account dialog. A few words for a row, the sentence with
  * the remedy for wherever there is room.
  */
