@@ -51,6 +51,10 @@ const ADD = readFileSync(
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The view's header — Back, the title, the section's three acts and the
  *  panel's close — which moved out of the component into its own. */
+/** The requests still waiting for an answer, which moved out of the component
+ *  into their own. */
+const ASKS = readFileSync(fileURLToPath(new URL("../components/LanAsks.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const HEADER = readFileSync(fileURLToPath(new URL("../components/LanViewHeader.tsx", import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The section's conversation with its deck — the poll, the request slot and
@@ -441,7 +445,7 @@ describe("the three rules the panel above it already keeps", () => {
     // used for the same act; what is pinned is that the section still OWNS it.
     expect(SURFACE).toMatch(/aria-label="Add a deck"/);
     expect(CODE).toMatch(/role="switch"/);
-    expect(CODE).toMatch(/wants to pair/);
+    expect(SURFACE).toMatch(/wants to pair/);
   });
 
   it("builds the next share list from what it last sent, not from the last render", () => {
@@ -773,14 +777,14 @@ describe("the pairing that replaced the passphrase", () => {
     // character produced a closed socket and no other symptom on both machines,
     // and a secret is the one value a panel must never print — so neither
     // person could check theirs against the other's.
-    expect(CODE).toMatch(/wants to pair/);
-    expect(CODE).toMatch(/accept/);
-    expect(CODE).toMatch(/dismiss/);
+    expect(ASKS).toMatch(/wants to pair/);
+    expect(ASKS).toMatch(/accept/);
+    expect(ASKS).toMatch(/dismiss/);
     // And what the reader is asked to compare is on the request itself —
     // PRINTED, not only in a `title`. A mouse-only, screen-reader-silent place
     // is not where the feature's one security decision can live.
-    expect(CODE).toMatch(/fingerprint is \$\{p\.fp\}/);
-    expect(CODE).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}<\/code>/);
+    expect(ASKS).toMatch(/fingerprint is \$\{p\.fp\}/);
+    expect(ASKS).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}<\/code>/);
   });
 
   it("has no passphrase left anywhere in the surface", () => {
@@ -791,7 +795,9 @@ describe("the pairing that replaced the passphrase", () => {
   });
 
   it("puts the request above everything else, because nothing moves until it is answered", () => {
-    const ask = CODE.indexOf('className="ap-lan-asks"');
+    // The requests are drawn by a component of their own, which the section
+    // places first.
+    const ask = CODE.indexOf("<LanAsks ");
     expect(ask).toBeGreaterThan(-1);
     // Above the roster, which is the only other thing in the section — the
     // list the section places after it, which draws the roster's <ul>.
@@ -801,7 +807,7 @@ describe("the pairing that replaced the passphrase", () => {
     expect(LIST).toMatch(/<ul className="ap-lan-here">/);
     // Announced, because it arrives while the reader is three sections up
     // looking at a quota.
-    expect(CODE).toMatch(/className="ap-lan-asks" role="alert"/);
+    expect(ASKS).toMatch(/className="ap-lan-asks" role="alert"/);
   });
 
   it("says how long a request has been waiting, coarsely, because the answer is a press", () => {
@@ -1383,7 +1389,7 @@ describe("what did not change", () => {
     // AND THE FINGERPRINT IS STILL PRINTED WHERE IT IS ACTED ON. It is not a
     // decoration anywhere it appears: it is the one value whoever is asking
     // cannot choose, so it belongs on both surfaces that answer a request.
-    expect(CODE).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}/);
+    expect(ASKS).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}/);
     expect(readFileSync(
       fileURLToPath(new URL("../components/LanPairRequestModal.tsx", import.meta.url)), "utf8",
     )).toMatch(/fingerprint/);
