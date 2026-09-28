@@ -17,6 +17,7 @@ import {
 } from "../usage-from-ccusage";
 import { readStored } from "../storage";
 import { PRODUCT } from "../brand";
+import { resetCreditsLine, type ResetCredits } from "../reset-credits";
 import type { GraphState } from "../reducer";
 import type { AgentState } from "../types";
 import { fmtTokens } from "../token-format";
@@ -72,7 +73,15 @@ interface QuotaData {
   extraMonthlyLimit?: number;
   /** ISO currency code, for the title. */
   extraCurrency?: string;
+
+  /** Claude's saved limit resets — "Reset for free" in Claude's Settings →
+   *  Usage — that can be spent now, and when the first of them lapses (epoch
+   *  milliseconds). The Codex card's `resetCredits`, in the same shape. Absent
+   *  whenever the server could not establish the inventory for this account —
+   *  which is not the same as having none, and is why nothing is drawn for it. */
+  resetCredits?: ResetCredits | null;
 }
+
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched. */
 /** Where the chosen period lives between reloads.
@@ -136,7 +145,7 @@ function ageLabel(ms: number | undefined, nowSec: number): string | null {
 
 /** Which of the three sources answered, in words. */
 function quotaSourceHint(source?: string): string {
-  if (source === "claude-swap") return "Read from claude-swap's last collection — costs no request against your usage-endpoint budget";
+  if (source === "claude-swap") return "Read from claude-swap's last collection — costs no request against your usage-endpoint budget. Saved limit resets, which it does not collect, are read separately: every 30 minutes, or 5 on refresh";
   if (source === "api")         return "Fetched from Anthropic's usage endpoint, at most once every 5 minutes";
   if (source === "cli")         return "Parsed from `claude /usage`, at most once every 5 minutes";
   return "Last update";
@@ -376,7 +385,7 @@ interface CodexQuotaData {
   reachedType?: string | null;
   promo?: string | null;
   partial?: boolean;
-  resetCredits?: { availableCount: number; nextExpiryAt: number | null } | null;
+  resetCredits?: ResetCredits | null;
   reason?: string;
   fetchedAt?: number;
 }
@@ -1084,6 +1093,15 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
                    rather than draw a bar with no denominator. */
                 <div className="up-quota-sub up-credits">extra usage credits: on</div>
               )}
+            {/* Saved limit resets (#1308). Not the windows' own reset times
+                above — those say when a window rolls over by itself; these are
+                one-off resets the account holds. Counted, never spent: the
+                deck has no way to redeem one and does not want one. */}
+            {quota.resetCredits && quota.resetCredits.availableCount > 0 && (
+              <div className="up-quota-sub up-reset-credits" title={`Saved in Claude as "Reset for free". Redeem one in Claude on the web or desktop — ${PRODUCT} only reports them`}>
+                {resetCreditsLine("limit reset", quota.resetCredits)}
+              </div>
+            )}
           </div>
         ) : quota?.ok === false ? (
           <div className="up-quota-na">
@@ -1166,10 +1184,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             )}
             {codexQuota.resetCredits && codexQuota.resetCredits.availableCount > 0 && (
               <div className="up-quota-sub up-reset-credits" title={`Redeem in the Codex CLI or ChatGPT — ${PRODUCT} only reports them`}>
-                {codexQuota.resetCredits.availableCount} rate-limit reset
-                {codexQuota.resetCredits.availableCount !== 1 ? "s" : ""} available
-                {codexQuota.resetCredits.nextExpiryAt &&
-                  ` · expires ${new Date(codexQuota.resetCredits.nextExpiryAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                {resetCreditsLine("rate-limit reset", codexQuota.resetCredits)}
               </div>
             )}
             {codexQuota.promo && (
