@@ -187,6 +187,18 @@ export function signalExitAction(signal, platform = process.platform, numbers = 
  *
  * `proc` is a parameter so the whole sequence can be driven in a test child.
  */
+export function dieOfSignal(signal, proc = process) {
+  const { reraise, code } = signalExitAction(signal, proc.platform);
+  if (reraise) {
+    proc.removeAllListeners(reraise);
+    try { proc.kill(proc.pid, reraise); } catch { /* fall through to the number */ }
+  }
+  // Reached on Windows, and on POSIX only when the signal is ignored or
+  // blocked — inherited dispositions survive spawn — so the kill above returns
+  // instead of ending us.
+  proc.exit(code);
+}
+
 /**
  * What to say when the upgrade that just succeeded took this install with it,
  * or null when that is not what happened.
@@ -221,18 +233,6 @@ export function replacedNote({ workerExists, moved, product = "ccdeck", command 
     `  the new version is in ${moved}`,
     `  run \`${command}\` again to start it`,
   ].join("\n");
-}
-
-export function dieOfSignal(signal, proc = process) {
-  const { reraise, code } = signalExitAction(signal, proc.platform);
-  if (reraise) {
-    proc.removeAllListeners(reraise);
-    try { proc.kill(proc.pid, reraise); } catch { /* fall through to the number */ }
-  }
-  // Reached on Windows, and on POSIX only when the signal is ignored or
-  // blocked — inherited dispositions survive spawn — so the kill above returns
-  // instead of ending us.
-  proc.exit(code);
 }
 
 // ── how often an upgrade that failed may be attempted again ──────────────────
