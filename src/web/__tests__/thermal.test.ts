@@ -27,7 +27,7 @@ import {
   parseWinThermal, readThermalZones, throttleFromPmset,
 } from "../../server/thermal-metrics.mjs";
 import { sampleThermal, stopSystemMetrics } from "../../server/system-metrics.mjs";
-import { thermalTone, throttleRow } from "../components/MachinePanel";
+import { thermalTone, throttleRow } from "../machine-readings";
 
 describe("millidegrees, which is the unit every Linux sensor speaks", () => {
   it("reads a package sensor", () => {

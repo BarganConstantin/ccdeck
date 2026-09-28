@@ -39,11 +39,11 @@ import {
 } from "../../server/process-list.mjs";
 import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/ProcessListModal";
 import { fmtBytes, fmtUptime } from "../components/ProcessListModal";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const server = read("../../server/process-list.mjs");
 const route = read("../../server/index.mjs");
-const meter = read("../components/MachinePanel.tsx");
 const modal = read("../components/ProcessListModal.tsx");
 
 describe("what the command column may carry", () => {
@@ -256,7 +256,7 @@ describe("the second child is the modal's, not the panel's", () => {
     // sitting with the panel open reads no process list at all, which is
     // cheaper than the reading #807 made cheaper.
     expect(modal).toMatch(/fetch\("\/api\/system\/processes\?detail=1"\)/);
-    expect(meter, "the panel is reading the process list again").not.toMatch(/system\/processes/);
+    expect(machinePanelSurface(), "the panel is reading the process list again").not.toMatch(/system\/processes/);
   });
 
   it("does not serve a detailed request from a plain cached reading", () => {
