@@ -589,6 +589,46 @@ async function recordAndReact(store, kept, live, { platform, now, deps }) {
 }
 
 /**
+ * What the panel can honestly claim to know about, which is not the window it
+ * asked for: a profile whose history only goes back a week cannot answer for
+ * the month, and saying so is the difference between "nothing happened" and
+ * "nothing was recorded".
+ *
+ * Both of the snapshot's answers carry it — the one that read the browsers and
+ * the archive-only one — so it is built here once rather than spelled twice.
+ * `why` is the archive-only answer's, and absent from the other.
+ */
+async function coverageOf({ oldestVisitMs, lastHumanMs, quietMs, archived, now, why, deps }) {
+  return {
+    // When this deck started, which is the only moment the watch looks
+    // forward from — the panel says so rather than leaving a reader to guess
+    // how far back it went.
+    startedMs: STARTED_MS,
+    oldestVisitMs,
+    lastHumanMs,
+    quietMs: quietMs ?? 15 * 60_000,
+    logPath: logPath(),
+    // What that file holds on disk, both generations, beside its name
+    // (#989). It was the one store in this feature with no cap, and the panel
+    // named it without ever saying how large it had grown.
+    logBytes: await (deps.logSize ?? logSize)(),
+    // When the deck last FINISHED a poll, and how many it has done. The
+    // panel's liveness reads from these; the heartbeat row that used to
+    // carry it is gone. Not `lastWrittenMs` — that is the History file's
+    // mtime, a fact about the browser rather than about the watch, and on an
+    // idle machine it grows forever while the watch keeps looking.
+    checkedMs: _checkedMs,
+    checks: _checks,
+    // How many episodes this deck has seen since it started. Zero with the
+    // watch off is not a fault — it is the switch doing what it says — and the
+    // panel needs the number to be able to say which of the two it is.
+    archived,
+    now,
+    ...(why === undefined ? {} : { why }),
+  };
+}
+
+/**
  * Everything the panel draws, in one object.
  *
  * `deckOrigins` are the addresses this deck is listening on. They are excluded
@@ -659,21 +699,17 @@ export async function browserWatchSnapshot({
       // to say. The panel renders the difference.
       relay: null,
       episodes: archived,
-      coverage: {
-        startedMs: STARTED_MS,
+      coverage: await coverageOf({
         oldestVisitMs: null,
         lastHumanMs: null,
-        quietMs: quietMs ?? 15 * 60_000,
-        logPath: logPath(),
-        logBytes: await (deps.logSize ?? logSize)(),
-        checkedMs: _checkedMs,
-        checks: _checks,
+        quietMs,
         archived: archived.length,
         now,
+        deps,
         // Said rather than implied: a reader who wonders why the profile list
         // is empty gets the reason, in the same word the switch uses.
         why: "the watch is off, so no browser was read on this poll",
-      },
+      }),
       degraded: false,
     };
   }
@@ -841,38 +877,16 @@ export async function browserWatchSnapshot({
     profiles: reports,
     browsers,
     episodes,
-    coverage: {
-      // What the panel can honestly claim to know about, which is not the
-      // window it asked for: a profile whose history only goes back a week
-      // cannot answer for the month, and saying so is the difference between
-      // "nothing happened" and "nothing was recorded".
-      // When this deck started, which is the only moment the watch looks
-      // forward from — the panel says so rather than leaving a reader to guess
-      // how far back it went.
-      startedMs: sinceMs,
+    coverage: await coverageOf({
       oldestVisitMs: oldestSeen,
       // Null when nobody has browsed since the deck started, which is itself
       // the answer: the gate is already open.
       lastHumanMs: lastHuman,
-      quietMs: quietMs ?? 15 * 60_000,
-      logPath: logPath(),
-      // What that file holds on disk, both generations, beside its name
-      // (#989). It was the one store in this feature with no cap, and the panel
-      // named it without ever saying how large it had grown.
-      logBytes: await (deps.logSize ?? logSize)(),
-      // When the deck last FINISHED a poll, and how many it has done. The
-      // panel's liveness reads from these; the heartbeat row that used to
-      // carry it is gone. Not `lastWrittenMs` — that is the History file's
-      // mtime, a fact about the browser rather than about the watch, and on an
-      // idle machine it grows forever while the watch keeps looking.
-      checkedMs: _checkedMs,
-      checks: _checks,
-      // How many episodes this deck has seen since it started. Zero with the
-      // watch off is not a fault — it is the switch doing what it says — and the
-      // panel needs the number to be able to say which of the two it is.
+      quietMs,
       archived: undismissed(kept, store.dismissed).length,
       now,
-    },
+      deps,
+    }),
     degraded: anyDegraded,
   };
 }
