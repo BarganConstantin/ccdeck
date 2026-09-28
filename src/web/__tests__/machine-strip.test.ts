@@ -26,6 +26,8 @@ import { spanLabel, type Series } from "../components/SectionHistoryModal";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const metrics = readFileSync(at("../../server/system-metrics.mjs"), "utf8");
+/** The load-average rule, which both of the sampler's uses of it ask. */
+const loadRule = readFileSync(at("../../server/load-average.mjs"), "utf8");
 const strip = readFileSync(at("../components/MachineStrip.tsx"), "utf8");
 const css = readFileSync(at("../styles.css"), "utf8");
 
@@ -112,7 +114,9 @@ describe("what a machine that cannot answer gets", () => {
   it("omits load on a platform that publishes none, rather than reading zero", () => {
     // Windows. `os.loadavg()` returns zeros there and the server refuses to
     // record them; a strip that printed `0.00` would be inventing calm.
-    expect(metrics).toContain('const hasLoad = process.platform !== "win32"');
+    expect(loadRule).toContain('return platform !== "win32" ? load.map(n => Math.round(n * 100) / 100) : null;');
+    expect(metrics).toContain("loadavg: loadReading(),");
+    expect(metrics).toContain('if (load) record("load:1m", load[0]);');
     const { loadavg, ...rest } = full();
     expect("load:1m" in liveReadings({ ...rest, loadavg: null })).toBe(false);
   });

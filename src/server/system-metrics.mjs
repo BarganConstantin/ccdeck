@@ -22,6 +22,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import { hasClaudeInstalled } from "./claude-dir.mjs";
+import { loadReading } from "./load-average.mjs";
 import { readAvailable, readSwap } from "./memory-metrics.mjs";
 import { run } from "./metrics-run.mjs";
 import { readProcesses, resetProcessList } from "./process-list.mjs";
@@ -551,20 +552,11 @@ function sampleCpu() {
   while (cpuHistory.length > HISTORY) cpuHistory.shift();
   record("cpu:all", pct);
   if (per?.length) record("cpu:busiest", Math.max(...per));
-  // Free — os.loadavg() reads a kernel value, no syscall worth the name — so it
-  // rides the CPU tick rather than earning a timer. Windows returns [0,0,0],
-  // which is not a reading and is not recorded as one.
-  //
-  // THE PLATFORM TEST IS THE WHOLE TEST. It used to be joined by
-  // `load.some(n => n > 0)`, which reads as belt and braces and is not: Node
-  // documents `os.loadavg()` as always [0,0,0] on Windows, so the platform test
-  // alone already excludes every non-reading — and the extra clause could only
-  // ever reject a reading that was REAL. `/proc/loadavg` on a genuinely quiet
-  // Linux box says `0.00 0.00 0.00`, so "Queued work" recorded no points at all
-  // for every quiet minute, and after the machine woke the chart read as though
-  // the deck had been switched off through them.
-  const load = os.loadavg();
-  if (process.platform !== "win32") record("load:1m", Math.round(load[0] * 100) / 100);
+  // Free, so it rides the CPU tick rather than earning a timer — and null on
+  // Windows, which publishes no load average. loadReading holds the rule and
+  // the #1028 story behind it; the snapshot's `loadavg` asks the same function.
+  const load = loadReading();
+  if (load) record("load:1m", load[0]);
 }
 
 // ── the network ────────────────────────────────────────────────────────────
@@ -848,13 +840,6 @@ export function systemSnapshot() {
   const idle = Date.now() - askedAt > NET_ASKED_MS;
   askedAt = Date.now();
   if (idle && probeEnabled) void probeNetwork();
-  const load = os.loadavg();
-  // Platform alone, for the reason spelled out beside the `load:1m` record in
-  // sampleCpu: Node's own contract makes the platform test sufficient, and the
-  // `load.some(n => n > 0)` that used to join it here rejected nothing except a
-  // real reading of zero. MachinePanel gates the whole section on `{loadavg &&
-  // …}`, so an idle Linux box had the section disappear from under it.
-  const hasLoad = process.platform !== "win32";
   return {
     ok: true,
     cpu,
@@ -868,7 +853,8 @@ export function systemSnapshot() {
     thermal: thermal ? { ...thermal, heldBack: heldBackSoFar() } : null,
     uptimeSec: Math.round(os.uptime()),
     platform: process.platform,
-    loadavg: hasLoad ? load.map(n => Math.round(n * 100) / 100) : null,
+    // The rule the `load:1m` record in sampleCpu asks too — see loadReading.
+    loadavg: loadReading(),
     network: networkSnapshot(),
     intervalMs: CPU_INTERVAL_MS,
     sampledAt: Date.now(),
