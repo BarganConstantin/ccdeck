@@ -1,20 +1,29 @@
-// The readouts in the topbar's observation group: the status strip (the
+// The topbar's observation group, and the readouts in it: the status strip (the
 // stream's pill and the month's usage), the count of sessions blocked on you,
 // and what the browser answered when notifications were asked for.
 //
-// Moved out of App.tsx's markup unchanged. App.tsx keeps the group itself, the
+// Moved out of App.tsx's markup unchanged: the readouts first, and then the
+// group itself (ReadoutGroup, at the end) — the wordmark, the version chip, the
 // live regions that speak for these (which have to be mounted whether or not
-// these are, #372) and the reasons each sits where it does; this file is only
-// what each one shows.
+// these are, #372) and the reasons each sits where it does. App.tsx hands the
+// group each hook's return whole, and it is taken apart there under the names
+// the markup already used.
 import type { MutableRefObject } from "react";
 import type { BlockedSession } from "../ambient-counts";
+import { PRODUCT } from "../brand";
 import { fmtMonthlyCost } from "../monthly-usage";
 import { shortAgo } from "../relative-time";
 import { statusPill } from "../status-pill";
 import { fmtTokens } from "../token-format";
+import type { useDesktopUpdate } from "../use-desktop-update";
+import type { useLiveAnnouncements } from "../use-live-announcements";
 import type { useMonthlyUsage } from "../use-monthly-usage";
+import type { useOsNotifications } from "../use-os-notifications";
 import type { PauseControls } from "../use-pause-gate";
+import type { useVersionCheck } from "../use-version-check";
+import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import { waitingSentence } from "../agent-copy";
+import VersionChip from "./VersionChip";
 
 type MonthlyUsage = ReturnType<typeof useMonthlyUsage>;
 
@@ -161,5 +170,191 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
         ? "The deck will raise a system notification when a session blocks on you and this tab is in the background"
         : "Notifications are blocked for this page. Only your browser can undo that — its site settings for this address"}
     >{notifySaid === "on" ? "notifications on" : "notifications blocked"}</span>
+  );
+}
+
+export function ReadoutGroup({
+  versionCheck, welcome, desktopUpdate, pause, monthly, announcements, notify,
+  waitingSessions, waitingCursorRef, focusSession, live, now,
+}: {
+  versionCheck: ReturnType<typeof useVersionCheck>;
+  welcome: ReturnType<typeof useWelcomeAndNotes>;
+  desktopUpdate: ReturnType<typeof useDesktopUpdate>;
+  pause: PauseControls;
+  monthly: MonthlyUsage;
+  announcements: ReturnType<typeof useLiveAnnouncements>;
+  notify: ReturnType<typeof useOsNotifications>;
+  /** The sessions blocked on you, longest-stuck first. */
+  waitingSessions: BlockedSession[];
+  /** Where W starts from, so a click on the count and the next W press agree (#825). */
+  waitingCursorRef: MutableRefObject<string | null>;
+  focusSession: (sessionId: string) => void;
+  /** Whether the event stream is connected right now. */
+  live: boolean;
+  now: number;
+}) {
+  const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
+  const { chipVersion, openReleaseNotes } = welcome;
+  const { readyAppUpdate } = desktopUpdate;
+  const { paused, pauseGate } = pause;
+  const { monthlyUsage, monthlyUsageUnavailable, monthUsageRef } = monthly;
+  const { blockedSaid, watchSaid } = announcements;
+  const { notifySaid } = notify;
+  return (
+    /* Three groups now, not two, and this is the observation one.
+       The bar used to be a brand and one flat run of eight controls with
+       the readout strip wedged in front of them, and the only thing
+       marking the seam between "what is happening" and "what I can do to
+       it" was `.status { margin-right: 6px }` — 14px against the 8px
+       between two buttons. A 1.75x step under 16px does not read as a
+       group boundary, while a real 1px rule was drawn between the two
+       money readouts that used to close the strip. So the bar said the
+       break between two numbers was larger than the break between the
+       last number and the first control, which is exactly backwards. The
+       dividers were never the defect; the large boundary having no mark at
+       all was. Both dividers and both readouts have since gone, and the
+       24px between the groups is what is left doing the work.
+       LEFT, not centred. A centred group's x-position is a function of
+       both neighbours' widths, so the `live` pill would slide sideways
+       every time something after it gained a digit — and a status light
+       that has to be noticed cannot be a moving target. Everything ahead
+       of it here (the logo, the wordmark, the version chip) has bounded
+       width, so on the left it is an anchor instead. */
+    <div className="readout">
+      <div className="brand">
+        <span className="logo" />
+        {/* The page's <h1>, and the wordmark that was already here rather
+            than a second copy of it hidden off screen (#381). The document
+            had no h1 at all, so its heading outline began at h3 and every
+            level below was a skip.
+            A visually-hidden heading was the other option and is the wrong
+            one HERE: the name it would carry is the word printed two pixels
+            to the right of it, so a screen reader would hear "ccdeck,
+            heading level 1" and then "ccdeck" again from the wordmark. A
+            hidden heading earns its keep when a region has no visible title;
+            this region has one, and marking up what is already on the page
+            is what 1.3.1 asks for. It is also the same string as the
+            document's <title>, from the same constant, so the tab, the
+            wordmark and the outline cannot drift.
+            The version chip stays a sibling and not a child: it is a button
+            whose accessible name is a whole sentence about npm, and inside
+            the heading that sentence would become part of the heading's
+            name. */}
+        <h1>{PRODUCT}</h1>
+        {/* The version chip, and what clicking it does: see VersionChip. */}
+        <VersionChip
+          readyAppUpdate={readyAppUpdate} notice={notice} noticeOpen={noticeOpen}
+          version={version} chipVersion={chipVersion} versionChecking={versionChecking} now={now}
+          openReleaseNotes={openReleaseNotes} showNotice={showNotice} loadVersion={loadVersion}
+        />
+      </div>
+      {/* NOT a live region, and #372 is the issue that took the
+          `role="status"` off it. Nothing in this strip is a status
+          *message*: it is a permanently visible readout the user can read
+          whenever they want one, and every number in it still moves on its
+          own — tokens climbs on every event carrying usage, and the cost
+          label reprices its `$/h` rate on each frame while something is
+          live. `role="status"` also carries an implicit
+          `aria-atomic="true"`, so what a screen reader actually did with
+          each of those increments was re-read the WHOLE strip rather than
+          the one number that moved. That is a property of the role, not of
+          how many numbers are in the row: it held when the row also carried
+          the sessions, agents and events counters, and it holds now that
+          they are gone. Continuous speech of numbers nobody asked for is how
+          a page teaches its user to turn the screen reader off, and it was
+          being spent on the least urgent thing in the topbar.
+          WCAG 4.1.3 was satisfied here — for the wrong content. The alarm
+          that is worth a live region has one of its own, below. */}
+      <StatusStrip
+        live={live} paused={paused} pauseGate={pauseGate}
+        monthUsageRef={monthUsageRef} monthlyUsage={monthlyUsage} monthlyUsageUnavailable={monthlyUsageUnavailable}
+      />
+      {/* The deck's one alarm, said out loud — and the only live region in
+          the topbar (#372).
+          MOUNTED UNCONDITIONALLY, which is the half that looks redundant and
+          is not. A screen reader registers a live region when the region
+          enters the accessibility tree, and text that arrives in the same
+          tick as the region itself is routinely never announced at all. The
+          chip below is mounted only while something is blocked, so wrapping
+          THAT in a role="status" would have put the region and its first
+          words on screen together — the one announcement that matters, on
+          the one delivery screen readers are least reliable about. It would
+          also have taken the region away again with the chip, leaving
+          nowhere to say the block had cleared. So the region is always here
+          and only its text moves.
+          POLITE, not assertive, and that was a decision rather than a
+          default. `role="alert"` interrupts whatever is being spoken, which
+          buys at most the length of one utterance — and a blocked session
+          waits indefinitely, so nothing is lost by arriving a sentence
+          later. What assertive would cost is concrete: a deck reloaded while
+          a session is already blocked replays that block during mount, and
+          an assertive region firing there talks over the screen reader's own
+          announcement of the page the user just opened. The connection
+          banner keeps role="alert" because its failure is the other kind —
+          once the stream is dead every number on this page is stale and the
+          deck is quietly lying, so a deferred announcement is a user acting
+          on dead data.
+          role="status" carries an implicit aria-atomic="true"; it is written
+          out because this sentence only means anything whole, and because a
+          partial reading of it is exactly the failure the strip above was
+          guilty of. */}
+      <div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>
+      <div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>
+      {/* Outside the .status strip and inside .readout, which are two
+          separate placements and only one of them still has the reason it
+          was given.
+          The half that expired: "a control has no business inside a live
+          region". .status was one when this was written and #372 took the
+          role off it, so that argument has had nothing to point at for a
+          while. The half that still does the work is the one about the
+          strip itself — .status is a run of readouts about what is
+          happening, and a button dropped into it would report a group
+          boundary where there is only a change of element. Its group is
+          the readout, because what it reports is
+          observation; its element is a button, because the number is the
+          only one in the bar the user is meant to act on. Click goes to the
+          session that has been stuck longest, which is both the one the
+          deck was left open for and the one the region above names.
+          It says nothing when nothing is blocked, and it never speaks for
+          Codex: those sessions emit no notification, so counting them would
+          turn "we have no signal" into "they are fine". It carries no live
+          region of its own; the div above is where the speaking happens,
+          for the mounting reason given there. */}
+      {waitingSessions.length > 0 && (
+        <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
+      )}
+      {/* The ask, and it lives HERE rather than in a settings panel.
+          Every browser requires a user gesture to raise the permission
+          prompt, so this button is not decoration — without it the feature
+          cannot be switched on at all. Putting it beside the blocked count
+          means it appears in the one moment its value is obvious (a session
+          is stuck and you can see it), and `canAsk` takes it away for good
+          once the question has been answered either way: "granted" needs no
+          button, and "denied" cannot be re-asked — requestPermission()
+          resolves denied again without showing anything, so a button that
+          kept offering would silently do nothing. That is the failure
+          browser-react.mjs refuses to ship for its own reactions, and it is
+          not worth shipping here. After a refusal the switch is in the
+          browser's site settings, which the title says in words. */}
+      {/* THE ASK IS NOT IN THE TOPBAR ANY MORE. It was here because a browser
+          raises its permission prompt only on a user gesture, so a button
+          somewhere is not optional — but there are two others already, and
+          both are better placed: turning the notify switch on in the sound
+          menu raises the prompt itself, and that menu's `Browser
+          notifications / Enable` is the way back from a prompt somebody
+          dismissed. A third door, in the topbar, beside a count of blocked
+          sessions, was a dashed outline asking for a permission next to a
+          number about work. */}
+      {/* What the browser answered, said once and then gone.
+          Pressing a button and watching it disappear looks the same whether
+          it worked or was refused, and only one of those is true — a user
+          who was refused walks away believing they switched something on.
+          So the grant gets a short acknowledgement and the refusal gets a
+          longer one carrying the only thing that can be done about it,
+          which is a switch in the browser's own site settings that no page
+          is allowed to touch. `role="status"` rather than an alert: this is
+          the outcome of something they just did, not an interruption. */}
+      {notifySaid && <NotifySaid notifySaid={notifySaid} />}
+    </div>
   );
 }

@@ -390,7 +390,8 @@ describe("nothing else in the deck invents a focus stop", () => {
     // inside the ribbon's own <button> — where a button may not go — and with
     // no tabIndex, so no keyboard could ever reach it. Escape carries the same
     // verb from anywhere, so the × is decoration with a click on it.
-    expect(code(app)).not.toMatch(/role="button"/);
+    // The topbar's readout group moved out of App.tsx, so the sweep reads it too.
+    expect(code(app) + "\n" + code(readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8"))).not.toMatch(/role="button"/);
     expect(app).toMatch(/aria-hidden\s*\n\s*className="selected-close"/);
   });
 });

@@ -18,11 +18,15 @@ describe("the deck announces state that is already visible (#1016)", () => {
 
   it("announces Browser Watch findings from an always-mounted polite region", () => {
     // The sentence and its reducer moved to use-live-announcements.ts; the region
-    // is still mounted in App.tsx. All three matches are positive.
-    const app = strip(read("../App.tsx") + "\n" + read("../use-live-announcements.ts"));
+    // is mounted in the topbar's readout group (components/TopbarReadouts.tsx),
+    // which App.tsx mounts and hands the announcements whole. All matches are
+    // positive.
+    const app = strip(read("../App.tsx") + "\n" + read("../use-live-announcements.ts")
+      + "\n" + read("../components/TopbarReadouts.tsx"));
     expect(app).toMatch(/const watchNow = watchUnseen > 0[\s\S]*?Browser watch has/);
     expect(app).toContain('nextAnnouncement(said, watchNow, "Browser watch has no unread findings.")');
     expect(app).toContain('<div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>');
+    expect(strip(read("../App.tsx"))).toMatch(/<ReadoutGroup\b[^>]*\bannouncements=\{announcements\}/);
   });
 
   it("does not announce an all-clear the reader caused by reading Browser Watch", () => {

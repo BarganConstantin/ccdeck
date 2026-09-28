@@ -12,12 +12,15 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 const html = read("../index.html");
 const app = read("../App.tsx");
+/** The topbar's readout group, the brand among it, which App.tsx mounts. */
+const readouts = read("../components/TopbarReadouts.tsx");
 
 const logo = /\.topbar \.brand \.logo\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
 
 describe("the topbar mark is a flat ring (#867)", () => {
   it("is still the span beside the wordmark", () => {
-    expect(app).toMatch(/<div className="brand">\s*<span className="logo" \/>/);
+    expect(readouts).toMatch(/<div className="brand">\s*<span className="logo" \/>/);
+    expect(app).toMatch(/<ReadoutGroup\b/);
   });
 
   it("draws a ring, the favicon's shape", () => {

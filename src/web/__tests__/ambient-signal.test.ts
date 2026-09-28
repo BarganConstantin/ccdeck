@@ -397,8 +397,10 @@ describe("what App.tsx does with it", () => {
     // The counts are derived per frame from the map the canvas draws from.
     // pruneOldAgents evicts agents outright, so a tally maintained alongside it
     // would outlive the thing it was counting; the eviction case below proves
-    // the behaviour, and this keeps a tally from creeping back in beside it.
-    expect(app).not.toMatch(/set(Waiting|Running)Count/);
+    // the behaviour, and this keeps a tally from creeping back in beside it —
+    // or into the topbar's readout group, which shows the waiting count and
+    // moved out of App.tsx to components/TopbarReadouts.tsx.
+    expect(app + "\n" + read("../components/TopbarReadouts.tsx")).not.toMatch(/set(Waiting|Running)Count/);
   });
 
   it("hands the signal the connection, and re-runs when it changes", () => {

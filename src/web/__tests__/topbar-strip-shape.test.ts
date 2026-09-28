@@ -43,8 +43,8 @@ const RULES = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
   body: m[2],
 }));
 
-/** The strip's markup, from components/TopbarReadouts.tsx — which App.tsx
- *  mounts — up to the next component there, or the end of the file. */
+/** The strip's markup, from components/TopbarReadouts.tsx — whose readout group
+ *  App.tsx mounts — up to the next component there, or the end of the file. */
 const readouts = readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8");
 const stripAt = readouts.indexOf(`<span className="status">`);
 const stripEnd = readouts.indexOf("export function", stripAt);
@@ -53,7 +53,8 @@ const strip = stripAt === -1 ? "" : readouts.slice(stripAt, stripEnd === -1 ? un
 describe("the topbar's readout strip", () => {
   it("is still drawn, so nothing below is vacuous", () => {
     expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx").toBeTruthy();
-    expect(app, "App.tsx stopped mounting the strip").toContain("<StatusStrip");
+    expect(readouts, "the readout group stopped mounting the strip").toMatch(/export function ReadoutGroup\([\s\S]*<StatusStrip\b/);
+    expect(app, "App.tsx stopped mounting the readout group").toContain("<ReadoutGroup");
   });
 
   it("holds the status pill and one month-to-date usage phrase", () => {

@@ -476,6 +476,8 @@ describe("no surface computes a board figure of its own", () => {
     expect(panel).toContain("useBoardSpend(state, now, liveSince)");
     expect(spend).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\/board-usage";/);
     expect(spend).toContain("boardTotals(state.agents.values())");
-    expect(app, "the topbar computes a board figure again").not.toContain("boardTotals");
+    // The topbar's readout group is components/TopbarReadouts.tsx's now.
+    expect(app + "\n" + code(read("components/TopbarReadouts.tsx")), "the topbar computes a board figure again")
+      .not.toContain("boardTotals");
   });
 });
