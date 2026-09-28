@@ -7,9 +7,9 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
-import { dieWithParent } from "../src/server/supervisor.mjs";
+import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
-import { link, oneLine, pulseDot, pulseText, unregisteredDetail } from "../src/server/term.mjs";
+import { link, pulseDot, pulseText, unregisteredDetail } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { wayBackNote } from "../src/server/way-back.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
@@ -21,7 +21,7 @@ import { deckRegistryDir, liveDecks, olderVersion, secondStart, versionNote } fr
 // reason: it is taken before anything else in the boot has run.
 import { takeBootLock } from "../src/server/boot-lock.mjs";
 // The package this worker belongs to and the name it was typed as — see there.
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION, versionOnDisk } from "./cli/package.js";
+import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./cli/package.js";
 import { printHelp } from "./cli/help.js";
 import { uninstall } from "./cli/uninstall.js";
 import { offerLoginItem } from "./cli/login-item.js";
@@ -32,6 +32,7 @@ import {
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
 import { busyLabel, reportIncompleteFlags, reportStartup, reportUnknownFlags, startupWork } from "./cli/startup.js";
+import { restartLatch } from "./cli/restart.js";
 
 const argv = process.argv.slice(2);
 const flags = parseArgs(argv);
@@ -39,9 +40,8 @@ const flags = parseArgs(argv);
 // Exit codes the supervisor reads as "bring me back": 75 from the files on
 // disk, 76 through npx — which is the only way an npx run reaches a newer
 // version, since its directory is never upgraded in place. Anything else it
-// forwards.
-const RESTART_CODE = 75;
-const UPGRADE_CODE = 76;
+// forwards. Both are the supervisor's own constants, so the two ends of the
+// agreement cannot drift apart.
 const RESPAWN = process.env.AGENTS_DECK_RESPAWN === "1";
 const SUPERVISED = typeof process.send === "function";
 
@@ -242,162 +242,10 @@ if (!existsSync(WEB_DIST)) {
 // the boot's terminal too.
 takeCursor();
 
-// Asking the supervisor to bring us back. It is the only party that can, and
-// only after this process is gone — which is precisely what keeps the
-// replacement from racing this listener onto a random fallback port.
-let restarting = false;
-// Outer bound on the supervisor's answer below. It cannot be reached today —
-// the fetch has a deadline of its own and every path through it replies — but
-// `restarting` is a latch, and a latch with no way out is how a deck ends up
-// silently refusing every restart for the rest of its life.
-const UPGRADE_ANSWER_MS = 150_000;
-let upgradeTimer = null;
-
-// Whether the rest of this file has finished running.
-//
-// The server below starts accepting connections from inside startServer, before
-// that call has returned — so /api/restart is reachable for the whole of the
-// boot that follows it: the startup report, the port report to the supervisor,
-// the discovery file and its first fsynced write, and on a cold start the
-// browser spawn. A restart landing in that window used to reach `shutdown`
-// before the binding holding it was initialised and die of a ReferenceError,
-// having already set the latch above, with nothing left to clear it — after
-// which every restart from every tab was answered "ok" and did nothing, for the
-// life of the process (#448).
-//
-// So an ask that arrives too early is held rather than run: the user asked for
-// something this deck can genuinely give a moment later, and refusing outright
-// would put back the same silence in a politer form. BOOT_RESTART_MS is the
-// outer bound, for the reason UPGRADE_ANSWER_MS above is one. It used to be a
-// bound that got used — before #742 the report waited out a real `uv tool
-// install`, so the window it covers was minutes wide. It is now the boot
-// deadline plus the browser spawn, comfortably inside ten seconds, and this
-// stays as the thing that makes that a fact rather than a belief. Ten seconds
-// in, the ask is run; the respawn skips the report entirely and is up in about
-// a second.
-let booted = false;
-let heldRestart = null;
-let bootTimer = null;
-const BOOT_RESTART_MS = 10_000;
-
-const requestRestart = (mode) => {
-  if (restarting) return;
-  restarting = true;
-  if (!booted) {
-    heldRestart = { mode };
-    bootTimer = setTimeout(() => { bootTimer = null; runHeldRestart(); }, BOOT_RESTART_MS);
-    bootTimer.unref?.();
-    // Said out loud for the same reason abandonUpgrade below is: the tab has
-    // already been told its restart was accepted, and a second of nothing
-    // happening on this terminal is otherwise indistinguishable from the bug
-    // this replaces.
-    write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}restart queued ${G.dash} still starting up${P.reset}\n`);
-    return;
-  }
-  beginRestart(mode);
-};
-
-// The restart itself, once there is a booted deck to end. Split out of
-// requestRestart so the held ask above can re-enter it without tripping the
-// latch it is already holding.
-//
-// Everything here runs inside one try: the whole point of #448 is that a throw
-// on this path is not merely a failed restart but a permanent one, because the
-// latch it leaves behind outlives it. There is no line in here worth dying for.
-function beginRestart(mode) {
-  try {
-    // "npx" means the newer code is not on this disk at all, so it has to be
-    // fetched — and this process keeps serving while that happens. Exiting first
-    // is what made every failed upgrade an outage: the SSE stream dropped, hook
-    // events fired into the gap were lost outright (hook/hook.js is
-    // fire-and-forget with a 1s timeout and no retry), and the canvas came back
-    // with whatever was in flight stuck until the stale sweeper reaped it — all
-    // of it paid before anyone knew whether npm could even resolve the version.
-    // Nothing is torn down here now; the supervisor answers when it knows.
-    if (mode === "npx") {
-      upgradeTimer = setTimeout(() => abandonUpgrade("no answer from the supervisor"), UPGRADE_ANSWER_MS);
-      upgradeTimer.unref?.();
-      // Armed before the ask, not after: a send that throws is a supervisor that
-      // can no longer answer, and the deck has to come back out of the latch on
-      // its own rather than wait out an answer that cannot arrive.
-      try { process.send({ type: "upgrade" }); }
-      catch (err) { abandonUpgrade(err?.message ?? "the supervisor is no longer listening"); }
-      return;
-    }
-    // What a restart would land on. Read from disk now rather than remembered
-    // from boot, because the whole point is that the two differ.
-    const to = versionOnDisk();
-    write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}restarting${to ? ` ${G.arrow} v${to}` : ""}${G.ellipsis}${P.reset}\n`);
-    shutdown(RESTART_CODE);
-  } catch (err) {
-    abandonRestart(err);
-  }
-}
-
-// The ask that was waiting for the boot to finish, now that it has. Safe to
-// call when nothing is waiting, which is every ordinary boot.
-function runHeldRestart() {
-  if (!heldRestart) return;
-  const { mode } = heldRestart;
-  heldRestart = null;
-  clearTimeout(bootTimer);
-  bootTimer = null;
-  beginRestart(mode);
-}
-
-// A restart that could not be started, said out loud and then let go of.
-//
-// Both halves of the latch have to come down — this file's and the server's —
-// because a latch nothing clears is precisely how one failed request turned
-// into a deck that refused every restart afterwards while answering "ok" to
-// each one (#448). The reason is folded onto one line by oneLine: the terminal
-// under this is repainted every 800ms by the pulse, and a stack written into
-// that is a stack nobody can read (#432).
-//
-// A declaration rather than a const, like `shutdown` below and for the same
-// reason: this is the handler for a binding that was not there yet, and it must
-// not be capable of becoming the next one.
-function abandonRestart(err) {
-  clearTimeout(bootTimer);
-  bootTimer = null;
-  heldRestart = null;
-  restarting = false;
-  releaseRestart();
-  write(
-    `\n  ${P.err}${G.fail}${P.reset}  ${P.muted}restart failed ${G.dash} still on ${P.reset}v${PKG_VERSION}\n` +
-    `     ${P.muted}${oneLine(err?.stack ?? err, Math.max(20, cols() - 6), G.ellipsis)}${P.reset}\n`,
-  );
-}
-
-// The upgrade did not happen and this deck is still the deck. Said out loud
-// because the terminal has just printed that a fetch was starting, and left
-// unsaid it reads as a restart that hung.
-const abandonUpgrade = (why) => {
-  clearTimeout(upgradeTimer);
-  restarting = false;
-  // The server's own latch, which no longer has an exiting process to clear it.
-  releaseRestart();
-  write(
-    `\n  ${P.warn}${G.cancel}${P.reset}  ${P.muted}update not applied ${G.dash} still on ${P.reset}v${PKG_VERSION}\n` +
-    (why ? `     ${P.muted}${why}${P.reset}\n` : ""),
-  );
-};
-
-// The supervisor's verdict on the fetch it was asked for. Only it can answer:
-// the fetch is its child, and it is the process that will still be here when
-// this one exits.
-process.on("message", (m) => {
-  if (!restarting || !m || typeof m !== "object") return;
-  if (m.type === "upgrade-ready") {
-    clearTimeout(upgradeTimer);
-    // The replacement is on the machine now, so this is the last moment the
-    // port is worth holding: exiting hands it straight over.
-    write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}updating via npx${G.ellipsis}${P.reset}\n`);
-    shutdown(UPGRADE_CODE);
-  } else if (m.type === "upgrade-refused") {
-    abandonUpgrade(m.error);
-  }
-});
+// The restart latch, armed before the server can take a request — see
+// bin/cli/restart.js. `shutdown` is a declaration further down, hoisted, so it
+// is a function here already (#448).
+const { requestRestart, markBooted, runHeldRestart } = restartLatch({ shutdown, releaseRestart });
 
 // The three things `shutdown` has to tear down, named before the boot that
 // fills them in rather than by it. From the line below onwards this process is
@@ -849,7 +697,7 @@ if (MOTION) {
 // run rather than held — and the server is told, so /api/restart stops
 // describing a deck that is still assembling itself. This line is exactly where
 // the window opened at the top of this file closes; see requestRestart.
-booted = true;
+markBooted();
 markDeckReady();
 // And said out loud, one link up. A launcher that put this deck in the
 // background has been tailing its log into the user's terminal since the spawn

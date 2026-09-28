@@ -36,6 +36,7 @@ export const CLI_FILES = [
   "bin/cli/one-shot.js",
   "bin/cli/screen.js",
   "bin/cli/startup.js",
+  "bin/cli/restart.js",
 ] as const;
 
 let joined: string | null = null;
