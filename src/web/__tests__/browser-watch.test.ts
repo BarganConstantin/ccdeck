@@ -14,7 +14,7 @@ import {
   invalidateBrowserWatchCache,
   mayForceRead,
 } from "../../server/browser-watch.mjs";
-import { unseenEpisodes, SEEN_KEY } from "../components/BrowserWatchModal";
+import { unseenEpisodes, SEEN_KEY } from "../browser-watch-seen";
 import { flooredReader } from "./floored-reader";
 import { clientText } from "./client-source";
 

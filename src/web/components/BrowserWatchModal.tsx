@@ -26,15 +26,6 @@ import { selfPressProps } from "../panel-press";
 import { watchedBrowsers, watchTrouble } from "../browser-watch-model";
 import { useBrowserWatch } from "../use-browser-watch";
 
-/** The moment the reader last had this panel open, so the topbar badge can
- *  count what has appeared since. Per-browser by construction — it is this
- *  reader's own reading position, not a fact about the machine — which is why
- *  it lives in localStorage and not on the server. */
-// In a module of their own since #883, so the topbar can count unseen episodes
-// without loading this dialog; re-exported for everything that reads them here.
-import { SEEN_KEY, unseenEpisodes } from "../browser-watch-seen";
-export { SEEN_KEY, unseenEpisodes };
-
 /* NO TABS. Two views were never two modes: one of them is the product — what
    a program opened while nobody was browsing — and the other is the evidence
    the machinery is running. They are not peers, and a tab strip claims they

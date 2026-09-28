@@ -6,7 +6,10 @@
 // pulled the whole 1,188-line dialog into the main bundle. Here, the dialog
 // loads only when it opens.
 
-/** Where the time the reader last opened Browser Watch is kept. */
+/** Where the time the reader last opened Browser Watch is kept, so the topbar
+ *  badge can count what has appeared since. Per-browser by construction — it
+ *  is this reader's own reading position, not a fact about the machine — which
+ *  is why it lives in localStorage and not on the server. */
 export const SEEN_KEY = "agent-dag.browserWatch.seenMs";
 
 /** Episodes that began after the reader last looked.
