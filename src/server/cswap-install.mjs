@@ -62,20 +62,6 @@ export function pythonVersionDirs(dir) {
 }
 
 /**
- * How to invoke cswap: the bare name when PATH resolves it, otherwise an
- * absolute path to where its installers actually put it.
- *
- * ~/.local/bin is where both `uv tool install` and `pipx install` place
- * executables, on every platform, and it is famously not on PATH — that is the
- * whole reason `pipx ensurepath` exists. Installing claude-swap successfully
- * and then reporting it as missing because the shell cannot see it is a bad
- * enough outcome on its own; it is worse now that the deck may have done the
- * installing. So PATH is a convenience here, not the source of truth.
- *
- * Re-resolved when a lookup fails so an install during this process is picked
- * up without a restart.
- */
-/**
  * Every place an installer is known to leave cswap. The platform is a parameter
  * and the directory listing is injected, so the Windows list can be checked from
  * a Mac — which is the only way this list stays right, since it exists entirely
@@ -354,6 +340,20 @@ function versionIn(r) {
   return m ? m[1] : "installed";
 }
 
+/**
+ * How to invoke cswap: the bare name when PATH resolves it, otherwise an
+ * absolute path to where its installers actually put it.
+ *
+ * ~/.local/bin is where both `uv tool install` and `pipx install` place
+ * executables, on every platform, and it is famously not on PATH — that is the
+ * whole reason `pipx ensurepath` exists. Installing claude-swap successfully
+ * and then reporting it as missing because the shell cannot see it is a bad
+ * enough outcome on its own; it is worse now that the deck may have done the
+ * installing. So PATH is a convenience here, not the source of truth.
+ *
+ * Re-resolved when a lookup fails so an install during this process is picked
+ * up without a restart.
+ */
 export async function cswapBin() {
   // An explicit path wins over everything and is never cached away — someone
   // debugging a bad resolution needs it to take effect immediately.
@@ -410,15 +410,6 @@ export async function cswapVersion() {
   return versionIn(r);
 }
 
-/**
- * Install claude-swap with whichever Python tool installer is present.
- *
- * `uv` first because it is what claude-swap documents and it is dramatically
- * faster; `pipx` as the established alternative. Deliberately NOT falling back
- * to bare `pip install --user`: that drops the package into the user's default
- * Python environment where it can collide with their own dependencies, which
- * is not a thing to do to someone without asking.
- */
 /**
  * Python interpreters that are safe to execute on this machine.
  *
@@ -537,6 +528,15 @@ async function installers(spec = RANGE_SPEC) {
   return out;
 }
 
+/**
+ * Install claude-swap with whichever Python tool installer is present.
+ *
+ * `uv` first because it is what claude-swap documents and it is dramatically
+ * faster; `pipx` as the established alternative. Deliberately NOT falling back
+ * to bare `pip install --user`: that drops the package into the user's default
+ * Python environment where it can collide with their own dependencies, which
+ * is not a thing to do to someone without asking.
+ */
 async function installCswap() {
   // What to ask for is decided HERE, before anything is installed, so that what
   // arrives can be checked against it afterwards — see ensureCswap. When the
