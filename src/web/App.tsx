@@ -61,6 +61,7 @@ import { SessionRun, SourceRun } from "./components/TopbarRuns";
 import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
 import CanvasControls from "./components/CanvasControls";
+import CategoryFilterBar from "./components/CategoryFilterBar";
 import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
 import OldNameBanner from "./components/OldNameBanner";
@@ -71,7 +72,6 @@ import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
 import { useBrowserWatchBadge } from "./use-browser-watch-badge";
 import { useAppearance } from "./use-appearance";
-import { CatGlyph, DETAIL_CAT_LABEL } from "./detail-category";
 import { useCategoryFilterBar } from "./use-category-filter-bar";
 import { useChimePlayer } from "./use-chime-player";
 import { useClaudeFm } from "./use-claude-fm";
@@ -1945,43 +1945,10 @@ function Inner() {
             be wrong. What must never happen is keeping the choice and taking
             away the control. */}
         {(presentCats.length > 1 || hiddenCats.size > 0) && (
-          /* role="group", not role="toolbar". A toolbar is a promise about
-             keyboard behaviour — one tab stop for the whole set, arrow keys
-             between the members — and this bar implements none of it: every
-             chip is its own tab stop, which is the right shape for a handful
-             of independent filters and the wrong shape to call a toolbar.
-             Claiming the role told a screen reader to expect arrow keys that
-             do nothing, which is a worse answer than not claiming it. group
-             keeps the thing the role was actually being used for: the set is
-             named, so the chips are heard as one control and not seven. */
-          <div
-            ref={catBarRef}
-            className={`cat-filter-bar${catBarOccluded ? " occluded" : ""}`}
-            role="group"
-            aria-label="Filter tools by category"
-          >
-            {presentCats.map(c => {
-              const off = hiddenCats.has(c);
-              return (
-                /* aria-pressed, because a chip really is a toggle: it does not
-                   reveal anything, it turns a filter on and off. Pressed means
-                   the category is showing, which is the state the chip's own
-                   name and emoji describe — the label is "edit", not "hide
-                   edit", so pressed has to mean "edit is on". */
-                <button
-                  key={c}
-                  type="button"
-                  className={`cat-filter${off ? " off" : ""}`}
-                  onClick={() => toggleCat(c)}
-                  aria-pressed={!off}
-                  title={`${off ? "Show" : "Hide"} ${DETAIL_CAT_LABEL[c]} tools`}
-                >
-                  <CatGlyph cat={c} />
-                  <span className="cat-name">{DETAIL_CAT_LABEL[c]}</span>
-                </button>
-              );
-            })}
-          </div>
+          <CategoryFilterBar
+            catBarRef={catBarRef} catBarOccluded={catBarOccluded}
+            presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
+          />
         )}
         <ReactFlow
           nodes={allNodes}

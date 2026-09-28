@@ -566,18 +566,21 @@ describe("what each of the four toggles announces", () => {
 });
 
 describe("the category filter chips, handed over from #368", () => {
+  // The chips are components/CategoryFilterBar.tsx's, which App.tsx mounts.
+  const bar = markup("components/CategoryFilterBar.tsx");
+
   it("reports pressed state, and pressed means the category is showing", () => {
     // The chip's own label is the category name — "edit", not "hide edit" — so
     // pressed has to mean the category is on. `off` is the hidden set.
-    expect(app).toMatch(/aria-pressed=\{!off\}/);
+    expect(bar).toMatch(/aria-pressed=\{!off\}/);
   });
 
   it("dropped role=\"toolbar\" rather than promising arrow keys it does not implement", () => {
     // A toolbar is one tab stop for the whole set with arrows between members.
     // Every chip here is its own tab stop. group keeps the naming, which is
     // what the role was really doing.
-    expect(app).not.toMatch(/role="toolbar"/);
-    expect(app).toMatch(/role="group"\s*\n\s*aria-label="Filter tools by category"/);
+    expect(app + "\n" + bar).not.toMatch(/role="toolbar"/);
+    expect(bar).toMatch(/role="group"\s*\n\s*aria-label="Filter tools by category"/);
   });
 
   it("carries `off` in a channel that is not colour", () => {
