@@ -106,7 +106,7 @@ import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestMod
 import { columnsWouldChange, type Frame } from "./layout";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds } from "./visibility";
-import { SESSION_GROUP_TYPE } from "./minimap";
+import { sessionGroupNodes } from "./session-group-nodes";
 import { restoreLayout } from "./stored-layout";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
@@ -159,10 +159,6 @@ const FOCUS_CANDIDATES = [
   "[tabindex]",
 ].join(",");
 
-// Padding of the invisible session drag-handle node. Matches SessionClusters'
-// PAD so the handle lines up with the card's body (the card's header strip is
-// left uncovered so its label stays clickable).
-const GROUP_PAD = 18;
 
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
@@ -972,52 +968,9 @@ function Inner() {
     // screen at that moment.
   }, [availableWidth, availableHeight, settled, dragging, fitLeft, rf, applyViewport]);
 
-  // Invisible per-session drag-handle nodes. One per session, sized to the
-  // bounding box of that session's agent nodes and rendered behind them
-  // (negative zIndex). Grabbing the empty canvas behind a session drags the
-  // whole session; the agent nodes stay on top and individually draggable.
-  const groupNodes = useMemo(() => {
-    const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
-    for (const n of nodes) {
-      const d = n.data as AgentNodeData | undefined;
-      if (!d?.sessionId || d.exitAt != null) continue;
-      const w = n.width, h = n.height;
-      if (w == null || h == null) continue; // unmeasured — skip this frame
-      const x1 = n.position.x, y1 = n.position.y, x2 = x1 + w, y2 = y1 + h;
-      const b = bySession.get(d.sessionId);
-      if (!b) bySession.set(d.sessionId, { minX: x1, minY: y1, maxX: x2, maxY: y2 });
-      else {
-        b.minX = Math.min(b.minX, x1); b.minY = Math.min(b.minY, y1);
-        b.maxX = Math.max(b.maxX, x2); b.maxY = Math.max(b.maxY, y2);
-      }
-    }
-    const out: typeof nodes = [];
-    for (const [sid, b] of bySession) {
-      // Cover the nodes + padding, but NOT the header strip above them — that
-      // area holds SessionClusters' clickable label (fit-view), which must stay
-      // hittable above this handle.
-      const w = b.maxX - b.minX + GROUP_PAD * 2;
-      const h = b.maxY - b.minY + GROUP_PAD * 2;
-      out.push({
-        id: `group:${sid}`,
-        type: SESSION_GROUP_TYPE,
-        position: { x: b.minX - GROUP_PAD, y: b.minY - GROUP_PAD },
-        // w/h handed to the node component so it can size itself in explicit
-        // pixels (a 100% child would collapse under RF's content sizing).
-        data: { sessionId: sid, w, h } as unknown as AgentNodeData,
-        width: w,
-        height: h,
-        style: { width: w, height: h },
-        zIndex: -1,
-        draggable: true,
-        selectable: false,
-        focusable: false,
-        deletable: false,
-        connectable: false,
-      });
-    }
-    return out;
-  }, [nodes]);
+  // Invisible per-session drag-handle nodes, one behind each session's cards;
+  // see session-group-nodes.ts.
+  const groupNodes = useMemo(() => sessionGroupNodes(nodes), [nodes]);
 
   /**
    * The array React Flow renders, with the in-flight drag applied on top.
