@@ -30,6 +30,9 @@ export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars };
 import { dropSse, notifyTrays, pageCount, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
 // Exported from this file before they moved, and still.
 export { MAX_CLIENT_BUFFER_BYTES, queuedBytes } from "./sse-clients.mjs";
+// The desktop app's update as its window sees it — the state the app reports
+// and the window's answers relayed back to it. See desktop-update-routes.mjs.
+import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
 // The deck's own token, taken back out of every event before the ring, the
 // SSE fan-out or the log can hold it — see token-redact.mjs.
 import { redactDeckToken } from "./token-redact.mjs";
@@ -243,67 +246,6 @@ let nextSeq = 1;
 // on every envelope so a client can tell "counter restarted" apart from "old
 // duplicate" instead of silently dropping the live stream.
 const SEQ_EPOCH = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-// The desktop app's updater lives in Electron, while the window is a page
-// served by this deck. Keep only the small piece of state the page needs. A
-// report is accepted only with the deck token; a browser may request an
-// install, but Electron verifies the exact ready version again before acting.
-const DESKTOP_UPDATE_STATUSES = new Set(["idle", "checking", "current", "downloading", "ready", "error"]);
-let desktopUpdateState = { status: "idle", version: null };
-
-function cleanDesktopUpdate(value) {
-  if (!value || typeof value !== "object" || !DESKTOP_UPDATE_STATUSES.has(value.status)) return null;
-  const version = typeof value.version === "string" && value.version.trim()
-    ? value.version.trim().slice(0, 80)
-    : null;
-  if (value.status === "ready" && !version) return null;
-  return { status: value.status, version };
-}
-
-function broadcastDesktopUpdate() {
-  const frame = `event: desktop-update\ndata: ${JSON.stringify(desktopUpdateState)}\n\n`;
-  for (const client of sseClients) {
-    if (!trayClients.has(client)) writeSse(client, frame);
-  }
-}
-
-function handleDesktopUpdateRead(_req, res) {
-  send(res, 200, desktopUpdateState);
-}
-
-async function handleDesktopUpdateReport(req, res) {
-  // Same-origin pages pass the generic mutation gate, but only the native app
-  // may claim what its updater has verified.
-  if (!presentsDeckToken(req.headers ?? {})) {
-    return send(res, 401, { ok: false, reason: "app_token_required" });
-  }
-  const body = await readBody(req, res).catch(() => null);
-  let value = null;
-  try { value = cleanDesktopUpdate(JSON.parse(body ?? "")); } catch { /* bad JSON */ }
-  if (!value) return send(res, 400, { ok: false, reason: "bad_update_state" });
-  desktopUpdateState = value;
-  broadcastDesktopUpdate();
-  send(res, 200, { ok: true });
-}
-
-// The window's two messages about that update, relayed to the app as frames
-// on its tray stream: apply it (`desktop-update-restart`), or it has been shown
-// (`desktop-update-seen`, so the app's own ready notice stands down, #1182).
-// Both behind the same gates as /api/restart, and neither decides anything:
-// this refuses only what cannot be current, and Electron checks the exact
-// ready version again before acting on either.
-async function handleDesktopUpdateRequest(req, res, event) {
-  const body = await readBody(req, res).catch(() => null);
-  let version = "";
-  try { version = String(JSON.parse(body ?? "")?.version ?? "").trim(); } catch { /* bad JSON */ }
-  if (!version || desktopUpdateState.status !== "ready" || desktopUpdateState.version !== version) {
-    return send(res, 409, { ok: false, reason: "update_not_ready" });
-  }
-  if (trayClients.size === 0) return send(res, 409, { ok: false, reason: "app_disconnected" });
-  const frame = `event: ${event}\ndata: ${JSON.stringify({ version })}\n\n`;
-  for (const client of trayClients) writeSse(client, frame);
-  send(res, 202, { ok: true });
-}
-
 /** Envelopes newer than `seq` from the ring buffer, oldest first. */
 export function eventsSince(seq) {
   const after = Number(seq) || 0;
