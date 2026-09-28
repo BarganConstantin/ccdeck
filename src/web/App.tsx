@@ -63,6 +63,8 @@ import Detail from "./components/Detail";
 import VersionChip from "./components/VersionChip";
 import { SessionRun, SourceRun } from "./components/TopbarRuns";
 import VersionBanner from "./components/VersionBanner";
+import ConnectionBanner from "./components/ConnectionBanner";
+import OldNameBanner from "./components/OldNameBanner";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { usePauseGate } from "./use-pause-gate";
@@ -136,7 +138,7 @@ import { useRecapNotesVersion } from "./recap-note";
 import type { Providers } from "./providers";
 import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./sound";
-import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
+import { PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { shortAgo } from "./relative-time";
 import type { AgentNodeData, ToolCall } from "./types";
 
@@ -2000,38 +2002,7 @@ function Inner() {
           <span className="ver-sub">The canvas replayed from the event log.</span>
         </div>
       ) : everConnected && !live ? (
-        <div className="conn-banner" role="alert">
-          <span className="conn-dot" />
-          {restarting
-            ? restartMode === "npx"
-              ? "Fetching the new version with npx — this can take a minute…"
-              : `Restarting ${PRODUCT}…`
-            : (() => {
-                // The one sentence on this page that was reachable by mouse and
-                // by nothing else (#510). It lived in the title of the status
-                // pill, on a non-focusable span that Chrome reports as
-                // role=generic name="" description="SSE disconnected" — a
-                // description with no name to hang off, which screen readers do
-                // not reliably announce and no keyboard can go and ask for.
-                // It arrives here rather than on a focusable pill because this
-                // banner already owns the announcement path for exactly this
-                // condition: it is a role="alert", it fires the moment the
-                // stream dies, and unlike the version banner beside it it has
-                // no dismiss control, so it is on screen for precisely as long
-                // as the thing it describes. That is the property the pill was
-                // being kept for, and the banner already had it.
-                // Nothing is added while the canvas is running: the sentence
-                // above already says the connection is gone. What was missing
-                // is what the two states mean together.
-                const outage = outageSentence({ connected: live, paused });
-                return (
-                  <>
-                    {`Lost connection to the ${PRODUCT} server. Reconnecting…`}
-                    {outage && <span className="conn-sub">{outage}</span>}
-                  </>
-                );
-              })()}
-        </div>
+        <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} />
       ) : noticeOpen && notice ? (
         <VersionBanner
           notice={notice} version={version} dismissNotice={dismissNotice}
@@ -2043,29 +2014,7 @@ function Inner() {
         // Last of the four, because it is the only one nobody has to act on
         // today: a dropped connection, a restart and a release all outrank a
         // name. It comes back the moment the row above it is dismissed.
-        <div className="ver-banner" role="status">
-          <span className="ver-dot" />
-          <strong>{oldName} still works — the deck is called {PRODUCT} now.</strong>
-          {/* The half people do not expect, and the half this must not get
-              wrong: a global install already put a ccdeck on the PATH — the
-              same install ships all three commands — so there is nothing to
-              fetch and nothing to uninstall, only a different word to type,
-              while under npx there is no such install and `npx ccdeck` is the
-              whole answer. Telling the second group the first line sends them
-              to a `command not found`.
-
-              So it is not decided here. This branch used to read
-              `upgradeMode === "npx"`, which sounds like the same question and
-              is a different one — it says whether an in-app `npm i -g` is
-              allowed, and `AGENTS_DECK_NO_INSTALL=1` makes it null for npx runs
-              too, at which point every npx user who opted out of installs got
-              the global-install line (#363). The server sends the sentence the
-              terminal prints, from the same function, and no string here can
-              drift from it. Rendered only when it is there: a missing field is
-              a server that could not say, and silence beats a guess. */}
-          {version?.renameFix ? <span className="ver-sub">{version.renameFix}</span> : null}
-          <button type="button" aria-label="Dismiss" className="ver-close" onClick={dismissOldName}>×</button>
-        </div>
+        <OldNameBanner oldName={oldName} version={version} dismissOldName={dismissOldName} />
       ) : null}
 
       {/* Claude-only, and now conditional on Claude Code actually being here.

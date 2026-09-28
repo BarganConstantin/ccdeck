@@ -46,8 +46,10 @@ function markup(...path: string[]): string {
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
-const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx");
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx, and the
+// connection banner to components/ConnectionBanner.tsx; App.tsx and they are read as one.
+const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx")
+  + "\n" + markup("components/ConnectionBanner.tsx");
 const systemMeter = markup("components", "MachinePanel.tsx");
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────
@@ -528,7 +530,8 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     expect(end, "the conn-banner element has no closing </div> after it — the check below would be reading the empty string")
       .toBeGreaterThan(-1);
     expect(banner.slice(0, end)).not.toMatch(/<button|onClick|ver-close/);
-    expect(app).toMatch(/className="ver-close"/);
+    // The version banner, the dismissible one, lives in components/VersionBanner.tsx.
+    expect(markup("components", "VersionBanner.tsx")).toMatch(/className="ver-close"/);
   });
 
   it("costs the bar no new tab stop, which was the price of the other direction", () => {
