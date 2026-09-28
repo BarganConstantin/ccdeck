@@ -238,7 +238,7 @@ function seriesFor(group) {
 /** The thermal chart: a series per sensor the ring holds points for, in the
  *  order each first appeared — throttling among them, where it is recorded. */
 function thermalSeries(at) {
-  const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
+  const bands = new Map((lastThermal()?.celsius ?? []).map(r => [r.label, r]));
   const labels = labelsUnder("thermal:");
   return labels.map(label => ({
     // The stable name of this reading, which the display label is not: `Swap`
@@ -448,12 +448,43 @@ function fetchMacmon(deps = {}) {
     thermalMisses = 0;
     if (!thermalTimer) {
       thermalTimer = setInterval(() => { sampleThermal(deps); }, THERMAL_INTERVAL_MS);
-      // Unref'd like the one startSystemMetrics creates: a poll for an optional
+      // Unref'd like the one startThermalTimer creates: a poll for an optional
       // panel must not be the reason a process refuses to exit.
       thermalTimer.unref?.();
     }
     sampleThermal(deps);
   }).catch(() => {});
+}
+
+/** The last reading, or null while there is none — before the first answer,
+ *  and once a silence has dropped it. The thermal chart's bands come from it. */
+function lastThermal() {
+  return thermal;
+}
+
+/** The thermal row /api/system answers: the last reading, with whether the
+ *  machine has been held back since the deck started, or null without one. */
+function thermalSnapshot() {
+  return thermal ? { ...thermal, heldBack: heldBackSoFar() } : null;
+}
+
+/** The ten-second timer, made where startSystemMetrics makes the others and
+ *  unref'd like them. Once a give-up has stopped it, fetchMacmon is what makes
+ *  it again. */
+function startThermalTimer() {
+  thermalTimer = setInterval(sampleThermal, THERMAL_INTERVAL_MS);
+  thermalTimer.unref?.();
+}
+
+/** Stop the timer and forget the reading, the misses and whether this machine
+ *  ever answered — this section's half of stopSystemMetrics, and there for the
+ *  same reason (#798). */
+function stopThermal() {
+  if (thermalTimer) clearInterval(thermalTimer);
+  thermalTimer = null;
+  thermal = null;
+  thermalMisses = 0;
+  thermalEverAnswered = false;
 }
 
 async function sampleMemory() {
@@ -516,11 +547,10 @@ export function startSystemMetrics({ probe = false } = {}) {
   sampleNetwork();
   cpuTimer = setInterval(sampleCpu, CPU_INTERVAL_MS);
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
-  thermalTimer = setInterval(sampleThermal, THERMAL_INTERVAL_MS);
+  startThermalTimer();
   startNetworkTimers(probe);
   cpuTimer.unref?.();
   memTimer.unref?.();
-  thermalTimer.unref?.();
 }
 
 /**
@@ -543,12 +573,9 @@ export function startSystemMetrics({ probe = false } = {}) {
 export function stopSystemMetrics() {
   if (cpuTimer) clearInterval(cpuTimer);
   if (memTimer) clearInterval(memTimer);
-  if (thermalTimer) clearInterval(thermalTimer);
-  cpuTimer = memTimer = thermalTimer = null;
+  cpuTimer = memTimer = null;
+  stopThermal();
   stopNetwork();
-  thermal = null;
-  thermalMisses = 0;
-  thermalEverAnswered = false;
   resetHistory();
   historySince = 0;
   prevTicks = null;
@@ -582,7 +609,7 @@ export function systemSnapshot() {
     perCore: cores,
     // Null on a machine that publishes nothing, and the panel draws no section
     // at all for it rather than an empty one.
-    thermal: thermal ? { ...thermal, heldBack: heldBackSoFar() } : null,
+    thermal: thermalSnapshot(),
     uptimeSec: Math.round(os.uptime()),
     platform: process.platform,
     // The rule the `load:1m` record in sampleCpu asks too — see loadReading.

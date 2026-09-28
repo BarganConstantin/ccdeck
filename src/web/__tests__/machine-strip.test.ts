@@ -725,8 +725,8 @@ describe("the server publishes a key for every series", () => {
     // Counted over `restsAtZero`, which the Series type requires of every
     // series and which nothing else in the function has. Counting `label`
     // instead was the first version and it counted seven for six: the
-    // `new Map((thermal?.celsius ?? []).map(r => [r.label, r]))` above the
-    // series is not a series.
+    // `new Map((lastThermal()?.celsius ?? []).map(r => [r.label, r]))` above
+    // the series is not a series.
     const seriesCount = (body.match(/\brestsAtZero:/g) ?? []).length;
     const keys = (body.match(/\bkey:/g) ?? []).length;
     expect(seriesCount).toBeGreaterThan(0);
