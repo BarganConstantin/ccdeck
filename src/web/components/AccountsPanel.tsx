@@ -78,8 +78,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const [shareSetOpen, setShareSetOpen] = useState(false);
   // The account whose "Projects" report is open, by slot number, or null. A
   // full modal rather than an inline popover: the report carries a chart, a
-  // list and per-window totals that a menu-sized panel would crush.
-  const [projectsFor, setProjectsFor] = useState<number | null>(null);
+  // list and per-window totals that a menu-sized panel would crush. The name
+  // it was opened under rides along, because a poll that could not read the
+  // store answers with no roster at all and the report goes on being drawn
+  // through it (#1412).
+  const [projectsFor, setProjectsFor] = useState<{ num: number; name: string } | null>(null);
   // The same split for the auto-switch threshold as the slot picker's in
   // use-account-menu.ts — the picker proposes, the button under it commits —
   // because it had the same defect with a setting write on the other end
@@ -332,15 +335,27 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     if (menu && data?.accounts && !data.accounts.some(a => a.num === menu.num)) dropMenu();
     if (issueOpen && data?.accounts && !data.accounts.some(a => a.num === issueOpen.num)) setIssueOpen(null);
   }, [data, menu, issueOpen, dropMenu]);
-  // The account whose Projects report is open may have vanished — removed
-  // while the menu was open, or missing from a poll that found the store
-  // unreadable — so the report closes rather than open empty. Closed and not
-  // merely undrawn: a report that only hid while the account was missing would
-  // come back by itself on the next poll that found it, over whatever the
-  // reader had moved on to.
+  // The account whose Projects report is open may have left the store —
+  // removed while the menu was open, or from a terminal — and then the report
+  // closes rather than stand over an account that is gone, handing focus to the
+  // panel's reload, because the row it would go back to went with the account.
+  //
+  // Only a roster that was READ can say so. A poll that could not read the
+  // store answers with no roster at all — what /api/claude-accounts says for
+  // the moment claude-swap is rewriting it, during a switch for one — and the
+  // report stays up through that, the rule the ⋯ menu, Local network and the
+  // share dialog already keep (#1412). The cost is theirs too: removing the
+  // last account also answers with no roster, so that report stays until it is
+  // closed.
+  //
+  // Closed and not merely undrawn: a report that only hid while the account was
+  // missing would come back by itself on the next poll that found it, over
+  // whatever the reader had moved on to.
   useEffect(() => {
-    if (projectsFor != null && !(data?.accounts ?? []).some(a => a.num === projectsFor)) setProjectsFor(null);
-  }, [data, projectsFor]);
+    if (projectsFor == null || !data?.accounts || data.accounts.some(a => a.num === projectsFor.num)) return;
+    setProjectsFor(null);
+    rescueFocus(null);
+  }, [data, projectsFor, rescueFocus]);
 
   /** The slot picker's rule (doSlot, in use-account-menu.ts) for the
    *  threshold: the picker proposes, `save` stores it. */
@@ -573,7 +588,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
                     rotating={!!(auto?.enabled || auto?.external)}
-                    onProjects={() => { setProjectsFor(a.num); closeMenu(a.num); }}
+                    onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })} />
                 );
@@ -662,14 +677,16 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
         />
       )}
       {projectsFor != null && (() => {
-        const a = (data?.accounts ?? []).find(x => x.num === projectsFor);
-        // Gone from the roster: nothing to draw, and the effect that watches
-        // the roster closes the report.
-        if (!a) return null;
+        const a = data?.accounts?.find(x => x.num === projectsFor.num);
+        // Gone from a roster that was read: nothing to draw, and the effect
+        // that watches the roster closes the report. No roster at all is a
+        // store that could not be read this once, and the report stays, under
+        // the name it was opened with.
+        if (data?.accounts && !a) return null;
         return (
           <AccountProjectsModal
-            num={a.num}
-            name={a.alias ?? a.email ?? `account ${a.num}`}
+            num={projectsFor.num}
+            name={a ? (a.alias ?? a.email ?? `account ${a.num}`) : projectsFor.name}
             onClose={() => setProjectsFor(null)}
           />
         );
