@@ -6,8 +6,7 @@
 // sessions only.
 import type { Node } from "reactflow";
 import {
-  cardSize, columnGap, footprint, FULL_SIZE, SESSION_CHROME, SESSION_VISIBLE_GAP, sessionOfNode, TOOL_LANE_W,
-  type Lanes,
+  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 
 /**
@@ -104,7 +103,7 @@ export function fillGapsWithNewSessions(
 
   // Session boxes are what must not touch, so obstacles are inflated by the
   // chrome and the gap the layout would have left between two sessions.
-  const PADDING = SESSION_CHROME + SESSION_VISIBLE_GAP;
+  const PADDING = CROSS_SESSION_Y;
   const clashes = (x: number, y: number, w: number, h: number) =>
     settled.some(r =>
       x < r.x + r.w + SESSION_CHROME && r.x < x + w + SESSION_CHROME &&

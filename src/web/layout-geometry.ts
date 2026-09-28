@@ -23,6 +23,19 @@ export const SESSION_CHROME = 18 * 2 + 26 + 12;
 export const SESSION_VISIBLE_GAP = 72;
 export const SESSION_GAP = SESSION_CHROME + SESSION_VISIBLE_GAP;
 
+// Clear space two cards of the SAME session keep from each other.
+export const CARD_MARGIN = 24;
+
+// Two cards in DIFFERENT sessions need more than card clearance: each is drawn
+// inside a cluster box that extends past it — padding on every side, a header
+// strip, and a label tab above that. Cards 30px apart look fine and their boxes
+// still cross, which is what "one on another" actually was. Sideways that is
+// the two boxes' facing padding (PAD 18 each) plus the card margin; down it is
+// the gap two stacked sessions keep, chrome included. The overlap repair and
+// the push both clear these, so the two agree on what "overlapping" means.
+export const CROSS_SESSION_X = 18 * 2 + CARD_MARGIN;
+export const CROSS_SESSION_Y = SESSION_GAP;
+
 // Horizontal room between two session columns: a full card width. At 80px the
 // columns read as one crowded field, with cluster boxes and their label tabs
 // close enough to look joined. A whole node of clear space is where the eye

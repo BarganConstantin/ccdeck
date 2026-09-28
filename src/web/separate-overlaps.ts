@@ -5,7 +5,7 @@
 // new, and never re-lays anything out — so an arrangement the user has lived
 // with survives it.
 import type { Node } from "reactflow";
-import { footprint, SESSION_CHROME, SESSION_VISIBLE_GAP, sessionOfNode, type Lanes } from "./layout-geometry";
+import { CARD_MARGIN, CROSS_SESSION_X, CROSS_SESSION_Y, footprint, sessionOfNode, type Lanes } from "./layout-geometry";
 
 /**
  * Push apart only the nodes that overlap, leaving everything else where it is.
@@ -46,14 +46,6 @@ export function separateOverlaps(
   lanes?: Lanes,
   held?: { has(id: string): boolean },
 ): string[] {
-  const MARGIN = 24;
-  // Two cards in DIFFERENT sessions need more than card clearance: each is
-  // drawn inside a cluster box that extends past it — padding on every side,
-  // a header strip, and a label tab above that. Cards 30px apart look fine and
-  // their boxes still cross, which is what "one on another" actually was.
-  const CROSS_SESSION_Y = SESSION_CHROME + SESSION_VISIBLE_GAP;
-  const CROSS_SESSION_X = 18 * 2 + MARGIN;
-
   const sizeOf = (id: string) => footprint(id, measured, lanes);
 
   // Stable order: by y, then x, then id. Same input always yields the same
@@ -88,13 +80,13 @@ export function separateOverlaps(
     // push into another that was already checked.
     for (let guard = 0; guard < placed.length + 1; guard++) {
       const clash = placed.find(r => {
-        const mx = r.sid === sid ? MARGIN : CROSS_SESSION_X;
-        const my = r.sid === sid ? MARGIN : CROSS_SESSION_Y;
+        const mx = r.sid === sid ? CARD_MARGIN : CROSS_SESSION_X;
+        const my = r.sid === sid ? CARD_MARGIN : CROSS_SESSION_Y;
         return pos.x < r.x + r.w + mx && r.x < pos.x + w + mx &&
                y     < r.y + r.h + my && r.y < y     + h + my;
       });
       if (!clash) break;
-      y = clash.y + clash.h + (clash.sid === sid ? MARGIN : CROSS_SESSION_Y);
+      y = clash.y + clash.h + (clash.sid === sid ? CARD_MARGIN : CROSS_SESSION_Y);
     }
     if (y !== pos.y) { positions.set(id, { x: pos.x, y }); moved.push(id); }
     placed.push({ x: pos.x, y, w, h, sid });
