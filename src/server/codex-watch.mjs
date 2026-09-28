@@ -22,8 +22,8 @@ import { eventLogPath } from "./event-log.mjs";
 // Every deck registered right now that proved it is the deck its record
 // describes — what the log election counts. See live-decks.mjs.
 import { readLiveDecks } from "./live-decks.mjs";
-// The bounded chunk reads the Claude transcripts use — see transcript-scan.mjs.
-import { readAppendedLines, readByteRange } from "./transcript-scan.mjs";
+// The bounded chunk reads the Claude transcripts use — see jsonl-chunks.mjs.
+import { readAppendedLines, readByteRange } from "./jsonl-chunks.mjs";
 import { maybeResolveCodexMemory } from "./session-enrichment.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.

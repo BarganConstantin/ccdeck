@@ -1,6 +1,8 @@
-// Reading a Claude Code transcript: one cursor per JSONL, the bounded chunk
-// read that moves it, the fold of each appended line into the running totals,
-// and the rule for which paths are worth opening at all.
+// Reading a Claude Code transcript: one cursor per JSONL, and the fold of each
+// appended line into the running totals. The bounded chunk read that moves the
+// cursor is jsonl-chunks.mjs, which the Codex side reads rollouts through as
+// well, and the rule for which paths are worth opening at all is
+// transcript-gate.mjs.
 //
 // These lived in src/server/index.mjs, between the log rotation and the model
 // enrichment, and nothing in them ever reached the event pipeline: the
@@ -10,13 +12,13 @@
 // reader moved as one piece, with its caches, and index.mjs imports the
 // operations it calls. The names are the ones the bodies always used, and the
 // five index.mjs exported it still exports, by re-export.
-import { open, stat } from "node:fs/promises";
-import { resolve, sep } from "node:path";
-import { homedir } from "node:os";
-import { claudeConfigDir } from "./claude-dir.mjs";
-import { PRODUCT } from "./brand.mjs";
+import { stat } from "node:fs/promises";
+import { resolve } from "node:path";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { foldRecapLine } from "./session-recap.mjs";
+// The bounded, cursor-moving chunk read every pass below goes through — see
+// jsonl-chunks.mjs.
+import { readAppendedLines } from "./jsonl-chunks.mjs";
 
 // ─── Incremental transcript scanning ─────────────────────────────────────
 // Model, usage and context enrichment all derive from the same append-only
@@ -158,6 +160,23 @@ function usageBucketFor(state, model) {
   return fresh;
 }
 
+/** The counters a `"usage"` block carries flat, and the two its
+ *  `cache_creation` sub-object splits cache writes into by TTL. */
+const USAGE_BLOCK_FIELDS = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"];
+const CACHE_SPLIT_FIELDS = ["ephemeral_1h_input_tokens", "ephemeral_5m_input_tokens"];
+
+/** Charge `fields` of one usage blob to the file's flat totals and, when the
+ *  tokens can be attributed, to their model's bucket too — the same number
+ *  into both, read once, so the split and the total it splits go on summing
+ *  to each other. */
+function chargeUsage(state, bucket, blob, fields) {
+  for (const k of fields) {
+    const n = grabUsageField(blob, k);
+    state.usage[k] += n;
+    if (bucket) bucket[k] += n;
+  }
+}
+
 /** Add `src`'s per-model buckets into `dst`, key for key, and return `dst`.
  *  Under the same cap as the per-file map, so a session that delegates to
  *  hundreds of files cannot assemble an unbounded one out of bounded parts. */
@@ -196,6 +215,17 @@ function newUsageTotals() {
   };
 }
 
+/** Have these totals been billed for anything at all?
+ *
+ *  The four flat counters are the whole of what a usage block charges. The two
+ *  `ephemeral_*` counters split cache_creation_input_tokens by TTL rather than
+ *  adding to it, so they are not asked. One file's totals, one model's bucket
+ *  and each subagent file's totals are all asked this, and each of those three
+ *  used to spell the four tests out for itself. */
+function hasSpend(u) {
+  return USAGE_BLOCK_FIELDS.some(k => u[k] !== 0);
+}
+
 function newTranscriptState() {
   return {
     offset: 0,          // bytes already folded in
@@ -218,147 +248,6 @@ function newTranscriptState() {
     usageByModel: {},
     ctx: newContextBreakdown(),
   };
-}
-
-// ─── Following an append-only JSONL, one bounded chunk at a time ─────────
-// The most bytes ONE read of a transcript may allocate, and the ceiling that
-// makes the size of the file irrelevant to the size of the allocation.
-//
-// #674 is what its absence cost. `readByteRange` was called with `to` set to
-// `stat().size` on a path that arrives, unvalidated, in the body of a
-// credential-free `POST /api/event`, and it answered by allocating the whole of
-// it — once as a zero-filled Buffer and again as the string `toString` builds
-// from it. Measured here on Node 22.14 / macOS against a real deck on loopback,
-// sampling `process.memoryUsage.rss()` every 5 ms:
-//
-//   400 MB file, one POST:   51MB -> 848MB   (2x: the Buffer and the string)
-//   700 MB file, one POST:   52MB -> 753MB   (1x: 700 MB is past V8's ~512 MB
-//                                             max string, so `toString` threw
-//                                             into the catch below and only the
-//                                             Buffer was paid for)
-//
-// Both answered 200. Neither is a one-off: see `readAppendedLines` for the
-// second half of that defect, the cursor that could not advance.
-//
-// 8 MiB is picked against the only measurement that bears on it — the longest
-// single line in a real transcript. The note above `maybeResolveSessionName`
-// in session-enrichment.mjs measures that at 710 KB in the 46.4 MB session on
-// this machine, one big tool result on one line, so the ceiling is about eleven
-// times the worst line seen and no real transcript line is ever split by it. Its worst
-// case is 8 MiB of Buffer plus up to 8 MiB of string per in-flight scan, which
-// is an eighth of the 128 MiB the ring buffer is already allowed to hold.
-export const MAX_SCAN_CHUNK = 8 * 1024 * 1024;
-
-// How far ONE pass will walk a file that is behind by more than a chunk.
-//
-// The cursor makes catching up cheap in steady state, but the FIRST pass over
-// an existing transcript has the whole file to fold, and a fix that made that
-// take one throttle window (2500 ms) per 8 MiB would have turned a 130.8 MB
-// transcript's first attach into forty seconds of a deck showing no model, no
-// name and no cost — the reintroduction, by a different route, of exactly the
-// stall #611 removed. So a pass loops over chunks until it is caught up, and
-// this bounds what one hook event can be made to walk.
-//
-// 256 MiB is twice the heaviest transcript this repo has ever measured (130.8
-// MB, #611), so an honest first attach never meets it and pays nothing for it.
-// What it stops is a caller who has got past `isClaudeTranscriptPath` below
-// pointing one POST at something arbitrarily large: the read still terminates,
-// the cursor keeps whatever it reached, and the next throttled pass continues
-// from there.
-const MAX_SCAN_BYTES_PER_PASS = 256 * 1024 * 1024;
-
-const NEWLINE = 0x0a;
-
-/** Up to MAX_SCAN_CHUNK bytes of `path` from `from`, as a Buffer of exactly the
- *  bytes that were read. The cap is here rather than at the call sites so that
- *  no caller — including one added later — can name a range that allocates more
- *  than the ceiling above. */
-async function readByteChunk(path, from, to) {
-  const len = Math.min(to - from, MAX_SCAN_CHUNK);
-  if (len <= 0) return Buffer.alloc(0);
-  const fh = await open(path, "r");
-  try {
-    const buf = Buffer.alloc(len);
-    const { bytesRead } = await fh.read(buf, 0, len, from);
-    return bytesRead === len ? buf : buf.subarray(0, bytesRead);
-  } finally {
-    await fh.close();
-  }
-}
-
-async function readByteRange(path, from, to) {
-  return (await readByteChunk(path, from, to)).toString("utf8");
-}
-
-/**
- * The next batch of COMPLETE lines appended to a JSONL file, and the cursor
- * moved past exactly the bytes they occupy.
- *
- * `cursor` is `{ offset, midLine }` and is written in place; `size` is the
- * caller's `stat()` reading. Returns `{ text, advanced }` where `advanced` is
- * the number of bytes the cursor moved — zero means "nothing complete to fold
- * yet", which is the caller's signal to stop.
- *
- * THE THREE THINGS THIS HAS TO GET RIGHT, and the one it used to get wrong:
- *
- *  1. A partial last line is not an error. A transcript is being appended to
- *     while it is read, so the tail of any chunk that ends at EOF is routinely
- *     half a line. Those bytes stay unread and the cursor does not move —
- *     the next pass sees the whole line once its newline lands.
- *
- *  2. A chunk with no newline in it that DOES NOT end at EOF is a different
- *     thing entirely, and the old code could not tell the two apart: it
- *     returned without advancing in both cases. For any file with no newline in
- *     it — any binary, a sparse file a caller makes for the purpose — that made
- *     the early return permanent, so every later POST re-read the whole file
- *     from byte 0. Measured before the fix, the same 400 MB file: 797 MB on the
- *     first post, 400 MB on the second, 400 MB on the third. Here that case is
- *     what `midLine` names: a full chunk with no line boundary anywhere in it
- *     is a line longer than the ceiling, there is no line there to wait for, so
- *     the cursor walks past it and the fragment that follows is dropped when
- *     the next boundary arrives.
- *
- *  3. The cursor is moved by BYTES, taken from the buffer, never by
- *     `Buffer.byteLength` of the decoded text. Chunking can split a multi-byte
- *     character at the ceiling, and `toString` turns a split character into a
- *     replacement character of a different width — so measuring the advance on
- *     the string would drift the cursor on any transcript containing non-ASCII,
- *     which is most of them. Slicing at the last newline (a byte that cannot be
- *     part of a multi-byte sequence) and advancing by its index is exact.
- */
-export async function readAppendedLines(path, cursor, size, chunkMax = MAX_SCAN_CHUNK) {
-  const from = cursor.offset;
-  const want = Math.min(size - from, chunkMax);
-  if (want <= 0) return { text: "", advanced: 0 };
-  const buf = await readByteChunk(path, from, from + want);
-  if (buf.length === 0) return { text: "", advanced: 0 };
-
-  const lastNl = buf.lastIndexOf(NEWLINE);
-  if (lastNl < 0) {
-    // Reaching the end of the file with no newline in hand is the ordinary
-    // partial last line: wait for its newline. (1) above. The test is where the
-    // read STOPPED, not how much was asked for, because `readByteChunk` clamps
-    // to MAX_SCAN_CHUNK and a short read is normally that clamp rather than the
-    // end of anything.
-    if (from + buf.length >= size) return { text: "", advanced: 0 };
-    // A chunk with no line boundary in it, and more file after it. (2).
-    cursor.offset = from + buf.length;
-    cursor.midLine = true;
-    return { text: "", advanced: buf.length };
-  }
-
-  const advanced = lastNl + 1;            // (3): bytes, up to and including the \n
-  let text = buf.toString("utf8", 0, lastNl);
-  if (cursor.midLine) {
-    // This chunk opens in the middle of a line we already walked past, so
-    // everything up to the first boundary is the tail of it and folding it
-    // would fold a fragment. Only the lines after it are whole.
-    const nl = text.indexOf("\n");
-    text = nl < 0 ? "" : text.slice(nl + 1);
-    cursor.midLine = false;
-  }
-  cursor.offset = from + advanced;
-  return { text, advanced };
 }
 
 // ─── Session naming ──────────────────────────────────────────────────────
@@ -458,31 +347,10 @@ function foldTranscriptLine(state, line) {
   const billed = billedUsageText(line);
   const bucket = usageBucketFor(state, state.lastModel);
   for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
-    const blob = m[1];
-    const inTok    = grabUsageField(blob, "input_tokens");
-    const outTok   = grabUsageField(blob, "output_tokens");
-    const cacheR   = grabUsageField(blob, "cache_read_input_tokens");
-    const cacheC   = grabUsageField(blob, "cache_creation_input_tokens");
-    state.usage.input_tokens += inTok;
-    state.usage.output_tokens += outTok;
-    state.usage.cache_read_input_tokens += cacheR;
-    state.usage.cache_creation_input_tokens += cacheC;
-    if (bucket) {
-      bucket.input_tokens += inTok;
-      bucket.output_tokens += outTok;
-      bucket.cache_read_input_tokens += cacheR;
-      bucket.cache_creation_input_tokens += cacheC;
-    }
+    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS);
   }
   for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
-    const h1 = grabUsageField(m[1], "ephemeral_1h_input_tokens");
-    const m5 = grabUsageField(m[1], "ephemeral_5m_input_tokens");
-    state.usage.ephemeral_1h_input_tokens += h1;
-    state.usage.ephemeral_5m_input_tokens += m5;
-    if (bucket) {
-      bucket.ephemeral_1h_input_tokens += h1;
-      bucket.ephemeral_5m_input_tokens += m5;
-    }
+    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS);
   }
 
   // Context counts only what follows the most recent /clear or /compact.
@@ -566,6 +434,24 @@ function pruneTranscriptScans() {
   }
 }
 
+// How far ONE pass will walk a file that is behind by more than a chunk.
+//
+// The cursor makes catching up cheap in steady state, but the FIRST pass over
+// an existing transcript has the whole file to fold, and a fix that made that
+// take one throttle window (2500 ms) per 8 MiB would have turned a 130.8 MB
+// transcript's first attach into forty seconds of a deck showing no model, no
+// name and no cost — the reintroduction, by a different route, of exactly the
+// stall #611 removed. So a pass loops over chunks until it is caught up, and
+// this bounds what one hook event can be made to walk.
+//
+// 256 MiB is twice the heaviest transcript this repo has ever measured (130.8
+// MB, #611), so an honest first attach never meets it and pays nothing for it.
+// What it stops is a caller who has got past `isClaudeTranscriptPath` in
+// transcript-gate.mjs pointing one POST at something arbitrarily large: the read still terminates,
+// the cursor keeps whatever it reached, and the next throttled pass continues
+// from there.
+const MAX_SCAN_BYTES_PER_PASS = 256 * 1024 * 1024;
+
 /** Bring a transcript's scan state up to date and return it. Concurrent
  *  callers share one read — folding the same appended bytes twice would
  *  double the usage totals. Never throws; an unreadable file just leaves
@@ -590,12 +476,13 @@ function scanTranscript(path) {
       }
       if (s.size <= state.offset) return state;
       // Chunk by chunk rather than in one allocation, and loop rather than
-      // leave the rest for the next throttle window — see MAX_SCAN_CHUNK and
-      // MAX_SCAN_BYTES_PER_PASS for why it is both of those and not either one
-      // alone. `readAppendedLines` advances the cursor BEFORE this folds, which
-      // is the same rule the single-shot read kept: a fold that throws half-way
-      // must not leave the cursor where the next pass would count those lines
-      // again. `advanced === 0` is "nothing complete to fold yet".
+      // leave the rest for the next throttle window — see MAX_SCAN_CHUNK in
+      // jsonl-chunks.mjs and MAX_SCAN_BYTES_PER_PASS above for why it is both
+      // of those and not either one alone. `readAppendedLines` advances the
+      // cursor BEFORE this folds, which is the same rule the single-shot read
+      // kept: a fold that throws half-way must not leave the cursor where the
+      // next pass would count those lines again. `advanced === 0` is "nothing
+      // complete to fold yet".
       let budget = MAX_SCAN_BYTES_PER_PASS;
       while (budget > 0 && state.offset < s.size) {
         const { text, advanced } = await readAppendedLines(path, state, s.size);
@@ -612,96 +499,9 @@ function scanTranscript(path) {
   });
 }
 
-// ─── Which paths the deck will follow at all ─────────────────────────────
-// `payload.transcript_path` is a string in the body of `POST /api/event`, and
-// that route is a deliberate OPEN_MUTATION: no token, no Origin, nothing. Until
-// #674 the deck took whatever it said and opened it. The bounds above make that
-// survivable; this makes it uninteresting, and the two are worth having
-// together for different reasons.
-//
-// WHY VALIDATE AT ALL WHEN THE READ IS ALREADY BOUNDED. Because the caller here
-// is not a web page — `isTrustedMutation` refuses `Sec-Fetch-Site: cross-site`
-// before any of this — it is a local process: the sandboxed subprocess with
-// loopback egress that the comment above `isAuthorizedMutation` already names,
-// or another UID on a shared box. Against that caller a ceiling only sets the
-// price per request; it does not take the lever away. What takes it away is
-// that there is no file it can name. Claude Code writes transcripts in exactly
-// one place, `<config dir>/projects/…`, and every legitimate `transcript_path`
-// the deck has ever seen is one of those — so the set of things worth opening
-// is knowable in advance, and checking membership costs one string comparison
-// against a syscall that used to cost the size of the file.
-//
-// WHAT IS LEFT AFTERWARDS, stated plainly: a caller who can WRITE inside that
-// directory can still point the deck at a file of its choosing. That caller is
-// this user's own processes — and this user's own processes can read
-// `<config dir>/agent-dag/*.json`, which is where HOOK_TOKEN lives at mode
-// 0600, so they hold the credential already. The gate reduces the
-// credential-free adversary to the one who was never credential-free. That is
-// the whole of what it claims, and the ceilings above are what carries the
-// rest.
-//
-// WHY NOT realpath. A symlink planted inside the projects directory would
-// defeat the containment test — but planting one needs write access to that
-// directory, which is the case above where the caller already holds the token.
-// It would also cost a syscall on every hook event, on a path that runs for
-// every event of every live session.
-//
-// WHY TWO ROOTS. CLAUDE_CONFIG_DIR replaces ~/.claude wholesale, and the deck
-// reads the variable from its OWN environment while the path is written by
-// whatever `claude` process the hook fired in. Those normally agree — the deck
-// installs its hook into the directory it resolves, so a session whose events
-// arrive here is a session reading that same directory — but a deck launched
-// from a desktop shortcut that never sourced the shell rc is a real way for
-// them to disagree in one direction. Accepting the default location as well
-// costs nothing (it is a directory only this user writes either way) and
-// removes half of that failure mode. The other half is why the refusal is
-// logged rather than silent.
-function claudeTranscriptRoots() {
-  // Resolved per call, like every other claudeConfigDir() reader in src/server,
-  // so nothing captures the answer from an environment that has moved.
-  const roots = [resolve(claudeConfigDir(), "projects")];
-  const byDefault = resolve(homedir(), ".claude", "projects");
-  if (!roots.includes(byDefault)) roots.push(byDefault);
-  return roots;
-}
-
-/** Is `p` a Claude Code transcript, in a directory Claude Code writes them?
- *
- *  Containment is compared on the RESOLVED path with a trailing separator, so
- *  `…/projects-of-mine/x.jsonl` is not inside `…/projects` and `..` cannot
- *  climb out of it. The comparison is case-insensitive on Windows and macOS,
- *  whose default filesystems are, because the two halves come from two
- *  processes and only one of them chose the casing. */
-export function isClaudeTranscriptPath(p, roots = claudeTranscriptRoots()) {
-  if (!p || typeof p !== "string") return false;
-  if (!/\.jsonl$/i.test(p)) return false;      // the only extension CC writes
-  const fold = process.platform === "win32" || process.platform === "darwin";
-  const full = fold ? resolve(p).toLowerCase() : resolve(p);
-  for (const root of roots) {
-    const prefix = (fold ? root.toLowerCase() : root) + sep;
-    if (full.startsWith(prefix) && full.length > prefix.length) return true;
-  }
-  return false;
-}
-
-// Refusals are logged once per path and the set is capped, because the point of
-// the log is a misconfigured deck saying so on stderr — one line naming the
-// path and where transcripts are expected — and a caller posting a fresh path
-// per request must not turn that into a second unbounded accumulation.
-const refusedTranscriptPaths = new Set();
-const MAX_REFUSED_TRANSCRIPT_PATHS = 64;
-
-function noteRefusedTranscript(p) {
-  if (refusedTranscriptPaths.has(p)) return;
-  if (refusedTranscriptPaths.size >= MAX_REFUSED_TRANSCRIPT_PATHS) return;
-  refusedTranscriptPaths.add(p);
-  console.warn(`${PRODUCT}: not reading transcript_path outside ${claudeTranscriptRoots().join(" or ")}: ${p}`);
-}
-
-// What index.mjs and session-enrichment.mjs call. Listed here rather than
-// marked at each declaration so that every declaration above reads exactly as
-// it did where it came from.
+// What session-enrichment.mjs calls. Listed here rather than marked at each
+// declaration so that every declaration above reads exactly as it did where it
+// came from.
 export {
-  scanTranscript, readByteRange, newUsageTotals, mergeUsageByModel,
-  noteRefusedTranscript,
+  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel,
 };

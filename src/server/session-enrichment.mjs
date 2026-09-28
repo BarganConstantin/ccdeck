@@ -19,7 +19,7 @@ import { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 import { RECAP_MARK } from "./session-recap.mjs";
 // The shared transcript cursor every pass below reads through — see
 // transcript-scan.mjs.
-import { mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-scan.mjs";
+import { hasSpend, mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-scan.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -141,10 +141,7 @@ async function readSubagentsFromDir(transcriptPath) {
       // its own cumulative totals, so re-summing every pass restates the map
       // rather than growing it.
       mergeUsageByModel(usageByModel, state.usageByModel);
-      if (state.usage.input_tokens || state.usage.output_tokens
-          || state.usage.cache_read_input_tokens || state.usage.cache_creation_input_tokens) {
-        spent = true;
-      }
+      if (hasSpend(state.usage)) spent = true;
     } catch { /* skip unreadable file */ }
   }
   const hasModels = Object.keys(models).length > 0;
@@ -231,8 +228,7 @@ export async function readUsageFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
   const totals = { ...state.usage };
-  if (totals.input_tokens === 0 && totals.output_tokens === 0
-      && totals.cache_read_input_tokens === 0 && totals.cache_creation_input_tokens === 0) return null;
+  if (!hasSpend(totals)) return null;
   return totals;
 }
 
@@ -251,8 +247,7 @@ export async function readUsageByModelFromTranscript(path) {
   if (!state) return null;
   const out = {};
   for (const [model, u] of Object.entries(state.usageByModel)) {
-    if (u.input_tokens === 0 && u.output_tokens === 0
-        && u.cache_read_input_tokens === 0 && u.cache_creation_input_tokens === 0) continue;
+    if (!hasSpend(u)) continue;
     out[model] = { ...u };
   }
   return Object.keys(out).length ? out : null;
