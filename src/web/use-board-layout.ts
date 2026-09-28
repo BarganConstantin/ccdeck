@@ -4,8 +4,9 @@
 // for. Restored from storage on the first render.
 //
 // Moved out of App.tsx unchanged, with R (handleRelayout), which touches
-// nothing else. App.tsx still does the rest — snapshotToFlow reads and fills
-// them, the reframe throws them away, the drag handlers pin.
+// nothing else. The rest happens where each is read: snapshotToFlow reads and
+// fills them (use-board-graph.ts), the reframe throws them away
+// (use-reframe.ts), the drag handlers pin (use-node-drag.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Frame } from "./layout";
 import { clearStoredLayout, loadLayout, loadLayoutFrame, saveLayout, saveLayoutFrame } from "./layout-storage";
@@ -43,19 +44,21 @@ export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"])
   const positionsRef = useRef(restoredLayout.positions);
   // Which of those positions are placeholders. Deliberately not persisted: the
   // retry runs on the next render, at most a 250ms tick away, and the save
-  // in App.tsx is debounced 1500ms — so a placeholder is overwritten by a real
-  // coordinate long before anything writes it to storage, and a mark restored
-  // from a previous run would only relayout a node that has been settled since.
+  // (useLayoutAutosave, below) is debounced 1500ms — so a placeholder is
+  // overwritten by a real coordinate long before anything writes it to
+  // storage, and a mark restored from a previous run would only relayout a
+  // node that has been settled since.
   const provisionalRef = useRef<Provisional>(new Set());
   const lastLayoutSigRef = useRef<string>("");
-  // Moved wherever the cached positions are thrown away — R and the reframe,
-  // both in App.tsx. The board is rebuilt inside the memo that calls snapshotToFlow, and
-  // emptying positionsRef moves none of that memo's deps, so the rerender both
-  // used to ask for handed back the cached board and the rebuild waited for the
-  // clock's next 250ms tick. The save and the fit each of them runs 80ms later
-  // then read the arrangement they had just discarded, most of the time: R was
-  // never stored, and a reload drew a different board (#1331). In the deps, the
-  // render they schedule is the one that rebuilds.
+  // Moved wherever the cached positions are thrown away — R, below, and the
+  // reframe (use-reframe.ts). The board is rebuilt inside the memo that calls
+  // snapshotToFlow (use-board-graph.ts), and emptying positionsRef moves none
+  // of that memo's deps, so the rerender both used to ask for handed back the
+  // cached board and the rebuild waited for the clock's next 250ms tick. The
+  // save and the fit each of them runs 80ms later then read the arrangement
+  // they had just discarded, most of the time: R was never stored, and a reload
+  // drew a different board (#1331). In the deps, the render they schedule is
+  // the one that rebuilds.
   const [layoutEpoch, setLayoutEpoch] = useState(0);
 
   // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
@@ -82,12 +85,12 @@ export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"])
     // After dagre runs on the next render, fit-view so the user sees the
     // result. 80ms gives React + RF one paint to settle the new positions.
     window.setTimeout(() => {
-      // And store it, for the reason App.tsx's reframe does: the debounced save
-      // is keyed on layoutSig, which R does not move, so the board R drew was
-      // never written — the storage it had just emptied stayed empty, and a
-      // reload rebuilt the board from the replay instead (#1331). With it goes
-      // the frame it was packed for, which clearStoredLayout removed with the
-      // arrangement it described.
+      // And store it, for the reason the reframe (use-reframe.ts) does: the
+      // debounced save is keyed on layoutSig, which R does not move, so the
+      // board R drew was never written — the storage it had just emptied stayed
+      // empty, and a reload rebuilt the board from the replay instead (#1331).
+      // With it goes the frame it was packed for, which clearStoredLayout
+      // removed with the arrangement it described.
       saveLayout(positionsRef.current, pinnedRef.current);
       if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
       fitLeft(500);
