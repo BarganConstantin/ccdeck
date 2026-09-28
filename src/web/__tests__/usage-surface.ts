@@ -24,6 +24,7 @@ import { WEB_DIR } from "./client-source";
 export const USAGE_FILES = [
   "components/UsagePanel.tsx",
   "components/QuotaBar.tsx",
+  "use-quota.ts",
 ] as const;
 
 let joined: string | null = null;

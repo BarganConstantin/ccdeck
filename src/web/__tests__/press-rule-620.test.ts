@@ -370,8 +370,9 @@ describe("a second press is refused by the handler, not by the browser", () => {
   });
 
   it("holds one forced quota read at a time, per hook, and never blocks the poll", () => {
-    // The panel and every file lifted out of it, so the count follows the hooks.
-    const panel = USAGE_FILES.map(codeOf).join("\n");
+    // The panel and every file lifted out of it, so the count follows the
+    // hooks — which live in use-quota.ts now, outside the .tsx sweep.
+    const panel = USAGE_FILES.map(rel => withoutComments(readFileSync(`${WEB}/${rel}`, "utf8"))).join("\n");
     // Both hooks, and both gated on `forceRefresh`: a poll is not a press and
     // must not be refused by one.
     expect([...panel.matchAll(/if \(forceRefresh && !selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(2);

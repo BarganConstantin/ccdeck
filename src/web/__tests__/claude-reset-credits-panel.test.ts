@@ -42,7 +42,8 @@ describe("the Claude card", () => {
 
   it("declares the field the server sends", () => {
     expect(quota).toContain("result.resetCredits = credits");
-    expect(panel).toMatch(/interface QuotaData \{[^}]*resetCredits\?: ResetCredits \| null;/);
+    // The shape the route answers in moved to use-quota.ts with the hook that reads it.
+    expect(sourceOf("use-quota.ts")).toMatch(/interface QuotaData \{[^}]*resetCredits\?: ResetCredits \| null;/);
   });
 
   it("draws the row only when there is a reset to spend", () => {
