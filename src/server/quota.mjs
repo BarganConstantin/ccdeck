@@ -46,6 +46,12 @@
 // OAuth token (`403 oauth_token_not_accepted`), so reaching it would take the
 // browser's session cookie, and a browser's cookie store is not something this
 // deck reads.
+//
+// WHERE THE PARTS LIVE. This module is the chain: which source to ask, on what
+// floor, and what to publish. Each source's answer is mapped to the panel's
+// shape in quota-shape.mjs; the token, source 2's request and the cooldown are
+// quota-oauth.mjs's; running source 3 is quota-cli.mjs's; and the store path's
+// reset inventory is quota-store-resets.mjs's.
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
 import { quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
 import {

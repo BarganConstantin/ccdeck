@@ -101,8 +101,8 @@ export function mapOAuthUsage(data) {
 /**
  * claude-swap's row for the active account, in the shape the panel speaks.
  *
- * Exported for tests: the mapping is where a wrong number would come from, and
- * it is pure.
+ * Exported for quota.mjs, which reads the store through it, and pinned by
+ * tests: the mapping is where a wrong number would come from, and it is pure.
  */
 export function quotaFromStore(entry) {
   const good = entry?.lastGood;
