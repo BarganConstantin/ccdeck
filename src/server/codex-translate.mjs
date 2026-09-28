@@ -20,6 +20,47 @@ export const codexSessionModel = new Map();   // sid -> last model string
 // for; #398 for why the deck holds it at all.
 export const codexSessionApproval = new Map(); // sid -> last approval_policy string
 
+// ─── What a rollout record states ─────────────────────────────────────────
+// The record shapes more than one reader takes a fact off: the translation
+// below, which reads them as events; codex-enrichment.mjs, which reads a
+// rollout's head and tail for a hook-delivered session's usage, model and
+// window; codex-usage.mjs, which reads every token_count for the usage windows;
+// and the watcher's header read in codex-watch.mjs. Each tested the shape for
+// itself, four spellings of the same `obj.type` and `payload.type` checks, and
+// OpenAI has renamed a record once already (#996) — so the shape is read here,
+// once, and each reader asks for the fact. A shape only the translation reads
+// stays inline in codexObjToPayload, beside the note that explains it.
+
+/** The payload of a `session_meta` record — the rollout's first line, with the
+ *  session's id, its cwd and sometimes its model — or null. */
+export function sessionMeta(obj) {
+  return obj && obj.type === "session_meta" && obj.payload ? obj.payload : null;
+}
+
+/** The `info` of a `token_count` event: the session's cumulative spend
+ *  (`total_token_usage`), the last request's (`last_token_usage`) and the
+ *  window (`model_context_window`) — see codexObjToPayload for which is which —
+ *  or null. */
+export function tokenCountInfo(obj) {
+  const pl = obj && obj.payload;
+  return obj && obj.type === "event_msg" && pl && pl.type === "token_count" && pl.info ? pl.info : null;
+}
+
+/** The context window a `task_started` event states, or null. It fires once per
+ *  turn, and is the other carrier of the window beside token_count. */
+export function taskStartedWindow(obj) {
+  const pl = obj && obj.payload;
+  return obj && obj.type === "event_msg" && pl && pl.type === "task_started" && typeof pl.model_context_window === "number"
+    ? pl.model_context_window
+    : null;
+}
+
+/** The model a `response_item` names, or null. */
+export function responseItemModel(obj) {
+  const pl = obj && obj.payload;
+  return obj && obj.type === "response_item" && pl && typeof pl.model === "string" ? pl.model : null;
+}
+
 /**
  * The human's prompt out of a 0.147-era `item_completed` item.
  *
@@ -89,8 +130,9 @@ export function codexObjToPayload(obj, sid, cwd) {
     }
     return null;
   }
-  if (type === "response_item" && typeof pl.model === "string") {
-    codexSessionModel.set(sid, pl.model);
+  const itemModel = responseItemModel(obj);
+  if (itemModel !== null) {
+    codexSessionModel.set(sid, itemModel);
   }
 
   if (type === "event_msg") {
@@ -161,8 +203,8 @@ export function codexObjToPayload(obj, sid, cwd) {
     // case, since the watcher skips a pre-existing session's history at startup —
     // had to wait for the next turn before the donut could be scaled against
     // anything but the wrong static default.
-    if (pl.type === "token_count" && pl.info) {
-      const info = pl.info;
+    const info = tokenCountInfo(obj);
+    if (info) {
       const last = info.last_token_usage;
       const contextTokens = last && typeof last.total_tokens === "number" ? last.total_tokens : undefined;
       const window = typeof info.model_context_window === "number" ? info.model_context_window : undefined;
@@ -179,8 +221,9 @@ export function codexObjToPayload(obj, sid, cwd) {
         context_tokens: contextTokens,
       };
     }
-    if (pl.type === "task_started" && typeof pl.model_context_window === "number") {
-      return { ...base, hook_event_name: "ModelObserved", model, model_context_window: pl.model_context_window };
+    const startWindow = taskStartedWindow(obj);
+    if (startWindow !== null) {
+      return { ...base, hook_event_name: "ModelObserved", model, model_context_window: startWindow };
     }
     // The end of a turn, which is the only end Codex ever announces. Both names
     // are one outcome as far as the deck is concerned — the turn is over and

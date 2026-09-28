@@ -9,12 +9,13 @@
 // reads the ring or the SSE clients. index.mjs starts the watcher. The bodies
 // are unchanged.
 import { stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
-import { STOP, walkRolloutDays } from "./codex-dir.mjs";
-// What one rollout line means as a hook payload — see codex-translate.mjs. The
-// watcher below still decides which lines are read and where each one goes.
-import { codexObjToPayload, codexSessionModel } from "./codex-translate.mjs";
+import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
+// What one rollout line means as a hook payload, and the shape of the header
+// record that says whose rollout it is — see codex-translate.mjs. The watcher
+// below still decides which lines are read and where each one goes.
+import { codexObjToPayload, codexSessionModel, sessionMeta } from "./codex-translate.mjs";
 import { codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
 // The one spelling of a rollout's cwd — see canonical-path.mjs.
 import { canonicalCwd } from "./canonical-path.mjs";
@@ -118,21 +119,6 @@ async function listRecentCodexRollouts() {
   return out;
 }
 
-/**
- * The session id a rollout's own file name carries, or null.
- *
- * Codex names every rollout `rollout-<YYYY-MM-DDTHH-MM-SS>-<uuid>.jsonl` —
- * codex-usage.mjs reads the timestamp half as parseRolloutTime — and the uuid
- * is the id `session_meta.payload.id` states. findCodexRolloutPath already leans
- * on that, matching a session id against file names, so the name is the
- * fallback when the header stops saying it (#996). A compressed `.jsonl.zst`
- * is not matched: this reader never opens one.
- */
-export function sidFromRolloutName(path) {
-  const m = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(basename(String(path ?? "")));
-  return m ? m[1] : null;
-}
-
 /** Which of the two ways a rollout can fail to say whose it is has been printed
  *  already. Once per kind for the life of the process, not once per file: the
  *  scan retries a rollout it cannot place on every tick, and a change to the
@@ -161,7 +147,8 @@ async function readCodexHeader(path) {
       const nl = text.indexOf("\n");
       if (nl >= 0) {
         const obj = JSON.parse(text.slice(0, nl));
-        if (obj && obj.type === "session_meta" && obj.payload) {
+        const meta = sessionMeta(obj);
+        if (meta) {
           // THE ID, WITH THE FILE NAME BEHIND IT (#996). Every other field this
           // file takes off a rollout goes through a type guard, and the event
           // names are read in both spellings because OpenAI has renamed a record
@@ -170,14 +157,14 @@ async function readCodexHeader(path) {
           // scan `continue`s on that — so every rollout was retried on every
           // tick, its first 64KB re-read each time, not one Codex session was
           // drawn, and nothing said why. The file name carries the same id.
-          const id = obj.payload.id;
+          const id = meta.id;
           const sid = typeof id === "string" && id !== "" ? id : sidFromRolloutName(path);
           if (!sid) warnUnplacedRollout("no-id", path, "its session_meta has no id, and its file name carries none");
           // Canonicalised here and nowhere else: everything downstream — the
           // workspace test below, the log election, the cwd on every event this
           // rollout produces — reads state.cwd, and this is the one place it is
           // read off disk. See canonicalCwd.
-          return { sid, cwd: await canonicalCwd(obj.payload.cwd) };
+          return { sid, cwd: await canonicalCwd(meta.cwd) };
         }
         // The other rename the scan would otherwise retry in silence: a first
         // line that is whole but is not a session_meta will never become one.

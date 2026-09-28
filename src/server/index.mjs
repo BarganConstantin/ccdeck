@@ -80,7 +80,8 @@ export { ccProjectSlug };
 // see codex-watch.mjs.
 import { startCodexWatcher } from "./codex-watch.mjs";
 // Exported from this file before they moved, and still.
-export { sidFromRolloutName, startCodexWatcher } from "./codex-watch.mjs";
+export { startCodexWatcher } from "./codex-watch.mjs";
+export { sidFromRolloutName } from "./codex-dir.mjs";
 export { readCodexRollout } from "./codex-enrichment.mjs";
 // Re-exported because bin/deck.js prints this path in the boot banner, and it
 // used to build its own `join(homedir(), ".codex", "sessions")` for the purpose
