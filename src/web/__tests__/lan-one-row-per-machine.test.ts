@@ -16,6 +16,8 @@ const SECTION = code("../components/LanSyncSection.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
 /** The dialog's two unpairs, which moved out of it into a hook of their own. */
 const PEER_UNPAIR = code("../use-peer-unpair.ts");
+/** The folded decks' list, which moved out of the dialog into its own. */
+const TWINS = code("../components/LanPeerTwins.tsx");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 const peer = (fp: string, over: Record<string, unknown> = {}) => ({
@@ -105,22 +107,25 @@ describe("the dialog lists every deck at the address", () => {
   });
 
   it("names the count and draws each deck's port and fingerprint", () => {
-    expect(MODAL).toMatch(/\{instances\.length\} decks on this machine/);
-    expect(MODAL).toMatch(/className="ap-lan-code lan-twin-at">\{at\}</);
-    expect(MODAL).toMatch(/className="ap-lan-code lan-twin-fp">\{fpT\}</);
+    // The list is a component of its own, which the dialog draws only when the
+    // machine runs more than one deck.
+    expect(MODAL).toMatch(/\{instances\.length > 1 && \(\s*<LanPeerTwins instances=\{instances\}/);
+    expect(TWINS).toMatch(/\{instances\.length\} decks on this machine/);
+    expect(TWINS).toMatch(/className="ap-lan-code lan-twin-at">\{at\}</);
+    expect(TWINS).toMatch(/className="ap-lan-code lan-twin-fp">\{fpT\}</);
     // A key with nothing to dial says so, rather than drawing an empty cell.
-    expect(MODAL).toMatch(/lan-twin-at lan-twin-none">no address here</);
+    expect(TWINS).toMatch(/lan-twin-at lan-twin-none">no address here</);
   });
 
   it("unpairs a folded deck with the same two presses as everywhere else", () => {
     // The press itself is the dialog's unpair hook's; the button asks it.
-    expect(MODAL).toMatch(/onClick=\{\(\) => pressTwin\(fpT\)\}/);
+    expect(TWINS).toMatch(/onClick=\{\(\) => pressTwin\(fpT\)\}/);
     expect(PEER_UNPAIR).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect(PEER_UNPAIR).toMatch(/if \(press === "arm"\) \{ setArmedTwin\(fpT\); setArmed\(false\); armedAt\.current = now; return; \}/);
     expect(PEER_UNPAIR).toMatch(/if \(press === "ignore"\) return;/);
     expect(PEER_UNPAIR).toMatch(/void run\(\(\) => onUnpair\(fpT\)\)/);
     // A held key is one decision, as it is on the dialog's own unpair.
-    expect(MODAL).toMatch(/lan-twin-do[\s\S]{0,200}onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
+    expect(TWINS).toMatch(/lan-twin-do[\s\S]{0,200}onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
   });
 
   it("is styled, so the list is not a raw bulleted ul", () => {
