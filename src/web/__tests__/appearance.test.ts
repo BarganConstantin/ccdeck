@@ -28,8 +28,8 @@ describe("character appearance preference", () => {
   });
 
   it("gates the character at its App mount and persists the chosen state", () => {
-    // The state and its storage are in use-appearance.ts; the mount is still
-    // App.tsx's. Every match is positive, so this reads the client.
+    // The state and its storage are in use-appearance.ts; the mount is
+    // components/BoardFlow.tsx's. Every match is positive, so this reads the client.
     const app = clientText();
     expect(app).toContain("useState(storedCharacterEnabled)");
     expect(app).toContain('writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');

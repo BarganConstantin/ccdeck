@@ -104,19 +104,24 @@ describe("the canvas wiring (#1237)", () => {
   // The layout signature, the visibility set and the nodes are use-board-graph.ts's,
   // which App.tsx hands the removals.
   const graph = readFileSync(fileURLToPath(new URL("../use-board-graph.ts", import.meta.url)), "utf8");
+  // The bubbles are mounted in components/BoardFlow.tsx, which App.tsx hands the graph.
+  const board = readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
 
   it("works the removal out once, from the removed-node store", () => {
     expect(removals).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
   });
 
   it("subtracts it from the visibility set the cards AND the tool bubbles both gate on", () => {
-    expect(app).toMatch(/const \{ spotlightSet, visibleAgentIds, nodes, edges, allNodes \} = useBoardGraph\(\{[^}]*\bremovedAgentIds\b/);
+    expect(app).toMatch(/const graph = useBoardGraph\(\{[^}]*\bremovedAgentIds\b/);
     const memo = /const visibleAgentIds = useMemo<Set<string>>\([\s\S]*?\n  \);/.exec(graph)?.[0] ?? "";
     expect(memo).toMatch(/for \(const id of removedAgentIds\) ids\.delete\(id\);/);
     expect(memo).toMatch(/removedAgentIds\],/);
-    // The two readers of that set: the cards and the bubble overlay.
+    // The two readers of that set: the cards and the bubble overlay, which
+    // BoardFlow mounts from the graph App.tsx hands it.
     expect(graph).toMatch(/selectedIds, spotlightSet, visibleAgentIds, openContext,/);
-    expect(app).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bgraph=\{graph\}/);
+    expect(board).toMatch(/const \{ allNodes, edges, visibleAgentIds, spotlightSet \} = graph;/);
+    expect(board).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
   });
 
   it("keeps the layout signature in step with it, so the board reflows around a removal", () => {
@@ -519,13 +524,16 @@ describe("where Remove lives and what follows it", () => {
 
   it("is gone from the topbar and sits with the card's own verbs in the detail panel", () => {
     expect(app).not.toMatch(/>\s*Remove node\s*</);
-    // The panel is components/Detail.tsx now; App.tsx hands it onRemove.
+    // The panel is components/Detail.tsx now; its frame, components/DetailAside.tsx,
+    // hands it onRemove, and App.tsx hands the frame the removal.
     const panel = readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
     const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
     expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
     expect(panel).not.toMatch(/>\s*Remove node\s*</);
     expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>Remove from board<\/button>/);
-    expect(app).toMatch(/onRemove=\{removeSelectedNode\}/);
+    expect(app).toMatch(/<DetailAside\b[^>]*\bremoveSelectedNode=\{removeSelectedNode\}/);
+    const aside = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
+    expect(aside).toMatch(/onRemove=\{removeSelectedNode\}/);
     // Reversible from the session list, so not dressed as the one destructive .btn the sheet reserves
     // red for.
     expect(detail).not.toMatch(/btn danger[^"]*"\s+onClick=\{onRemove\}/);

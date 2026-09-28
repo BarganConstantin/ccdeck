@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx and its readouts to
+// The topbar's three action runs moved to components/TopbarRuns.tsx and its readouts to
 // components/TopbarReadouts.tsx; App.tsx and they are read as one.
 const app = read("../App.tsx") + "\n" + read("../components/TopbarRuns.tsx") + "\n" + read("../components/TopbarReadouts.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -125,13 +125,14 @@ describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when o
   });
 
   it("groups the panels in two runs and stands the settings apart, by spacing alone", () => {
-    // The two panel runs are components/TopbarRuns.tsx's; the settings run is
-    // App.tsx's, and App.tsx draws the three in order.
+    // The three runs are components/TopbarRuns.tsx's, and App.tsx draws them
+    // in order.
     const runs = read("../components/TopbarRuns.tsx");
     const appOnly = read("../App.tsx");
     expect(runs.match(/<div className="action-run">/g)).toHaveLength(2);
     expect(appOnly.match(/<div className="action-run">/g)).toBeNull();
-    expect(appOnly.match(/<div className="action-run action-run-utility">/g)).toHaveLength(1);
+    expect(runs.match(/<div className="action-run action-run-utility">/g)).toHaveLength(1);
+    expect(appOnly.match(/<div className="action-run action-run-utility">/g)).toBeNull();
     expect(body(".topbar .action-run")).toMatch(/gap: 4px;/);
     expect(body(".topbar .actions")).toMatch(/gap: 12px;/);
     expect(css).toMatch(/\.topbar \.action-run-utility \{ margin-left: 12px; \}/);
@@ -144,7 +145,7 @@ describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when o
     const actions = appOnly.slice(appOnly.indexOf('<div className="actions">'));
     expect(actions.indexOf("<SessionRun")).toBeGreaterThan(-1);
     expect(actions.indexOf("<SessionRun")).toBeLessThan(actions.indexOf("<SourceRun"));
-    expect(actions.indexOf("<SourceRun")).toBeLessThan(actions.indexOf('<div className="action-run action-run-utility">'));
+    expect(actions.indexOf("<SourceRun")).toBeLessThan(actions.indexOf("<SettingsRun"));
   });
 
   it("gives the narrow dollar sign back the air its box adds", () => {

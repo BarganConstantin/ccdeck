@@ -64,6 +64,8 @@ const server = code("../../server/index.mjs");
 // table stays in index.mjs, so a count of callers reads both.
 const routes = code("../../server/music-routes.mjs");
 const app = code("../App.tsx");
+// Where the player is mounted, inside <ReactFlow>, since that left App.tsx's markup.
+const board = code("../components/BoardFlow.tsx");
 
 /** A page shaped like the one YouTube serves for `/channel/<id>/live`. */
 const livePage = (video = "tRsQsTMvPNg", pad = 0) =>
@@ -377,11 +379,13 @@ describe("the deck's own sound plays over the music", () => {
     expect(code("../use-event-stream.ts")).toContain("if (chime) chimesRef.current?.play(chime);");
     // The audition moved with the tone settings into use-tone-prefs.ts.
     expect(clientText()).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
-    expect(app).toContain("<ClaudeFm");
-    expect(app).toContain("volume={fmVolume}");
-    expect(app).toContain("muted={fmMuted}");
-    expect(app).toContain("source={fmSource}");
-    expect(app).not.toMatch(/duck/i);
+    // App.tsx hands BoardFlow the settings whole, and BoardFlow mounts the player.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bfm=\{fm\}/);
+    expect(board).toContain("<ClaudeFm");
+    expect(board).toContain("volume={fmVolume}");
+    expect(board).toContain("muted={fmMuted}");
+    expect(board).toContain("source={fmSource}");
+    expect(app + "\n" + board).not.toMatch(/duck/i);
     // …and not in the hook that now plays the audition either. Named rather than
     // widened to the whole client, because claude-fm.ts may say "duck" legitimately.
     expect(sourceOf("use-tone-prefs.ts")).not.toMatch(/duck/i);

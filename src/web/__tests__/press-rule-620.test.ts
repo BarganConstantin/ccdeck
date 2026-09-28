@@ -241,7 +241,12 @@ describe("no control in the client disables itself on press (#620)", () => {
     // spreads the props and never refuses a second press has removed a lock
     // and put nothing in its place.
     for (const { rel, code } of SOURCES) {
-      if (!code.includes("selfPressProps(")) continue;
+      // A spread whose in-flight flag is the constant `false` has no press to
+      // refuse — the topbar's sound button opens a menu, synchronously, and
+      // says so with the argument (#711). A file whose every spread is that one
+      // has no lock to replace; any other argument, anywhere in it, still does.
+      const guarded = [...code.matchAll(/selfPressProps\(([^)]*)\)/g)].filter(m => m[1].trim() !== "false");
+      if (guarded.length === 0) continue;
       // A component's handlers live in the component or in the `use-*` hooks it
       // composes — App.tsx spreads the props on its buttons while their pressed
       // handlers (askRestart, startUpgrade, askDesktopUpdateRestart) live in
@@ -277,7 +282,7 @@ const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> 
   // the very control the popover's Escape is supposed to hand focus back to, so
   // the user would land on `<body>` with the menu gone. The anchor moves with
   // the handler; the two attributes it must carry do not.
-  ["the topbar sound-menu button", "App.tsx",
+  ["the topbar sound-menu button", "components/TopbarRuns.tsx",
     /onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/,
     /\{\.\.\.selfPressProps\(false\)\}/],
   ["the version banner's Restart now", "components/VersionBanner.tsx",
@@ -341,8 +346,10 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // rather than racy. The assertion is that the lock is GONE — a re-added
     // request without a re-added guard is the regression this now watches for.
     // The switch moved to use-sound-switch.ts, so this asks App.tsx and the
-    // hooks it imports — the negatives included, which now have more to hold for.
-    const app = surfaceOf("App.tsx", codeOf("App.tsx"));
+    // hooks it imports — the negatives included, which now have more to hold for
+    // — and the settings run the button itself moved to, with its own.
+    const app = surfaceOf("App.tsx", codeOf("App.tsx"))
+      + "\n" + surfaceOf("components/TopbarRuns.tsx", codeOf("components/TopbarRuns.tsx"));
     expect(app).not.toMatch(/soundBusyRef/);
     expect(app).not.toMatch(/setSoundBusy/);
     expect(app, "the toggle must stay synchronous").toMatch(/const toggleSound = useCallback\(\(\) => \{/);

@@ -24,9 +24,11 @@ import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// The canvas's click and hover handlers are use-canvas-clicks.ts's, read with
-// App.tsx and the shortcuts as one.
-const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../use-canvas-clicks.ts");
+// The canvas's click and hover handlers are use-canvas-clicks.ts's, and the
+// <main> they sit in is components/CanvasMain.tsx's, read with App.tsx and the
+// shortcuts as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../use-canvas-clicks.ts")
+  + "\n" + read("../components/CanvasMain.tsx");
 /** The node-and-edge half of the canvas, out of App.tsx since #1175. */
 const flow = read("../canvas-flow.ts");
 const node = read("../components/AgentNode.tsx");
@@ -316,6 +318,8 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(read("../use-canvas-viewport.ts")).toMatch(/if \(applyZoom\(vp\.zoom\) === "detail"\) hidePeek\(\);/);
     expect(lod).toMatch(/nextLod\(lodRef\.current, zoom, lodCard\(\)\)/);
     expect(lod).toMatch(/if \(mode === lodRef\.current\) return null;/);
+    // App.tsx hands the canvas the zoom's answer, and the canvas wears it.
+    expect(app).toMatch(/<CanvasMain\b[^>]*\bzoom=\{zoom\}/);
     expect(app).toContain('data-lod={lod}');
   });
 
@@ -366,6 +370,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   it("peeks a recap note as well as a card", () => {
     // The note is the other node that is unreadable at a distance.
     expect(app).toMatch(/if \(\(n\.type !== "agent" && n\.type !== "recapNote"\) \|\| draggingRef\.current\) return;/);
+    expect(app).toMatch(/<CanvasMain\b[^>]*\bpeek=\{peek\}/);
     expect(app).toContain("recapFor={peekRecap}");
     const peek = read("../components/SessionPeek.tsx");
     expect(peek).toContain('if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;');

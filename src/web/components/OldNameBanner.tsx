@@ -1,7 +1,7 @@
 // The notice for a deck started under a name it no longer goes by, and the
 // sentence the terminal prints for moving onto the new one.
 //
-// Moved out of App.tsx's markup unchanged. App.tsx still decides WHICH banner
+// Moved out of App.tsx's markup unchanged. DeckBanner.tsx decides WHICH banner
 // the strip under the topbar shows, and this one comes last; the name and its
 // dismissal are use-old-name-notice's.
 import { PRODUCT } from "../brand";

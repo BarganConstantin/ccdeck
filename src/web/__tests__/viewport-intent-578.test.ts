@@ -196,23 +196,42 @@ const viewportCode = readFileSync(fileURLToPath(new URL("../use-canvas-viewport.
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
+/** components/BoardFlow.tsx the same way: the <ReactFlow> element the move
+ *  handlers are handed to, and the Controls stack and minimap inside it. */
+const boardCode = readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+
 /** use-camera.ts the same way: fitLeft and the door it frames through. */
 const cameraCode = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
-/** The opening tag of the canvas element, attributes and all. */
-const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(appCode)?.[0] ?? "";
+/** components/CanvasMain.tsx the same way: the canvas element itself, out of
+ *  App.tsx's markup. */
+const mainCode = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
-/** Everything the canvas element contains. */
-const canvasBody = appCode.slice(appCode.indexOf(mainTag), appCode.indexOf("</main>"));
+/** The opening tag of the canvas element, attributes and all. */
+const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(mainCode)?.[0] ?? "";
+
+/** Everything the canvas element contains: what CanvasMain draws inside
+ *  <main>, and — only if it draws its children there — what App.tsx hands it
+ *  between <CanvasMain> and </CanvasMain>. */
+const mainInner = mainTag ? mainCode.slice(mainCode.indexOf(mainTag), mainCode.indexOf("</main>")) : "";
+const canvasBody = mainInner.includes("{children}")
+  ? mainInner + "\n" + appCode.slice(appCode.indexOf("<CanvasMain"), appCode.indexOf("</CanvasMain>"))
+  : mainInner;
 
 /** The body of one of the canvas's move handlers. They are use-canvas-viewport.ts's
- *  `const name = (…) => { … };` now, and App.tsx hands each to <ReactFlow> as
- *  `name={name}` — both links are checked, so an inline handler put back in
- *  the markup, or one that stopped being wired, reads as missing. */
+ *  `const name = (…) => { … };` now, App.tsx hands the hook's return to
+ *  BoardFlow, and BoardFlow hands each to <ReactFlow> as `name={name}` — every
+ *  link is checked, so an inline handler put back in the markup, or one that
+ *  stopped being wired, reads as missing. */
 function handler(name: string): string {
-  if (!appCode.includes(`${name}={${name}}`)) return "";
+  if (!/<BoardFlow\b[^>]*\bviewport=\{viewport\}/.test(appCode)) return "";
+  if (!boardCode.includes(`${name}={${name}}`)) return "";
   const at = viewportCode.indexOf(`const ${name} = (`);
   if (at < 0) return "";
   const open = viewportCode.indexOf("{", viewportCode.indexOf("=>", at));
@@ -254,10 +273,12 @@ describe("every control that moves the viewport reaches that rule", () => {
   it("puts the Controls stack and the minimap inside the element it marks", () => {
     // This is what makes one listener enough, and what makes the next control
     // added to this canvas covered before anyone remembers to wire it.
-    // The stack is components/CanvasControls.tsx, mounted inside it: two links.
-    expect(canvasBody).toMatch(/<CanvasControls\b/);
+    // <ReactFlow> is components/BoardFlow.tsx, mounted inside it, and the
+    // stack is components/CanvasControls.tsx, mounted inside that: three links.
+    expect(canvasBody).toMatch(/<BoardFlow\b/);
+    expect(boardCode).toMatch(/<CanvasControls\b/);
     expect(readFileSync(fileURLToPath(new URL("../components/CanvasControls.tsx", import.meta.url)), "utf8")).toMatch(/<Controls\b/);
-    expect(canvasBody).toMatch(/<MiniMap\b/);
+    expect(boardCode).toMatch(/<MiniMap\b/);
   });
 
   it("feeds the rule the two stamps and the event, and nothing else", () => {
@@ -283,7 +304,7 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // follows the move inside it, both callers go through it, and nothing in
     // App.tsx, use-agent-focus.ts or use-camera.ts takes the door with a fit's
     // or a focus's frame on its own.
-    const lines = (appCode + "\n" + focusCode + "\n" + cameraCode).split("\n");
+    const lines = (appCode + "\n" + boardCode + "\n" + focusCode + "\n" + cameraCode).split("\n");
     const calls = lines
       .map((line, i) => ({ line, i }))
       .filter(({ line }) => /\brf\.fitView\(|\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));

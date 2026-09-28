@@ -88,10 +88,12 @@ describe("whether a viewport change the deck asks for should animate", () => {
 // ── the wiring the rule is useless without ──────────────────────────────────
 
 // The door, the fit and the landing handler moved to use-camera.ts; the
-// focus and the reader's gestures stayed in App.tsx. Read as one, so a body is
-// found wherever it lives and every negative below holds for both files.
+// focus and the reader's gestures stayed in App.tsx, and the <ReactFlow>
+// element with its opening fit is components/BoardFlow.tsx. Read as one, so a
+// body is found wherever it lives and every negative below holds for all three.
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
-  + "\n" + readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8");
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
 
 /** The same text with its comments gone — the prose in this repo quotes the
  *  shapes it rejected, so an "appears nowhere" assertion has to read code. */
@@ -221,7 +223,8 @@ describe("React Flow's own opening fit, which the deck does not perform itself",
     // for nobody: the deck opens its own browser tab, which lands behind
     // whatever the user was already reading. Left animated, that tab showed a
     // graph at the identity transform until it was brought forward.
-    const props = appCode.slice(appCode.indexOf("fitViewOptions={"), appCode.indexOf("minZoom={"));
+    const at = appCode.indexOf("fitViewOptions={");
+    const props = at < 0 ? "" : appCode.slice(at, appCode.indexOf("minZoom={", at));
     expect(props).toMatch(/shouldAnimateViewport\(\{ durationMs: OPENING_FIT_MS, documentHidden: document\.hidden \}\)/);
     expect(props).toMatch(/\?\s*OPENING_FIT_MS\s*:\s*0/);
   });

@@ -236,9 +236,10 @@ describe("what gets said, and to whom", () => {
     // Nothing is breaking, no command is being taken away, and the notice has
     // to read that way or it is a lie about severity. The browser half is
     // written in components/OldNameBanner.tsx (React cannot be rendered here)
-    // so it is read as text; App.tsx only mounts it, and the negative reads both.
+    // so it is read as text; components/DeckBanner.tsx mounts it and App.tsx
+    // mounts that, and the negative reads all three.
     const banner = read("src", "web", "components", "OldNameBanner.tsx");
-    const app = read("src", "web", "App.tsx") + "\n" + banner;
+    const app = read("src", "web", "App.tsx") + "\n" + read("src", "web", "components", "DeckBanner.tsx") + "\n" + banner;
     for (const name of ["agents-deck", "agent-dag"]) {
       const notice = renameNotice({ invoked: name, pkgRoot: "/usr/local/lib/node_modules/agents-deck" });
       expect(notice.said.startsWith(`${name} still works`), name).toBe(true);
@@ -412,10 +413,11 @@ describe("the wiring, which is the half no pure function can hold", () => {
 // have — while the terminal row, which asks isNpxInstall directly, printed the
 // right one a few lines above. Two surfaces, one fact, opposite answers.
 describe("one fact, one place: which line the rename notice ends with", () => {
-  // The banner's markup is components/OldNameBanner.tsx; App.tsx keeps the
-  // branch that mounts it. The negatives below read both.
+  // The banner's markup is components/OldNameBanner.tsx; components/DeckBanner.tsx
+  // keeps the branch that mounts it, and App.tsx mounts that. The negatives
+  // below read all three.
   const banner = read("src", "web", "components", "OldNameBanner.tsx");
-  const app = read("src", "web", "App.tsx") + "\n" + banner;
+  const app = read("src", "web", "App.tsx") + "\n" + read("src", "web", "components", "DeckBanner.tsx") + "\n" + banner;
   // /api/version's handler computes the notice; the negative below reads the
   // route table's file as well, so no second caller can pass a dash either.
   const server = read("src", "server", "lifecycle.mjs");

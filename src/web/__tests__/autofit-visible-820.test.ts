@@ -41,10 +41,12 @@ describe("the canvas says when auto-fit is off (#820)", () => {
   it("shows a status and an action while it is off, and resumes from the action", () => {
     // Not one big button any more: the words say the state and are not a
     // control, and Resume does what the whole chip used to.
-    // Two links: App.tsx mounts the chip only while auto-fit is off, and the
-    // chip is components/AutoFitChip.tsx.
+    // Three links: App.tsx hands BoardFlow the switch, BoardFlow mounts the
+    // chip only while auto-fit is off, and the chip is components/AutoFitChip.tsx.
     const chip = read("../components/AutoFitChip.tsx");
-    expect(app).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
+    const board = read("../components/BoardFlow.tsx");
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bautoFit=\{autoFit\}/);
+    expect(board).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
     expect(chip).toMatch(/return \(\s*<div className="autofit-chip">/);
     expect(chip).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
     expect(chip).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);

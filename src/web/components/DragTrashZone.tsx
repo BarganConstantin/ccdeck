@@ -2,8 +2,8 @@
 // from the board when it is let go over it.
 //
 // Moved out of App.tsx's markup unchanged. Where the drag is and whether it is
-// over the zone are use-drag-trash's; App.tsx mounts this for as long as that
-// hook's phase says the zone is on screen, leaving included.
+// over the zone are use-drag-trash's; CanvasMain.tsx mounts this for as long
+// as that hook's phase says the zone is on screen, leaving included.
 import type { useDragTrash } from "../use-drag-trash";
 
 type DragTrash = ReturnType<typeof useDragTrash>;

@@ -1,35 +1,20 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactFlow, {
-  Background,
-  MiniMap,
-  ReactFlowProvider,
-  useReactFlow,
-} from "reactflow";
-import AgentNode from "./components/AgentNode";
+import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
 import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
-import SessionClusters from "./components/SessionClusters";
-import SessionGroupNode from "./components/SessionGroupNode";
-import RecapNoteNode from "./components/RecapNoteNode";
-import RecapTieEdge from "./components/RecapTieEdge";
-import ToolBursts from "./components/ToolBursts";
+import BoardFlow from "./components/BoardFlow";
 import SessionSummary from "./components/SessionSummary";
 import ContextModal from "./components/ContextModal";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { exportFileName, sessionExport } from "./session-export";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
 import GuideModal from "./components/GuideModal";
 import { WELCOME_STEPS } from "./components/guide-art";
-import SoundMenu from "./components/SoundMenu";
-import AppearanceMenu from "./components/AppearanceMenu";
-import ClaudeFm from "./components/ClaudeFm";
-import { customFmSelection } from "./fm-stations";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
@@ -52,23 +37,17 @@ import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { isCanvasNodeElement } from "./canvas-node-element";
-import { releasePointerFocus } from "./canvas-pointer-focus";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
-import Detail from "./components/Detail";
+import DetailAside from "./components/DetailAside";
 import VersionChip from "./components/VersionChip";
-import { SessionRun, SourceRun } from "./components/TopbarRuns";
+import { SessionRun, SettingsRun, SourceRun } from "./components/TopbarRuns";
 import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
-import CanvasControls from "./components/CanvasControls";
 import CategoryFilterBar from "./components/CategoryFilterBar";
-import AutoFitChip from "./components/AutoFitChip";
-import DragTrashZone from "./components/DragTrashZone";
-import VersionBanner from "./components/VersionBanner";
-import ConnectionBanner from "./components/ConnectionBanner";
-import OldNameBanner from "./components/OldNameBanner";
+import CanvasMain from "./components/CanvasMain";
+import DeckBanner from "./components/DeckBanner";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -103,27 +82,15 @@ import { blockedSessions } from "./ambient-counts";
 const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
-import { findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
-import { selfPressProps } from "./panel-press";
-import { shouldAnimateViewport } from "./viewport-motion";
-import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
+import { findToolOnBoard, initialState } from "./reducer";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
+import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { updateRestartFailureText } from "./desktop-update";
-import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./chime-player";
 import type { ToolCall } from "./types";
 
-const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
-/** The recap note's tie to its card — see RecapTieEdge. At module scope like
- *  nodeTypes, since a new object each render makes React Flow warn and remount. */
-const edgeTypes = { recapTie: RecapTieEdge };
-
-/** How long React Flow's own opening fit takes, when there is anyone watching
- *  it. Named because the answer to "should this animate" is asked of it too. */
-const OPENING_FIT_MS = 400;
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
 /** Named for the panel it opens rather than for the button, which is how it
@@ -178,26 +145,6 @@ function saveMachinePanelOpen(open: boolean): void {
   writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
 }
 
-/** Build a portable JSON snapshot of a single session (root + every subagent)
- *  and trigger a browser download.
- *
- *  What goes IN the file, and what the file is called, are session-export.ts's
- *  — the format is the half people keep, and it was unreachable by any test
- *  while it lived in here (#1175). This is the download around it. */
-function exportSessionJson(state: GraphState, sessionId: string): void {
-  const payload = sessionExport(state, sessionId, new Date().toISOString());
-  if (!payload) return;
-  const json = JSON.stringify(payload, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = exportFileName(payload.label, sessionId);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 export default function App() {
   return (
@@ -273,35 +220,28 @@ function Inner() {
   // away (#612).
   const chimesRef = useRef<ReturnType<typeof createChimePlayer> | null>(null);
 
-  const { soundOn, toggleSound, activateSoundRef, soundOnRef } = useSoundSwitch(chimesRef);
+  const sound = useSoundSwitch(chimesRef);
+  const { activateSoundRef, soundOnRef } = sound;
 
   // What each tone is set to, how a change is written and auditioned, and the
   // preview timer behind it, live in use-tone-prefs.ts. The chime player reads
   // the settings through `tonePrefsRef` at play time; the custom-sound layer
   // below writes `setTonePrefs` when a clip it points at goes away.
-  const { tonePrefs, setTonePrefs, tonePrefsRef, previewTone, changeTone } = useTonePrefs(chimesRef);
+  const tones = useTonePrefs(chimesRef);
+  const { setTonePrefs, tonePrefsRef, previewTone } = tones;
 
   // Custom sounds — the clips somebody imported or recorded, which tone points
   // at which, and every way one is added, renamed, chosen or removed — live in
   // use-custom-tones.ts. It sits on the tone settings above: removing a clip a
   // tone points at resets that tone's figure, which is the one write it makes
   // outside its own state.
-  const { customSelections, customSelectionsRef, customAssets, clearCustomOnly, fallbackCustomRef,
-          selectCustomTone, importNotificationAudio, createNotificationVoice, renameCustomAsset,
-          deleteCustomAsset, previewCustomAsset }
-    = useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewTone });
+  const customTones = useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewTone });
+  const { customSelectionsRef, fallbackCustomRef } = customTones;
 
-  /** The menu the topbar button opens (#711). Not persisted: a popover is a
-   *  thing you are doing, not a thing you have set, and a deck that reloaded
-   *  with a menu hanging open would be reporting a gesture nobody made. */
-  const [soundMenuOpen, setSoundMenuOpen] = useState(false);
-  /** The button itself, so the menu's outside-press rule can leave it alone —
-   *  its own onClick already toggles, and both running would close the menu and
-   *  reopen it in the same gesture. */
-  const soundButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [appearanceMenuOpen, setAppearanceMenuOpen] = useState(false);
-  const appearanceButtonRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => { if (soundMenuOpen) setAppearanceMenuOpen(false); }, [soundMenuOpen]);
+  // The topbar's Sound and Appearance menus, and the rule that one closes the
+  // other — use-settings-menus.ts.
+  const menus = useSettingsMenus();
+  const { setSoundMenuOpen } = menus;
 
   // The player behind the deck's own two tones, built once on mount and woken by
   // the first gesture anywhere — use-chime-player.ts. It reads every setting
@@ -317,7 +257,8 @@ function Inner() {
   // canvas; it does not drop the connection. The gate, the mirrored flag and
   // the toggle's eviction accounting live in use-pause-gate.ts, which carries
   // the reasoning.
-  const { pauseGate, paused, togglePause } = usePauseGate(stateRef);
+  const pause = usePauseGate(stateRef);
+  const { pauseGate, paused, togglePause } = pause;
   // The desktop app's update frames arrive on the same stream, and the handler
   // for them comes out of useDesktopUpdate below, which itself keys off `live`.
   // Bound once that hook has run; it is a stable callback.
@@ -326,8 +267,8 @@ function Inner() {
     useEventStream({ stateRef, rerender, pauseGate, chimesRef, desktopUpdateRef });
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
-  const { version, notice, noticeOpen, showNotice, dismissNotice,
-          versionChecking, loadVersion } = useVersionCheck(live);
+  const versionCheck = useVersionCheck(live);
+  const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
   // Everything about the desktop app's own updater — its state, the press rule
   // behind Restart to update, and the stream event that releases a press — is in
   // use-desktop-update.ts. `live` drives the read on every (re)connect.
@@ -351,12 +292,12 @@ function Inner() {
   const { workspace, providers, providersRef } = useDeckScope(live);
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
-  const { oldName, oldNameOpen, dismissOldName } = useOldNameNotice(version);
+  const oldNameNotice = useOldNameNotice(version);
   // Upgrading the deck from its banner — the press, the faster poll while npm
   // runs, and copying the command for anyone who would rather type it — lives
   // in use-deck-upgrade.ts.
-  const { upgradeState, upgradeFailure, startUpgrade, copyCommand, cmdCopied }
-    = useDeckUpgrade({ version, loadVersion });
+  const upgrade = useDeckUpgrade({ version, loadVersion });
+  const { upgradeFailure } = upgrade;
 
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
@@ -396,22 +337,19 @@ function Inner() {
   // Restarting the deck: the auto-update switch, the press behind the banner's
   // Restart, the idle stretch an automatic one waits for, and what the banner
   // says about it — in use-auto-restart.ts.
-  const { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
-          restartCopy, restartFuseMs, loadAutoRestartPrefs }
-    = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure });
+  const restart = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure });
+  const { askRestart, loadAutoRestartPrefs } = restart;
 
   // The deck's look — the theme, the pixel character, and the canvas palette
   // read from the theme's tokens — with the effects that keep the DOM, storage
   // and the window's title bar in step, in use-appearance.ts.
-  const { theme, setTheme, characterEnabled, setCharacterEnabled, palette, minimapNodeFill }
-    = useAppearance();
+  const appearance = useAppearance();
+  const { setTheme, palette } = appearance;
   // Claude FM's configuration — volume, mute, which station, the stations
   // somebody added, and which of them are not answering — with its storage, in
   // use-claude-fm.ts. Stations and the selection change only through its named
   // operations, which keep the two consistent.
-  const { fmVolume, setFmVolume, fmMuted, setFmMuted, fmSource, customFmStations,
-          unavailableFmStations, fmPlayRequest, addFmStation, renameFmStation,
-          removeFmStation, pickFmSource, markFmStationAvailability } = useClaudeFm();
+  const fm = useClaudeFm();
 
   // The camera's primitives — the one door every viewport the deck sets goes
   // through, the fit every structural change runs, and the bookkeeping that
@@ -443,7 +381,8 @@ function Inner() {
   // quantised for the layout, whole for the drift watchdog below. See
   // use-canvas-size.ts.
   const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize();
-  const { autoFitDisabled, autoFitDisabledRef, disableAutoFit, enableAutoFitAndRefit } = useAutoFitSwitch(fitLeft);
+  const autoFit = useAutoFitSwitch(fitLeft);
+  const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
   // True for the length of a drag gesture. A ref as well as state: the
   // measurement effect below reads it without wanting to re-run when it
@@ -486,18 +425,20 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
-  const { trashDragging, trashLabel, trashState, trashZoneRef, trashPhase, beginTrashDrag, trackTrashDrag, endTrashDrag } = useDragTrash();
-  const { lod, lodRef, applyZoom } = useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef });
+  const trash = useDragTrash();
+  const { beginTrashDrag, trackTrashDrag, endTrashDrag } = trash;
+  const zoom = useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef });
+  const { lodRef, applyZoom } = zoom;
   // The viewport: the one restored from storage, the one stored on every move,
   // and whether a move was the user's or the deck's — use-canvas-viewport.ts.
-  const { restoredViewport, markCanvasInput, onMoveStart, onMove } = useCanvasViewport({
+  const viewport = useCanvasViewport({
     applyViewport, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom,
   });
 
   // The selected agent. Declared this high because the rail measurement below
   // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
-  // is what mounts it — see the `<aside className="detail">` near the end of
-  // this file. Nothing between here and there reassigns `stateRef.current`
+  // is what mounts it — see the `<DetailAside>` near the end of this file
+  // (components/DetailAside.tsx). Nothing between here and there reassigns `stateRef.current`
   // during render (the two writes are inside a replay effect and the SSE
   // handler), so reading it here is the same read it was 150 lines further on.
   const selected = primarySelectedId ? stateRef.current.agents.get(primarySelectedId) : null;
@@ -515,11 +456,12 @@ function Inner() {
 
   // Which agents are drawn and which are spotlit, and the arrays React Flow is
   // handed, a drag in flight patched over them — use-board-graph.ts.
-  const { spotlightSet, visibleAgentIds, nodes, edges, allNodes } = useBoardGraph({
+  const graph = useBoardGraph({
     stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
     layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
     dragTick, dragPatchRef, dragMoveTick,
   });
+  const { nodes, edges } = graph;
 
   // Re-column when the frame changes enough to change the answer, keeping what
   // the reader was looking at — use-reframe.ts.
@@ -555,7 +497,7 @@ function Inner() {
 
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.
-  const { onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDrag({
+  const drag = useNodeDrag({
     nodes, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
     setDragging, setDragMoveTick, setDragTick, endBubble, markInteract, disableAutoFit,
     beginTrashDrag, trackTrashDrag, endTrashDrag, removeNode,
@@ -582,12 +524,12 @@ function Inner() {
   });
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
-  const { onNodeClick, onPaneClick, onNodeDoubleClick, onNodeMouseEnter, onNodeMouseLeave } = useCanvasClicks({
+  const clicks = useCanvasClicks({
     clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
-  const { peekAgent, peekLabel, peekRecap, peekBounds } = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
+  const peek = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
   // Delete reaches the removal through a ref for the same reason: the handler
   // below is registered once, and the callback moves with the selection.
   const removeSelectedRef = useMirroredRef(removeSelectedNode);
@@ -657,9 +599,8 @@ function Inner() {
   // OS notifications for a session that is waiting on you: the permission, the
   // switch, asking for it, and what has already been raised — in
   // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
-  const { notifyPermission, notifySaid, notifyOn, notifyVetoed, toggleNotify,
-          notifySupported, askForNotifications, loadNotifyPrefs }
-    = useOsNotifications({ waitingSessions, liveSince, focusSession });
+  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession });
+  const { notifySaid, loadNotifyPrefs } = notify;
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
   usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs });
@@ -897,148 +838,12 @@ function Inner() {
             machinePanelOpen={machinePanelOpen} setMachinePanelOpen={setMachinePanelOpen}
             watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
           />
-          <div className="action-run action-run-utility">
-            {/* The settings run. Sound was the one genuine aria-pressed in this
-                bar: it installs or removes a Stop hook on disk, a setting that
-                is on or off. Since #711 the click opens a menu instead, and the
-                pressed state went with the switch into that menu; the button is
-                a disclosure now and reports the setting in its name.
-
-                Gone without Claude Code, by the same rule the accounts button
-                in the run above states: this switch is one entry in Claude Code's
-                settings.json, so on a machine that has no Claude Code it is a
-                control whose only effect is to write a hook nothing will ever
-                execute. Where Claude Code IS here it stays, and the tooltip says
-                which turns it covers — see finishSoundTitle, which also records
-                the two ways of making Codex audible that were considered and why
-                neither is this fix (#394). */}
-            {providers.claude && soundOn !== null && (
-            <div className="sound-slot">
-              <button
-                ref={soundButtonRef}
-                className="btn icon-btn"
-                /* #711: this used to toggle, and the click is now a disclosure.
-                   The gesture that was lost is put back rather than dropped —
-                   M still toggles from anywhere, and the menu carries the
-                   switch so a mouse has both routes. What made the change worth
-                   it is that the menu is no longer one number: it is a switch,
-                   two volumes, two sound choices and two previews, which is a
-                   panel's worth of controls about one subject.
-                   Shift used to restore the user's own parked hooks. #704
-                   removed the mechanism that parked them, so the modifier means
-                   nothing and is not read here.
-                   The handler is a callback rather than spelled out inline for
-                   TAG_BUDGET in tsx-scan.ts, which is measured against this
-                   tag. */
-                onClick={() => setSoundMenuOpen(o => !o)}
-                /* #620: this was `disabled={soundBusy}`, and the flag was set
-                   before the first await — so the switch went disabled under
-                   the press that had just come from it and Chrome dropped
-                   focus to `<body>`. #704 removed the request entirely and
-                   #711 leaves nothing to be busy for either: opening a menu is
-                   synchronous, and the argument is the constant that says so.
-                   It matters more now, not less — a disclosure that disables
-                   itself takes focus off the very control the menu's Escape is
-                   supposed to hand focus back to. */
-                {...selfPressProps(false)}
-                title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked", prefs: tonePrefs })}
-                /* The name a screen reader announces: what the press DOES (it
-                   opens the settings), then whether sound is on, the same shape
-                   Browser watch's name has. The menu's switch changes it, with
-                   aria-pressed of its own; the name only reports it, so a
-                   reader learns the chimes are off without opening anything,
-                   as the icon's waves or cross already tell a sighted one.
-                   `title` reaches assistive tech only as a description, which
-                   is announced later than the name and by no means everywhere,
-                   so nothing a user needs lives only there. */
-                aria-label={`Sound settings, ${soundOn ? "on" : "off"}`}
-                aria-haspopup="dialog"
-                aria-expanded={soundMenuOpen}
-                aria-controls={soundMenuOpen ? "sound-menu" : undefined}
-              >
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
-                  {soundOn
-                    ? <><path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" /><path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" /></>
-                    : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
-                </svg>
-                <span className="tb-word">Sound</span>
-              </button>
-              {soundMenuOpen && (
-                <SoundMenu
-                  onClose={() => setSoundMenuOpen(false)}
-                  soundOn={soundOn === true}
-                  onToggleSound={toggleSound}
-                  prefs={tonePrefs}
-                  onLevel={(chime, level) => changeTone(chime, { level })}
-                  onFigure={(chime, figure) => changeTone(chime, { figure })}
-                  onPreview={chime => previewTone(chime)}
-                  customAssets={customAssets}
-                  customSelections={customSelections}
-                  onBuiltInSelected={clearCustomOnly}
-                  onCustomSelected={selectCustomTone}
-                  onImportCustom={importNotificationAudio}
-                  onCreateVoice={createNotificationVoice}
-                  onRenameCustom={renameCustomAsset}
-                  onPreviewCustom={previewCustomAsset}
-                  onDeleteCustom={deleteCustomAsset}
-                  notifyOn={notifyOn}
-                  onToggleNotify={toggleNotify}
-                  notifyVetoed={notifyVetoed}
-                  notifyPermission={notifySupported ? notifyPermission : "unsupported"}
-                  onAskNotify={askForNotifications}
-                  openerRef={soundButtonRef}
-                />
-              )}
-            </div>
-            )}
-            <div className="appearance-slot">
-              <button
-                ref={appearanceButtonRef}
-                className="btn icon-btn"
-                onClick={() => {
-                  setSoundMenuOpen(false);
-                  setAppearanceMenuOpen(open => !open);
-                }}
-                title="Appearance settings"
-                aria-label={`Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}`}
-                aria-haspopup="dialog"
-                aria-expanded={appearanceMenuOpen}
-                aria-controls={appearanceMenuOpen ? "appearance-menu" : undefined}
-              >
-              {theme === "dark" ? (
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="7" cy="7" r="2.5" />
-                  <path d="M7 1.5v1.2M7 11.3v1.2M1.5 7h1.2M11.3 7h1.2M3.1 3.1l.85.85M10.05 10.05l.85.85M3.1 10.9l.85-.85M10.05 3.95l.85-.85" />
-                </svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
-                </svg>
-              )}
-              </button>
-              {appearanceMenuOpen && (
-                <AppearanceMenu
-                  theme={theme}
-                  onTheme={setTheme}
-                  characterEnabled={characterEnabled}
-                  onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
-                  fmVolume={fmVolume}
-                  onFmVolume={setFmVolume}
-                  fmMuted={fmMuted}
-                  onFmMuted={() => setFmMuted(muted => !muted)}
-                  fmSource={fmSource}
-                  onFmSource={pickFmSource}
-                  customFmStations={customFmStations}
-                  unavailableFmStations={unavailableFmStations}
-                  onAddFmStation={addFmStation}
-                  onRenameFmStation={renameFmStation}
-                  onRemoveFmStation={removeFmStation}
-                  onClose={() => setAppearanceMenuOpen(false)}
-                />
-              )}
-            </div>
-          </div>
+          {/* Sound and Appearance, each a button that opens its menu —
+              components/TopbarRuns.tsx. */}
+          <SettingsRun
+            providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
+            chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
+          />
         </div>
       </header>
 
@@ -1048,29 +853,11 @@ function Inner() {
       <div className="vis-hidden" role="status" aria-atomic="true">
         {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
       </div>
-      {restartedTo ? (
-        // Outranks both: it is the shortest-lived of the three and it answers
-        // the question the other two just raised.
-        <div className="ver-banner done" role="status">
-          <span className="ver-dot" />
-          <strong>Restarted — now running v{restartedTo}.</strong>
-          <span className="ver-sub">The canvas replayed from the event log.</span>
-        </div>
-      ) : everConnected && !live ? (
-        <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} />
-      ) : noticeOpen && notice ? (
-        <VersionBanner
-          notice={notice} version={version} dismissNotice={dismissNotice}
-          upgradeState={upgradeState} startUpgrade={startUpgrade} copyCommand={copyCommand} cmdCopied={cmdCopied}
-          autoRestart={autoRestart} toggleAutoRestart={toggleAutoRestart} askRestart={askRestart}
-          restartCopy={restartCopy} restartFuseMs={restartFuseMs} restarting={restarting}
-        />
-      ) : oldNameOpen && oldName ? (
-        // Last of the four, because it is the only one nobody has to act on
-        // today: a dropped connection, a restart and a release all outrank a
-        // name. It comes back the moment the row above it is dismissed.
-        <OldNameBanner oldName={oldName} version={version} dismissOldName={dismissOldName} />
-      ) : null}
+      {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
+      <DeckBanner
+        restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
+        everConnected={everConnected} live={live} paused={paused}
+      />
 
       {/* Claude-only, and now conditional on Claude Code actually being here.
           Every account in it is a Claude account, the store behind it is
@@ -1093,64 +880,12 @@ function Inner() {
           onBringBackAll={bringBackAll}
         />
       )}
-      {/* <main>, because the canvas is what this page is: everything else on
-          screen — the toolbar above it, the panels beside it — exists to
-          describe or steer what is drawn here. One per document, and this is
-          the one.
-          tabIndex={-1} makes it a focus target for the skip link above without
-          adding a tab stop of its own. Focus landing here is also harmless to
-          the keyboard rules #367 settled: MAIN is not in shortcuts.ts's
-          KEY_OWNING_TAGS and carries no interactive role, so ownsKeystroke()
-          returns false and the deck's single-key shortcuts keep working from
-          it, and Escape releases it back to the document like any other
-          non-typing target.
-          What tabIndex={-1} must NOT do is make the canvas a thing the mouse
-          focuses, which it also is by default and which lit the skip link's
-          ring for every click on empty canvas one keystroke later (#434).
-          releasePointerFocus (canvas-pointer-focus.ts) is where that half is
-          taken back, and it has to be the capture phase: React Flow stops the
-          pane's mousedown dead before it can bubble this far. */}
-      <main
-        id="canvas"
-        tabIndex={-1}
-        className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
-        data-lod={lod}
-        ref={canvasRef}
-        onMouseDownCapture={releasePointerFocus}
-        /* The three that say a human is working this canvas right now. They
-           are here, on the canvas as a whole, rather than on the two controls
-           that need them, because a handler per control is a list that has to
-           be kept complete and #578 is what an incomplete one costs: React
-           Flow's own zoom buttons and minimap moved the viewport and nothing
-           here noticed. Everything that moves the viewport on a user's
-           behalf lives inside this element — the pane, the Controls
-           stack, the minimap — so one listener at the top of it covers the
-           controls the deck mounts today and the ones it mounts next.
-           Capture, for the reason releasePointerFocus is: React Flow
-           calls stopImmediatePropagation() on the pane's press, so a bubbling
-           handler here would never see the gesture that matters most.
-           Press AND release, because a Controls button only calls zoomIn() on
-           the click, which is the release — hold + for two seconds and a
-           press-only stamp would have gone stale by the time the zoom lands.
-           Not pointermove: see CANVAS_INPUT_WINDOW_MS. */
-        onPointerDownCapture={markCanvasInput}
-        onPointerUpCapture={markCanvasInput}
-        onWheelCapture={markCanvasInput}
-        /* The peek is not hover-only. A card the keyboard reaches at a distance
-           opens the same card the pointer would — Tab, j/k and W all land focus
-           on a card — and closes when focus moves on. Only a focus the browser
-           would ring (`:focus-visible`): a click also focuses the card, and a
-           peek that opened under every click would cover what was clicked. */
-        onFocusCapture={e => {
-          const el = e.target as Element;
-          if (!isCanvasNodeElement(el) || lodRef.current == null || lodRef.current === "detail") return;
-          const id = el.getAttribute("data-id");
-          if (id && stateRef.current.agents.has(id) && el.matches(":focus-visible")) showPeek(id, el, "focus");
-        }}
-        onBlurCapture={e => {
-          const id = (e.target as Element).getAttribute?.("data-id");
-          if (id) hidePeek(id);
-        }}
+      {/* <main>, the canvas: the listeners that have to sit on all of it, and
+          the drag-to-remove zone and the peek drawn over it —
+          components/CanvasMain.tsx. What is drawn on it is App's, below. */}
+      <CanvasMain
+        canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
+        viewport={viewport} stateRef={stateRef} peek={peek}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero />
@@ -1172,148 +907,14 @@ function Inner() {
             presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
           />
         )}
-        <ReactFlow
-          nodes={allNodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          /* EDGES ARE NOT KEYBOARD STOPS. React Flow's store defaults
-             `edgesFocusable` to true, and its EdgeWrapper gates on that flag
-             alone rather than on `disableKeyboardA11y` below — so every parent
-             -> child connector took tabIndex 0, role="button", an aria-label of
-             `Edge from ${source} to ${target}`, and a description reading
-             "Press enter or space to select an edge. You can then press delete
-             to remove it or escape to cancel."
-
-             Subagent ids are `${sessionId}::${agentId}`, so that label was
-             about 110 characters of UUID, read out at a stop between every
-             parent and child. And every key it named was then swallowed:
-             `disableKeyboardA11y` short-circuits EdgeWrapper's onKeyDown, so
-             Enter, Space, Delete and Escape on a focused edge all did nothing.
-
-             This is what #853 and #367 fixed for nodes, applied to nodes only.
-             The edge keeps role="img" and its label, which is harmless — the
-             target node already carries the name. */
-          edgesFocusable={false}
-          edgeTypes={edgeTypes}
-          fitView={!restoredViewport}
-          /* The opening frame is React Flow's own, and it goes through the same
-             d3 transition every other viewport animation does — so a deck that
-             opened its tab behind whatever the user was already looking at drew
-             its graph and then left the pane at the identity transform, an
-             empty-looking canvas until the tab was brought forward. The library
-             re-reads this object into its store on every render and only fits
-             once, when the first nodes are measured, so asking for no animation
-             while the page is not being rendered takes the branch that applies
-             the transform outright. A visible tab still gets the 400ms. */
-          fitViewOptions={{
-            padding: 0.25,
-            duration: shouldAnimateViewport({ durationMs: OPENING_FIT_MS, documentHidden: document.hidden })
-              ? OPENING_FIT_MS
-              : 0,
-          }}
-          minZoom={CANVAS_MIN_ZOOM}
-          maxZoom={CANVAS_MAX_ZOOM}
-          panOnScroll
-          nodesDraggable
-          nodesConnectable={false}
-          selectionOnDrag={false}
-          // Without a threshold React Flow begins a drag on pointerdown, so a
-          // plain click ran onNodeDragStart/onNodeDragStop at zero delta: it
-          // pinned the card — every card of the session, for the group handle —
-          // and switched auto-fit off for good. The distance is measured in
-          // flow units, so it scales with the zoom; 5 is roughly the slop a
-          // mouse, a trackpad or a finger has to beat before the gesture counts
-          // as a drag instead of a click.
-          nodeDragThreshold={5}
-          // React Flow's own keyboard layer told a screen reader, on every card,
-          // "use the arrow keys to move the node around. Press delete to remove
-          // it" (#853). Neither is true here: the nodes are a controlled prop with
-          // no onNodesChange, so its arrow moves and deletes never land, and the
-          // deck answers Enter itself (canvas-keys.ts). So the description goes,
-          // with the live region that would announce a move that never happens,
-          // and Backspace stops being a key React Flow listens for at all.
-          disableKeyboardA11y
-          deleteKeyCode={null}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          onNodeDoubleClick={onNodeDoubleClick}
-          onNodeMouseEnter={onNodeMouseEnter}
-          onNodeMouseLeave={onNodeMouseLeave}
-          onMoveStart={onMoveStart}
-          onMove={onMove}
-          onNodeDragStart={onNodeDragStart}
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
-        >
-          <Background gap={28} size={1} color={palette["--grid-line"]} />
-          {/* The stamp that keeps a click on a session's name from reading as
-              the user grabbing the canvas — see the note on the component
-              (#785). Same line App's own focusSession runs after its fitView. */}
-          <SessionClusters onFocusSession={focusAgent} />
-          <ToolBursts
-            agents={stateRef.current.agents}
-            visibleAgentIds={visibleAgentIds}
-            positions={positionsRef.current}
-            pinned={pinnedRef.current}
-            measured={measuredRef.current}
-            spotlight={spotlightSet}
-            hiddenCategories={hiddenCats}
-            now={now}
-            onOpenTool={openTool}
-          />
-          {/* The state the recenter tint used to be the only sign of (#820).
-              While the reader's own pan or zoom holds the view, new sessions
-              can land off-screen; this says so on the canvas they would be
-              looked for on, with the way back in the same place. */}
-          {/* A status and an action, not one big button. The words say what
-              the state is and are not a control; Resume is the one thing here
-              that can be pressed, and it does what the whole chip used to. */}
-          {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
-          {/* No React Flow fit-view button (#840). Recenter below does the same
-              fit and also turns autofit back on, so two near-identical buttons
-              sat side by side and the reader had to guess the difference. F
-              still fits from the keyboard. */}
-          <CanvasControls
-            autoFitDisabled={autoFitDisabled} enableAutoFitAndRefit={enableAutoFitAndRefit}
-            paused={paused} pauseGate={pauseGate} togglePause={togglePause}
-            handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
-          />
-          <MiniMap
-            zoomable
-            pannable
-            nodeColor={minimapNodeFill}
-            nodeStrokeWidth={2}
-            maskColor={palette["--minimap-mask"]}
-            // The frame the view is showing, outlined. The minimap's surface
-            // sits close to the canvas now (.react-flow__minimap), so the mask
-            // alone no longer separates it well; a --line keyline does, in
-            // the same neutral the chrome's edges are drawn in.
-            maskStrokeColor={palette["--line"]}
-          />
-          {/* Above the minimap, and absent unless there is something to play —
-              ClaudeFm renders null until the server says the channel is on air,
-              so on a deck with no network this is nothing at all. */}
-          {characterEnabled && (
-            <ClaudeFm
-              volume={fmVolume}
-              muted={fmMuted}
-              source={fmSource}
-              playRequest={fmPlayRequest}
-              customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
-              onAvailabilityChange={markFmStationAvailability}
-            />
-          )}
-        </ReactFlow>
-        {isMounted(trashPhase) && (
-          <DragTrashZone trashZoneRef={trashZoneRef} trashState={trashState} trashPhase={trashPhase} trashLabel={trashLabel} />
-        )}
-        <SessionPeek
-          agentFor={peekAgent}
-          recapFor={peekRecap}
-          labelFor={peekLabel}
-          bounds={peekBounds}
+        {/* React Flow, and everything drawn in its pane — components/BoardFlow.tsx. */}
+        <BoardFlow
+          graph={graph} layout={layout} viewport={viewport} clicks={clicks} drag={drag}
+          appearance={appearance} fm={fm} autoFit={autoFit} pause={pause}
+          stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
+          openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
         />
-      </main>
+      </CanvasMain>
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only
@@ -1350,30 +951,10 @@ function Inner() {
           `:not(:has(.detail))` in the sheet already drops the column, so this
           needed no layout change of its own. */}
       {detailOpen && selected ? (
-        // Already the right element and still an unnamed one: the rotor listed
-        // it as a bare "complementary" beside the session list's "Sessions",
-        // which is the entry a reader cannot tell from the next. The name is
-        // fixed rather than the selected agent's label — the panel keeps its
-        // identity when nothing is selected, and a landmark whose name changes
-        // under the reader is a landmark they cannot come back to. The agent's
-        // name is the panel's <h2>, which is where a changing title belongs.
-        <aside className="detail" aria-label="Detail">
-          <button
-            type="button"
-            className="glyph-btn detail-close"
-            title="Close panel"
-            aria-label="Close detail panel"
-            onClick={() => setDetailOpen(false)}
-          >×</button>
-          <Detail
-                agent={selected}
-                now={now}
-                onOpenTool={openTool}
-                onShowSummary={setSummaryFor}
-                onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
-                onRemove={removeSelectedNode}
-              />
-        </aside>
+        <DetailAside
+          selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
+          setDetailOpen={setDetailOpen} stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+        />
       ) : null}
 
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}

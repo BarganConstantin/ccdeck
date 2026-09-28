@@ -66,12 +66,15 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 /** Comment-stripped, so a paragraph explaining a decision cannot satisfy an
  *  assertion about the code that carries it out (#513). */
-// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-deck-shortcuts.ts"));
+// The keydown handler moved to use-deck-shortcuts.ts, the topbar's settings run
+// to components/TopbarRuns.tsx and the menus' open state to
+// use-settings-menus.ts; the keys, the run and the rest of the deck are read as one.
+const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-deck-shortcuts.ts"))
+  + "\n" + withoutComments(read("components/TopbarRuns.tsx")) + "\n" + withoutComments(read("use-settings-menus.ts"));
 // The tone settings, their write-through and the preview timer moved to
 // use-tone-prefs.ts. The cases about them read the whole client — every one of
 // them is a positive match, so the wider text cannot make one pass falsely.
-// `app` stays App.tsx for the rest, including the one negative case.
+// `app` stays those four files for the rest, including the one negative case.
 const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
 // The outside-press rule SoundMenu shares with AnchoredPopover.
@@ -840,7 +843,7 @@ describe("the one press allowed past the switch", () => {
 describe("the click opens the menu, and M still silences the deck", () => {
   it("makes the topbar speaker a disclosure rather than a toggle", () => {
     expect(app).toMatch(/onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/);
-    const tags = openTags(read("App.tsx"), ["button"])
+    const tags = openTags(read("components/TopbarRuns.tsx"), ["button"])
       .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags).toHaveLength(1);
     expect(tags[0].ranAway).toBe(false);
@@ -1024,7 +1027,7 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // the only spelling of the word allowed here.
     expect(customSounds).toMatch(/"aria-disabled": true/);
     expect(menuSurface.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
-    const tags = openTags(read("App.tsx"), ["button"])
+    const tags = openTags(read("components/TopbarRuns.tsx"), ["button"])
       .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags[0].attrs.replace(/\s+/g, " ")).toMatch(/\{\.\.\.selfPressProps\(false\)\}/);
     expect(tags[0].attrs).not.toMatch(/disabled=/);
@@ -1103,6 +1106,9 @@ describe("App owns the settings, the write and the round trip", () => {
   });
 
   it("gives the menu everything it needs and nothing it does not", () => {
+    // The run that mounts the menu is SettingsRun, which App.tsx hands the
+    // switch, the tone settings and the menus' state whole.
+    expect(withoutComments(read("App.tsx"))).toMatch(/<SettingsRun\b[^>]*\bsound=\{sound\} tones=\{tones\}[^>]*\bmenus=\{menus\}/);
     for (const prop of [
       /soundOn=\{soundOn === true\}/, /onToggleSound=\{toggleSound\}/, /prefs=\{tonePrefs\}/,
       /onLevel=/, /onFigure=/, /onPreview=/, /openerRef=/, /onClose=/,

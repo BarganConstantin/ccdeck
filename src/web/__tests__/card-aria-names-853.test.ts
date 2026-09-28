@@ -58,6 +58,8 @@ const stripped = (src: string) => src
 const appCode = stripped(app);
 /** The node-building half of the canvas, out of App.tsx since #1175. */
 const flowCode = stripped(readFileSync(fileURLToPath(new URL("../canvas-flow.ts", import.meta.url)), "utf8"));
+/** The <ReactFlow> element and the props it is given, out of App.tsx's markup. */
+const boardCode = stripped(readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8"));
 
 describe("the canvas wiring (#853)", () => {
   it("gives every agent node its composed name", () => {
@@ -67,8 +69,10 @@ describe("the canvas wiring (#853)", () => {
   });
 
   it("drops React Flow's false keyboard instructions and its delete key", () => {
-    expect(appCode).toMatch(/\n\s*disableKeyboardA11y\n/);
-    expect(appCode).toMatch(/deleteKeyCode=\{null\}/);
+    // Two links: App.tsx mounts BoardFlow, and BoardFlow gives <ReactFlow> both.
+    expect(appCode).toMatch(/<BoardFlow\b/);
+    expect(boardCode).toMatch(/\n\s*disableKeyboardA11y\n/);
+    expect(boardCode).toMatch(/deleteKeyCode=\{null\}/);
   });
 
   it("takes the unreferenced instruction text out of the page as well", () => {

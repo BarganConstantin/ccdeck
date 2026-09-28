@@ -21,6 +21,8 @@ import { boardBySession, liveDelta, type CountableAgent } from "../live-delta";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
 const app = read("../App.tsx");
+// The <ReactFlow> element and what renders inside it, out of App.tsx's markup.
+const board = read("../components/BoardFlow.tsx");
 const watchModal = read("../components/BrowserWatchModal.tsx");
 const clusters = read("../components/SessionClusters.tsx");
 
@@ -118,7 +120,9 @@ describe("#783 — the tool-category filter", () => {
   it("still applies the filter downstream, so the bar is not merely decorative", () => {
     // If this stopped being true the bar would be a control over nothing, and
     // the case above would pass over a feature that had quietly been removed.
-    expect(app).toContain("hiddenCategories={hiddenCats}");
+    // App.tsx hands BoardFlow the filter, and BoardFlow hands it to the bubbles.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bhiddenCats=\{hiddenCats\}/);
+    expect(board).toContain("hiddenCategories={hiddenCats}");
   });
 });
 
@@ -143,7 +147,9 @@ describe("#785 — a camera move the deck made itself", () => {
     expect(clusters).not.toContain("rf.fitView(");
     expect(clusters).not.toContain("useReactFlow");
     expect(clusters).toContain("onFocusSession?.(sessionId)");
-    expect(app).toContain("<SessionClusters onFocusSession={focusAgent} />");
+    // App.tsx hands BoardFlow focusAgent, and BoardFlow mounts the labels on it.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bfocusAgent=\{focusAgent\}/);
+    expect(board).toContain("<SessionClusters onFocusSession={focusAgent} />");
   });
 
   it("stamps the move after it is made, inside the routine that makes it", () => {

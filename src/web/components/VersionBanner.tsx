@@ -1,7 +1,7 @@
 // The banner that says the deck is behind — a newer version on disk or on npm —
 // and offers the way forward: restart, upgrade, or the command to run.
 //
-// Moved out of App.tsx's markup unchanged. App.tsx still decides WHICH banner
+// Moved out of App.tsx's markup unchanged. DeckBanner.tsx decides WHICH banner
 // the strip under the topbar shows (a finished restart, then a lost
 // connection, then this, then the old-name notice); this file is only what
 // this one says and does. The restart and the upgrade are use-auto-restart's
