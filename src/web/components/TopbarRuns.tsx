@@ -1,15 +1,27 @@
-// The first two runs of the topbar's actions: the buttons that open things.
+// The three runs of the topbar's actions.
 //
 // Moved out of App.tsx's topbar markup unchanged. The actions come in three
 // runs (see the comment on `.actions` in App.tsx): your sessions and what they
 // spend, then who spends it, on what, and what it watched. Those two only open
 // panels and dialogs, so each needs the open flags and the ways to flip them,
-// and nothing else. The third run, the settings, stays in App.tsx: it mounts
-// the sound and appearance menus with everything they configure, and a
-// component in between would only relay that.
+// and nothing else. The third run, the settings, mounts the sound and
+// appearance menus with everything they configure, so it is handed each hook's
+// return whole rather than forty props relayed one by one.
 import type { Dispatch, SetStateAction } from "react";
 
+import { selfPressProps } from "../panel-press";
+import { finishSoundTitle } from "../provider-copy";
 import type { Providers } from "../providers";
+import type { useAppearance } from "../use-appearance";
+import type { useChimePlayer } from "../use-chime-player";
+import type { useClaudeFm } from "../use-claude-fm";
+import type { useCustomTones } from "../use-custom-tones";
+import type { useOsNotifications } from "../use-os-notifications";
+import type { useSettingsMenus } from "../use-settings-menus";
+import type { useSoundSwitch } from "../use-sound-switch";
+import type { useTonePrefs } from "../use-tone-prefs";
+import AppearanceMenu from "./AppearanceMenu";
+import SoundMenu from "./SoundMenu";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
@@ -236,6 +248,176 @@ export function SourceRun({
         <span className="tb-word">Browser watch</span>
         {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
       </button>
+    </div>
+  );
+}
+
+/** Sound and Appearance: the two settings, each a button that opens its menu. */
+export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm }: {
+  providers: Providers;
+  sound: ReturnType<typeof useSoundSwitch>;
+  tones: ReturnType<typeof useTonePrefs>;
+  customTones: ReturnType<typeof useCustomTones>;
+  notify: ReturnType<typeof useOsNotifications>;
+  /** Whether the chimes are still waiting for the first gesture to unlock. */
+  chimeState: ReturnType<typeof useChimePlayer>["chimeState"];
+  /** Which of the two menus is open, and the buttons they open from. */
+  menus: ReturnType<typeof useSettingsMenus>;
+  appearance: ReturnType<typeof useAppearance>;
+  fm: ReturnType<typeof useClaudeFm>;
+}) {
+  const { soundOn, toggleSound } = sound;
+  const { tonePrefs, previewTone, changeTone } = tones;
+  const { customSelections, customAssets, clearCustomOnly, selectCustomTone, importNotificationAudio,
+          createNotificationVoice, renameCustomAsset, deleteCustomAsset, previewCustomAsset } = customTones;
+  const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications } = notify;
+  const { soundMenuOpen, setSoundMenuOpen, soundButtonRef, appearanceMenuOpen, setAppearanceMenuOpen,
+          appearanceButtonRef } = menus;
+  const { theme, setTheme, characterEnabled, setCharacterEnabled } = appearance;
+  const { fmVolume, setFmVolume, fmMuted, setFmMuted, fmSource, customFmStations, unavailableFmStations,
+          addFmStation, renameFmStation, removeFmStation, pickFmSource } = fm;
+  return (
+    <div className="action-run action-run-utility">
+      {/* The settings run. Sound was the one genuine aria-pressed in this
+          bar: it installs or removes a Stop hook on disk, a setting that
+          is on or off. Since #711 the click opens a menu instead, and the
+          pressed state went with the switch into that menu; the button is
+          a disclosure now and reports the setting in its name.
+
+          Gone without Claude Code, by the same rule the accounts button
+          in the run above states: this switch is one entry in Claude Code's
+          settings.json, so on a machine that has no Claude Code it is a
+          control whose only effect is to write a hook nothing will ever
+          execute. Where Claude Code IS here it stays, and the tooltip says
+          which turns it covers — see finishSoundTitle, which also records
+          the two ways of making Codex audible that were considered and why
+          neither is this fix (#394). */}
+      {providers.claude && soundOn !== null && (
+      <div className="sound-slot">
+        <button
+          ref={soundButtonRef}
+          className="btn icon-btn"
+          /* #711: this used to toggle, and the click is now a disclosure.
+             The gesture that was lost is put back rather than dropped —
+             M still toggles from anywhere, and the menu carries the
+             switch so a mouse has both routes. What made the change worth
+             it is that the menu is no longer one number: it is a switch,
+             two volumes, two sound choices and two previews, which is a
+             panel's worth of controls about one subject.
+             Shift used to restore the user's own parked hooks. #704
+             removed the mechanism that parked them, so the modifier means
+             nothing and is not read here.
+             The handler is a callback rather than spelled out inline for
+             TAG_BUDGET in tsx-scan.ts, which is measured against this
+             tag. */
+          onClick={() => setSoundMenuOpen(o => !o)}
+          /* #620: this was `disabled={soundBusy}`, and the flag was set
+             before the first await — so the switch went disabled under
+             the press that had just come from it and Chrome dropped
+             focus to `<body>`. #704 removed the request entirely and
+             #711 leaves nothing to be busy for either: opening a menu is
+             synchronous, and the argument is the constant that says so.
+             It matters more now, not less — a disclosure that disables
+             itself takes focus off the very control the menu's Escape is
+             supposed to hand focus back to. */
+          {...selfPressProps(false)}
+          title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked", prefs: tonePrefs })}
+          /* The name a screen reader announces: what the press DOES (it
+             opens the settings), then whether sound is on, the same shape
+             Browser watch's name has. The menu's switch changes it, with
+             aria-pressed of its own; the name only reports it, so a
+             reader learns the chimes are off without opening anything,
+             as the icon's waves or cross already tell a sighted one.
+             `title` reaches assistive tech only as a description, which
+             is announced later than the name and by no means everywhere,
+             so nothing a user needs lives only there. */
+          aria-label={`Sound settings, ${soundOn ? "on" : "off"}`}
+          aria-haspopup="dialog"
+          aria-expanded={soundMenuOpen}
+          aria-controls={soundMenuOpen ? "sound-menu" : undefined}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
+            {soundOn
+              ? <><path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" /><path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" /></>
+              : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
+          </svg>
+          <span className="tb-word">Sound</span>
+        </button>
+        {soundMenuOpen && (
+          <SoundMenu
+            onClose={() => setSoundMenuOpen(false)}
+            soundOn={soundOn === true}
+            onToggleSound={toggleSound}
+            prefs={tonePrefs}
+            onLevel={(chime, level) => changeTone(chime, { level })}
+            onFigure={(chime, figure) => changeTone(chime, { figure })}
+            onPreview={chime => previewTone(chime)}
+            customAssets={customAssets}
+            customSelections={customSelections}
+            onBuiltInSelected={clearCustomOnly}
+            onCustomSelected={selectCustomTone}
+            onImportCustom={importNotificationAudio}
+            onCreateVoice={createNotificationVoice}
+            onRenameCustom={renameCustomAsset}
+            onPreviewCustom={previewCustomAsset}
+            onDeleteCustom={deleteCustomAsset}
+            notifyOn={notifyOn}
+            onToggleNotify={toggleNotify}
+            notifyVetoed={notifyVetoed}
+            notifyPermission={notifySupported ? notifyPermission : "unsupported"}
+            onAskNotify={askForNotifications}
+            openerRef={soundButtonRef}
+          />
+        )}
+      </div>
+      )}
+      <div className="appearance-slot">
+        <button
+          ref={appearanceButtonRef}
+          className="btn icon-btn"
+          onClick={() => {
+            setSoundMenuOpen(false);
+            setAppearanceMenuOpen(open => !open);
+          }}
+          title="Appearance settings"
+          aria-label={`Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}`}
+          aria-haspopup="dialog"
+          aria-expanded={appearanceMenuOpen}
+          aria-controls={appearanceMenuOpen ? "appearance-menu" : undefined}
+        >
+        {theme === "dark" ? (
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="7" cy="7" r="2.5" />
+            <path d="M7 1.5v1.2M7 11.3v1.2M1.5 7h1.2M11.3 7h1.2M3.1 3.1l.85.85M10.05 10.05l.85.85M3.1 10.9l.85-.85M10.05 3.95l.85-.85" />
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
+          </svg>
+        )}
+        </button>
+        {appearanceMenuOpen && (
+          <AppearanceMenu
+            theme={theme}
+            onTheme={setTheme}
+            characterEnabled={characterEnabled}
+            onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+            fmVolume={fmVolume}
+            onFmVolume={setFmVolume}
+            fmMuted={fmMuted}
+            onFmMuted={() => setFmMuted(muted => !muted)}
+            fmSource={fmSource}
+            onFmSource={pickFmSource}
+            customFmStations={customFmStations}
+            unavailableFmStations={unavailableFmStations}
+            onAddFmStation={addFmStation}
+            onRenameFmStation={renameFmStation}
+            onRemoveFmStation={removeFmStation}
+            onClose={() => setAppearanceMenuOpen(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
