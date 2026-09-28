@@ -170,7 +170,9 @@ describe("what the panel counts, and what it leaves alone", () => {
     // and is watching the figure they asked for, so riding up to twelve
     // thousand or back down to three hundred is the one place the SIZE of the
     // difference is worth feeling.
-    expect(panel).toContain("if (firstRef.current) {");
+    // The hook is use-count-up.ts, lifted out of the panel.
+    expect(readFileSync(fileURLToPath(new URL("../use-count-up.ts", import.meta.url)), "utf8"))
+      .toContain("if (firstRef.current) {");
     expect(usageSurface()).not.toContain("meaningChanged");
     expect(usageSurface()).not.toContain("countKey");
   });
