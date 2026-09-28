@@ -11,11 +11,10 @@ import { countTo } from "./count-up";
 /**
  * A figure that counts to its new value instead of teleporting to it.
  *
- * `key` is what the number MEANS — the period it belongs to. When that changes,
- * the value snaps: "today $269" and "all time $12.4k" are different quantities,
- * and counting between them would be theatre rather than a delta. Within one
- * period, a five-minute poll can move a total while somebody is looking at it,
- * and a count says which way and roughly how far.
+ * A poll can move a total while somebody is looking at it, and a count says
+ * which way and roughly how far. A change of period counts too: it used to
+ * snap, on the reasoning that two periods are different quantities, and the
+ * note in the effect below says why it stopped.
  *
  * See count-up.ts for what deliberately does not animate — the first paint, a
  * change too small to read, and the tables.
