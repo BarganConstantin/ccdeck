@@ -6,7 +6,7 @@
 // barHeight in tool-spark.ts are that body, and these are the answers.
 import { describe, expect, it } from "vitest";
 
-import { barHeight, BUCKETS, H, sparkWindow, WINDOW_MS } from "../tool-spark";
+import { barHeight, BUCKETS, SPARK_H, sparkWindow, WINDOW_MS } from "../tool-spark";
 import type { ToolCall } from "../types";
 
 const NOW = 1_790_550_060_000;
@@ -69,11 +69,11 @@ describe("the activity chart's window", () => {
 describe("the chart's one scale", () => {
   it("draws an empty bucket as a stub and one mark at half the box", () => {
     expect(barHeight(0)).toBe(1.5);
-    expect(barHeight(1)).toBe(H / 2);
+    expect(barHeight(1)).toBe(SPARK_H / 2);
   });
 
   it("reaches the top at two marks and clips past it", () => {
-    expect(barHeight(2)).toBe(H);
-    expect(barHeight(7)).toBe(H);
+    expect(barHeight(2)).toBe(SPARK_H);
+    expect(barHeight(7)).toBe(SPARK_H);
   });
 });
