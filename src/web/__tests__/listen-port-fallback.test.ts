@@ -68,10 +68,13 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 }
 
 // @ts-expect-error — plain .mjs module, no types
-const { portRetryable, listenHint, listenFailure, startServer } = await import("../../server/index.mjs") as {
+const { portRetryable, listenHint, listenFailure } = await import("../../server/listen.mjs") as {
   portRetryable: (err: unknown) => boolean;
   listenHint: (code: string | undefined, o?: { host?: string; port?: number; platform?: string }) => string;
   listenFailure: (err: unknown, o?: { host?: string; port?: number; platform?: string; exhausted?: boolean }) => Error & { code?: string };
+};
+// @ts-expect-error — plain .mjs module, no types
+const { startServer } = await import("../../server/index.mjs") as {
   startServer: (o: Record<string, unknown>) => Promise<unknown>;
 };
 
