@@ -11,6 +11,7 @@ import {
   type Chime, type ToneSettings,
 } from "../sound";
 import { type CustomAssetSummary, type CustomSelections } from "../notification-audio";
+import { customIdOf, customOptionValue } from "../tone-option";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -56,6 +57,7 @@ export default function ToneSection({
 }: ToneSectionProps) {
   const levelId = `sm-level-${chime}`;
   const figureId = `sm-figure-${chime}`;
+  const customId = customSelections[chime];
   return (
     <section className="sm-tone" aria-labelledby={`sm-name-${chime}`}>
       <div className="sm-tone-head">
@@ -141,10 +143,11 @@ export default function ToneSection({
         <select
           id={figureId}
           className="sm-select"
-          value={customSelections[chime] ? `custom:${customSelections[chime]}` : tone.figure}
+          value={customId ? customOptionValue(customId) : tone.figure}
           onChange={e => {
             const value = e.target.value;
-            if (value.startsWith("custom:")) onCustomSelected(chime, value.slice(7));
+            const chosen = customIdOf(value);
+            if (chosen !== null) onCustomSelected(chime, chosen);
             else { onBuiltInSelected(chime); onFigure(chime, value); }
           }}
         >
@@ -154,7 +157,7 @@ export default function ToneSection({
           {customAssets.length > 0 && (
             <optgroup label="Custom">
               {customAssets.map(asset => (
-                <option key={asset.id} value={`custom:${asset.id}`}>{asset.name}</option>
+                <option key={asset.id} value={customOptionValue(asset.id)}>{asset.name}</option>
               ))}
             </optgroup>
           )}

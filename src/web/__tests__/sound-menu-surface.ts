@@ -23,6 +23,7 @@ export const SOUND_MENU_FILES = [
   "components/ToneSection.tsx",
   "components/CustomSoundsSection.tsx",
   "use-clip-recorder.ts",
+  "tone-option.ts",
 ] as const;
 
 let joined: string | null = null;
