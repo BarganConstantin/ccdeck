@@ -24,8 +24,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   celsiusFromMilli, gpuFromIoreg, pickThermalRows, readHwmon, readThermal,
-  parseWinThermal, readThermalZones, sampleThermal, stopSystemMetrics, throttleFromPmset,
-} from "../../server/system-metrics.mjs";
+  parseWinThermal, readThermalZones, throttleFromPmset,
+} from "../../server/thermal-metrics.mjs";
+import { sampleThermal, stopSystemMetrics } from "../../server/system-metrics.mjs";
 import { thermalTone, throttleRow } from "../components/MachinePanel";
 
 describe("millidegrees, which is the unit every Linux sensor speaks", () => {

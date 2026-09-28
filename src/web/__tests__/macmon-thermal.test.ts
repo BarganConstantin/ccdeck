@@ -33,7 +33,7 @@ const {
   macmonAsset, bootstrapMacmon, resetMacmonFetch, MACMON_CANDIDATES,
 } = await import("../../server/macmon.mjs");
 // @ts-expect-error — ditto
-const { darwinThermal } = await import("../../server/system-metrics.mjs");
+const { darwinThermal } = await import("../../server/thermal-metrics.mjs");
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-macmon-"));
 afterAll(() => { rmTempDir(DIR); });
