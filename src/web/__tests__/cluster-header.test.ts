@@ -22,15 +22,14 @@
 //
 // Pure functions only, like the rest of this suite: no DOM, no layout engine.
 import { describe, it, expect } from "vitest";
+import { clusterBounds, type ClusterNode } from "../components/SessionClusters";
 import {
-  clusterBounds,
   clusterHeader,
   truncateName,
   NAME_COLUMNS,
   SEP,
   type ClusterHeader,
-  type ClusterNode,
-} from "../components/SessionClusters";
+} from "../cluster-header";
 import type { AgentNodeData } from "../types";
 
 /** The header as it reads on screen, minus the sheet's uppercasing. */
@@ -199,7 +198,7 @@ describe("the header reads the name off the session root", () => {
 });
 
 // The workspace is the one field on the header that had no ceiling. The note in
-// SessionClusters records a measured 21.2px overhang for a long basename and
+// cluster-header.ts records a measured 21.2px overhang for a long basename and
 // treats it as tolerable — which it is, for the basenames on one machine. It is
 // not a bound: a checkout under a long directory can cross the 240px gutter
 // layout.ts leaves between session columns, which is the exact failure the

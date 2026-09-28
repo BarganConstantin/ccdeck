@@ -28,14 +28,8 @@
 // checked in a browser against the built bundle, not here.
 import { describe, it, expect } from "vitest";
 import { sessionDisplay } from "../session-display";
-import {
-  clusterBounds,
-  clusterHeader,
-  truncateName,
-  NAME_COLUMNS,
-  SEP,
-  type ClusterNode,
-} from "../components/SessionClusters";
+import { clusterBounds, type ClusterNode } from "../components/SessionClusters";
+import { clusterHeader, truncateName, NAME_COLUMNS, SEP } from "../cluster-header";
 import { applyEvent, initialState } from "../reducer";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
 
