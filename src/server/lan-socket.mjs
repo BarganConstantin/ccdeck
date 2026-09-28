@@ -842,7 +842,7 @@ export function createSyncServer({
           peerPub = them.pub;
           // THROUGH cleanName, like the beacon and the invite. This path — the
           // handshake — was the one that skipped it, and it is the one that
-          // feeds the pairing prompt and cfg.trusted, which index.mjs writes to
+          // feeds the pairing prompt and cfg.trusted, which lan-deck.mjs writes to
           // prefs.json. So the only bound on the name an operator reads before
           // pressing Accept was the 128 KB frame cap.
           //

@@ -844,7 +844,7 @@ export function createEngine({
       // dial list. The next round reached it, arrived here with no pin, and
       // read "no pin" as "somebody typed this". Nobody typed anything. One
       // unsolicited packet, zero presses, and the far end was in `cfg.trusted`
-      // — which index.mjs writes to prefs.json, and which is the whole inbound
+      // — which lan-deck.mjs writes to prefs.json, and which is the whole inbound
       // gate — so from then on it could authenticate to `serve` and ask for
       // every account the owner had ticked. Reproduced end to end before this
       // line changed.
