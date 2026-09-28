@@ -497,7 +497,10 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("is one key from a selection, since a plain click shuts the panel it lives in", () => {
-    expect(app).toMatch(/if \(e\.key === "Delete"\) removeSelectedRef\.current\(\);/);
+    // The key is answered in use-deck-shortcuts.ts, through the ref App.tsx hands it.
+    const keys = readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
+    expect(keys).toMatch(/if \(e\.key === "Delete"\) removeSelectedRef\.current\(\);/);
+    expect(app).toMatch(/useDeckShortcuts\(\{[\s\S]*?\bremoveSelectedRef\b[\s\S]*?\}\);/);
     // The mirror is `useMirroredRef` now — the keydown handler outlives the
     // render that registered it, so it has to read the current callback.
     expect(app).toMatch(/const removeSelectedRef = useMirroredRef\(removeSelectedNode\);/);

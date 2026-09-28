@@ -24,7 +24,8 @@ import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
 import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts");
 const soundMenu = read("../components/SoundMenu.tsx");
 const watchModal = read("../components/BrowserWatchModal.tsx");
 const css = read("../styles.css");

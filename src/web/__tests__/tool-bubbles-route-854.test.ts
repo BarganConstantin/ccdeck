@@ -20,7 +20,8 @@ const code = (src: string) => src
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 const bursts = code(read("../components/ToolBursts.tsx"));
-const app = code(read("../App.tsx"));
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = code(read("../App.tsx")) + "\n" + code(read("../use-deck-shortcuts.ts"));
 const shortcuts = read("../shortcuts.ts");
 
 describe("the bubbles stay decoration, and the keyboard has its own way in (#854)", () => {

@@ -61,7 +61,8 @@ function markup(...path: string[]): string {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
-const app = markup("App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts");
 const usagePanel = markup("components", "UsagePanel.tsx");
 const accountsPanel = markup("components", "AccountsPanel.tsx");
 const sessionList = markup("components", "SessionList.tsx");

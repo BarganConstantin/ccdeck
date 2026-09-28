@@ -44,7 +44,8 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const dir = `${web}components`;
 const read = (f: string) => readFileSync(`${dir}/${f}`, "utf8");
 const hook = read("use-modal-dismiss.ts");
-const app = readFileSync(`${web}App.tsx`, "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = readFileSync(`${web}App.tsx`, "utf8") + "\n" + readFileSync(`${web}use-deck-shortcuts.ts`, "utf8");
 
 /** The same source with its comments gone, for the assertions that say a
  *  pattern appears NOWHERE. The prose in this repo quotes the markup and the

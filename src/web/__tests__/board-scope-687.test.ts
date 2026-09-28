@@ -302,7 +302,8 @@ const sources: Array<[string, string]> = clientSources(web)
   .map(p => [p.slice(web.length).replaceAll("\\", "/"), readFileSync(p, "utf8")]);
 
 const boardUsage = read("board-usage.ts");
-const app = code(read("App.tsx"));
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = code(read("App.tsx")) + "\n" + code(read("use-deck-shortcuts.ts"));
 const panel = code(read("components/UsagePanel.tsx"));
 const sessionList = code(read("components/SessionList.tsx"));
 const sessionSummary = code(read("components/SessionSummary.tsx"));
