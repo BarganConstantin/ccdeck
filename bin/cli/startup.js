@@ -382,7 +382,7 @@ export function reportUnknownFlags(unknown) {
   for (const token of unknown) {
     write(row({
       mark: G.warn, tone: P.warn, label: "unknown option",
-      detail: `${token} ${G.dash} see \`${PRODUCT} --help\``,
+      detail: `${token} ${G.dash} see \`${INVOKED_AS ?? PRODUCT} --help\``,
     }));
   }
 }

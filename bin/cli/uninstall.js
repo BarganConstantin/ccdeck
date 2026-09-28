@@ -161,7 +161,7 @@ export async function uninstall(flags) {
   // The remedy last and once, after every symptom above it, rather than once
   // per refusal in the middle of the list.
   if (named.size > 0) {
-    console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${PRODUCT} --uninstall\` again.`);
+    console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${INVOKED_AS ?? PRODUCT} --uninstall\` again.`);
   }
   // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
   // CI step that runs this stops on the failure instead of continuing past it.
