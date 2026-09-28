@@ -27,8 +27,6 @@
 // is running, so a deck that was closed all weekend still answers Monday's
 // question completely — which is why there is no process to keep alive and no
 // gap to apologise for.
-import { statSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { msToChromeTime, readVisitsSince } from "./browser-history.mjs";
 import { toEpisodes, defaultExclusions } from "./agent-activity.mjs";
@@ -37,7 +35,11 @@ import { episodeKey, mergeEpisodes, readStore, undismissed, updateStore, writeSt
 import { appendLog, logPath, logSize } from "./browser-watch-log.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
-import { RELAY_HOST, hostsPath, readKillswitch, extensionReport, killswitchCommand, verdict } from "./relay-guard.mjs";
+import { RELAY_HOST } from "./relay-guard.mjs";
+// The stamp the History cache below is keyed on, shared with the relay report.
+import { mtimeMs } from "./browser-watch-mtime.mjs";
+// What relay-guard can say about this machine, and the two reads it needs.
+import { relayGuard } from "./browser-watch-relay.mjs";
 // Which decks are here: whose tabs are the deck's own, and which one writes.
 import { isReactingDeck } from "./browser-watch-decks.mjs";
 export { deckOwnOrigins, registeredDeckPorts } from "./browser-watch-decks.mjs";
@@ -98,114 +100,6 @@ const _floor = new Map();
  *  entry. Module-level because a snapshot is a request and the point is to
  *  survive between them. */
 const cache = new Map();
-
-/** The file's modification time in ms, or null when it is not there at all —
- *  an uninstalled browser, a profile that has never been opened, a home
- *  directory on a volume that is not mounted. Never throws: one unreadable
- *  profile must not take the other browsers' answers down with it. */
-function mtimeMs(file, deps) {
-  try { return (deps.statSync ?? statSync)(file).mtimeMs; } catch { return null; }
-}
-
-/** Secure Preferences reports, keyed on the file and its mtime — see
- *  `relayGuard` for why this one needs a cache more than the History read
- *  does. */
-const extCache = new Map();
-
-/**
- * What relay-guard can say about this machine, from two reads it does not do
- * itself.
- *
- * THE MODULE WAS BUILT AND NEVER PLUGGED IN (#799). Every export but
- * `RELAY_HOST` greped to its own declaration and its test, so the header's
- * promise — "the one command that closes it … hands back the command that would
- * change it, as text, for the user to paste" — reached no surface. A reader
- * auditing this repo's security posture would have believed the killswitch and
- * the grant report ship. This is that promise kept: the panel now renders both.
- *
- * relay-guard imports node:path and nothing else, on purpose, so the reading is
- * here. Two sources:
- *
- *   THE HOSTS FILE, once. Small, and the same file for every profile.
- *
- *   EACH PROFILE'S "Secure Preferences", only where `hasExtension` already said
- *   the directory is there. This one is why there is a cache: it is a single
- *   JSON document holding every extension's settings and it runs to megabytes
- *   on a profile with a few installed, while the panel polls every ten seconds.
- *   Keyed on mtime like the History cache above, and for the same reason — a
- *   browser that is closed cannot invalidate it.
- *
- * A read that fails is not a report of "nothing installed": `null` for that
- * profile, and the aggregate says so. The difference matters here more than
- * anywhere else in this file, because the reassuring answer and the unreadable
- * answer are the same shape.
- */
-async function relayGuard(profiles, { platform, env, deps }) {
-  const readOne = async (file) => {
-    const stamp = mtimeMs(file, deps);
-    if (stamp === null) return null;
-    const hit = extCache.get(file);
-    if (hit && hit.stamp === stamp) return hit.report;
-    let report = null;
-    try {
-      report = extensionReport(JSON.parse(await (deps.readFile ?? readFile)(file, "utf8")));
-    } catch {
-      // Unreadable or not JSON — a profile being written as we looked, a
-      // hardened profile we cannot open. Not cached, so the next poll retries.
-      return null;
-    }
-    extCache.set(file, { stamp, report });
-    return report;
-  };
-
-  const seen = [];
-  for (const profile of profiles) {
-    // `hasClaudeExt` is an existsSync on `Extensions/<id>` and is already
-    // computed; it cannot see `enabled`, `allUrls` or `sensitiveApis`, which is
-    // the whole reason this reads the preferences at all. But it is a free way
-    // to skip every profile that has no extension to report on.
-    if (!profile.hasClaudeExt) continue;
-    const report = await readOne(profile.securePrefsPath);
-    seen.push({
-      browser: profile.browser,
-      name: profile.name,
-      profile: profile.profile,
-      // Null when the file could not be read, which the panel says out loud
-      // rather than rendering as an absence of permissions.
-      report,
-    });
-  }
-
-  let hostsText = null;
-  const hosts = (deps.hostsPath ?? hostsPath)(platform, env);
-  try { hostsText = await (deps.readFile ?? readFile)(hosts, "utf8"); } catch { /* no file, or no permission to read it */ }
-  const killswitch = readKillswitch(hostsText);
-
-  // ONE ENABLED COPY ANYWHERE IS ENOUGH, which is `verdict`'s own rule: the
-  // relay is registered per ANTHROPIC ACCOUNT, not per profile, so a second
-  // profile with the extension switched off protects nothing.
-  const anyExtension = seen.some(p => p.report?.present === true && p.report.enabled === true);
-
-  return {
-    relayHost: RELAY_HOST,
-    hostsPath: hosts,
-    // Whether the hosts file could be read at all. `blocked: false` from an
-    // unreadable file and `blocked: false` from a file with no entry are the
-    // same value and not the same fact.
-    hostsRead: typeof hostsText === "string",
-    profiles: seen,
-    anyExtension,
-    killswitch,
-    verdict: verdict({ anyExtension, blocked: killswitch.blocked }),
-    // Both, always, so the panel can offer the one that matches the state
-    // without having to know how either is spelled. Text only — nothing here
-    // runs it, and relay-guard could not if it tried.
-    command: {
-      block: killswitchCommand(platform, { on: true }),
-      unblock: killswitchCommand(platform, { on: false }),
-    },
-  };
-}
 
 /**
  * Visits for one profile, re-reading only when the browser has written since
@@ -445,6 +339,253 @@ function changedFrom(before, after) {
 }
 
 /**
+ * The feed's line for one read of one profile, and the running count its delta
+ * is taken against.
+ *
+ * One function because it is one rule: the delta is computed against the same
+ * map it then writes, so the deltas the feed shows add up to the total the
+ * overview shows (#989). A degraded read says why, a cached one — the file has
+ * not moved — says nothing at all, and a real read says what it added, if it
+ * added anything. `key` is the profile's browser/profile, the key `_lastCount`
+ * and `_lastRead` are kept under.
+ */
+function noteRead(profile, key, read, findings, now) {
+  const where = `${profile.name}/${profile.profile}`;
+  if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
+  // A poll that found the file unchanged says nothing at all.
+  else if (read.cached) { /* silent */ }
+  else {
+    // `, 0 flagged` on every line is what made them all look alike: the
+    // count that matters is the one that is not zero, and printing the zero
+    // beside it buried the difference. Absence is the message.
+    // THE DELTA, NOT THE RUNNING TOTAL. `n` is every visit since this deck
+    // started, so re-reporting it made the feed a counter dressed as a log:
+    // "2 visits", "4 visits", "7 visits" are not three events of those
+    // sizes, they are one number growing. Each row is now a discrete fact —
+    // what this browser added since the last time the file moved — which is
+    // what a log line is supposed to be.
+    //
+    // And a read that added nothing says nothing. Chrome touches this file
+    // for reasons of its own, so an mtime that moved is not proof that
+    // anything happened; only a row count that grew is.
+    //
+    // THE COUNT, NOT THE ROWS, SINCE #989. The rows were the running total
+    // while every read began at the deck's start. Now they are only what is
+    // newer than the last read, and a cleared history returns none of them —
+    // the same answer a quiet minute gives — so the fall below could never
+    // be seen. `read.total` is the running total again, counted above the
+    // deck's start from the same copy. With no count to go on (a sqlite3 that
+    // printed it some other way) the rows are what is known to have been
+    // added, and that is never mistaken for a fall.
+    const n = read.total ?? (_lastCount.get(key) ?? 0) + read.rows.length;
+    const added = n - (_lastCount.get(key) ?? 0);
+    _lastCount.set(key, n);
+    if (added < 0) {
+      // THE COUNT WENT DOWN, which within one deck's run means one thing:
+      // the browsing history was truncated or cleared. Swallowing it broke
+      // the panel's own arithmetic — the deltas in the feed would no longer
+      // telescope to the total in the overview — and it hid the exact event
+      // this watch is built around. Whoever can drive this browser can clear
+      // its history with the same button the user has, and that is the one
+      // action that destroys the evidence.
+      note("warn",
+           `${where} — history shrank by ${(-added).toLocaleString("en-US")}; it was cleared or trimmed`, now,
+           {
+             browser: profile.name,
+             profile: profile.profile,
+             value: `${added.toLocaleString("en-US")} entries`,
+             flagged: 0,
+           });
+    } else if (added > 0 || findings.length > 0) {
+      const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
+      note(findings.length > 0 ? "find" : "ok",
+           `${where} — ${added.toLocaleString("en-US")} new entr${added === 1 ? "y" : "ies"}${found}`, now,
+           {
+             browser: profile.name,
+             profile: profile.profile,
+             // `+` because the whole point of the change was that this is a
+             // DELTA and not a total, and a bare number in a column of
+             // numbers reads as a quantity of something rather than as
+             // growth. The noun matches the overview's caption above it.
+             value: `+${added.toLocaleString("en-US")} ${added === 1 ? "entry" : "entries"}`,
+             flagged: findings.length,
+           });
+    }
+  }
+}
+
+/**
+ * Write down what this poll found that the archive did not have, and react to
+ * it: the elected deck's half of a poll, taken only when the archive changed.
+ *
+ * Only the deck isReactingDeck elects gets here, so an episode is written and
+ * reacted to once however many decks are open — the others still show it,
+ * because reading the store is free. `live` is this poll's episodes and `kept`
+ * the archive with them merged in.
+ */
+async function recordAndReact(store, kept, live, { platform, now, deps }) {
+  // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
+  // grown, so writing the whole set every time would repeat one episode once
+  // per page it gained. "The same episode" is the store's own key, the one
+  // the merge and the dismissals use, rather than a spelling of its own.
+  const known = new Set(store.episodes.map(e => episodeKey(e.host, e.startMs)));
+  // Already-dismissed episodes are not fresh news: the reader has seen them
+  // and said so, and notifying about one again is the panel arguing.
+  const fresh = undismissed(kept.filter(e => !known.has(episodeKey(e.host, e.startMs))), store.dismissed);
+  // Only when something actually arrived. "no new · 3 since this deck
+  // started" is the deck telling itself it wrote a file, which is not news.
+  if (fresh.length > 0) {
+    note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
+  }
+  // THE ARCHIVE IS OURS TO WRITE; THE OTHER TWO FIELDS ARE NOT. This poll
+  // takes about 400ms — a 21 MB History copy plus the sqlite read — and it
+  // used to write back the `dismissed` and `settings` it had read at the
+  // start, so a dismissal or a watch-off toggle made while it ran was
+  // reverted ten seconds later by the next poll. Re-merging inside the update
+  // keeps this poll's own answer and takes the other two from disk as
+  // they are at the moment of the write.
+  const merge = cur => ({
+    settings: cur.settings,
+    episodes: mergeEpisodes(cur.episodes, live, now),
+    dismissed: cur.dismissed,
+  });
+  if (deps.updateStore) await deps.updateStore(merge, undefined, deps);
+  else if (deps.writeStore) await deps.writeStore(merge(store), undefined, deps);
+  else await updateStore(merge, undefined, deps);
+  await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
+
+  // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not
+  // in the store a moment ago, so an episode still growing does not notify
+  // again on every page it gains — which is the difference between a watch
+  // and a nuisance.
+  //
+  // After the write, deliberately. A reaction that closed a tab and then lost
+  // the record of why would leave the user with a vanished page and nothing
+  // to read about it.
+  const reaction = store.settings.reaction;
+  if (fresh.length && performable(reaction, platform)) {
+    for (const episode of fresh) {
+      // A THROW IS NOT NOTHING. `catch(() => [])` turned a reaction that
+      // blew up into a reaction that had never been asked for, and the feed
+      // then said nothing at all about a finding the panel had promised to
+      // act on. The message goes in the line, because the one thing a reader
+      // needs when a reaction fails is which failure it was.
+      const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
+        .catch(err => [`reaction failed — ${err?.message ?? "unknown error"}`]);
+      // `could not` lines are the deck unable to do what it said it would,
+      // which is what `warn` is for; the rest is the reaction working.
+      for (const line of acted) {
+        note(/^(could not|reaction failed)/.test(line) ? "warn" : "find",
+             `${episode.host} — ${line}`, now);
+      }
+    }
+  }
+}
+
+/**
+ * What the panel can honestly claim to know about, which is not the window it
+ * asked for: a profile whose history only goes back a week cannot answer for
+ * the month, and saying so is the difference between "nothing happened" and
+ * "nothing was recorded".
+ *
+ * Both of the snapshot's answers carry it — the one that read the browsers and
+ * the archive-only one — so it is built here once rather than spelled twice.
+ * `why` is the archive-only answer's, and absent from the other.
+ */
+async function coverageOf({ oldestVisitMs, lastHumanMs, quietMs, archived, now, why, deps }) {
+  return {
+    // When this deck started, which is the only moment the watch looks
+    // forward from — the panel says so rather than leaving a reader to guess
+    // how far back it went.
+    startedMs: STARTED_MS,
+    oldestVisitMs,
+    lastHumanMs,
+    quietMs: quietMs ?? 15 * 60_000,
+    logPath: logPath(),
+    // What that file holds on disk, both generations, beside its name
+    // (#989). It was the one store in this feature with no cap, and the panel
+    // named it without ever saying how large it had grown.
+    logBytes: await (deps.logSize ?? logSize)(),
+    // When the deck last FINISHED a poll, and how many it has done. The
+    // panel's liveness reads from these; the heartbeat row that used to
+    // carry it is gone. Not `lastWrittenMs` — that is the History file's
+    // mtime, a fact about the browser rather than about the watch, and on an
+    // idle machine it grows forever while the watch keeps looking.
+    checkedMs: _checkedMs,
+    checks: _checks,
+    // How many episodes this deck has seen since it started. Zero with the
+    // watch off is not a fault — it is the switch doing what it says — and the
+    // panel needs the number to be able to say which of the two it is.
+    archived,
+    now,
+    ...(why === undefined ? {} : { why }),
+  };
+}
+
+/**
+ * Read one profile, and fold what the read found into what the profile has
+ * contributed since the deck started.
+ *
+ * This is the half of a poll #989 and #1131 were about — where a read starts,
+ * whether it counts, and where the next one starts — so it lives apart from
+ * what the snapshot does with the answer. Resolves to the read (real, cached,
+ * degraded, or overtaken and demoted to cached), the browser/profile key the
+ * accumulators are kept under, and the accumulator itself, already folded.
+ */
+async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude }) {
+  // From where this profile's last read finished, or from the deck's start
+  // on its first. The count is always taken above the deck's start, which
+  // is what makes it the running total noteRead's delta comes out of.
+  const floor = _floor.get(profile.historyPath) ?? sinceChromeTime;
+  let read = await visitsFor(profile, { sinceChromeTime: floor, countSince: sinceChromeTime, copyDir, deps });
+  // A READ THAT ANOTHER READ OVERTOOK IS NOT ABSORBED (#1131). One read in
+  // flight at a time is `fetchBrowserWatch`'s rule, and a forced read slipping
+  // past it is what counted five program pages as seven. This is the same
+  // rule where the floor is read and moved, so it holds for every caller: if
+  // the floor is not where it was when this read took it, another read of
+  // this profile finished meanwhile and absorbed the rows above it, which are
+  // the rows this one holds. Such a read is dropped whole and moves nothing.
+  // Its cache entry goes too, so a visit only it had seen is read on the next
+  // poll rather than whenever the browser next writes.
+  //
+  // ON THE FLOOR, NOT ON A VISIT ID. Rows carry no id, and giving them one
+  // means a second column in both backends' SELECT and a set of ids that
+  // either grows with every visit since boot — the retention #989 took out —
+  // or is pruned with the window and misses a copy older than it, which the
+  // first read after an afternoon with the panel shut returns. A row's time
+  // cannot stand in for an id either: `timeMs` is truncated to the
+  // millisecond while the floor is in microseconds, so two visits in one
+  // millisecond compare equal and the later is dropped as a copy of the
+  // first. The floor is exact, being the value every row of the read was
+  // selected against.
+  if (!read.cached && !read.degraded && (_floor.get(profile.historyPath) ?? sinceChromeTime) !== floor) {
+    cache.delete(profile.historyPath);
+    read = { ...read, rows: [], cached: true };
+  }
+  const key = `${profile.browser}/${profile.profile}`;
+  // Everything this profile has contributed since the deck started. A read
+  // that says "unchanged", or that could not be taken, means "as before", not
+  // "nothing": the list must not empty itself because one poll found the file
+  // untouched or the browser holding a lock.
+  const seen = _lastRead.get(key) ?? nothingSeen();
+  const judge = { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser };
+  if (!read.cached && !read.degraded) {
+    // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
+    // nothing new hands its floor back as the watermark, so storing that
+    // changes nothing.
+    _floor.set(profile.historyPath, read.watermark);
+    absorb(seen, read.rows, judge);
+    _lastRead.set(key, seen);
+  } else {
+    // Nothing read, and the gate may still have changed since the open
+    // verdicts were judged: `?quiet=` overrides it per request and drops no
+    // cache. `absorb` does nothing unless it has.
+    absorb(seen, [], judge);
+  }
+  return { read, key, seen };
+}
+
+/**
  * Everything the panel draws, in one object.
  *
  * `deckOrigins` are the addresses this deck is listening on. They are excluded
@@ -515,21 +656,17 @@ export async function browserWatchSnapshot({
       // to say. The panel renders the difference.
       relay: null,
       episodes: archived,
-      coverage: {
-        startedMs: STARTED_MS,
+      coverage: await coverageOf({
         oldestVisitMs: null,
         lastHumanMs: null,
-        quietMs: quietMs ?? 15 * 60_000,
-        logPath: logPath(),
-        logBytes: await (deps.logSize ?? logSize)(),
-        checkedMs: _checkedMs,
-        checks: _checks,
+        quietMs,
         archived: archived.length,
         now,
+        deps,
         // Said rather than implied: a reader who wonders why the profile list
         // is empty gets the reason, in the same word the switch uses.
         why: "the watch is off, so no browser was read on this poll",
-      },
+      }),
       degraded: false,
     };
   }
@@ -565,120 +702,11 @@ export async function browserWatchSnapshot({
   let lastHuman = null;
 
   for (const profile of profiles) {
-    // From where this profile's last read finished, or from the deck's start
-    // on its first. The count is always taken above the deck's start, which
-    // is what makes it the running total the delta below comes out of.
-    const floor = _floor.get(profile.historyPath) ?? sinceChromeTime;
-    let read = await visitsFor(profile, { sinceChromeTime: floor, countSince: sinceChromeTime, copyDir, deps });
-    // A READ THAT ANOTHER READ OVERTOOK IS NOT ABSORBED (#1131). One read in
-    // flight at a time is `fetchBrowserWatch`'s rule, and a forced read slipping
-    // past it is what counted five program pages as seven. This is the same
-    // rule where the floor is read and moved, so it holds for every caller: if
-    // the floor is not where it was when this read took it, another read of
-    // this profile finished meanwhile and absorbed the rows above it, which are
-    // the rows this one holds. Such a read is dropped whole and moves nothing.
-    // Its cache entry goes too, so a visit only it had seen is read on the next
-    // poll rather than whenever the browser next writes.
-    //
-    // ON THE FLOOR, NOT ON A VISIT ID. Rows carry no id, and giving them one
-    // means a second column in both backends' SELECT and a set of ids that
-    // either grows with every visit since boot — the retention #989 took out —
-    // or is pruned with the window and misses a copy older than it, which the
-    // first read after an afternoon with the panel shut returns. A row's time
-    // cannot stand in for an id either: `timeMs` is truncated to the
-    // millisecond while the floor is in microseconds, so two visits in one
-    // millisecond compare equal and the later is dropped as a copy of the
-    // first. The floor is exact, being the value every row of the read was
-    // selected against.
-    if (!read.cached && !read.degraded && (_floor.get(profile.historyPath) ?? sinceChromeTime) !== floor) {
-      cache.delete(profile.historyPath);
-      read = { ...read, rows: [], cached: true };
-    }
+    const { read, key, seen } = await readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude });
     if (read.degraded) anyDegraded = true;
-    const key = `${profile.browser}/${profile.profile}`;
-    // Everything this profile has contributed since the deck started. A read
-    // that says "unchanged", or that could not be taken, means "as before", not
-    // "nothing": the list must not empty itself because one poll found the file
-    // untouched or the browser holding a lock.
-    const seen = _lastRead.get(key) ?? nothingSeen();
-    const judge = { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser };
-    if (!read.cached && !read.degraded) {
-      // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
-      // nothing new hands its floor back as the watermark, so storing that
-      // changes nothing.
-      _floor.set(profile.historyPath, read.watermark);
-      absorb(seen, read.rows, judge);
-      _lastRead.set(key, seen);
-    } else {
-      // Nothing read, and the gate may still have changed since the open
-      // verdicts were judged: `?quiet=` overrides it per request and drops no
-      // cache. `absorb` does nothing unless it has.
-      absorb(seen, [], judge);
-    }
     const findings = seen.settled.concat(seen.open);
     const { oldest, human, byProgram } = seen;
-    const where = `${profile.name}/${profile.profile}`;
-    if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
-    // A poll that found the file unchanged says nothing at all.
-    else if (read.cached) { /* silent */ }
-    else {
-      // `, 0 flagged` on every line is what made them all look alike: the
-      // count that matters is the one that is not zero, and printing the zero
-      // beside it buried the difference. Absence is the message.
-      // THE DELTA, NOT THE RUNNING TOTAL. `n` is every visit since this deck
-      // started, so re-reporting it made the feed a counter dressed as a log:
-      // "2 visits", "4 visits", "7 visits" are not three events of those
-      // sizes, they are one number growing. Each row is now a discrete fact —
-      // what this browser added since the last time the file moved — which is
-      // what a log line is supposed to be.
-      //
-      // And a read that added nothing says nothing. Chrome touches this file
-      // for reasons of its own, so an mtime that moved is not proof that
-      // anything happened; only a row count that grew is.
-      //
-      // THE COUNT, NOT THE ROWS, SINCE #989. The rows were the running total
-      // while every read began at the deck's start. Now they are only what is
-      // newer than the last read, and a cleared history returns none of them —
-      // the same answer a quiet minute gives — so the fall below could never
-      // be seen. `read.total` is the running total again, counted above the
-      // deck's start from the same copy. With no count to go on (a sqlite3 that
-      // printed it some other way) the rows are what is known to have been
-      // added, and that is never mistaken for a fall.
-      const n = read.total ?? (_lastCount.get(key) ?? 0) + read.rows.length;
-      const added = n - (_lastCount.get(key) ?? 0);
-      _lastCount.set(key, n);
-      if (added < 0) {
-        // THE COUNT WENT DOWN, which within one deck's run means one thing:
-        // the browsing history was truncated or cleared. Swallowing it broke
-        // the panel's own arithmetic — the deltas in the feed would no longer
-        // telescope to the total in the overview — and it hid the exact event
-        // this watch is built around. Whoever can drive this browser can clear
-        // its history with the same button the user has, and that is the one
-        // action that destroys the evidence.
-        note("warn",
-             `${where} — history shrank by ${(-added).toLocaleString("en-US")}; it was cleared or trimmed`, now,
-             {
-               browser: profile.name,
-               profile: profile.profile,
-               value: `${added.toLocaleString("en-US")} entries`,
-               flagged: 0,
-             });
-      } else if (added > 0 || findings.length > 0) {
-        const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
-        note(findings.length > 0 ? "find" : "ok",
-             `${where} — ${added.toLocaleString("en-US")} new entr${added === 1 ? "y" : "ies"}${found}`, now,
-             {
-               browser: profile.name,
-               profile: profile.profile,
-               // `+` because the whole point of the change was that this is a
-               // DELTA and not a total, and a bare number in a column of
-               // numbers reads as a quantity of something rather than as
-               // growth. The noun matches the overview's caption above it.
-               value: `+${added.toLocaleString("en-US")} ${added === 1 ? "entry" : "entries"}`,
-               flagged: findings.length,
-             });
-      }
-    }
+    noteRead(profile, key, read, findings, now);
     allFindings = allFindings.concat(findings);
     if (oldest !== null && (oldestSeen === null || oldest < oldestSeen)) oldestSeen = oldest;
     if (human !== null && (lastHuman === null || human > lastHuman)) lastHuman = human;
@@ -731,64 +759,7 @@ export async function browserWatchSnapshot({
   // reading the store is free and a second panel that went blank would be a
   // worse bug than the one this prevents.
   const acting = enabled ? await isReactingDeck(deps) : false;
-  if (acting && changedFrom(store.episodes, kept)) {
-    // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
-    // grown, so writing the whole set every time would repeat one episode once
-    // per page it gained. "The same episode" is the store's own key, the one
-    // the merge and the dismissals use, rather than a spelling of its own.
-    const known = new Set(store.episodes.map(e => episodeKey(e.host, e.startMs)));
-    // Already-dismissed episodes are not fresh news: the reader has seen them
-    // and said so, and notifying about one again is the panel arguing.
-    const fresh = undismissed(kept.filter(e => !known.has(episodeKey(e.host, e.startMs))), store.dismissed);
-    // Only when something actually arrived. "no new · 3 since this deck
-    // started" is the deck telling itself it wrote a file, which is not news.
-    if (fresh.length > 0) {
-      note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
-    }
-    // THE ARCHIVE IS OURS TO WRITE; THE OTHER TWO FIELDS ARE NOT. This poll
-    // takes about 400ms — a 21 MB History copy plus the sqlite read — and it
-    // used to write back the `dismissed` and `settings` it had read at the
-    // start, so a dismissal or a watch-off toggle made while it ran was
-    // reverted ten seconds later by the next poll. Re-merging inside the update
-    // keeps this function's own answer and takes the other two from disk as
-    // they are at the moment of the write.
-    const merge = cur => ({
-      settings: cur.settings,
-      episodes: mergeEpisodes(cur.episodes, live, now),
-      dismissed: cur.dismissed,
-    });
-    if (deps.updateStore) await deps.updateStore(merge, undefined, deps);
-    else if (deps.writeStore) await deps.writeStore(merge(store), undefined, deps);
-    else await updateStore(merge, undefined, deps);
-    await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
-
-    // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not
-    // in the store a moment ago, so an episode still growing does not notify
-    // again on every page it gains — which is the difference between a watch
-    // and a nuisance.
-    //
-    // After the write, deliberately. A reaction that closed a tab and then lost
-    // the record of why would leave the user with a vanished page and nothing
-    // to read about it.
-    const reaction = store.settings.reaction;
-    if (fresh.length && performable(reaction, platform)) {
-      for (const episode of fresh) {
-        // A THROW IS NOT NOTHING. `catch(() => [])` turned a reaction that
-        // blew up into a reaction that had never been asked for, and the feed
-        // then said nothing at all about a finding the panel had promised to
-        // act on. The message goes in the line, because the one thing a reader
-        // needs when a reaction fails is which failure it was.
-        const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
-          .catch(err => [`reaction failed — ${err?.message ?? "unknown error"}`]);
-        // `could not` lines are the deck unable to do what it said it would,
-        // which is what `warn` is for; the rest is the reaction working.
-        for (const line of acted) {
-          note(/^(could not|reaction failed)/.test(line) ? "warn" : "find",
-               `${episode.host} — ${line}`, now);
-        }
-      }
-    }
-  }
+  if (acting && changedFrom(store.episodes, kept)) await recordAndReact(store, kept, live, { platform, now, deps });
   // FILTERED ON BOTH PATHS, because the panel builds episodes from the
   // browser's own history on every poll: dropping only the archived copy would
   // be undone within ten seconds by the next read of the same visits.
@@ -815,38 +786,16 @@ export async function browserWatchSnapshot({
     profiles: reports,
     browsers,
     episodes,
-    coverage: {
-      // What the panel can honestly claim to know about, which is not the
-      // window it asked for: a profile whose history only goes back a week
-      // cannot answer for the month, and saying so is the difference between
-      // "nothing happened" and "nothing was recorded".
-      // When this deck started, which is the only moment the watch looks
-      // forward from — the panel says so rather than leaving a reader to guess
-      // how far back it went.
-      startedMs: sinceMs,
+    coverage: await coverageOf({
       oldestVisitMs: oldestSeen,
       // Null when nobody has browsed since the deck started, which is itself
       // the answer: the gate is already open.
       lastHumanMs: lastHuman,
-      quietMs: quietMs ?? 15 * 60_000,
-      logPath: logPath(),
-      // What that file holds on disk, both generations, beside its name
-      // (#989). It was the one store in this feature with no cap, and the panel
-      // named it without ever saying how large it had grown.
-      logBytes: await (deps.logSize ?? logSize)(),
-      // When the deck last FINISHED a poll, and how many it has done. The
-      // panel's liveness reads from these; the heartbeat row that used to
-      // carry it is gone. Not `lastWrittenMs` — that is the History file's
-      // mtime, a fact about the browser rather than about the watch, and on an
-      // idle machine it grows forever while the watch keeps looking.
-      checkedMs: _checkedMs,
-      checks: _checks,
-      // How many episodes this deck has seen since it started. Zero with the
-      // watch off is not a fault — it is the switch doing what it says — and the
-      // panel needs the number to be able to say which of the two it is.
+      quietMs,
       archived: undismissed(kept, store.dismissed).length,
       now,
-    },
+      deps,
+    }),
     degraded: anyDegraded,
   };
 }

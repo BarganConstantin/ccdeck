@@ -30,7 +30,8 @@ const DIR = mkdtempSync(join(tmpdir(), "ccdeck-relay-wired-"));
 afterAll(() => rmTempDir(DIR));
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const watch = read("../../server/browser-watch.mjs");
+// The reading relay-guard refuses to do, lifted out of browser-watch.mjs.
+const relayRead = read("../../server/browser-watch-relay.mjs");
 // The dialog and what was lifted out of it — the section itself is
 // components/RemoteControl.tsx — so the negatives below still see the section.
 const modal = browserWatchSurface();
@@ -173,16 +174,18 @@ describe("the snapshot carries what relay-guard can say", () => {
 
   it("caches the preferences read on mtime, because that file is megabytes", async () => {
     // The panel polls every ten seconds and Secure Preferences holds every
-    // extension's settings. Keyed the way the History cache above it is.
-    expect(watch).toContain("const extCache = new Map();");
-    expect(watch).toContain("if (hit && hit.stamp === stamp) return hit.report;");
+    // extension's settings. Keyed the way the History cache in
+    // browser-watch.mjs is, on the one stamp both import.
+    expect(relayRead).toContain("const extCache = new Map();");
+    expect(relayRead).toContain("if (hit && hit.stamp === stamp) return hit.report;");
+    expect(relayRead).toContain('import { mtimeMs } from "./browser-watch-mtime.mjs";');
     // And a failed read is not cached, so the next poll retries rather than
     // holding "could not read" for the life of the process.
-    expect(watch).toMatch(/catch \{[\s\S]{0,300}?return null;\s*\n\s*\}\s*\n\s*extCache\.set/);
+    expect(relayRead).toMatch(/catch \{[\s\S]{0,300}?return null;\s*\n\s*\}\s*\n\s*extCache\.set/);
   });
 
   it("skips every profile hasExtension already ruled out", async () => {
-    expect(watch).toContain("if (!profile.hasClaudeExt) continue;");
+    expect(relayRead).toContain("if (!profile.hasClaudeExt) continue;");
   });
 });
 
@@ -211,9 +214,9 @@ describe("the panel renders it", () => {
 describe("what wiring it up must not have changed", () => {
   it("leaves relay-guard unable to run or write anything", () => {
     // The module's own header, and relay-guard.test.ts pins it by reading the
-    // source. The reading lives in browser-watch.mjs precisely so this stays
-    // true — which is also why browser-profiles.mjs imports the extension id
-    // FROM relay-guard and not the other way round (#798).
+    // source. The reading lives in browser-watch-relay.mjs precisely so this
+    // stays true — which is also why browser-profiles.mjs imports the
+    // extension id FROM relay-guard and not the other way round (#798).
     const src = read("../../server/relay-guard.mjs");
     const imports = [...src.matchAll(/^import .*? from "([^"]+)";$/gm)].map(m => m[1]);
     expect(imports).toEqual(["node:path"]);
