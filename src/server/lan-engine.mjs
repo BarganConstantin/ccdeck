@@ -33,12 +33,13 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  accountKey, addTrusted, credentialAad, dropTrusted, identityFrom, open, pairable, peerWhy, plan, seal,
-  SENDER_UNREADABLE, slotFor, stillListed, transferChallenge, trustedPeer,
+  addTrusted, credentialAad, dropTrusted, identityFrom, open, pairable, peerWhy, plan, seal, slotFor,
+  stillListed, transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
-import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
+import { liveLoginIs } from "./account-health.mjs";
+import { syncAccounts } from "./lan-accounts.mjs";
 import { createBeacon } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { createTurns } from "./lan-turns.mjs";
@@ -485,26 +486,10 @@ export function createEngine({
     tailnet, beaconNow: () => beacon, wanted: () => cfg.enabled && cfg.tailscale,
   });
 
-  /** This deck's accounts in the shape the rules want. Read through the same
-   *  function the panel uses, so a row can never be alive here and dead there. */
-  const localAccounts = async () => {
-    const got = await readAccounts();
-    return (got?.accounts ?? []).map(a => ({
-      key: accountKey(a.email, a.orgUuid),
-      email: a.email,
-      org: a.orgUuid,
-      alive: storedCopyAlive(a.alive, a.collector),
-      // False only for a login the wiring knows this process cannot read (a
-      // Mac whose Keychain will not open from here). Absent means readable,
-      // which is every deck that does not say.
-      readable: a.readable !== false && cachedExportReadable(a.collector, { active: a.active === true }),
-      unreadableWhy: a.readable === false || a.collector === "keychain_unavailable"
-        ? SENDER_UNREADABLE : "export failed",
-      num: a.num,
-      // The one this deck is on — claude-swap's own answer, one at most.
-      active: a.active === true,
-    }));
-  };
+  /** This deck's accounts in the shape the rules want — see lan-accounts.mjs.
+   *  Read through the same function the panel uses, so a row can never be alive
+   *  here and dead there. */
+  const localAccounts = async () => syncAccounts(await readAccounts());
 
   /** This deck's side of the manifest exchange: the frame it sends, what it
    *  keeps of the one it hears — a paired deck's card and the logins it offers,
