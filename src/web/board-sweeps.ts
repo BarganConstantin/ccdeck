@@ -6,7 +6,7 @@
 // Each one mutates the state in place and answers whether anything changed,
 // through `bump`, so a sweep that changed something is also one every memo can
 // see.
-import { rootAgentId, toolKey, type GraphState } from "./graph-state";
+import { rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-state";
 import { DROPPED_OUTCOME_PREVIEW, releaseToolIds } from "./tool-calls";
 import type { AgentNodeData } from "./types";
 
@@ -213,8 +213,12 @@ export function pruneDoneSessions(
       if (a) releaseToolIds(state, a);
       state.agents.delete(id);
     }
+    // A model still waiting for its subagent's Start goes with the session: it
+    // is filed under that subagent's id, and every one of those starts with
+    // the session's own prefix.
+    const subPrefix = subagentIdFor(sid, "");
     for (const id of state.pendingSubagentModels.keys()) {
-      if (id.startsWith(`${sid}::`)) state.pendingSubagentModels.delete(id);
+      if (id.startsWith(subPrefix)) state.pendingSubagentModels.delete(id);
     }
     // Whole, so there is nothing left to check: the page has forgotten this
     // session and the server has to be told. See `ForgetSession`.

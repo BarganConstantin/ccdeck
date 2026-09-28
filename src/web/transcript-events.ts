@@ -9,7 +9,7 @@
 // hands them here before it attributes anything. `stampSessionFacts` lives here
 // for the same reason: the facts Codex restates ride on whatever payload it
 // sends, two of them on these scans.
-import { rootAgentId, type GraphState } from "./graph-state";
+import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { usageByModelFromWire, usageFromWire } from "./usage-wire";
 import type { ContextBreakdown, HookPayload } from "./types";
 
@@ -120,7 +120,7 @@ export function applyModelObserved(state: GraphState, p: HookPayload, sessionId:
   if (subs && typeof subs === "object") {
     for (const [parentToolUseId, subModel] of Object.entries(subs)) {
       if (typeof subModel !== "string") continue;
-      const subId = `${sessionId}::${parentToolUseId}`;
+      const subId = subagentIdFor(sessionId, parentToolUseId);
       const sub = state.agents.get(subId);
       if (sub) {
         sub.model = subModel;
