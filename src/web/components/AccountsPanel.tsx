@@ -26,28 +26,16 @@ import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
 import { activeSwitchNote } from "../active-switch-note";
 import { accountIssue } from "../account-issue";
-import {
-  type Failure,
-  RELOAD_SLOW,
-  RELOAD_UNREACHABLE,
-  answered,
-  explainReload,
-  nextFailure,
-} from "../accounts-reload";
 import LanSyncSection from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
-import { type Account, type AccountsData, type AutoStatus } from "../claude-accounts";
+import { POLL_MS, useAccountRoster } from "../use-account-roster";
+import { type Account, type AccountsData } from "../claude-accounts";
 
-const POLL_MS = 15_000;
 // How long the threshold's `save` stands as `saved`. The panel's other
 // transient confirmation — `copied` on a share — uses the same 1.8s, and the
 // word is the whole signal.
 const SAVED_MS = 1_800;
-// Past this, a reload is called dead rather than slow. Both routes can spawn
-// cswap, and the server kills those at 20 seconds, so anything shorter would
-// abort answers that were still coming.
-const RELOAD_TIMEOUT_MS = 30_000;
 
 interface Props {
   onClose: () => void;
@@ -57,13 +45,9 @@ interface Props {
 }
 
 export default function AccountsPanel({ onClose, leaving }: Props) {
-  const [data, setData] = useState<AccountsData | null>(null);
-  const [auto, setAuto] = useState<AutoStatus | null>(null);
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
   const { busy, claim, release, pressProps } = useRequestSlot();
-  const [reloading, setReloading] = useState(false);
-  const [failure, setFailure] = useState<Failure | null>(null);
   /** The account a switch from this panel just landed on (#827), said on its
    *  own row until the next switch or until it stops being the active one. The
    *  `active` chip moving rows used to be the only answer, and a screen reader
@@ -86,7 +70,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
-  const timerRef = useRef<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
@@ -127,6 +110,19 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    *  is in that list, and it moved there under the reader's own press. */
   const [restOpen, setRestOpen] = useState(false);
 
+  // What the store holds and the auto-switch status beside it, whether a
+  // reload the reader asked for is out, and the one line that says what went
+  // wrong — read, polled and written in use-account-roster.ts.
+  //
+  // An account that was removed while its lanes were open would otherwise
+  // keep its place in the set until the panel is unmounted, ready to reopen
+  // itself on whoever signs that address back in. The roster is the only thing
+  // that knows an account has gone, so the roster is where the set is trimmed.
+  // Unchanged in and unchanged out when nobody left, which is every poll but
+  // one.
+  const trimLanes = useCallback((fresh: AccountsData) => setOpenLanes(open => knownLanes(open, fresh.accounts)), []);
+  const { data, auto, reloading, failure, load, sayFailure, clearFailure } = useAccountRoster(trimLanes);
+
   /**
    * Focus the nearest control that outlived the press.
    *
@@ -146,50 +142,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     });
   }, []);
 
-  // A reload the user asked for, and the same one on a timer. Only the forced
-  // half touches `reloading`: a poll blinking the ↻ every 15 seconds would read
-  // as the panel doing something to itself.
-  const load = useCallback(async (force = false) => {
-    if (force) setReloading(true);
-    // A deck that accepts the connection and then wedges never rejects these
-    // fetches. Unbounded, the first load would sit on "Checking…" behind a ↻
-    // disabled forever — the dead button this busy state exists to rule out,
-    // made permanent.
-    const ctl = new AbortController();
-    const bell = window.setTimeout(() => ctl.abort(), RELOAD_TIMEOUT_MS);
-    try {
-      const [accts, autoRes] = await Promise.all([
-        fetch(`/api/claude-accounts${force ? "?refresh=1" : ""}`, { signal: ctl.signal }),
-        fetch("/api/cswap-auto", { signal: ctl.signal }),
-      ]);
-      if (accts.ok) {
-        const fresh: AccountsData = await accts.json();
-        setData(fresh);
-        // An account that was removed while its lanes were open would otherwise
-        // keep its place in the set until the panel is unmounted, ready to
-        // reopen itself on whoever signs that address back in. The roster is
-        // the only thing that knows an account has gone, so the roster is where
-        // the set is trimmed. Unchanged in and unchanged out when nobody left,
-        // which is every poll but one.
-        setOpenLanes(open => knownLanes(open, fresh.accounts));
-      }
-      if (autoRes.ok)  setAuto(await autoRes.json());
-      const verdict = explainReload([await answered(accts), await answered(autoRes)]);
-      setFailure(prev => nextFailure(prev, verdict));
-    } catch {
-      // Our own abort is a deck that answered the connection and then took
-      // too long, not one that is gone (#829) — see RELOAD_SLOW.
-      setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
-    } finally {
-      window.clearTimeout(bell);
-      if (force) setReloading(false);
-    }
-  }, []);
-
   // The ⋯ popover, what it is holding and the requests pressed in it — see
   // use-account-menu.ts. The panel reads which menu is open and the note a swap
   // leaves on a row; the popover gets the whole of it.
-  const clearFailure = useCallback(() => setFailure(null), []);
   const accountMenu = useAccountMenu({ claim, release, load, clearFailure, rescueFocus });
   const { menu, menuFor, swapNote, showMenu, dropMenu, closeMenu, sayInMenu } = accountMenu;
 
@@ -198,7 +153,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    *  policy row, and inside the ⋯ menu for an account held out or put back. */
   const post = useCallback(async (body: Record<string, unknown>, tag: string, where: "panel" | "menu" = "panel") => {
     if (!claim(tag)) return null;
-    const say = where === "menu" ? sayInMenu : setFailure;
+    const say = where === "menu" ? sayInMenu : sayFailure;
     say(null);
     try {
       const res = await fetch("/api/cswap-auto", {
@@ -220,13 +175,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     } finally {
       release();
     }
-  }, [claim, release, sayInMenu]);
-
-  useEffect(() => {
-    load(true);
-    timerRef.current = window.setInterval(() => load(false), POLL_MS);
-    return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
-  }, [load]);
+  }, [claim, release, sayInMenu, sayFailure]);
 
   // A switch from the panel can be superseded by auto-switch or by a command
   // outside the panel. Clear its confirmation when a fresh roster says that
@@ -305,7 +254,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
 
   const doSwitch = async (num: number, name: string) => {
     if (!claim(`switch-${num}`)) return;
-    setFailure(null);
+    clearFailure();
     setSwitched(null);
     try {
       const res = await fetch("/api/claude-accounts/switch", {
@@ -316,11 +265,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       const body = await res.json().catch(() => null);
       // Both answers land on the row that was pressed (#827): the refusal is
       // tagged with it, and a switch that took names the account it took to.
-      if (!body?.ok) setFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
+      if (!body?.ok) sayFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
       else setSwitched({ num, name });
       await load(true);
     } catch {
-      setFailure({ text: "server unreachable", row: num });
+      sayFailure({ text: "server unreachable", row: num });
     } finally {
       release();
       // A switch that landed replaces this button with the `active` marker,
@@ -444,7 +393,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       openLanes={openLanes} onToggleLanes={() => setOpenLanes(o => toggleLane(o, a))}
       busy={busy} pressProps={pressProps} doSwitch={doSwitch}
       menuFor={menuFor} openMenu={openMenu} closeMenu={closeMenu}
-      failure={failure} onDismissFailure={() => setFailure(null)}
+      failure={failure} onDismissFailure={() => clearFailure()}
       switched={switched} swapNote={swapNote} roster={roster}
       issueOpen={issueOpen} openIssue={openIssue} />
   );
@@ -599,7 +548,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
               {failure && failure.row == null && (
                 <div className="ap-failure" role="alert">
                   <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
-                  <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
+                  <button type="button" className="ap-failure-x" onClick={() => clearFailure()}
                     aria-label="Dismiss this message" title="Dismiss">×</button>
                 </div>
               )}

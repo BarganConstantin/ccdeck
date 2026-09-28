@@ -18,11 +18,16 @@ const row = read("../components/AccountRow.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const doSwitch = /const doSwitch = async \(num: number, name: string\) => \{[\s\S]*?\n  \};/.exec(panel)?.[0] ?? "";
+/** The failure line's owner, which doSwitch says its answers through. */
+const roster = read("../use-account-roster.ts");
 
 describe("a switch answers on the row it was about (#827)", () => {
   it("tags a refusal with the row that was pressed, both ways it can fail", () => {
-    expect(doSwitch).toMatch(/setFailure\(\{ text: explainCommandFailure\(body, "the switch failed"\), raw: commandOutput\(body\), row: num \}\)/);
-    expect(doSwitch).toMatch(/setFailure\(\{ text: "server unreachable", row: num \}\)/);
+    expect(doSwitch).toMatch(/sayFailure\(\{ text: explainCommandFailure\(body, "the switch failed"\), raw: commandOutput\(body\), row: num \}\)/);
+    expect(doSwitch).toMatch(/sayFailure\(\{ text: "server unreachable", row: num \}\)/);
+    // Said as it was written, row and all: the line takes a press's refusal
+    // whole, and only a reload's verdict goes through nextFailure.
+    expect(roster).toMatch(/const sayFailure = useCallback\(\(f: Failure \| null\) => setFailure\(f\), \[\]\);/);
   });
 
   it("draws the refusal on that row, and only other messages under the roster", () => {
@@ -47,7 +52,7 @@ describe("a switch answers on the row it was about (#827)", () => {
 
   it("names the account a switch took to, and clears it when the next one starts", () => {
     expect(doSwitch).toMatch(/else setSwitched\(\{ num, name \}\);/);
-    expect(doSwitch).toMatch(/setFailure\(null\);\s*setSwitched\(null\);/);
+    expect(doSwitch).toMatch(/clearFailure\(\);\s*setSwitched\(null\);/);
     expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
     expect(clientText()).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, name\)\}/);
     // The row presses the panel's own doSwitch — the one above that says it.

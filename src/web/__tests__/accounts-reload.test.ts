@@ -21,7 +21,7 @@ import {
   nextFailure,
 } from "../accounts-reload";
 import { COMMAND_REASONS } from "../admin-failure";
-import { accountsSurface } from "./accounts-surface";
+import { ACCOUNTS_FILES, accountsSurface } from "./accounts-surface";
 
 const ok = { ok: true, status: 200, body: null };
 
@@ -130,15 +130,19 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const panel = readFileSync(`${web}components/AccountsPanel.tsx`, "utf8");
 /** The panel's header, where the ↻ is drawn since it left the panel. */
 const header = readFileSync(`${web}components/AccountsHeader.tsx`, "utf8");
+/** The panel's reading of the store — the reload, its poll and the failure
+ *  line — which lives in use-account-roster.ts since it left the panel. */
+const roster = readFileSync(`${web}use-account-roster.ts`, "utf8");
 /** The busy state is half in the markup and half in the sheet now — the button
  *  wears `aria-busy` and the rule is what makes it turn. */
 const css = readFileSync(`${web}styles.css`, "utf8");
 
 /** The reload callback, from its declaration to the dependency list that
- *  closes it — so what the cases below find, they find inside the reload. */
+ *  closes it — so what the cases below find, they find inside the reload. Its
+ *  one dependency is the stable callback a fresh roster is handed to. */
 const load = (() => {
-  const at = panel.indexOf("const load = useCallback(async (force = false) => {");
-  return at === -1 ? "" : panel.slice(at, panel.indexOf("}, []);", at));
+  const at = roster.indexOf("const load = useCallback(async (force = false) => {");
+  return at === -1 ? "" : roster.slice(at, roster.indexOf("}, [onRoster]);", at));
 })();
 /** What the reload calls its controller, its timer and its verdict, read out of
  *  it by what each one does rather than written down here. See the second case. */
@@ -187,7 +191,7 @@ describe("the panel's reload path", () => {
     // timeout — a client bound under that would abort answers still coming.
     const exec = readFileSync(`${web}../server/exec.mjs`, "utf8");
     const serverMs = Number(/export function run\([\s\S]*?timeout = ([\d_]+)/.exec(exec)![1].replace(/_/g, ""));
-    const clientMs = Number(/RELOAD_TIMEOUT_MS = ([\d_]+)/.exec(panel)![1].replace(/_/g, ""));
+    const clientMs = Number(/RELOAD_TIMEOUT_MS = ([\d_]+)/.exec(roster)![1].replace(/_/g, ""));
     expect(serverMs).toBeGreaterThan(0);
     expect(clientMs).toBeGreaterThanOrEqual(serverMs);
   });
@@ -221,8 +225,21 @@ describe("the panel's reload path", () => {
     expect(accountsSurface()).not.toContain('"↻"');
     // Only the forced half: a poll blinking the button every 15 seconds would
     // read as the panel doing something to itself.
-    expect(panel).toContain("if (force) setReloading(true);");
-    expect(panel).toContain("if (force) setReloading(false);");
+    expect(load).toContain("if (force) setReloading(true);");
+    expect(load).toContain("if (force) setReloading(false);");
+  });
+
+  it("writes the failure line in one file, and merges a reload's verdict into it nowhere else", () => {
+    // The panel wrote `failure` from nine places. The setter is the roster
+    // hook's now: a reload merges its verdict through nextFailure — twice, the
+    // answered case and the thrown one — and a press says its refusal or
+    // takes the line down by name. A tenth writer anywhere in the accounts
+    // surface would be a second rule for what the line shows.
+    const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const writers = ACCOUNTS_FILES.filter(rel => /\bsetFailure\(/.test(code(readFileSync(`${web}${rel}`, "utf8"))));
+    expect(writers).toEqual(["use-account-roster.ts"]);
+    expect(code(roster).match(/setFailure\(prev => nextFailure\(prev, /g)).toHaveLength(2);
+    expect(code(roster).match(/\bsetFailure\(/g)).toHaveLength(4);
   });
 
   it("gives the empty state something to say and a way out of it", () => {
