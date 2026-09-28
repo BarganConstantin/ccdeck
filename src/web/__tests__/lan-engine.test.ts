@@ -1933,6 +1933,28 @@ describe("which account a paired deck is on", () => {
     await b.e.round();          // B dials back, fails → the trial row is removed
     expect(peerRow(b, a.id.fp)?.waiting).toBe(true);
   }, 20_000);
+
+  it("keeps the caller's address once somebody here types it, and says it failed (#1674)", async () => {
+    // The dial-back's trial outlived the settings write that put the typed
+    // row in its place, and the first round that could not reach the caller
+    // took the typed row away with it: the deck went back to "calls in", and
+    // the error that round met was never drawn.
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await point(b, a, a.port);
+    b.e.setPeers([]);           // B loses A; A only calls in
+    await a.e.round();          // A calls B → B learns A's address (on trial)
+    // The owner types that address in: a settings write, which replaces the
+    // list with what prefs hold.
+    b.e.setPeers([`127.0.0.1:${a.port}`]);
+    a.e.stop();                 // and A goes to sleep
+    await b.e.round();
+    const row = peerRow(b, a.id.fp);
+    expect(row?.waiting).not.toBe(true);
+    expect(row).toMatchObject({ addr: "127.0.0.1", port: a.port });
+    expect(row?.last?.error).toBeTruthy();
+  }, 20_000);
 });
 
 // THE ROUND'S OWN TWO CEILINGS, WHICH IT DID NOT HAVE.
