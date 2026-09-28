@@ -320,9 +320,11 @@ describe("no useRef in the client is seeded with work", () => {
 
   it("restores the layout through a lazy initialiser, which is where the work went", () => {
     // The positive half: the seeds are cheap because the work moved somewhere
-    // that runs once. `restoredViewport` on the next lines has always been
-    // written this way; this is the form it is now matched to.
-    expect(app).toMatch(/const restoredLayout = useState\(\(\) => restoreLayout\(loadLayout\(\)\)\)\[0\];/);
+    // that runs once. `restoredViewport` in App.tsx has always been written
+    // this way; this is the form it is now matched to. The layout's state is
+    // declared in use-board-layout.ts.
+    const boardLayout = sources.find(([p]) => p === "use-board-layout.ts")![1];
+    expect(boardLayout).toMatch(/const restoredLayout = useState\(\(\) => restoreLayout\(loadLayout\(\)\)\)\[0\];/);
     // #676 handed the gate an options object — a `protect` predicate the
     // ceiling's eviction asks about each held envelope — so the argument list
     // is no longer empty. What this case is about is the `() =>` in front of
