@@ -47,8 +47,8 @@ function withoutProse(src: string): string {
 
 const css = code("../styles.css");
 // The component and the files lifted out of it (the player is use-fm-player.ts,
-// the character's errands use-fm-scene.ts), read as one, so a negative asked of
-// "the component" still sees all of it.
+// the character's errands use-fm-scene.ts, its drawing components/FmSprite.tsx),
+// read as one, so a negative asked of "the component" still sees all of it.
 const component = withoutProse(claudeFmSurface());
 const probeSrc = code("../../server/claude-fm.mjs");
 const server = code("../../server/index.mjs");
@@ -406,12 +406,22 @@ describe("absent, not broken", () => {
     expect(component).toMatch(/if \(!next\) setArmed\(false\);/);
   });
 
-  it("caches pixel geometry outside the memoized component", () => {
-    const start = component.indexOf('export default memo(');
-    expect(start).toBeGreaterThan(0);
-    expect(component.indexOf('const TORSO_RECTS')).toBeLessThan(start);
-    expect(component.indexOf('const PROP_PIXELS')).toBeLessThan(start);
-    expect(component.slice(start)).not.toContain('spriteRects(');
+  it("caches pixel geometry outside the memoized components", () => {
+    // Per file, because the geometry lives beside what draws it: the
+    // character's rects in FmSprite.tsx, the props' pixels in ClaudeFm.tsx. Each
+    // is worked out at module scope, ahead of the memoized component, and no
+    // component body walks a grid.
+    for (const [file, cached] of [
+      ["../components/ClaudeFm.tsx", "const PROP_PIXELS"],
+      ["../components/FmSprite.tsx", "const TORSO_RECTS"],
+    ] as const) {
+      const src = code(file);
+      const start = src.indexOf('export default memo(');
+      expect(start, file).toBeGreaterThan(0);
+      expect(src.indexOf(cached), `${file} has no ${cached}`).toBeGreaterThan(-1);
+      expect(src.indexOf(cached), `${file}: ${cached} is inside the component`).toBeLessThan(start);
+      expect(src.slice(start), file).not.toContain('spriteRects(');
+    }
   });
 
   it("pauses scene timers and visual animations without stopping music", () => {
