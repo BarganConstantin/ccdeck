@@ -460,15 +460,18 @@ function forcedReadRoutes(routerSource: string, handlerSources: string[]) {
  * `predicate` is the exported rule that applies the floor — the one name per
  * module a test can point at, and the one place FORCE_POLL_MS is turned into a
  * yes or a no. `insteadOfFloor` is the only way a row is allowed to have no
- * floor at all, and it has to say what bounds the cost instead.
+ * floor at all, and it has to say what bounds the cost instead. `guardedIn` is
+ * the module that keeps the guards and the predicate when `module` hands the
+ * read on to one it imports — self-update.mjs's registry check moved to
+ * npm-latest.mjs, and versionReport stayed where the route reaches it.
  */
 const CENSUS: Record<string, {
   module: string; fn: string; guards: string[]; note: string;
-  predicate?: string; insteadOfFloor?: string;
+  predicate?: string; insteadOfFloor?: string; guardedIn?: string;
 }> = {
   "/api/version": {
     module: "self-update.mjs", fn: "versionReport", guards: ["floor", "inflight"],
-    predicate: "mayAskNpm",
+    predicate: "mayAskNpm", guardedIn: "npm-latest.mjs",
     note: "#604. Joined a check already running, but `checkDue` returns true on "
         + "`force` before anything else is asked, so a sequential ?refresh=1 loop "
         + "was one npm registry GET per request — #580's shape with the cost "
@@ -579,7 +582,13 @@ describe("every route that lets a caller force a read", () => {
         // does; it is asserted on nowhere, and it is the reason the row is
         // trustworthy.
         expect(expected.note.length, `${path} needs a reason on record`).toBeGreaterThan(0);
-        expect(guardsSurvivingForce(serverSource(expected.module))).toEqual(expected.guards);
+        expect(guardsSurvivingForce(serverSource(expected.guardedIn ?? expected.module))).toEqual(expected.guards);
+        // A module that hands the read on has to be the one importing the guards,
+        // or the row describes a module the route never reaches.
+        if (expected.guardedIn) {
+          expect(withoutComments(serverSource(expected.module)), `${expected.module} reads through ${expected.guardedIn}`)
+            .toContain(`from "./${expected.guardedIn}";`);
+        }
       });
     });
   }
@@ -613,12 +622,12 @@ describe("every route that lets a caller force a read", () => {
     // invented the same floor separately; they at least agree on its name and its
     // number now, and a sixth that needs one has a name to reuse.
     const withFloor = Object.values(CENSUS).filter(r => r.guards.includes("floor"));
-    expect(withFloor.map(r => r.module).sort()).toEqual([
+    expect(withFloor.map(r => r.guardedIn ?? r.module).sort()).toEqual([
       "browser-watch.mjs", "claude-accounts.mjs", "claude-fm.mjs", "codex-quota.mjs",
-      "codex-usage.mjs", "quota.mjs", "self-update.mjs",
+      "codex-usage.mjs", "npm-latest.mjs", "quota.mjs",
     ]);
     for (const row of withFloor) {
-      expect(withoutComments(serverSource(row.module)), row.module)
+      expect(withoutComments(serverSource(row.guardedIn ?? row.module)), row.guardedIn ?? row.module)
         .toMatch(/const FORCE_POLL_MS = 60_000;/);
     }
   });
@@ -634,7 +643,7 @@ describe("every route that lets a caller force a read", () => {
     // the entry point instead would fail this line.
     for (const row of Object.values(CENSUS)) {
       if (!row.guards.includes("floor")) continue;
-      const code = withoutComments(serverSource(row.module));
+      const code = withoutComments(serverSource(row.guardedIn ?? row.module));
       const at = code.indexOf(`export function ${row.predicate}(`);
       expect(at, `${row.module} exports ${row.predicate}`).toBeGreaterThan(-1);
       const end = code.indexOf("\n}", at);
