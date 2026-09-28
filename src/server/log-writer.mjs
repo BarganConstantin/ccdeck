@@ -441,7 +441,7 @@ const mb = chars => `${(chars / 1024 / 1024).toFixed(0)}MB`;
 //
 // So the chain counts what it could not write, and says so once. The numbers
 // are what make the loss observable without watching a canvas come back empty,
-// for the same reason `eventBufferStats` exists one file over.
+// for the same reason `eventBufferStats` exists in event-ring.mjs.
 let failedLines = 0;
 let failedChars = 0;
 /**

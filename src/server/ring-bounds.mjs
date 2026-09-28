@@ -1,10 +1,10 @@
 // How much the event ring may hold, and what one event is charged against it.
 //
 // These lived in src/server/index.mjs at the head of the ring buffer section.
-// The ring itself stayed there — the array, the running totals that have to
-// move with it, and the eviction in pushEvent that keeps these bounds — and the
-// boot replay, which sizes its read against the same two numbers, now imports
-// them from here as well. The numbers and the walk are unchanged.
+// The ring itself is event-ring.mjs's — the array, the running totals that
+// have to move with it, and the eviction in admitEvent that keeps these bounds
+// — and the boot replay, which sizes its read against the same two numbers,
+// imports them from here as well. The numbers and the walk are unchanged.
 
 // MAX_BUFFER is how many events a late SSE subscriber can be replayed.
 // MAX_BUFFER_CHARS is how much they are allowed to weigh, and until #625 there
@@ -41,7 +41,7 @@
 // the sentence that made it false.
 //
 // Both bounds are now enforced on every push, evicting oldest-first until each
-// holds. See the eviction in pushEvent for why it is one splice and why the
+// holds. See the eviction in admitEvent for why it is one splice and why the
 // newest event is never the one evicted.
 export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subscribers
 
