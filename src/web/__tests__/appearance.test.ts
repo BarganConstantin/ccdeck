@@ -32,7 +32,7 @@ describe("character appearance preference", () => {
     // App.tsx's. Every match is positive, so this reads the client.
     const app = clientText();
     expect(app).toContain("useState(storedCharacterEnabled)");
-    expect(app).toContain('localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
+    expect(app).toContain('writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
     expect(app).toContain("{characterEnabled && (");
     expect(app).toContain("<ClaudeFm");
     expect(app).toContain("muted={fmMuted}");

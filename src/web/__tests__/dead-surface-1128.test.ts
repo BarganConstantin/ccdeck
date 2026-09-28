@@ -112,7 +112,6 @@ describe("readStored / seenStore — one guard for the store, not one per hook",
     "main.tsx": "the boot prune, handed the store inside its own try before App exists",
     // Left for the change their owners are making now, not for a reason of
     // their own. Each already wraps every read and write.
-    "use-appearance.ts": "the theme and character switches",
     "use-browser-watch-badge.ts": "the browser watch's seen marker",
     "use-claude-fm.ts": "the station, volume and mute",
     "use-custom-tones.ts": "the custom chimes",
