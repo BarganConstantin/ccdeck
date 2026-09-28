@@ -18,9 +18,9 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 // challenge deadline stay private to the leaf: they were private here too, and
 // re-exporting them would be inventing API on the way out of a move.
 export { challengeDeck, challengeProof, isProcessAlive };
-// The gates in front of the route table, and the per-process token the
-// strictest of them checks — see src/server/request-gates.mjs.
-import { GUARDED_READS, HOOK_TOKEN, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+// The gates in front of the route table — see src/server/request-gates.mjs,
+// which also holds the per-process token the strictest of them checks.
+import { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
 // How much the event ring may hold and what one event is charged against it —
 // see ring-bounds.mjs. The four it exported from this file, it still exports.
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
@@ -42,6 +42,11 @@ export { writeJsonArray };
 import { handleClear } from "./clear-route.mjs";
 // GET /api/health — see health-route.mjs.
 import { handleHealth } from "./health-route.mjs";
+// GET /api/hook-challenge, and the token it proves knowledge of — see
+// hook-challenge.mjs. hookToken was exported from this file before it moved,
+// and still is.
+import { handleHookChallenge, hookToken } from "./hook-challenge.mjs";
+export { hookToken };
 // Which tree this deck captures and which CLIs it watches, set once below —
 // see deck-scope.mjs.
 import { deckProviders, deckWorkspace, setDeckScope } from "./deck-scope.mjs";
@@ -147,33 +152,6 @@ export { pinRunningBuild } from "./pinned-build.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
-
-/** The token this deck expects to be challenged on. Written by writeDiscovery. */
-export function hookToken() { return HOOK_TOKEN; }
-
-// GET /api/hook-challenge?nonce=… — answer a hook's challenge.
-//
-// The nonce is the caller's, so the answer proves knowledge of the token
-// without disclosing it, and proves it for this exchange only. Answering
-// freely is what the exchange requires: the hook is asking whether the process
-// on this port is the deck that wrote the discovery file, and it asks precisely
-// because it does not yet know — a deck that demanded credentials before
-// answering could not be told apart from a stranger that refuses.
-//
-// So this route is an oracle, and it must stay one. That makes its answer
-// useless as a credential FOR this server, and nothing here may ever accept it
-// as one: a caller who can GET this can obtain a valid proof for any nonce, so
-// a gate honouring proofs is a gate honouring anybody. See presentsDeckToken,
-// which takes the token itself and refuses the hashed form for this reason.
-//
-// What the free answer does NOT give away is the token: the response is a
-// one-way hash of it, and after the read gate above a rebound page cannot see
-// even that.
-function handleHookChallenge(_req, res, url) {
-  const nonce = url.searchParams.get("nonce") ?? "";
-  if (!nonce || nonce.length > 256) return send(res, 400, { error: "bad nonce" });
-  send(res, 200, { proof: challengeProof(HOOK_TOKEN, nonce) });
-}
 
 async function sweepStaleDiscovery() {
   // Same directory the installer writes and the hooks read — see claude-dir.mjs.
