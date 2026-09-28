@@ -142,7 +142,7 @@ async function handleVersion(req, res) {
 }
 
 // Runs `npm i -g <this deck>@latest`, and only that: the argument vector is
-// fixed inside self-update.mjs — including which of the three published names
+// fixed inside npm-upgrade.mjs — including which of the three published names
 // it installs, which comes from the layout npm built rather than from the
 // request. Answers immediately — progress is read back from /api/version.
 async function handleUpgrade(_req, res) {

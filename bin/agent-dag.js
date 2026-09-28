@@ -347,7 +347,7 @@ function withoutPortAndOpen(args) {
  * null when this deck was not started by npx and there is nothing to re-run.
  *
  * One function because there is one answer, and the worker above us reaches it
- * independently: `upgradeName` in self-update.mjs resolves the npx case as
+ * independently: `upgradeName` in install-layout.mjs resolves the npx case as
  * `bareSpecName(npxRestartSpec(pkgRoot, installedName(pkgRoot)))`, and
  * everything registry-shaped on that side — the dist-tag it fetched, the marker
  * it cached the answer in, the failure note the browser reads — is keyed by it.

@@ -10,8 +10,10 @@
 import { run } from "./exec.mjs";
 // The version comparator was written out here as well, identical apart from a
 // type guard this copy lacked, and only the self-update one was under test
-// (#374). No cycle: self-update.mjs imports node:* and ./exec.mjs, which this
-// file already imports itself.
+// (#374). No cycle: self-update.mjs and the four modules it reads from
+// (install-layout, npm-latest, restart-note, npm-upgrade) import node:* and
+// three leaves — exec.mjs, app-host.mjs and deck-probe.mjs — and none of them
+// imports this file.
 import { isOlder } from "./self-update.mjs";
 import { bootstrapUv, existingBootstrappedUv } from "./uv-bootstrap.mjs";
 // Where installers leave claude-swap and which one owns this machine's copy —
@@ -609,7 +611,7 @@ export async function ensureCswap({ onInstalling = null } = {}) {
     // boot with no network yet — a laptop opened on a train, the ten seconds
     // before Wi-Fi associates — burned the whole shared 24-hour window on a
     // check that never reached PyPI, and the next real chance was the day
-    // after. self-update.mjs states this rule for itself in as many words.
+    // after. npm-latest.mjs states this rule for itself in as many words.
     const latest = await newestAcceptableOnPypi();
     touchMarker();
     if (latest && existing !== "installed" && isOlder(existing, latest)) {
