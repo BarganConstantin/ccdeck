@@ -14,10 +14,11 @@ import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
 import { clientText } from "./client-source";
 import {
-  leftLabel, parseAddress, nextShared, sameKeys, settlePending, writeFailure,
+  leftLabel, parseAddress, nextShared, sameKeys, settlePending,
 } from "../components/LanSyncSection";
 import { faultText, roundLabel } from "../lan-round";
 import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
+import { writeFailure } from "../use-lan-section";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
@@ -45,12 +46,18 @@ const ADD = readFileSync(
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The section's conversation with its deck — the poll, the request slot and
+ *  every write — which moved out of the component into its own hook. The rules
+ *  about the writes and the poll are asked of it, where they now live. */
+const HOOK_SRC = readFileSync(fileURLToPath(new URL("../use-lan-section.ts", import.meta.url)), "utf8");
+const HOOK = HOOK_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The section's whole surface: the component and the files lifted out of it,
  *  comments gone the same way. Every rule below that says what the section
  *  never does reads all of it, so that moving a piece into a file of its own
  *  cannot move it out from under the rule. */
 const SURFACE = [
   CODE,
+  HOOK,
   readFileSync(fileURLToPath(new URL("../components/LanPeek.tsx", import.meta.url)), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "),
 ].join("\n");
@@ -369,13 +376,13 @@ describe("the three rules the panel above it already keeps", () => {
   it("reports every write that did not land, in both ways it can fail", () => {
     // The `else` that was missing, and the `catch` that was missing. Counted
     // rather than merely present: a single setFailure would satisfy a `toMatch`
-    // and leave the other path silent.
-    expect([...CODE.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
+    // and leave the other path silent. The section's writes are its hook's.
+    expect([...HOOK.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
     // Two in the dialog, and that is every path it has left: one `write`, its
     // `else` and its `catch`. The dialog shrank to two fields when the pairing
     // moved into the panel — the rule is unchanged, the surface is smaller.
     expect([...MODAL.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(2);
-    expect(CODE).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
+    expect(HOOK).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
   });
 
   it("gives every write the verb its failure will be reported with", () => {
@@ -687,8 +694,11 @@ describe("the list is quiet until it is not", () => {
 
 describe("switching on says what switching on does", () => {
   /** The one callback this rule is about, with the file's comments already
-   *  gone: a paragraph promising to open the dialog is not the dialog. */
-  const TOGGLE = /const toggle = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/.exec(CODE)?.[1] ?? "";
+   *  gone: a paragraph promising to open the dialog is not the dialog. It is
+   *  the section's hook's, and the dialog is the section's, so the press
+   *  reaches it through `onSwitchedOn` — which the section wires to the one
+   *  setter, below. */
+  const TOGGLE = /const toggle = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/.exec(HOOK)?.[1] ?? "";
 
   it("opens the setup dialog on the press that put this deck on the network", () => {
     // THE DEFECT: a deck could start beaconing its name to every machine on the
@@ -700,20 +710,22 @@ describe("switching on says what switching on does", () => {
     // On EVERY enable, not on the first: what is shared changes between one
     // switch-on and the next, so a dialog shown once is a dialog about a list
     // that has since moved. Nothing here remembers having shown it.
-    expect(TOGGLE).toMatch(/if \(!on\) setSetupOpen\(true\)/);
+    expect(TOGGLE).toMatch(/if \(!on\) onSwitchedOn\(\)/);
+    expect(CODE).toMatch(/useLanSection\(onChanged, \(\) => setSetupOpen\(true\)\)/);
     expect(TOGGLE).not.toMatch(/setupShown|seenSetup|firstTime|once/);
     // And only where the write landed: after the `ok`, before the `else` that
     // reports a refusal. A dialog over a switch that did not move would be the
     // panel telling somebody about a network they are not on.
     const ok = TOGGLE.indexOf("if (out?.ok)");
     const failed = TOGGLE.indexOf("setFailure(writeFailure(");
-    const opens = TOGGLE.indexOf("setSetupOpen(true)");
+    const opens = TOGGLE.indexOf("onSwitchedOn()");
     expect(ok).toBeGreaterThan(-1);
     expect(opens).toBeGreaterThan(ok);
     expect(opens).toBeLessThan(failed);
     // Once, so the `catch` — the deck did not answer at all — opens nothing
-    // either.
-    expect([...TOGGLE.matchAll(/setSetupOpen\(/g)]).toHaveLength(1);
+    // either; and nothing else in the hook says it.
+    expect([...TOGGLE.matchAll(/onSwitchedOn\(/g)]).toHaveLength(1);
+    expect([...HOOK.matchAll(/onSwitchedOn\(\)/g)]).toHaveLength(1);
   });
 
   it("opens it from the press and never from the flag", () => {
@@ -723,13 +735,20 @@ describe("switching on says what switching on does", () => {
     // An effect watching it would therefore put a dialog in front of a reader
     // who is three sections up looking at a quota — which is the same defect
     // the fold and the live regions were written around.
-    for (const [effect] of SURFACE.matchAll(/useEffect\([\s\S]*?\n  \}, \[[^\]]*\]\);/g)) {
+    // Each effect exactly: a one-line one to the end of its line, and a block
+    // to its own closing line — so the scan never runs past one effect into
+    // the code that follows it. The poll's is among them, or the scan is
+    // passing on nothing.
+    const effects = [...SURFACE.matchAll(/useEffect\((?:[^\n]*\]\);$|[\s\S]*?\n  \}, \[[^\]]*\]\);)/gm)].map(m => m[0]);
+    expect(effects.some(e => /setTimeout\(tick, every\.current\)/.test(e))).toBe(true);
+    for (const effect of effects) {
       expect(effect).not.toMatch(/setSetupOpen/);
       expect(effect).not.toMatch(/enabled/);
     }
-    // Three presses open it and nothing else does: the switch on its way on,
-    // the control that has always opened it, and the line in a deck's own
-    // dialog that goes from "you offer" to where that list is changed.
+    // Three presses open it and nothing else does: the switch on its way on —
+    // through the hook's onSwitchedOn — the control that has always opened it,
+    // and the line in a deck's own dialog that goes from "you offer" to where
+    // that list is changed.
     expect([...CODE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
     expect(CODE).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
     expect(CODE).toMatch(/onSettings=\{\(\) => \{ setPeerOpen\(null\); setSetupOpen\(true\); \}\}/);
@@ -1370,12 +1389,14 @@ describe("what an off network is allowed to cost", () => {
   const app = clientText();
 
   it("asks slowly while the switch is off, and quickly while it is on", () => {
-    expect(SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
-    expect(SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
+    // The section's own poller is its hook's now, and the pair is declared
+    // there; the section passes them through to the import below.
+    expect(HOOK_SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
+    expect(HOOK_SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
     // One pair of numbers, used by both pollers, rather than one each.
     // Other names may ride the same import; the two constants must be on it.
     expect(app).toMatch(/import \{ LAN_POLL_OFF_MS, LAN_POLL_ON_MS(, \w+)* \} from "\.\/components\/LanSyncSection";/);
-    for (const src of [SRC, app]) {
+    for (const src of [HOOK_SRC, app]) {
       expect(src).toMatch(/enabled === true \? LAN_POLL_ON_MS : LAN_POLL_OFF_MS/);
     }
   });
@@ -1387,8 +1408,8 @@ describe("what an off network is allowed to cost", () => {
     // The section decides the next delay when the answer lands and the chain
     // reads it back; App decides it in the chain itself. Both are timeout
     // chains, and neither drives this poll from an interval.
-    expect(SRC).toMatch(/timer = window\.setTimeout\(tick, every\.current\)/);
-    expect(SRC).not.toMatch(/setInterval\(\(\) => \{ setNow/);
+    expect(HOOK_SRC).toMatch(/timer = window\.setTimeout\(tick, every\.current\)/);
+    for (const src of [SRC, HOOK_SRC]) expect(src).not.toMatch(/setInterval\(\(\) => \{ setNow/);
     // Scoped to the LAN poller: App has another `pull` on a five-minute
     // interval — the version check — and this rule is not about that one.
     const at = app.indexOf("const [lanPending, setLanPending]");
@@ -1401,6 +1422,6 @@ describe("what an off network is allowed to cost", () => {
     // A request arriving is the point of the section AND of the dialog in App,
     // so when the network IS on both still ask every five seconds. The saving
     // is meant to be invisible to anybody using the feature.
-    expect(SRC).toMatch(/A pairing request arriving is the point of this section/);
+    expect(HOOK_SRC).toMatch(/A pairing request arriving is the point of this section/);
   });
 });
