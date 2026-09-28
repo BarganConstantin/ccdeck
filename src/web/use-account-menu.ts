@@ -256,6 +256,19 @@ export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus
     // aimed at a row belonging to somebody else.
     await load(true);
     if (next) {
+      // Focus goes to the account's ⋯, wherever the move put it — handed over
+      // BEFORE the popover goes, because the popover hands focus back to the ⋯
+      // it was opened from as it leaves, and after a swap that ⋯ is the
+      // displaced account's (#1540). Which of the two got there first was a
+      // race. Only when focus was in the popover, or had already fallen; a ⋯
+      // the new roster has not drawn yet is left to the rescue below.
+      if (next.menuFor != null) {
+        const pop = document.getElementById(`ap-menu-${from}`);
+        const target = document.getElementById(`ap-more-${next.menuFor}`);
+        if (target && (pop?.contains(document.activeElement) || focusDropped(document.activeElement?.tagName ?? null))) {
+          target.focus();
+        }
+      }
       // The account is where the picker said, so the form has nothing left to
       // do. It closes rather than chase the row down the column; the row
       // answers instead, by being in its new place and, after a swap, by
@@ -270,8 +283,8 @@ export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus
       // user made, ready to be pressed again under the refusal.
       setSlotDraft(null);
       // The popover that held focus is gone, and the account now sits on a
-      // different row. Focus lands on that row's ⋯ — the account's, wherever
-      // the move put it.
+      // different row. When that row's ⋯ was not drawn yet above — a move into
+      // an empty slot — focus has fallen, and lands on it once it is.
       rescueFocus(next.menuFor);
     }
     return out;
