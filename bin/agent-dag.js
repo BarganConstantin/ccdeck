@@ -45,7 +45,7 @@ import {
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
-  CRASH_CEILING, CRASH_WINDOW_MS, crashPolicy, dieOfSignal, dieWithParent, isCrash, replacedNote,
+  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, replacedNote,
   upgradeAttempt, upgradeRefusalText, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
@@ -309,14 +309,16 @@ function launch(respawn) {
     // Before this ran in the background a crash was self-reporting: the terminal
     // came back with the stack on it. Detached, the first sign is noticing hours
     // later that a day of work was never recorded — so it goes back up. The
-    // whole of which crashes qualify is in isCrash, and the ceiling that stops
-    // this becoming a spin loop is in crashPolicy.
+    // whole of which crashes qualify is in isCrash, the ceiling that stops this
+    // becoming a spin loop is in crashPolicy, and what each answer says is in
+    // crashRestartNote and crashCeilingNote.
     if (isCrash({ code, signal, served: boundPort != null, stopping })) {
       const verdict = crashPolicy(crashes);
       if (verdict.restart) {
         crashes = verdict.history;
-        const how = signal ? `killed by ${signal}` : `exit ${code}`;
-        console.error(`${PRODUCT}: the deck stopped on its own (${how}) ${G.dash} starting it again in ${Math.round(verdict.delayMs / 1000)}s (${verdict.recent}/${CRASH_CEILING}).`);
+        console.error(crashRestartNote({
+          code, signal, delayMs: verdict.delayMs, recent: verdict.recent, product: PRODUCT, dash: G.dash,
+        }));
         restarts++;
         // Unref'd would be wrong here: this timer IS the supervisor's reason to
         // stay alive, and without it the event loop empties and the process
@@ -327,7 +329,7 @@ function launch(respawn) {
       // Said once, with the two numbers that make it actionable, and then this
       // process really does end — a supervisor that keeps trying forever is the
       // failure the ceiling exists to prevent.
-      console.error(`${PRODUCT}: the deck has stopped ${CRASH_CEILING} times in ${Math.round(CRASH_WINDOW_MS / 60000)} minutes ${G.dash} not starting it again. Run \`${INVOKED_AS ?? PRODUCT}\` when you have looked at the log above.`);
+      console.error(crashCeilingNote({ product: PRODUCT, command: INVOKED_AS ?? PRODUCT, dash: G.dash }));
     }
 
     // Anything else is the worker's own verdict and belongs to whoever started

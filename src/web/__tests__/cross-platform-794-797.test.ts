@@ -28,7 +28,7 @@ const { browserRoots } = await import("../../server/browser-profiles.mjs");
 // @ts-expect-error — ditto
 const { unregisteredDetail, glyphs } = await import("../../server/term.mjs");
 // @ts-expect-error — ditto
-const { upgradeRefusalText } = await import("../../server/supervisor.mjs");
+const { crashCeilingNote, crashRestartNote, upgradeRefusalText } = await import("../../server/supervisor.mjs");
 const { upgradeBlock } = await import("../../server/self-update.mjs");
 
 describe("#794 — the Linux browser table", () => {
@@ -166,6 +166,19 @@ describe("#797 — punctuation the console may not have", () => {
       expect(said, `an em dash survived: ${said}`).not.toContain("—");
     }
     expect(upgradeRefusalText({ reason: "exhausted", attempt: 3 }, "3.9.0")).toContain("—");
+  });
+
+  it("and for the two crash notes, which left the supervisor's console calls", () => {
+    // The sweep below reads console calls, and these two sentences are no
+    // longer written inside one — so the rule is asked of them here instead.
+    const ascii = glyphs(false).dash;
+    const said = [
+      crashRestartNote({ code: 1, signal: null, delayMs: 1_000, recent: 1, dash: ascii }),
+      crashCeilingNote({ dash: ascii }),
+    ];
+    for (const s of said) expect(s, `an em dash survived: ${s}`).not.toContain("—");
+    expect(crashRestartNote({ code: 1, signal: null, delayMs: 1_000, recent: 1 })).toContain("—");
+    expect(crashCeilingNote()).toContain("—");
   });
 
   it("leaves no hardcoded em dash in the four bin and supervisor lines", () => {

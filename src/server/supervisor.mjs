@@ -144,6 +144,30 @@ export function isCrash({ code, signal, served, stopping } = {}) {
 }
 
 /**
+ * The line a crash crashPolicy answers leaves behind: what ended the deck, how
+ * long until it is back, and how much of the ceiling that has used.
+ *
+ * `recent` over CRASH_CEILING is the pair that makes the count mean something:
+ * "3/5" says how many more of these the supervisor will answer. The dash is a
+ * parameter for the reason upgradeRefusalText takes one (#797) — detached, this
+ * is written into deck.log, and the terminal tailing it may be a console that
+ * cannot draw an em dash.
+ */
+export function crashRestartNote({ code, signal, delayMs, recent, product = "ccdeck", dash = "—" }) {
+  const how = signal ? `killed by ${signal}` : `exit ${code}`;
+  return `${product}: the deck stopped on its own (${how}) ${dash} starting it again in ${Math.round(delayMs / 1000)}s (${recent}/${CRASH_CEILING}).`;
+}
+
+/**
+ * The line the crash past the ceiling leaves before the supervisor ends: how
+ * many, in how long, and the command that starts the deck again once somebody
+ * has looked — the one the user typed, when that is known.
+ */
+export function crashCeilingNote({ product = "ccdeck", command = "ccdeck", dash = "—" } = {}) {
+  return `${product}: the deck has stopped ${CRASH_CEILING} times in ${Math.round(CRASH_WINDOW_MS / 60000)} minutes ${dash} not starting it again. Run \`${command}\` when you have looked at the log above.`;
+}
+
+/**
  * How to report a worker that did not exit at all but was killed by a signal.
  *
  *   { reraise: "SIGHUP", code: 129 } — die of the same signal; `code` is only
