@@ -194,8 +194,10 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       expect(code(source(file)), file)
         .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}"(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\})*>`));
     }
-    // The detail panel was already an <aside> and was the unnamed one.
-    expect(code(app)).toMatch(/<aside className="detail" aria-label="Detail">/);
+    // The detail panel was already an <aside> and was the unnamed one. Its
+    // frame is components/DetailAside.tsx, which App.tsx mounts.
+    expect(code(app)).toMatch(/<DetailAside\b/);
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label="Detail">/);
   });
 
   it("has no <div> left wearing one of those class names", () => {

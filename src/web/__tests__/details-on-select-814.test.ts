@@ -20,14 +20,16 @@ import { WELCOME_STEPS } from "../components/guide-art";
 // App.tsx. The two are read as one, so a body is found wherever it lives.
 // The keydown handler moved to use-deck-shortcuts.ts, stepAgent and
 // focusSession to use-agent-focus.ts, the canvas's click handlers to
-// use-canvas-clicks.ts, and the <ReactFlow> element they are handed to to
-// components/BoardFlow.tsx; the keys and the rest of the deck are read as one.
+// use-canvas-clicks.ts, the <ReactFlow> element they are handed to to
+// components/BoardFlow.tsx, and the panel's frame to components/DetailAside.tsx;
+// the keys and the rest of the deck are read as one.
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-canvas-clicks.ts", import.meta.url)), "utf8")
-  + "\n" + readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
@@ -74,6 +76,7 @@ describe("selecting an agent opens its details (#814)", () => {
   });
 
   it("keeps the panel's × and D", () => {
+    expect(appCode).toMatch(/<DetailAside\b[^>]*\bsetDetailOpen=\{setDetailOpen\}/);
     expect(appCode).toMatch(/onClick=\{\(\) => setDetailOpen\(false\)\}/);
     // D toggles whenever something is selected; with nothing selected it now
     // selects first (#845, d-without-selection-845.test.ts).

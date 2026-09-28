@@ -72,7 +72,9 @@ describe("dismissedSummaries — a Set App.tsx wrote on every recap close and no
   });
 
   it("and the recap still opens from the detail panel and still closes", () => {
-    expect(app).toContain("onShowSummary={setSummaryFor}");
+    // The panel's frame is components/DetailAside.tsx, which App.tsx hands the setter.
+    expect(app).toMatch(/<DetailAside\b[^>]*\bsetSummaryFor=\{setSummaryFor\}/);
+    expect(src(WEB, "components/DetailAside.tsx")).toContain("onShowSummary={setSummaryFor}");
     expect(app).toMatch(/<SessionSummary[\s\S]{0,200}?onClose=\{\(\) => setSummaryFor\(null\)\}/);
   });
 });

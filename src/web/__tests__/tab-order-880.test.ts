@@ -40,6 +40,7 @@ describe("tab order follows the page, left to right (#880)", () => {
 
   it("keeps usage before machine, and both before the detail panel at the far right", () => {
     expect(at("<UsagePanel")).toBeLessThan(at("<MachinePanel"));
-    expect(at("<MachinePanel")).toBeLessThan(at('<aside className="detail"'));
+    // The panel's <aside> is components/DetailAside.tsx's; App.tsx places it.
+    expect(at("<MachinePanel")).toBeLessThan(at("<DetailAside"));
   });
 });

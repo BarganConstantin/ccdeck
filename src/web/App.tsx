@@ -11,7 +11,6 @@ import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { exportFileName, sessionExport } from "./session-export";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
 import GuideModal from "./components/GuideModal";
@@ -43,7 +42,7 @@ import { releasePointerFocus } from "./canvas-pointer-focus";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
-import Detail from "./components/Detail";
+import DetailAside from "./components/DetailAside";
 import VersionChip from "./components/VersionChip";
 import { SessionRun, SettingsRun, SourceRun } from "./components/TopbarRuns";
 import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
@@ -85,7 +84,7 @@ import { blockedSessions } from "./ambient-counts";
 const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
-import { findToolOnBoard, initialState, type GraphState } from "./reducer";
+import { findToolOnBoard, initialState } from "./reducer";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
@@ -149,26 +148,6 @@ function saveMachinePanelOpen(open: boolean): void {
   writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
 }
 
-/** Build a portable JSON snapshot of a single session (root + every subagent)
- *  and trigger a browser download.
- *
- *  What goes IN the file, and what the file is called, are session-export.ts's
- *  — the format is the half people keep, and it was unreachable by any test
- *  while it lived in here (#1175). This is the download around it. */
-function exportSessionJson(state: GraphState, sessionId: string): void {
-  const payload = sessionExport(state, sessionId, new Date().toISOString());
-  if (!payload) return;
-  const json = JSON.stringify(payload, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = exportFileName(payload.label, sessionId);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 export default function App() {
   return (
@@ -460,8 +439,8 @@ function Inner() {
 
   // The selected agent. Declared this high because the rail measurement below
   // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
-  // is what mounts it — see the `<aside className="detail">` near the end of
-  // this file. Nothing between here and there reassigns `stateRef.current`
+  // is what mounts it — see the `<DetailAside>` near the end of this file
+  // (components/DetailAside.tsx). Nothing between here and there reassigns `stateRef.current`
   // during render (the two writes are inside a replay effect and the SSE
   // handler), so reading it here is the same read it was 150 lines further on.
   const selected = primarySelectedId ? stateRef.current.agents.get(primarySelectedId) : null;
@@ -1035,30 +1014,10 @@ function Inner() {
           `:not(:has(.detail))` in the sheet already drops the column, so this
           needed no layout change of its own. */}
       {detailOpen && selected ? (
-        // Already the right element and still an unnamed one: the rotor listed
-        // it as a bare "complementary" beside the session list's "Sessions",
-        // which is the entry a reader cannot tell from the next. The name is
-        // fixed rather than the selected agent's label — the panel keeps its
-        // identity when nothing is selected, and a landmark whose name changes
-        // under the reader is a landmark they cannot come back to. The agent's
-        // name is the panel's <h2>, which is where a changing title belongs.
-        <aside className="detail" aria-label="Detail">
-          <button
-            type="button"
-            className="glyph-btn detail-close"
-            title="Close panel"
-            aria-label="Close detail panel"
-            onClick={() => setDetailOpen(false)}
-          >×</button>
-          <Detail
-                agent={selected}
-                now={now}
-                onOpenTool={openTool}
-                onShowSummary={setSummaryFor}
-                onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
-                onRemove={removeSelectedNode}
-              />
-        </aside>
+        <DetailAside
+          selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
+          setDetailOpen={setDetailOpen} stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+        />
       ) : null}
 
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
