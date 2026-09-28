@@ -871,6 +871,10 @@ export async function activeAccountUsage() {
   return {
     num:       Number(num),
     email:     acct.email ?? null,
+    // The other half of the account's identity. quota.mjs matches the saved
+    // limit resets it reads with Claude Code's token against both halves
+    // before it puts them beside these numbers (#1308).
+    organizationUuid: acct.organizationUuid ?? null,
     lastGood:  row.lastGood,
     fetchedAt: Math.round(row.fetchedAt * 1000),
   };

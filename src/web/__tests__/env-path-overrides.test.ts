@@ -133,7 +133,9 @@ describe("which quota source a readable token buys", () => {
     const seen: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: unknown, init: { headers?: Record<string, string> } = {}) => {
       seen.push(String(init.headers?.Authorization ?? ""));
-      expect(String(url)).toBe("https://api.anthropic.com/api/oauth/usage");
+      // With the flag that asks for Claude's saved limit resets in the same
+      // response, rather than in a second request (#1308).
+      expect(String(url)).toBe("https://api.anthropic.com/api/oauth/usage?cedar_ember=1");
       return {
         ok: true,
         status: 200,
