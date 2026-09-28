@@ -219,6 +219,40 @@ function record(key, value, nowMs = Date.now()) {
   last.v[key] = prev == null ? value : Math.max(prev, value);
 }
 
+/** Every reading recorded under `key`, oldest first, one point per minute that
+ *  has one. */
+function pointsOf(key) {
+  return history.filter(b => b.v[key] != null)
+    // Timestamps rather than indices: a bucket only exists for a minute that was
+    // sampled, so a gap — the machine asleep, the process paused — stays a gap
+    // rather than becoming a straight line across it.
+    .map(b => ({ t: b.m * BUCKET_MS, v: b.v[key] }));
+}
+
+/** What follows `prefix` in every key recorded under it, in the order each
+ *  first appeared — a series per sensor, however late the sensor turned up. */
+function labelsUnder(prefix) {
+  const labels = [];
+  for (const b of history) {
+    for (const k of Object.keys(b.v)) {
+      if (!k.startsWith(prefix)) continue;
+      const label = k.slice(prefix.length);
+      if (!labels.includes(label)) labels.push(label);
+    }
+  }
+  return labels;
+}
+
+/** Where the oldest minute still held begins, or 0 before anything is. */
+function oldestBucketMs() {
+  return history.length ? history[0].m * BUCKET_MS : 0;
+}
+
+/** Empty the ring. See stopSystemMetrics, which is the one caller. */
+function resetHistory() {
+  history.length = 0;
+}
+
 /**
  * The thermal reading, whose series are not known until the machine answers.
  *
@@ -271,11 +305,7 @@ function loadTop(points, coreCount) {
  * another that means nothing.
  */
 function seriesFor(group) {
-  const at = key => history.filter(b => b.v[key] != null)
-    // Timestamps rather than indices: a bucket only exists for a minute that was
-    // sampled, so a gap — the machine asleep, the process paused — stays a gap
-    // rather than becoming a straight line across it.
-    .map(b => ({ t: b.m * BUCKET_MS, v: b.v[key] }));
+  const at = pointsOf;
   const coreCount = os.cpus().length;
 
   if (group === "thermal") return thermalSeries(at);
@@ -290,14 +320,7 @@ function seriesFor(group) {
  *  order each first appeared — throttling among them, where it is recorded. */
 function thermalSeries(at) {
   const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
-  const labels = [];
-  for (const b of history) {
-    for (const k of Object.keys(b.v)) {
-      if (!k.startsWith("thermal:")) continue;
-      const label = k.slice("thermal:".length);
-      if (!labels.includes(label)) labels.push(label);
-    }
-  }
+  const labels = labelsUnder("thermal:");
   return labels.map(label => ({
     // The stable name of this reading, which the display label is not: `Swap`
     // is `Commit` on Windows, and anything joining on what the eye sees
@@ -390,7 +413,7 @@ function networkSeries(at) {
   // The path the traffic took, as marks on the last chart — the question the
   // section exists for is "was it the VPN", and a line that jumps where a
   // mark sits answers it without a legend.
-  const since = history.length ? history[0].m * BUCKET_MS : 0;
+  const since = oldestBucketMs();
   const changes = routeLog.filter(c => c.t >= since).map(c => ({ t: c.t, label: c.label, from: c.from }));
   if (series.length && changes.length) series[series.length - 1].changes = changes;
   return series;
@@ -426,11 +449,10 @@ function heldBackSoFar() {
   const key = `thermal:${THROTTLE_LABEL}`;
   let peak = 0;
   let lastMs = 0;
-  for (const b of history) {
-    const v = b.v[key];
-    if (v == null || v <= 0) continue;
+  for (const { t, v } of pointsOf(key)) {
+    if (v <= 0) continue;
     if (v > peak) peak = v;
-    lastMs = b.m * BUCKET_MS;
+    lastMs = t;
   }
   return peak > 0 ? { peak, lastMs } : null;
 }
@@ -811,7 +833,7 @@ export function stopSystemMetrics() {
   thermal = null;
   thermalMisses = 0;
   thermalEverAnswered = false;
-  history.length = 0;
+  resetHistory();
   historySince = 0;
   prevTicks = null;
   prevCoreTicks = null;
