@@ -2,11 +2,13 @@
 // log and its archive emptied when this deck is the one writing them, and the
 // `__clear` marker that tells every open page to forget what it drew.
 //
-// This lived in src/server/index.mjs, after the SSE resume. It empties the
-// ring through event-ring.mjs, drops the output watch's and the enrichment's
-// emit gates, and sends the marker through pushEvent. GET /api/clear, the
-// question the dialog asks before the press, is still answered in the route
-// table. The body is unchanged.
+// And GET /api/clear, the question the dialog asks before the press, which is
+// answered from the same logSharing the press is gated on.
+//
+// Both lived in src/server/index.mjs — the press after the SSE resume, the
+// question in the route table. The press empties the ring through
+// event-ring.mjs, drops the output watch's and the enrichment's emit gates, and
+// sends the marker through pushEvent. Both bodies are unchanged.
 import { PRODUCT } from "./brand.mjs";
 import { send } from "./http-io.mjs";
 // The ring the press empties — see event-ring.mjs.
@@ -19,6 +21,21 @@ import { logSharing } from "./event-log.mjs";
 import { emptyLog } from "./log-writer.mjs";
 import { outputWatch } from "./session-tracking.mjs";
 import { clearEnrichmentGates } from "./session-enrichment.mjs";
+
+/**
+ * GET /api/clear — what a POST to this path would do, and to whose log.
+ *
+ * Asked by the confirmation dialog as it opens, on demand rather than on a
+ * timer, for the reason /api/system/processes is: the answer costs a directory
+ * read, changes only when a deck starts or stops, and matters at exactly one
+ * moment. See logSharing.
+ */
+export function handleClearPreview(res) {
+  return logSharing().then(s => send(res, 200, {
+    ok: true, path: s.path, decks: s.decks, mine: s.mine,
+    owner: s.owner ? { port: s.owner.port } : null,
+  }));
+}
 
 /**
  * The deck's one irreversible action: empty the ring, and empty the log — both

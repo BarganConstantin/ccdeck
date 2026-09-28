@@ -39,8 +39,8 @@ import "./event-pipeline.mjs";
 import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs";
 // Exported from this file before it moved, and still.
 export { writeJsonArray };
-// POST /api/clear — see clear-route.mjs.
-import { handleClear } from "./clear-route.mjs";
+// GET and POST /api/clear — see clear-route.mjs.
+import { handleClear, handleClearPreview } from "./clear-route.mjs";
 // GET /api/health — see health-route.mjs.
 import { handleHealth } from "./health-route.mjs";
 // GET /api/hook-challenge, and the token it proves knowledge of — see
@@ -93,7 +93,7 @@ export { CODEX_SESSIONS_DIR } from "./codex-dir.mjs";
 // The events.jsonl this deck keeps: where it is, which sessions this deck
 // writes to it, who shares it, when it rolls over and whether it is being
 // written at all — see event-log.mjs.
-import { eventLogPath, logSharing, openEventLog } from "./event-log.mjs";
+import { eventLogPath, openEventLog } from "./event-log.mjs";
 // Exported from this file before they moved, and still.
 export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // What the deck learns about a session that its hooks never say — model,
@@ -389,16 +389,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
 
     // GET /api/clear — what a POST to this path would do, and to whose log.
-    // Asked by the confirmation dialog as it opens, on demand rather than on a
-    // timer, for the reason /api/system/processes is: the answer costs a
-    // directory read, changes only when a deck starts or stops, and matters at
-    // exactly one moment. See logSharing.
-    if (req.method === "GET" && url.pathname === "/api/clear") {
-      return guard(logSharing().then(s => send(res, 200, {
-        ok: true, path: s.path, decks: s.decks, mine: s.mine,
-        owner: s.owner ? { port: s.owner.port } : null,
-      })), res);
-    }
+    // See handleClearPreview.
+    if (req.method === "GET" && url.pathname === "/api/clear") return guard(handleClearPreview(res), res);
 
     // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
     if (req.method === "POST" && url.pathname === "/api/clear") return guard(handleClear(res), res);
