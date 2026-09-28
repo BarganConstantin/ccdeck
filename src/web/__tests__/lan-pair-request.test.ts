@@ -6,7 +6,7 @@
 // two buttons and a fingerprint.
 import { describe, expect, it } from "vitest";
 import { nextRequest } from "../components/LanPairRequestModal";
-import type { LanStranger } from "../components/LanSyncSection";
+import type { LanStranger } from "../lan-types";
 
 const ask = (fp: string, at: number): LanStranger => ({ fp, name: `deck-${fp}`, addr: "192.168.1.9", port: 62259, at });
 
