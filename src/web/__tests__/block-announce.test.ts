@@ -65,6 +65,10 @@ const codeOf = (text: string) =>
 
 const app = read("../App.tsx");
 const appCode = codeOf(app);
+/** The announcement's surface: App.tsx, which mounts the region, and the hook that
+ *  decides what it says. Not the whole client — block-announce.ts builds the
+ *  sentence on purpose, so a negative asked of it would fail for the right code. */
+const surfaceCode = codeOf(app + "\n" + read("../use-live-announcements.ts"));
 
 /** A blocked session as far as the wording is concerned. */
 const at = (label: string) => ({ label });
@@ -308,11 +312,11 @@ describe("the block is announced, and the region is always there to announce it"
     // a rule this suite cannot call, and what cannot be called gets copied and
     // then drifts. Every case in group 1 above exercises the definition, so the
     // definition has to be the thing App.tsx runs.
-    expect(appCode).toContain("blockedAnnouncement(waitingSessions)");
-    expect(appCode).toContain("nextAnnouncement(said, blockedNow)");
+    expect(surfaceCode).toContain("blockedAnnouncement(waitingSessions)");
+    expect(surfaceCode).toContain("nextAnnouncement(said, blockedNow)");
     // And no second copy of the wording anywhere in the component.
-    expect(appCode).not.toContain("waiting for your permission");
-    expect(appCode).not.toContain("No sessions are waiting");
+    expect(surfaceCode).not.toContain("waiting for your permission");
+    expect(surfaceCode).not.toContain("No sessions are waiting");
   });
 
   it("keys the effect on the sentence rather than on the session list", () => {
@@ -320,7 +324,7 @@ describe("the block is announced, and the region is always there to announce it"
     // list-shaped dependency re-runs this through every tool storm to discover
     // each time that nothing changed. A string dependency runs it only when the
     // words move.
-    expect(appCode).toMatch(/setBlockedSaid\(said => nextAnnouncement\(said, blockedNow\)\);\s*\n\s*\}, \[blockedNow\]\);/);
+    expect(surfaceCode).toMatch(/setBlockedSaid\(said => nextAnnouncement\(said, blockedNow\)\);\s*\n\s*\}, \[blockedNow\]\);/);
   });
 });
 
