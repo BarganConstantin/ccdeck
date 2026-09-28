@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 // Type only: the library itself is imported on demand, in startDirect.
 import type Hls from "hls.js";
-import { command, FATAL_ERRORS, PLAYER_ORIGIN, readSignal } from "./claude-fm";
+import { command, FATAL_ERRORS, PLAYER_ORIGIN, readSignal } from "./claude-fm-player";
 import type { FmSource } from "./appearance";
 import {
   customFmId, customFmSelection, parseFmStationUrl,
