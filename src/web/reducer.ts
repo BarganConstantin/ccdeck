@@ -1,4 +1,22 @@
 // Event → graph reducer. Pure-ish: same events in any order = same end state.
+//
+// This file is the order an event is applied in. The seq guard first; then
+// what every event does whoever it belongs to — the waiting block's clear, the
+// session's heartbeat, the facts Codex restates on any payload; then the
+// server's transcript scans, which stop there; then the hook events, each after
+// `resolveOwner` has named the agent it belongs to. What each event does is
+// written beside the state it changes:
+//
+//   graph-state.ts         the state, and the keys it is filed under
+//   agent-attribution.ts   which agent an event belongs to; roots and subagents
+//   session-lifecycle.ts   SessionStart, prompts, Stop and SessionEnd
+//   subagent-lifecycle.ts  SubagentStart and SubagentStop
+//   tool-calls.ts          a call's start and outcome, and its history window
+//   waiting-block.ts       Notification, and what clears the block it raises
+//   transcript-events.ts   the server's transcript scans
+//   board-sweeps.ts        the tick's sweeps and pruners, which no event drives
+//
+// The rest of the client imports what it reads of these from here.
 import { extractModel } from "./payload-model";
 import { initialState, type GraphState } from "./graph-state";
 import { resolveOwner } from "./agent-attribution";
@@ -84,11 +102,11 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   clearAnsweredWaiting(state, name, p, sessionId);
 
   // Note that we heard from this session, which is a different question from
-  // what the event says. It runs above the branches on purpose: the three
-  // *Observed events return early, the switch below ignores several names
-  // outright, and every one of them is still the session's id arriving from a
-  // process that is running. Attribution is irrelevant for the same reason — a
-  // subagent's PreToolUse proves the session is there as surely as the root's.
+  // what the event says. It runs above the branches on purpose: the transcript
+  // scans return early, the switch below ignores several names outright, and
+  // every one of them is still the session's id arriving from a process that is
+  // running. Attribution is irrelevant for the same reason — a subagent's
+  // PreToolUse proves the session is there as surely as the root's.
   noteSessionHeard(state, sessionId, now);
 
   // Facts about the session that ride on whatever payload carries them. Above
