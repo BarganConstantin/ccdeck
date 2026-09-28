@@ -730,7 +730,7 @@ export function publicPrefs(prefs) {
  * only one of them is making a claim about the machine.
  */
 export function notificationsOn(prefs, env = process.env) {
-  if (env[OFF_ENV] === "1") return false;
+  if (notificationsVetoed(env)) return false;
   return normalise(prefs).notifications;
 }
 
