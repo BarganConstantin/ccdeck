@@ -179,7 +179,8 @@ export function createSyncServer({
    *  on arrival rather than queued behind a press. */
   invite = () => null,
   /** One was used. The caller stores the pairing and retires the invite: a
-   *  token that pairs twice is a token worth stealing twice. */
+   *  token that pairs twice is a token worth stealing twice. Called for EVERY
+   *  proof that holds, a deck already paired included — see auth (#1137). */
   onInviteUsed,
   /** A connection arrived, before anything about it is known — called with the
    *  address it came from and nothing else.
@@ -475,13 +476,20 @@ export function createSyncServer({
       // check against, so it is the only thing standing between an invite
       // address and whoever else is reachable there.
       const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
+      // SPENT BY ANY PROOF THAT HOLDS, known deck or not (#1137). This was
+      // asked only on the stranger's path below, so a deck already on the list
+      // was shown the proof back and the token stayed live for the rest of its
+      // ten minutes — and "already on the list" includes a deck whose first
+      // pairing dropped out after this very proof, which is exactly the deck
+      // that comes back with a fresh invite. Whether the caller was known
+      // decides nothing about whether the token has been used; it has. So
+      // there is nothing to press, either: the deck is pinned here.
+      if (heldInvite) {
+        onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
+        welcome(back);
+        return;
+      }
       if (!known) {
-        if (heldInvite) {
-          // So there is nothing to press: the deck is pinned here.
-          onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
-          welcome(back);
-          return;
-        }
         // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
         // It is not asked again here, and — the half a held refusal cannot
         // do — the deck that asked is told, so its own panel can stop saying
@@ -516,11 +524,10 @@ export function createSyncServer({
       }
 
       // And ours, so the caller knows it reached the deck it pinned rather
-      // than something standing in the way of one. Plus the invite, when one
-      // was presented and held: a deck already on this list is not a reason
-      // to leave a caller's question unanswered. Nothing is retired on this
-      // path — nobody was paired, because they already were.
-      welcome(back);
+      // than something standing in the way of one. No invite on this path: a
+      // caller that held one was answered above, and a deck already on this
+      // list that brought none is simply a paired deck calling.
+      welcome({});
     };
 
     sock.on("data", frameReader(msg => {

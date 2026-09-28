@@ -812,11 +812,17 @@ export function createEngine({
     learned.set(`${addr}:${port}`, met);
   };
 
-  /** Somebody used the token. They are pinned, and the token is retired —
-   *  one that pairs twice is one worth stealing twice. */
+  /** Somebody used the token. It is retired — one that pairs twice is one
+   *  worth stealing twice — and they are pinned.
+   *
+   *  RETIRED FIRST, so nothing that goes wrong in the pairing after it can
+   *  leave a spent token live (#1137). The listener calls this for every
+   *  proof that holds, a deck it already had included; pinning one of those
+   *  again changes nothing but its name, and dialling it back is what joining
+   *  does on the other end too. */
   const inviteUsed = entry => {
-    const { list } = pin(entry);
     invite = null;
+    const { list } = pin(entry);
     // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
     // deck with no way to reach it: an inbound connection puts nothing in
     // the dial list. Without this the pairing is mutual in the trusted

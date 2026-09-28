@@ -20,7 +20,7 @@ import { createEngine } from "../../server/lan-engine.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { INVITE_PREFIX, mintInvite, readInvite } from "../../server/lan-invite.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { createSyncServer } from "../../server/lan-socket.mjs";
+import { connectToPeer, createSyncServer } from "../../server/lan-socket.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { identityFrom, PROTOCOL } from "../../server/lan-sync.mjs";
 
@@ -114,5 +114,58 @@ describe("across versions", () => {
     // and not when a caller hands the minting function some.
     expect(readInvite(j.e.invite().token).code).toMatch(/^[A-Za-z0-9_-]{22}$/);
     expect(mintInvite({ addrs: ["10.0.0.4:5000"], name: "x", code: "482100" })).toBeNull();
+  }, 20_000);
+});
+
+describe("an invite, once a proof of it has held", () => {
+  it("is retired when a deck this one already paired with proves it", async () => {
+    // Paired once, on an invite, both ends — and then the owner makes another
+    // and the same deck proves that one too. It was shown the proof back and
+    // the token stayed live for the rest of its ten minutes, because only a
+    // stranger's proof retired one.
+    const m = await deck("Minter");
+    const j = await deck("Joiner");
+    expect((await j.e.join(invitedAt(m))).ok).toBe(true);
+    expect(m.e.status().trusted).toMatchObject([{ fp: j.id.fp }]);
+
+    const second = invitedAt(m);
+    const res = await j.e.join(second);
+    expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
+    expect(m.e.offering(), "a proof from a paired deck left the invite live").toBeNull();
+    expect(m.e.status().invite).toBeNull();
+
+    // And spent means spent: the same token again is not a way back in.
+    const again = await j.e.join(second);
+    expect(again.ok).toBe(false);
+    expect(again.tried).toMatchObject([{ why: "that deck does not hold the invite" }]);
+  }, 20_000);
+
+  it("is retired when a first pairing dropped out after the proof, and the deck comes back", async () => {
+    // The proof lands, the minter pins the joiner and retires that token —
+    // and the joiner's own side never finishes, so it has nothing and asks
+    // for a new invite. It comes back as a deck the minter already knows,
+    // which is exactly the path that left a token live.
+    //
+    // The first attempt is the joiner's own key through the dialler, with the
+    // connection dropped as soon as the handshake is through and nothing
+    // pinned on the joiner's side: what the minter sees is the whole of a
+    // first pairing, and what the joiner kept is none of it.
+    const m = await deck("Minter");
+    const j = await deck("Joiner");
+    const first = readInvite(invitedAt(m));
+    const conn = await connectToPeer({
+      host: "127.0.0.1", port: m.port, fp: j.id.fp, pub: j.id.pub, secret: j.id.secret,
+      name: "Joiner", myPort: j.port, code: first.code, inviteProvesBack: true,
+    });
+    conn.sock.destroy();
+    expect(m.e.status().trusted, "the minter pinned the first attempt").toMatchObject([{ fp: j.id.fp }]);
+    expect(m.e.offering(), "the first proof did not retire its own invite").toBeNull();
+    expect(j.e.status().trusted, "the joiner kept nothing of it").toEqual([]);
+
+    const res = await j.e.join(invitedAt(m));
+    expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
+    expect(j.e.status().trusted).toMatchObject([{ fp: m.id.fp }]);
+    expect(m.e.offering(), "the invite the returning deck proved is still live").toBeNull();
+    expect(m.e.status().trusted, "and it is one pin, not two").toHaveLength(1);
   }, 20_000);
 });
