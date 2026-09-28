@@ -14695,6 +14695,10 @@ input, textarea { caret-color: var(--accent); }
 .ap-proj-total-cost { font-size: 18px; font-weight: 650; color: var(--text); }
 .ap-proj-total-tok { font-size: 12px; color: var(--muted); }
 .ap-proj-total-win { font-size: 12px; color: var(--text-dim); }
+/* ccusage is still reconciling the dollars (#1317). Words at full contrast, not
+   a dimmed figure: the estimate on screen is a real answer, only not the final
+   one. Pushed to the row's end so its going leaves nothing to reflow. */
+.ap-proj-total-pending { margin-left: auto; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
 
 .ap-proj-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .ap-proj-row {
@@ -14783,6 +14787,8 @@ input, textarea { caret-color: var(--accent); }
   .ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content max-content; }
   .ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }
   .ap-proj-other-member .ap-proj-copy { grid-column: 4; grid-row: 1; }
+  /* The totals already fill a phone's row; the foot says the same thing. */
+  .ap-proj-total-pending { display: none; }
 }
 
 /* Per-day chart in the Projects report: a stacked column per day, coloured by

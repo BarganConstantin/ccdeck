@@ -7,11 +7,12 @@
 // rest of the deck. Attribution is per message and starts at the version that
 // began recording which account was active — everything before that is honestly
 // unattributable, shown apart so a total is never quietly inflated.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
-import { reconcile, type Counters, type CcCell } from "../account-projects-reconcile";
+import { ccCellsFrom, reconcile, type Counters } from "../account-projects-reconcile";
+import { INITIAL_LOAD, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -52,11 +53,6 @@ const UNATTRIBUTED_COLOR = "var(--usage-zinc)";
 const MAX_ROWS = 6;
 /** How long a Copy reads `Copied` — the deck's other copy buttons' moment. */
 const COPIED_MS = 1_600;
-
-/** Format a local date as the `YYYYMMDD` /api/ccusage insists on. */
-function ymd(d: Date): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-}
 
 /** fmtCost with thousands grouping for the whole-dollar tier, so a five-figure
  *  Unattributed reads `$1,897` and not `$1897`. Local to this modal — the shared
@@ -103,19 +99,22 @@ function niceDate(ms: number | null): string {
 
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
   const [days, setDays] = useState(1);
-  const [report, setReport] = useState<Report | null>(null);
+  // The two reads land on their own — see account-projects-load.ts (#1317).
+  const [load, dispatch] = useReducer(projectsLoad<Report>, INITIAL_LOAD);
+  const report = load.report?.data ?? null;
   // The window the report on screen belongs to. While another window loads,
   // the last report stays up, dimmed, rather than the modal collapsing to a
   // Loading line and jumping back open.
-  const [shownDays, setShownDays] = useState(days);
-  // The raw ccusage range for the window — the dollar authority. Null while
-  // loading or when ccusage could not be reached (then pricing.ts stands in).
-  // Per-model and per-day-per-model costs are derived from it in the memo.
-  const [ccRange, setCcRange] = useState<unknown>(null);
+  const shownDays = load.report?.days ?? days;
+  // The raw ccusage range for the report on screen — the dollar authority. Null
+  // while ccusage runs or when it could not be reached (then pricing.ts stands
+  // in). Per-model and per-day-per-model costs are derived from it in the memo.
+  const ccRange = load.report?.cost.phase === "ready" ? load.report.cost.range : null;
+  const costPending = load.report?.cost.phase === "running";
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const loading = reportLoading(load);
+  const error = load.error;
   // THE LAST COPY, AND WHETHER IT LANDED. A Copy that says nothing leaves the
   // reader pasting to find out; the button reads `Copied` for a moment and the
   // status line below says it to a screen reader, which a word changing on a
@@ -129,33 +128,11 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const reqId = useRef(0);
 
   useEffect(() => {
-    const id = ++reqId.current;
-    setLoading(true);
-    setError(null);
+    const gen = ++reqId.current;
+    dispatch({ type: "start", gen });
     setSelectedDay(null);   // a new window is a fresh chart
     setExpandedRows(new Set());
-    // The window the tally used: today back N-1 days (60 for "all", matching
-    // the rollup's retention). ccusage is asked for the same span so the two
-    // agree day-for-day.
-    const span = days === 0 ? 60 : days;
-    const since = ymd(new Date(Date.now() - (span - 1) * 86_400_000));
-    const until = ymd(new Date());
-    const rep = fetch(`/api/account-projects?num=${num}&days=${days}`, { credentials: "same-origin" })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
-    // ccusage is best-effort: a failure leaves us on pricing.ts rather than
-    // blocking the report on a subprocess.
-    const usage = fetch(`/api/ccusage?since=${since}&until=${until}`, { credentials: "same-origin" })
-      .then(r => (r.ok ? r.json() : null)).catch(() => null);
-    Promise.all([rep, usage])
-      .then(([j, u]: [Report, unknown]) => {
-        if (id !== reqId.current) return;
-        setReport(j);
-        setShownDays(days);
-        const range = u as { ok?: unknown } | null;
-        setCcRange(range && range.ok !== false ? range : null);
-        setLoading(false);
-      })
-      .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setReport(null); setLoading(false); } });
+    loadProjects<Report>({ num, days, gen, dispatch });
   }, [num, days]);
 
   // One reconciliation, per day, aggregated — so period, project, day and
@@ -165,34 +142,10 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const now = Date.now();
     if (!report) return null;
 
-    // ── ccusage: the dollar authority, per (day, model), Claude only ─────────
-    // Only Claude model breakdowns are read, so Codex cost never reconciles into
-    // a project nor into the window total.
-    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-    const ccByDayModel = new Map<string, CcCell>();   // `${day}|${model}` -> { cost, tokens }
-    if (ccRange) {
-      const daysArr = Array.isArray((ccRange as { days?: unknown }).days) ? (ccRange as { days: Array<Record<string, unknown>> }).days : [];
-      for (const d of daysArr) {
-        const period = typeof d.period === "string" ? d.period : "";
-        const mbs = Array.isArray(d.modelBreakdowns) ? (d.modelBreakdowns as Array<Record<string, unknown>>) : [];
-        for (const b of mbs) {
-          const mn = typeof b.modelName === "string" ? b.modelName : "";
-          if (!period || !/claude/i.test(mn)) continue;
-          const key = `${period}|${mn}`;
-          const cur = ccByDayModel.get(key);
-          const u = cur ? cur.usage : { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 };
-          u.inputTokens += num(b.inputTokens);
-          u.outputTokens += num(b.outputTokens);
-          u.cacheReadTokens += num(b.cacheReadTokens);
-          u.cacheCreateTokens += num(b.cacheCreationTokens);
-          if (cur) cur.cost += num(b.cost);
-          else ccByDayModel.set(key, { cost: num(b.cost), usage: u });
-        }
-      }
-    }
-    // The reconciliation math lives in a pure, tested module: our tokens priced
+    // ccusage — the dollar authority, per (day, model), Claude only — and the
+    // reconciliation math both live in a pure, tested module: our tokens priced
     // at ccusage's own per-token rate, per day, so nothing inflates or leaks in.
-    const rec = reconcile(report.daily ?? [], report.unattributed, ccByDayModel, now);
+    const rec = reconcile(report.daily ?? [], report.unattributed, ccCellsFrom(ccRange), now);
 
     // Names, with a colliding basename told apart by its parent.
     const nameOf = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path || "(unknown)";
@@ -296,6 +249,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
           <button ref={closeRef} className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 
+        {/* Busy while the report loads, never while ccusage runs: that can take
+            a minute and a half, and assistive technology may hold a busy
+            region back until it clears (#1317). */}
         <div className={`ap-proj-body${refreshing ? " refreshing" : ""}`} aria-busy={loading}>
           {loading && !report && <div className="ap-proj-state">Loading…</div>}
           {!loading && error && <div className="ap-proj-state ap-proj-error">Couldn’t load this report: {error}</div>}
@@ -333,6 +289,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     <span className="ap-proj-total-cost">{fmtCost(view.totalCost)}</span>
                     <span className="ap-proj-total-tok">{fmtTokens(view.totalTokens)} tokens</span>
                     <span className="ap-proj-total-win">· {windowWord}</span>
+                    {/* pricing.ts's dollars until ccusage answers, reconciled in
+                        place when it does — said beside the figure that moves. */}
+                    {costPending && <span className="ap-proj-total-pending">Reconciling cost…</span>}
                   </div>
 
                   {showsDayChart(shownDays, view.chart.length) && (
@@ -474,7 +433,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                   </div>
 
                   <div className="ap-proj-foot">
-                    {view.reconciled ? "Dollars from ccusage · split by activity" : "Dollars estimated · ccusage unavailable"} · {trackedNote}
+                    {costPending ? "Dollars estimated · ccusage still running"
+                      : view.reconciled ? "Dollars from ccusage · split by activity"
+                      : "Dollars estimated · ccusage unavailable"} · {trackedNote}
                   </div>
                 </>
               )}
