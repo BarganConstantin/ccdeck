@@ -33,8 +33,8 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  addTrusted, credentialAad, dropTrusted, identityFrom, open, pairable, peerWhy, plan, seal, slotFor,
-  stillListed, transferChallenge, trustedPeer,
+  addTrusted, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, seal, slotFor, stillListed,
+  transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
@@ -48,6 +48,7 @@ import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
 import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { createManifests } from "./lan-manifest.mjs";
+import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -156,18 +157,9 @@ export function ticksOnArrival(step, via) {
   return !!step?.key && step.action === "add" && via !== "tailscale";
 }
 
-/**
- * The two permissions that answer for one route.
- *
- * READ OFF WHICHEVER SETTINGS ARE ASKED ABOUT, because two places ask. A beacon
- * or a request asks of the settings in force; `apply` asks of the settings
- * before a write and after it, to tell which switch the write turned on. The
- * second used to spell the same conditions out again as its own pair, and a
- * switch read one way here and another way there would answer a request in
- * one place and leave it waiting in the other.
- */
-export const asksOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
-export const saysYesOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
+/** The two permissions that answer for one route — see lan-requests.mjs,
+ *  where the requests they answer are kept. */
+export { asksOn, saysYesOn };
 
 /**
  * One question to a deck over a connection connectToPeer opened, and the one
@@ -327,44 +319,12 @@ export function createEngine({
   let server = null;
   let timer = null;
   /** This engine, for the helpers below `apply` that need to press its own
-   *  accept or add its own peer — askToAccept, and the callbacks apply hands
-   *  the listener and the beacon. Set on the first apply, which is the only
+   *  accept or add its own peer — the requests (see lan-requests.mjs, which
+   *  reach it through engineNow), and the callbacks apply hands the listener
+   *  and the beacon. Set on the first apply, which is the only
    *  thing that can start a round or a listener, so nothing reads it before it
    *  is there. */
   let engine = null;
-  /**
-   * Decks that finished a handshake and that nobody here has accepted yet, and
-   * decks merely heard shouting on the network. Two lists because they are two
-   * different claims: a pending deck proved it holds the key it announced, a
-   * heard one only said so. Both are rows with an accept on them; only the
-   * first is evidence.
-   *
-   * In memory rather than on disk. A request that is a day old is not a request
-   * any more, and a list of them that survives restarts is a list nobody reads.
-   */
-  const pending = new Map();
-  const strangers = new Map();
-  /**
-   * Decks somebody here said no to.
-   *
-   * WITHOUT THIS, DECLINING DID NOTHING THAT LASTED. A deck that asks is a deck
-   * that keeps asking — it dials on its own timer, and every dial that finds no
-   * pin here becomes a fresh request. So `dismiss` took a row off a list that
-   * the next minute put back, and on the other machine the refusal was
-   * indistinguishable from a deck that had not been answered yet: both are the
-   * same `pending` refusal on the wire, and both drew "waiting for the other
-   * deck to accept this one" forever.
-   *
-   * A name kept here is therefore two answers at once. This deck stops asking
-   * its owner, and the deck that asked is TOLD — see refuse("declined") in
-   * lan-socket.mjs, which is the only way the far end can ever learn that the
-   * answer was no rather than not yet.
-   *
-   * In memory, like the two lists above, and reversible: `allow` takes a name
-   * out and the requests come back. Nothing about it is written down, because a
-   * refusal that outlives the process is a decision nobody can find to undo.
-   */
-  const declined = new Map();
   /** The invite this deck is offering, from the press that makes it to the
    *  proof that spends it — see lan-invite-offer.mjs. */
   const offer = createInviteOffer({ now, onChange, onError });
@@ -452,9 +412,10 @@ export function createEngine({
    *  address, "lan" for every other. */
   const viaAt = addr => (routeTo(addr) ? "tailscale" : "lan");
 
-  /** A pairing somebody explicitly removed. Unlike `declined`, this survives a
-   * restart because the old dial row survives too; forgetting the decision
-   * would let that row silently recreate the pairing on the next round. */
+  /** A pairing somebody explicitly removed. Unlike `declined` in
+   * lan-requests.mjs, this survives a restart because the old dial row
+   * survives too; forgetting the decision would let that row silently
+   * recreate the pairing on the next round. */
   const wasUnpaired = fp => Array.isArray(cfg.unpaired) && cfg.unpaired.includes(fp);
   const markUnpaired = (fp, value) => {
     const before = Array.isArray(cfg.unpaired) ? cfg.unpaired : [];
@@ -466,6 +427,13 @@ export function createEngine({
     onUnpaired?.(next);
     return true;
   };
+
+  /** The decks waiting on somebody here — asked, heard, or told no — and when
+   *  a switch answers one for the owner by pressing this engine's accept. See
+   *  lan-requests.mjs. */
+  const requests = createRequests({
+    now, settings: () => cfg, routeTo, wasUnpaired, engineNow: () => engine, onChange, localAddresses,
+  });
 
   /**
    * Pin a deck somebody here chose — pressed accept on, handed an invite to,
@@ -633,44 +601,6 @@ export function createEngine({
   };
 
   /**
-   * A real deck nobody here has accepted: draw it as a row with an accept on it.
-   *
-   * ONE HELPER FOR BOTH DIRECTIONS, because the evidence is the same either
-   * way. A deck that DIALLED this one finishes a handshake at the listener and
-   * arrives through `onPending`; a deck this one dialled finishes the same
-   * handshake in roundWith. Both have proved they hold the key they announced,
-   * and neither has been agreed to. Before #969 only the first raised a
-   * request and the second silently pinned itself.
-   *
-   * SAY YES FOR SOMEBODY WHO SAID TO. `autoAccept` is the accept button and
-   * nothing else: the same pin, from the same key the handshake just proved.
-   * Nothing about the wire changes — an inbound connection is still refused,
-   * because trust is read fresh per connection, and the caller comes back a few
-   * seconds later.
-   *
-   * A deck already told no does not become a row again. On the inbound path
-   * lan-socket refuses it before this is ever called; on the outbound one there
-   * is nothing before this, so the check lives here.
-   */
-  const askToAccept = entry => {
-    if (cfg.pairingMode === "invite" || declined.has(entry.fp)) return;
-    const had = pending.get(entry.fp);
-    // WHICH SWITCH ANSWERS depends on where the deck is. A request from the
-    // tailnet is answered by the Tailscale pair, and only for a machine on this
-    // person's own Tailscale account; anything else on the tailnet waits for a
-    // press whatever either switch says. See routeOf.
-    const route = routeTo(entry.addr);
-    const via = route ? "tailscale" : "lan";
-    const own = !!route?.own;
-    pending.set(entry.fp, { ...entry, via, own, at: had?.at ?? now(), lastAt: now() });
-    if (!wasUnpaired(entry.fp) && saysYesOn(cfg, via) && (via === "lan" || own)) {
-      engine?.accept(entry.fp, { byHand: false });
-      return;
-    }
-    if (!had) onChange?.();
-  };
-
-  /**
    * Dial a deck just paired with from now on, and keep the address: in the
    * dial list, and through onDial in prefs, so a restart does not make the
    * pairing one-way again.
@@ -707,37 +637,6 @@ export function createEngine({
     if (entry.addr && entry.port) keepDialling(entry.addr, entry.port, { fp: entry.fp, name: entry.name || "" });
     onTrust?.(list);
     onChange?.();
-  };
-
-  /** A deck the beacon heard that nobody here has accepted: a row somebody
-   *  can accept, and — when the ask switch for its route is on — asked. */
-  const heardStranger = entry => {
-    const had = strangers.get(entry.fp);
-    // KEYED BY MACHINE WHEN IT SAYS WHICH ONE IT IS. A computer that took
-    // a fresh key — a second deck sharing one config directory does, by
-    // design — used to leave its old key in this map for a day, and every
-    // one of them drew a row offering to pair with the same machine.
-    if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
-    const own = entry.via === "tailscale" && !!routeTo(entry.addr)?.own;
-    strangers.set(entry.fp, { ...entry, own });
-    // ASK IT, which is what the `ask` verb on its row does and nothing
-    // more: the address goes on the dial list and the next round sends a
-    // request that somebody over there still has to answer. A beacon
-    // carries a fingerprint and no key, so nothing is pinned here — see
-    // accept, which is deliberate about the difference.
-    //
-    // Only a deck that is NEW is asked, or a beacon every thirty seconds
-    // would be thirty seconds of asking; and never one this deck's owner
-    // already turned away.
-    // Never `byHand`: a beacon is a shout from an address nobody here
-    // named, and the row it leaves may ask rather than pin.
-    // Over the tailnet only a machine on this person's own account is
-    // asked unprompted; any other is a row for somebody to decide on.
-    const mayAsk = asksOn(cfg, entry.via) && (entry.via !== "tailscale" || own);
-    if (mayAsk && !had && !declined.has(entry.fp) && !wasUnpaired(entry.fp)) { engine.accept(entry.fp, { byHand: false }); return; }
-    // Only a deck that is new to us is news. A beacon every thirty
-    // seconds from one already on the list is not a reason to redraw.
-    if (!had) onChange?.();
   };
 
   /** Another deck is using this one's key. Take a new key and keep it. Two
@@ -847,7 +746,7 @@ export function createEngine({
           // handshake it just finished is the same evidence either way — a real
           // deck holding the key it announced. What is missing is the press,
           // and that is what this asks for.
-          askToAccept({
+          requests.askToAccept({
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName,
             addr: peer.addr, port: peer.port,
           });
@@ -1086,21 +985,6 @@ export function createEngine({
     };
   };
 
-  /** The heard decks status() offers to pair with — see its `strangers`. */
-  const strangerRows = () => {
-    // A deck that was told no is not somebody to offer pairing with. It
-    // has its own row, with the one control that undoes the decision.
-    const heard = [...strangers.values()].filter(p => !declined.has(p.fp));
-    // pairable() collapses the rest by machine — see hostId. A computer
-    // that has run the deck a few times holds a key per run, and every
-    // one of them was a row of its own on everybody else's panel.
-    const { shown, more } = pairable(heard, now(), { mine: localAddresses() });
-    return shown.map(p => ({
-      fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more,
-      via: p.via ?? "lan", own: !!p.own,
-    }));
-  };
-
   /** Every deck this one dials or is paired with, one row each — see
    *  status()'s `peers`. Asked only while the beacon is up. */
   const deckRows = () => {
@@ -1185,33 +1069,10 @@ export function createEngine({
       engine = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
-      // A request made before invite-only was enabled must not survive the
-      // switch and become an automatic approval when automatic mode returns.
-      // A fresh handshake after that switch may request pairing again.
-      if (was.pairingMode !== "invite" && cfg.pairingMode === "invite" && pending.size) {
-        pending.clear();
-        onChange?.();
-      }
-      // TURNING IT ON ANSWERS WHAT IS ALREADY WAITING. A person who switches
-      // this on with two rows sitting in the panel means those two as much as
-      // the next one, and leaving them queued behind a setting called
-      // "automatic" is the switch not doing what it says.
-      //
-      // PER ROUTE, because each pair of switches answers for its own: turning
-      // the local one on does not answer a tailnet request, and turning the
-      // Tailscale one on answers only the owner's own machines.
-      const turnedOn = (f, via) => !f(was, via) && f(cfg, via);
-      const mayAnswer = p => (p.via === "tailscale" ? turnedOn(saysYesOn, "tailscale") && p.own : turnedOn(saysYesOn, "lan"));
-      for (const [fp, p] of [...pending]) if (!wasUnpaired(fp) && mayAnswer(p)) this.accept(fp, { byHand: false });
-      // The same for the other direction: switching `ask` on with four machines
-      // already listed asks those four.
-      const mayAsk = p => (p.via === "tailscale" ? turnedOn(asksOn, "tailscale") && p.own : turnedOn(asksOn, "lan"));
-      for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !wasUnpaired(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
-      // OFF MEANS THE TAILNET GOES QUIET HERE: nobody heard over it is offered,
-      // and tailPoll.sync stops the reads. Decks already paired stay paired.
-      if (was.tailscale && !cfg.tailscale) {
-        for (const [fp, p] of [...strangers]) if (p.via === "tailscale") strangers.delete(fp);
-      }
+      // What the write does to the decks already waiting — invite-only clears
+      // the requests, a switch turned on answers them, the tailnet switch off
+      // forgets who was heard over it. See switched in lan-requests.mjs.
+      requests.switched(was);
       const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
@@ -1244,14 +1105,14 @@ export function createEngine({
         // Asked before the request is drawn, so a deck that was told no is
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
-        declined: fp => declined.has(fp),
+        declined: requests.isDeclined,
         // Read on every handshake rather than captured, so switching the mode
         // takes effect on the next caller without restarting the listener.
         inviteOnly: () => cfg.pairingMode === "invite",
         // The same helper the outbound round uses, because a deck that called
         // in and a deck this one called have proved exactly the same thing —
-        // see askToAccept.
-        onPending: askToAccept,
+        // see askToAccept in lan-requests.mjs.
+        onPending: requests.askToAccept,
       });
       server = startingServer;
       let port;
@@ -1286,7 +1147,7 @@ export function createEngine({
         rebindMs: bindRetryMs,
         routes,
         onHearing: hearing.hearingChanged,
-        onStranger: heardStranger,
+        onStranger: requests.heardStranger,
         onIdClash: idClash,
         onError, now,
         ...(createSocket ? { createSocket } : {}),
@@ -1402,9 +1263,7 @@ export function createEngine({
      * trusted on a name somebody typed.
      */
     accept(fp, { byHand = true } = {}) {
-      const asked = pending.get(fp) ?? null;
-      const heard = strangers.get(fp) ?? null;
-      const seen = asked ?? heard;
+      const seen = requests.seen(fp);
       if (!seen || cfg.pairingMode === "invite") return null;
       if (wasUnpaired(fp) && !byHand) return null;
       // TWO KINDS OF ROW, AND THEY ARE NOT THE SAME CLAIM.
@@ -1428,13 +1287,12 @@ export function createEngine({
         // deck answering a shout — and the row it leaves may only ASK, which is
         // what the switch's own name says it does. See roundWith.
         this.addPeer(seen.addr, seen.port, { typed: byHand });
-        strangers.delete(fp);
+        requests.dropHeard(fp);
         onChange?.();
         return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
       }
       const { list, added } = pin({ fp, pub: seen.pub, name: seen.name });
-      pending.delete(fp);
-      strangers.delete(fp);
+      requests.drop(fp);
       onTrust?.(list);
       onChange?.();
       // AND DIAL IT BACK. Accepting a deck that called us made it welcome and
@@ -1452,34 +1310,10 @@ export function createEngine({
         : null;
       return added ? { fp, name: seen.name, addr: seen.addr, port: seen.port ?? null, dialBack: back } : null;
     },
-    /** Say no, and stop being asked. The deck is dropped from both lists; if it
-     *  connects again it is a new request, because refusing is not a block. */
-    dismiss(fp) {
-      // Whatever the row said, kept — the panel draws a declined deck by name
-      // and address, and after the delete below there is nowhere else to read
-      // them from.
-      const was = pending.get(fp) ?? strangers.get(fp) ?? null;
-      const had = pending.delete(fp) || strangers.delete(fp);
-      if (had) {
-        declined.set(fp, {
-          fp,
-          name: was?.name ?? fp,
-          addr: was?.addr ?? "",
-          port: was?.port ?? 0,
-          at: now(),
-        });
-        onChange?.();
-      }
-      return had;
-    },
-    /** Change your mind. The name comes off the declined list and the next time
-     *  that deck dials, it is a request again — which it will, on its own, so
-     *  there is nothing else to press. */
-    allow(fp) {
-      const had = declined.delete(fp);
-      if (had) onChange?.();
-      return had;
-    },
+    /** Say no and stop being asked, and change your mind — see dismiss and
+     *  allow in lan-requests.mjs. */
+    dismiss: requests.dismiss,
+    allow: requests.allow,
     /** Unpair. It stops what has not happened yet and takes back nothing that
      *  has — the same sentence the panel says about a shared login. */
     unpair(fp) {
@@ -1608,15 +1442,15 @@ export function createEngine({
         // and decks merely heard. Three lists because they are three different
         // things a person does something different about.
         trusted: cfg.trusted.map(t => ({ fp: t.fp, name: t.name })),
-        pending: [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at, via: p.via ?? "lan", own: !!p.own })),
+        pending: requests.pendingRows(),
         // Only the ones somebody could actually pair with right now, one row
         // per machine, newest first — see pairable, which is where the rule
         // that keeps this from becoming a wall of ghosts lives.
-        strangers: strangerRows(),
+        strangers: requests.strangerRows(),
         // Said no to, by somebody at this keyboard. Listed rather than merely
         // silenced, because a refusal nobody can see is a refusal nobody can
         // take back.
-        declined: [...declined.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
+        declined: requests.declinedRows(),
         peers: beacon ? deckRows() : [],
       };
     },
