@@ -337,14 +337,16 @@ const deckSrc = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", impor
 const argsSrc = readFileSync(fileURLToPath(new URL("../../server/args.mjs", import.meta.url)), "utf8");
 // And `--help` moved out of it into bin/cli/help.js, so the flag is documented there.
 const helpSrc = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
+// And the once-per-session work with its report moved to bin/cli/startup.js.
+const startupSrc = readFileSync(fileURLToPath(new URL("../../../bin/cli/startup.js", import.meta.url)), "utf8");
 
 describe("what a Codex-only boot does on the user's behalf", () => {
   /** The body of startupWork, which is where all three jobs are created. */
   function startupWorkBody(): string {
-    const from = deckSrc.indexOf("function startupWork()");
+    const from = startupSrc.indexOf("export function startupWork(");
     expect(from, "startupWork is gone or renamed").toBeGreaterThan(-1);
-    const to = deckSrc.indexOf("\n}", from);
-    return deckSrc.slice(from, to);
+    const to = startupSrc.indexOf("\n}", from);
+    return startupSrc.slice(from, to);
   }
 
   it("decides once, from hasClaudeInstalled, with flags able to override it", () => {
@@ -386,13 +388,15 @@ describe("what a Codex-only boot does on the user's behalf", () => {
 
   it("hands the decision to the server so the browser can read it back", () => {
     expect(deckSrc).toMatch(/startServer\(\{[^}]*claude: wantClaude/s);
+    // And to the startup work, which is where every Claude-only job is guarded.
+    expect(deckSrc).toContain("startupWork({ wantClaude, installHooks, leftoverCodexHooks })");
   });
 
   it("says out loud which way it went, in both rows", () => {
     // The banner is the only place a wrong answer can be noticed, and the only
     // place the missing accounts panel is explained.
-    expect(deckSrc).toContain("no Claude Code found, or --no-claude");
-    expect(deckSrc).toContain("accounts are Claude-only");
+    expect(startupSrc).toContain("no Claude Code found, or --no-claude");
+    expect(startupSrc).toContain("accounts are Claude-only");
   });
 
   it("names the escape hatch on the one boot failure that is fatal", () => {
@@ -404,17 +408,18 @@ describe("what a Codex-only boot does on the user's behalf", () => {
     // a Codex-only machine is the whole deck. It is printed beside the failure
     // now, because a user with a root-owned settings.json cannot act on
     // "fix the file" and has nothing else to go on.
-    expect(deckSrc).toContain("Or start with --no-claude to run without Claude hooks.");
-    const fatal = deckSrc.indexOf('label: "Claude hooks", detail: "not installed"');
-    expect(fatal, "the fatal hook row is gone from deck.js").toBeGreaterThan(-1);
-    const exit = deckSrc.indexOf("process.exit(1)", fatal);
-    expect(deckSrc.slice(fatal, exit)).toContain("--no-claude");
+    expect(startupSrc).toContain("Or start with --no-claude to run without Claude hooks.");
+    const fatal = startupSrc.indexOf('label: "Claude hooks", detail: "not installed"');
+    expect(fatal, "the fatal hook row is gone from the startup report").toBeGreaterThan(-1);
+    const exit = startupSrc.indexOf("process.exit(1)", fatal);
+    expect(exit, "the fatal hook row no longer exits").toBeGreaterThan(fatal);
+    expect(startupSrc.slice(fatal, exit)).toContain("--no-claude");
   });
 
   it("never prints 'sign in to Claude Code' on a deck that skipped claude-swap", () => {
     // That line is reached only through swap?.seed, and the whole cswap job
     // resolves to null when wantClaude is false — so there is no seed to report.
-    expect(deckSrc).toContain("sign in to Claude Code");
+    expect(startupSrc).toContain("sign in to Claude Code");
     const body = startupWorkBody();
     expect(body).toMatch(/if\s*\(!wantClaude\)\s*return null;/);
   });

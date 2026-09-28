@@ -337,7 +337,10 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // "Update & restart", the copy that arrives declines to boot, and the deck
     // is dead on the machine where the deck is what would have explained why.
     // So the block that prints it writes rows and does nothing else.
-    const block = worker.slice(worker.indexOf("const rename = renameNotice("));
+    const report = read("bin", "cli", "startup.js");
+    const at = report.indexOf("const rename = renameNotice(");
+    expect(at, "the rename notice left the startup report").toBeGreaterThan(-1);
+    const block = report.slice(at);
     const stanza = block.slice(0, block.indexOf("\n}"));
     expect(stanza).toContain("write(row(");
     expect(stanza).not.toMatch(/process\.exit|throw |exitCode/);

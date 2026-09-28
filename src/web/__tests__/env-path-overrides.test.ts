@@ -186,8 +186,12 @@ describe("the Codex sessions directory the boot banner names", () => {
     // cannot be run from here; what is checkable — and what the bug actually was
     // — is whether the banner row names the watcher's directory or computes a
     // second one of its own.
+    // The row is in the startup report, bin/cli/startup.js; deck.js hands it
+    // the binding.
     const deck = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
-    const watching = deck.split("\n").find(l => l.includes("Codex sessions") && l.includes("watching"));
+    expect(deck).toMatch(/reportStartup\(jobs, \{[^}]*\bCODEX_SESSIONS_DIR\b[^}]*\}\)/);
+    const report = readFileSync(fileURLToPath(new URL("../../../bin/cli/startup.js", import.meta.url)), "utf8");
+    const watching = report.split("\n").find(l => l.includes("Codex sessions") && l.includes("watching"));
     expect(watching, "the banner no longer has a row for the sessions directory").toBeDefined();
     expect(watching).toContain("CODEX_SESSIONS_DIR");
   });
