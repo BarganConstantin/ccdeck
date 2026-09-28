@@ -491,6 +491,14 @@ export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {
  * a 420px lane runs straight through the neighbour. Resolution is still on Y
  * alone, so a lane overhanging to the right is cleared by sliding the node it
  * covers below it rather than further out.
+ *
+ * `held` nodes do not move either, but only for a while: they are positions
+ * restored from storage while the board they were saved with is still coming
+ * back (#1333, see snapshotToFlow). They are laid down before the walk starts,
+ * so a node that covers one slides off it wherever the two sit in the order. A
+ * pin only stands in the way of the nodes after it, and a card placed a few
+ * pixels above a restored one would be left lying on it — to push it down
+ * after all the moment the hold lifted.
  */
 export function separateOverlaps(
   nodes: Node[],
@@ -498,6 +506,7 @@ export function separateOverlaps(
   pinned: Map<string, { x: number; y: number }>,
   measured: Map<string, { width: number; height: number }>,
   lanes?: Lanes,
+  held?: { has(id: string): boolean },
 ): string[] {
   const MARGIN = 24;
   // Two cards in DIFFERENT sessions need more than card clearance: each is
@@ -519,8 +528,17 @@ export function separateOverlaps(
     .filter((n): n is { id: string; pos: { x: number; y: number } } => n.pos != null)
     .sort((a, b) => a.pos.y - b.pos.y || a.pos.x - b.pos.x || a.id.localeCompare(b.id));
 
+  // A pin is left to the walk below, where it has always been an obstacle.
+  const isHeld = (id: string) => held?.has(id) === true && !pinned.has(id);
+  for (const { id, pos } of ordered) {
+    if (!isHeld(id)) continue;
+    const { w, h } = sizeOf(id);
+    placed.push({ x: pos.x, y: pos.y, w, h, sid: sessionOf.get(id) ?? "_default" });
+  }
+
   const moved: string[] = [];
   for (const { id, pos } of ordered) {
+    if (isHeld(id)) continue;
     const { w, h } = sizeOf(id);
     const sid = sessionOf.get(id) ?? "_default";
     // A dragged node is an obstacle for everything else but is never itself

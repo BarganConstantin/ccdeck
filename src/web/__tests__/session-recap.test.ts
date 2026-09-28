@@ -432,8 +432,10 @@ describe("the note is a node the layout, the frame and the caches can see", () =
     const flowSrc = read("../canvas-flow.ts");
     expect(flowSrc).toContain('new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,');
     expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, \{ x: root\.x - RECAP_NOTE_GAP - nw/);
-    // And a note that was closed forgets its laid-out spot unless it was dragged.
-    expect(flowSrc).toContain("if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {");
+    // And a note that was closed forgets its laid-out spot unless it was dragged
+    // — once the log has replayed, since until then it may simply not be back
+    // yet (#1333).
+    expect(flowSrc).toContain("if (historyReplayed && isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {");
     expect(isRecapNoteId(recapNoteId("s1"))).toBe(true);
     expect(isRecapNoteId("s1")).toBe(false);
   });
