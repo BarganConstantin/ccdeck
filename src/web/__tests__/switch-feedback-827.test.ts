@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nextFailure, type Failure } from "../accounts-reload";
+import { ACCOUNTS_FILES } from "./accounts-surface";
 import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -17,7 +18,9 @@ const panel = read("../components/AccountsPanel.tsx");
 const row = read("../components/AccountRow.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
-const doSwitch = /const doSwitch = async \(num: number, name: string\) => \{[\s\S]*?\n  \};/.exec(panel)?.[0] ?? "";
+/** The switch, which lives in the switching hook with the confirmation it sets. */
+const switching = read("../use-account-switching.ts");
+const doSwitch = /const doSwitch = async \(num: number, name: string\) => \{[\s\S]*?\n  \};/.exec(switching)?.[0] ?? "";
 /** The failure line's owner, which doSwitch says its answers through. */
 const roster = read("../use-account-roster.ts");
 
@@ -55,6 +58,12 @@ describe("a switch answers on the row it was about (#827)", () => {
   it("names the account a switch took to, and clears it when the next one starts", () => {
     expect(doSwitch).toMatch(/else setSwitched\(\{ num, name \}\);/);
     expect(doSwitch).toMatch(/clearFailure\(\);\s*setSwitched\(null\);/);
+    // One owner for the confirmation: the switch that sets it, the next one
+    // that takes it down and the roster that clears it are all in the
+    // switching hook, and nothing else in the accounts surface writes it.
+    const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(ACCOUNTS_FILES.filter(rel => /\bsetSwitched\(/.test(code(read(`../${rel}`)))))
+      .toEqual(["use-account-switching.ts"]);
     expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
     expect(clientText()).toMatch(/onClick=\{\(\) => onSwitch\(a\.num, name\)\}/);
     // The row presses the panel's own doSwitch — the one above that says it —
