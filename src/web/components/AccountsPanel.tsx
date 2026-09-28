@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
+import AccountRow from "./AccountRow";
 import AddAccountDialog from "./AddAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -18,14 +19,13 @@ import { type Peer } from "../other-accounts";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
-import { laneSplit } from "../lane-view";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { armedPress, focusDropped, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
 import { activeSwitchNote } from "../active-switch-note";
-import { type Repair, accountIssue, sentence } from "../account-issue";
+import { accountIssue, sentence } from "../account-issue";
 import {
   type Failure,
   RELOAD_SLOW,
@@ -34,72 +34,10 @@ import {
   explainReload,
   nextFailure,
 } from "../accounts-reload";
-import { resetCountdown } from "../relative-time";
-import { ago, due } from "../account-freshness";
 import { shareExpiry } from "../share-bundle";
 import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
-
-interface Lane {
-  id: string;
-  label: string;
-  pct: number;
-  resetAt: number | null;   // unix seconds
-}
-
-interface Account {
-  num: number;
-  email: string | null;
-  alias: string | null;
-  org: string | null;
-  active: boolean;
-  disabled: boolean;
-  lanes: Lane[];
-  headroom: number | null;
-  fetchedAt: number | null;  // unix ms
-  nextAt: number | null;     // unix ms — claude-swap's next planned read
-  stale: boolean;
-  error: string | null;
-  staleCopy?: boolean;
-  /** How the deck's own re-capture of a `staleCopy` row is going. */
-  repair?: Repair | null;
-  stopped?: boolean;
-  collector?: string | null;
-  /** The other half of an account's identity. A slot number is not one:
-   *  claude-swap assigns them max+1 per store, so the account that is 4 here
-   *  is 2 on another machine. LAN sync matches on this pair. */
-  orgUuid?: string | null;
-  /** Whether claude-swap's STORED COPY works on this machine — which is not
-   *  the same question as whether the user is signed in (#721). The copy is
-   *  what a share carries and what a peer's copy heals, so both kinds of
-   *  trouble read as not alive. */
-  alive?: boolean;
-}
-
-interface AccountsData {
-  ok: boolean;
-  accounts?: Account[];
-  activeNum?: number | null;
-  reason?: string;
-  hint?: string;
-  fetchedAt?: number;
-}
-
-interface AutoTick {
-  at: number;
-  event: string;
-  reason?: string | null;
-  detail?: string | null;
-  to?: number | null;
-}
-
-interface AutoStatus {
-  ok: boolean;
-  enabled: boolean;
-  external: boolean;          // the user runs their own `cswap auto` loop
-  lastTick: AutoTick | null;
-  settings: Record<string, { value: string | null; isDefault: boolean }>;
-}
+import { type Account, type AccountsData, type AutoStatus } from "../claude-accounts";
 
 /** What an account's ⋯ is showing. Rename and Move are forms; Share is its
  *  answer — the text to copy. */
@@ -126,13 +64,6 @@ const SAVED_MS = 1_800;
 const RELOAD_TIMEOUT_MS = 30_000;
 const THRESHOLDS = [70, 80, 85, 90, 95];
 
-/** How full a window is, in the inks its bar uses: the warning past 70% and
- *  the error past 90%. Undefined below that — the shut row's numbers are
- *  neutral until they are a reason not to switch. */
-function fullness(pct: number): "mid" | "hi" | undefined {
-  return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
-}
-
 /** The threshold picker's options: the five, plus whatever the store holds if
  *  it is none of them — `cswap config set` takes any number, and a picker that
  *  cannot show the stored value shows its first option instead, which is a
@@ -141,31 +72,6 @@ export function thresholdChoices(stored: string): number[] {
   const n = Number(stored);
   const all = Number.isFinite(n) && n > 0 && !THRESHOLDS.includes(n) ? [...THRESHOLDS, n] : THRESHOLDS;
   return [...all].sort((a, b) => a - b);
-}
-
-function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?: boolean }) {
-  const capped = Math.min(100, Math.max(0, lane.pct));
-  // A reading that cannot move is drawn as a record rather than a reading: one
-  // ink, no warning colours, the fill at half strength. The row says how old.
-  const color  = frozen ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
-  // And a reset from a reading that old has most likely happened already.
-  const reset  = lane.resetAt && !frozen ? resetCountdown(lane.resetAt, nowSec) : null;
-  return (
-    <div className="ap-lane">
-      <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
-      <div className="ap-lane-track">
-        <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || frozen ? 0.4 : 1 }} />
-      </div>
-      <span className="ap-lane-pct" style={{ color }}>{capped}%</span>
-      {/* When the window rolls over, at the end of its own bar rather than on a
-          line under it: two resets under two bars made the live row five lines
-          tall for two facts. The word is said to a screen reader and in the
-          title; on screen a countdown beside a quota reads as one. */}
-      <span className="ap-lane-reset" title={reset ? `${lane.label} resets in ${reset}` : undefined}>
-        {reset && <><span className="vis-hidden">resets in </span>{reset}</>}
-      </span>
-    </div>
-  );
 }
 
 interface Props {
@@ -727,240 +633,19 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    * IT IS A FUNCTION AND NOT A MAP BODY because the column renders it from two
    * places now — the live account, and the others once their row is unfolded —
    * and a row that were written twice would be two rows drifting apart. Which
-   * accounts go where is decided just above, at `head` and `rest`.
+   * accounts go where is decided just above, at `head` and `rest`. What the row
+   * draws is AccountRow's; this is the one place its props are spelled, so the
+   * two lists cannot be handed different ones.
    */
-  const accountRow = (a: Account) => {
-      const { shown, fuller } = laneSplit(a.lanes);
-      const issue = accountIssue(a, nowSec);
-      // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
-      // The live account is the one whose windows are being spent, so
-      // its bars, resets and freshness are the reading this column is
-      // opened for. Any other account only has to answer one question —
-      // is it worth switching to — and two numbers answer it. The rest
-      // is one press on the row away, and held by account (#542).
-      const open = a.active || openLanes.includes(laneKey(a));
-      const name = a.alias ?? a.email ?? `account ${a.num}`;
-      // The whole identity, for the door. The head clips both names with an
-      // ellipsis and the door lies over them, so the door is where a pointer
-      // lands and where the full string has to be (#1115).
-      const identity = a.alias && a.email ? `${a.alias} · ${a.email}` : name;
-      // Numbers that cannot move: nothing collected for a quarter of an
-      // hour, or a login that no collection can get past. They stay on
-      // screen as the last reading and are drawn as one.
-      const frozen = a.stale || issue?.blocksSwitch === true;
-      // The row leads with the windows; a folded model lane joins them
-      // only when it is the fullest, so two calm numbers never sit over
-      // a hidden hot one. See lane-view.ts.
-      const quick = fuller ? [...shown, fuller] : shown;
-      const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
-      return (
-      <li key={a.num} className={`ap-account${a.active ? " active" : ""}`}
-        aria-current={a.active ? "true" : undefined}
-        data-open={open ? "" : undefined}
-        data-frozen={frozen ? "" : undefined}>
-        {/* THE ROW IS THE DOOR, the way a machine's row is in Local
-            network: a button laid over the whole row, under the row's
-            own controls, so a press anywhere on it opens or shuts the
-            detail and the keyboard's ring goes round the row. The live
-            row has nothing folded, so it has no door.
-
-            It carries the whole identity because it covers the clipped
-            names: the title for a pointer, and — since a title reaches
-            neither the keyboard nor a screen reader (WCAG 1.4.13) — the
-            email in its description when the name it is called by is the
-            alias. */}
-        {!a.active && (
-          <button type="button" className="ap-row-open" id={`ap-row-${a.num}`}
-            title={identity}
-            aria-expanded={open}
-            aria-controls={open ? `ap-detail-${a.num}` : undefined}
-            aria-describedby={[
-              a.alias && a.email ? `ap-email-${a.num}` : null,
-              !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
-            ].filter(Boolean).join(" ") || undefined}
-            onClick={() => setOpenLanes(o => toggleLane(o, a))}>
-            <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
-          </button>
-        )}
-        <div className="ap-account-head">
-          {/* The live account is marked by a dot where the other rows
-              carry their slot, in the accent, which in this deck means
-              live. The slot is still its name for the CLI, so it rides
-              in the title and in what a screen reader is told. */}
-          {a.active
-            ? <span className="ap-live" title={`Active account · slot ${a.num}`}>
-                <span className="vis-hidden">Active account, slot {a.num}:</span>
-              </span>
-            : <span className="ap-num">{a.num}</span>}
-          {/* Both of these are clipped with an ellipsis so a long one
-              cannot widen the panel, which means the row can be showing
-              less than the whole string — so each one carries its own
-              whole value in a title (#517). On a shut row the door lies
-              over them and says the same in its own title; the email's
-              id is what the door's description points at. */}
-          {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
-          <span className="ap-email" id={`ap-email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
-          {/* A state, said in a word and not in a pill. It stands where
-              `Switch` would, because a switch to a held-out account is
-              refused and a control that can never act is worse than
-              none (#519). Putting it back is in the ⋯. */}
-          {a.disabled && <span className="ap-held">held out</span>}
-          {/* The one verb a row carries, and quieter than the account it
-              is about: a word on the control fill, no edge. Not offered
-              where it cannot work — to a login that is dead or was never
-              stored, a switch only makes the dead one live. */}
-          {!a.active && !a.disabled && !issue?.blocksSwitch && (
-            <button
-              type="button"
-              className="ap-switch"
-              {...pressProps(`switch-${a.num}`)}
-              onClick={() => doSwitch(a.num, name)}
-              aria-label={`Switch to ${name}`}
-              title={`Switch to ${a.alias ?? a.email}`}
-            >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
-          )}
-          {/* THE WAY IN TO EVERYTHING ELSE. It opens a menu over the
-              column rather than opening the row, so pressing it moves
-              nothing on screen. aria-controls only while the menu
-              exists: an IDREF that resolves to nothing is a dangling
-              pointer. The name carries the account, because a column of
-              identical "More actions" is a column of buttons a screen
-              reader cannot tell apart. */}
-          <button type="button" id={`ap-more-${a.num}`} className="ap-more"
-            aria-label={`More actions for ${a.email ?? a.alias ?? `account ${a.num}`}`}
-            aria-haspopup="menu" aria-expanded={menuFor === a.num}
-            aria-controls={menuFor === a.num ? `ap-menu-${a.num}` : undefined}
-            title="More actions"
-            onClick={() => (menuFor === a.num ? closeMenu() : openMenu(a.num))}
-            onKeyDown={e => {
-              // Down opens at the first item and Up at the last, the way
-              // a native menu button does. Enter and Space are the click.
-              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-              e.preventDefault();
-              openMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
-            }}>
-            {/* AUTHORED, NOT TYPED, like the header's four: three dots on
-                the same 14px grid the header draws at. */}
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-              <circle cx="2.8" cy="7" r="1.15" />
-              <circle cx="7" cy="7" r="1.15" />
-              <circle cx="11.2" cy="7" r="1.15" />
-            </svg>
-          </button>
-        </div>
-
-        {/* THE ANSWER TO A SWITCH, on the row it was about (#827). A
-            switch that took says so on the row it took to, with the one
-            thing nothing else on screen says: what happens to the
-            sessions already running. */}
-        {failure?.row === a.num && (
-          <div className="ap-failure ap-row-failure" role="alert">
-            <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
-            <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-              aria-label="Dismiss this message" title="Dismiss">×</button>
-          </div>
-        )}
-        {a.active && switched?.num === a.num && (
-          <p className="ap-switched">
-            Now active. New sessions start on it; ones already running pick it up on
-            their next message, up to about 30 seconds later on macOS.
-          </p>
-        )}
-        {/* A move into a taken slot relocated a second account, and this
-            is the only place that says so, for eight seconds. The
-            sentence naming who went where is its title. */}
-        {swapNote?.at === a.num && (() => {
-          const other = roster.find(x => x.num === swapNote.displaced);
-          const who = other?.alias ?? other?.email ?? "the account that was there";
-          return (
-            <p className="ap-note ap-swap-note"
-              title={`Slot ${swapNote.at} was taken, so the two accounts traded places: `
-                   + `${who} now holds slot ${swapNote.displaced}.`}>
-              swapped with slot {swapNote.displaced}
-            </p>
-          );
-        })()}
-
-        {/* WHAT IS WRONG, ON THE ROW, SHUT OR OPEN. A problem is never
-            folded away with the detail and never moved into the ⋯: it
-            is the one line on the row somebody has to be able to find.
-            It is a word and a mark rather than a banner, and the why
-            and the fix are one press away (#856) — a popover over the
-            column, so opening it moves no row. */}
-        {issue && (
-          <div className="ap-issue-line">
-            <button type="button" id={`ap-issue-${a.num}`} className="ap-issue" data-tone={issue.tone}
-              aria-haspopup="dialog"
-              aria-expanded={issueOpen?.anchor === `ap-issue-${a.num}`}
-              aria-controls={issueOpen?.anchor === `ap-issue-${a.num}` ? "ap-issue-pop" : undefined}
-              onClick={() => openIssue(a.num, `ap-issue-${a.num}`)}>
-              {issue.tone === "warn" && <WarnGlyph />}
-              <span className="ap-issue-text">{issue.text}</span>
-            </button>
-            {/* How old the last reading is. On an open row the freshness
-                line under the bars says it, so it is said once. */}
-            {!open && (
-              <span className="ap-issue-age" title="When claude-swap last read this account's usage">
-                {age ?? "never collected"}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no
-            resets, no clock — unless the numbers are old, and then the
-            age is the one thing that must be said beside them. A login
-            that cannot be used shows no numbers at all here: the line
-            above is the answer, and last week's quota under it would
-            read as this week's. */}
-        {!open && !issue?.blocksSwitch && (
-          <p className="ap-quota" id={`ap-quota-${a.num}`}>
-            {quick.length
-              ? quick.map(l => (
-                  <span key={l.id} className="ap-q">
-                    <span className="ap-q-label">{l.label}</span>{" "}
-                    <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>
-                  </span>
-                ))
-              : <span className="ap-q-label">no usage recorded yet</span>}
-            {a.stale && !issue && (
-              <span className="ap-q-age" data-never={age ? undefined : ""} title="When claude-swap last read this account's usage">
-                {age ?? "never collected"}
-              </span>
-            )}
-          </p>
-        )}
-
-        {/* OPEN: every window as a bar, when each one resets, and when
-            claude-swap last read it and plans to read it again — the
-            freshness that says whether these numbers are a decision's
-            worth of evidence. */}
-        {open && (
-          <div className="ap-detail" id={`ap-detail-${a.num}`}>
-            <div className="ap-lanes">
-              {a.lanes.length
-                ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} frozen={frozen} />)
-                : <div className="ap-hint">No usage recorded yet.</div>}
-            </div>
-            <div className="ap-meta">
-              {a.fetchedAt
-                ? <span
-                    // ONE ATTENTION COLOUR PER ROW, ON THE CAUSE: an
-                    // account with a problem is old because of it, so
-                    // the age stays quiet and the problem takes the ink.
-                    className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
-                    title={"When claude-swap last read this account's usage, and when it plans to read it again. "
-                         + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
-                         + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
-                         + "the same plan."}
-                  >collected {ago(a.fetchedAt, nowSec)}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
-                : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
-            </div>
-          </div>
-        )}
-      </li>
-      );
-  };
+  const accountRow = (a: Account) => (
+    <AccountRow key={a.num} a={a} nowSec={nowSec}
+      openLanes={openLanes} onToggleLanes={() => setOpenLanes(o => toggleLane(o, a))}
+      busy={busy} pressProps={pressProps} doSwitch={doSwitch}
+      menuFor={menuFor} openMenu={openMenu} closeMenu={closeMenu}
+      failure={failure} onDismissFailure={() => setFailure(null)}
+      switched={switched} swapNote={swapNote} roster={roster}
+      issueOpen={issueOpen} openIssue={openIssue} />
+  );
 
   /**
    * THE POLICY, AS ONE VALUE, because the column now draws it from two places.

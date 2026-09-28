@@ -9,9 +9,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nextFailure, type Failure } from "../accounts-reload";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
+/** The row, which says both answers, from the file that draws it. */
+const row = read("../components/AccountRow.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const doSwitch = /const doSwitch = async \(num: number, name: string\) => \{[\s\S]*?\n  \};/.exec(panel)?.[0] ?? "";
@@ -23,7 +26,7 @@ describe("a switch answers on the row it was about (#827)", () => {
   });
 
   it("draws the refusal on that row, and only other messages under the roster", () => {
-    expect(panel).toMatch(/\{failure\?\.row === a\.num && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
+    expect(clientText()).toMatch(/\{failure\?\.row === a\.num && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
     // It stood below the scroll while Auto-switch did. Both moved into the
     // column together, because the refusal is said beside the control that
     // made it — and every branch around it already needs a roster, so the
@@ -45,18 +48,20 @@ describe("a switch answers on the row it was about (#827)", () => {
   it("names the account a switch took to, and clears it when the next one starts", () => {
     expect(doSwitch).toMatch(/else setSwitched\(\{ num, name \}\);/);
     expect(doSwitch).toMatch(/setFailure\(null\);\s*setSwitched\(null\);/);
-    expect(panel).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
-    expect(panel).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, name\)\}/);
+    expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
+    expect(clientText()).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, name\)\}/);
+    // The row presses the panel's own doSwitch — the one above that says it.
+    expect(panel).toMatch(/<AccountRow key=\{a\.num\}[\s\S]{0,400}?\bdoSwitch=\{doSwitch\}/);
   });
 });
 
 describe("what a switch that took says (#827)", () => {
   it("says it on the row it took to, while that row is still the active one", () => {
-    expect(panel).toMatch(/\{a\.active && switched\?\.num === a\.num && \(\s*<p className="ap-switched">/);
+    expect(clientText()).toMatch(/\{a\.active && switched\?\.num === a\.num && \(\s*<p className="ap-switched">/);
   });
 
   it("says what happens to sessions already running, as claude-swap does", () => {
-    const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(panel)?.[1].replace(/\s+/g, " ").trim() ?? "";
+    const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(row)?.[1].replace(/\s+/g, " ").trim() ?? "";
     expect(said).toBe("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
   });
 

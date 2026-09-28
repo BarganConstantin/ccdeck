@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { accountsSurface } from "./accounts-surface";
 
 const components = fileURLToPath(new URL("../components", import.meta.url));
 const read = (name: string) => readFileSync(join(components, name), "utf8");
@@ -36,7 +37,7 @@ describe("one arm-then-confirm word for the in-panel destructive acts (#839)", (
       .filter(f => /btn danger/.test(read(f)) && /role="dialog"/.test(read(f)));
     expect(dialogs).toContain("ClearConfirm.tsx");
     // Neither in-panel act opens one.
-    expect(accounts).not.toMatch(/Confirm(Remove)?Dialog/);
+    expect(accountsSurface()).not.toMatch(/Confirm(Remove)?Dialog/);
     expect(lan).not.toMatch(/Unpair(Confirm|Dialog)/);
   });
 });

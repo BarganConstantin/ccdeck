@@ -33,8 +33,9 @@ function decl(selector: string, prop: string): string | null {
   return all.length ? all[all.length - 1][1].trim() : null;
 }
 
-/** One account's row, from its <li> to its </li>. */
-const row = /<li key=\{a\.num\} className=\{`ap-account[\s\S]*?<\/li>/.exec(panel)![0];
+/** One account's row, from its <li> to its </li> — in AccountRow.tsx, which
+ *  draws it; the panel's `accountRow` only spells its props. */
+const row = /<li className=\{`ap-account[\s\S]*?<\/li>/.exec(strip(read("../components/AccountRow.tsx")))![0];
 
 /** One view of the popover, up to the next view or the popover's end. */
 function view(name: "menu" | "rename" | "move" | "share"): string {

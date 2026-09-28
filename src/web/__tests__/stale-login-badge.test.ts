@@ -256,8 +256,8 @@ describe("what the panel is allowed to offer", () => {
     // row. Re-capturing the credentials is what ends that, and there is one way
     // to do it — so `resume` was a button asking a person to confirm the only
     // answer there is. The server starts it now, and the row says how it went.
-    expect(panel).not.toMatch(/action: "recapture"/);
-    expect(panel).not.toMatch(/pressProps\("recapture"\)/);
+    expect(accountsSurface()).not.toMatch(/action: "recapture"/);
+    expect(accountsSurface()).not.toMatch(/pressProps\("recapture"\)/);
     expect(clientText()).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
   });
 
@@ -504,7 +504,7 @@ describe("which half of the row is allowed to be loud", () => {
     expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.blocksSwitch).toBe(true);
     expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.blocksSwitch).toBe(false);
     expect(accountIssue({ error: "http-429" }, 0)?.blocksSwitch).toBe(false);
-    expect(panel).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
+    expect(clientText()).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
   });
 
   it("stops painting the symptom when the cause is already on the row", () => {
@@ -512,8 +512,8 @@ describe("which half of the row is allowed to be loud", () => {
     // that. Two ambers on one row gave the louder half to the consequence:
     // "no stored login" in the dimmest tone the panel has, beside "collected
     // 22h ago · due" in the warning one.
-    expect(panel).toContain('`ap-age${a.stale && !issue ? " ap-stale" : ""}`');
-    expect(panel).toMatch(/\{a\.stale && !issue && \(\s*<span className="ap-q-age"/);
+    expect(clientText()).toContain('`ap-age${a.stale && !issue ? " ap-stale" : ""}`');
+    expect(clientText()).toMatch(/\{a\.stale && !issue && \(\s*<span className="ap-q-age"/);
   });
 });
 

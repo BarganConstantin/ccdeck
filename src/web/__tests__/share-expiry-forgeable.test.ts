@@ -23,6 +23,7 @@ import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { wrapShare, unwrapShare, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { accountsSurface } from "./accounts-surface";
 
 const PREFIX = "ccdeck2:";
 
@@ -96,7 +97,7 @@ describe("what the accounts panel says a share is", () => {
     // The old title: "The share carries a live login and expires in 10
     // minutes." — true clause, true clause, and together a claim that the
     // second one contains the first.
-    expect(panel).not.toMatch(/carries a live login and expires in 10 minutes/);
+    expect(accountsSurface()).not.toMatch(/carries a live login and expires in 10 minutes/);
     // Whatever the sentence becomes, the ten minutes has to be attributed to
     // the receiving deck rather than left standing on its own.
     expect(panel).toMatch(/other deck stops accepting it/i);

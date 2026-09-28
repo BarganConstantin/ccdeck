@@ -14,6 +14,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { FOLD_NAMES, foldPeek, restLine, type Peer } from "../other-accounts";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
@@ -258,10 +260,13 @@ describe("what the column folds, and when it does not", () => {
   });
 
   it("draws one row from one function, whichever side of the fold it is on", () => {
-    // Written twice, the live row and the folded ones would drift apart.
-    expect(panel).toMatch(/const accountRow = \(a: Account\) => \{/);
+    // Written twice, the live row and the folded ones would drift apart. The
+    // row is a component of its own now, and `accountRow` is the one place its
+    // props are spelled — so it is the one `<AccountRow` in the panel.
+    expect(panel).toMatch(/const accountRow = \(a: Account\) => \(\s*<AccountRow key=\{a\.num\}/);
+    expect(panel.match(/<AccountRow\b/g)).toHaveLength(1);
     expect(panel.match(/\bmap\(accountRow\)/g)).toHaveLength(2);
-    expect(panel).not.toMatch(/data\.accounts\?\.map\(a => \{/);
+    expect(accountsSurface()).not.toMatch(/data\.accounts\?\.map\(a => \{/);
   });
 
   it("opens shut, every time, and stays open across a switch", () => {
@@ -270,14 +275,14 @@ describe("what the column folds, and when it does not", () => {
     // not close it: the account just left is in that list, and it moved there
     // under the reader's own press.
     expect(panel).toMatch(/const \[restOpen, setRestOpen\] = useState\(false\);/);
-    expect(panel).not.toMatch(/setRestOpen\(false\)/);
+    expect(accountsSurface()).not.toMatch(/setRestOpen\(false\)/);
   });
 
   it("builds a peer from the same two refusals the row withholds its own Switch for", () => {
     // The count and the button cannot be allowed to disagree about who can be
     // reached: the row offers `Switch` when `!a.disabled && !issue?.blocksSwitch`.
     expect(panel).toMatch(/ready: !a\.disabled && !issue\?\.blocksSwitch,/);
-    expect(panel).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
+    expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to
     // another. lane-open.ts holds that rule for the rows; this reuses it.
     expect(panel).toMatch(/key: laneKey\(a\),/);
@@ -338,7 +343,7 @@ describe("what the column folds, and when it does not", () => {
     expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
     // Drawn in the column, never back in the pinned foot.
     expect(panel.indexOf("{policyBlock}")).toBeLessThan(panel.indexOf("<LanSyncSection"));
-    expect(panel).not.toMatch(/<div className="ap-foot">/);
+    expect(accountsSurface()).not.toMatch(/<div className="ap-foot">/);
   });
 
   it("gives the list the only room that flexes, so the policy under it cannot be pushed off", () => {

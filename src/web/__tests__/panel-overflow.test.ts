@@ -42,6 +42,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const usageSrc = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
@@ -61,6 +63,10 @@ const strip = (src: string) =>
 
 const bare = strip(css);
 const accounts = strip(accountsSrc);
+/** The row the panel draws, from the file that draws it — for a slice of its
+ *  markup — and the panel with every file lifted out of it, for a negative. */
+const accountRow = strip(readFileSync(fileURLToPath(new URL("../components/AccountRow.tsx", import.meta.url)), "utf8"));
+const accountsFeature = strip(accountsSurface());
 const usage = strip(usageSrc);
 const costBar = strip(costBarSrc);
 
@@ -374,21 +380,21 @@ describe("the account alias in the accounts panel row", () => {
       if (!/z-index/.test(body)) continue;
       expect(selectors, "a name is raised above the row's door").not.toMatch(/\.ap-(alias|email)\b/);
     }
-    expect(accounts).toMatch(/className="ap-row-open"/);
+    expect(clientText()).toMatch(/className="ap-row-open"/);
   });
 
   it("puts the whole identity on the door, which lies over the clipped names (#1115)", () => {
     // The door covers the head, so it is what a pointer rests on: its title is
     // the full alias and email, not the one the row is called by.
-    expect(accounts).toMatch(/const identity = a\.alias && a\.email \? `\$\{a\.alias\} · \$\{a\.email\}` : name;/);
-    const door = /<button type="button" className="ap-row-open"[^>]*>/.exec(accounts)?.[0] ?? "";
+    expect(clientText()).toMatch(/const identity = a\.alias && a\.email \? `\$\{a\.alias\} · \$\{a\.email\}` : name;/);
+    const door = /<button type="button" className="ap-row-open"[^>]*>/.exec(accountRow)?.[0] ?? "";
     expect(door, "the door button was not found").not.toBe("");
     expect(door).toMatch(/title=\{identity\}/);
     // A title reaches neither a keyboard nor a screen reader (WCAG 1.4.13), and
     // the door is NAMED by the alias when there is one — so the email rides in
     // its description, pointed at by the id the email span carries.
     expect(door).toMatch(/aria-describedby=\{\[\s*a\.alias && a\.email \? `ap-email-\$\{a\.num\}` : null,/);
-    expect(accounts).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\}/);
+    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\}/);
   });
 
   it("carries the whole name in a title, because the row may be showing part of it", () => {
@@ -403,11 +409,11 @@ describe("the account alias in the accounts panel row", () => {
     // pins by value instead of allowing the whole 0–100 interval, the email box
     // is 31.98px — about four characters and an ellipsis of a 55-character
     // address. Both spans carry their own whole value now.
-    expect(accounts).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
-    expect(accounts).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
+    expect(clientText()).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
+    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
     // And the org is not quietly promoted into the same attribute: two values
     // in one tooltip is how the identifier lost it in the first place.
-    expect(accounts).not.toMatch(/className="ap-email"[^>]*a\.org/);
+    expect(accountsFeature).not.toMatch(/className="ap-email"[^>]*a\.org/);
   });
 
   it("bounds the rename field at the store's own limit, not at a smaller round number", () => {
@@ -426,7 +432,7 @@ describe("the account alias in the accounts panel row", () => {
     // through this deck, so the field's maximum is a courtesy and the CSS is
     // the guard. Sixty-four W's measured 705px — two and a half times the
     // panel — before the ellipsis went on.
-    expect(accounts).toMatch(/className="ap-alias"/);
+    expect(clientText()).toMatch(/className="ap-alias"/);
     expect(decl(".ap-alias", "max-width")).not.toBeNull();
   });
 });

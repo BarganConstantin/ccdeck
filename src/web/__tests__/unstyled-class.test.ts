@@ -18,6 +18,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { accountsSurface } from "./accounts-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -102,7 +103,7 @@ describe("every class the markup hard-codes", () => {
     // the one `.switch` now, and `ap-auto-state` is left saying where it sits.
     const panel = readFileSync(join(web, "components/AccountsPanel.tsx"), "utf8");
     expect(panel).toContain('className="switch ap-auto-state"');
-    expect(panel).not.toMatch(/ap-auto-state\$\{/);
+    expect(accountsSurface()).not.toMatch(/ap-auto-state\$\{/);
     expect(readFileSync(join(web, "App.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
   });
 

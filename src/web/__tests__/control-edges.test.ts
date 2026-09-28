@@ -857,9 +857,12 @@ describe("the scan everything below is built on (#513)", () => {
     expect(bare.split("\n").filter(line => /^\s*\/\//.test(line))).toEqual([]);
     // Including the ones written after code on the same line, which is the case
     // every hand-rolled stripper in this suite drops a line-filter on and
-    // misses — and this file's own example of one carries an apostrophe.
-    expect(panel).toContain("// unix ms — claude-swap's next planned read");
-    expect(bare).not.toContain("next planned read");
+    // misses. The panel's own example of one carries an apostrophe, and went
+    // with the account types it annotates to claude-accounts.ts — so that is
+    // the file it is asked of.
+    const shapes = readFileSync(join(web, "claude-accounts.ts"), "utf8");
+    expect(shapes).toContain("// unix ms — claude-swap's next planned read");
+    expect(withoutComments(shapes)).not.toContain("next planned read");
     // Prose is dropped; the markup and the strings around it are not. An
     // apostrophe in JSX text is prose the browser renders, not a string
     // literal, and it has to survive without swallowing what follows it.

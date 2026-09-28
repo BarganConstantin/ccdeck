@@ -17,6 +17,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { copyText } from "../copy-text";
+import { accountsSurface } from "./accounts-surface";
 
 const WEB = fileURLToPath(new URL("../", import.meta.url));
 
@@ -182,7 +183,7 @@ describe("one copy of the ladder", () => {
 
   it("is what the accounts panel copies a share with", () => {
     const panel = readFileSync(join(WEB, "components", "AccountsPanel.tsx"), "utf8");
-    expect(panel).not.toMatch(/async function copyText/);
+    expect(accountsSurface()).not.toMatch(/async function copyText/);
     expect(panel).toMatch(/^import \{ copyText \} from "\.\.\/copy-text";$/m);
     expect(panel).toMatch(/copyText=\{copyText\}/);
   });
