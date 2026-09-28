@@ -46,6 +46,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops } from "./gradient-stops";
+import { clientText } from "./client-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
@@ -481,10 +482,16 @@ describe("what each of the four toggles announces", () => {
     //     trap now that nothing else can shut it,
     //   and the panel's own ‹ still calls the close.
     expect(app).toMatch(/if \(e\.key === "l" \|\| e\.key === "L"\) toggleSessionList\(\);/);
-    const body = app.slice(app.indexOf("const toggleSessionList"), app.indexOf("const toggleAccountsPanel"));
+    // The toggles and the close moved to use-left-column.ts; the key binding and
+    // the panel's markup are still App.tsx's. The close is two links now, and
+    // both are pinned, because "cannot be closed" is exactly what a broken link
+    // between them would produce.
+    const client = clientText();
+    const body = client.slice(client.indexOf("const toggleSessionList"), client.indexOf("const toggleAccountsPanel"));
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
     expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
-    expect(app).toMatch(/onClose=\{\(\) => setSessionListOpen\(false\)\}/);
+    expect(app).toMatch(/onClose=\{closeSessionList\}/);
+    expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
     expect(sessionList).toMatch(/className="glyph-btn sl-close" onClick=\{onClose\}/);
     // Escape is not a third way out and never was: this is an <aside> beside
     // the canvas, not a modal, so it registers no dismisser with modalStack and

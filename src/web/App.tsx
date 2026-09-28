@@ -65,6 +65,7 @@ import { useDeckUpgrade } from "./use-deck-upgrade";
 import { useBrowserWatchBadge } from "./use-browser-watch-badge";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useLanPairRequests } from "./use-lan-pair-requests";
+import { useLeftColumn } from "./use-left-column";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { useOldNameNotice } from "./use-old-name-notice";
 import { useCustomTones } from "./use-custom-tones";
@@ -286,14 +287,12 @@ const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 /** The frame the stored layout was packed into columns for — see #995. */
 const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
 const VIEWPORT_STORAGE_KEY = "agent-dag.viewport";
-const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
 /** Named for the panel it opens rather than for the button, which is how it
  *  survived the button changing: this key was written by a topbar meter that
  *  no longer exists, and a tab that had the panel open still finds it open. */
 const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
-const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
 // How stale the last registry lookup may get before a poll asks npm again
 // instead of accepting the server's cached answer. Three times the poll
 // interval: often enough that a release shows up while you are looking at the
@@ -327,14 +326,6 @@ const BUNDLE_RELOAD_KEY = "agent-dag.bundleReloadedFor";
 // have before you have a graph worth looking at. The session list and detail
 // panel are for navigating work that already exists, so they stay shut until
 // asked for, and the canvas gets the width.
-function loadSessionListOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  try { return window.localStorage.getItem(SESSION_LIST_OPEN_KEY) === "1"; } catch { return false; }
-}
-function saveSessionListOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(SESSION_LIST_OPEN_KEY, open ? "1" : "0"); } catch {}
-}
 function loadDetailOpen(): boolean {
   if (typeof window === "undefined") return false;
   try { return window.localStorage.getItem(DETAIL_OPEN_KEY) === "1"; } catch { return false; }
@@ -658,9 +649,11 @@ function Inner() {
    *  changelog after, once. Null every other time, including a tour opened by
    *  hand from the empty canvas. */
   const notesAfterTour = useRef<{ entries: VersionNotes[]; since: string | null; firstRun: boolean } | null>(null);
-  /** Left sidebar (session list) visibility — persisted across refresh. */
-  const [sessionListOpen, setSessionListOpen] = useState<boolean>(loadSessionListOpen);
-  useEffect(() => { saveSessionListOpen(sessionListOpen); }, [sessionListOpen]);
+  // The left column: the session list and the accounts panel share one slot,
+  // and opening one evicts the other (#824). Both panels' state, persistence and
+  // the eviction live in use-left-column.ts; only its toggles can open either.
+  const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
+          closeSessionList, closeAccountsPanel } = useLeftColumn();
   /** Usage panel visibility — persisted across refresh. */
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
@@ -745,36 +738,6 @@ function Inner() {
   }, []);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
   useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
-  /** True while the session list holds the left column the accounts panel was
-   *  open in (#824). Opening the list used to close the panel for good: the
-   *  close was persisted as "0", so the panel stayed gone across reloads, and a
-   *  reader lost a panel they never closed. An eviction is not that choice — it
-   *  is remembered here, never written as one, and undone when the list goes. */
-  const accountsEvictedRef = useRef(false);
-  const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
-    const wanted = (() => {
-      try {
-        const stored = window.localStorage.getItem(ACCOUNTS_PANEL_OPEN_KEY);
-        return stored === null ? true : stored === "1";
-      } catch { return true; }
-    })();
-    // The list holds the column on this load, so the panel waits behind it.
-    if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
-    return wanted;
-  });
-  useEffect(() => {
-    // An eviction is not the reader closing the panel, so it is not stored as one.
-    if (!accountsPanelOpen && accountsEvictedRef.current) return;
-    try { window.localStorage.setItem(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0"); } catch {}
-  }, [accountsPanelOpen]);
-  // The list gave the column back, by any of its ways out: so does the panel it
-  // took the column from (#824).
-  useEffect(() => {
-    if (!sessionListOpen && accountsEvictedRef.current) {
-      accountsEvictedRef.current = false;
-      setAccountsPanelOpen(true);
-    }
-  }, [sessionListOpen]);
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
@@ -1065,29 +1028,6 @@ function Inner() {
   const { upgradeState, upgradeFailure, startUpgrade, copyCommand, cmdCopied }
     = useDeckUpgrade({ version, loadVersion });
 
-  // One left column, two things that want it. Opening either evicts the other
-  // rather than fighting over the same grid slot.
-  //
-  // Still two, and still both callers' problem, even though only one of them
-  // has a button left: the session list is reached from L alone now, and the
-  // eviction is what stops that key from stacking it under an open accounts
-  // panel in the same slot.
-  const toggleSessionList = useCallback(() => {
-    setSessionListOpen(open => {
-      // Opening the list takes the column. If the panel was in it, that is an
-      // eviction to undo when the list closes (#824), not the panel closing.
-      if (!open) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
-      return !open;
-    });
-  }, []);
-  const toggleAccountsPanel = useCallback(() => {
-    // The reader's own call on the panel ends any eviction.
-    accountsEvictedRef.current = false;
-    setAccountsPanelOpen(open => {
-      if (!open) setSessionListOpen(false);
-      return !open;
-    });
-  }, []);
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
@@ -4563,7 +4503,7 @@ function Inner() {
           be run: not on PATH". The panel is also open by default, so that was
           the first thing such a user saw. */}
       {isMounted(accountsPhase) && providers.claude && (
-        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={() => setAccountsPanelOpen(false)} />
+        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={closeAccountsPanel} />
       )}
 
       {sessionListOpen && (
@@ -4572,7 +4512,7 @@ function Inner() {
           now={now}
           selectedIds={selectedIds}
           onSelect={openSession}
-          onClose={() => setSessionListOpen(false)}
+          onClose={closeSessionList}
           removedIds={removedAgentIds}
           onBringBackAll={() => { bringBack([...removedNodes]); setLastRemoval(null); }}
         />
