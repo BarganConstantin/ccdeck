@@ -124,7 +124,10 @@ describe("the cmd.exe line the ccusage install and fallback produce", () => {
 
   beforeEach(async () => {
     // @ts-expect-error — .mjs server module, no types
-    ({ installSpec, fallbackSpec } = await import("../../server/ccusage.mjs"));
+    ({ fallbackSpec } = await import("../../server/ccusage.mjs"));
+    // The npm command line moved to ccusage-install.mjs with the install.
+    // @ts-expect-error — .mjs server module, no types
+    ({ installSpec } = await import("../../server/ccusage-install.mjs"));
   });
 
   it("names npm.cmd by its full path, never bare — the whole of #456", () => {
