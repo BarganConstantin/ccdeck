@@ -14,7 +14,8 @@ import { IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { readBody, send } from "./http-io.mjs";
 
 /** What the panel draws: the switch, this deck's own name and address, and who
- *  else is in the group. No passphrase, for the reason prefsPayload gives. */
+ *  else is in the group. No passphrase, for the reason prefsPayload gives in
+ *  prefs-routes.mjs. */
 export function handleLanStatus(req, res) {
   refreshReach();
   // Behind the answer, like the reach probe: the dialog's poll is what finds a

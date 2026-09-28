@@ -406,7 +406,8 @@ const PANEL = strip(read("../components/LanSyncSection.tsx"));
 /** The panel's rows, drawn by a list of their own. */
 const LIST = strip(read("../components/LanDeckList.tsx"));
 const ADD = strip(read("../components/LanAddDeckModal.tsx"));
-const SERVER = strip(read("../../server/index.mjs"));
+/** The settings route, which moved out of index.mjs into prefs-routes.mjs. */
+const PREFS_ROUTE = strip(read("../../server/prefs-routes.mjs"));
 /** The engine, its callbacks and the reach probe, which moved out of index.mjs. */
 const LAN = strip(read("../../server/lan-deck.mjs"));
 
@@ -447,7 +448,7 @@ describe("the finding is drawn where the switch is", () => {
 describe("the press is answered by a measurement, not by a cache", () => {
   it("forgets the held verdict when somebody switches the section on", () => {
     expect(LAN).toMatch(/function forgetReach\(\) \{ reachAt = 0; \}/);
-    expect(SERVER).toMatch(/if \(body\.lan\?\.enabled === true\) forgetReach\(\);/);
+    expect(PREFS_ROUTE).toMatch(/if \(body\.lan\?\.enabled === true\) forgetReach\(\);/);
   });
 
   it("forgets it again when the sync port lands, because the fix lines name it", () => {

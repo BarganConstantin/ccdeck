@@ -42,16 +42,18 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { notificationsOn, notificationsVetoed, publicPrefs } from "./deck-prefs.mjs";
+import { notificationsOn } from "./deck-prefs.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 // This deck's LAN engine, what the settings may tell it, and the probe that
-// asks whether other decks can reach it — see lan-deck.mjs. The settings route
-// and startServer apply the prefs to it.
-import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
+// asks whether other decks can reach it — see lan-deck.mjs. startServer hands
+// it the prefs at boot; the settings route does after every write.
+import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 // The Local network panel's four routes — see lan-routes.mjs.
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
+// GET and POST /api/prefs — see prefs-routes.mjs.
+import { handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
@@ -3399,55 +3401,6 @@ const blockNotifier = createBlockNotifier({
   enabled: () => notificationsOn(heldPrefs.current()),
   onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
 });
-
-/**
- * GET the deck's settings, and what the machine is allowing.
- *
- * THREE fields, not two, and the third is the one a first attempt got wrong.
- * `notificationsAllowed` is the effective answer, after the environment
- * variable has had its say — but "false" there means either "the user switched
- * it off" or "the machine forbids it", and the menu has to say a different
- * sentence for each. Deriving the second from the first made the switch read
- * "off — set at launch" the moment anybody turned it off on a deck launched
- * with no variable at all, which is the deck telling the user their own press
- * was somebody else's doing. `notificationsVetoed` answers only the machine's
- * half.
- */
-function prefsPayload() {
-  const prefs = heldPrefs.current();
-  return {
-    ok: true,
-    // `publicPrefs`, never the held prefs whole. This route answers anything
-    // that can reach the loopback port, and the LAN group passphrase is in the
-    // stored object — one field, and sending it here would put it in front of
-    // every page on the machine. What goes out is whether one is set.
-    prefs: publicPrefs(prefs),
-    notificationsAllowed: notificationsOn(prefs),
-    notificationsVetoed: notificationsVetoed(),
-  };
-}
-
-function handlePrefsRead(req, res) {
-  return send(res, 200, prefsPayload());
-}
-
-/** POST a patch. Fields nobody sent keep their value — see writePrefs. */
-async function handlePrefsWrite(req, res) {
-  const raw = await readBody(req, res).catch(() => null);
-  let body = null;
-  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
-  if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
-  await heldPrefs.write(body);
-  // The engine reads its settings from here rather than holding its own copy,
-  // so turning the switch off in the panel really does stop the sockets rather
-  // than only changing what the panel says.
-  await applyLanPrefs();
-  // Somebody has just switched this on and is watching the panel for the answer
-  // to one question: is anything going to turn up. Whatever the probe said
-  // before is about a deck whose sockets were down — see forgetReach.
-  if (body.lan?.enabled === true) forgetReach();
-  return send(res, 200, prefsPayload());
-}
 
 // ── updating while nobody is looking ────────────────────────────────────────
 //
