@@ -403,6 +403,8 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
  *  paragraph that describes it. */
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const PANEL = strip(read("../components/LanSyncSection.tsx"));
+/** The panel's rows, drawn by a list of their own. */
+const LIST = strip(read("../components/LanDeckList.tsx"));
 const ADD = strip(read("../components/LanAddDeckModal.tsx"));
 const SERVER = strip(read("../../server/index.mjs"));
 
@@ -419,7 +421,7 @@ describe("the finding is drawn where the switch is", () => {
     // The failure this guards is the ordinary one: a block that is four
     // elements, a fold, a shell frame and a copy verb, maintained in two
     // voices until the two disagree about what a blocked machine should do.
-    for (const [surface, src] of [["the panel", PANEL], ["the dialog", ADD]] as const) {
+    for (const [surface, src] of [["the panel", PANEL], ["the panel's list", LIST], ["the dialog", ADD]] as const) {
       expect(src, `${surface} builds the block itself`).not.toMatch(/className="ap-lan-reach"/);
       expect(src, `${surface} holds its own copy of the command frame`).not.toMatch(/ap-lan-cmd/);
     }
