@@ -34,6 +34,12 @@ const SERVER_ENGINE = readFileSync(
   fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)),
   "utf8",
 );
+/** The requests the engine keeps — who asked, who was heard, who was told no,
+ *  and when a switch answers one — which moved out of it into their own file. */
+const SERVER_REQUESTS = readFileSync(
+  fileURLToPath(new URL("../../server/lan-requests.mjs", import.meta.url)),
+  "utf8",
+);
 const MODAL = readFileSync(
   fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)),
   "utf8",
@@ -538,9 +544,9 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     // A refusal is a decision about a machine. lan-socket refuses a declined
     // deck before the engine is told anything, so the automatic yes is never
     // reached for one — and the automatic ask skips it too.
-    expect(SERVER_ENGINE).toMatch(/mayAsk && !had && !declined\.has\(entry\.fp\)/);
+    expect(SERVER_REQUESTS).toMatch(/mayAsk && !had && !declined\.has\(entry\.fp\)/);
     // And `mayAsk` is the switch for the route the deck was heard on.
-    expect(SERVER_ENGINE).toMatch(/const mayAsk = asksOn\(cfg, entry\.via\)/);
+    expect(SERVER_REQUESTS).toMatch(/const mayAsk = asksOn\(cfg, entry\.via\)/);
     expect(readFileSync(
       fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8",
     )).toMatch(/if \(declined\(peerFp\)\) return refuse\("declined"\)/);

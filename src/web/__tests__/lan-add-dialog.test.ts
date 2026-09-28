@@ -102,7 +102,7 @@ describe("a refusal says what to do about it", () => {
     expect(addressFault("192.168.1.5:70000")).toMatch(/1 to 65535/);
     expect(addressFault("fe80::1:54340")).toMatch(/colons/);
     // And it promises nothing about IPv6, because nothing downstream delivers
-    // it: lan-engine splits a stored entry on its last colon too.
+    // it: lan-dials splits a stored entry on its last colon too.
     expect(addressFault("fe80::1:54340")).not.toMatch(/\[/);
   });
 
