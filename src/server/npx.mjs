@@ -51,7 +51,7 @@ import { killTree, shimPath, spawnSpec } from "./exec.mjs";
  * pick something that is not npm.
  *
  * The path arithmetic is done on the string rather than through `node:path`,
- * for the same reason npxRoot in self-update.mjs does: `path` here is the
+ * for the same reason npxRoot in install-layout.mjs does: `path` here is the
  * platform running the SUITE, so a Windows layout checked from macOS would come
  * back with forward slashes and a `..` nothing resolves.
  */
