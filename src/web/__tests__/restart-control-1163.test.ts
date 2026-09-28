@@ -28,7 +28,7 @@ describe("restart in the page", () => {
     // Except while the desktop app has a verified update ready (#1187): the
     // dialog's Update and restart is then the restart it offers, the way the
     // tray's Restart ccdeck takes a staged update on its way through.
-    expect(APP).toMatch(/onRestart=\{!readyAppUpdate && version\?\.canRestart \? \(\) => \{ setReleaseNotes\(null\); void askRestart\(\); \} : undefined\}/);
+    expect(APP).toMatch(/onRestart=\{!readyAppUpdate && version\?\.canRestart \? \(\) => \{ closeReleaseNotes\(\); void askRestart\(\); \} : undefined\}/);
   });
 });
 

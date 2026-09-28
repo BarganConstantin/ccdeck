@@ -146,8 +146,9 @@ describe("where the guides open from", () => {
     }
     expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">/);
     expect(notes).toMatch(/\{onTour && !updateVersion && \(\s*<div className="guide-door">/);
-    expect(app).toMatch(/onTour=\{\(\) => \{ setReleaseNotes\(null\); setTourOpen\(true\); \}\}/);
-    expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); setTourOpen\(true\); \}\}/);
+    // The notes close and the tour opens through named operations now.
+    expect(app).toMatch(/onTour=\{\(\) => \{ closeReleaseNotes\(\); openTour\(\); \}\}/);
+    expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); openTour\(\); \}\}/);
   });
 
   it("gives the empty canvas its way back, and only while the server is there", () => {
