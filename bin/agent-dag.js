@@ -199,6 +199,23 @@ let stopping = false;
 // answer to broken is to stop and say so rather than to spin.
 let crashes = [];
 
+/**
+ * Stop the npx fetch in flight, if there is one, and say whether there was.
+ *
+ * A fetch ends early three ways — the worker it was for exits, a signal
+ * reaches this process, the parent holding our leash goes away — and all three
+ * stop it with killTree, which on Windows is the only thing that reaches npm
+ * under cmd.exe. The answer is for the first of them: a worker that leaves
+ * mid-fetch writes its attempt off, while one that leaves after a fetch that
+ * worked is handing the attempt to launchNpx.
+ */
+function stopFetch(signal) {
+  if (!fetching) return false;
+  killTree(fetching, signal);
+  fetching = null;
+  return true;
+}
+
 function launch(respawn) {
   // Asked on every spawn rather than once at boot: the deletion this catches
   // happens while the deck is running, so a constant read at import time would
@@ -272,7 +289,7 @@ function launch(respawn) {
     // download is spent effort and the process holding it has to be stopped:
     // left running it would keep writing into the npx cache directory the next
     // attempt reads, minutes after the deck stopped waiting for it.
-    if (fetching) { killTree(fetching); fetching = null; attempting = null; }
+    if (stopFetch()) attempting = null;
     // `stopping` outranks the exit code — see supervisor.mjs. A restart and a
     // Ctrl+C can land together, and honouring the code first is how the deck
     // came back to life after the user stopped it.
@@ -610,7 +627,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     // Windows the shim path leaves npm as a grandchild of cmd.exe that only
     // killTree can reach. Stopped before the worker, since the worker's own
     // exit path is what ends this process.
-    if (fetching) { killTree(fetching, second ? "SIGKILL" : sig); fetching = null; }
+    stopFetch(second ? "SIGKILL" : sig);
     if (!child) { process.exit(0); return; }
     try { child.kill(second ? "SIGKILL" : sig); } catch { /* already gone */ }
     // The npx step is a shell that exec's the new deck, and a signal can land in
@@ -643,7 +660,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 // the deck kill itself a second after every successful start.
 if (!DETACHED) dieWithParent(() => {
   stopping = true;
-  if (fetching) { killTree(fetching, "SIGTERM"); fetching = null; }
+  stopFetch("SIGTERM");
   if (child) killTree(child, "SIGTERM");
   // Long enough for the worker to unregister its discovery file and let the
   // port go, short enough that nothing is waiting on us. Unref'd: if the worker
