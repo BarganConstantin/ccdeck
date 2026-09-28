@@ -18,12 +18,12 @@ import AnchoredPopover from "./AnchoredPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { type Peer } from "../other-accounts";
-import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
-import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
+import { commandOutput, explainCommandFailure } from "../admin-failure";
+import { slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
-import { armedPress, focusDropped, rescueSelectors } from "../panel-press";
-import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
+import { focusDropped, rescueSelectors } from "../panel-press";
+import { ALIAS_MAX_LENGTH } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
 import { activeSwitchNote } from "../active-switch-note";
@@ -37,36 +37,16 @@ import {
   nextFailure,
 } from "../accounts-reload";
 import { shareExpiry } from "../share-bundle";
-import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
+import LanSyncSection from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
+import { useAccountMenu } from "../use-account-menu";
 import { type Account, type AccountsData, type AutoStatus } from "../claude-accounts";
 
-/** What an account's ⋯ is showing. Rename and Move are forms; Share is its
- *  answer — the text to copy. */
-interface AccountMenu {
-  num: number;
-  view: "menu" | "rename" | "move" | "share";
-  /** Which end of the menu focus lands on when it opens. */
-  start?: "first" | "last";
-}
-
 const POLL_MS = 15_000;
-// How long the "a second account moved too" line stands on the moved row. Long
-// enough to read a sentence the user did not ask for, short enough that it does
-// not keep reporting a move from ten minutes ago. Same shape as the panel's
-// other transient states — `copied` at 1.8s, an armed remove at 4s.
-const SWAP_NOTE_MS = 8_000;
 // How long the threshold's `save` stands as `saved`. The panel's other
 // transient confirmation — `copied` on a share — uses the same 1.8s, and the
 // word is the whole signal.
 const SAVED_MS = 1_800;
-// How long a share's `Copy` stands as `Copied`. The same 1.8s as `saved`, for
-// the same reason, and the same length ShareAccountsDialog gives its own copy.
-const COPIED_MS = 1_800;
-// How long Remove stays armed before it stands down on its own. The bar that
-// drains along its foot is timed to this in styles.css (`ap-disarm 4000ms`),
-// so the two change together or the bar lies about the window.
-const REMOVE_ARMED_MS = 4_000;
 // Past this, a reload is called dead rather than slow. Both routes can spawn
 // cswap, and the server kills those at 20 seconds, so anything shorter would
 // abort answers that were still coming.
@@ -110,58 +90,20 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   issueRef.current = issueOpen;
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const timerRef = useRef<number | null>(null);
-  // Which account's ⋯ is open, and what it is showing: the menu, or the one
-  // small form an item turned it into. One at a time — opening a second
-  // account's menu closes the first. It lies over the column rather than
-  // opening the row, so nothing held here decides any row's height.
-  const [menu, setMenu] = useState<AccountMenu | null>(null);
-  const menuFor = menu?.num ?? null;
-  // The same fact for a handler that returns after a render. A rename that
-  // lands after the reader has opened another account's menu must close its
-  // own popover, not theirs.
-  const menuRef = useRef(menu);
-  menuRef.current = menu;
-  // Why the last press in the popover did not work, said in the popover under
-  // the control that was pressed. A popover that closed on a refusal would
-  // look exactly like one that closed on success, so it stays open instead,
-  // holding the draft, and this is the line that says why.
-  const [menuError, setMenuError] = useState<Failure | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [aliasDraft, setAliasDraft] = useState("");
-  // Removal is irreversible, and there is no confirmation dialog anywhere in
-  // this deck. The button becomes its own confirmation and gives up after a
-  // few seconds, so a stray click can never be the second one.
-  const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
-  // When Remove was armed, so a double-click cannot be its own confirmation —
-  // the rule the LAN section's unpair already keeps (CONFIRM_GAP_MS). It
-  // matters more in the menu than it did on the row: an open menu lies over
-  // the next account's ⋯, and Remove, last in the list, is what a press aimed
-  // at that ⋯ lands on.
-  const removeArmedAt = useRef(0);
-  const [share, setShare] = useState<{ num: number; blob: string; expiresAt: number } | null>(null);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
   // account to somebody else. Its own dialog, so the row keeps its one-click
   // path and neither has to explain the other.
   const [shareSetOpen, setShareSetOpen] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
   // The account whose "Projects" report is open, by slot number, or null. A
   // full modal rather than an inline popover: the report carries a chart, a
   // list and per-window totals that a menu-sized panel would crush.
   const [projectsFor, setProjectsFor] = useState<number | null>(null);
-  // A move into an occupied slot relocates an account the user never picked.
-  // Nothing else on screen says so — both accounts simply appear where they
-  // were not — so the moved row says it, in its own freshness line.
-  const [swapNote, setSwapNote] = useState<SwapNote | null>(null);
-  // What the slot picker is SHOWING, which is no longer what the store holds.
-  // A select fires `change` on any keystroke that matches an option, so a
-  // single `s` used to move an account and, into a taken slot, a second one
-  // with it (#516). The picker proposes now and the button under it commits.
-  // Null is the account's own slot, which is where the picker opens; only one
-  // popover is ever open, so one draft covers the panel.
-  const [slotDraft, setSlotDraft] = useState<number | null>(null);
-  // The same two for the auto-switch threshold, which had the same defect with
-  // a setting write on the other end. Null follows whatever the store holds.
+  // The same split for the auto-switch threshold as the slot picker's in
+  // use-account-menu.ts — the picker proposes, the button under it commits —
+  // because it had the same defect with a setting write on the other end
+  // (#516). Null follows whatever the store holds.
   const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
   const [thresholdSaved, setThresholdSaved] = useState(false);
   // `save` only exists while there is a pick to store, so it leaves the panel
@@ -247,12 +189,24 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     }
   }, []);
 
+  // The ⋯ popover, what it is holding and the requests pressed in it — see
+  // use-account-menu.ts. The panel reads what to draw and asks by name.
+  const clearFailure = useCallback(() => setFailure(null), []);
+  const {
+    menu, menuFor, menuError, aliasDraft, confirmRemove, share, shareCopied, slotDraft, swapNote,
+    showMenu, dropMenu, closeMenu, sayInMenu,
+    startRename, typeAlias, doAlias,
+    startMove, pickSlot, doSlot,
+    makeShare, copyShare,
+    pressRemove,
+  } = useAccountMenu({ claim, release, load, clearFailure, rescueFocus });
+
   /** Every auto-switch control is one POST; they all reload afterwards. The
    *  refusal is said where the press was: at the foot of the column for the
    *  policy row, and inside the ⋯ menu for an account held out or put back. */
   const post = useCallback(async (body: Record<string, unknown>, tag: string, where: "panel" | "menu" = "panel") => {
     if (!claim(tag)) return null;
-    const say = where === "menu" ? setMenuError : setFailure;
+    const say = where === "menu" ? sayInMenu : setFailure;
     say(null);
     try {
       const res = await fetch("/api/cswap-auto", {
@@ -274,34 +228,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     } finally {
       release();
     }
-  }, [claim, release]);
-
-  /** Every store-changing action is one POST to the same route — and every one
-   *  of them is pressed inside an account's ⋯ popover, so its refusal is said
-   *  there, under the control that was pressed, rather than at the foot of a
-   *  panel the popover is lying over. */
-  const admin = useCallback(async (body: Record<string, unknown>, tag: string) => {
-    if (!claim(tag)) return null;
-    setFailure(null);
-    setMenuError(null);
-    try {
-      const res = await fetch("/api/claude-accounts/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const out = await res.json().catch(() => null);
-      // The admin route composes its `detail` with failureText(), so here the
-      // server's own words are the message and explainFailure ranks them first.
-      if (!out?.ok) setMenuError({ text: explainFailure(out, "command failed", res.status) });
-      return out;
-    } catch {
-      setMenuError({ text: "server unreachable" });
-      return null;
-    } finally {
-      release();
-    }
-  }, [claim, release]);
+  }, [claim, release, sayInMenu]);
 
   useEffect(() => {
     load(true);
@@ -412,22 +339,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     }
   };
 
-  /** Forget the popover and everything it was holding: an armed remove, a
-   *  share, a refusal. All three belonged to the account they were made on. */
-  const dropMenu = useCallback(() => {
-    setMenu(null);
-    setMenuError(null);
-    setConfirmRemove(null);
-    setShare(null);
-    setShareCopied(false);
-  }, []);
-
-  /** Open an account's ⋯ on its menu, closing any other one first. */
+  /** Open an account's ⋯ on its menu, closing any other one first — and a
+   *  warning's explanation, which never stands beside one. */
   const openMenu = (num: number, start: "first" | "last" = "first") => {
-    dropMenu();
+    showMenu(num, start);
     setIssueOpen(null);
-    setSlotDraft(null);
-    setMenu({ num, view: "menu", start });
   };
 
   /** Open a warning's explanation, or shut it when it is the one open. The
@@ -467,25 +383,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   }, [view]);
   useEffect(() => { if (data?.ok) setLanReady(true); }, [data?.ok]);
 
-  /**
-   * Close the popover and hand focus back to the ⋯ it came from.
-   *
-   * Only when focus was inside it, which is about to go, or has already
-   * fallen to <body> — a reader who moved on while a request was out is left
-   * where they put themselves, the rule panel-press.ts writes for every rescue
-   * in this panel. `only` is for a request that finished late: it closes its
-   * own account's popover and never one opened since.
-   */
-  const closeMenu = useCallback((only?: number) => {
-    const open = menuRef.current;
-    if (!open || (only != null && open.num !== only)) return;
-    const pop = document.getElementById(`ap-menu-${open.num}`);
-    if (pop?.contains(document.activeElement) || focusDropped(document.activeElement?.tagName ?? null)) {
-      document.getElementById(`ap-more-${open.num}`)?.focus();
-    }
-    dropMenu();
-  }, [dropMenu]);
-
   // A popover left standing as the panel slides out would float over the
   // canvas where the panel used to be; one whose account has left the store
   // has nothing to hang from.
@@ -504,102 +401,8 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     if (projectsFor != null && !(data?.accounts ?? []).some(a => a.num === projectsFor)) setProjectsFor(null);
   }, [data, projectsFor]);
 
-  /**
-   * Make a share for this account and turn the popover into it. Also what
-   * `Make a new share` does once the one on screen has expired.
-   */
-  const makeShare = async (num: number) => {
-    setShareCopied(false);
-    const out = await admin({ action: "share", account: num }, `share-${num}`);
-    // Closed while the request was out: the share is not shown to anybody.
-    if (!out?.ok || menuRef.current?.num !== num) return;
-    setShare({ num, blob: out.blob, expiresAt: out.expiresAt });
-    setMenu({ num, view: "share" });
-  };
-
-  /**
-   * Store the alias in the field, then close.
-   *
-   * A draft that already matches the store is not a failure and not a no-op
-   * the user should have to detect — it is an alias that is saved — so it
-   * closes without a round trip, and a draft that differs closes once the
-   * store has it. The row is the confirmation: it is showing the name. A
-   * refusal leaves the form open on the draft, with the reason under it.
-   */
-  const doAlias = async (num: number, stored: string | null) => {
-    const { commit, alias } = aliasSave(aliasDraft, stored);
-    if (commit) {
-      const out = await admin({ action: "alias", account: num, alias }, `alias-${num}`);
-      await load(true);
-      if (!out?.ok) return;
-    }
-    closeMenu(num);
-  };
-
-  /**
-   * Send an account to another slot, then close the popover and follow the
-   * account with focus.
-   *
-   * The reload alone is not enough: `cswap move` into an occupied slot is a
-   * swap, so the slot numbers this panel keys everything by change hands
-   * underneath it. manageAfterMove decides what survives that; a refused move
-   * returns null and nothing here is touched, leaving the form open and armed
-   * exactly as the user left it, with the refusal under it to say why.
-   */
-  const doMove = async (from: number, to: number) => {
-    const out = await admin({ action: "move", account: from, slot: to }, `move-${from}`);
-    const next = manageAfterMove(
-      { menuFor: menuRef.current?.num ?? null, confirmRemove, shareFor: share?.num ?? null, swapNote },
-      from,
-      out,
-    );
-    // The roster first, then the popover, and never the other way round: the
-    // two disagree about who holds a slot for exactly as long as one has moved
-    // on and the other has not, and that disagreement IS the bug — a form
-    // aimed at a row belonging to somebody else.
-    await load(true);
-    if (next) {
-      // The account is where the picker said, so the form has nothing left to
-      // do. It closes rather than chase the row down the column; the row
-      // answers instead, by being in its new place and, after a swap, by
-      // saying so.
-      if (menuRef.current?.num === from) dropMenu();
-      setConfirmRemove(next.confirmRemove);
-      if (next.shareFor == null) { setShare(null); setShareCopied(false); }
-      setSwapNote(next.swapNote);
-      const note = next.swapNote;
-      if (note) window.setTimeout(() => setSwapNote(n => (n === note ? null : n)), SWAP_NOTE_MS);
-      // A refused move keeps the draft: the form stays open on the pick the
-      // user made, ready to be pressed again under the refusal.
-      setSlotDraft(null);
-      // The popover that held focus is gone, and the account now sits on a
-      // different row. Focus lands on that row's ⋯ — the account's, wherever
-      // the move put it.
-      rescueFocus(next.menuFor);
-    }
-    return out;
-  };
-
-  /**
-   * Act on the slot showing in the picker, because the user said so.
-   *
-   * This is the whole of #516. A `<select>` changes value on a keystroke and
-   * fires `change` for it, so the picker cannot be the thing that acts — one
-   * `s` matched `slot 3 · swap` by type-ahead and traded two accounts with no
-   * confirmation and no undo. The press is the decision now, and slotCommit
-   * decides what the press means from the choice alone.
-   *
-   * Both endings close the form, which is what `Save` does for a name: a pick
-   * that is already where the account lives has nothing to send and is not a
-   * failure — the account IS there — and a pick that moved it closes once the
-   * move has landed.
-   */
-  const doSlot = async (from: number, to: number, commit: PickerCommit) => {
-    if (!commit.sends) { closeMenu(from); return; }
-    await doMove(from, to);
-  };
-
-  /** The same rule for the threshold: the picker proposes, `save` stores it. */
+  /** The slot picker's rule (doSlot, in use-account-menu.ts) for the
+   *  threshold: the picker proposes, `save` stores it. */
   const doThreshold = async (pick: string, commit: PickerCommit) => {
     if (commit.sends) {
       const out = await post({ action: "setting", key: "autoswitch.threshold", value: pick }, "threshold");
@@ -924,17 +727,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                             the one form it needs. The arrows walk the items, and
                             Tab leaves the menu instead of stepping through it. */}
                         <button type="button" role="menuitem" className="ap-menu-item"
-                          onClick={() => {
-                            setAliasDraft(a.alias ?? "");
-                            setMenuError(null);
-                            setMenu({ num: a.num, view: "rename" });
-                          }}>Rename</button>
+                          onClick={() => startRename(a.num, a.alias)}>Rename</button>
                         <button type="button" role="menuitem" className="ap-menu-item"
-                          onClick={() => {
-                            setSlotDraft(null);
-                            setMenuError(null);
-                            setMenu({ num: a.num, view: "move" });
-                          }}>Move to slot…</button>
+                          onClick={() => startMove(a.num)}>Move to slot…</button>
                         <button type="button" role="menuitem" className="ap-menu-item"
                           {...pressProps(`share-${a.num}`)}
                           /* It leads with what the reader is about to put on their
@@ -987,33 +782,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                           title={confirmRemove === a.num
                             ? "This deletes the stored credentials for this account"
                             : "Remove this account from claude-swap"}
-                          onClick={() => {
-                            const now = Date.now();
-                            const press = armedPress({
-                              armedFor: confirmRemove, target: a.num,
-                              armedAt: removeArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
-                            });
-                            if (press === "arm") {
-                              setConfirmRemove(a.num);
-                              removeArmedAt.current = now;
-                              window.setTimeout(() => setConfirmRemove(c => (c === a.num ? null : c)), REMOVE_ARMED_MS);
-                              return;
-                            }
-                            // A double-click is one decision, not two: its second
-                            // press lands before anybody could have read `Confirm`.
-                            if (press === "ignore") return;
-                            setConfirmRemove(null);
-                            admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(out => {
-                              load(true);
-                              // Refused: the menu stays open and says why.
-                              if (!out?.ok) return;
-                              if (menuRef.current?.num === a.num) dropMenu();
-                              // The row this lived on is going, so there is no
-                              // local anchor left and focus falls to the panel
-                              // reload — see rescueSelectors in panel-press.ts.
-                              rescueFocus(null);
-                            });
-                          }}
+                          onClick={() => pressRemove(a.num)}
                         >{busy === `rm-${a.num}` ? "Removing…" : confirmRemove === a.num ? "Confirm" : "Remove"}</button>
                         {refusal}
                       </>
@@ -1033,7 +802,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                           className="ap-manage-input"
                           type="text"
                           value={aliasDraft}
-                          onChange={e => setAliasDraft(e.target.value)}
+                          onChange={e => typeAlias(e.target.value)}
                           /* The store's own bound, stated where the typing happens
                              rather than discovered from a `bad_value` after a
                              round trip. See ALIAS_MAX_LENGTH. */
@@ -1082,7 +851,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                               id={`ap-slot-${a.num}`}
                               value={String(picked)}
                               {...pressProps(`move-${a.num}`)}
-                              onChange={e => setSlotDraft(Number(e.target.value))}
+                              onChange={e => pickSlot(Number(e.target.value))}
                               autoFocus
                             >
                               {/* The consequence rides on the option that carries
@@ -1131,10 +900,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                             <button type="button" className="btn primary" {...pressProps(`share-${a.num}`)} autoFocus
                               onClick={async () => {
                                 if (dead) { await makeShare(a.num); return; }
-                                if (await copyText(share.blob)) {
-                                  setShareCopied(true);
-                                  window.setTimeout(() => setShareCopied(false), COPIED_MS);
-                                }
+                                await copyShare(share.blob);
                               }}>
                               {dead ? "Make a new share" : shareCopied ? "Copied" : "Copy"}
                             </button>

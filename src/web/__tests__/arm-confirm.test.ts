@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { armedPress } from "../panel-press";
 import { CONFIRM_GAP_MS } from "../components/LanSyncSection";
 import { withoutComments } from "./tsx-scan";
+import { accountsSurface } from "./accounts-surface";
 
 const GAP = 400;
 const press = (armedFor: number | null, target: number, armedAt: number, now: number) =>
@@ -80,22 +81,29 @@ describe("every arm-then-confirm press asks armedPress", () => {
   const read = (name: string) =>
     withoutComments(readFileSync(fileURLToPath(new URL(`../components/${name}`, import.meta.url)), "utf8"));
   const accounts = read("AccountsPanel.tsx");
+  /** Remove's press, lifted out of the panel's markup into the ⋯ menu's hook
+   *  with the armed account and the time it was armed. */
+  const accountMenu = withoutComments(readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8"));
   const section = read("LanSyncSection.tsx");
   const list = read("LanDeckList.tsx");
   const modal = read("LanPeerModal.tsx");
   const sound = read("SoundMenu.tsx");
 
   it("routes the account's Remove through it, and only a fire posts the removal", () => {
-    const start = accounts.indexOf("armedFor: confirmRemove, target: a.num,");
+    // The item asks the hook's press by name and does nothing else.
+    expect(accounts).toMatch(/onClick=\{\(\) => pressRemove\(a\.num\)\}/);
+    const start = accountMenu.indexOf("armedFor: confirmRemove, target: num,");
     expect(start).toBeGreaterThan(-1);
-    const post = 'admin({ action: "remove", account: a.num }';
-    const handler = accounts.slice(start, accounts.indexOf(post, start) + post.length);
+    const post = 'admin({ action: "remove", account: num }';
+    const handler = accountMenu.slice(start, accountMenu.indexOf(post, start) + post.length);
     expect(handler).toMatch(/armedAt: removeArmedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     // The arm records when it happened — without that the gap measures from 0
     // and every second press is a fire.
-    expect(handler).toMatch(/if \(press === "arm"\) \{\s*setConfirmRemove\(a\.num\);\s*removeArmedAt\.current = now;/);
+    expect(handler).toMatch(/if \(press === "arm"\) \{\s*setConfirmRemove\(num\);\s*removeArmedAt\.current = now;/);
     // And the ignore returns before the request is built.
-    expect(handler).toMatch(/if \(press === "ignore"\) return;\s*setConfirmRemove\(null\);\s*admin\(\{ action: "remove", account: a\.num \}/);
+    expect(handler).toMatch(/if \(press === "ignore"\) return;\s*setConfirmRemove\(null\);\s*admin\(\{ action: "remove", account: num \}/);
+    // One road to the removal, and it is that one.
+    expect([...withoutComments(accountsSurface()).matchAll(/action: "remove"/g)]).toHaveLength(1);
   });
 
   it("routes all three unpairs through it", () => {
@@ -122,7 +130,11 @@ describe("every arm-then-confirm press asks armedPress", () => {
 
   it("leaves no hand-written gap check anywhere in the components", () => {
     // A fifth copy is how the first four drifted apart in what they pinned.
-    for (const [name, src] of [["AccountsPanel.tsx", accounts], ["LanSyncSection.tsx", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx", sound]]) {
+    // The accounts panel as the panel and every file lifted out of it: Remove's
+    // press lives in use-account-menu.ts now, and a sweep of the component alone
+    // would pass over it.
+    const panel = withoutComments(accountsSurface());
+    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx", sound]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }
