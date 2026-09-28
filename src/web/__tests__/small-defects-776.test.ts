@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 // @ts-expect-error — .mjs server module, no types
-const { cooldownFromHeader } = await import("../../server/quota.mjs");
+const { cooldownFromHeader } = await import("../../server/quota-oauth.mjs");
 
 describe("a retry-after the deck can live with", () => {
   it("refuses to be told to stop backing off", () => {

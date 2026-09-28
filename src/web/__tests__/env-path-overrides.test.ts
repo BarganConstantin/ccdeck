@@ -63,7 +63,11 @@ process.env.CLAUDE_SWAP_BACKUP = join(SANDBOX, "claude-swap-store");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
-const { credentialsPath, fetchClaudeQuota } = await import("../../server/quota.mjs");
+const { fetchClaudeQuota } = await import("../../server/quota.mjs");
+// Where the token is read from moved to quota-oauth.mjs with the token's other
+// readers.
+// @ts-expect-error — .mjs server module, no types
+const { credentialsPath } = await import("../../server/quota-oauth.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { CODEX_SESSIONS_DIR } = await import("../../server/index.mjs");
 
