@@ -97,7 +97,7 @@ describe("readSessionNaming — a whole-text loop the scan never runs", () => {
     ]) indexMod.foldSessionNamingLine(out, line);
     expect(out).toEqual({ aiTitle: "Newer title", agentName: "a-name" });
     // The scan really does fold through it, rather than through some other copy.
-    expect(src(SERVER, "index.mjs")).toContain("foldSessionNamingLine(state, line);");
+    expect(src(SERVER, "transcript-scan.mjs")).toContain("foldSessionNamingLine(state, line);");
   });
 });
 

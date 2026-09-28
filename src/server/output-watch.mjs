@@ -249,9 +249,9 @@ export function createOutputWatch(io = {}) {
    * nothing more unusual than several live sessions on a slow or
    * network-backed transcript directory.
    *
-   * Its two siblings in index.mjs already refused re-entry: codexScanOnce with
-   * a boolean, scanTranscript by handing a second caller the read already in
-   * flight. The second shape is wrong here — a caller handed the same answer
+   * Its two siblings already refused re-entry: codexScanOnce in index.mjs with
+   * a boolean, scanTranscript in transcript-scan.mjs by handing a second caller
+   * the read already in flight. The second shape is wrong here — a caller handed the same answer
    * would push the same blocks again — so this is the boolean. An overlapping
    * call answers with nothing and the call already inside answers for both.
    * Nothing is lost by it: whatever lands meanwhile is past the offset the
