@@ -230,8 +230,15 @@ async function readCswapConfigNow() {
  */
 const MODEL_LIST_OK = /^(?!-)[A-Za-z0-9 ,._-]{1,120}$/;
 
-/** Validate against SETTINGS, then hand to `cswap config set`. */
-export async function setCswapConfig(key, value) {
+/**
+ * The argument a setting's value becomes, as `{ ok: true, str }`, or the
+ * refusal `{ ok: false, reason }` setCswapConfig answers with instead.
+ *
+ * Validated against SETTINGS and nothing else, and pure: neither answer spawns
+ * anything, so a test can hand it every shape a caller might send without a
+ * `cswap` behind it. setCswapConfig is its one caller.
+ */
+export function settingArg(key, value) {
   // `Object.hasOwn`, not a bare read. `SETTINGS["constructor"]` is truthy and
   // its `.type` is undefined, so a prototype member passed the allowlist and
   // fell through to the free-text branch — reaching `cswap config set
@@ -254,6 +261,14 @@ export async function setCswapConfig(key, value) {
     str = String(value ?? "").trim();
     if (str && !MODEL_LIST_OK.test(str)) return { ok: false, reason: "bad_value" };
   }
+  return { ok: true, str };
+}
+
+/** Validate against SETTINGS, then hand to `cswap config set`. */
+export async function setCswapConfig(key, value) {
+  const arg = settingArg(key, value);
+  if (!arg.ok) return arg;
+  const { str } = arg;
 
   const r = await run(await cswapBin(), ["config", "set", key, str]);
   // Whatever the CLI said. A write that reported a failure may still have landed
