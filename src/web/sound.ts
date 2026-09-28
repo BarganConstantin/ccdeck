@@ -372,6 +372,29 @@ export function peakFor(level: number, figure: Pick<Figure, "trim">): number {
 }
 
 /**
+ * How loud a spoken custom voice is, for a level (#1207): SpeechSynthesis'
+ * 0–1 volume.
+ *
+ * The existing level owns custom voices too. Map the notification gain band to
+ * SpeechSynthesis' 0..1 volume without adding a second control.
+ */
+export function voiceVolume(level: number): number {
+  return Math.min(1, gainForLevel(level) / GAIN_CEILING);
+}
+
+/**
+ * The gain an imported custom clip plays at, for a level (#1207).
+ *
+ * Import measured the file's peak once. Applying that gain here makes every
+ * imported file land at the same target before the user's existing per-tone
+ * level is applied.
+ */
+export function clipGain(normalizationGain: number, level: number): number {
+  const normalized = normalizationGain * (gainForLevel(level) / CUSTOM_TARGET_PEAK);
+  return Math.max(0.0001, normalized);
+}
+
+/**
  * How long after the last change to a tone the deck plays it back.
  *
  * A volume you cannot hear is a volume you are guessing at, so touching a tone
@@ -449,6 +472,12 @@ export function readPrefs(read: (key: string) => string | null): TonePrefs {
     figure: figureIdFrom(chime, read(FIGURE_KEYS[chime])),
   });
   return { done: one("done"), "needs-input": one("needs-input") };
+}
+
+/** One tone's settings out of whatever the player was handed: the default for
+ *  a player given none, and for a tone the settings leave out. */
+export function toneFor(prefs: TonePrefs | undefined, chime: Chime): ToneSettings {
+  return (prefs ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
 }
 
 /** The events that earn a tone. Everything else is silent on purpose.
@@ -613,9 +642,7 @@ export function createChimePlayer(opts: {
       utterance.voice = voices.find(v => v.voiceURI === asset.voiceURI) ?? null;
       utterance.rate = asset.rate;
       utterance.pitch = asset.pitch;
-      // The existing level owns custom voices too. Map the notification gain
-      // band to SpeechSynthesis' 0..1 volume without adding a second control.
-      utterance.volume = Math.min(1, gainForLevel(tone.level) / GAIN_CEILING);
+      utterance.volume = voiceVolume(tone.level);
       try {
         // Speech QUEUES where a chime overlaps. Five turns finishing together
         // would otherwise be five sentences read out one after another, the
@@ -635,11 +662,7 @@ export function createChimePlayer(opts: {
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
       source.buffer = decoded;
-      // Import measured the file's peak once. Applying that gain here makes
-      // every imported file land at the same target before the user's existing
-      // per-tone level is applied.
-      const normalized = asset.normalizationGain * (gainForLevel(tone.level) / CUSTOM_TARGET_PEAK);
-      gain.gain.setValueAtTime(Math.max(0.0001, normalized), ctx.currentTime);
+      gain.gain.setValueAtTime(clipGain(asset.normalizationGain, tone.level), ctx.currentTime);
       source.connect(gain).connect(ctx.destination);
       source.start(ctx.currentTime);
       return "played";
@@ -664,7 +687,7 @@ export function createChimePlayer(opts: {
    */
   function play(chime: Chime, audition = false) {
     if (!audition && !opts.enabled()) return false;
-    const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
+    const tone = toneFor(opts.prefs?.(), chime);
     const customId = opts.customSelection?.()[chime] ?? null;
     if (customId && opts.loadCustom) {
       void playCustomAsset(customId, tone).then(outcome => {
