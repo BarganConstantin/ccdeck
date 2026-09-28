@@ -236,6 +236,41 @@ async function unchangedSince(settingsPath, before) {
   return !(unreadable || onDisk !== before);
 }
 
+/**
+ * Take the retired finish-sound hook out of `current`, the settings object
+ * installHooks is about to write, and hand back what is left to do once that
+ * write has landed. installHooks says why it rides along on that write.
+ *
+ * Imported here rather than at the top of the file because retire-sound-hook.mjs
+ * imports this module — it takes writeFileAtomic and readSettingsForWrite from
+ * here — and a static import would close that into a cycle. Claude only: the
+ * entry was one line in Claude Code's settings.json and there was never a Codex
+ * one.
+ *
+ * The equality test is not ceremony. Retirement DELETES two files — the parked
+ * hooks and the installed script — at absolute paths it resolved for itself,
+ * from claudeConfigDir() and os.homedir(), at its own import. installHooks
+ * writes `cfg.settingsPath`. In the product those are the same settings.json
+ * and the paths belong together. When they are not the same file, the two
+ * modules are looking at different homes, and acting on that difference means
+ * deleting files belonging to a machine this install is not writing to. That
+ * is not hypothetical: it happened to the author's own ~/.agents-deck while
+ * this very change was being written, from a test whose environment teardown
+ * ran a describe too early. Disagreement is a reason to do nothing.
+ */
+async function soundHookRetirement(provider, cfg, current) {
+  let retire = { pending: false, changed: false, removed: 0, restored: 0 };
+  let completeSoundHookRetirement = null;
+  if (provider === "claude") {
+    const retirement = await import("./retire-sound-hook.mjs");
+    if (retirement.SETTINGS_PATH === cfg.settingsPath) {
+      completeSoundHookRetirement = retirement.completeSoundHookRetirement;
+      retire = await retirement.retireSoundHookIn(current);
+    }
+  }
+  return { retire, completeSoundHookRetirement };
+}
+
 /** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}. */
 export async function installHooks({ provider = "claude", beforeWrite = null } = {}) {
   const cfg = PROVIDERS[provider];
@@ -282,31 +317,7 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
   // write split is what keeps the script deletion after the write: until the new
   // file has landed, a live Claude Code session's next turn still runs the old
   // command.
-  //
-  // Imported here rather than at the top of the file because retire-sound-hook.mjs
-  // imports this module — it takes writeFileAtomic and readSettingsForWrite
-  // from here — and a static import would close that into a cycle. Claude only: the entry
-  // was one line in Claude Code's settings.json and there was never a Codex one.
-  //
-  // The equality test is not ceremony. Retirement DELETES two files — the parked
-  // hooks and the installed script — at absolute paths it resolved for itself,
-  // from claudeConfigDir() and os.homedir(), at its own import. This function
-  // writes `cfg.settingsPath`. In the product those are the same settings.json
-  // and the paths belong together. When they are not the same file, the two
-  // modules are looking at different homes, and acting on that difference means
-  // deleting files belonging to a machine this install is not writing to. That
-  // is not hypothetical: it happened to the author's own ~/.agents-deck while
-  // this very change was being written, from a test whose environment teardown
-  // ran a describe too early. Disagreement is a reason to do nothing.
-  let retire = { pending: false, changed: false, removed: 0, restored: 0 };
-  let completeSoundHookRetirement = null;
-  if (provider === "claude") {
-    const retirement = await import("./retire-sound-hook.mjs");
-    if (retirement.SETTINGS_PATH === cfg.settingsPath) {
-      completeSoundHookRetirement = retirement.completeSoundHookRetirement;
-      retire = await retirement.retireSoundHookIn(current);
-    }
-  }
+  const { retire, completeSoundHookRetirement } = await soundHookRetirement(provider, cfg, current);
 
   // Every launch reinstalls, and on all but the first the entries are already
   // there and identical. Writing anyway is pure downside: it is one more chance
