@@ -3,10 +3,10 @@
 // the fake clock.
 //
 // lan-engine.test.ts pins why there are two gaps and that the sentence the
-// clock watches for is the one lan-socket.mjs sends. What is pinned here is
-// the loop: the first round a whole minute after a start, the gap picked after
-// each round finishes, a round that throws not ending it, and nothing more
-// scheduled once the start that began it is over.
+// clock watches for is the one lan-call.mjs reads a refusal as. What is pinned
+// here is the loop: the first round a whole minute after a start, the gap
+// picked after each round finishes, a round that throws not ending it, and
+// nothing more scheduled once the start that began it is over.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import { ASKING_MS, createRoundTimer, SYNC_MS } from "../../server/lan-round-timer.mjs";

@@ -4,7 +4,7 @@
 // engine as `last` — a sentence off the wire, an errno Node put in front of an
 // address, or the logins it moved and what was wrong with each — and this is
 // where each of those becomes a line and a tone: the codes lan-copies.mjs and
-// lan-socket.mjs define on one side, the words the deck list and a deck's own
+// lan-call.mjs define on one side, the words the deck list and a deck's own
 // dialog draw on the other. silenceNote is here for the same reason. It is
 // what a round that timed out means when a beacon from the same machine says
 // more than the socket could.
@@ -68,7 +68,7 @@ export function roundWhy(d: DoneRow): { short: string; long: string } | null {
  * the one that is wrong, so the two states nobody can fix by fixing anything
  * have to stop wearing the costume of the ones they can.
  *
- * Keyed on the wire's own sentence, which lan-socket.mjs builds — the two files
+ * Keyed on the wire's own sentence, which lan-call.mjs builds — the two files
  * are one protocol and this is the panel's half of it.
  *
  * Exported because presence reads it as well: a deck that answered was
@@ -126,7 +126,7 @@ export function faultText(error: string): string {
  * under the name it is about — so what is left to say is what happened.
  *
  * Anything not listed passes through verbatim. A sentence this file has never
- * seen is more useful whole than replaced by a guess, and lan-socket.mjs is
+ * seen is more useful whole than replaced by a guess, and lan-call.mjs is
  * free to add one without this map lying about it.
  */
 const WIRE_FAULTS: Record<string, string> = {

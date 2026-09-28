@@ -2,7 +2,9 @@
 // lan-wire.mjs, or for an invite in lan-invite.mjs; what is here is the
 // plumbing that decision layer refuses to own — a UDP socket that shouts, a TCP
 // listener that answers, and the deadlines around both. The shouting half is
-// lan-beacon.mjs; this file is the answering and the calling.
+// lan-beacon.mjs and the calling half lan-call.mjs, and the line a dialler and
+// this listener speak is lan-lines.mjs's; this file is the answering, and it
+// re-exports the other two, so what imports them from here still does.
 //
 // TWO SOCKETS, AND NEITHER IS THE DECK'S HTTP SERVER. That server binds
 // 127.0.0.1 and stays there. It has a mutation guard that deliberately trusts a
