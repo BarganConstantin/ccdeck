@@ -185,6 +185,11 @@ const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
+/** use-agent-focus.ts the same way: focusAgent, the other caller of moveCamera. */
+const focusCode = readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+
 /** use-camera.ts the same way: fitLeft and the door it frames through. */
 const cameraCode = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -265,8 +270,9 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // Every fit and focus is one call to moveCamera (use-camera.ts), and that
     // is where the stamp is, right after the door. Asked three ways: the stamp
     // follows the move inside it, both callers go through it, and nothing in
-    // either file takes the door with a fit's or a focus's frame on its own.
-    const lines = (appCode + "\n" + cameraCode).split("\n");
+    // App.tsx, use-agent-focus.ts or use-camera.ts takes the door with a fit's
+    // or a focus's frame on its own.
+    const lines = (appCode + "\n" + focusCode + "\n" + cameraCode).split("\n");
     const calls = lines
       .map((line, i) => ({ line, i }))
       .filter(({ line }) => /\brf\.fitView\(|\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
@@ -278,7 +284,7 @@ describe("the fits the deck asks for stay marked as its own", () => {
     expect(doors, "a fit or a focus takes the door outside moveCamera").toHaveLength(1);
     expect(cameraCode).toMatch(/const moveCamera = useCallback\([\s\S]*?applyViewport\(want, duration\);\s*lastFitTimeRef\.current = Date\.now\(\);/);
     expect(cameraCode).toMatch(/const epoch = moveCamera\(want, duration\);/);
-    expect(appCode).toMatch(/moveCamera\(want, FOCUS_MS\);/);
+    expect(focusCode).toMatch(/moveCamera\(want, FOCUS_MS\);/);
   });
 
   it("stamps the viewport restored from storage on reload", () => {

@@ -18,10 +18,12 @@ import { WELCOME_STEPS } from "../components/guide-art";
 
 // selectAgent moved to use-selection.ts; everything that calls it stayed in
 // App.tsx. The two are read as one, so a body is found wherever it lives.
-// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// The keydown handler moved to use-deck-shortcuts.ts, and stepAgent and
+// focusSession to use-agent-focus.ts; the keys and the rest of the deck are read as one.
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8")
-  + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
