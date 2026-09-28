@@ -17,7 +17,7 @@ export function emptyUsage(): TokenUsage {
  *  nothing at all when neither field is present — absent is not zero, and
  *  pricing.ts leans on that to keep a split-less session at the dollars it
  *  already showed. */
-export function cacheTtlSplit(
+function cacheTtlSplit(
   obj: Record<string, unknown>,
 ): Pick<TokenUsage, "cacheCreate1hTokens" | "cacheCreate5mTokens"> {
   const nested = obj.cache_creation;
@@ -35,13 +35,25 @@ export function cacheTtlSplit(
 
 /** One wire usage object — the server's snake_case shape — as a `TokenUsage`.
  *
- *  Both spellings of the cache lines, for the reason the flat read in
- *  `UsageObserved` spells out: Codex writes `cached_input_tokens` and
+ *  Both spellings of the cache lines: Codex writes `cached_input_tokens` and
  *  `cache_write_input_tokens`, Claude writes `cache_read_input_tokens` and
  *  `cache_creation_input_tokens`, and this has to read whichever provider's
- *  reader produced it. Written once here so the per-model buckets cannot come
- *  to disagree with the total they were split out of (#686). */
-function usageFromWire(u: Record<string, unknown>): TokenUsage {
+ *  reader produced it.
+ *
+ *  The cache-WRITE line took both spellings only from #400 on. Codex has
+ *  carried `cache_write_input_tokens` in every `total_token_usage` object this
+ *  machine holds, and it arrives here verbatim from the rollout, but the read
+ *  asked for Claude's spelling alone and so dropped it — which mattered because
+ *  gpt-5.6 is the first OpenAI family to publish a separate cache-write price
+ *  ($6.25/Mtok on sol), and a rate with no token count to multiply is a line
+ *  item pinned at $0.00 forever.
+ *
+ *  Written once here, and read for both the session's flat total and its
+ *  per-model buckets, so the buckets cannot come to disagree with the total
+ *  they were split out of (#686). The two TTL fields are always present, set to
+ *  undefined when the wire carried no split: `UsageObserved` assigns this over
+ *  the stored totals, and a key left off would keep a stale split standing. */
+export function usageFromWire(u: Record<string, unknown>): TokenUsage {
   const ttl = cacheTtlSplit(u);
   const out: TokenUsage = {
     inputTokens: Number(u.input_tokens ?? 0),
