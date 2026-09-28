@@ -18,6 +18,8 @@ import { wayBackNote } from "../../server/way-back.mjs";
 
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
 const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
+// The end of the startup report, where the note is printed.
+const STARTUP = readFileSync(fileURLToPath(new URL("../../../bin/cli/startup.js", import.meta.url)), "utf8");
 
 describe("the way back", () => {
   it("names no port and no address", () => {
@@ -90,16 +92,21 @@ describe("the way back", () => {
   });
 });
 
-describe("where bin/deck.js prints it", () => {
+describe("where the deck prints it", () => {
   it("prints it on a start", () => {
-    expect(DECK).toContain("wayBackNote({");
+    expect(STARTUP).toContain("wayBackNote({");
+    // In the rows a start ends with, which deck.js prints on every start that
+    // is not a respawn.
+    expect(DECK).toContain("else reportReady({ url, persist, openBrowser, flags });");
   });
 
   it("prints it after the flag warnings, which must stay the last thing said", () => {
-    // The start's own warnings, after the server row: the respawn path prints
-    // them too, earlier in the file, and does not print the note at all.
-    const warn = DECK.indexOf("reportIncompleteFlags(flags.incomplete)", DECK.indexOf('label: "server ready"'));
-    const note = DECK.indexOf("wayBackNote({");
+    // The start's own warnings, after the server row: the attach and respawn
+    // paths print them too, and neither prints the note at all.
+    const ready = STARTUP.indexOf("export function reportReady(");
+    const warn = STARTUP.indexOf("reportIncompleteFlags(flags.incomplete)", STARTUP.indexOf('label: "server ready"', ready));
+    const note = STARTUP.indexOf("wayBackNote({");
+    expect(ready).toBeGreaterThan(-1);
     expect(warn).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(warn);
   });
