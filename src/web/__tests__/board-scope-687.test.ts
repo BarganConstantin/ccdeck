@@ -426,11 +426,14 @@ describe("every surface that prints one of these figures prints the shared label
     // #737 puts an aggregate back, but its source is ccusage and its period is
     // explicit. This case still guards the original failure: a board total must
     // never reappear in the bar and shrink when cards are pruned.
-    const strip = app.slice(
-      app.indexOf(`<span className="status">`),
-      app.indexOf(`<div className="vis-hidden"`),
-    );
-    expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
+    // The strip is components/TopbarReadouts.tsx's; it ends where the next
+    // component there starts.
+    const readouts = code(read("components/TopbarReadouts.tsx"));
+    const opens = readouts.indexOf(`<span className="status">`);
+    expect(opens, "the .status strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
+    const next = readouts.indexOf("export function", opens);
+    const strip = readouts.slice(opens, next === -1 ? undefined : next);
+    expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx").toBeTruthy();
     expect(strip).not.toContain("boardTotals");
     expect(strip).toContain("this month");
     expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");

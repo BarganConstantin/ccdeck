@@ -31,7 +31,9 @@ describe("the details rail counts tokens the way the usage panel does (#835)", (
   });
 
   it("reads the format from the module every other token surface imports", () => {
-    expect(app).toMatch(/import \{ fmtTokens \} from "\.\/token-format";/);
+    // The rail is components/Detail.tsx, one directory down from the module.
+    const rail = readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
+    expect(rail).toMatch(/import \{ fmtTokens \} from "\.\.\/token-format";/);
     expect(app).not.toMatch(/function fmtTokens\(/);
   });
 

@@ -13,8 +13,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
-const app = read("../App.tsx") + "\n" + read("../components/TopbarRuns.tsx");
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx and its readouts to
+// components/TopbarReadouts.tsx; App.tsx and they are read as one.
+const app = read("../App.tsx") + "\n" + read("../components/TopbarRuns.tsx") + "\n" + read("../components/TopbarReadouts.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The opening tag and body of the <button> a word sits in, up to the word. */

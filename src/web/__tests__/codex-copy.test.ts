@@ -59,8 +59,11 @@ function codeOf(text: string): string {
     .join("\n");
 }
 
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
-const appCode = codeOf(read("src", "web", "App.tsx")) + "\n" + codeOf(read("src", "web", "components", "TopbarRuns.tsx"));
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx and its readouts to
+// components/TopbarReadouts.tsx; App.tsx and they are read as one.
+const readoutsCode = codeOf(read("src", "web", "components", "TopbarReadouts.tsx"));
+const appCode = codeOf(read("src", "web", "App.tsx")) + "\n" + codeOf(read("src", "web", "components", "TopbarRuns.tsx"))
+  + "\n" + readoutsCode;
 const nodeCode = codeOf(read("src", "web", "components", "AgentNode.tsx"));
 const deckCode = codeOf(read("bin", "deck.js"));
 const readme = read("README.md");
@@ -145,16 +148,17 @@ describe("the topbar readouts", () => {
   // — a button in the run to the right opens the panel — and still the kind of
   // text #404 was about: a product name in "load 6.38 · 8.03" would be exactly
   // as wrong there as it was in the counters.
-  const strip = appCode.slice(
-    appCode.indexOf(`<span className="status">`),
-    appCode.indexOf(`<div className="vis-hidden"`),
-  );
+  // The strip is components/TopbarReadouts.tsx's; it ends where the next
+  // component there starts.
+  const stripAt = readoutsCode.indexOf(`<span className="status">`);
+  const stripEnd = readoutsCode.indexOf("export function", stripAt);
+  const strip = stripAt === -1 ? "" : readoutsCode.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
   const readouts = strip
     + codeOf(read("src", "web", "status-pill.ts"))
     + codeOf(read("src", "web", "components", "MachinePanel.tsx"));
 
   it("still has a strip with tooltipped readouts in it, so this block is not vacuous", () => {
-    expect(strip, "the .status strip is gone from App.tsx entirely").toBeTruthy();
+    expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
     expect(strip, "the pill left the strip").toContain("title={pill.title}");
     expect(appCode, "nothing in the bar opens the machine panel any more")
       .toContain('aria-label="Toggle machine detail"');

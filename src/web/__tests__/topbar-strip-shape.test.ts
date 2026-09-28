@@ -43,15 +43,17 @@ const RULES = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
   body: m[2],
 }));
 
-/** The strip's markup, from App.tsx. */
-const strip = app.slice(
-  app.indexOf(`<span className="status">`),
-  app.indexOf(`<div className="vis-hidden"`),
-);
+/** The strip's markup, from components/TopbarReadouts.tsx — which App.tsx
+ *  mounts — up to the next component there, or the end of the file. */
+const readouts = readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8");
+const stripAt = readouts.indexOf(`<span className="status">`);
+const stripEnd = readouts.indexOf("export function", stripAt);
+const strip = stripAt === -1 ? "" : readouts.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
 
 describe("the topbar's readout strip", () => {
-  it("is still in App.tsx, so nothing below is vacuous", () => {
-    expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
+  it("is still drawn, so nothing below is vacuous", () => {
+    expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx").toBeTruthy();
+    expect(app, "App.tsx stopped mounting the strip").toContain("<StatusStrip");
   });
 
   it("holds the status pill and one month-to-date usage phrase", () => {
@@ -93,7 +95,7 @@ describe("the topbar's readout strip", () => {
     // why they are gone, and a test that forbade them there would be forbidding
     // the explanation rather than the readout.
     for (const gone of ["BOARD_TOKENS_LABEL", "BOARD_COST_LABEL", `className="stat"`]) {
-      expect(app, `${gone} is back in App.tsx`).not.toContain(gone);
+      expect(app + "\n" + readouts, `${gone} is back in the topbar`).not.toContain(gone);
     }
     expect(strip).not.toContain("boardTotals");
     // And the constants are gone from the module that declared them, so there is
