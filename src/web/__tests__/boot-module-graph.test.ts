@@ -107,9 +107,10 @@ describe("the static import graph of src/server", () => {
 
 describe("the two modules the boot wires together", () => {
   it("each expose the function the call site reaches for", async () => {
-    // Loaded the way index.mjs loads them — by file URL out of the package root
-    // — rather than by the specifier this file would normally use, because that
-    // is the resolution the boot actually performs.
+    // Loaded the way wireStaleCopyRepair (account-routes.mjs) loads them — by
+    // file URL out of the package root — rather than by the specifier this file
+    // would normally use, because that is the resolution the boot actually
+    // performs.
     const accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
     const admin = await import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-admin.mjs")).href);
     expect(typeof (accounts as Record<string, unknown>).repairStaleCopyWith).toBe("function");

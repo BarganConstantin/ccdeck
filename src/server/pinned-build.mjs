@@ -9,8 +9,9 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// Resolved the way index.mjs resolves it, from a file in the same directory, so
-// every URL below is the one the lazy imports in src/server name.
+// Resolved from this file's own directory, the way every module in src/server
+// that imports by URL resolves it, so every URL below is the one the lazy
+// imports in src/server name.
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**

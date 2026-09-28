@@ -118,8 +118,9 @@ function sandbox(name: string): Box {
   }
   const server = join(box.pkg, "src", "server");
   for (const d of [server, box.home]) mkdirSync(d, { recursive: true });
-  // A real copy rather than export-star shims onto the repo: index.mjs computes
-  // PKG_ROOT from its own location, and it is PKG_ROOT that has to be swapped.
+  // A real copy rather than export-star shims onto the repo: every server
+  // module that imports by URL computes PKG_ROOT from its own location, and it
+  // is PKG_ROOT that has to be swapped.
   for (const f of readdirSync(REAL_SERVER).filter(n => n.endsWith(".mjs"))) {
     copyFileSync(join(REAL_SERVER, f), join(server, f));
   }

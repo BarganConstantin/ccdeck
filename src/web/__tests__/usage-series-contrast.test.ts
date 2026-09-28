@@ -73,8 +73,16 @@ function modulesUnder(dir: string): string[] {
     return /\.tsx?$/.test(path) ? [path] : [];
   });
 }
+/** A path from the walk, relative to src/web and with forward slashes. join()
+ *  spells `components/UsageHistoryModal.tsx` with a backslash on Windows, so
+ *  every name this file compares a path against goes through here first. */
+const rel = (path: string) => path.slice(web.length).replace(/\\/g, "/");
+/** Whether a path from `rel` is the module `name` — by its name or by its path
+ *  under src/web, matched on whole path segments, so `usage-agents.ts` is not
+ *  also `old-usage-agents.ts`. */
+const isModule = (path: string, name: string) => path === name || path.endsWith(`/${name}`);
 const MODULES = modulesUnder(web).map(path => ({
-  path: path.slice(web.length),
+  path: rel(path),
   // Prose about a colour is not a colour. Both comment forms go before any of
   // the scanning below, so the argument written above `modelColor` — which
   // quotes the hexes it replaced — cannot be mistaken for the code.
@@ -82,7 +90,15 @@ const MODULES = modulesUnder(web).map(path => ({
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n"),
 }));
-const sourceOf = (name: string) => MODULES.find(m => m.path.endsWith(name))!.src;
+/** One module, stripped, by its name or its path under src/web. It throws on a
+ *  miss, the way landmark-outline.test.ts does (#1556): a `find` that comes back
+ *  empty would otherwise surface as a TypeError reading `.src`, with nothing to
+ *  say which file was being looked for. */
+function sourceOf(name: string): string {
+  const hit = MODULES.find(m => isModule(m.path, name));
+  if (!hit) throw new Error(`no module at ${name} under src/web`);
+  return hit.src;
+}
 const historySrc = sourceOf("UsageHistoryModal.tsx");
 const agentsSrc = sourceOf("usage-agents.ts");
 
@@ -741,7 +757,7 @@ describe("the sweep that could not see a .tsx literal, which is why none of this
     // deck's. If this number collapses, the scanner broke and every assertion
     // below went vacuous with it.
     expect(INLINE.length).toBeGreaterThanOrEqual(10);
-    const modal = INLINE.filter(c => c.file.endsWith("UsageHistoryModal.tsx"));
+    const modal = INLINE.filter(c => isModule(c.file, "UsageHistoryModal.tsx"));
     expect(modal.length).toBe(6);
     expect(new Set(modal.map(c => c.prop))).toEqual(new Set(["background"]));
   });

@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 import { send } from "./http-io.mjs";
 import { cacheControlFor, encodedBody, pickEncoding } from "./static-cache.mjs";
 
-// Resolved the way index.mjs resolves its package root, from a file in the same
-// directory.
+// Resolved the way pinned-build.mjs resolves its package root, from a file in
+// the same directory.
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WEB_DIST = resolve(PKG_ROOT, "dist", "web");
 
