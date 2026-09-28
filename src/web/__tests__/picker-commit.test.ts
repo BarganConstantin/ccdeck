@@ -302,7 +302,9 @@ describe("the threshold's commit control exists only while there is a pick to st
     // The press that stored the pick is the press that unmounts the control, and
     // a focused button that unmounts drops focus on <body>. Once React has
     // removed it there is nothing left to ask, so the handoff comes first.
-    const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(panelCode)?.[0] ?? "";
+    // The press is the threshold hook's, which holds the draft for the panel.
+    const draftCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-threshold-draft.ts", import.meta.url)), "utf8"));
+    const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(draftCode)?.[0] ?? "";
     expect(commit).toMatch(/document\.activeElement === thresholdSaveRef\.current\) thresholdRef\.current\?\.focus\(\)/);
     expect(commit.indexOf("thresholdRef.current?.focus()")).toBeLessThan(commit.indexOf("setThresholdSaved(false)"));
     expect(clientText()).toMatch(/<select\s+ref=\{thresholdRef\}/);

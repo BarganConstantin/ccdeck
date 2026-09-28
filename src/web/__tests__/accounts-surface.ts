@@ -38,6 +38,7 @@ export const ACCOUNTS_FILES = [
   "use-account-switching.ts",
   "account-fold.ts",
   "account-lan.ts",
+  "use-threshold-draft.ts",
 ] as const;
 
 let joined: string | null = null;
