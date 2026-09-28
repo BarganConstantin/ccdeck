@@ -9,7 +9,7 @@
 // findings count beside it: a finding also has to clear the quiet gate. This is
 // "what programs did"; the findings are "what they did while you were away".
 import { describe, it, expect } from "vitest";
-import { visitTotals, type WatchBrowser } from "../components/BrowserWatchModal";
+import { visitTotals, type WatchBrowser } from "../browser-watch-model";
 
 const browser = (over: Partial<WatchBrowser>): WatchBrowser => ({
   key: "brave", name: "Brave", installed: true, profiles: 1,

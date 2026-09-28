@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { watchedBrowsers, type WatchBrowser } from "../components/BrowserWatchModal";
+import { watchedBrowsers, type WatchBrowser } from "../browser-watch-model";
+import { browserWatchSurface } from "./browser-watch-surface";
 
 const browser = (over: Partial<WatchBrowser>): WatchBrowser => ({
   key: "chrome",
@@ -48,7 +48,10 @@ describe("the browsers the watch reads", () => {
 });
 
 describe("the radar and the rows beside it", () => {
-  const source = readFileSync(new URL("../components/BrowserWatchModal.tsx", import.meta.url), "utf8");
+  // The dialog and every file lifted out of it: watchedBrowsers lives in
+  // browser-watch-model.ts now, and a count of the inlined filter asked of one
+  // file would pass the day the filter moved to another.
+  const source = browserWatchSurface();
 
   it("read from one list, not two copies of one predicate", () => {
     // The defect this exists for still LOOKS like a working radar: names beside
