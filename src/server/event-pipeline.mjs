@@ -36,8 +36,8 @@ import { knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessi
 // The Codex half: a session's rollout, found by id — see codex-enrichment.mjs.
 import { maybeResolveCodex } from "./codex-enrichment.mjs";
 // The gate pushEvent asks before a transcript path is followed — see
-// transcript-scan.mjs.
-import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-scan.mjs";
+// transcript-gate.mjs.
+import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-gate.mjs";
 // How the enrichment reaches pushEvent without importing this file — see
 // event-sink.mjs. Connected below, as this module loads.
 import { connectEventSink } from "./event-sink.mjs";

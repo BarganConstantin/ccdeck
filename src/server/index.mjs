@@ -110,7 +110,8 @@ export { replayLog, replayScope } from "./log-replay.mjs";
 import { PRODUCT } from "./brand.mjs";
 // Exported from this file before they moved, and still: the tests that pin
 // them import them by this file's name.
-export { foldSessionNamingLine, isClaudeTranscriptPath, transcriptSessionKey } from "./transcript-scan.mjs";
+export { foldSessionNamingLine, transcriptSessionKey } from "./transcript-scan.mjs";
+export { isClaudeTranscriptPath } from "./transcript-gate.mjs";
 export { MAX_SCAN_CHUNK, readAppendedLines } from "./jsonl-chunks.mjs";
 // How this process is replaced or ended — the version, upgrade, restart,
 // stop and presence routes, the restart latch, and the away-update that

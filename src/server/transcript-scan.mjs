@@ -1,7 +1,8 @@
-// Reading a Claude Code transcript: one cursor per JSONL, the fold of each
-// appended line into the running totals, and the rule for which paths are
-// worth opening at all. The bounded chunk read that moves the cursor is
-// jsonl-chunks.mjs, which the Codex side reads rollouts through as well.
+// Reading a Claude Code transcript: one cursor per JSONL, and the fold of each
+// appended line into the running totals. The bounded chunk read that moves the
+// cursor is jsonl-chunks.mjs, which the Codex side reads rollouts through as
+// well, and the rule for which paths are worth opening at all is
+// transcript-gate.mjs.
 //
 // These lived in src/server/index.mjs, between the log rotation and the model
 // enrichment, and nothing in them ever reached the event pipeline: the
@@ -12,10 +13,7 @@
 // operations it calls. The names are the ones the bodies always used, and the
 // five index.mjs exported it still exports, by re-export.
 import { stat } from "node:fs/promises";
-import { resolve, sep } from "node:path";
-import { homedir } from "node:os";
-import { claudeConfigDir } from "./claude-dir.mjs";
-import { PRODUCT } from "./brand.mjs";
+import { resolve } from "node:path";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { foldRecapLine } from "./session-recap.mjs";
 // The bounded, cursor-moving chunk read every pass below goes through — see
@@ -448,8 +446,8 @@ function pruneTranscriptScans() {
 //
 // 256 MiB is twice the heaviest transcript this repo has ever measured (130.8
 // MB, #611), so an honest first attach never meets it and pays nothing for it.
-// What it stops is a caller who has got past `isClaudeTranscriptPath` below
-// pointing one POST at something arbitrarily large: the read still terminates,
+// What it stops is a caller who has got past `isClaudeTranscriptPath` in
+// transcript-gate.mjs pointing one POST at something arbitrarily large: the read still terminates,
 // the cursor keeps whatever it reached, and the next throttled pass continues
 // from there.
 const MAX_SCAN_BYTES_PER_PASS = 256 * 1024 * 1024;
@@ -501,96 +499,9 @@ function scanTranscript(path) {
   });
 }
 
-// ─── Which paths the deck will follow at all ─────────────────────────────
-// `payload.transcript_path` is a string in the body of `POST /api/event`, and
-// that route is a deliberate OPEN_MUTATION: no token, no Origin, nothing. Until
-// #674 the deck took whatever it said and opened it. The bounds above make that
-// survivable; this makes it uninteresting, and the two are worth having
-// together for different reasons.
-//
-// WHY VALIDATE AT ALL WHEN THE READ IS ALREADY BOUNDED. Because the caller here
-// is not a web page — `isTrustedMutation` refuses `Sec-Fetch-Site: cross-site`
-// before any of this — it is a local process: the sandboxed subprocess with
-// loopback egress that the comment above `isAuthorizedMutation` already names,
-// or another UID on a shared box. Against that caller a ceiling only sets the
-// price per request; it does not take the lever away. What takes it away is
-// that there is no file it can name. Claude Code writes transcripts in exactly
-// one place, `<config dir>/projects/…`, and every legitimate `transcript_path`
-// the deck has ever seen is one of those — so the set of things worth opening
-// is knowable in advance, and checking membership costs one string comparison
-// against a syscall that used to cost the size of the file.
-//
-// WHAT IS LEFT AFTERWARDS, stated plainly: a caller who can WRITE inside that
-// directory can still point the deck at a file of its choosing. That caller is
-// this user's own processes — and this user's own processes can read
-// `<config dir>/agent-dag/*.json`, which is where HOOK_TOKEN lives at mode
-// 0600, so they hold the credential already. The gate reduces the
-// credential-free adversary to the one who was never credential-free. That is
-// the whole of what it claims, and the ceilings above are what carries the
-// rest.
-//
-// WHY NOT realpath. A symlink planted inside the projects directory would
-// defeat the containment test — but planting one needs write access to that
-// directory, which is the case above where the caller already holds the token.
-// It would also cost a syscall on every hook event, on a path that runs for
-// every event of every live session.
-//
-// WHY TWO ROOTS. CLAUDE_CONFIG_DIR replaces ~/.claude wholesale, and the deck
-// reads the variable from its OWN environment while the path is written by
-// whatever `claude` process the hook fired in. Those normally agree — the deck
-// installs its hook into the directory it resolves, so a session whose events
-// arrive here is a session reading that same directory — but a deck launched
-// from a desktop shortcut that never sourced the shell rc is a real way for
-// them to disagree in one direction. Accepting the default location as well
-// costs nothing (it is a directory only this user writes either way) and
-// removes half of that failure mode. The other half is why the refusal is
-// logged rather than silent.
-function claudeTranscriptRoots() {
-  // Resolved per call, like every other claudeConfigDir() reader in src/server,
-  // so nothing captures the answer from an environment that has moved.
-  const roots = [resolve(claudeConfigDir(), "projects")];
-  const byDefault = resolve(homedir(), ".claude", "projects");
-  if (!roots.includes(byDefault)) roots.push(byDefault);
-  return roots;
-}
-
-/** Is `p` a Claude Code transcript, in a directory Claude Code writes them?
- *
- *  Containment is compared on the RESOLVED path with a trailing separator, so
- *  `…/projects-of-mine/x.jsonl` is not inside `…/projects` and `..` cannot
- *  climb out of it. The comparison is case-insensitive on Windows and macOS,
- *  whose default filesystems are, because the two halves come from two
- *  processes and only one of them chose the casing. */
-export function isClaudeTranscriptPath(p, roots = claudeTranscriptRoots()) {
-  if (!p || typeof p !== "string") return false;
-  if (!/\.jsonl$/i.test(p)) return false;      // the only extension CC writes
-  const fold = process.platform === "win32" || process.platform === "darwin";
-  const full = fold ? resolve(p).toLowerCase() : resolve(p);
-  for (const root of roots) {
-    const prefix = (fold ? root.toLowerCase() : root) + sep;
-    if (full.startsWith(prefix) && full.length > prefix.length) return true;
-  }
-  return false;
-}
-
-// Refusals are logged once per path and the set is capped, because the point of
-// the log is a misconfigured deck saying so on stderr — one line naming the
-// path and where transcripts are expected — and a caller posting a fresh path
-// per request must not turn that into a second unbounded accumulation.
-const refusedTranscriptPaths = new Set();
-const MAX_REFUSED_TRANSCRIPT_PATHS = 64;
-
-function noteRefusedTranscript(p) {
-  if (refusedTranscriptPaths.has(p)) return;
-  if (refusedTranscriptPaths.size >= MAX_REFUSED_TRANSCRIPT_PATHS) return;
-  refusedTranscriptPaths.add(p);
-  console.warn(`${PRODUCT}: not reading transcript_path outside ${claudeTranscriptRoots().join(" or ")}: ${p}`);
-}
-
-// What index.mjs and session-enrichment.mjs call. Listed here rather than
-// marked at each declaration so that every declaration above reads exactly as
-// it did where it came from.
+// What session-enrichment.mjs calls. Listed here rather than marked at each
+// declaration so that every declaration above reads exactly as it did where it
+// came from.
 export {
   scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel,
-  noteRefusedTranscript,
 };
