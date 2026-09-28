@@ -33,7 +33,7 @@
 // write defaults over it, destroying the LAN key every paired machine had
 // pinned. A file that cannot be parsed is now moved aside and said out loud;
 // only a genuinely ABSENT file starts clean. See loadPrefs.
-import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
+import { chmod, mkdir, readFile, stat, unlink } from "node:fs/promises";
 // The rename, with the Windows retry ladder installer.mjs wrote for exactly
 // this call. See the note over the write below (#786). `stripBom` and
 // `createTemp` come from the same module for the reason its export block gives:
@@ -303,8 +303,71 @@ export function prefsWriteRefusal(err) {
   return null;
 }
 
+/** The read errors that can mean "not yours" rather than "broken". Only these
+ *  send a read to setAsideForeign; EISDIR, EIO and EMFILE never do. */
+const DENIED = new Set(["EACCES", "EPERM"]);
+
+/** Where a prefs.json another user owns is put. Beside the file, like
+ *  quarantinePath, and stamped in milliseconds for the same Windows reason —
+ *  but a name of its own, because nothing is wrong with these bytes. */
+export const foreignPath = (home = deckDataDir(), at = Date.now()) =>
+  `${prefsPath(home)}.foreign-${at}`;
+
 /**
- * Read prefs.json, and say WHICH of four things happened — because three of
+ * Move a prefs.json that ANOTHER USER OWNS out of the way, or say why not.
+ *
+ * #1335. A `sudo ccdeck` that kept the user's HOME writes a root-owned 0600
+ * prefs.json into the user's own folder. From then on every
+ * deck that user starts is refused the read, refuses every settings write on
+ * top of it — rightly — and so can never keep anything: a new LAN identity on
+ * every start, a share tick that says "Could not share that account", and no
+ * way out from inside the deck.
+ *
+ * WHY MOVING IT IS SAFE HERE WHEN IT IS NOT FOR "unreadable". The refusal
+ * exists so the deck never loses a key it could still have read. A file owned
+ * by somebody else is not one this user's deck will ever read — waiting does
+ * not help, and the deck is already running on defaults. A rename reads and
+ * changes nothing: owner and mode travel with the file, so the key in it stays
+ * private and whole, and `sudo chown` plus a move puts it back.
+ *
+ * Only when the owner is KNOWN to be somebody else. A file this user owns and
+ * still cannot read (a mode bit, a lock, a sandbox) is left exactly where it
+ * is, and so is anything on Windows, where there is no uid to compare and
+ * EPERM is usually another program holding the file.
+ *
+ * Answers `{ moved, owner }`, `{ gone }` when the file vanished under it, or
+ * `{ why }` — a sentence for the log, possibly empty — when it stayed.
+ */
+async function setAsideForeign(path, home, deps) {
+  const uid = deps.getuid ? deps.getuid() : process.getuid?.();
+  if (uid === undefined) return { why: "" };
+  const look = deps.stat ?? stat;
+  let st;
+  try {
+    st = await look(path);
+  } catch (err) {
+    if (err?.code === "ENOENT") return { gone: true };
+    // The folder itself is out of reach, so nothing in it can be looked at, let
+    // alone moved. Name the folder and its owner, which is what a person needs.
+    const folder = prefsDir(home);
+    const owner = await look(folder).then(s => s.uid, () => undefined);
+    return owner !== undefined && owner !== uid
+      ? { why: ` The folder ${folder} belongs to another user (uid ${owner}), most likely from a run with sudo; sudo chown -R "$(id -un)" "${folder}" gives it back.` }
+      : { why: "" };
+  }
+  if (st.uid === uid) return { why: "" };
+  const to = foreignPath(home);
+  try {
+    await (deps.rename ?? renameWithRetry)(path, to);
+  } catch (err) {
+    if (err?.code === "ENOENT") return { gone: true };
+    return { why: ` It belongs to another user (uid ${st.uid}) and could not be moved aside either: ${err?.message ?? err}.` };
+  }
+  return { moved: to, owner: st.uid };
+}
+
+/**
+ * Read prefs.json, and say WHICH of five things happened — because four of
  * them hand back the same object and only one of them means it.
  *
  * WHY THE SOURCE IS PART OF THE ANSWER. The old read collapsed "no file yet"
@@ -322,9 +385,13 @@ export function prefsWriteRefusal(err) {
  *                defaults, silently, which is what a first start is.
  *   "corrupt"    bytes that are not JSON. Moved aside to `quarantined` BEFORE
  *                this returns, so nothing can merge over them.
+ *   "foreign"    a file ANOTHER USER owns and this one may not read — what a
+ *                `sudo` run leaves (#1335). Moved aside to `quarantined`, still
+ *                theirs and unread, BEFORE this returns. See setAsideForeign.
  *   "unreadable" the read itself failed for some reason other than absence — a
- *                permission, a directory in the way. The file is still there
- *                and still unread, which is exactly when a write must not land.
+ *                permission on a file this user owns, a directory in the way,
+ *                a folder another user owns. The file is still there and still
+ *                unread, which is exactly when a write must not land.
  *
  * A BYTE-ORDER MARK IS NOT DAMAGE. Notepad and `Set-Content` write one, and
  * `JSON.parse` throws on it — so stripping it here is what keeps a perfectly
@@ -342,7 +409,15 @@ export async function loadPrefs(home = deckDataDir(), deps = {}) {
     raw = await read(path, "utf8");
   } catch (err) {
     if (err?.code === "ENOENT") return { prefs: defaults(), source: "missing", quarantined: "" };
-    warn(`${PRODUCT}: could not read ${path}: ${err?.message ?? err}. Leaving it alone — settings will not be saved until it can be read.`);
+    const aside = DENIED.has(err?.code) ? await setAsideForeign(path, home, deps) : {};
+    // Somebody else moved it between the read and the look — a second deck on
+    // this machine doing this same thing. What is at `path` now is nothing.
+    if (aside.gone) return { prefs: defaults(), source: "missing", quarantined: "" };
+    if (aside.moved) {
+      warn(`${PRODUCT}: ${path} belongs to another user (uid ${aside.owner}) — most likely left by a run with sudo — so this deck could not read it. It has been kept as ${aside.moved}, unread and still theirs, and this deck is starting with fresh settings: paired decks will need to accept it again. To have the old key back instead, stop the deck and run: sudo chown "$(id -un)" "${aside.moved}" && mv "${aside.moved}" "${path}"`);
+      return { prefs: defaults(), source: "foreign", quarantined: aside.moved };
+    }
+    warn(`${PRODUCT}: could not read ${path}: ${err?.message ?? err}.${aside.why ?? ""} Leaving it alone — settings will not be saved until it can be read.`);
     return { prefs: defaults(), source: "unreadable", quarantined: "" };
   }
 
