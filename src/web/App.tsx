@@ -23,7 +23,7 @@ import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { snapshotToFlow, type FlowNodeData } from "./canvas-flow";
+import { type FlowNodeData } from "./canvas-flow";
 import { exportFileName, sessionExport } from "./session-export";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
@@ -37,7 +37,6 @@ import {
 } from "./fm-stations";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { sweepTick } from "./prune";
-import { visibleBoard } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -48,8 +47,8 @@ import { useAgentFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
+import { useBoardGraph, useLayoutSig } from "./use-board-graph";
 import { useAutoFit } from "./use-auto-fit";
-import { layoutSignature } from "./layout-signature";
 import { useRemovalCallBacks, useRemovals } from "./use-removals";
 import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
@@ -75,7 +74,6 @@ import DragTrashZone from "./components/DragTrashZone";
 import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
 import OldNameBanner from "./components/OldNameBanner";
-import { spotlightUnion } from "./spotlight";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -112,8 +110,6 @@ const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { computeVisibleIds } from "./visibility";
-import { sessionGroupNodes } from "./session-group-nodes";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
 import { shouldAnimateViewport } from "./viewport-motion";
@@ -130,7 +126,6 @@ import {
   type DesktopUpdateState,
   type UpdateRestartFailure,
 } from "./desktop-update";
-import { useRecapNotesVersion } from "./recap-note";
 import type { Providers } from "./providers";
 import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./chime-player";
@@ -502,11 +497,8 @@ function Inner() {
           bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
   // What the layout keys off: the visible, not-removed agents and their
-  // parents, plus the two size versions — layout-signature.ts.
-  const layoutSig = useMemo(
-    () => layoutSignature(stateRef.current.agents.values(), now, removedAgentIds, sizeVersion, domSizeVersion),
-    [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion, removedAgentIds],
-  );
+  // parents, plus the two size versions — use-board-graph.ts.
+  const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });
 
   // Stored whenever the arrangement's signature moves — use-board-layout.ts.
   useLayoutAutosave(layoutSig, layout);
@@ -518,27 +510,6 @@ function Inner() {
     layoutSig, rf, stateRef, measuredRef, pinnedRef, positionsRef, paneSizeRef, lastInteractRef,
     autoFitDisabledRef, lastFitTimeRef, fitLeft,
   });
-
-  // Union spotlight set — lineage of every selected agent merged. Multi-
-  // select widens the spotlight without losing the "follow the chain"
-  // semantics for a single click.
-  const spotlightSet = useMemo<Set<string> | null>(
-    () => spotlightUnion(stateRef.current, selectedIds),
-    [stateRef.current, stateRef.current.revision, selectedIds],
-  );
-
-  // The visibility set drives BOTH the React Flow nodes prop and the
-  // burst overlay's render gate — single source of truth so the two
-  // can never disagree (which previously left orphan bursts on screen
-  // when an agent was filtered out via one path but not the other).
-  const visibleAgentIds = useMemo<Set<string>>(
-    () => {
-      const ids = computeVisibleIds(stateRef.current, now);
-      for (const id of removedAgentIds) ids.delete(id);
-      return ids;
-    },
-    [stateRef.current, stateRef.current.revision, now, removedAgentIds],
-  );
 
   /** The pointer half of the skip link's focus target (#434).
    *
@@ -587,10 +558,6 @@ function Inner() {
     // holding it, so the click would stop meaning what it has always meant.
     (document.activeElement as HTMLElement | null)?.blur?.();
   }, []);
-  // How big each session was last frame, so a session that fans out subagents
-  // can be told apart from one that merely re-rendered. Owned here rather than
-  // in layout.ts because it is memory, not geometry.
-  const prevSessionSizeRef = useRef<Map<string, { w: number; h: number }>>(new Map());
   // Sizes only mean something once the cards have all mounted and measured.
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -633,31 +600,13 @@ function Inner() {
   const { railInsetRef, availableWidth, availableHeight } =
     useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown });
 
-  // Put away and brought back through recap-note.ts, and the note nodes are
-  // built from it: a × has to rebuild the canvas now, not on the next tick.
-  const recapNotesVersion = useRecapNotesVersion();
-
-  // Rebuilt on every render, drags included.
-  //
-  // Freezing it during a drag was tried and reverted: it looks like an obvious
-  // win — the rebuild is the most expensive thing here — but the node under the
-  // cursor then stopped moving until the mouse came up. React Flow is given
-  // `nodes` with no onNodesChange, so this array and React Flow's own store
-  // both believe they own positions, and holding this one still meant the
-  // stale one won. Anything done here has to keep the two in agreement.
-  const { nodes, edges } = useMemo(
-    () => {
-      const flow = snapshotToFlow(
-      stateRef.current, now, availableWidth, availableHeight, pinnedRef.current,
-      measuredRef.current, prevSessionSizeRef.current, onBubble, settled, dragging,
-      positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
-      selectedIds, spotlightSet, visibleAgentIds, openContext, historyReplayed,
-      restoredLayout.restored,
-      );
-      return visibleBoard(flow.nodes, flow.edges, removedNodes);
-    },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch, historyReplayed],
-  );
+  // Which agents are drawn and which are spotlit, and the arrays React Flow is
+  // handed, a drag in flight patched over them — use-board-graph.ts.
+  const { spotlightSet, visibleAgentIds, nodes, edges, allNodes } = useBoardGraph({
+    stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
+    layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
+    dragTick, dragPatchRef, dragMoveTick,
+  });
 
   // Re-column when the frame changes enough to change the answer, keeping what
   // the reader was looking at — use-reframe.ts.
@@ -666,42 +615,6 @@ function Inner() {
     nodes, edges, settled, dragging, availableWidth, availableHeight, layout, camera, rf,
     measuredRef, stateRef, lastFocusRef, primarySelectedIdRef, focusAgentRef, autoFitDisabledRef,
   });
-
-  // Invisible per-session drag-handle nodes, one behind each session's cards;
-  // see session-group-nodes.ts.
-  const groupNodes = useMemo(() => sessionGroupNodes(nodes), [nodes]);
-
-  /**
-   * The array React Flow renders, with the in-flight drag applied on top.
-   *
-   * React Flow is given `nodes` without `onNodesChange`. That makes it fully
-   * controlled: it does not move nodes itself, it reports the position changes
-   * it would make and expects them to be applied. Nothing applied them, so the
-   * only thing that has ever moved a node here is this array being rebuilt —
-   * and that happens on the clock tick, four times a second.
-   *
-   * Hence the shape of the bug: a slow drag looked fine because four updates a
-   * second is enough to look continuous, and a fast one visibly stepped and
-   * trailed, because the gap between updates is however far the cursor got in
-   * 250ms.
-   *
-   * So the drag is applied here instead, on every pointer move: the base array
-   * is left to rebuild at its own pace, and the positions of the nodes being
-   * dragged are patched over it. A patch is one shallow copy per node, which
-   * is nothing next to rebuilding the graph from the event log — and it is the
-   * whole reason the previous two attempts failed. Both tried to make the
-   * rebuild happen less often, when the rebuild was the only thing moving the
-   * node; the node then did not move at all until the mouse came up.
-   */
-  const allNodes = useMemo(() => {
-    const base = [...groupNodes, ...nodes];
-    const patch = dragPatchRef.current;
-    if (!patch || patch.size === 0) return base;
-    return base.map(nd => {
-      const p = patch.get(nd.id);
-      return p ? { ...nd, position: p } : nd;
-    });
-  }, [groupNodes, nodes, dragMoveTick]);
 
   // `selected` is declared with the rail measurement further up this file,
   // which needs to know whether the detail panel is mounted.
