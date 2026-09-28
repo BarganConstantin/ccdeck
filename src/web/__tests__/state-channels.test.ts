@@ -72,6 +72,8 @@ const app = markup("App.tsx") + "\n" + markup("components/Detail.tsx");
 const agentNode = markup("components", "AgentNode.tsx");
 const sessionList = markup("components", "SessionList.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
+/** The usage panel's session rows, and the dot each one draws, lifted out of it. */
+const sessionBreakdown = markup("components", "UsageSessionBreakdown.tsx");
 /** The usage panel and every file lifted out of it, for the negatives. */
 const usageSurface = USAGE_FILES.map(f => markup(f)).join("\n");
 /** The accounts panel and every file lifted out of it, the same way. */
@@ -389,7 +391,10 @@ describe("the usage panel's dot reaches a rule at all", () => {
 
   it("still renders it from both components, which is why the scope had to go", () => {
     expect(sessionList).toMatch(/className=\{`sl-dot state-\$\{r\.state\}`\}/);
-    expect(usagePanel).toMatch(/className=\{`sl-dot state-\$\{s\.state\}`\}/);
+    // The usage panel's rows are UsageSessionBreakdown.tsx's, and the panel
+    // mounts it.
+    expect(sessionBreakdown).toMatch(/className=\{`sl-dot state-\$\{s\.state\}`\}/);
+    expect(usagePanel).toMatch(/<UsageSessionBreakdown\b/);
     // …and the panels are siblings in App, not one inside the other.
     // The panel is mounted from its own flag, directly or through the presence
     // that holds it on screen while it leaves — see panel-exit.ts. What this
@@ -426,7 +431,7 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
 
   it("puts the word where the dot is, so it is heard in the order it is seen", () => {
     expect(sessionList).toMatch(/<span className=\{`sl-dot state-\$\{r\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
-    expect(usagePanel).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
+    expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
     expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{TOOL_STATUS_LABEL\[status\]\}<\/span>/);
   });
 
@@ -436,7 +441,7 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     expect(agentNode).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
     expect(agentNode).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
     expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state\)\}<\/span>/);
-    for (const [name, src] of [["SessionList", sessionList], ["UsagePanel", usagePanel]] as const) {
+    for (const [name, src] of [["SessionList", sessionList], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
       expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\/AgentNode"/);
       expect(src, `${name} re-states the vocabulary`).not.toMatch(/\? "live"/);
     }

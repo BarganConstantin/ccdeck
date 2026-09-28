@@ -161,7 +161,9 @@ describe("what the panel counts, and what it leaves alone", () => {
     // Twelve rows counting at once is a slot machine. The rows still render
     // their true value directly.
     expect(panel).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
-    expect(panel).toMatch(/<span className="up-session-tokens">\{fmtTokens\(s\.tokens\)\}<\/span>/);
+    // The session rows are UsageSessionBreakdown.tsx's, lifted out of the panel.
+    expect(readFileSync(fileURLToPath(new URL("../components/UsageSessionBreakdown.tsx", import.meta.url)), "utf8"))
+      .toMatch(/<span className="up-session-tokens">\{fmtTokens\(s\.tokens\)\}<\/span>/);
   });
 
   it("counts on a period switch too, and snaps only on the first paint", () => {
