@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { exchangeLanes, offerLine, versionOrder } from "../components/LanSyncSection";
+import { exchangeLanes, offerLine, versionOrder } from "../lan-exchange";
 import { deckRows, rowSource, withAliases } from "../lan-roster";
 
 const NOW = 1_700_000_000_000;

@@ -18,7 +18,7 @@ import { currentFor } from "../../server/lan-sync.mjs";
 import { heardCurrent } from "../../server/lan-engine.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
-import { exchangeLanes } from "../components/LanSyncSection";
+import { exchangeLanes } from "../lan-exchange";
 
 /** A file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
