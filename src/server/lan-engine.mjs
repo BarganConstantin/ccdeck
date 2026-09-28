@@ -27,9 +27,9 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  accountKey, addTrusted, currentFor, dropTrusted, identityFrom, manifestFor, mintInvite, onePerKey, open,
-  pairable, peerWhy, plan, readInvite, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
-  trustedPeer,
+  accountKey, addTrusted, credentialAad, currentFor, dropTrusted, identityFrom, manifestFor, mintInvite,
+  onePerKey, open, pairable, peerWhy, plan, readInvite, seal, SENDER_UNREADABLE, slotFor, stillListed,
+  transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
 import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
@@ -783,7 +783,7 @@ export function createEngine({
         // background, so when the Keychain was why, the next ask is answered by
         // the line above.
         if (!blob) return ctx.send({ t: "no", why: "export failed" });
-        const aad = `${identity.fp}->${ctx.peerFp}|${msg.key}`;
+        const aad = credentialAad(identity.fp, ctx.peerFp, msg.key);
         return ctx.send({ t: "have", key: msg.key, sealed: seal(ctx.key, blob, aad) });
       }
     } catch (err) {
@@ -995,7 +995,7 @@ export function createEngine({
           }),
         });
         if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: peerWhy(reply?.why) }); continue; }
-        const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
+        const blob = open(conn.key, reply.sealed, credentialAad(conn.peerFp, identity.fp, step.key));
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
         // Unpairing, disabling LAN, or unticking a heal while export was in
         // progress takes effect before the received credential touches disk.
