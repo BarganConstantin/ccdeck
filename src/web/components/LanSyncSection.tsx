@@ -44,6 +44,7 @@ import { useRowUnpair } from "../use-row-unpair";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
+import LanAsks from "./LanAsks";
 import LanDeckList from "./LanDeckList";
 import LanEntryRow from "./LanEntryRow";
 import LanPeerModal from "./LanPeerModal";
@@ -379,43 +380,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                     three sections up looking at a quota — and it also arrives as a
                     dialog in front of the canvas, for the reader who is not in this
                     panel at all. */}
-                {asks.length > 0 && (
-                  <div className="ap-lan-asks" role="alert">
-                    {asks.map(p => (
-                      <div key={p.fp} className="ap-lan-ask">
-                        <span className="ap-lan-ask-what">
-                          <strong className="ap-lan-peer-name">{p.name}</strong>
-                          {" at "}<code className="ap-lan-code">{p.addr}</code>
-                          {" wants to pair"}
-                        </span>
-                        {/* PRINTED, NOT HOVERED. The one security decision in this
-                            feature is whether the machine asking is the one you think
-                            it is, and the only value that cannot be chosen by whoever
-                            is asking is this. It lived in `title=` — a mouse-only,
-                            one-second-delayed, screen-reader-silent place — so on the
-                            surface that answers most requests it could not be checked
-                            at all. The dialog that opens over the deck has printed it
-                            since it was written; this is the same fact on the row
-                            that does the same job. */}
-                        <span className="ap-lan-ask-fp">
-                          fingerprint <code className="ap-lan-code">{p.fp}</code>
-                        </span>
-                        <span className="ap-lan-ask-acts">
-                          <button type="button" className="ap-manage-btn" {...pressProps(`accept:${p.fp}`)}
-                            onClick={() => void answer("accept", p.fp, "accept that deck")}
-                            title={`Talk to this deck from now on. Its fingerprint is ${p.fp} — check it matches the one on their screen before you accept.`}>
-                            accept
-                          </button>
-                          <button type="button" className="ap-manage-btn" {...pressProps(`dismiss:${p.fp}`)}
-                            onClick={() => void answer("dismiss", p.fp, "decline that request")}
-                            title="Say no. Nothing is shared, and that deck is told rather than left waiting.">
-                            decline
-                          </button>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {asks.length > 0 && <LanAsks asks={asks} pressProps={pressProps} answer={answer} />}
 
                 {/* EVERY OTHER MACHINE, ON ONE LIST. Paired, nearby, and the ones
                     already said no to — one row each, with the sentence that says
