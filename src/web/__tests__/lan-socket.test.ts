@@ -48,6 +48,7 @@ import {
   connectToPeer, createSyncServer, frameReader, sendFrame, HANDSHAKE_MS, IDLE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
   MAX_SOCKETS_PER_HOST,
 } from "../../server/lan-socket.mjs";
+import { lanSocketSurface } from "./lan-socket-surface";
 
 /** The listener's source, and every server module beside it — for the pins
  *  that say what the deck itself runs on rather than what a case passed. */
@@ -1113,17 +1114,22 @@ describe("where a beacon is sent", () => {
 //
 // Source assertions, because the value is set inside a socket handler several
 // frames into a handshake; lan-sync.test.ts owns what cleanName itself does.
+// The listener is lan-socket.mjs and the caller lan-call.mjs; the negatives read
+// both, with everything else lifted out of lan-socket.mjs — see
+// lan-socket-surface.ts.
 describe("the name a peer sends over the handshake", () => {
   const src = readFileSync(
     fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
+  const caller = readFileSync(
+    fileURLToPath(new URL("../../server/lan-call.mjs", import.meta.url)), "utf8");
 
   it("is cleaned on the listener's side, where the pairing prompt reads it", () => {
     expect(src).toContain('peerName = cleanName(msg.name, "");');
-    expect(src, "the raw form must not come back").not.toContain('peerName = typeof msg.name === "string" ? msg.name : "";');
+    expect(lanSocketSurface(), "the raw form must not come back").not.toContain('peerName = typeof msg.name === "string" ? msg.name : "";');
   });
 
   it("and on the caller's side, where addTrusted reads it", () => {
-    expect(src).toContain('peerName: cleanName(msg.name, "")');
-    expect(src).not.toContain("peerName: msg.name,");
+    expect(caller).toContain('peerName: cleanName(msg.name, "")');
+    expect(lanSocketSurface()).not.toContain("peerName: msg.name,");
   });
 });

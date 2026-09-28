@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clientText } from "./client-source";
+import { lanSocketSurface } from "./lan-socket-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const types = read("../types.ts");
@@ -41,7 +42,11 @@ const quotaSections = read("../components/QuotaSections.tsx");
 const quotaReads = read("../use-quota.ts");
 const chip = read("../version-chip.ts");
 const sound = read("../sound.ts");
-const lanSocket = read("../../server/lan-socket.mjs");
+// The refusal map moved with the calling half to lan-call.mjs. The negative
+// reads lan-socket.mjs with every file lifted out of it — see
+// lan-socket-surface.ts.
+const lanCall = read("../../server/lan-call.mjs");
+const lanSocket = lanSocketSurface();
 
 /** The body of an interface or type alias, comments stripped. */
 function decl(source: string, name: string): string {
@@ -116,7 +121,7 @@ describe("the two lookup tables a caller can choose the key of (#1046)", () => {
     // handshake"` never fired for one — and `new Error(Object).message` is
     // "function Object() { [native code] }", which lan-engine files as
     // lastRound.error and the LAN panel prints verbatim.
-    expect(lanSocket).toMatch(/Object\.hasOwn\(REFUSALS, msg\.why\)/);
+    expect(lanCall).toMatch(/Object\.hasOwn\(REFUSALS, msg\.why\)/);
     expect(lanSocket).not.toMatch(/\}\[msg\.why\]/);
   });
 
