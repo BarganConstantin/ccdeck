@@ -196,6 +196,10 @@ let _checkedThisRun = false; // only kick the daily check once per process boot
 let _lastInstallError = null;
 const INSTALL_ERROR_ROOM = 240;
 
+/** The last failed install's line, or null once an install has worked — what
+ *  getRunner hands the npx fallback to carry. */
+function lastInstallError() { return _lastInstallError; }
+
 /**
  * Start the one shared install, remembering how it ended.
  *
@@ -491,10 +495,18 @@ function touchMarker() {
   } catch { /* ignore */ }
 }
 
+/** Whether the daily check is due: this process has not checked yet, and the
+ *  marker says the day is up. maybeBackgroundUpdate asks it before going to
+ *  npm, and primeCcusage asks the same question to report `updating`, so the
+ *  two cannot disagree about what the boot row says is happening. */
+function backgroundUpdateDue() {
+  return !_checkedThisRun && updateCheckDue();
+}
+
 // Non-blocking: compare installed version to npm `latest`; install if newer.
 function maybeBackgroundUpdate(installedVersion) {
   if (installsDisabled()) return; // no `npm view`, no upgrade install
-  if (_checkedThisRun || !updateCheckDue()) return;
+  if (!backgroundUpdateDue()) return;
   _checkedThisRun = true;
   touchMarker();
   try {
@@ -627,7 +639,7 @@ async function getRunner() {
   // npm unavailable / offline → fall back to npx, carrying WHY the managed
   // install is not here. Without that the modal can only describe the fallback,
   // and the fallback is the second thing that failed.
-  return { kind: "npx", installError: _lastInstallError };
+  return { kind: "npx", installError: lastInstallError() };
 }
 
 /** Which of ccusage's three paths a failure came from, in the deck's own words.
@@ -1207,7 +1219,7 @@ export function primeCcusage() {
   const resolved = resolveEntry();
   if (resolved) {
     // Already installed: the daily check may still queue a background upgrade.
-    const due = !_checkedThisRun && updateCheckDue();
+    const due = backgroundUpdateDue();
     maybeBackgroundUpdate(resolved.version);
     return { state: due ? "updating" : "present", version: resolved.version };
   }
