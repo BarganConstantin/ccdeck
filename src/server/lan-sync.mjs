@@ -1087,6 +1087,19 @@ export function open(key, { iv, tag, body }, aad) {
   }
 }
 
+/**
+ * The additional data a credential is sealed under: which deck it leaves,
+ * which deck it is for, and which account it is — the binding `seal` above
+ * describes, as the one string both ends must build alike. The deck answering
+ * a `want` seals under it and the deck that asked opens under it, so a
+ * difference between the two is not an error anywhere: it is a login that
+ * never opens, reported as "could not open" about a peer that did nothing
+ * wrong.
+ */
+export function credentialAad(fromFp, toFp, key) {
+  return `${fromFp}->${toFp}|${key}`;
+}
+
 // ── the frames after the handshake ──────────────────────────────────────────
 //
 // SEALED, EVERY ONE, AND UNTIL #810 NONE OF THEM WAS. The handshake proves both

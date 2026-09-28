@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 import { createHash, randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
 import {
-  accountKey, addTrusted, beaconPayload, beaconVerdict, cleanName, dropTrusted, fingerprint,
+  accountKey, addTrusted, beaconPayload, beaconVerdict, cleanName, credentialAad, dropTrusted, fingerprint,
   isPresent, manifestFor, notePeer, open, peerRows, plan, proof, proofOk, readBeacon,
   handshakeTranscript, hostId, identityFrom, pairable, readPub, seal, sessionKey, stillListed, syncAction,
   transferChallenge, trustedPeer,
@@ -336,7 +336,14 @@ describe("proving membership without spending it", () => {
 });
 
 describe("the credential on the wire", () => {
-  const aad = `${FP}->${OTHER}|claude@example.com@@org1`;
+  const aad = credentialAad(FP, OTHER, "claude@example.com@@org1");
+
+  it("is sealed under the string every deck already on the network builds", () => {
+    // Pinned by hand, because this is the one string two machines of different
+    // versions have to agree on: a deck that spelled it differently would seal
+    // logins nobody else could open, and report nothing but "could not open".
+    expect(aad).toBe(`${FP}->${OTHER}|claude@example.com@@org1`);
+  });
 
   it("comes back only to somebody holding the same passphrase", () => {
     const sealed = seal(KEY, "ccdeck2:pretend-blob", aad);
@@ -356,8 +363,9 @@ describe("the credential on the wire", () => {
 
   it("cannot be replayed as if it were about a different account", () => {
     const sealed = seal(KEY, "ccdeck2:pretend-blob", aad);
-    expect(open(KEY, sealed, `${FP}->${OTHER}|other@example.com@@org1`)).toBeNull();
-    expect(open(KEY, sealed, `${OTHER}->${FP}|claude@example.com@@org1`)).toBeNull();
+    expect(open(KEY, sealed, credentialAad(FP, OTHER, "other@example.com@@org1"))).toBeNull();
+    // Nor sent back at the deck that sealed it, as though it came the other way.
+    expect(open(KEY, sealed, credentialAad(OTHER, FP, "claude@example.com@@org1"))).toBeNull();
   });
 
   it("refuses a tampered body the same way it refuses a wrong key", () => {
