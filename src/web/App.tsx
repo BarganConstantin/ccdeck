@@ -133,7 +133,7 @@ import {
 import { useRecapNotesVersion } from "./recap-note";
 import type { Providers } from "./providers";
 import { finishSoundTitle } from "./provider-copy";
-import { createChimePlayer } from "./sound";
+import { createChimePlayer } from "./chime-player";
 import type { AgentNodeData, ToolCall } from "./types";
 
 const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };

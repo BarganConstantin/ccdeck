@@ -9,8 +9,9 @@
 // the constants say, and a rendered note is loudest where its attack ends.
 import { describe, it, expect } from "vitest";
 import { renderChime } from "../chime-wav";
+import { createChimePlayer } from "../chime-player";
 import {
-  createChimePlayer, DEFAULT_LEVEL, ENVELOPE_ATTACK_S, ENVELOPE_FLOOR, figureFor, peakFor,
+  DEFAULT_LEVEL, ENVELOPE_ATTACK_S, ENVELOPE_FLOOR, figureFor, peakFor,
 } from "../sound";
 
 type Call = [what: "set" | "ramp", value: number, at: number];

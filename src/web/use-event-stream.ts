@@ -18,7 +18,8 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { createRenderCoalescer } from "./coalesce";
 import type { PauseGate } from "./pause";
 import { applyEvent, type GraphState } from "./reducer";
-import { chimeFor, type createChimePlayer } from "./sound";
+import type { createChimePlayer } from "./chime-player";
+import { chimeFor } from "./sound";
 import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
 import type { HookEnvelope } from "./types";
 

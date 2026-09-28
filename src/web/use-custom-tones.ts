@@ -18,8 +18,8 @@ import { clearCustomAssetSelections, createCustomVoice, CUSTOM_AUDIO_KEYS, delet
          importCustomAudio, libraryFullReason, listCustomNotificationAssets, readCustomSelections,
          renameCustomNotificationAsset, saveCustomNotificationAsset, summarizeCustomAsset,
          type CustomAssetSummary, type CustomSelections } from "./notification-audio";
-import { CHIME_ORDER, DEFAULT_FIGURE_ID, DEFAULT_LEVEL, FIGURE_KEYS,
-         type Chime, type createChimePlayer } from "./sound";
+import type { createChimePlayer } from "./chime-player";
+import { CHIME_ORDER, DEFAULT_FIGURE_ID, DEFAULT_LEVEL, FIGURE_KEYS, type Chime } from "./sound";
 import { readStored } from "./storage";
 import { useMirroredRef } from "./use-mirrored-ref";
 import type { TonePrefsControls } from "./use-tone-prefs";

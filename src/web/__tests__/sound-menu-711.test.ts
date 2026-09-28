@@ -47,12 +47,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  CHIME_ORDER, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
+  CHIME_ORDER, clampLevel, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
   DEFAULT_PREFS, ENVELOPE_FLOOR, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
   GAIN_CEILING, GAIN_FLOOR, gainForLevel, LEVEL_KEYS, levelFrom, LEVEL_MAX,
   LEVEL_MIN, LEVEL_STEP, PEAK_GAIN, peakFor, PREVIEW_DELAY_MS, readPrefs,
   type Chime, type Figure, type Note, type TonePrefs,
 } from "../sound";
+import { createChimePlayer } from "../chime-player";
 import { readStored } from "../storage";
 import { finishSoundTitle } from "../provider-copy";
 import { ASSUMED } from "../providers";
