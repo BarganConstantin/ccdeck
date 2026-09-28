@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
 import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
+import { clientText } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -91,6 +92,9 @@ describe("#801 — what the Notifications switch is saying", () => {
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
+    // The switch's press and the asker's ref moved to use-os-notifications.ts;
+    // all three matches are positive, so this case reads the client.
+    const app = clientText();
     // `requestPermission()` needs a user gesture and the press IS one, so the
     // prompt goes up on the same press — off to on only, and only while the
     // browser can still be asked. The button below is then the way back from a
