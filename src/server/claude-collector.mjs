@@ -172,9 +172,9 @@ export function nudgeCollector(rows, slots, now, activeNum) {
   if (!due && !freshen) return false;
 
   _lastNudge = now;
-  // The due path asks for JSON and KEEPS it — see _verdicts. The dry-run path
-  // stays detached: it is the engine's own collect pass, its JSON is a different
-  // shape, and nothing here reads it.
+  // The due path asks for JSON and KEEPS it — see _verdicts, in
+  // claude-verdicts.mjs. The dry-run path stays detached: it is the engine's own
+  // collect pass, its JSON is a different shape, and nothing here reads it.
   if (!due) {
     cswapBin().then(bin => runDetached(bin, ["auto", "--once", "--dry-run", "--json"])).catch(() => {});
     return true;
