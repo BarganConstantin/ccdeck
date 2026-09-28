@@ -1,9 +1,7 @@
-import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   MiniMap,
-  type Edge,
-  type Node,
   ReactFlowProvider,
   useReactFlow,
 } from "reactflow";
@@ -23,7 +21,6 @@ import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { type FlowNodeData } from "./canvas-flow";
 import { exportFileName, sessionExport } from "./session-export";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
@@ -32,11 +29,8 @@ import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm from "./components/ClaudeFm";
-import {
-  customFmId, customFmSelection,
-} from "./fm-stations";
+import { customFmSelection } from "./fm-stations";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
-import { sweepTick } from "./prune";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -102,8 +96,6 @@ import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { readStored, writeStored } from "./storage";
 import { PRODUCT } from "./brand";
 import { blockedSessions } from "./ambient-counts";
-import { canAsk } from "./notify";
-import type { NotifyPermission } from "./notify";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
@@ -119,19 +111,10 @@ import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
-import {
-  readDesktopUpdate,
-  readyDesktopUpdate,
-  UPDATE_RESTART_WAIT_MS,
-  updateRestartFailureText,
-  updateRestartRefusal,
-  type DesktopUpdateState,
-  type UpdateRestartFailure,
-} from "./desktop-update";
-import type { Providers } from "./providers";
+import { updateRestartFailureText } from "./desktop-update";
 import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./chime-player";
-import type { AgentNodeData, ToolCall } from "./types";
+import type { ToolCall } from "./types";
 
 const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
@@ -440,8 +423,7 @@ function Inner() {
   // from, the placeholders, the layout signature, the epoch R and the reframe
   // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
   const layout = useBoardLayout(fitLeft);
-  const { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
-          handleRelayout } = layout;
+  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout } = layout;
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -474,7 +456,7 @@ function Inner() {
 
   // What Remove node has taken off the board, the way back, and the sentence
   // that says so — use-removals.ts.
-  const { removedNodes, lastRemoval, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
+  const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
           bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
   // What the layout keys off: the visible, not-removed agents and their
