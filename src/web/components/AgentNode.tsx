@@ -35,7 +35,7 @@ import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The activity chart's counting and its scale. See tool-spark.ts.
-import { barHeight, BUCKETS, H, sparkWindow, W } from "../tool-spark";
+import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
 import { AlertMark, StateMark } from "./StateMark";
 import { RecapMark } from "./RecapMark";
 
@@ -394,10 +394,10 @@ function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number
   // Its own beat (#873): the window slides under a card that has not changed.
   const now = useNow(1000);
   const { counts, title } = sparkWindow(tools, outputs, now);
-  const barW = W / BUCKETS;
+  const barW = SPARK_W / BUCKETS;
   return (
     <div className="tool-spark-row" title={title}>
-      <svg className="tool-spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
+      <svg className="tool-spark" width={SPARK_W} height={SPARK_H} viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} aria-hidden>
         {counts.map((c, i) => {
           const h = barHeight(c);
           const isLatest = i === BUCKETS - 1 && c > 0;
@@ -413,7 +413,7 @@ function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number
               // time rather than for anything that happened.
               key={isLatest ? `landed:${c}` : i}
               x={i * barW + 0.4}
-              y={H - h}
+              y={SPARK_H - h}
               width={Math.max(0.5, barW - 1)}
               height={h}
               rx={0.8}

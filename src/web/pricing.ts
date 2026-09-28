@@ -205,7 +205,7 @@ export function costForUsage(
  *  unpriced model showed its tokens with a hole where the money goes.
  *
  *  One constant rather than three string literals, for the reason stateLabel
- *  in AgentNode is one function: the node chip, the by-model table and the
+ *  in agent-copy.ts is one function: the node chip, the by-model table and the
  *  by-session list are three views of the same fact, and a reader who sees two
  *  of them has to be able to tell that they say the same thing. */
 export const UNPRICED_LABEL = "not priced";

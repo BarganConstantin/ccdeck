@@ -102,7 +102,9 @@ const fakeLogin = vi.hoisted(() => {
   function spawn() {
     let settle!: (r: any) => void;
     const subs: Sub[] = [];
-    let pending = "";
+    // The real runInteractive's own cutter, not a copy of its rule — imported
+    // below, and see exec-line-feed.test.ts.
+    const lines = lineFeed(subs);
     const child = {
       done: new Promise((r) => { settle = r; }),
       killed: false,
@@ -110,18 +112,9 @@ const fakeLogin = vi.hoisted(() => {
       onLine(cb: Sub) { subs.push(cb); },
       write(text: string) { child.written.push(text); },
       kill() { child.killed = true; },
-      /** Bytes out, cut into lines exactly as exec.mjs cuts them: complete
-       *  lines once, then the still-unterminated tail on every chunk. */
-      out(text: string) {
-        pending += text;
-        let nl;
-        while ((nl = pending.indexOf("\n")) !== -1) {
-          const line = pending.slice(0, nl).replace(/\r$/, "");
-          pending = pending.slice(nl + 1);
-          for (const cb of subs) cb(line, false);
-        }
-        if (pending) for (const cb of subs) cb(pending, true);
-      },
+      /** Bytes out, cut into lines by exec.mjs's lineFeed: complete lines
+       *  once, then the still-unterminated tail on every chunk. */
+      out(text: string) { lines.push(text); },
       end(r: unknown) { settle(r); },
     };
     children.push(child);
@@ -192,6 +185,10 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
   };
 });
 
+// The line cutter the fake login above hands its output to: exec.mjs's own,
+// through the mock, which passes it on untouched.
+// @ts-expect-error — plain JS module, no types
+const { lineFeed } = await import("../../server/exec.mjs");
 // @ts-expect-error — plain JS module, no types
 const admin = await import("../../server/cswap-admin.mjs");
 const { startLogin, submitLoginCode, cancelLogin, loginState, readStore, withStoreLock } = admin;

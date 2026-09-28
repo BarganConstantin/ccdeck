@@ -12,8 +12,8 @@ import type { ToolCall } from "./types";
 export const WINDOW_MS = 60_000;
 export const BUCKETS = 24;
 const BUCKET_MS = WINDOW_MS / BUCKETS;
-export const W = 132;
-export const H = 14;
+export const SPARK_W = 132;
+export const SPARK_H = 14;
 
 /** The activity chart.
  *
@@ -89,5 +89,5 @@ const FULL_SCALE = 2;
 /** How tall a bucket's bar is drawn: a 1.5px stub for an empty bucket, and
  *  against FULL_SCALE above it, clipped at the box. */
 export function barHeight(c: number): number {
-  return c === 0 ? 1.5 : Math.max(1.5, Math.min(1, c / FULL_SCALE) * H);
+  return c === 0 ? 1.5 : Math.max(1.5, Math.min(1, c / FULL_SCALE) * SPARK_H);
 }

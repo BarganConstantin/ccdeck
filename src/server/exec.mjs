@@ -264,14 +264,14 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     // `cswap add` for the account the user had just cancelled, racing
     // cancelLogin's own restore, with the dialog flipping to `done`.
     //
-    // The memo guard eleven lines below already distrusted a kill for the same
-    // reason (`if (code === 0 && !killed && !timedOut)`), so the two halves of
-    // this function disagreed about what a killed exit means.
+    // The memo guard in the child's 'close' handler below already distrusted a
+    // kill for the same reason (`if (code === 0 && !killed && !timedOut)`), so
+    // the two halves of this function disagreed about what a killed exit means.
     s({ ok: code === 0 && !err && !timedOut && !killed, code: err?.code ?? code ?? -1, killed, timedOut, stdout, stderr });
   };
 
-  // The deadline states the outcome and only then kills — the order `run` uses
-  // forty lines above, for the reason its own header already spells out.
+  // The deadline states the outcome and only then kills — the order `run`'s own
+  // deadline uses, for the reason run's header already spells out.
   //
   // This used to set the flag, kill, and leave `done` to the child's 'close'.
   // 'close' waits for the stdio pipes, not merely for the exit, so ONE
@@ -435,9 +435,9 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
  * carried tail, for a retry that starts the output over under the next
  * spelling.
  *
- * Exported for its test. Three fakes in the suite restate this rule by hand
- * to stand in for runInteractive, so it is pinned by running it rather than
- * by reading it.
+ * Exported for its test, and for the three fakes in the suite that stand in
+ * for runInteractive and cut their output with it rather than with a copy of
+ * the rule — so it is pinned by running it rather than by reading it.
  */
 export function lineFeed(subs) {
   let pending = "";           // partial line carried between chunks

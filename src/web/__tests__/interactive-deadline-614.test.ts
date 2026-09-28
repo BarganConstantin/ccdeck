@@ -20,7 +20,7 @@
 // `spawnLogin`'s process-exit handler leaks with the promise. The lock case is
 // the one that pins the consequence.
 //
-// `run`, forty lines above in the same module, has stated the outcome before
+// `run`, beside it in exec.mjs, has stated the outcome before
 // killing since #552 and its header names this exact failure. `runInteractive`
 // now does the same, and its `kill()` carries a bounded grace of the same kind
 // so a cancelled sign-in cannot wedge the mutex either.
