@@ -22,6 +22,9 @@ import { mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
+// One read per session at a time, and none inside the window — the gate each
+// pass below keeps. See session-read-gate.mjs.
+import { sessionReadGate } from "./session-read-gate.mjs";
 
 // ─── Model enrichment ────────────────────────────────────────────────────
 // CC's hook payloads never carry the `model` field — but every hook
@@ -35,9 +38,8 @@ import { pushEvent } from "./event-sink.mjs";
 // filter, not a read filter: reading once per session meant a subagent
 // model that only appears after the root is known was never picked up.
 const modelBySession = new Map();         // sessionId -> { rootModel, subsSig }
-const pendingTranscriptReads = new Set(); // sessionId currently being read
-const modelLastReadAt = new Map();        // sessionId -> ms timestamp (re-read throttle)
 const MODEL_READ_THROTTLE_MS = 2500;
+const modelReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
 /** The cache entry is `{ rootModel, subsSig }`, but `payload.model` is a
  *  model *string* — that is the only shape the client's recursive scanner
@@ -185,13 +187,7 @@ function maybeResolveModel(payload) {
   // Re-read on every event for this session — the cache was preventing us
   // from picking up subagent models that arrive after the root is known.
   // Throttle so we don't thrash the filesystem.
-  if (pendingTranscriptReads.has(sid)) return;
-  const now = Date.now();
-  const last = modelLastReadAt.get(sid) ?? 0;
-  if (now - last < MODEL_READ_THROTTLE_MS) return;
-  modelLastReadAt.set(sid, now);
-  pendingTranscriptReads.add(sid);
-  Promise.all([readModelFromTranscript(tp), scanSubagentDir(tp)])
+  modelReads.run(sid, () => Promise.all([readModelFromTranscript(tp), scanSubagentDir(tp)])
     .then(([result, dir]) => {
       const rootModel = result?.rootModel ?? null;
       // Merge legacy (inline isSidechain) + new (subagents/ dir) maps. Dir
@@ -208,9 +204,7 @@ function maybeResolveModel(payload) {
         model: rootModel,
         subagentModels,
       }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingTranscriptReads.delete(sid));
+    }));
 }
 
 // ─── Usage enrichment ────────────────────────────────────────────────────
@@ -220,9 +214,8 @@ function maybeResolveModel(payload) {
 // whole transcript and ship a synthetic UsageObserved event so the
 // session's root agent gets accurate cumulative usage (and therefore the
 // cost columns actually have something to multiply by).
-const lastUsageReadAt = new Map();      // sid -> ms timestamp
-const pendingUsageReads = new Set();    // sid currently being read
 const USAGE_READ_THROTTLE_MS = 2500;
+const usageReads = sessionReadGate(USAGE_READ_THROTTLE_MS);
 
 // Every entry carries its own usage object and we sum every occurrence, so
 // the totals are cumulative over the whole transcript — the running state
@@ -321,13 +314,7 @@ function maybeResolveUsage(payload) {
   const sid = payload.session_id;
   const tp = payload.transcript_path;
   if (!sid || !tp) return;
-  if (pendingUsageReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastUsageReadAt.get(sid) ?? 0;
-  if (now - last < USAGE_READ_THROTTLE_MS) return;
-  lastUsageReadAt.set(sid, now);
-  pendingUsageReads.add(sid);
-  Promise.all([sessionUsageTotals(tp), sessionUsageByModel(tp)])
+  usageReads.run(sid, () => Promise.all([sessionUsageTotals(tp), sessionUsageByModel(tp)])
     .then(([usage, usageByModel]) => {
       if (!usage) return;
       // `usageByModel` rides on the same event because it is the same
@@ -337,9 +324,7 @@ function maybeResolveUsage(payload) {
       // even when null: an absent split has to CLEAR a stale one on the client,
       // for the reason the flat totals are assigned rather than added.
       pushEvent({ hook_event_name: "UsageObserved", session_id: sid, usage, usageByModel }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingUsageReads.delete(sid));
+    }));
 }
 
 // ─── Session-name enrichment ─────────────────────────────────────────────
@@ -374,8 +359,7 @@ function maybeResolveUsage(payload) {
 // records carrying 2 distinct values, a per-pass emit would be ~683 events
 // saying nothing. Sessions that never get named emit nothing at all.
 const nameBySession = new Map();        // sid -> `${agentName}\0${aiTitle}`
-const lastNameReadAt = new Map();       // sid -> ms timestamp
-const pendingNameReads = new Set();     // sid currently being read
+const nameReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
 /** The naming the cursor has folded so far, or null when the scan has nothing.
  *
@@ -403,13 +387,7 @@ function maybeResolveSessionName(payload) {
   const sid = payload.session_id;
   const tp = payload.transcript_path;
   if (!sid || !tp) return;
-  if (pendingNameReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastNameReadAt.get(sid) ?? 0;
-  if (now - last < MODEL_READ_THROTTLE_MS) return;
-  lastNameReadAt.set(sid, now);
-  pendingNameReads.add(sid);
-  readSessionNamingFromTranscript(tp)
+  nameReads.run(sid, () => readSessionNamingFromTranscript(tp)
     .then(read => {
       if (!read) return;
       noteRecap(sid, read.recap);
@@ -424,9 +402,7 @@ function maybeResolveSessionName(payload) {
         sessionName: naming.agentName ?? null,
         sessionTitle: naming.aiTitle ?? null,
       }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingNameReads.delete(sid));
+    }));
 }
 
 // ─── Session recap ───────────────────────────────────────────────────────
@@ -475,9 +451,8 @@ function onRecapTail(sid, text, path) {
 // context contain") plus the current window size — currentContextTokens, the
 // last usage block after the most recent /clear or /compact, which is what
 // the context donut and the modal's percentage are drawn from.
-const lastContextReadAt = new Map();
-const pendingContextReads = new Set();
 const CONTEXT_READ_THROTTLE_MS = 4000;
+const contextReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 
 // The counts reset at every `/clear` or `/compact` marker (see
 // foldTranscriptLine): CC resets its in-memory window there while the JSONL
@@ -644,13 +619,7 @@ function maybeResolveContext(payload) {
   const tp = payload.transcript_path;
   const cwd = payload.cwd;
   if (!sid || !tp) return;
-  if (pendingContextReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastContextReadAt.get(sid) ?? 0;
-  if (now - last < CONTEXT_READ_THROTTLE_MS) return;
-  lastContextReadAt.set(sid, now);
-  pendingContextReads.add(sid);
-  Promise.all([readContextFromTranscript(tp), scanClaudeMdFiles(cwd)])
+  contextReads.run(sid, () => Promise.all([readContextFromTranscript(tp), scanClaudeMdFiles(cwd)])
     .then(([breakdown, memoryFiles]) => {
       if (!breakdown && (!memoryFiles || memoryFiles.length === 0)) return;
       pushEvent({
@@ -661,17 +630,14 @@ function maybeResolveContext(payload) {
           memoryFiles: memoryFiles ?? [],
         },
       }, "internal");
-    })
-    .catch(() => {})
-    .finally(() => pendingContextReads.delete(sid));
+    }));
 }
 
-// Throttle state for the Codex half of the same question. Separate maps rather
-// than sharing maybeResolveContext's, because the two run on different triggers
-// — a hook payload there, a batch of appended rollout lines here — and one
-// session cannot be both.
-const lastCodexMemoryReadAt = new Map();
-const pendingCodexMemoryReads = new Set();
+// Throttle state for the Codex half of the same question. A gate of its own
+// rather than sharing maybeResolveContext's, because the two run on different
+// triggers — a hook payload there, a batch of appended rollout lines here — and
+// one session cannot be both.
+const codexMemoryReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 
 /**
  * Emit the memory files a Codex session has in scope, throttled per session.
@@ -716,13 +682,7 @@ const pendingCodexMemoryReads = new Set();
  */
 function maybeResolveCodexMemory(sid, cwd, persist) {
   if (!sid || !cwd) return;
-  if (pendingCodexMemoryReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastCodexMemoryReadAt.get(sid) ?? 0;
-  if (now - last < CONTEXT_READ_THROTTLE_MS) return;
-  lastCodexMemoryReadAt.set(sid, now);
-  pendingCodexMemoryReads.add(sid);
-  scanAgentsMdFiles(cwd)
+  codexMemoryReads.run(sid, () => scanAgentsMdFiles(cwd)
     .then(memoryFiles => {
       // Nothing found is not a fact worth an event: the reducer merges a
       // ContextObserved into whatever the session already had, and an empty list
@@ -739,9 +699,7 @@ function maybeResolveCodexMemory(sid, cwd, persist) {
         provider: "codex",
         context: { memoryFiles },
       }, "internal", { persist });
-    })
-    .catch(() => {})
-    .finally(() => pendingCodexMemoryReads.delete(sid));
+    }));
 }
 
 /**
@@ -763,11 +721,11 @@ function forgetEnrichment(sid) {
   nameBySession.delete(sid);
   // The recap's gate, for the same reason — see noteRecap.
   recapBySession.delete(sid);
-  lastNameReadAt.delete(sid);
-  modelLastReadAt.delete(sid);
-  lastUsageReadAt.delete(sid);
-  lastContextReadAt.delete(sid);
-  lastCodexMemoryReadAt.delete(sid);
+  nameReads.forget(sid);
+  modelReads.forget(sid);
+  usageReads.forget(sid);
+  contextReads.forget(sid);
+  codexMemoryReads.forget(sid);
 }
 
 /**
@@ -784,8 +742,8 @@ function clearEnrichmentGates() {
   // would not be re-read at all and the name would stay missing until the
   // throttle expired — a clear followed by a keystroke is exactly when a
   // user is watching.
-  lastNameReadAt.clear();
-  modelLastReadAt.clear();
+  nameReads.forgetAll();
+  modelReads.forgetAll();
 }
 
 // What index.mjs calls besides the readers exported above. Listed rather than

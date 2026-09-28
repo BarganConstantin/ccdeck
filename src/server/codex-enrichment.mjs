@@ -21,6 +21,9 @@ import { readByteRange } from "./transcript-scan.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
+// One read per session at a time, and none inside the window — see
+// session-read-gate.mjs.
+import { sessionReadGate } from "./session-read-gate.mjs";
 
 // ─── Codex transcript enrichment ──────────────────────────────────────────
 // Codex CLI hook payloads carry `session_id` but no transcript path. Sessions
@@ -38,9 +41,8 @@ import { pushEvent } from "./event-sink.mjs";
 // one, the moment that walk began. See findCodexRolloutPath for why a miss is
 // kept (#992), and why only for CODEX_MISS_TTL_MS (#1134).
 const codexRolloutPathBySid = new Map();
-const lastCodexUsageReadAt = new Map();
-const pendingCodexUsageReads = new Set();
 const CODEX_READ_THROTTLE_MS = 2500;
+const codexUsageReads = sessionReadGate(CODEX_READ_THROTTLE_MS);
 // How many of the newest day directories a lookup reads when it is not owed
 // the whole tree: the bound listRecentCodexRollouts keeps for the watcher.
 const CODEX_RECENT_DAY_DIRS = 2;
@@ -246,13 +248,7 @@ function maybeResolveCodex(payload) {
   if (payload.provider !== "codex") return;
   const sid = payload.session_id;
   if (!sid) return;
-  if (pendingCodexUsageReads.has(sid)) return;
-  const now = Date.now();
-  const last = lastCodexUsageReadAt.get(sid) ?? 0;
-  if (now - last < CODEX_READ_THROTTLE_MS) return;
-  lastCodexUsageReadAt.set(sid, now);
-  pendingCodexUsageReads.add(sid);
-  (async () => {
+  codexUsageReads.run(sid, async () => {
     const path = await findCodexRolloutPath(sid);
     if (!path) return;
     const r = await readCodexRollout(path);
@@ -281,9 +277,7 @@ function maybeResolveCodex(payload) {
         model_context_window: r.contextWindow,
       }, "internal");
     }
-  })()
-    .catch(() => {})
-    .finally(() => pendingCodexUsageReads.delete(sid));
+  });
 }
 
 /**
@@ -293,7 +287,7 @@ function maybeResolveCodex(payload) {
  */
 function forgetCodexSession(sid) {
   codexRolloutPathBySid.delete(sid);
-  lastCodexUsageReadAt.delete(sid);
+  codexUsageReads.forget(sid);
   codexSessionModel.delete(sid);
   codexSessionApproval.delete(sid);
 }
