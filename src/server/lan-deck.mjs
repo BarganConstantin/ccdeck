@@ -24,7 +24,7 @@ import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
 import { createRouteCheck } from "./route-via.mjs";
-import { DISCOVERY_PORT } from "./lan-socket.mjs";
+import { DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";

@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
-import { broadcastPlan, createBeacon, leavesByTunnel } from "../../server/lan-socket.mjs";
+import { broadcastPlan, createBeacon, leavesByTunnel } from "../../server/lan-beacon.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { fingerprint } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types

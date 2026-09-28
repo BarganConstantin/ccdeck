@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
 import { beaconTargets, cliEnv, createTailnet, readTailnet, routeOf, tailscaleCandidates } from "../../server/tailscale.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { createBeacon, DISCOVERY_PORT } from "../../server/lan-socket.mjs";
+import { createBeacon, DISCOVERY_PORT } from "../../server/lan-beacon.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, fingerprint, hostId, identityFrom, notePeer, PRESENT_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types

@@ -42,9 +42,10 @@ import os from "node:os";
 // @ts-expect-error — plain .mjs server modules, no types
 import { fingerprint, hostId, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server modules, no types
+import { broadcastTargets, createBeacon, directedBroadcast, DISCOVERY_PORT } from "../../server/lan-beacon.mjs";
+// @ts-expect-error — plain .mjs server modules, no types
 import {
-  broadcastTargets, connectToPeer, createBeacon, createSyncServer, directedBroadcast, frameReader,
-  sendFrame, DISCOVERY_PORT, HANDSHAKE_MS, IDLE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
+  connectToPeer, createSyncServer, frameReader, sendFrame, HANDSHAKE_MS, IDLE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
   MAX_SOCKETS_PER_HOST,
 } from "../../server/lan-socket.mjs";
 
