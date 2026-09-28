@@ -131,7 +131,7 @@ let _saidFailure = null;
  *  sentence back on the terminal every time somebody changed accounts. */
 export function forgetQuotaFailureNotice() { _saidFailure = null; }
 
-export async function _execOnce(bin) {
+export async function runUsageOnce(bin) {
   const r = await run(bin, ["--print", "/usage"], {
     timeout: 15_000,
     maxBuffer: 1024 * 1024,

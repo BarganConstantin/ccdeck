@@ -52,7 +52,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { availableResetCredits, readResetGrants } from "./claude-reset-credits.mjs";
 import { mapOAuthUsage, quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
-import { _execOnce, quotaClaudeBin } from "./quota-cli.mjs";
+import { runUsageOnce, quotaClaudeBin } from "./quota-cli.mjs";
 import { createHash } from "node:crypto";
 
 const USAGE_URL   = "https://api.anthropic.com/api/oauth/usage";
@@ -694,14 +694,14 @@ async function _doFetch(now, force = false, gen = _generation) {
   let parsed = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await sleep(1200);
-    const r = await _execOnce(bin);
+    const r = await runUsageOnce(bin);
     cliOk = r.cliOk || cliOk;
     cliRan = r.ran || cliRan;
     if (r.parsed) { parsed = r.parsed; break; }
     // The retry exists for a CLI that RAN and left the quota lines out of a cold
     // invocation. A CLI that is not installed will not be installed 1.2 seconds
     // from now, and asking twice more spends two spawns and 2.4 seconds of the
-    // caller's wait to print the same sentence three times. See _execOnce.
+    // caller's wait to print the same sentence three times. See runUsageOnce.
     if (r.missing) break;
   }
 
