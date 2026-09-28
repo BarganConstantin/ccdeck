@@ -90,6 +90,23 @@ const USER_AGENT  = "claude-cli/2.1.283 (external, cli)";
 // 429 cooldown gate — after a rate-limit, skip the API until this passes.
 let _rateLimitedUntil = 0;
 
+/** When the cooldown ends, or 0 when there is none. For the budget rules,
+ *  which take it as an argument so they stay pure. */
+function cooldownUntil() { return _rateLimitedUntil; }
+
+/** Whether a 429 is still being waited out at `now`. */
+function coolingDown(now) { return now < _rateLimitedUntil; }
+
+/** A 429 arrived: hold every request this token makes off for as long as its
+ *  `retry-after` says, within the limits cooldownFromHeader keeps. One token,
+ *  one budget, so both requests that can be refused back off the same way. */
+function startCooldown(res) {
+  _rateLimitedUntil = Date.now() + cooldownFromHeader(res.headers.get("retry-after"), 5 * 60_000);
+}
+
+/** The cooldown, forgotten — for resetQuotaPollFloor. */
+function clearCooldown() { _rateLimitedUntil = 0; }
+
 /**
  * Where Claude Code keeps the OAuth credentials this module borrows a token
  * from.
@@ -207,7 +224,7 @@ function oauthHeaders(token) {
 }
 
 async function fetchOAuthUsage() {
-  if (Date.now() < _rateLimitedUntil) return null;
+  if (coolingDown(Date.now())) return null;
   const token = await readOAuthToken();
   if (!token) return null;
 
@@ -218,7 +235,7 @@ async function fetchOAuthUsage() {
     });
 
     if (res.status === 429) {
-      _rateLimitedUntil = Date.now() + cooldownFromHeader(res.headers.get("retry-after"), 5 * 60_000);
+      startCooldown(res);
       return null;
     }
     if (!res.ok) return null;
@@ -383,10 +400,16 @@ export function answerWithin(read, deadlineMs, now = Date.now()) {
   return Promise.race([read, expired]).finally(() => clearTimeout(bell));
 }
 
+/** What the deck says when it holds no reading at all: that a 429 is being
+ *  waited out, or simply that the first reading has not arrived. */
+function noReading(now) {
+  return { ok: false, reason: coolingDown(now) ? "rate_limited" : "waiting", fetchedAt: now };
+}
+
 /** What the deck can honestly say about a reading it has not finished taking. */
 function notYet(now) {
   if (_lastGood) return { ..._lastGood, stale: true };
-  return { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
+  return noReading(now);
 }
 
 /**
@@ -538,7 +561,7 @@ async function fetchResetGrants(token) {
       signal: AbortSignal.timeout(5_000),
     });
     if (res.status === 429) {
-      _rateLimitedUntil = Date.now() + cooldownFromHeader(res.headers.get("retry-after"), 5 * 60_000);
+      startCooldown(res);
       return undefined;
     }
     if (!res.ok) return undefined;
@@ -572,7 +595,7 @@ async function fetchResetGrants(token) {
 function refreshStoreResetCredits({ now, force = false, account }) {
   if (_creditsInflight || !account) return;
   const triedThisAccount = sameAccount(_creditsTriedFor, account);
-  if (!resetCreditsDue({ now, force, triedAt: _creditsTriedAt, rateLimitedUntil: _rateLimitedUntil, triedThisAccount })) return;
+  if (!resetCreditsDue({ now, force, triedAt: _creditsTriedAt, rateLimitedUntil: cooldownUntil(), triedThisAccount })) return;
   _creditsTriedAt = now;
   _creditsTriedFor = account;
   const run = (async () => {
@@ -632,7 +655,7 @@ async function nudgeAndReread(previous) {
  *  asking the same question three times running into a wall. */
 export function resetQuotaPollFloor() {
   _lastSelfPollAt = 0;
-  _rateLimitedUntil = 0;
+  clearCooldown();
   _creditsTriedAt = 0;
   _creditsTriedFor = null;
 }
@@ -662,7 +685,7 @@ async function _doFetch(now, force = false, gen = _generation) {
 
   // Nothing usable in the store. Everything below spends the user's budget, so
   // it happens on a floor, and not at all while a 429 cooldown is running.
-  if (!maySelfPoll({ now, force, lastSelfPollAt: _lastSelfPollAt, rateLimitedUntil: _rateLimitedUntil })) {
+  if (!maySelfPoll({ now, force, lastSelfPollAt: _lastSelfPollAt, rateLimitedUntil: cooldownUntil() })) {
     // A stale row still beats an empty panel, and says how stale it is — but
     // it must be the freshest thing we hold, not just the store. Preferring
     // the store here threw away readings we had already paid for: after a boot
@@ -671,7 +694,7 @@ async function _doFetch(now, force = false, gen = _generation) {
     // next poll, because the store had not moved.
     const held = freshest(store, _lastGood);
     if (held) return publish(gen, { ...held, stale: true }, now);
-    const result = { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
+    const result = noReading(now);
     return publish(gen, result, now - (CACHE_MS - 5_000));
   }
   _lastSelfPollAt = now;
