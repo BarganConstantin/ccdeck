@@ -2275,12 +2275,6 @@ function Inner() {
           onClose={() => setSummaryFor(null)}
         />
       )}
-      {/* Before the clear prompt and after everything else, which is where a
-          reference belongs: it may paint over a tool inspector somebody opened
-          the sheet on top of, and it must not paint over the one dialog that is
-          waiting for an answer. Escape agrees with the paint order — the prompt
-          carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
-          before arrival. */}
       {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
           dialog that arrives on its own belongs: it must not paint over the one
           waiting for an answer, and the stack in modal-dismiss.ts settles Esc
@@ -2336,6 +2330,12 @@ function Inner() {
           />
         );
       })()}
+      {/* Before the clear prompt and after everything else, which is where a
+          reference belongs: it may paint over a tool inspector somebody opened
+          the sheet on top of, and it must not paint over the one dialog that is
+          waiting for an answer. Escape agrees with the paint order — the prompt
+          carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
+          before arrival. */}
       {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} onTour={() => { setKeyHelpOpen(false); openTour(); }} />}
       {tourOpen && (
         <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={closeTour} />
