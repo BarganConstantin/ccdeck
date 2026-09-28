@@ -90,10 +90,10 @@ const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObser
 export const MAX_RING_ENTRIES = MAX_BUFFER * 4;
 
 // The byte budget, counted in CHARACTERS — the unit the server already measures
-// payloads in, and the unit MAX_CLIENT_BUFFER_BYTES in index.mjs is really
-// written in despite its name (there is a long note there about why, which
-// applies here unchanged: a character is one byte of heap while the string stays one-byte
-// and two once it does not).
+// payloads in, and the unit MAX_CLIENT_BUFFER_BYTES in sse-clients.mjs is
+// really written in despite its name (there is a long note there about why,
+// which applies here unchanged: a character is one byte of heap while the
+// string stays one-byte and two once it does not).
 //
 // 128 MiB, and the three readings that pick it:
 //
