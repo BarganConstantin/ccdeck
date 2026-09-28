@@ -438,7 +438,10 @@ describe("the sweep one tick runs", () => {
 });
 
 describe("the page's tick runs that sweep and posts what it named", () => {
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The tick is use-board-tick.ts's, which App.tsx calls; the negatives below
+  // read both, so a sweep written out in either one fails them.
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../use-board-tick.ts", import.meta.url)), "utf8");
 
   it("calls sweepTick and POSTs the ids only when there are some", () => {
     expect(app).toMatch(/const \{ changed, forgotten \} = sweepTick\(stateRef\.current, t\);/);

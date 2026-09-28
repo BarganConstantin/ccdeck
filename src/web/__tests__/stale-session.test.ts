@@ -395,9 +395,9 @@ describe("the threshold and the wiring", () => {
     // the reducer directly would ever notice.
     //
     // The four of them are `sweepTick` in prune.ts since #1175, which is what
-    // App.tsx's interval calls — and that composition is driven rather than
-    // read, in forget-pruned-session-1024.test.ts.
-    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    // the deck's interval (use-board-tick.ts) calls — and that composition is
+    // driven rather than read, in forget-pruned-session-1024.test.ts.
+    const app = readFileSync(fileURLToPath(new URL("../use-board-tick.ts", import.meta.url)), "utf8");
     const sweep = readFileSync(fileURLToPath(new URL("../prune.ts", import.meta.url)), "utf8");
     expect(sweep).toMatch(/sweepStaleSessions\(state, t, STALE_SESSION_MS\)/);
     expect(sweep).toMatch(/import \{[\s\S]*?sweepStaleSessions[\s\S]*?\} from "\.\/reducer"/);
