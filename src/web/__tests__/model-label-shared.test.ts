@@ -17,6 +17,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { shortModel } from "../model-label";
+import { usageHistorySurface } from "./usage-history-surface";
 
 const modal = readFileSync(
   fileURLToPath(new URL("../components/UsageHistoryModal.tsx", import.meta.url)),
@@ -56,9 +57,13 @@ describe("the usage-history modal", () => {
     // than growing a private copy again, so the path moved and the check did
     // not weaken.
     expect(modal).toMatch(/import \{ shortModel \} from "\.\.\/model-label";/);
+    // And the selected day's breakdown, lifted out of the modal, which labels
+    // each of its model rows.
+    const detail = readFileSync(fileURLToPath(new URL("../components/UsageDayDetail.tsx", import.meta.url)), "utf8");
+    expect(detail).toMatch(/import \{ shortModel \} from "\.\.\/model-label";/);
   });
 
   it("declares no second labeller of its own", () => {
-    expect(modal).not.toMatch(/function shortModel\b/);
+    expect(usageHistorySurface()).not.toMatch(/function shortModel\b/);
   });
 });

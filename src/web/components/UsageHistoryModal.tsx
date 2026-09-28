@@ -5,224 +5,23 @@
 //
 // Inspired by the task-board project's ccusage modal, reimplemented in
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { fmtCost } from "../pricing";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
-import { createLatestGuard } from "../latest";
-import { presetSince } from "../usage-range";
 import { usageView } from "../usage-view";
 import { fmtTokens } from "../token-format";
 import { shortModel } from "../model-label";
 import { agentLabel, usageSubtitle } from "../provider-copy";
-import { agentColor, agentTotals, dayAgentSummary, sharePct } from "../usage-agents";
+import { agentColor, agentTotals, sharePct } from "../usage-agents";
 import type { Providers } from "../providers";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { selfPressAccepted, selfPressProps } from "../panel-press";
-
-// ── ccusage data shapes (subset we use) ────────────────────────────────────
-interface ModelBreakdown {
-  modelName: string;
-  cost: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-}
-/**
- * One CLI's share of a day, out of ccusage's `--by-agent` (#431).
- *
- * Optional on the day below, and every reader here treats its absence as "this
- * range has no split to show" rather than as an error: a ccusage too old to
- * know the flag makes the server fall back to the flagless run (see
- * ccusage.mjs), and those days arrive exactly as they always did.
- */
-interface AgentEntry {
-  agent: string;             // ccusage's lowercase id — "claude", "codex", …
-  totalCost: number;
-  totalTokens: number;
-}
-interface DayEntry {
-  period: string;            // YYYY-MM-DD
-  totalCost: number;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  modelsUsed: string[];
-  modelBreakdowns: ModelBreakdown[];
-  agents?: AgentEntry[];
-  metadata?: { agents?: string[] };
-}
-/**
- * What the route really hands back, before anything here trusts it.
- *
- * usage-from-ccusage.ts — reading the SAME body for the usage panel — says why
- * this is necessary, and this file did not: "this is parsed from a subprocess's
- * stdout two hops away, and a field that moved upstream must read as absent
- * rather than throw inside a render."
- *
- * The server passes `daily` through whole (`ccusage.mjs:1071`, "Passed through
- * whole.") and never inspects an element, and ccusage is resolved as
- * `ccusage@latest` through npx — an unpinned external dependency whose surface
- * has already moved under this deck twice, which is what `_sectionsUnsupported`
- * and `_byAgentUnsupported` are. A `daily` row arriving without
- * `modelBreakdowns` threw a TypeError inside a React render, and src/web has no
- * error boundary: main.tsx is a bare `root.render(<App />)`. So the whole deck
- * went blank — not just this modal — while the usage panel, reading the
- * identical payload, carried on.
- *
- * Normalised once at the boundary rather than guarded at each of the six
- * dereference sites, so a seventh reader added later cannot miss the rule.
- */
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
-const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
-
-function asBreakdown(v: unknown): ModelBreakdown {
-  const o = (v ?? {}) as Record<string, unknown>;
-  return {
-    modelName: str(o.modelName),
-    cost: num(o.cost),
-    inputTokens: num(o.inputTokens),
-    outputTokens: num(o.outputTokens),
-    cacheCreationTokens: num(o.cacheCreationTokens),
-    cacheReadTokens: num(o.cacheReadTokens),
-  };
-}
-
-function asDay(v: unknown): DayEntry {
-  const o = (v ?? {}) as Record<string, unknown>;
-  const agents = Array.isArray(o.agents)
-    ? o.agents.map(a => {
-        const e = (a ?? {}) as Record<string, unknown>;
-        return { agent: str(e.agent), totalCost: num(e.totalCost), totalTokens: num(e.totalTokens) };
-      })
-    : undefined;
-  return {
-    period: str(o.period),
-    totalCost: num(o.totalCost),
-    totalTokens: num(o.totalTokens),
-    inputTokens: num(o.inputTokens),
-    outputTokens: num(o.outputTokens),
-    cacheCreationTokens: num(o.cacheCreationTokens),
-    cacheReadTokens: num(o.cacheReadTokens),
-    modelsUsed: strs(o.modelsUsed),
-    modelBreakdowns: Array.isArray(o.modelBreakdowns) ? o.modelBreakdowns.map(asBreakdown) : [],
-    ...(agents ? { agents } : {}),
-    ...(o.metadata && typeof o.metadata === "object"
-      ? { metadata: { agents: strs((o.metadata as Record<string, unknown>).agents) } }
-      : {}),
-  };
-}
-
-/** The reply, with every row made safe to render. Fields the modal only reads
- *  for a message (`reason`, `error`) keep their own optionality. */
-function asResp(v: unknown): CcusageResp {
-  const o = (v ?? {}) as Record<string, unknown>;
-  return {
-    ...o,
-    ok: o.ok === true,
-    days: Array.isArray(o.days) ? o.days.map(asDay) : undefined,
-  } as CcusageResp;
-}
-
-interface CcusageResp {
-  ok: boolean;
-  days?: DayEntry[];
-  totals?: Record<string, number> | null;
-  since?: string;
-  reason?: string;
-  error?: string;
-  fetchedAt?: number;
-}
-
-/** A landed response together with the preset it was requested for. The tag is
- *  what lets the view refuse to show one range's numbers under another's tab. */
-interface Landed { range: number; resp: CcusageResp; }
-
-// ── helpers ─────────────────────────────────────────────────────────────────
-/**
- * Stable per-model colour. Family-based so opus/sonnet/haiku/gpt read
- * consistently.
- *
- * A `var(--…)` string and not a hex, which is the whole of #583's first half.
- * These were eight literals chosen against the dark canvas — four of them
- * byte-identical to the dark theme's --accent, --ok, --warn and --err — and
- * because they are written into an inline `style` there is no selector the
- * stylesheet could add that would reach them: an inline style outranks the
- * cascade. On white they measured 1.40:1 to 2.56:1 against the modal's --panel,
- * every one under the 3:1 a bar in a bar chart owes SC 1.4.11.
- *
- * The boundary #330 drew for the session hues is the one that applies: this
- * function knows which model family a band is, the cascade knows which canvas
- * it is drawn on, and only one of those two should be deciding a lightness. So
- * the mapping stays here and the values live at :root, per theme, where a test
- * can compute them and a theme switch can answer them — which is exactly what
- * #357 did for --edge-transition, and legal in an inline style for the same
- * reason: `background: var(--usage-blue)` resolves against the element's own
- * computed custom properties.
- */
-function modelColor(m: string): string {
-  const s = m.toLowerCase();
-  if (s.includes("opus")) return "var(--usage-purple)";
-  if (s.includes("sonnet")) return "var(--usage-blue)";
-  if (s.includes("haiku")) return "var(--usage-green)";
-  if (s.includes("gpt-5") || s.includes("gpt5")) return "var(--usage-amber)";
-  if (s.includes("gpt")) return "var(--usage-red)";
-  if (s.includes("gemini")) return "var(--usage-indigo)";
-  if (s.includes("codex")) return "var(--usage-orange)";
-  return "var(--usage-zinc)";
-}
+import { selfPressProps } from "../panel-press";
+import { byCost, historyTotals, legendOf, modelColor, percentOf } from "../usage-history";
+// The ccusage run behind the chart, and the rules for which answer it keeps.
+import { useCcusage } from "../use-ccusage";
+import UsageDayDetail from "./UsageDayDetail";
 
 const PRESETS = [7, 14, 30, 90];
-
-// ── data hook ─────────────────────────────────────────────────────────────
-function useCcusage(rangeDays: number) {
-  const [landed, setLanded] = useState<Landed | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Responses can land out of order — a cached 7d range answers instantly while
-  // an uncached 90d one runs the CLI for seconds — so only the newest request
-  // is allowed to write data or clear `loading`.
-  // Seeded through a `useState` initialiser, not `useRef(createLatestGuard())`
-  // — that argument is re-evaluated on every render and all but the first
-  // guard is thrown away (#612).
-  const guard = useState(createLatestGuard)[0];
-
-  // The same fact as `loading`, readable without waiting for a render. Both ↻
-  // and Try again stay enabled while their own run is out (#620), so a second
-  // Enter reaches here and this is what refuses it. Only a forced run takes the
-  // lock, and every new request re-states who holds it: a range change starts
-  // an unforced load, which supersedes the forced one — whose `finally` will
-  // not fire under `isCurrent` any more — so it has to clear the lock itself
-  // rather than leave the ↻ dead for the life of the modal.
-  const busyRef = useRef(false);
-
-  const load = (force = false) => {
-    if (force && !selfPressAccepted(busyRef.current)) return;
-    const isCurrent = guard.begin();
-    busyRef.current = force;
-    const range = rangeDays;
-    setLoading(true);
-    const since = presetSince(range);
-    const url = `/api/ccusage?since=${since}${force ? "&refresh=1" : ""}`;
-    fetch(url)
-      .then(r => r.json())
-      .then(raw => { if (isCurrent()) setLanded({ range, resp: asResp(raw) }); })
-      // The deck itself never answered, which is a different failure from
-      // ccusage failing and the only one whose remedy is about the deck.
-      .catch(() => { if (isCurrent()) setLanded({ range, resp: { ok: false, reason: "unreachable" } }); })
-      .finally(() => { if (isCurrent()) { busyRef.current = false; setLoading(false); } });
-  };
-
-  useEffect(() => {
-    load(false);
-    return () => guard.cancel();
-    /* eslint-disable-next-line */
-  }, [rangeDays]);
-  return { landed, loading, reload: () => load(true) };
-}
 
 // ── component ─────────────────────────────────────────────────────────────
 interface Props {
@@ -273,25 +72,9 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   }, [days]);
 
   // Aggregate totals + per-model cost across the range.
-  const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => {
-    let totalCost = 0, totalTok = 0, inOut = 0, cacheRead = 0;
-    const modelCosts = new Map<string, number>();
-    for (const d of days) {
-      totalCost += d.totalCost;
-      totalTok  += d.totalTokens;
-      inOut     += d.inputTokens + d.outputTokens;
-      cacheRead += d.cacheReadTokens;
-      for (const mb of d.modelBreakdowns) {
-        modelCosts.set(mb.modelName, (modelCosts.get(mb.modelName) ?? 0) + mb.cost);
-      }
-    }
-    return { totalCost, totalTok, inOut, cacheRead, modelCosts };
-  }, [days]);
+  const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => historyTotals(days), [days]);
 
-  const legend = useMemo(
-    () => Array.from(modelCosts.entries()).sort((a, b) => b[1] - a[1]),
-    [modelCosts],
-  );
+  const legend = useMemo(() => legendOf(modelCosts), [modelCosts]);
 
   // Who spent it, across the whole range. Empty on a ccusage too old to answer
   // `--by-agent`, and one entry long on a machine that only runs one CLI —
@@ -457,7 +240,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     <span
                       key={a.id}
                       className="uh-agent-seg"
-                      style={{ width: `${totalCost > 0 ? (a.cost / totalCost) * 100 : 0}%`, background: agentColor(a.id) }}
+                      style={{ width: `${percentOf(a.cost, totalCost)}%`, background: agentColor(a.id) }}
                     />
                   ))}
                 </div>
@@ -498,7 +281,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 and leaves each day to speak for itself below. */}
             <div ref={chartRef} className="uh-chart" role="group" aria-label="Daily cost by model">
               {days.map((d, i) => {
-                const h = maxCost > 0 ? (d.totalCost / maxCost) * 100 : 0;
+                const h = percentOf(d.totalCost, maxCost);
                 const isSel = d.period === selected;
                 // The bar's only text is `06-14`, a day with no month and no
                 // figure. The tooltip has carried the whole answer all along;
@@ -536,19 +319,16 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     } as CSSProperties}
                   >
                     <div className="uh-bar" style={{ height: `${Math.max(h, d.totalCost > 0 ? 2 : 0)}%` }}>
-                      {d.modelBreakdowns
-                        .slice()
-                        .sort((a, b) => b.cost - a.cost)
-                        .map(mb => {
-                          const seg = d.totalCost > 0 ? (mb.cost / d.totalCost) * 100 : 0;
-                          return (
-                            <div
-                              key={mb.modelName}
-                              className="uh-bar-seg"
-                              style={{ height: `${seg}%`, background: modelColor(mb.modelName) }}
-                            />
-                          );
-                        })}
+                      {byCost(d.modelBreakdowns).map(mb => {
+                        const seg = percentOf(mb.cost, d.totalCost);
+                        return (
+                          <div
+                            key={mb.modelName}
+                            className="uh-bar-seg"
+                            style={{ height: `${seg}%`, background: modelColor(mb.modelName) }}
+                          />
+                        );
+                      })}
                     </div>
                     <span className="uh-bar-label">{d.period.slice(5)}</span>
                   </button>
@@ -573,70 +353,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               ))}
             </div>
 
-            {selectedDay && (
-              <div className="uh-detail">
-                <div className="uh-detail-head">
-                  <span className="uh-detail-date">{selectedDay.period}</span>
-                  <span className="uh-detail-cost">{fmtCost(selectedDay.totalCost)}</span>
-                  {/* Priced when this day ran more than one CLI, and the bare
-                      id list it has always shown otherwise. The fallback is not
-                      dead weight: `metadata.agents` arrives with or without
-                      `--by-agent`, so it is the only thing a ccusage too old
-                      for the flag can put here, and it is what a single-CLI day
-                      keeps — see dayAgentSummary for why one CLI gets no
-                      figure. The `title` carries the same text because this
-                      cell now ellipsises; the column is whatever the date and
-                      the cost leave of the row, which is roughly 88 monospace
-                      characters, and two named CLIs spend about thirty of them.
-                      #462 is the precedent — the model label overflowed a hard
-                      column here for exactly one build before anyone noticed,
-                      because nothing failed, it just wrapped. */}
-                  {(() => {
-                    const priced = dayAgentSummary(selectedDay.agents);
-                    const text = priced ?? (selectedDay.metadata?.agents?.length
-                      ? selectedDay.metadata.agents.join(" · ")
-                      : null);
-                    return text ? <span className="uh-detail-agents" title={text}>{text}</span> : null;
-                  })()}
-                </div>
-                <div className="uh-detail-mini">
-                  <MiniStat label="input"       val={fmtTokens(selectedDay.inputTokens)} />
-                  <MiniStat label="output"      val={fmtTokens(selectedDay.outputTokens)} />
-                  <MiniStat label="cache write" val={fmtTokens(selectedDay.cacheCreationTokens)} />
-                  <MiniStat label="cache read"  val={fmtTokens(selectedDay.cacheReadTokens)} />
-                </div>
-                <div className="uh-detail-models">
-                  {selectedDay.modelBreakdowns
-                    .slice()
-                    .sort((a, b) => b.cost - a.cost)
-                    .map(mb => {
-                      const pct = selectedDay.totalCost > 0 ? (mb.cost / selectedDay.totalCost) * 100 : 0;
-                      return (
-                        <div key={mb.modelName} className="uh-model-row" title={mb.modelName}>
-                          <span className="uh-model-name">
-                            <span className="uh-legend-dot" style={{ background: modelColor(mb.modelName) }} />
-                            {/* The label is in a span of its own so it can
-                                ellipsise: this column is a hard 130px and the
-                                text used to be an anonymous flex item, which
-                                `text-overflow` cannot reach — a label wider than
-                                the column wrapped onto a second line and pushed
-                                the bar out of the row. Nothing in the known
-                                corpus is that wide (see model-label.ts), and the
-                                point is that the next qualifier to arrive
-                                degrades to an ellipsis over a `title` rather
-                                than to a broken row. */}
-                            <span className="uh-model-label">{shortModel(mb.modelName)}</span>
-                          </span>
-                          <span className="uh-model-bar">
-                            <span className="uh-model-bar-fill" style={{ width: `${pct}%`, background: modelColor(mb.modelName) }} />
-                          </span>
-                          <span className="uh-model-cost">{fmtCost(mb.cost)}</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
+            {selectedDay && <UsageDayDetail selectedDay={selectedDay} />}
           </div>
         )}
       </div>
@@ -649,14 +366,6 @@ function Stat({ label, val, accent }: { label: string; val: string; accent?: boo
     <div className="uh-stat">
       <span className={`uh-stat-val${accent ? " accent" : ""}`}>{val}</span>
       <span className="uh-stat-label">{label}</span>
-    </div>
-  );
-}
-function MiniStat({ label, val }: { label: string; val: string }) {
-  return (
-    <div className="uh-ministat">
-      <span className="uh-ministat-val">{val}</span>
-      <span className="uh-ministat-label">{label}</span>
     </div>
   );
 }

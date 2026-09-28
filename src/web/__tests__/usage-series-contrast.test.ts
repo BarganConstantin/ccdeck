@@ -57,6 +57,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
+import { USAGE_HISTORY_FILES } from "./usage-history-surface";
+
 const web = fileURLToPath(new URL("..", import.meta.url));
 
 /** Comments quote the very declarations this file asserts are gone, so every
@@ -100,6 +102,10 @@ function sourceOf(name: string): string {
   return hit.src;
 }
 const historySrc = sourceOf("UsageHistoryModal.tsx");
+/** The modal's rows and the colour each model is drawn in, lifted out of it. */
+const historyRowsSrc = sourceOf("usage-history.ts");
+/** The selected day's breakdown, lifted out of the modal. */
+const dayDetailSrc = sourceOf("UsageDayDetail.tsx");
 const agentsSrc = sourceOf("usage-agents.ts");
 
 /** WCAG 1.4.3 for a word, 1.4.11 for a graphic that carries meaning. */
@@ -248,10 +254,10 @@ function functionBody(src: string, name: string): string {
 const returnsOf = (src: string, name: string) =>
   [...functionBody(src, name).matchAll(/return\s+"([^"]*)"/g)].map(m => m[1]);
 
-/** The eight, as UsageHistoryModal writes them — read out of the source rather
+/** The eight, as modelColor writes them — read out of the source rather
  *  than restated here, so a ninth model family lands in every sweep below on
  *  the day it is added rather than on the day somebody remembers this file. */
-const MODEL_COLOURS = returnsOf(historySrc, "modelColor");
+const MODEL_COLOURS = returnsOf(historyRowsSrc, "modelColor");
 const AGENT_COLOURS = returnsOf(agentsSrc, "agentColor");
 const SERIES = [...new Set([...MODEL_COLOURS, ...AGENT_COLOURS])];
 
@@ -360,7 +366,7 @@ describe("the eight colours answer the theme now, and still say which model they
     // The family test is the thing the cascade cannot do — there is no selector
     // for "the model name contains sonnet". What moved is the value, not the
     // decision, which is exactly the boundary #330 drew for the session hues.
-    expect(historySrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--usage-blue\)"/);
+    expect(historyRowsSrc).toMatch(/s\.includes\("sonnet"\)\) return "var\(--usage-blue\)"/);
     expect(agentsSrc).toMatch(/case "codex": return "var\(--usage-orange\)"/);
   });
 
@@ -504,7 +510,7 @@ describe("no two bands are told apart by luminance, which is why there is a hair
     // breakdown panel prints the same list in words. The bar is the one place
     // colour stood alone, and the cut is where the fix belongs.
     expect(historySrc).toMatch(/<span className="uh-legend-dot"[^>]*\/>\s*\n\s*\{shortModel\(m\)\}/);
-    expect(historySrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
+    expect(dayDetailSrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
   });
 });
 
@@ -757,7 +763,8 @@ describe("the sweep that could not see a .tsx literal, which is why none of this
     // deck's. If this number collapses, the scanner broke and every assertion
     // below went vacuous with it.
     expect(INLINE.length).toBeGreaterThanOrEqual(10);
-    const modal = INLINE.filter(c => isModule(c.file, "UsageHistoryModal.tsx"));
+    // The modal and every file lifted out of it: the day's breakdown draws two.
+    const modal = INLINE.filter(c => USAGE_HISTORY_FILES.some(f => isModule(c.file, f)));
     expect(modal.length).toBe(6);
     expect(new Set(modal.map(c => c.prop))).toEqual(new Set(["background"]));
   });
