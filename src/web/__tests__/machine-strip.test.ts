@@ -698,6 +698,11 @@ describe("the server publishes a key for every series", () => {
     // re-checks.
     expect(metrics).toContain('const swapLabel = process.platform === "win32" ? "Commit" : "Swap"');
     const body = metrics.slice(metrics.indexOf("function seriesFor"), metrics.indexOf("export function historySnapshot"));
+    // seriesFor hands each section to a builder of its own, and the count
+    // below is only a count of every series while all of them sit inside it.
+    for (const builder of ["thermalSeries", "coreSeries", "memorySeries", "loadSeries", "networkSeries"]) {
+      expect(body, `${builder} is outside the text counted here`).toContain(`function ${builder}(`);
+    }
     // Counted over `restsAtZero`, which the Series type requires of every
     // series and which nothing else in the function has. Counting `label`
     // instead was the first version and it counted seven for six: the
