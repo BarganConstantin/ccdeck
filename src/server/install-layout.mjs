@@ -17,11 +17,12 @@ import { join } from "node:path";
 /** A package directory's own manifest, or null when there is not one worth
  *  reading there.
  *
- *  Shared by everything below that asks a directory who it is, so the three
- *  callers cannot drift on what a missing, truncated or non-object package.json
- *  means. A JSON document is not necessarily an object — `null`, `"ccdeck"` and
- *  `[]` all parse — and a manifest that is not an object has no fields to read,
- *  so it is refused here once rather than guarded against three times. */
+ *  Shared by everything below that asks a directory who it is — the npx cache
+ *  directory's record of the spec included — so its callers cannot drift on
+ *  what a missing, truncated or non-object package.json means. A JSON document
+ *  is not necessarily an object — `null`, `"ccdeck"` and `[]` all parse — and a
+ *  manifest that is not an object has no fields to read, so it is refused here
+ *  once rather than guarded against at every caller. */
 function readManifest(dir) {
   try {
     const meta = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
@@ -147,9 +148,7 @@ export function npxSpecFromMeta(meta, fallback = PUBLISHED_NAME) {
 export function npxRestartSpec(pkgRoot, name = PUBLISHED_NAME) {
   const root = npxRoot(pkgRoot);
   if (!root) return null;
-  let meta = null;
-  try { meta = JSON.parse(readFileSync(join(root, "package.json"), "utf8")); } catch { /* fall back to the name */ }
-  return npxSpecFromMeta(meta, name);
+  return npxSpecFromMeta(readManifest(root), name);
 }
 
 // ── the package that installed us ────────────────────────────────────────────

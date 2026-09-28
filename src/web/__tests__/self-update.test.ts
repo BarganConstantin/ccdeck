@@ -394,6 +394,43 @@ describe("npxSpecFromMeta", () => {
   });
 });
 
+describe("npxRestartSpec", () => {
+  // The cache directory's package.json goes through readManifest, the one reader
+  // install-layout.mjs asks every directory with, so a record that is truncated
+  // or parses to something other than an object answers exactly what a missing
+  // one does: the fallback, or null for a caller that passed none.
+  it("reads the spec npm recorded, and answers the fallback for a record it cannot use", async () => {
+    const { npxRestartSpec } = await import("../../server/self-update.mjs") as unknown as {
+      npxRestartSpec: (pkgRoot: string, name?: string | null) => string | null;
+    };
+    const sandbox = mkdtempSync(join(tmpdir(), "ccdeck-npx-record-"));
+    try {
+      const cache = (hash: string, text: string | null) => {
+        const root = join(sandbox, "_npx", hash);
+        const pkgRoot = join(root, "node_modules", "ccdeck");
+        mkdirSync(pkgRoot, { recursive: true });
+        if (text !== null) writeFileSync(join(root, "package.json"), text);
+        return pkgRoot;
+      };
+      const typed = cache("ok", JSON.stringify({ _npx: { packages: ["agent-dag@1.2.3"] } }));
+      expect(npxRestartSpec(typed)).toBe("agent-dag@latest");
+      expect(npxRestartSpec(typed, null)).toBe("agent-dag@latest");
+      for (const [hash, text] of [
+        ["missing", null], ["truncated", '{"_npx": {"packages": ["agent-'],
+        ["null", "null"], ["string", '"ccdeck"'], ["array", "[]"], ["number", "7"],
+      ] as const) {
+        const pkgRoot = cache(hash, text);
+        expect(npxRestartSpec(pkgRoot), hash).toBe("ccdeck@latest");
+        expect(npxRestartSpec(pkgRoot, null), hash).toBeNull();
+      }
+      // Not an npx run at all: nothing to re-run, whatever the fallback.
+      expect(npxRestartSpec(join(sandbox, "lib", "node_modules", "ccdeck"))).toBeNull();
+    } finally {
+      rmTempDir(sandbox);
+    }
+  });
+});
+
 // Reported live: a deck started with `npx ccdeck` answered
 // `{"name":"agents-deck","latest":"1.33.26","command":"npx -y ccdeck@latest"}`.
 // The version came from one package's dist-tag and the command installed
