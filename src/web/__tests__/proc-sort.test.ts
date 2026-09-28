@@ -25,7 +25,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parsePsProcesses, pickCandidates } from "../../server/system-metrics.mjs";
+import { parsePsProcesses, pickCandidates } from "../../server/process-list.mjs";
 import {
   ariaSort, nextSort, sortProcs,
   SORT_DEFAULT, type Proc, type Sort,
