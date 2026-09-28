@@ -4,7 +4,6 @@
 // another deck's port to prove it is the deck its discovery record describes;
 // that moved to deck-probe.mjs, and the client half went with it.
 import { createServer } from "node:http";
-import { readFile, readdir, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
@@ -47,6 +46,9 @@ import { handleHealth } from "./health-route.mjs";
 // and still is.
 import { handleHookChallenge, hookToken } from "./hook-challenge.mjs";
 export { hookToken };
+// The discovery records of decks that have died, swept once at boot — see
+// stale-discovery.mjs.
+import { sweepStaleDiscovery } from "./stale-discovery.mjs";
 // Which tree this deck captures and which CLIs it watches, set once below —
 // see deck-scope.mjs.
 import { deckProviders, deckWorkspace, setDeckScope } from "./deck-scope.mjs";
@@ -71,7 +73,7 @@ import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdate
 // and still are.
 import { canonicalCwd } from "./canonical-path.mjs";
 export { canonicalCwd, canonicalWorkspace } from "./canonical-path.mjs";
-import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
+import { ccProjectSlug } from "./claude-dir.mjs";
 // Moved to claude-dir.mjs so the Projects rollup can read transcript folders
 // without importing this file; re-exported under the name it always had.
 export { ccProjectSlug };
@@ -152,26 +154,6 @@ export { pinRunningBuild } from "./pinned-build.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
-
-async function sweepStaleDiscovery() {
-  // Same directory the installer writes and the hooks read — see claude-dir.mjs.
-  const dir = join(claudeConfigDir(), "agent-dag");
-  let files;
-  try { files = await readdir(dir); } catch { return 0; }
-  let removed = 0;
-  for (const f of files) {
-    if (!f.endsWith(".json")) continue;
-    const p = join(dir, f);
-    try {
-      const d = JSON.parse(await readFile(p, "utf8"));
-      if (d && typeof d.pid === "number" && !isProcessAlive(d.pid)) {
-        await unlink(p).catch(() => {});
-        removed++;
-      }
-    } catch { /* corrupt — leave it */ }
-  }
-  return removed;
-}
 
 // Parse a request target into a URL, or null when it cannot be parsed.
 //
