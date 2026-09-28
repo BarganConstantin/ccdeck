@@ -418,10 +418,11 @@ describe("which deck --stop ends", () => {
 
   it("carries the supervisor's pid in the record, or the ladder has no parent", () => {
     expect(DECK).toContain("parent: SUPERVISED ? process.ppid : null,");
-    const installer = readFileSync(
-      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    // The record is written in discovery.mjs, which moved out of installer.mjs.
+    const discovery = readFileSync(
+      fileURLToPath(new URL("../../server/discovery.mjs", import.meta.url)), "utf8",
     );
-    expect(installer).toContain("parent: Number.isInteger(parent) ? parent : null,");
+    expect(discovery).toContain("parent: Number.isInteger(parent) ? parent : null,");
   });
 
   it("can end a deck that is not supervised, unlike restarting one", () => {
