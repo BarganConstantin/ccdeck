@@ -435,9 +435,9 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
  * carried tail, for a retry that starts the output over under the next
  * spelling.
  *
- * Exported for its test. Three fakes in the suite restate this rule by hand
- * to stand in for runInteractive, so it is pinned by running it rather than
- * by reading it.
+ * Exported for its test, and for the three fakes in the suite that stand in
+ * for runInteractive and cut their output with it rather than with a copy of
+ * the rule — so it is pinned by running it rather than by reading it.
  */
 export function lineFeed(subs) {
   let pending = "";           // partial line carried between chunks

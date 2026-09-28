@@ -8,9 +8,9 @@
 // "Paste code here if prompted > " sees it without waiting for a newline that
 // never comes.
 //
-// Three fakes in this suite restate that rule by hand to stand in for
-// runInteractive (cswap-admin, login-completes-itself-708,
-// restore-active-verdict-951). This runs the one they copy.
+// Three fakes in this suite stand in for runInteractive (cswap-admin,
+// login-completes-itself-708, restore-active-verdict-951), and each cuts its
+// output with this same function rather than a copy of its rule. This runs it.
 import { describe, it, expect } from "vitest";
 
 // @ts-expect-error — .mjs server module, no types
