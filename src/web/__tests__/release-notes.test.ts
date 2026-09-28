@@ -814,10 +814,11 @@ describe("how App.tsx wires it up", () => {
   // (the pure rules) would be asking the wrong file. The slices taken by indexOf
   // land in the hook's half, where the decision effect is.
   // The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
-  // So is use-dialogs.ts, which hands the notes and the tour to the modal gate.
+  // So are use-dialogs.ts, which hands the notes and the tour to the modal gate,
+  // and components/DeckDialogs.tsx, which mounts the dialog and the tour.
   const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts") + "\n" + src("../components/EmptyHero.tsx")
     + "\n" + src("../components/VersionChip.tsx") + "\n" + src("../components/VersionBanner.tsx")
-    + "\n" + src("../use-dialogs.ts");
+    + "\n" + src("../use-dialogs.ts") + "\n" + src("../components/DeckDialogs.tsx");
   const modal = src("../components/ReleaseNotesModal.tsx");
 
   it("decides from the version the SERVER is running, not the bundle's", () => {
@@ -992,6 +993,9 @@ describe("how App.tsx wires it up", () => {
     // reader is on.
     expect(app).toMatch(/const chipVersion = version\?\.running \?\? __APP_VERSION__;/);
     expect(app).toMatch(/running=\{chipVersion\}/);
+    // The dialog is mounted in components/DeckDialogs.tsx, which App.tsx hands
+    // the welcome hook whole, chipVersion with it.
+    expect(src("../App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bwelcome=\{welcome\}/);
   });
 
   it("draws the dialog out of the shared modal parts and nothing else", () => {

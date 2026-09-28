@@ -1,21 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
 import { usePanelPresence, isMounted } from "./panel-exit";
-import ToolModal from "./components/ToolModal";
 import BoardFlow from "./components/BoardFlow";
-import SessionSummary from "./components/SessionSummary";
-import ContextModal from "./components/ContextModal";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import ClearConfirm from "./components/ClearConfirm";
-import KeyboardHelp from "./components/KeyboardHelp";
-import GuideModal from "./components/GuideModal";
-import { WELCOME_STEPS } from "./components/guide-art";
-import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -48,6 +40,7 @@ import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
+import DeckDialogs from "./components/DeckDialogs";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
@@ -75,19 +68,11 @@ import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { readStored, writeStored } from "./storage";
 import { PRODUCT } from "./brand";
 import { blockedSessions } from "./ambient-counts";
-// Loaded when they open (#883). Both are opened rarely and each is a large
-// file; imported here, they were in the one bundle every reload and every deck
-// opened from another machine had to fetch before drawing anything. The topbar
-// needs only Browser Watch's unseen count, which lives in browser-watch-seen.
-const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
-const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
-import { LanPairRequests } from "./components/LanPairRequestModal";
 import { initialState } from "./reducer";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
-import { updateRestartFailureText } from "./desktop-update";
 import { createChimePlayer } from "./chime-player";
 
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
@@ -255,8 +240,8 @@ function Inner() {
   // Everything about the desktop app's own updater — its state, the press rule
   // behind Restart to update, and the stream event that releases a press — is in
   // use-desktop-update.ts. `live` drives the read on every (re)connect.
-  const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate,
-          askDesktopUpdateRestart, onDesktopUpdateEvent } = useDesktopUpdate(live);
+  const desktopUpdate = useDesktopUpdate(live);
+  const { readyAppUpdate, onDesktopUpdateEvent } = desktopUpdate;
   desktopUpdateRef.current = onDesktopUpdateEvent;
 
   // Telling the server somebody is looking at this deck lives in
@@ -267,8 +252,8 @@ function Inner() {
   // comes before it the first time: when each one opens, the notes an upgrade
   // holds back until the tour is closed, and the version chip's way back to
   // them. All of it, closing included, is in use-welcome-and-notes.ts.
-  const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion,
-          openReleaseNotes } = useWelcomeAndNotes({ version, readyAppUpdate });
+  const welcome = useWelcomeAndNotes({ version, readyAppUpdate });
+  const { tourOpen, openTour, releaseNotes, chipVersion, openReleaseNotes } = welcome;
 
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
@@ -286,12 +271,12 @@ function Inner() {
   // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
   // the gate the keys ask before reaching past one: use-dialogs.ts.
   const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
-  const { setOpenedToolKey, openTool, openedTool, summaryFor, setSummaryFor, setContextFor, openContext,
-          contextAgent, keyHelpOpen, setKeyHelpOpen, usageHistoryOpen, setUsageHistoryOpen,
-          browserWatchOpen, setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
+  const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
+          setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
   // the reader last looked — lives in use-browser-watch-badge.ts.
-  const { watchOn, setWatchOn, watchUnseen, markWatchSeen } = useBrowserWatchBadge();
+  const watchBadge = useBrowserWatchBadge();
+  const { watchOn, watchUnseen } = watchBadge;
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
@@ -462,9 +447,10 @@ function Inner() {
   // which needs to know whether the detail panel is mounted.
 
   // Clear, the confirmation it waits on, and the one door to it — use-clear-flow.ts.
-  const { clearConfirmOpen, setClearConfirmOpen, requestClear } = useClearFlow({
+  const clearFlow = useClearFlow({
     stateRef, pinnedRef, measuredRef, positionsRef, lastLayoutSigRef, forgetRemovals, clearSelection, rerender, modalOpenRef,
   });
+  const { requestClear } = clearFlow;
 
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.
@@ -565,7 +551,8 @@ function Inner() {
   useTabAmbient({ stateRef, waitingSessions, live });
   // Said aloud for a screen reader: that a session is waiting on you, and that
   // Browser Watch has something unread — in use-live-announcements.ts.
-  const { blockedSaid, watchSaid, setWatchSaid } = useLiveAnnouncements({ waitingSessions, watchUnseen });
+  const announcements = useLiveAnnouncements({ waitingSessions, watchUnseen });
+  const { blockedSaid, watchSaid } = announcements;
 
   // OS notifications for a session that is waiting on you: the permission, the
   // switch, asking for it, and what has already been raised — in
@@ -928,109 +915,12 @@ function Inner() {
         />
       ) : null}
 
-      {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
-      {/* `providers` is what the modal's subtitle falls back to until a ccusage
-          run has said whose logs are actually in the figures (#431). It is not
-          a gate: ccusage reads the logs on this machine rather than this deck's
-          flags, so a deck started with --no-codex can still be shown Codex
-          spend, and the subtitle follows the data when there is any. */}
-      {usageHistoryOpen && (
-        <Suspense fallback={null}>
-          <UsageHistoryModal providers={providers} onClose={() => setUsageHistoryOpen(false)} />
-        </Suspense>
-      )}
-      {browserWatchOpen && (
-        <Suspense fallback={null}>
-        <BrowserWatchModal
-          onClose={() => setBrowserWatchOpen(false)}
-          onSeen={ms => {
-            // The reader has just looked, so the count falling to nothing is
-            // their own doing and not news: the region goes back to the silence
-            // it starts in rather than telling them "no unread findings" about
-            // the list they were reading. Only the reducer's all-clear is
-            // skipped — the next finding still speaks, because "" is the state
-            // a first announcement is made from.
-            setWatchSaid("");
-            markWatchSeen(ms);
-          }}
-          /* The switch lives in the dialog and the eye lives up here, reading a
-             five-minute poll. Without this the eye stays lit for up to five
-             minutes after the watch is turned off — the one control whose whole
-             job is to be true at a glance, lying. */
-          onWatching={setWatchOn}
-          palette={palette}
-        />
-        </Suspense>
-      )}
-      {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
-      {summaryFor && (
-        <SessionSummary
-          state={stateRef.current}
-          sessionId={summaryFor}
-          onClose={() => setSummaryFor(null)}
-        />
-      )}
-      {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
-          dialog that arrives on its own belongs: it must not paint over the one
-          waiting for an answer, and the stack in modal-dismiss.ts settles Esc
-          the same way round. */}
-      {releaseNotes && (
-        <ReleaseNotesModal
-          entries={releaseNotes.entries}
-          since={releaseNotes.since}
-          /* Both are null-on-a-browse, and they are not the same thing: a first
-             run is the deck announcing one release to somebody who has never
-             seen any of them, and its first line has to say so (#717). */
-          firstRun={releaseNotes.firstRun}
-          /* The same number the chip wears, and defaulted the same way, so the
-             dialog's first line and the chip that opened it cannot disagree
-             about which release the reader is on. */
-          running={chipVersion}
-          onClose={closeReleaseNotes}
-          onTour={() => { closeReleaseNotes(); openTour(); }}
-          updateVersion={readyAppUpdate?.version}
-          updateBusy={desktopUpdateRestarting}
-          /* Said until the next press. A failure for a version the app has
-             since replaced is about nothing that is on offer any more, so it
-             goes when a different one is ready. */
-          updateFailure={desktopUpdateFailure
-            && (!readyAppUpdate || readyAppUpdate.version === desktopUpdateFailure.version)
-            ? updateRestartFailureText(desktopUpdateFailure.failure, desktopUpdateFailure.version)
-            : undefined}
-          onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
-          /* Only where the server would do it: an unsupervised deck answers
-             501 and one without a writable log 409, and the button is not
-             offered for either (#1163). */
-          onRestart={!readyAppUpdate && version?.canRestart ? () => { closeReleaseNotes(); void askRestart(); } : undefined}
-        />
-      )}
-      {/* After the release notes and before the clear prompt. Both of those
-          also arrive without being asked for, and the order between them is
-          the order of what they want: a question that is holding another
-          machine up outranks an announcement about this one, and neither
-          outranks the prompt somebody is standing in front of deciding
-          whether to truncate a log. */}
-      <LanPairRequests {...lanPairs} />
-      {/* Before the clear prompt and after everything else, which is where a
-          reference belongs: it may paint over a tool inspector somebody opened
-          the sheet on top of, and it must not paint over the one dialog that is
-          waiting for an answer. Escape agrees with the paint order — the prompt
-          carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
-          before arrival. */}
-      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} onTour={() => { setKeyHelpOpen(false); openTour(); }} />}
-      {tourOpen && (
-        <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={closeTour} />
-      )}
-      {/* Last, so it sits above a session summary that pops in from a Stop
-          hook while the user is still deciding. The gate keeps it from opening
-          over a modal, but a modal can still arrive over it. */}
-      {clearConfirmOpen && (
-        <ClearConfirm
-          agentCount={agentCount}
-          onConfirm={() => requestClear("confirmation")}
-          onCancel={() => setClearConfirmOpen(false)}
-        />
-      )}
+      {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
+      <DeckDialogs
+        dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
+        lanPairs={lanPairs} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
+        appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
+      />
     </div>
   );
 }

@@ -139,7 +139,7 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   );
 }
 
-/** What App.tsx mounts: the request to ask about now, if any — the oldest not
+/** What DeckDialogs mounts: the request to ask about now, if any — the oldest not
  *  put off this session, see nextRequest — with its answers wired to the hook
  *  that holds them (use-lan-pair-requests.ts). Moved out of App.tsx's markup,
  *  where it was an inline function, unchanged. */

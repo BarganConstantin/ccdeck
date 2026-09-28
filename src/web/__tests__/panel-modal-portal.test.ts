@@ -10,7 +10,9 @@
 // answered it with a portal. This pins the rule the two findings add up to: a
 // dialog mounted anywhere but App.tsx — the top of the tree, where no panel
 // sits above it — renders through createPortal into <body>, so no panel's
-// layout can reach its backdrop.
+// layout can reach its backdrop. App.tsx's own dialogs are mounted from
+// components/DeckDialogs.tsx, which is the same place: a fragment App.tsx draws
+// as the last thing in `.app`.
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -20,9 +22,14 @@ const components = readdirSync(dir)
   .filter(f => f.endsWith(".tsx"))
   .map(f => [f.replace(/\.tsx$/, ""), readFileSync(`${dir}/${f}`, "utf8")] as const);
 
-/** The components that mount `name`, App.tsx aside — it is not in this folder. */
+/** App.tsx's dialog stack, moved into a file: it mounts from the top of the
+ *  tree, which the last case below holds it to. */
+const TOP_OF_TREE = new Set(["DeckDialogs"]);
+
+/** The components that mount `name`, App.tsx aside — it is not in this folder —
+ *  and the stack it mounts at the top of the tree. */
 const mountedFrom = (name: string) => components
-  .filter(([other, src]) => other !== name && new RegExp(`<${name}\\b`).test(src))
+  .filter(([other, src]) => other !== name && !TOP_OF_TREE.has(other) && new RegExp(`<${name}\\b`).test(src))
   .map(([other]) => other);
 
 describe("a dialog opened from inside a panel is not laid out by it", () => {
@@ -50,6 +57,18 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       const portalled = /return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="[a-z-]*backdrop"[\s\S]*?,\s*document\.body,?\s*\);/.test(src);
       expect(`${name}: ${portalled}`).toBe(`${name}: true`);
     }
+  });
+
+  it("counts the dialog stack as the top of the tree only while it is", () => {
+    // A fragment, drawn by App.tsx as the last child of `.app`: no panel sits
+    // above anything it mounts. Wrapped in an element, or mounted from inside
+    // a panel, it would no longer be the top of the tree, and the dialogs in it
+    // would have to be swept like the rest.
+    const [, stack] = components.find(([name]) => name === "DeckDialogs")!;
+    expect(stack).toMatch(/return \(\s*<>\n/);
+    expect(stack).toMatch(/\n {4}<\/>\n {2}\);\n\}\n$/);
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(app).toMatch(/\n {6}<DeckDialogs\b[^>]*\/>\n {4}<\/div>\n {2}\);\n\}\n$/);
   });
 
   it("still has the panel rule that made this necessary", () => {

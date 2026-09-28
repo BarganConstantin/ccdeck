@@ -303,8 +303,10 @@ const sources: Array<[string, string]> = clientSources(web)
   .map(p => [p.slice(web.length).replaceAll("\\", "/"), readFileSync(p, "utf8")]);
 
 const boardUsage = read("board-usage.ts");
-// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-const app = code(read("App.tsx")) + "\n" + code(read("use-deck-shortcuts.ts"));
+// The keydown handler moved to use-deck-shortcuts.ts, and the dialogs App.tsx
+// mounts to components/DeckDialogs.tsx; the keys and the rest of the deck are read as one.
+const app = code(read("App.tsx")) + "\n" + code(read("use-deck-shortcuts.ts"))
+  + "\n" + code(read("components/DeckDialogs.tsx"));
 const panel = code(read("components/UsagePanel.tsx"));
 /** The panel's board figures, lifted out of it into a hook of their own. */
 const spend = code(read("use-board-spend.ts"));
@@ -362,6 +364,7 @@ describe("the label lives in the same module as the sum", () => {
     expect(BOARD_SCOPE_TITLE).toMatch(/\bH\b/);
     expect(app).toContain(`if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);`);
     expect(app).toContain("<UsageHistoryModal");
+    expect(code(read("App.tsx"))).toContain("<DeckDialogs");
 
     // The strip's numbers add up both CLIs, so the sentence attached to them
     // may name neither — the same rule codex-copy.test.ts holds the tooltips to.

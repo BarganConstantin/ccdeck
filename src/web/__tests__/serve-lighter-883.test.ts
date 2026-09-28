@@ -73,11 +73,16 @@ describe("the static handler sends them (#883)", () => {
 });
 
 describe("the rarely opened dialogs load when they open (#883)", () => {
+  // Both are mounted in components/DeckDialogs.tsx, which App.tsx imports
+  // eagerly, so the lazy imports are there and the negatives read both files.
+  const dialogs = read("../components/DeckDialogs.tsx");
+
   it("lazy-loads Browser Watch and the usage history", () => {
-    expect(app).toMatch(/const BrowserWatchModal = lazy\(\(\) => import\("\.\/components\/BrowserWatchModal"\)\);/);
-    expect(app).toMatch(/const UsageHistoryModal = lazy\(\(\) => import\("\.\/components\/UsageHistoryModal"\)\);/);
-    expect(app).not.toMatch(/^import BrowserWatchModal\b/m);
-    expect(app).not.toMatch(/^import UsageHistoryModal\b/m);
+    expect(dialogs).toMatch(/const BrowserWatchModal = lazy\(\(\) => import\("\.\/BrowserWatchModal"\)\);/);
+    expect(dialogs).toMatch(/const UsageHistoryModal = lazy\(\(\) => import\("\.\/UsageHistoryModal"\)\);/);
+    expect(app).toMatch(/^import DeckDialogs from "\.\/components\/DeckDialogs";$/m);
+    expect(app + "\n" + dialogs).not.toMatch(/^import BrowserWatchModal\b/m);
+    expect(app + "\n" + dialogs).not.toMatch(/^import UsageHistoryModal\b/m);
   });
 
   it("takes the topbar's unseen count from a module that does not carry the dialog", () => {
@@ -92,7 +97,7 @@ describe("the rarely opened dialogs load when they open (#883)", () => {
   });
 
   it("gives each a Suspense boundary, drawing nothing while the chunk arrives", () => {
-    expect(app).toMatch(/<Suspense fallback=\{null\}>\s*<UsageHistoryModal /);
-    expect(app).toMatch(/<Suspense fallback=\{null\}>\s*<BrowserWatchModal/);
+    expect(dialogs).toMatch(/<Suspense fallback=\{null\}>\s*<UsageHistoryModal /);
+    expect(dialogs).toMatch(/<Suspense fallback=\{null\}>\s*<BrowserWatchModal/);
   });
 });
