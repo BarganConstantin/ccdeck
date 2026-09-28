@@ -320,7 +320,7 @@ describe("what the column folds, and when it does not", () => {
     expect(fold).not.toMatch(/ap-nav-glyph/);
     expect(css).toMatch(/\.ap-rest \.ap-nav \{ gap: 0; \}/);
     // Local network keeps its own: it is the row that goes somewhere.
-    expect(read("../components/LanSyncSection.tsx")).toMatch(/className="ap-nav-glyph"/);
+    expect(read("../components/LanEntryRow.tsx")).toMatch(/className="ap-nav-glyph"/);
   });
 
   it("puts a wider gap over the fold than under it, so the two rows read as one group", () => {

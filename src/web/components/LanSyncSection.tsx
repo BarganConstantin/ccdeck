@@ -38,14 +38,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { checkedLabel, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
 import type { LanAccount, LanTailscale } from "../lan-types";
-import { PEEK_DELAY_MS, useHoverPeek } from "../use-hover-peek";
+import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import { useRowUnpair } from "../use-row-unpair";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
 import LanDeckList from "./LanDeckList";
-import LanPeek from "./LanPeek";
+import LanEntryRow from "./LanEntryRow";
 import LanPeerModal from "./LanPeerModal";
 import LanReachNote from "./LanReachNote";
 import LanSetupModal from "./LanSetupModal";
@@ -111,7 +111,8 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  off, and the word under an empty list — never from a flag. */
   const [guideOpen, setGuideOpen] = useState(false);
   // The peek beside the way-in row, and the one timer that opens and shuts it.
-  const { peek, openPeek, shutPeek, holdPeek, dropPeek } = useHoverPeek();
+  // Held here rather than in the row, which the view takes away with it.
+  const hoverPeek = useHoverPeek();
   /** Whether the decks that are not on are showing. Shut by default and kept
    *  for the session only: which decks are off changes while you watch, and a
    *  remembered fold would be about a list that no longer exists. */
@@ -248,50 +249,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   if (!view) {
     return (
       <div className="ap-foot">
-        <button type="button" id="ap-lan-entry" className="ap-nav"
-          onClick={() => { dropPeek(); onOpen(); }}
-          // Described by the card while the card is there, so a screen reader
-          // on this row is read the same names a pointer is shown.
-          aria-describedby={peek ? "ap-lan-peek" : undefined}
-          // A mouse only. Touch has no hover, and a pointerenter synthesised by
-          // a tap would open a card the tap is already replacing with the view.
-          onPointerEnter={e => { if (e.pointerType === "mouse") openPeek(PEEK_DELAY_MS); }}
-          onPointerLeave={shutPeek}
-          // A KEYBOARD'S FOCUS, NOT EVERY FOCUS. The keyboard is owed what the
-          // pointer is shown, which is the whole of hover's a11y debt — but
-          // `Back` hands focus to this row programmatically, and that hand-back
-          // is not somebody asking to see the card. It opened one anyway, with
-          // the pointer up in the header where Back was, and it stayed open
-          // because nothing was ever going to blur or leave it. `:focus-visible`
-          // is the browser's own answer to which of the two happened.
-          onFocus={e => { if (e.target.matches(":focus-visible")) openPeek(0); }}
-          // AND NO ESCAPE HANDLER. Escape is for a surface a reader is stuck
-          // inside; this one holds no focus, takes no pointer and covers
-          // nothing that can be pressed — there is nothing to escape from, and
-          // App.tsx stays the only place in this app that reads that key.
-          onBlur={shutPeek}>
-          <svg className="ap-nav-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-            strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <rect x="1.8" y="2.3" width="10.4" height="7.2" rx="1.2" />
-            <path d="M5 11.9h4M7 9.5v2.4" />
-          </svg>
-          <span className="ap-nav-text">
-            <span className="ap-nav-name">Local network</span>
-            <span className="ap-nav-state" data-tone={entry.tone}>
-              {/* The mark, before the count, and only while somebody is there:
-                  `online` is a word in the muted tier, read by whoever is
-                  already reading the row, and a glance wants the same dot the
-                  machines inside wear. */}
-              {entry.live && <i className="ap-nav-live" aria-hidden />}
-              {entry.text}
-            </span>
-          </span>
-          <svg className="ap-nav-chev" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-            strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
-          </svg>
-        </button>
-        {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} onHold={holdPeek} onLet={shutPeek} />}
+        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} {...hoverPeek} />
         <p className="vis-hidden" role="status">{state.tone === "ok" ? "" : state.text}</p>
         {modals}
       </div>

@@ -32,6 +32,7 @@ export const LAN_SECTION_FILES = [
   "components/LanPeek.tsx",
   "use-hover-peek.ts",
   "use-row-unpair.ts",
+  "components/LanEntryRow.tsx",
 ] as const;
 
 let joined: string | null = null;
