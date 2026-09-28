@@ -14,7 +14,8 @@ import { cacheControlFor, encodedBody, pickEncoding } from "../../server/static-
 import { clientText, sourceOf } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const server = read("../../server/index.mjs");
+// The static handler, which serves the page and its assets.
+const server = read("../../server/static-serve.mjs");
 const app = read("../App.tsx");
 
 describe("the deck's own files are cached by what they are (#883)", () => {

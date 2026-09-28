@@ -4,8 +4,8 @@
 // another deck's port to prove it is the deck its discovery record describes;
 // that moved to deck-probe.mjs, and the client half went with it.
 import { createServer } from "node:http";
-import { readFile, stat, readdir, unlink } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
+import { readFile, readdir, unlink } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
 // Moved out to a leaf so that a one-shot `ccdeck --stop`, the boot-path module
@@ -30,6 +30,9 @@ export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars };
 import { dropSse, notifyTrays, pageCount, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
 // Exported from this file before they moved, and still.
 export { MAX_CLIENT_BUFFER_BYTES, queuedBytes } from "./sse-clients.mjs";
+// The built page and its assets, with the SPA fallback for everything else —
+// see static-serve.mjs. The route table hands it every GET nothing above took.
+import { serveStatic } from "./static-serve.mjs";
 // The desktop app's update as its window sees it — the state the app reports
 // and the window's answers relayed back to it. See desktop-update-routes.mjs.
 import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
@@ -132,30 +135,11 @@ export { pinRunningBuild } from "./pinned-build.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
-const WEB_DIST = resolve(PKG_ROOT, "dist", "web");
 
 // The modules that emit synthetic events send them here. pushEvent is a
 // function declaration, so it already exists as this line runs, and nothing
 // emits until a request or a timer startServer arms asks it to.
 connectEventSink(pushEvent);
-
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js":   "application/javascript; charset=utf-8",
-  ".mjs":  "application/javascript; charset=utf-8",
-  ".css":  "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg":  "image/svg+xml",
-  // The type is the whole of how a browser recognises a manifest: served as
-  // application/octet-stream — which is what the fallback below hands anything
-  // unlisted — Chrome fetches it, declines to parse it, and offers no install,
-  // with nothing in the console that names the reason.
-  ".webmanifest": "application/manifest+json; charset=utf-8",
-  ".png":  "image/png",
-  ".jpg":  "image/jpeg",
-  ".woff2": "font/woff2",
-  ".map":  "application/json",
-};
 
 // ─── The event ring buffer ─────────────────────────────────────────────────
 // Its two bounds, MAX_BUFFER and MAX_BUFFER_CHARS, and the charge an event is
@@ -764,50 +748,6 @@ export async function writeJsonArray(res, items) {
   }
   if (res.destroyed) return;
   res.end(frame === "[" ? "[]" : "]");
-}
-
-import { cacheControlFor, encodedBody, pickEncoding } from "./static-cache.mjs";
-
-async function serveStatic(req, res, url) {
-  // Strip leading slash, default to index.html
-  let rel = url.pathname.replace(/^\/+/, "");
-  if (rel === "" || rel.endsWith("/")) rel = `${rel}index.html`;
-  const filePath = join(WEB_DIST, rel);
-  if (!filePath.startsWith(WEB_DIST)) return send(res, 403, { error: "forbidden" });
-
-  try {
-    const s = await stat(filePath);
-    if (s.isDirectory()) return send(res, 404, { error: "not found" });
-    const buf = await readFile(filePath);
-    const ext = extname(filePath).toLowerCase();
-    // Compressed when the browser takes it, and cached for good when the name
-    // is a content hash (#883) — see static-cache.mjs. `rel` is the URL's own
-    // spelling, forward slashes on every platform, which is what the hash
-    // pattern reads; `filePath` is only the cache key.
-    const encoding = pickEncoding(req.headers["accept-encoding"], ext);
-    const body = encoding ? encodedBody(filePath, s.mtimeMs, buf, encoding) : buf;
-    res.writeHead(200, {
-      "Content-Type": MIME[ext] ?? "application/octet-stream",
-      "Cache-Control": cacheControlFor(rel),
-      "Vary": "Accept-Encoding",
-      "Content-Length": body.length,
-      ...(encoding ? { "Content-Encoding": encoding } : {}),
-    });
-    res.end(body);
-  } catch {
-    // SPA fallback to index.html for client-side routes
-    try {
-      const idx = await readFile(join(WEB_DIST, "index.html"));
-      // Same no-cache as the normal path above, which this used to omit. It
-      // matters more since the deck upgrades itself: index.html is the file
-      // naming the hashed bundle, so a heuristically-cached copy sends the tab
-      // back to the OLD assets after an update and the reload achieves nothing.
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
-      res.end(idx);
-    } catch {
-      send(res, 404, { error: "ui not built. run `pnpm build` or `npm run build`." });
-    }
-  }
 }
 
 // `persist` is false when the hook posted this event to another deck as well
