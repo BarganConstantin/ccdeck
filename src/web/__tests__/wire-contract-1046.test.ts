@@ -28,7 +28,9 @@ const types = read("../types.ts");
 // session-tracking.mjs.
 const server = read("../../server/index.mjs") + "\n" + read("../../server/session-enrichment.mjs")
   + "\n" + read("../../server/session-tracking.mjs");
-const quota = read("../../server/quota.mjs");
+// The OAuth body is mapped to the route's shape in quota-shape.mjs, lifted out
+// of quota.mjs with the other pure mappings.
+const quota = read("../../server/quota-shape.mjs");
 const selfUpdate = read("../../server/self-update.mjs");
 // The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.
 const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx");

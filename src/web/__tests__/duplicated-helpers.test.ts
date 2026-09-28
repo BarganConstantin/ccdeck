@@ -31,6 +31,7 @@ import type { CostBreakdown } from "../pricing";
 import type { ToolCall } from "../types";
 import { accountsSurface } from "./accounts-surface";
 import { usageSurface } from "./usage-surface";
+import { quotaSurface } from "./quota-surface";
 import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -61,7 +62,9 @@ const toolModal = src("../components/ToolModal.tsx");
 const costBarSrc = src("../components/CostBar.tsx");
 const cswapInstall = src("../../server/cswap-install.mjs");
 const codexQuota = src("../../server/codex-quota.mjs");
-const quota = src("../../server/quota.mjs");
+// The mapping that renders a reset label moved out of quota.mjs into
+// quota-shape.mjs; the sweeps below read quota.mjs and what left it.
+const quotaShape = src("../../server/quota-shape.mjs");
 
 // ── 1. the token formatter #323 missed ──────────────────────────────────────
 
@@ -586,7 +589,7 @@ describe("when a quota window resets", () => {
       month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
     }).replace(",", "").toLowerCase().replace(/\s+am/, "am").replace(/\s+pm/, "pm");
   }
-  /** quota.mjs's `fmtResetIso`, restated — the rendering that was kept. */
+  /** quota-shape.mjs's `fmtResetIso`, restated — the rendering that was kept. */
   function claudeCopy(iso: string): string | null {
     if (!iso) return null;
     const d = new Date(iso);
@@ -655,9 +658,9 @@ describe("when a quota window resets", () => {
   });
 
   it("is read from one module by both quota sources", () => {
-    expect(quota).toMatch(/import \{ resetLabelIso \} from "\.\/reset-label\.mjs";/);
+    expect(quotaShape).toMatch(/import \{ resetLabelIso \} from "\.\/reset-label\.mjs";/);
     expect(codexQuota).toMatch(/import \{ resetLabel \} from "\.\/reset-label\.mjs";/);
-    for (const [name, text] of [["quota.mjs", quota], ["codex-quota.mjs", codexQuota]] as const) {
+    for (const [name, text] of [["quota.mjs and the files lifted out of it", quotaSurface()], ["codex-quota.mjs", codexQuota]] as const) {
       expect(code(text), name).not.toMatch(/toLocaleString\("en-US"/);
       expect(code(text), name).not.toMatch(/hour12: true/);
     }
@@ -678,7 +681,7 @@ describe("the shapes these helpers replaced", () => {
     ["CostBar.tsx", costBarSrc],
     ["cswap-install.mjs", cswapInstall],
     ["codex-quota.mjs", codexQuota],
-    ["quota.mjs", quota],
+    ["quota.mjs and the files lifted out of it", quotaSurface()],
   ].map(([n, t]) => [n, code(t)]);
 
   it("appear in none of the files they were removed from", () => {
