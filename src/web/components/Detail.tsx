@@ -6,7 +6,7 @@
 import React from "react";
 
 import CostBar from "./CostBar";
-import { mcpChipIdentity } from "./ToolBursts";
+import { mcpChipIdentity } from "../tool-skin";
 import { DETAIL_CAT_EMOJI, DETAIL_CAT_LABEL, detailCategoryFor, type DetailCategory } from "../detail-category";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place

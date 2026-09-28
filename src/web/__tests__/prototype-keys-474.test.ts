@@ -29,7 +29,7 @@
 //
 // Plain node, no DOM: the bubbles come from `collectBursts`, which is the pure
 // function the canvas layer calls, and the rest are pure functions called
-// directly. Nothing here renders. The tables that live inside `ToolBursts.tsx`
+// directly. Nothing here renders. The tables that live inside `tool-skin.ts`
 // as module-private literals are swept by reading the file, which is how
 // export-surface-383.test.ts reaches TOOL_EMOJI too — no export exists here for
 // a test's sake. Every path is built from `import.meta.url`, and no assertion
@@ -38,7 +38,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts, cutLabel, cutSubLabel } from "../components/ToolBursts";
+import { collectBursts } from "../components/ToolBursts";
+import { cutLabel, cutSubLabel } from "../tool-skin";
 import { categoryFor, CODEX_TOOL_EMOJI, TOOL_CATEGORY, type ToolCategory } from "../tool-taxonomy";
 import { agentLabel } from "../provider-copy";
 import {
@@ -47,7 +48,9 @@ import {
 } from "../admin-failure";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const TOOL_BURSTS = src("../components/ToolBursts.tsx");
+// The bubbles' tables, lifted out of components/ToolBursts.tsx with the skin code
+// that reads them.
+const TOOL_SKIN = src("../tool-skin.ts");
 const APP = src("../App.tsx");
 
 /** The names an object literal answers without having a row for them. */
@@ -90,14 +93,14 @@ function bubbles(name: string, input?: unknown) {
   return { primary: all.find(b => !b.isSub)!, sub: all.find(b => b.isSub) };
 }
 
-/** The rows of one `const NAME … = { … };` literal in ToolBursts.tsx, as
+/** The rows of one `const NAME … = { … };` literal in tool-skin.ts, as
  *  [key, value] pairs. Whole-line comments go first, so a sentence in the prose
  *  above a row cannot be read as a row. Keys are matched in both spellings the
  *  file uses — bare and quoted — and several rows per line are matched, which is
  *  how COMMAND_EMOJI is written. */
 function rowsOf(table: string): [string, string][] {
-  const block = new RegExp(`const ${table}[^=]*= \\{([\\s\\S]*?)^\\};`, "m").exec(TOOL_BURSTS);
-  if (!block) throw new Error(`${table} is no longer a literal in ToolBursts.tsx`);
+  const block = new RegExp(`const ${table}[^=]*= \\{([\\s\\S]*?)^\\};`, "m").exec(TOOL_SKIN);
+  if (!block) throw new Error(`${table} is no longer a literal in tool-skin.ts`);
   const body = block[1].split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n");
   return [...body.matchAll(/(?:([A-Za-z_$][\w$]*)|"([^"]+)")\s*:\s*"([^"]*)"/g)]
     .map(m => [m[1] ?? m[2], m[3]] as [string, string]);
@@ -105,8 +108,8 @@ function rowsOf(table: string): [string, string][] {
 
 /** MCP_SERVERS holds an object per row rather than a string. */
 function mcpServerRows(): [string, { emoji: string; name: string }][] {
-  const block = /const MCP_SERVERS[^=]*= \{([\s\S]*?)^\};/m.exec(TOOL_BURSTS);
-  if (!block) throw new Error("MCP_SERVERS is no longer a literal in ToolBursts.tsx");
+  const block = /const MCP_SERVERS[^=]*= \{([\s\S]*?)^\};/m.exec(TOOL_SKIN);
+  if (!block) throw new Error("MCP_SERVERS is no longer a literal in tool-skin.ts");
   const body = block[1].split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n");
   return [...body.matchAll(/(?:([A-Za-z_$][\w$]*)|"([^"]+)")\s*:\s*\{\s*emoji:\s*"([^"]+)",\s*name:\s*"([^"]+)"\s*\}/g)]
     .map(m => [m[1] ?? m[2], { emoji: m[3], name: m[4] }] as [string, { emoji: string; name: string }]);

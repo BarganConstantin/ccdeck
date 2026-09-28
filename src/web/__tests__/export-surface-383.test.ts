@@ -208,8 +208,9 @@ describe("the TOOL_CATEGORY rows that mapped a name to the default", () => {
     // schedule family somebody meant to give its own bucket. That record is in
     // TOOL_EMOJI, where the names have real values rather than the default, so
     // removing the category rows loses nothing a reader was relying on.
-    const toolBursts = src(WEB, "components/ToolBursts.tsx");
-    const block = /const TOOL_EMOJI[^=]*= \{([\s\S]*?)^\};/m.exec(toolBursts);
+    // TOOL_EMOJI left components/ToolBursts.tsx with the rest of the bubbles' skin.
+    const toolSkin = src(WEB, "tool-skin.ts");
+    const block = /const TOOL_EMOJI[^=]*= \{([\s\S]*?)^\};/m.exec(toolSkin);
     expect(block, "TOOL_EMOJI is no longer a literal").toBeTruthy();
     for (const name of NO_OP_ROWS) {
       expect(block![1], `${name} lost its emoji too`).toMatch(new RegExp(`\\b${name}:\\s*"`));

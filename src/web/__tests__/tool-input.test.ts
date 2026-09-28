@@ -35,7 +35,7 @@ describe("what a person is shown", () => {
   });
 
   it("joins an argv array rather than unwrapping the interpreter", () => {
-    // Unwrapping is skin work — ToolBursts does it to pick an emoji. A human
+    // Unwrapping is skin work — tool-skin.ts does it to pick an emoji. A human
     // reading the whole line has still been told what is about to run.
     expect(salientInput({ command: ["powershell.exe", "-NoProfile", "-Command", "git status"] }))
       .toBe("powershell.exe -NoProfile -Command git status");
