@@ -3,17 +3,17 @@
 //
 // Only a `Notification` raises a block, and it names nobody — no agent, no tool
 // — so who asked, and about what, are read off the calls still in flight when it
-// lands. Everything else the session does is weighed by `clearsWaiting` on the
-// way into `applyEvent`, except the transcript scans in `WAITING_KEEPERS`.
-import { explicitSubagentKey } from "./agent-attribution";
-import { subagentIdFor, type GraphState } from "./graph-state";
+// lands. Everything else the session does is weighed by `clearAnsweredWaiting`
+// on the way into `applyEvent`, except the transcript scans in `WAITING_KEEPERS`.
+import { ensureRoot, explicitSubagentKey } from "./agent-attribution";
+import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { salientInput } from "./tool-input";
 import type { BlockedTool, HookPayload, ToolCall, WaitingBlock } from "./types";
 
 /** The two `notification_type` values Claude Code emits, as the chore each one
  *  actually is. Anything else is a kind nobody here has seen and would have no
  *  wording for, so it sets no block rather than a badge that says nothing. */
-export function waitingKind(notificationType: unknown): WaitingBlock["kind"] | null {
+function waitingKind(notificationType: unknown): WaitingBlock["kind"] | null {
   if (notificationType === "permission_prompt") return "permission";
   // The agent asked a question and stopped for the answer, and the message
   // carries the question itself — "ccdeck needs your input: which improvements
@@ -38,7 +38,7 @@ export function waitingKind(notificationType: unknown): WaitingBlock["kind"] | n
  *  ever survive long enough to be read. Everything else — a prompt, a tool call,
  *  a subagent, a Stop — is the session moving again; `clearsWaiting` below
  *  decides whether that movement is also evidence the HUMAN moved. */
-export const WAITING_KEEPERS = new Set([
+const WAITING_KEEPERS = new Set([
   "Notification", "ModelObserved", "ContextObserved", "UsageObserved",
   // Same story, fourth scanner: SessionNamed comes off the transcript cursor,
   // not off session traffic. A session parked on a permission prompt is exactly
@@ -149,7 +149,7 @@ function blockedToolOf(call: ToolCall | null, now: number): BlockedTool | undefi
  *  nobody underneath it. The field is left off entirely rather than set to
  *  undefined so a block with no subagent behind it is the same object it has
  *  always been. */
-export function waitingBlock(
+function waitingBlock(
   state: GraphState, sessionId: string, kind: WaitingBlock["kind"], message: string, now: number,
 ): WaitingBlock {
   // An idle block is the session's input box sitting empty. There is no call
@@ -189,7 +189,7 @@ export function waitingBlock(
  *    sidebar and prints "waiting 3m", and printing that over a session whose
  *    subagents are visibly working is the lie worth avoiding.
  */
-export function clearsWaiting(w: WaitingBlock, p: HookPayload, sessionId: string): boolean {
+function clearsWaiting(w: WaitingBlock, p: HookPayload, sessionId: string): boolean {
   // `idle` is the only kind ANY traffic falsifies. The other two are claims
   // that a specific agent is stopped until a human answers, so they need the
   // narrow rule below — an `asked` block wiped by a sibling subagent's tool
@@ -207,4 +207,52 @@ export function clearsWaiting(w: WaitingBlock, p: HookPayload, sessionId: string
   // denied. Siblings, and every subagent when the root is the one asking, leave
   // it standing.
   return w.subagentId != null && subagentIdFor(sessionId, key) === w.subagentId;
+}
+
+/** Take the session's waiting block down when this event is evidence the human
+ *  answered it: any event but a keeper, judged by `clearsWaiting`. */
+export function clearAnsweredWaiting(state: GraphState, name: string, p: HookPayload, sessionId: string): void {
+  if (!WAITING_KEEPERS.has(name)) {
+    const blocked = state.agents.get(rootAgentId(sessionId));
+    if (blocked?.waiting && clearsWaiting(blocked.waiting, p, sessionId)) blocked.waiting = null;
+  }
+}
+
+/** A `Notification`: the session is blocked on its human, and this is the one
+ *  event that raises the block. Kept at the earliest `since` and the first
+ *  copy's attribution however many copies arrive. */
+export function applyNotification(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
+  // The deck has always received these and always dropped them, which is
+  // why "which of the five agents is stuck on me" was the one question the
+  // canvas could not answer. Two kinds arrive and both mean the session is
+  // blocked on a human; nothing else in the payload is worth keeping (the
+  // `model.subsSig` blob alone runs to ~5KB, and there is no tool_name, no
+  // tool_input and no tool_use_id to say what the block is ON).
+  const kind = waitingKind(p.notification_type);
+  if (!kind) return;
+  // Straight to the root the way Stop does, never through resolveOwner:
+  // that function exists to attribute tool traffic to the deepest live
+  // subagent and would hang the badge on whichever Task happened to be
+  // running. The payload names no subagent, and the block is on the session
+  // as a whole in any case.
+  const root = ensureRoot(state, sessionId, now, false);
+  const message = typeof p.message === "string" ? p.message : "";
+  const prev = root.waiting;
+  // One notification is delivered more than once — a copy per deck sharing
+  // events.jsonl, plus the whole history again on every tab that opens —
+  // and each copy carries its own seq, so the seq/epoch guard lets it
+  // through. Re-stamping `since` would restart the "waiting 4m" readout
+  // every time a duplicate landed. Math.min rather than "keep whichever
+  // arrived first" so a copy delivered out of order settles on the same
+  // answer: order-independence is this reducer's stated contract.
+  //
+  // A duplicate keeps the attribution the first copy computed, for the same
+  // reason it keeps the earliest `since`: the block belongs to the moment it
+  // was raised, and a copy landing later sees a session that has moved on —
+  // the blocked call may have settled by then, leaving nothing in flight to
+  // read. Re-deriving per copy would let a re-delivery quietly widen or
+  // narrow what is allowed to clear the block.
+  root.waiting = prev && prev.kind === kind && prev.message === message
+    ? { ...prev, since: Math.min(prev.since, now) }
+    : waitingBlock(state, sessionId, kind, message, now);
 }

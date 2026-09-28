@@ -1,7 +1,7 @@
 // Event → graph reducer. Pure-ish: same events in any order = same end state.
 import { extractModel } from "./payload-model";
-import { initialState, rootAgentId, type GraphState } from "./graph-state";
-import { ensureRoot, resolveOwner } from "./agent-attribution";
+import { initialState, type GraphState } from "./graph-state";
+import { resolveOwner } from "./agent-attribution";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome } from "./tool-calls";
@@ -9,7 +9,7 @@ import {
   applyContextObserved, applyModelObserved, applyOutputObserved, applySessionNamed, applySessionRecapped,
   applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
-import { clearsWaiting, WAITING_KEEPERS, waitingBlock, waitingKind } from "./waiting-block";
+import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
 import type { HookEnvelope } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
@@ -81,10 +81,7 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // subagent's tool call carries the root's session_id and used to land here as
   // the session "moving again", which erased the alarm while the human was still
   // being asked. `clearsWaiting` holds that rule.
-  if (!WAITING_KEEPERS.has(name)) {
-    const blocked = state.agents.get(rootAgentId(sessionId));
-    if (blocked?.waiting && clearsWaiting(blocked.waiting, p, sessionId)) blocked.waiting = null;
-  }
+  clearAnsweredWaiting(state, name, p, sessionId);
 
   // Note that we heard from this session, which is a different question from
   // what the event says. It runs above the branches on purpose: the three
@@ -134,42 +131,7 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     case "SubagentStop": applySubagentStop(state, p, sessionId, now); break;
     case "Stop":
     case "SessionEnd": applyTurnEnd(state, name, sessionId, now); break;
-    case "Notification": {
-      // The deck has always received these and always dropped them, which is
-      // why "which of the five agents is stuck on me" was the one question the
-      // canvas could not answer. Two kinds arrive and both mean the session is
-      // blocked on a human; nothing else in the payload is worth keeping (the
-      // `model.subsSig` blob alone runs to ~5KB, and there is no tool_name, no
-      // tool_input and no tool_use_id to say what the block is ON).
-      const kind = waitingKind(p.notification_type);
-      if (!kind) break;
-      // Straight to the root the way Stop does, never through resolveOwner:
-      // that function exists to attribute tool traffic to the deepest live
-      // subagent and would hang the badge on whichever Task happened to be
-      // running. The payload names no subagent, and the block is on the session
-      // as a whole in any case.
-      const root = ensureRoot(state, sessionId, now, false);
-      const message = typeof p.message === "string" ? p.message : "";
-      const prev = root.waiting;
-      // One notification is delivered more than once — a copy per deck sharing
-      // events.jsonl, plus the whole history again on every tab that opens —
-      // and each copy carries its own seq, so the seq/epoch guard lets it
-      // through. Re-stamping `since` would restart the "waiting 4m" readout
-      // every time a duplicate landed. Math.min rather than "keep whichever
-      // arrived first" so a copy delivered out of order settles on the same
-      // answer: order-independence is this reducer's stated contract.
-      //
-      // A duplicate keeps the attribution the first copy computed, for the same
-      // reason it keeps the earliest `since`: the block belongs to the moment it
-      // was raised, and a copy landing later sees a session that has moved on —
-      // the blocked call may have settled by then, leaving nothing in flight to
-      // read. Re-deriving per copy would let a re-delivery quietly widen or
-      // narrow what is allowed to clear the block.
-      root.waiting = prev && prev.kind === kind && prev.message === message
-        ? { ...prev, since: Math.min(prev.since, now) }
-        : waitingBlock(state, sessionId, kind, message, now);
-      break;
-    }
+    case "Notification": applyNotification(state, p, sessionId, now); break;
   }
 
   return state;
