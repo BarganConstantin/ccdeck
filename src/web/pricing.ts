@@ -608,6 +608,15 @@ export function costForUsage(
  *  of them has to be able to tell that they say the same thing. */
 export const UNPRICED_LABEL = "not priced";
 
+/** `value` rounded to `digits` places, as fmtCost prints it — or null when the
+ *  rounding carries it up to `limit`, where the next tier starts. Judged on the
+ *  rounded string rather than the raw value, because the string is what is
+ *  printed. */
+function roundedUnder(value: number, digits: number, limit: number): string | null {
+  const text = value.toFixed(digits);
+  return Number(text) < limit ? text : null;
+}
+
 export function fmtCost(usd: number): string {
   if (usd <= 0) return "—";
   if (usd < 0.005) return "<1¢";
@@ -615,19 +624,19 @@ export function fmtCost(usd: number): string {
     // Rounding can carry the cents past a full dollar ($0.996 → "100¢"), so
     // check the rounded string rather than the raw value and fall through to
     // the dollar branch when it does.
-    const cents = (usd * 100).toFixed(usd < 0.1 ? 1 : 0);
-    if (Number(cents) < 100) return `${cents}¢`;
+    const cents = roundedUnder(usd * 100, usd < 0.1 ? 1 : 0, 100);
+    if (cents !== null) return `${cents}¢`;
   }
   // The same carry at the next two boundaries (#1173): $99.995 rounds to
   // "100.00" where the next tier prints "$100", and $9,999.50 to "10000" where
   // it prints "$10.0k". Same fix as the cents: judge the rounded string.
   if (usd < 100) {
-    const dollars = usd.toFixed(2);
-    if (Number(dollars) < 100) return `$${dollars}`;
+    const dollars = roundedUnder(usd, 2, 100);
+    if (dollars !== null) return `$${dollars}`;
   }
   if (usd < 10_000) {
-    const whole = usd.toFixed(0);
-    if (Number(whole) < 10_000) return `$${whole}`;
+    const whole = roundedUnder(usd, 0, 10_000);
+    if (whole !== null) return `$${whole}`;
   }
   return `$${(usd / 1000).toFixed(1)}k`;
 }
