@@ -282,13 +282,13 @@ describe("a press never disables the control it came from (#518)", () => {
 
   it("is spelled once, and every control in the panel reads it", () => {
     expect(clientText()).toMatch(/const pressProps = \(tag: string, working = false\) => \{/);
-    // Nothing goes inert any other way. `.ap-fix` in the empty state is the one
-    // control still on `disabled={reloading}` and is deliberately untouched:
-    // #518 names it as out of scope, and it is the only control on screen in
-    // that branch, so there is nothing for a busy lock to protect it from.
+    // Nothing goes inert any other way. `.ap-fix` in the empty state was the
+    // one control left on `disabled={reloading}` — #518 named it out of scope,
+    // as the only control on screen in that branch — until #1411 found it
+    // dropping focus the same way, and it takes the ↻'s two attributes now.
     const disabled = [...surfaceCode.matchAll(/disabled=\{([^}]*)\}/g)].map(m => m[1]);
-    expect(disabled).toEqual(["reloading"]);
-    expect(panelCode).toMatch(/className="ap-fix" disabled=\{reloading\}/);
+    expect(disabled).toEqual([]);
+    expect(panelCode).toMatch(/className="ap-fix" \{\.\.\.pressProps\("reload", reloading\)\}/);
     // Every request-bearing control takes the same two attributes.
     const spread = [...surfaceCode.matchAll(/\{\.\.\.pressProps\(([^)]*)\)\}/g)].map(m => m[1]);
     expect(spread.length).toBeGreaterThanOrEqual(9);
@@ -298,9 +298,10 @@ describe("a press never disables the control it came from (#518)", () => {
   });
 
   it("hands focus on only where the press takes its own control away", () => {
-    // Three of the four sites unmount rather than disable, and no busy
-    // mechanism can help with that: `switch` becomes the `active` marker,
-    // `remove` takes the row, and a slot move re-mounts the block a row over.
+    // Four sites unmount rather than disable, and no busy mechanism can help
+    // with that: `switch` becomes the `active` marker, `remove` takes the row,
+    // a slot move re-mounts the block a row over, and the empty state's retry
+    // is replaced by the roster it brought in (#1411).
     expect(rescueSelectors(3)).toEqual(["#ap-more-3", ".accounts-panel .ap-refresh"]);
     expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
     // Both targets are real, named controls in the panel rather than a
@@ -316,12 +317,13 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(focusDropped("BUTTON")).toBe(false);
     expect(focusDropped("INPUT")).toBe(false);
     expect(panelCode).toMatch(/if \(!focusDropped\(document\.activeElement\?\.tagName \?\? null\)\) return;/);
-    // Exactly the three sites that unmount, and no others: a rescue on a press
+    // Exactly the four sites that unmount, and no others: a rescue on a press
     // that kept its control would take focus off it for no reason.
-    expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(3);
-    // The switch's is the panel's; the move's and the remove's went to the
-    // menu's hook with the requests that make them.
+    expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(4);
+    // The switch's and the retry's are the panel's; the move's and the
+    // remove's went to the menu's hook with the requests that make them.
     expect(panelCode).toMatch(/rescueFocus\(num\);/);
+    expect(panelCode).toMatch(/onClick=\{\(\) => load\(true\)\.then\(\(\) => rescueFocus\(null\)\)\}/);
     expect(accountMenuCode).toMatch(/rescueFocus\(next\.menuFor\);/);
     expect(accountMenuCode).toMatch(/rescueFocus\(null\);/);
   });

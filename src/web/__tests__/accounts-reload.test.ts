@@ -245,6 +245,8 @@ describe("the panel's reload path", () => {
   it("gives the empty state something to say and a way out of it", () => {
     expect(panel).toMatch(/data == null \? \(\s*failure \?/);
     expect(panel).toMatch(/<div className="ap-empty" role="alert">/);
-    expect(panel).toMatch(/className="ap-fix" disabled=\{reloading\} onClick=\{\(\) => load\(true\)\}/);
+    // The way out is a reload that says it is working and does not disable
+    // itself on the way (#1411) — see retry-focus-1411.test.ts.
+    expect(panel).toMatch(/className="ap-fix" \{\.\.\.pressProps\("reload", reloading\)\}\s*onClick=\{\(\) => load\(true\)/);
   });
 });

@@ -210,20 +210,20 @@ describe("no control in the client disables itself on press (#620)", () => {
   });
 
   it("lets no busy flag reach a `disabled`, anywhere", () => {
+    // No exclusions. `.ap-fix` in the accounts panel's empty state was the one
+    // #518 named out of scope, pinned here so that lifting it would be a
+    // decision; #1411 made it — the retry dropped focus like every other
+    // control that disabled itself — and it takes the rule now.
     const rogue = disabledSites()
       .filter(s => INFLIGHT.test(s.expr))
-      // `.ap-fix` in the accounts panel's empty state is the one deliberate
-      // exclusion: #518 named it out of scope and row-state-press.test.ts pins
-      // it with a written rationale. It is left exactly as it was.
-      .filter(s => !(s.rel === "components/AccountsPanel.tsx" && s.text.includes('className="ap-fix"')))
       .map(s => `${s.rel}:${s.line} disabled={${s.expr}}`);
     expect(rogue).toEqual([]);
   });
 
-  it("keeps the pinned exclusion pinned, so removing it is a decision", () => {
-    const fix = disabledSites().filter(s => s.rel === "components/AccountsPanel.tsx" && INFLIGHT.test(s.expr));
-    expect(fix.map(s => s.expr)).toEqual(["reloading"]);
-    expect(fix[0].text).toContain('className="ap-fix"');
+  it("has no exclusion left: the empty state's retry takes the rule too (#1411)", () => {
+    const panel = SOURCES.find(s => s.rel === "components/AccountsPanel.tsx")!;
+    expect(disabledSites().filter(s => s.rel === panel.rel && INFLIGHT.test(s.expr))).toEqual([]);
+    expect(panel.code).toMatch(/className="ap-fix" \{\.\.\.pressProps\("reload", reloading\)\}/);
   });
 
   it("does not let the flag move into the second argument instead", () => {
