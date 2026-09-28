@@ -521,7 +521,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     // reached for one — and the automatic ask skips it too.
     expect(SERVER_ENGINE).toMatch(/mayAsk && !had && !declined\.has\(entry\.fp\)/);
     // And `mayAsk` is the switch for the route the deck was heard on.
-    expect(SERVER_ENGINE).toMatch(/const mayAsk = asksOn\(entry\.via\)/);
+    expect(SERVER_ENGINE).toMatch(/const mayAsk = asksOn\(cfg, entry\.via\)/);
     expect(readFileSync(
       fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8",
     )).toMatch(/if \(declined\(peerFp\)\) return refuse\("declined"\)/);

@@ -214,6 +214,19 @@ export function ticksOnArrival(step, via) {
 }
 
 /**
+ * The two permissions that answer for one route.
+ *
+ * READ OFF WHICHEVER SETTINGS ARE ASKED ABOUT, because two places ask. A beacon
+ * or a request asks of the settings in force; `apply` asks of the settings
+ * before a write and after it, to tell which switch the write turned on. The
+ * second used to spell the same conditions out again as its own pair, and a
+ * switch read one way here and another way there would answer a request in
+ * one place and leave it waiting in the other.
+ */
+export const asksOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
+export const saysYesOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
+
+/**
  * One deck's LAN sync, from settings to a healed account.
  *
  * `deps` is every side effect: reading accounts, exporting one, importing one.
@@ -485,10 +498,6 @@ export function createEngine({
     return true;
   };
 
-  /** The two permissions that answer for one route. */
-  const asksOn = via => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
-  const saysYesOn = via => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
-
   /**
    * Read the tailnet on a timer while the switch is on, and not at all while it
    * is off — the read at start covers telling a tailnet address from a local
@@ -723,7 +732,7 @@ export function createEngine({
     const via = route ? "tailscale" : "lan";
     const own = !!route?.own;
     pending.set(entry.fp, { ...entry, via, own, at: had?.at ?? now(), lastAt: now() });
-    if (!wasUnpaired(entry.fp) && saysYesOn(via) && (via === "lan" || own)) {
+    if (!wasUnpaired(entry.fp) && saysYesOn(cfg, via) && (via === "lan" || own)) {
       engine?.accept(entry.fp, { byHand: false });
       return;
     }
@@ -1196,14 +1205,12 @@ export function createEngine({
       // PER ROUTE, because each pair of switches answers for its own: turning
       // the local one on does not answer a tailnet request, and turning the
       // Tailscale one on answers only the owner's own machines.
-      const yes = c => ({ lan: c.pairingMode !== "invite" && !!c.autoAccept, tailscale: c.pairingMode !== "invite" && !!c.tailscale && c.tailscaleAccept !== false });
-      const ask = c => ({ lan: c.pairingMode !== "invite" && !!c.autoAsk, tailscale: c.pairingMode !== "invite" && !!c.tailscale && c.tailscaleAsk !== false });
-      const turnedOn = (f, via) => !f(was)[via] && f(cfg)[via];
-      const mayAnswer = p => (p.via === "tailscale" ? turnedOn(yes, "tailscale") && p.own : turnedOn(yes, "lan"));
+      const turnedOn = (f, via) => !f(was, via) && f(cfg, via);
+      const mayAnswer = p => (p.via === "tailscale" ? turnedOn(saysYesOn, "tailscale") && p.own : turnedOn(saysYesOn, "lan"));
       for (const [fp, p] of [...pending]) if (!wasUnpaired(fp) && mayAnswer(p)) this.accept(fp, { byHand: false });
       // The same for the other direction: switching `ask` on with four machines
       // already listed asks those four.
-      const mayAsk = p => (p.via === "tailscale" ? turnedOn(ask, "tailscale") && p.own : turnedOn(ask, "lan"));
+      const mayAsk = p => (p.via === "tailscale" ? turnedOn(asksOn, "tailscale") && p.own : turnedOn(asksOn, "lan"));
       for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !wasUnpaired(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
       // OFF MEANS THE TAILNET GOES QUIET HERE: nobody heard over it is offered,
       // and syncTailnet stops the reads. Decks already paired stay paired.
@@ -1336,7 +1343,7 @@ export function createEngine({
           // named, and the row it leaves may ask rather than pin.
           // Over the tailnet only a machine on this person's own account is
           // asked unprompted; any other is a row for somebody to decide on.
-          const mayAsk = asksOn(entry.via) && (entry.via !== "tailscale" || own);
+          const mayAsk = asksOn(cfg, entry.via) && (entry.via !== "tailscale" || own);
           if (mayAsk && !had && !declined.has(entry.fp) && !wasUnpaired(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
           // Only a deck that is new to us is news. A beacon every thirty
           // seconds from one already on the list is not a reason to redraw.
