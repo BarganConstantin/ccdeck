@@ -122,8 +122,8 @@ const commandsOf = (entry) =>
  * The last two segments are fixed whatever the prefix is — the install
  * directory is always `<config dir>/agent-dag` — and they contain no character
  * any quoting rewrites. Case is folded where the filesystem folds it, which is
- * the other half: `exec.mjs`'s own `sameCommand` lowercases "because Windows
- * paths are", and this comparison did not.
+ * the other half: exec-not-found.mjs's own `sameCommand` lowercases "because
+ * Windows paths are", and this comparison did not.
  */
 const SCRIPT_TAILS = ["agent-dag/notify.mjs", "agent-dag/notify.js"];
 

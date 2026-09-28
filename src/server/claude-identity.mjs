@@ -16,10 +16,11 @@
 // boot-module-graph.test.ts, which now asserts that src/server has no cycles at
 // all rather than trying to police the call sites of one.
 //
-// This file imports only leaves — exec.mjs and claude-dir.mjs have no relative
-// imports of their own — so it can be reached from either side without closing
-// anything. Both functions are re-exported from cswap-admin.mjs, which is where
-// their callers and their tests already look for them.
+// Nothing this file imports can lead back to it — claude-dir.mjs has no
+// relative imports of its own, and exec.mjs has only the leaves lifted out of
+// it — so it can be reached from either side without closing anything. Both
+// functions are re-exported from cswap-admin.mjs, which is where their callers
+// and their tests already look for them.
 import { pathLookup, run } from "./exec.mjs";
 import { claudeCliCandidates } from "./claude-dir.mjs";
 import { existsSync } from "node:fs";
