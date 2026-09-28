@@ -37,8 +37,8 @@ function codexItemText(item) {
 // Mutates codexSessionModel and returns { payload, modelEvent } where
 // modelEvent is an optional ModelObserved to emit first when the model changed.
 //
-// Exported for the rollout watcher in index.mjs, and for the tests: this is the
-// whole of the Codex translation, and the lifecycle it produces is worth
+// Exported for the rollout watcher in codex-watch.mjs, and for the tests: this
+// is the whole of the Codex translation, and the lifecycle it produces is worth
 // pinning against the real reducer without standing up a watcher, a temp home
 // and a 1.5s poll to get at it.
 export function codexObjToPayload(obj, sid, cwd) {

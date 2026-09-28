@@ -125,12 +125,13 @@ export const STOP = Symbol("stop-rollout-walk");
  * and the names inside it to `onDay(dir, files)`.
  *
  * Three callers walked this tree with the same four nested readdir-and-continue
- * blocks and differed only in the last few lines: find the file carrying a given
- * session id (index.mjs), collect everything in the newest two day directories
- * (index.mjs again, for the watcher), and collect everything whose filename
- * timestamp falls inside a rolling window (codex-usage.mjs). The walk is the
- * part that has to agree — a deck that tails one set of files and reports usage
- * from another is reporting on a session it is not showing.
+ * blocks and differed only in the last few lines: find the file carrying a
+ * given session id (now codex-watch.mjs), collect everything in the newest two
+ * day directories (codex-watch.mjs again, for the watcher), and collect
+ * everything whose filename timestamp falls inside a rolling window
+ * (codex-usage.mjs). The walk is the part that has to agree — a deck that tails
+ * one set of files and reports usage from another is reporting on a session it
+ * is not showing.
  *
  * EVERY LEVEL SWALLOWS ITS OWN ERROR, which is deliberate rather than lazy. The
  * tree is written by another process while this one reads it: a day directory

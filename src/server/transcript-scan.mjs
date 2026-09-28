@@ -30,7 +30,7 @@ import { foldRecapLine } from "./session-recap.mjs";
 // far, read only the bytes appended since the last pass, and fold them into
 // that state. The three scanners share it, so the first one to run in a
 // cycle pays for the read and the other two reuse the result. This mirrors
-// the offset tailing the Codex rollout watcher in index.mjs already does.
+// the offset tailing the Codex rollout watcher in codex-watch.mjs already does.
 const transcriptScans = new Map();        // path -> scan state
 const transcriptScanInFlight = new Map(); // path -> in-progress scan promise
 const transcriptScanSessions = new Map(); // session key -> Set<path>, LRU order

@@ -97,7 +97,8 @@ const CURSOR_TTL_MS = 10 * 60 * 1000;
 /** Comfortably more than two of the watcher's 1500ms polls. */
 const SETTLE_MS = 3500;
 
-const INDEX_SRC = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+// The watcher, where the TTL is declared.
+const WATCHER_SRC = readFileSync(fileURLToPath(new URL("../../server/codex-watch.mjs", import.meta.url)), "utf8");
 
 const SID = "7d3c9a10-1111-4000-8000-aabbccddeeff";
 const CWD = join(DIR, "workspace");
@@ -195,7 +196,7 @@ describe("a rollout this deck joined late", () => {
     // would be a change to the module under test made for a test's benefit —
     // so it is read out of the source, the way boot-lock.test.ts reads
     // bin/deck.js.
-    expect(INDEX_SRC).toMatch(/const CODEX_STATE_TTL_MS = 10 \* 60 \* 1000;/);
+    expect(WATCHER_SRC).toMatch(/const CODEX_STATE_TTL_MS = 10 \* 60 \* 1000;/);
     expect(CURSOR_TTL_MS).toBe(10 * 60 * 1000);
   });
 
