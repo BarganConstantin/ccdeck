@@ -7,10 +7,10 @@
 // picked: a human types into a session, and a turn or a session ends for the
 // whole of it, never for the Task that happened to be running.
 import { adoptCwd, adoptRootLabel, ensureRoot } from "./agent-attribution";
-import { rootAgentId, toolKey, type GraphState } from "./graph-state";
+import { rootAgentId, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, promptAlreadyRecorded, sessionEvidenceAt } from "./redelivery";
-import { DROPPED_OUTCOME_PREVIEW, shortPreview } from "./tool-calls";
+import { settleUnanswered, shortPreview } from "./tool-calls";
 import type { HookPayload } from "./types";
 
 /** That this session was heard from, whatever the event says: the root's
@@ -334,24 +334,13 @@ export function applyTurnEnd(state: GraphState, name: string, sessionId: string,
     for (const t of owner.tools) {
       if (t.endedAt != null) continue;
       if (t.explicitSubagentId != null) continue;
-      t.endedAt = now;
-      t.ok = false;
       // Says what was seen, and never why. The deck knows the turn ended
       // without a result; it does not know whether the tool failed, or
       // succeeded into a socket that had gone. Asserting the second is the
-      // expensive kind of wrong — see the sweep's own note on this.
-      t.errorPreview = t.outcomeGap
-        ? DROPPED_OUTCOME_PREVIEW
-        : "the turn ended before this call returned";
-      // Out of the live index for the same reason the sweep drops it: the id
-      // is no longer held open. A late outcome still lands — the PostToolUse
-      // handler falls back to scanning the owner's tool list and resurrects
-      // the call, un-saying this.
-      //
-      // Keyed on the session, not the bare id (#1009): the id namespace is
-      // shared across every session on the board, so a bare delete here
-      // would release another session's live call.
-      state.toolIndex.delete(toolKey(owner.sessionId, t.id));
+      // expensive kind of wrong — see the sweep's own note on this. Out of the
+      // live index for the same reason the sweep drops it; a late outcome still
+      // lands and un-says this. See `settleUnanswered`.
+      settleUnanswered(state, owner, t, now, "the turn ended before this call returned");
     }
   }
   // ...and only `SessionEnd` says the SESSION is over (#445). `Stop` is a

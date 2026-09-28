@@ -6,8 +6,8 @@
 // Each one mutates the state in place and answers whether anything changed,
 // through `bump`, so a sweep that changed something is also one every memo can
 // see.
-import { rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-state";
-import { DROPPED_OUTCOME_PREVIEW, releaseToolIds } from "./tool-calls";
+import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
+import { releaseToolIds, settleUnanswered } from "./tool-calls";
 import type { AgentNodeData } from "./types";
 
 /** Record that a sweep changed something, and pass its answer through.
@@ -379,8 +379,7 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // exactly as `sweepStaleSessions` stamps the session's own `endedAt`, so
         // the call and the session it died with agree about when that was. The
         // old `startedAt + maxMs` was a duration invented by the sweep.
-        t.endedAt = silentSince;
-        t.ok = false;
+        //
         // Says what was observed rather than naming an internal mechanism the
         // reader has never heard of. The old string — "stale (no PostToolUse
         // received)" — described the sweep's own plumbing and was untrue in every
@@ -400,16 +399,13 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // the deck can honestly say. Naming the session in the second case is
         // the expensive kind of wrong: a missing result is a gap the user can
         // see through, a cause that never happened is a bug hunt.
-        t.errorPreview = t.outcomeGap
-          ? DROPPED_OUTCOME_PREVIEW
-          : "session ended before this call returned";
-        // Also drop it from the live tool index, so the id is not held open by a
-        // session that is gone. This does NOT make the call unsettleable: the
-        // PostToolUse handler falls back to scanning the owner's tool list and
-        // resurrects it, which is what happens when the sweep guessed wrong and
-        // the session comes back — the same un-reap `lastEventAt` performs for
-        // the root above.
-        state.toolIndex.delete(toolKey(a.sessionId, t.id));
+        //
+        // Also out of the live tool index, so the id is not held open by a
+        // session that is gone — which does not make the call unsettleable: when
+        // the sweep guessed wrong and the session comes back, its late
+        // PostToolUse resurrects the call, the same un-reap `lastEventAt`
+        // performs for the root above. See `settleUnanswered`.
+        settleUnanswered(state, a, t, silentSince, "session ended before this call returned");
         changed = true;
       }
     }
