@@ -4,7 +4,11 @@
 // The files under this one hold everything that can be reasoned about without
 // a network — lan-sync.mjs and lan-invite.mjs decide, lan-beacon.mjs and
 // lan-socket.mjs carry — and what is left here is the part that has to touch
-// the store.
+// the store. A few pieces of the engine's own state live beside it, each
+// behind named operations createEngine calls: the line every round waits in
+// (lan-turns.mjs), the invite on offer (lan-invite-offer.mjs), when the
+// tailnet is read (lan-tailnet-poll.mjs), and what a deck that cannot hear
+// says (lan-hearing.mjs).
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
 //
@@ -33,12 +37,16 @@ import {
   offered, open, pairable, peerWhy, plan, seal, SENDER_UNREADABLE, slotFor, stillListed, transferChallenge,
   trustedPeer,
 } from "./lan-sync.mjs";
-import { MAX_WRONG_PROOFS, mintInvite, readInvite } from "./lan-invite.mjs";
+import { mintInvite, readInvite } from "./lan-invite.mjs";
+import { createInviteOffer } from "./lan-invite-offer.mjs";
 import { storedCopyAlive, cachedExportReadable, liveLoginIs } from "./account-health.mjs";
-import { createBeacon, DISCOVERY_PORT } from "./lan-beacon.mjs";
+import { createBeacon } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
-import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS, TAILNET_MS } from "./tailscale.mjs";
+import { createTurns } from "./lan-turns.mjs";
+import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
+import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
+import { createHearing } from "./lan-hearing.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -370,9 +378,9 @@ export function createEngine({
    * refusal that outlives the process is a decision nobody can find to undo.
    */
   const declined = new Map();
-  /** The invite this deck is offering, or null. One at a time: a deck showing
-   *  two tokens is a deck whose owner cannot say which one they sent. */
-  let invite = null;
+  /** The invite this deck is offering, from the press that makes it to the
+   *  proof that spends it — see lan-invite-offer.mjs. */
+  const offer = createInviteOffer({ now, onChange, onError });
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
@@ -482,27 +490,10 @@ export function createEngine({
    *  asked about. */
   let listeningSince = null;
 
-  /** The tailnet read's own timer, running only while the switch is on. */
-  let tailTimer = null;
-  // An in-flight refresh may finish after discovery is disabled or restarted.
-  let tailRefreshGeneration = 0;
-
-  /** Who held the discovery port the last time it was asked, for as long as
-   *  this deck cannot hear: the answer does not change between two tries half a
-   *  minute apart, and on Windows asking costs a PowerShell start. Undefined
-   *  until asked, null when the machine would not say. */
-  let holder;
-
-  /** What the panel says while this deck cannot hear — see createBeacon's
-   *  `hearing`. Null whenever it can. */
-  const deafLine = () => {
-    if (!beacon || beacon.hearing()) return null;
-    const err = beacon.deafError?.();
-    if (err && err.code !== "EADDRINUSE") {
-      return `This deck cannot listen on UDP ${DISCOVERY_PORT} (${err.code ?? err.message}), so it hears no other deck announce itself. Other decks still find it and pair with it.`;
-    }
-    return `${holder ?? "Another program"} is holding UDP ${DISCOVERY_PORT}, so this deck hears no new decks. Others still find it and pair with it, and it takes the port back as soon as it is free.`;
-  };
+  /** Whether this deck can hear other decks announce, who is holding the
+   *  discovery port while it cannot, and the sentence the panel says about
+   *  it — see lan-hearing.mjs. */
+  const hearing = createHearing({ beaconNow: () => beacon, portHolder, onChange });
 
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
@@ -539,33 +530,11 @@ export function createEngine({
     return { list, added };
   };
 
-  /**
-   * Read the tailnet on a timer while the switch is on, and not at all while it
-   * is off — the read at start covers telling a tailnet address from a local
-   * one, and the dialog's own poll covers whether Tailscale is there at all.
-   *
-   * TURNING IT ON ANNOUNCES AT ONCE, after one read, so the owner's machines
-   * hear about this one in the second after the press rather than on the next
-   * beacon, up to half a minute later.
-   */
-  const syncTailnet = () => {
-    const want = !!(beacon && tailnet && cfg.enabled && cfg.tailscale);
-    if (want && !tailTimer) {
-      const startedIn = ++tailRefreshGeneration;
-      const currentBeacon = beacon;
-      void tailnet.refresh().then(() => {
-        if (startedIn === tailRefreshGeneration && beacon === currentBeacon && cfg.enabled && cfg.tailscale) {
-          currentBeacon.announce();
-        }
-      }, () => {});
-      tailTimer = setInterval(() => { void tailnet.refresh(); }, TAILNET_MS);
-      tailTimer.unref?.();
-    } else if (!want && tailTimer) {
-      tailRefreshGeneration++;
-      clearInterval(tailTimer);
-      tailTimer = null;
-    }
-  };
+  /** Reading the tailnet on a timer while the switch is on, announcing at
+   *  once when it is turned on — see lan-tailnet-poll.mjs. */
+  const tailPoll = createTailnetPoll({
+    tailnet, beaconNow: () => beacon, wanted: () => cfg.enabled && cfg.tailscale,
+  });
 
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
@@ -822,7 +791,7 @@ export function createEngine({
    *  again changes nothing but its name, and dialling it back is what joining
    *  does on the other end too. */
   const inviteUsed = entry => {
-    invite = null;
+    offer.retire();
     const { list } = pin(entry);
     // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
     // deck with no way to reach it: an inbound connection puts nothing in
@@ -831,24 +800,6 @@ export function createEngine({
     // it would be one-way again after the next restart.
     if (entry.addr && entry.port) keepDialling(entry.addr, entry.port, { fp: entry.fp, name: entry.name || "" });
     onTrust?.(list);
-    onChange?.();
-  };
-
-  /** Somebody presented a proof of the token that did not hold. Counted on
-   *  the invite, written to the log with where it came from, and at
-   *  MAX_WRONG_PROOFS the invite is put away (#1137) — the owner makes a new
-   *  one, which is one press, and the old one stops being something anybody
-   *  can keep working at. */
-  const wrongInvite = from => {
-    if (!invite) return;
-    const refused = (invite.refused ?? 0) + 1;
-    invite = { ...invite, refused };
-    const where = from?.addr || "an unknown address";
-    onError?.("invite", new Error(`a proof of this deck's invite from ${where} did not hold (${refused} of ${MAX_WRONG_PROOFS})`));
-    if (refused >= MAX_WRONG_PROOFS) {
-      invite = null;
-      onError?.("invite", new Error(`put the invite away after ${MAX_WRONG_PROOFS} proofs that did not hold; make a new one`));
-    }
     onChange?.();
   };
 
@@ -881,17 +832,6 @@ export function createEngine({
     // Only a deck that is new to us is news. A beacon every thirty
     // seconds from one already on the list is not a reason to redraw.
     if (!had) onChange?.();
-  };
-
-  /** The beacon took the discovery port, or lost it: say so, and while it
-   *  cannot hear, ask once which program is holding the port. See deafLine. */
-  const hearingChanged = now => {
-    if (now) { holder = undefined; onChange?.(); return; }
-    if (holder === undefined && portHolder && beacon?.deafError?.()?.code === "EADDRINUSE") {
-      holder = null;
-      void Promise.resolve().then(() => portHolder()).then(who => { holder = who ?? null; onChange?.(); }, () => {});
-    }
-    onChange?.();
   };
 
   /** Another deck is using this one's key. Take a new key and keep it. Two
@@ -1217,72 +1157,11 @@ export function createEngine({
     return all;
   };
 
-  /**
-   * Where every round waits its turn — the whole list, or one deck from its own
-   * dialog — so that whichever is running is running alone. `round` and
-   * `roundOne` are the only two ways in, and both come through here.
-   *
-   * A LINE RATHER THAN A FLAG, because the two ways in want different things
-   * from what is already running and both have to end up behind it. A round
-   * asked for during a check cannot join it — a check asks one deck, and a
-   * round was asked to ask all of them — so it waits. A check asked for during
-   * a round can often join it, and sometimes cannot. Both need somewhere to
-   * stand that is after whatever is in flight, and this is it.
-   *
-   * The tail never rejects: `roundWith` reports a failure per peer instead of
-   * throwing, and anything else is swallowed here rather than left to stop
-   * every turn after it. The caller of the turn that threw still hears it.
-   */
-  let _turn = Promise.resolve();
-  const inTurn = job => {
-    const run = _turn.then(job);
-    _turn = run.then(() => {}, () => {});
-    return run;
-  };
-
-  /** The whole round in flight or waiting its turn, or null. See `round` below. */
-  let _round = null;
-  /** The session `_round` was asked for in. */
-  let _roundIn = -1;
-
-  /**
-   * One round at a time, and the one already running is the answer (#1040).
-   *
-   * The sequential loop above reasons about peers being dialled one after
-   * another, which is a statement about the WHOLE round and was only ever true
-   * of a round running alone. Two ways in, and they meet: a self-scheduling
-   * timer (SYNC_MS, or ASKING_MS while somebody is waiting) and the "Sync now"
-   * press, which calls this straight from the route. A press landing on the
-   * timer's round gave two rounds walking the same peer list, each reading the
-   * same slot as empty and each force-importing a credential over the other —
-   * and the second one's blob wins for no reason anybody chose.
-   *
-   * JOINING rather than skipping, because the press has a reply to send: a
-   * caller that got `[]` for "a round is already running" would report "nothing
-   * to sync" about a round that was at that moment moving a credential. This is
-   * the shape `codexScanOnce` and ccusage's `_inflight` already use.
-   *
-   * THERE WAS A THIRD WAY IN, and it did not come through here (#1132). The
-   * `check now` in a deck's own dialog reaches `roundOne`, which called
-   * `roundWith` straight — so a press landing on the timer's round dialled the
-   * deck that round was already healing from, and the far side exported the
-   * same login twice for one account that needed repairing once. Both now take
-   * their turn in one line, above. A round joins only another whole round,
-   * never a check: joining a check would answer "ask every deck" with one
-   * deck's work and leave the rest waiting another minute.
-   *
-   * NEVER A ROUND FROM A SESSION THAT ENDED. LAN switched off and on again
-   * while one ran: that round stops at its next peer and reports nothing, so
-   * joining it would answer the new session's first tick with nothing and
-   * leave every deck unasked for a whole SYNC_MS. The new one queues behind it.
-   */
-  const round = () => {
-    if (_round && _roundIn === session) return _round;
-    _roundIn = session;
-    const mine = inTurn(oneRound).finally(() => { if (_round === mine) _round = null; });
-    _round = mine;
-    return mine;
-  };
+  /** The line every round waits in, whole or one deck — see lan-turns.mjs,
+   *  which is why a round asked for while another runs joins it (#1040) and a
+   *  check waits behind it (#1132). */
+  const turns = createTurns();
+  const round = () => turns.round(session, oneRound);
 
   /** What status() says about Tailscale, for a deck that has a reader: whether
    *  the machine has it at all, and what it can see. */
@@ -1426,14 +1305,14 @@ export function createEngine({
       const mayAsk = p => (p.via === "tailscale" ? turnedOn(asksOn, "tailscale") && p.own : turnedOn(asksOn, "lan"));
       for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !wasUnpaired(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
       // OFF MEANS THE TAILNET GOES QUIET HERE: nobody heard over it is offered,
-      // and syncTailnet stops the reads. Decks already paired stay paired.
+      // and tailPoll.sync stops the reads. Decks already paired stay paired.
       if (was.tailscale && !cfg.tailscale) {
         for (const [fp, p] of [...strangers]) if (p.via === "tailscale") strangers.delete(fp);
       }
       const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
-      if (!restart) { syncTailnet(); return; }
+      if (!restart) { tailPoll.sync(); return; }
       this.stop(cfg.enabled);
       if (!cfg.enabled) return;
       const startedIn = generation;
@@ -1456,9 +1335,9 @@ export function createEngine({
         // still proved the path.
         onInbound: from => { if (anotherMachine(from, localAddresses())) inboundAt = now(); },
         trusted: () => cfg.trusted,
-        invite: () => (invite && invite.expiresAt > now() ? invite : null),
+        invite: offer.live,
         onInviteUsed: inviteUsed,
-        onWrongInvite: wrongInvite,
+        onWrongInvite: offer.wrongInvite,
         // Asked before the request is drawn, so a deck that was told no is
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
@@ -1503,7 +1382,7 @@ export function createEngine({
         // spell, behind the sentence that does not need the name.
         rebindMs: bindRetryMs,
         routes,
-        onHearing: hearingChanged,
+        onHearing: hearing.hearingChanged,
         onStranger: heardStranger,
         onIdClash: idClash,
         onError, now,
@@ -1515,7 +1394,7 @@ export function createEngine({
       // One read of the tailnet whatever the switch says, so a packet from a
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
-      syncTailnet();
+      tailPoll.sync();
       // A self-scheduling loop rather than one interval, because the gap
       // between rounds is not one number: see ASKING_MS.
       const tick = async () => {
@@ -1544,25 +1423,14 @@ export function createEngine({
       const addrs = localAddresses().map(a => `${a}:${port}`);
       const made = mintInvite({ addrs, name: cfg.name, now: now() });
       if (!made) return null;
-      invite = { ...made, refused: 0 };
-      onChange?.();
+      offer.put(made);
       return { token: made.token, expiresAt: made.expiresAt, addrs };
     },
 
-    /** What this deck is offering right now, for the panel to draw. Null once
-     *  it has run out, so a token nobody can use is not shown as if they could. */
-    offering() {
-      if (!invite || invite.expiresAt <= now()) return null;
-      return { token: invite.token, expiresAt: invite.expiresAt };
-    },
-
-    /** Put it away without using it. */
-    withdraw() {
-      const had = !!invite;
-      invite = null;
-      if (had) onChange?.();
-      return had;
-    },
+    /** What this deck is offering right now, and putting it away unused —
+     *  see lan-invite-offer.mjs. */
+    offering: offer.offering,
+    withdraw: offer.withdraw,
 
     /**
      * Join on somebody else's invite: try every address it carries until one
@@ -1769,11 +1637,11 @@ export function createEngine({
       const peer = heard ?? typed;
       if (!peer) return null;
       const had = lastRound.get(peer.fp);
-      await _turn;
+      await turns.ahead();
       const got = lastRound.get(peer.fp);
       if (got && got !== had) return got.done ?? [];
       // A deck switched off while the press waited is not dialled after all.
-      return inTurn(() => (beacon ? roundWith(peer) : []));
+      return turns.inTurn(() => (beacon ? roundWith(peer) : []));
     },
     /** Dial this address on every round from now on. Returns false for an
      *  address that is not one, rather than storing a row that can never
@@ -1830,8 +1698,9 @@ export function createEngine({
         // Said only while it is true, and it is only ever true of a deck that
         // is switched on and has no listener.
         stalled: cfg.enabled && !beacon ? stalled : null,
-        // Running, and unable to hear other decks announce — see deafLine.
-        deaf: deafLine(),
+        // Running, and unable to hear other decks announce — see deafLine in
+        // lan-hearing.mjs.
+        deaf: hearing.deafLine(),
         // Every local broadcast held back, because this machine sends its
         // local network through a tunnel — see leavesByTunnel.
         lanTunneled: !!beacon?.tunneled?.(),
@@ -1870,10 +1739,8 @@ export function createEngine({
         // The token this deck is offering, if any. Drawn as the one thing to do
         // when nobody is paired yet, and put away once somebody is. With how
         // many proofs of it have failed so far — the record beside the log's,
-        // see wrongInvite.
-        invite: invite && invite.expiresAt > now()
-          ? { token: invite.token, expiresAt: invite.expiresAt, refused: invite.refused ?? 0 }
-          : null,
+        // see wrongInvite in lan-invite-offer.mjs.
+        invite: offer.row(),
         // Decks somebody accepted, decks that asked and have not been answered,
         // and decks merely heard. Three lists because they are three different
         // things a person does something different about.
@@ -1893,11 +1760,9 @@ export function createEngine({
     stop(restarting = false) {
       generation++;
       if (!restarting) session++;
-      tailRefreshGeneration++;
       if (timer) clearTimeout(timer);
-      if (tailTimer) clearInterval(tailTimer);
-      tailTimer = null;
-      holder = undefined;
+      tailPoll.stop();
+      hearing.forget();
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
       timer = null;
