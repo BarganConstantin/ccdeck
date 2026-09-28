@@ -36,8 +36,6 @@ mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true });
 mkdirSync(DAY, { recursive: true });
 mkdirSync(CWD, { recursive: true });
 
-/** Comfortably more than two of the watcher's 1500ms polls. */
-const SETTLE_MS = 3500;
 const line = (obj: unknown): string => JSON.stringify(obj) + "\n";
 const prompt = (text: string) => line({ type: "event_msg", payload: { type: "user_message", message: text } });
 const rollout = (at: string, tail: string) => join(DAY, `rollout-2026-09-15T${at}-${tail}.jsonl`);
@@ -53,13 +51,12 @@ const SID_NUMBER = "0a1b2c3d-2222-4000-8000-000000000002";
 const SID_NO_HEADER = "0a1b2c3d-3333-4000-8000-000000000003";
 
 // @ts-expect-error — .mjs server module, no types
-const { startCodexWatcher, eventsSince, CODEX_SESSIONS_DIR, sidFromRolloutName } = await import("../../server/index.mjs");
+const { startCodexWatcher, scanCodexNow, eventsSince, CODEX_SESSIONS_DIR, sidFromRolloutName } = await import("../../server/index.mjs");
 
 if (!String(CODEX_SESSIONS_DIR).startsWith(DIR)) {
   throw new Error(`refusing to run: the watcher resolved ${CODEX_SESSIONS_DIR}, outside ${DIR}`);
 }
 
-const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 const warned = (needle: string): number => warn.mock.calls.filter(c => String(c[0]).includes(needle)).length;
 
@@ -70,9 +67,10 @@ const drawn = (sid: string): string[] => eventsSince(0)
   .filter((p: Record<string, unknown>) => p.session_id === sid)
   .map((p: Record<string, unknown>) => String(p.hook_event_name));
 
-async function until(done: () => boolean, ms = 15000): Promise<void> {
-  const deadline = Date.now() + ms;
-  while (!done() && Date.now() < deadline) await wait(50);
+/** `n` of the watcher's scans, each begun after the last — the same scan its
+ *  1500ms poll runs, awaited instead of slept through (#994). */
+async function scans(n: number): Promise<void> {
+  for (let i = 0; i < n; i++) await scanCodexNow();
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -81,7 +79,8 @@ beforeAll(async () => {
   // Let the initial catalog run first. It parks the cursor of every rollout
   // already on disk at its end, so the files below are written AFTER it — new
   // rollouts, read from their first byte, which is what a live session is.
-  await wait(SETTLE_MS);
+  // scanCodexNow waits the catalog out before a scan of its own.
+  await scans(1);
   writeFileSync(rollout("10-00-00", SID_OK),
     line({ type: "session_meta", payload: { id: SID_OK, cwd: CWD } }) + prompt("the control"), "utf8");
   writeFileSync(rollout("10-01-00", SID_RENAMED),
@@ -92,10 +91,11 @@ beforeAll(async () => {
     line({ type: "session_meta", payload: { cwd: CWD } }) + prompt("an id nowhere at all"), "utf8");
   writeFileSync(rollout("10-04-00", SID_NO_HEADER),
     line({ type: "thread_meta", payload: { id: SID_NO_HEADER, cwd: CWD } }) + prompt("a header under another type"), "utf8");
-  await until(() => drawn(SID_OK).includes("UserPromptSubmit"));
+  // One scan reads all five; the control's prompt is asserted below.
+  await scans(1);
   // Several more ticks, so a warning printed per tick rather than once would
-  // have had the chance to print again.
-  await wait(SETTLE_MS * 2);
+  // have had the chance to print again. Four: what the 7s this slept held.
+  await scans(4);
 }, 40_000);
 
 afterAll(() => {
