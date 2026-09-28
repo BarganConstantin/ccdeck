@@ -90,6 +90,14 @@
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
   --node-grad: linear-gradient(180deg, var(--panel), var(--bg-soft));
   --topbar-grad: linear-gradient(to bottom, var(--panel), var(--bg-soft));
+  /* THE GRADIENTS A THEME RETUNES (#1287). Each of these was a literal in a
+     rule and a second literal in a light rule beside it — the tint behind the
+     disconnected banner, the wash inside a running tool bubble, and the
+     empty-canvas orb — so the theme lived in two selectors instead of one
+     block. The values are the ones those rules wrote. */
+  --conn-wash: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
+  --burst-live-wash: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));
+  --hero-core: radial-gradient(circle at 30% 30%, #f0abfc, #7dd3fc 55%, #14161b);
   --grid-line: #1a1d24;
   --minimap-mask: rgba(11,12,16,0.85);
   /* Per-session and per-MCP-server hues are hashed in JS (reducer.sessionHue,
@@ -243,6 +251,9 @@
   --shadow-contact: 0 1px 2px rgba(15,23,42,0.10);
   --node-grad: linear-gradient(180deg, #ffffff, #f2f5fa);
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);
+  --conn-wash: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
+  --burst-live-wash: linear-gradient(180deg, rgba(126,34,206,0.06), transparent);
+  --hero-core: radial-gradient(circle at 30% 30%, #c084fc, #0ea5e9 55%, #1e293b);
   --grid-line: #d0d5dd;
   --minimap-mask: rgba(238,241,246,0.85);
   /* The same six jobs, re-tuned for a white canvas — the whole point of #330.
@@ -556,6 +567,18 @@
    nothing moves either; what changes is that it is our choice now. */
 :root {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+}
+
+/* THE GRADIENTS TWO RULES SHARE (#1287), in neither theme because they are
+   made of theme tokens already: the meter fill the context window and the
+   session summary's tool bars both draw, and the dash a LAN wire takes when
+   the link is down or the flow is cut. A shared gradient written twice is two
+   values that happen to agree; one token is one decision. A gradient only one
+   rule draws, and that no theme retunes, stays in its rule — a token with one
+   reader is indirection, not a decision. */
+:root {
+  --meter-grad: linear-gradient(90deg, var(--accent), var(--inflight));
+  --wire-dashed: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
 }
 
 * { box-sizing: border-box; }
@@ -3421,7 +3444,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   align-items: center;
   gap: 10px;
   padding: 8px 18px;
-  background: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
+  background: var(--conn-wash);
   border-bottom: 1px solid rgba(252,165,165,0.30);
   color: var(--err);
   font-size: 12px;
@@ -4640,7 +4663,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .ctx-window-fill {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--accent), var(--inflight));
+  background: var(--meter-grad);
   transform-origin: left center;
   transition: transform 400ms ease;
 }
@@ -5672,7 +5695,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 
 .tool-burst.status-inflight {
   border-color: rgba(240, 171, 252, 0.55);
-  background: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05)), var(--panel);
+  background: var(--burst-live-wash), var(--panel);
   box-shadow: 0 0 0 1px rgba(240,171,252,0.30), 0 6px 18px rgba(240,171,252,0.25);
 }
 .tool-burst.status-inflight .tb-emoji {
@@ -5966,7 +5989,6 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 :root[data-theme="light"] .tool-burst.status-inflight {
   border-color: rgba(126,34,206,0.55);
-  background: linear-gradient(180deg, rgba(126,34,206,0.06), transparent), var(--panel);
   box-shadow: 0 0 0 1px rgba(126,34,206,0.20), 0 6px 14px rgba(126,34,206,0.18);
 }
 :root[data-theme="light"] .tool-burst.status-done {
@@ -7167,7 +7189,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .session-summary .ss-tt-bar-fill {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--inflight));
+  background: var(--meter-grad);
   border-radius: 3px;
 }
 .session-summary .ss-tt-count {
@@ -7240,8 +7262,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   width: 56px; height: 56px;
   margin: -28px 0 0 -28px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 30%, #f0abfc 0%, #7dd3fc 55%, #14161b 100%);
+  background: var(--hero-core);
   box-shadow:
     0 0 28px rgba(240,171,252,0.55),
     0 0 64px rgba(125,211,252,0.35);
@@ -7352,12 +7373,10 @@ button.tool.clickable:last-child { border-bottom: none; }
 :root[data-theme="light"] .empty-hero .orbit.r2 { border-color: rgba(126,34,206,0.30); }
 :root[data-theme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
 :root[data-theme="light"] .empty-hero .core {
-  background: radial-gradient(circle at 30% 30%, #c084fc 0%, #0ea5e9 55%, #1e293b 100%);
   box-shadow: 0 0 28px rgba(126,34,206,0.40), 0 0 64px rgba(3,105,161,0.25);
 }
 
 :root[data-theme="light"] .conn-banner {
-  background: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
   border-bottom-color: rgba(185,28,28,0.45);
 }
 
@@ -12780,7 +12799,7 @@ input, textarea { caret-color: var(--accent); }
   background: repeating-linear-gradient(90deg, var(--warn) 0 4px, transparent 4px 8px);
 }
 .lan-map:is([data-link="down"], [data-link="loose"]) .lan-link .lan-wire {
-  background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
+  background: var(--wire-dashed);
 }
 /* Under the network: how it was found and how the last round went, then
    anything the machine said in its own words. Centred on the line it is
@@ -12901,7 +12920,7 @@ input, textarea { caret-color: var(--accent); }
 
 /* A dashed lane is a login with no copy that can move either way. */
 .lan-wire[data-flow="cut"] {
-  background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
+  background: var(--wire-dashed);
 }
 .lan-chev {
   position: absolute;

@@ -422,8 +422,15 @@ offset is a mark, not elevation: `0 0 8px var(--ok|warn|err|inflight)`,
 `0 0 22px var(--accent)`, and `0 0 0 1px` identity rings. Reach for these to say
 *this one*, never to lift something off the page.
 
-**Known debt:** 25 of the 27 gradient calls are untokenised. Tracked in #1287 — do
-not add to it.
+**A gradient is a token when two rules share it or a theme retunes it** (#1287):
+`--node-grad`, `--topbar-grad`, `--conn-wash` (the disconnected banner),
+`--burst-live-wash` (a running tool bubble) and `--hero-core` (the empty-canvas orb)
+in both theme blocks; `--meter-grad` (the context meter and the session summary's
+tool bars) and `--wire-dashed` (a LAN wire that is down or cut) once, in a
+theme-independent `:root`, because they are made of theme tokens already. A
+gradient only one rule draws, from theme tokens, stays in its rule.
+`elevation-tokens-1287.test.ts` fails a gradient written in two rules or retuned by
+a light rule.
 
 ## Shapes
 

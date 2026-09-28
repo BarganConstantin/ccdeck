@@ -4,7 +4,8 @@
 // for each. The three anchored popovers wrote the same contact line over
 // --shadow-2, with a light rule each to repeat it. Five rules existed only to
 // say a shadow a second time. They are --shadow-3 and --shadow-contact now, and
-// this file keeps a named shadow from being written out again.
+// this file keeps a named shadow from being written out again — and does the
+// same for the gradients two rules shared or a theme retuned, further down.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -70,6 +71,58 @@ describe("the deck's elevations are tokens, in both themes (#1287)", () => {
     for (const menu of [".sound-menu", ".appearance-menu"]) expect(shadowOf(menu), menu).toBe("var(--shadow-3)");
     for (const pop of [".anchored-popover", ".appearance-source-list", ".ap-peek"]) {
       expect(shadowOf(pop), pop).toBe("var(--shadow-contact), var(--shadow-2)");
+    }
+  });
+});
+
+// ── gradients ────────────────────────────────────────────────────────────────
+//
+// Twenty-seven gradient calls, two of them tokens. Most of the rest are one
+// rule's own drawing — a glint, a rope, a slider track — and belong in that
+// rule. Two kinds did not: a gradient two rules drew, written out twice (the
+// meter fill, the dashed wire), and a gradient a theme retuned, written once in
+// the rule and again in a light rule beside it (the disconnected banner's wash,
+// the running bubble's wash, the empty-canvas orb). Those are tokens now, and
+// these two sweeps keep them so.
+
+/** Every gradient a rule outside the theme blocks declares, with its selector,
+ *  whitespace collapsed so two spellings of one value compare equal. */
+const GRADIENTS = [...rules.matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(m =>
+  [...m[2].matchAll(/(?:^|[;\s])background(?:-image)?\s*:\s*([^;]+)/g)]
+    .filter(d => /gradient\(/.test(d[1]))
+    .map(d => ({ sel: m[1].trim().replace(/\s+/g, " "), value: d[1].replace(/\s+/g, " ").trim() })));
+
+describe("a gradient two rules share, or a theme retunes, is a token (#1287)", () => {
+  it("finds the gradients the rules still draw, so the sweeps are over something", () => {
+    expect(GRADIENTS.length).toBeGreaterThan(10);
+  });
+
+  it("writes no gradient out in two rules", () => {
+    const seen = new Map<string, string[]>();
+    for (const g of GRADIENTS) seen.set(g.value, [...(seen.get(g.value) ?? []), g.sel]);
+    const twice = [...seen].filter(([, sels]) => sels.length > 1).map(([value, sels]) => `${value} — ${sels.join(" | ")}`);
+    expect(twice).toEqual([]);
+  });
+
+  it("retunes no rule's gradient in a light rule — the theme block does that", () => {
+    const LIGHT = ':root[data-theme="light"] ';
+    const drawn = new Set(GRADIENTS.filter(g => !g.sel.startsWith(LIGHT)).map(g => g.sel));
+    const retuned = GRADIENTS.filter(g => g.sel.startsWith(LIGHT) && drawn.has(g.sel.slice(LIGHT.length)));
+    expect(retuned.map(g => g.sel)).toEqual([]);
+  });
+
+  it("declares every themed gradient in both theme blocks, and the shared ones once for both", () => {
+    // The node and topbar gradients are themed too; ./gradient-stops and the
+    // sweeps that read it hold those two, so this names only the three #1287 made.
+    const themed = ["--conn-wash", "--burst-live-wash", "--hero-core"];
+    for (const t of themed) {
+      expect(tokens(blocks.dark, t)[t], `dark ${t}`).toMatch(/gradient\(/);
+      expect(tokens(blocks.light, t)[t], `light ${t}`).toMatch(/gradient\(/);
+    }
+    for (const t of ["--meter-grad", "--wire-dashed"]) {
+      const declared = [...css.matchAll(new RegExp(`${t}\\s*:\\s*([^;]+);`, "g"))];
+      expect(declared, t).toHaveLength(1);
+      expect(/(:root[^{]*)\{[^}]*$/.exec(css.slice(0, declared[0].index))![1].trim(), t).toBe(":root");
     }
   });
 });
