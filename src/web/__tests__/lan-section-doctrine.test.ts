@@ -40,6 +40,12 @@ const SERVER_REQUESTS = readFileSync(
   fileURLToPath(new URL("../../server/lan-requests.mjs", import.meta.url)),
   "utf8",
 );
+/** What the engine's last round did with each deck and when it finished,
+ *  which moved out of it into their own file. */
+const SERVER_ROUND_RECORD = readFileSync(
+  fileURLToPath(new URL("../../server/lan-round-record.mjs", import.meta.url)),
+  "utf8",
+);
 const MODAL = readFileSync(
   fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)),
   "utf8",
@@ -1140,8 +1146,10 @@ describe("who is here, which is what the panel is for now", () => {
     expect(checkedLabel(NOW2 - 5_000, NOW2, false)).toBe("checked just now");
     // And it comes from the engine's own clock rather than from a render, so a
     // panel opened an hour later reads the round rather than the visit.
-    expect(SERVER_ENGINE).toMatch(/roundAt = now\(\)/);
-    expect(SERVER_ENGINE).toMatch(/checkedAt: roundAt/);
+    expect(SERVER_ROUND_RECORD).toMatch(/finished\(\) \{ roundAt = now\(\); \}/);
+    expect(SERVER_ROUND_RECORD).toMatch(/checkedAt: \(\) => roundAt/);
+    expect(SERVER_ENGINE).toMatch(/lastRound\.finished\(\);/);
+    expect(SERVER_ENGINE).toMatch(/checkedAt: lastRound\.checkedAt\(\)/);
   });
 
   it("counts an invite down in minutes and seconds, which is how it is read out", () => {

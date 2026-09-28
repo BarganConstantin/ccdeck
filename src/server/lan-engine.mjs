@@ -9,11 +9,12 @@
 // switch answers them (lan-requests.mjs), the addresses it dials and what
 // answered at each (lan-dials.mjs), what a manifest says and what is kept of
 // one heard (lan-manifest.mjs), the store's rows in the rules' shape
-// (lan-accounts.mjs), the line every round waits in (lan-turns.mjs) and the
-// clock that asks for the next one (lan-round-timer.mjs), who has called this
-// deck (lan-inbound.mjs), the invite on offer (lan-invite-offer.mjs), when the
-// tailnet is read (lan-tailnet-poll.mjs), and what a deck that cannot hear
-// says (lan-hearing.mjs). What it answers a paired deck that asks lives in
+// (lan-accounts.mjs), the line every round waits in (lan-turns.mjs), the
+// clock that asks for the next one (lan-round-timer.mjs) and what the last one
+// did (lan-round-record.mjs), who has called this deck (lan-inbound.mjs), the
+// invite on offer (lan-invite-offer.mjs), when the tailnet is read
+// (lan-tailnet-poll.mjs), and what a deck that cannot hear says
+// (lan-hearing.mjs). What it answers a paired deck that asks lives in
 // lan-serve.mjs; the asking — a round, and joining on an invite — is here.
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
@@ -49,6 +50,7 @@ import { createBeacon } from "./lan-beacon.mjs";
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { createTurns } from "./lan-turns.mjs";
 import { ASKING_MS, createRoundTimer, SYNC_MS } from "./lan-round-timer.mjs";
+import { createRoundRecord } from "./lan-round-record.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
@@ -306,14 +308,10 @@ export function createEngine({
   /** The invite this deck is offering, from the press that makes it to the
    *  proof that spends it — see lan-invite-offer.mjs. */
   const offer = createInviteOffer({ now, onChange, onError });
-  /** What the last round did, for the panel. Not a log: one line per peer, most
-   *  recent only, because "what happened" is a question about now. */
-  const lastRound = new Map();
-  /** When the last round FINISHED, whatever it did or failed to do. The panel's
-   *  `↻` fires one on demand and the loop fires one on its own; a reader who
-   *  pressed it wants to know it happened, and a reader who did not wants to
-   *  know the list is not a photograph of an hour ago. */
-  let roundAt = null;
+  /** What the last round did with each deck, when the whole round last
+   *  finished, and whether anybody it asked is still deciding — see
+   *  lan-round-record.mjs. */
+  const lastRound = createRoundRecord({ now });
   /**
    * Why this deck is not listening, when it is switched on and is not.
    *
@@ -502,17 +500,6 @@ export function createEngine({
     onIdentity?.(fresh.secret);
     onError?.("id-clash", new Error("another deck was using this one's key; taking a new one"));
   };
-
-  /**
-   * Is anybody on the other end still deciding?
-   *
-   * The exact sentence lan-socket.mjs sends for "a real deck, not yet
-   * accepted", which is the one state where dialling again in a few seconds
-   * does something a minute later would not.
-   */
-  const waitingOnSomebody = () =>
-    [...lastRound.values()].some(r => r?.error === "waiting for the other deck to accept this one");
-
   /** How this deck reached that peer. A beacon row says so; a typed address is
    *  read from the routing table. The round and the peer list both ask this. */
   const viaOf = peer => peer.via ?? viaAt(peer.addr);
@@ -739,7 +726,7 @@ export function createEngine({
       // can outlast the peer's thirty-second idle timer, and one ask covers
       // every login the round brought.
       await markArrivals(done);
-      lastRound.set(peer.fp, { at: now(), name: peer.name, offered: list.length, done });
+      lastRound.keep(peer.fp, { at: now(), name: peer.name, offered: list.length, done });
       if (done.length) onChange?.();
       return done;
     } catch (err) {
@@ -751,7 +738,7 @@ export function createEngine({
       // bring are checked the same way a finished round's are.
       await markArrivals(done);
       if (session !== startedIn) return [];
-      lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message, done });
+      lastRound.keep(peer.fp, { at: now(), name: peer.name, error: err.message, done });
       if (done.length) onChange?.();
       // A DIAL-BACK THAT NEVER ANSWERED IS TAKEN AWAY AGAIN. The address came
       // from a paired deck's inbound call, and this round was the test of
@@ -761,7 +748,7 @@ export function createEngine({
       // more. A row that answered has already left its trial above.
       const at = `${peer.addr}:${peer.port}`;
       if (dials.failed(at)) {
-        lastRound.delete(peer.fp);
+        lastRound.drop(peer.fp);
         onChange?.();
       }
       return done;
@@ -810,7 +797,7 @@ export function createEngine({
       all.push(...await roundWith(peer));
     }
     if (session !== startedIn) return all;
-    roundAt = now();
+    lastRound.finished();
     return all;
   };
 
@@ -821,7 +808,7 @@ export function createEngine({
   const round = () => turns.round(session, oneRound);
   /** When the next round runs: a minute at rest, seconds while a deck this one
    *  dialled is deciding — see lan-round-timer.mjs. */
-  const roundTimer = createRoundTimer({ round, waiting: waitingOnSomebody });
+  const roundTimer = createRoundTimer({ round, waiting: lastRound.waitingOnSomebody });
 
   /** What status() says about Tailscale, for a deck that has a reader: whether
    *  the machine has it at all, and what it can see. */
@@ -892,7 +879,7 @@ export function createEngine({
         name: met?.name || p.name,
         met: !!met,
         paired: !!trustedPeer(cfg.trusted, id),
-        last: lastRound.get(p.fp) ?? null,
+        last: lastRound.of(p.fp) ?? null,
         ...card(id),
       });
     }
@@ -904,7 +891,7 @@ export function createEngine({
       if (byId.has(t.fp)) continue;
       put({
         id: t.fp, fp: t.fp, peerFp: t.fp, name: t.name || t.fp, addr: "", port: 0,
-        paired: true, waiting: true, last: lastRound.get(t.fp) ?? null,
+        paired: true, waiting: true, last: lastRound.of(t.fp) ?? null,
         // What it is to be "here" for a deck nothing dials: it called,
         // and this is when. Undefined until it has, which is a row the
         // panel draws as unknown rather than as live.
@@ -1184,8 +1171,9 @@ export function createEngine({
      * Null when it is neither, which is a deck that only calls in — nothing
      * here holds an address for it, so there is nobody to dial.
      *
-     * `roundAt` is left alone: it says when EVERY paired deck was last asked,
-     * and asking one of them does not make that true.
+     * `roundAt` (see lan-round-record.mjs) is left alone: it says when EVERY
+     * paired deck was last asked, and asking one of them does not make that
+     * true.
      *
      * IN TURN, LIKE EVERY ROUND (#1132). This called `roundWith` straight, past
      * the guard `round` keeps, and a press during the timer's round dialled the
@@ -1223,9 +1211,9 @@ export function createEngine({
       const typed = dials.rowAnswering(fp);
       const peer = heard ?? typed;
       if (!peer) return null;
-      const had = lastRound.get(peer.fp);
+      const had = lastRound.of(peer.fp);
       await turns.ahead();
-      const got = lastRound.get(peer.fp);
+      const got = lastRound.of(peer.fp);
       if (got && got !== had) return got.done ?? [];
       // A deck switched off while the press waited is not dialled after all.
       return turns.inTurn(() => (beacon ? roundWith(peer) : []));
@@ -1253,7 +1241,7 @@ export function createEngine({
         lanTunneled: !!beacon?.tunneled?.(),
         // When every paired deck was last asked. Null until the first round,
         // which on a deck that has just started is the honest answer.
-        checkedAt: roundAt,
+        checkedAt: lastRound.checkedAt(),
         name: cfg.name,
         // This deck's own card, so the panel can read a peer's version against
         // it; and the names somebody here gave other decks, which the panel
