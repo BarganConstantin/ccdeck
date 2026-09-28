@@ -1,6 +1,6 @@
 // The one line of a tool's input a human should be shown.
 //
-// `shortPreview` in reducer.ts JSON-stringifies whatever it is given, which is
+// `shortPreview` in tool-calls.ts JSON-stringifies whatever it is given, which is
 // right for what it was written for — the tool modal, where the reader wants the
 // shape of the object. It is wrong everywhere the string is read as a sentence:
 // a sidebar tooltip and a desktop notification saying
