@@ -26,7 +26,7 @@ import { GUARDED_READS, HOOK_TOKEN, OPEN_MUTATIONS, isAuthorizedDataRead, isAuth
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
 // The ring itself — what it holds, how it numbers them, and the eviction that
 // keeps those bounds — private behind its operations. See event-ring.mjs.
-import { eventsSince, lastSeq } from "./event-ring.mjs";
+import { eventsSince } from "./event-ring.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
@@ -40,10 +40,14 @@ import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs
 export { writeJsonArray };
 // POST /api/clear — see clear-route.mjs.
 import { handleClear } from "./clear-route.mjs";
+// GET /api/health — see health-route.mjs.
+import { handleHealth } from "./health-route.mjs";
+// Which tree this deck captures and which CLIs it watches, set once below —
+// see deck-scope.mjs.
+import { deckProviders, deckWorkspace, setDeckScope } from "./deck-scope.mjs";
 // The SSE subscribers — pages and the desktop app's tray connections — and the
-// backpressure every frame to them is written under. See sse-clients.mjs.
-import { pageCount, trayClients } from "./sse-clients.mjs";
-// Exported from this file before they moved, and still.
+// backpressure every frame to them is written under; see sse-clients.mjs.
+// These two were exported from this file before they moved, and still are.
 export { MAX_CLIENT_BUFFER_BYTES, queuedBytes } from "./sse-clients.mjs";
 // The built page and its assets, with the SPA fallback for everything else —
 // see static-serve.mjs. The route table hands it every GET nothing above took.
@@ -81,7 +85,7 @@ export { CODEX_SESSIONS_DIR } from "./codex-dir.mjs";
 // The events.jsonl this deck keeps: where it is, which sessions this deck
 // writes to it, who shares it, when it rolls over and whether it is being
 // written at all — see event-log.mjs.
-import { eventLogPath, logSharing, logWritableNow, openEventLog } from "./event-log.mjs";
+import { eventLogPath, logSharing, openEventLog } from "./event-log.mjs";
 // Exported from this file before they moved, and still.
 export { logSharing, rotateCheckDue, writesLogFor } from "./event-log.mjs";
 // What the deck learns about a session that its hooks never say — model,
@@ -119,7 +123,6 @@ import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
-import { appendFailureStats } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers, and the answer for one that threw
 // — see http-io.mjs. sendInternalError was exported from this file before it
@@ -144,60 +147,6 @@ export { pinRunningBuild } from "./pinned-build.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
-
-// The tree this deck was told to capture, "" when it captures the whole
-// machine. Set by startServer and never changed afterwards.
-//
-// The browser had no way to learn it: the launcher prints the scope on stdout
-// and the hook reads it out of the discovery file, but nothing put it in an
-// HTTP response — so the deck's own empty state guessed, and guessed wrong for
-// everyone who passed --workspace or --scope. Health is where it belongs: it
-// already answers "which deck am I talking to", and it is the one route the UI
-// can read before a single event has arrived.
-let _workspace = "";
-
-// Which CLIs this deck is actually watching. Decided in bin/deck.js — from
-// whether each one is on the machine, and from --claude/--no-claude and
-// --codex/--no-codex — and passed in here, because the browser had no way to
-// learn it and so drew both sides of the UI on every machine.
-//
-// That is the whole of #402 and its mirror. A Codex-only machine got the
-// accounts panel open on first run, telling it to sign into a CLI it does not
-// have; a Claude-only machine permanently carried "Quota unavailable. / Run
-// codex login to authenticate." Same missing fact, two directions.
-//
-// Defaults are both true, which is what an older deck effectively reported by
-// saying nothing — and the browser reads a missing field as "could not say" and
-// shows both, so the two agree.
-let _providers = { claude: true, codex: true };
-
-function handleHealth(_req, res) {
-  send(res, 200, {
-    ok: true,
-    name: "agent-dag",
-    seq: lastSeq(),
-    clients: pageCount(),
-    // The desktop app's tray connections, which are not pages (#1160).
-    trays: trayClients.size,
-    uptimeMs: Math.round(process.uptime() * 1000),
-    workspace: _workspace,
-    providers: _providers,
-    // WHETHER THE EVENTS BEING DRAWN ARE BEING KEPT. `seq` above counts what
-    // the deck accepted, and it counted a deck whose every append was failing
-    // exactly the same as one whose every append landed. `log` is the other
-    // half of that sentence: `writable` is the newest evidence about the log —
-    // the boot probe's answer until a line lands after it and the appender's
-    // from then on, the same answer the Restart gate reads (#1130) — `failing`
-    // says the appender is inside a failure episode right now, and
-    // `failedLines` / `failedChars` are what has been attempted and lost since
-    // this deck started.
-    //
-    // No path. The health probe is a deliberately open route and this is the
-    // smallest set of facts that answers the question; the path is already in
-    // the banner for anyone standing at the terminal.
-    log: eventLogPath() ? { writable: logWritableNow(), ...appendFailureStats(eventLogPath()) } : null,
-  });
-}
 
 /** The token this deck expects to be challenged on. Written by writeDiscovery. */
 export function hookToken() { return HOOK_TOKEN; }
@@ -265,10 +214,8 @@ export function requestUrl(rawUrl) {
 
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
   armLifecycle({ onRestart, onStop, persist });
-  _workspace = typeof workspace === "string" ? workspace : "";
-  // `!== false` rather than a cast: a caller that omits the field means "yes",
-  // which is how every embedder that predates this option keeps working.
-  _providers = { claude: claude !== false, codex: codex !== false };
+  // Which tree and which CLIs, normalised once — see setDeckScope.
+  setDeckScope({ workspace, claude, codex });
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.
   resetLanLoaded();
@@ -277,7 +224,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see repairStaleCopyWith.
-  if (_providers.claude) {
+  if (deckProviders().claude) {
     // THIS WIRING IS WHERE AN IMPORT CYCLE SHOWED UP AS A SILENT NO-OP, and it
     // is the cycle that has been fixed rather than this line — see
     // claude-identity.mjs.
@@ -322,16 +269,16 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // event — see openEventLog.
   await openEventLog(persist);
   if (persist) {
-    // `_workspace`, not `workspace`: the field has just been normalised on the
-    // line above, and the replay has to answer the same question the live paths
-    // answer with the same string. Passed rather than read off the module scope
-    // so replayLog states what it depends on. See replayScope.
+    // `deckWorkspace()`, not `workspace`: setDeckScope has normalised the
+    // field above, and the replay has to answer the same question the live
+    // paths answer with the same string. Passed rather than read off
+    // deck-scope.mjs so replayLog states what it depends on. See replayScope.
     //
-    // `_providers` goes with it, and for the same reason: it gates the two live
-    // capture paths a few lines down (`if (codex) startCodexWatcher`, and the
-    // hook install above), and until #1004 it reached neither the replay nor
-    // anything else but the health payload.
-    const replayed = await replayLog(eventLogPath(), _workspace, { providers: _providers });
+    // `deckProviders()` goes with it, and for the same reason: it gates the two
+    // live capture paths a few lines down (`if (codex) startCodexWatcher`, and
+    // the hook install above), and until #1004 it reached neither the replay
+    // nor anything else but the health payload.
+    const replayed = await replayLog(eventLogPath(), deckWorkspace(), { providers: deckProviders() });
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.

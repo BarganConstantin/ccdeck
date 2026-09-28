@@ -77,8 +77,8 @@ export function replayScope(workspace, platform = process.platform, providers = 
   // WHICH CLIS THIS DECK IS WATCHING, and the half of `--no-codex` that did not
   // exist (#1004). Live capture is gated on the provider — `if (codex)
   // startCodexWatcher(...)`, and the Claude hook is only installed when
-  // `_providers.claude` — and the boot replay was not, so a deck started with
-  // `--no-codex` printed
+  // `deckProviders().claude` — and the boot replay was not, so a deck started
+  // with `--no-codex` printed
   //
   //     Codex sessions   skipped — no ~/.codex/, or --no-codex
   //
