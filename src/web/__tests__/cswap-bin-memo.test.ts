@@ -1,8 +1,8 @@
 // Which binary every account operation is sent to, and when that answer is
 // allowed to change.
 //
-// `cswapBin()` is called on roughly twenty paths across cswap-admin.mjs,
-// cswap-auto.mjs and claude-accounts.mjs — every add, switch, move, import,
+// `cswapBin()` is called on roughly twenty paths across cswap-admin.mjs, the
+// cswap-auto modules and claude-accounts.mjs — every add, switch, move, import,
 // export, remove and poll. Each call would otherwise cost a `cswap --version`
 // child process, so the answer is memoized; and because it is memoized, there
 // has to be a way to invalidate it after an install, which is `resetCswapBin`.

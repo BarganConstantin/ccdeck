@@ -181,7 +181,7 @@ describe("the modules that exist so that others need not import each other", () 
     const lock = await import("../../server/store-lock.mjs");
     const admin = await import("../../server/cswap-admin.mjs");
     expect(admin.withStoreLock).toBe(lock.withStoreLock);
-    for (const name of ["claude-accounts.mjs", "cswap-auto.mjs"]) {
+    for (const name of ["claude-accounts.mjs", "cswap-auto.mjs", "cswap-auto-loop.mjs"]) {
       expect(read(name), `${name} takes the lock from somewhere else`)
         .toMatch(/^import \{ withStoreLock \} from "\.\/store-lock\.mjs";$/m);
     }

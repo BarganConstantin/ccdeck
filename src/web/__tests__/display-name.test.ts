@@ -157,7 +157,7 @@ describe("the boundary the rename must not cross", () => {
     // ~/.agents-deck holds the update markers, the ccusage install and the
     // cswap state. A new root re-triggers every install and re-arms every
     // once-an-hour check on the first run after the upgrade.
-    for (const file of ["npm-latest.mjs", "cswap-install.mjs", "cswap-auto.mjs", "retire-sound-hook.mjs"]) {
+    for (const file of ["npm-latest.mjs", "cswap-install.mjs", "cswap-auto-loop.mjs", "retire-sound-hook.mjs"]) {
       expect(read("src", "server", file)).toContain(`homedir(), ".agents-deck"`);
     }
     expect(read("src", "server", "ccusage-install.mjs")).toContain(`os.homedir(), ".agents-deck"`);

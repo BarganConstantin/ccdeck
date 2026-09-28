@@ -59,7 +59,7 @@ const inside = (p: string) => resolve(p).startsWith(resolve(DIR));
 for (const k of ENV_KEYS) {
   if (!inside(process.env[k]!)) throw new Error(`sandbox escaped: ${k}=${process.env[k]}`);
 }
-// cswap-auto.mjs keeps its enabled flag under the home directory, and homedir()
+// cswap-auto-loop.mjs keeps its enabled flag under the home directory, and homedir()
 // reads HOME on POSIX and USERPROFILE on Windows. Stop before the import if
 // either is still pointing at the real one.
 if (!inside(homedir())) throw new Error(`sandbox escaped: homedir ${homedir()}`);

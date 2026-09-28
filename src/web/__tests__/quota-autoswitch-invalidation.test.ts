@@ -70,7 +70,7 @@ const inside = (p: string) => resolve(p).startsWith(resolve(DIR));
 for (const k of ENV_KEYS) {
   if (!inside(process.env[k]!)) throw new Error(`sandbox escaped: ${k}=${process.env[k]}`);
 }
-// cswap-auto.mjs keeps its enabled flag under the home directory, and homedir()
+// cswap-auto-loop.mjs keeps its enabled flag under the home directory, and homedir()
 // reads HOME on POSIX and USERPROFILE on Windows — both are set above, so this
 // holds on all three platforms. Stop before the import if it does not.
 if (!inside(homedir())) throw new Error(`sandbox escaped: homedir ${homedir()}`);
@@ -226,9 +226,10 @@ beforeEach(async () => {
   clearStore();
   // A fresh copy of all three modules per test: the result cache, the last known
   // good reading, the self-poll floor, the roster cache and the loop's own state
-  // are every one of them module-level. cswap-auto.mjs imports the other two, so
-  // importing all three in one reset generation hands the tick the same cache
-  // instances these assertions read.
+  // are every one of them module-level. cswap-auto.mjs reaches the other two —
+  // its loop, cswap-auto-loop.mjs, imports both — so importing all three in one
+  // reset generation hands the tick the same cache instances these assertions
+  // read.
   vi.resetModules();
   quota    = await import("../../server/quota.mjs") as unknown as QuotaModule;
   accounts = await import("../../server/claude-accounts.mjs") as unknown as AccountsModule;

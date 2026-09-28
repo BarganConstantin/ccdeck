@@ -537,8 +537,9 @@ const CENSUS: Record<string, {
         + "six by a wide margin and was fixed for the shape rather than the cost "
         + "— except for one part that is not shape at all: it is the only one of "
         + "the six whose cache is invalidated from outside, from sixteen call "
-        + "sites in five modules — cswap-admin.mjs, cswap-auto.mjs, "
-        + "account-routes.mjs, lan-deck.mjs and its own first `cswap add` — so "
+        + "sites in six modules — cswap-admin.mjs, cswap-auto.mjs, "
+        + "cswap-auto-loop.mjs, account-routes.mjs, lan-deck.mjs and its own "
+        + "first `cswap add` — so "
         + "the in-flight slot arrived with #582's generation guard rather than "
         + "without it.",
   },
