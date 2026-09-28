@@ -2412,7 +2412,7 @@ describe("the invite, and the half of it that was never checked", () => {
     // Minted through the real function and re-addressed, so the code and the
     // expiry are the real ones rather than a hand-built token readInvite would
     // refuse before any of this ran.
-    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
     const real = readInvite(offered.token);
     const token = mintInvite({
       addrs: [`127.0.0.1:${wrong.port}`, `127.0.0.1:${a.port}`],
@@ -2439,7 +2439,7 @@ describe("the invite, and the half of it that was never checked", () => {
     // this degrades to the behaviour that shipped rather than refusing.
     const a = await deck(store([]), "Minter", []);
     const b = await deck(store([]), "Joiner", []);
-    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
     const real = readInvite(a.e.invite().token);
     const fresh = mintInvite({
       addrs: real.addrs.map((x: { addr: string; port: number }) => `${x.addr}:${x.port}`),
@@ -2475,7 +2475,7 @@ describe("what the engine hands its caller to keep", () => {
     const b = await deck(store([]), "Joiner", []);
     // Re-addressed to loopback, as the case above does, so the address each end
     // writes down is one this suite can name.
-    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
     const code = readInvite(a.e.invite().token).code;
     const token = mintInvite({ addrs: [`127.0.0.1:${a.port}`], name: "Minter", code }).token;
     expect((await b.e.join(token)).ok).toBe(true);

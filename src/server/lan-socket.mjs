@@ -1,7 +1,8 @@
-// The sockets. Every decision this makes lives in lan-sync.mjs; what is here is
-// the plumbing that decision layer refuses to own — a UDP socket that shouts,
-// a TCP listener that answers, and the deadlines around both. The shouting
-// half is lan-beacon.mjs; this file is the answering and the calling.
+// The sockets. Every decision this makes lives in lan-sync.mjs, or for an
+// invite in lan-invite.mjs; what is here is the plumbing that decision layer
+// refuses to own — a UDP socket that shouts, a TCP listener that answers, and
+// the deadlines around both. The shouting half is lan-beacon.mjs; this file
+// is the answering and the calling.
 //
 // TWO SOCKETS, AND NEITHER IS THE DECK'S HTTP SERVER. That server binds
 // 127.0.0.1 and stays there. It has a mutation guard that deliberately trusts a
@@ -17,11 +18,11 @@
 // collide with, one firewall dialog, and one number in a support answer.
 import net from "node:net";
 import {
-  challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript,
-  mixesEphemeral, proof, proofOk, inviteProof, inviteProofBack, readChallenge,
-  readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
+  challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript, mixesEphemeral, proof, proofOk,
+  readChallenge, readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
   MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
+import { inviteProof, inviteProofBack } from "./lan-invite.mjs";
 
 /** How long a connection has to finish the handshake before it is dropped. A
  *  handshake is two round trips on a local network — single-digit
