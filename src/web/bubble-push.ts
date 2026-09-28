@@ -5,7 +5,7 @@
 // a session grew or two session boxes are crossing.
 import type { Node } from "reactflow";
 import {
-  footprint, NODE_H, NODE_W, SESSION_CHROME, SESSION_VISIBLE_GAP, sessionOfNode, type Lanes,
+  CROSS_SESSION_X, CROSS_SESSION_Y, footprint, NODE_H, NODE_W, sessionOfNode, type Lanes,
 } from "./layout-geometry";
 
 /**
@@ -65,14 +65,14 @@ export function bubblePush(
    */
   lanes?: Lanes,
 ): string[] {
-  // Clearance between two session boxes — the same numbers separateOverlaps
-  // uses, so the two agree on what "overlapping" means.
+  // Clearance between two session boxes — the same constants separateOverlaps
+  // clears, so the two agree on what "overlapping" means.
   // Relaxation approaches the constraint from inside and stops a hair short of
   // it, so it solves for a fraction more clearance than is actually required
   // and the converged result clears the real gap outright.
   const SOLVE_SLACK = 1;
-  const GAP_X = 18 * 2 + 24 + SOLVE_SLACK;
-  const GAP_Y = SESSION_CHROME + SESSION_VISIBLE_GAP + SOLVE_SLACK;
+  const GAP_X = CROSS_SESSION_X + SOLVE_SLACK;
+  const GAP_Y = CROSS_SESSION_Y + SOLVE_SLACK;
 
   // A session has to gain real size to count. Sub-pixel measurement noise and
   // a card gaining a digit are not worth moving the canvas for.
