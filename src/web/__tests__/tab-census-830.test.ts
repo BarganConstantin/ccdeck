@@ -69,6 +69,8 @@ describe("the tabs count one another (#830)", () => {
 
 describe("a queued tab says so instead of blaming the server (#830)", () => {
   it("joins the census inside the stream's own effect, and asks only while not streaming", () => {
+    // The stream's effect moved to use-event-stream.ts, and the census with it.
+    const app = readFileSync(fileURLToPath(new URL("../use-event-stream.ts", import.meta.url)), "utf8");
     expect(app).toMatch(/joinCensus\(new BroadcastChannel\(CENSUS_CHANNEL\), [^,]+, \(\) => streaming\)/);
     expect(app).toMatch(/if \(streaming \|\| !census\) return;\s*void census\.ask\(600\)\.then\(peers => \{ if \(!streaming\) setTabCapped\(tooManyTabs\(peers\)\); \}\);/);
     expect(app).toMatch(/es\.addEventListener\("open", \(\) => \{ streaming = true; setTabCapped\(false\); \}\);/);
