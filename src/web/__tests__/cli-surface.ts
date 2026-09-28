@@ -32,6 +32,7 @@ export const CLI_FILES = [
   "bin/cli/help.js",
   "bin/cli/package.js",
   "bin/cli/uninstall.js",
+  "bin/cli/login-item.js",
 ] as const;
 
 let joined: string | null = null;

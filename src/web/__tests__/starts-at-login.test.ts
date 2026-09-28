@@ -30,6 +30,15 @@ const {
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const DECK = read("../../../bin/deck.js");
 const UNINSTALL = read("../../../bin/cli/uninstall.js");
+// `--install`, `--install-service` and `--uninstall-service`, lifted out of deck.js.
+const LOGIN_ITEM = read("../../../bin/cli/login-item.js");
+/** The body of `--install`: installGlobally, up to the next export or the end of the file. */
+function installBlock(): string {
+  const at = LOGIN_ITEM.indexOf("export async function installGlobally(");
+  expect(at, "installGlobally is gone or renamed").toBeGreaterThan(-1);
+  const next = LOGIN_ITEM.indexOf("\nexport ", at + 1);
+  return LOGIN_ITEM.slice(at, next === -1 ? undefined : next);
+}
 const SRC = read("../../server/login-service.mjs");
 
 const JOB = {
@@ -64,7 +73,8 @@ describe("no service manager is given a restart policy", () => {
     // A login is not somebody asking to look at the deck. The auto-install and
     // the explicit command both pass this.
     expect(plistFor(JOB)).toContain("<string>--no-open</string>");
-    expect(DECK).toMatch(/installService\(\{[\s\S]{0,200}script: join\(PKG_ROOT/);
+    expect(LOGIN_ITEM).toContain('const OWN_SCRIPT = join(PKG_ROOT, "bin", "agent-dag.js");');
+    expect(LOGIN_ITEM).toContain("svc.installService(loginJob(OWN_SCRIPT, deckLogDir))");
   });
 });
 
@@ -295,7 +305,7 @@ describe("whether a systemd session survives logging out", () => {
     expect(lingerState({ platform: "darwin" })).toBe("n/a");
     expect(lingerState({ platform: "win32" })).toBe("n/a");
     // And the warning is only printed for a definite "off".
-    expect(DECK).toContain('svc.lingerState() === "off"');
+    expect(LOGIN_ITEM).toContain('svc.lingerState() === "off"');
   });
 });
 
@@ -351,7 +361,7 @@ describe("offering it exactly once", () => {
     expect(shouldOfferService({ record: null, checkout: false })).toBe(true);
     // The explicit command still writes one — someone may genuinely want it —
     // but says what it is about to name first.
-    expect(DECK).toContain("this is a checkout, so the login item would name");
+    expect(LOGIN_ITEM).toContain("this is a checkout, so the login item would name");
   });
 
   it("never offers from an npx run", () => {
@@ -359,7 +369,7 @@ describe("offering it exactly once", () => {
     // whenever it feels like it: a login item pointing at nothing, forever, on
     // a machine where nothing was ever installed.
     expect(shouldOfferService({ record: null, npx: true })).toBe(false);
-    expect(DECK).toContain("an npx run cannot start at login");
+    expect(LOGIN_ITEM).toContain("an npx run cannot start at login");
   });
 
   it("honours the variable every other install here honours", () => {
@@ -450,7 +460,7 @@ describe("installing it, and saying so", () => {
       run: () => ({ status: 1, stderr: "Failed to connect to bus\nsecond line" }),
     });
     expect(out).toMatchObject({ ok: true, how: "file-only", reason: "Failed to connect to bus" });
-    expect(DECK).toContain("It will come up at your next login.");
+    expect(LOGIN_ITEM).toContain("It will come up at your next login.");
   });
 
   it("is a verdict, never a throw, because a deck is already running", () => {
@@ -465,10 +475,10 @@ describe("installing it, and saying so", () => {
   it("says it once, on the run that does it, and never again", () => {
     // A tool that adds itself to your login items and does not mention it is a
     // tool you find later, in a settings pane, and stop trusting.
-    expect(DECK).toContain("will now start when you log in");
+    expect(LOGIN_ITEM).toContain("will now start when you log in");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
-    expect(DECK).toContain("--uninstall-service\\` undoes it");
+    expect(LOGIN_ITEM).toContain("--uninstall-service\\` undoes it");
     // After the boot, not during it: a deck that could not come up has no
     // business teaching the machine to start it at every login. By the time
     // this runs the port is bound, the hooks are registered and the browser is
@@ -476,7 +486,10 @@ describe("installing it, and saying so", () => {
     // under a line that repaints itself every 800ms is a notice nobody reads.
     const registered = DECK.indexOf("discovery = keepDiscovery({");
     const browser = DECK.indexOf("openUrl(url);");
-    const offer = DECK.indexOf("shouldOfferService({");
+    // The offer itself is offerLoginItem in bin/cli/login-item.js; where the
+    // boot calls it is what decides when it runs.
+    expect(LOGIN_ITEM).toContain("shouldOfferService({");
+    const offer = DECK.indexOf("await offerLoginItem(");
     const pulse = DECK.indexOf("// ── Pulse indicator ");
     expect(offer).toBeGreaterThan(registered);
     expect(offer).toBeGreaterThan(browser);
@@ -555,15 +568,14 @@ describe("putting the deck on PATH, when somebody asks in words", () => {
     // Three packages publish this deck. Installing `ccdeck` for somebody who
     // ran `npx agent-dag` hands them a command they did not ask for and leaves
     // the one they used pointing at a cache directory.
-    expect(DECK).toContain("const pkg = installedName(PKG_ROOT, PRODUCT);");
-    expect(DECK).toContain('run("npm", ["i", "-g", pkg]');
+    expect(LOGIN_ITEM).toContain("const pkg = installedName(PKG_ROOT, PRODUCT);");
+    expect(LOGIN_ITEM).toContain('run("npm", ["i", "-g", pkg]');
   });
 
   it("points the login item at the global install, not at the cache", () => {
-    const at = DECK.indexOf("if (flags.install) {");
-    const block = DECK.slice(at, DECK.indexOf("--install-service / --uninstall-service", at));
+    const block = installBlock();
     expect(block).toContain("gi.globalScript(root, pkg)");
-    expect(block).toContain("svc.installService({ script,");
+    expect(block).toContain("svc.installService(loginJob(script, deckLogDir))");
     // And it asks npm where that is rather than assuming a prefix.
     expect(block).toContain('run("npm", ["root", "-g"]');
   });
@@ -571,8 +583,7 @@ describe("putting the deck on PATH, when somebody asks in words", () => {
   it("still reports an install that worked with a login item that did not", () => {
     // Two different outcomes, and collapsing them would tell somebody their
     // deck starts at login when it does not.
-    const at = DECK.indexOf("if (flags.install) {");
-    const block = DECK.slice(at, DECK.indexOf("--install-service / --uninstall-service", at));
+    const block = installBlock();
     expect(block).toContain("installed, but it will not start at login");
     expect(block).toContain("installed, but npm did not say where");
   });
