@@ -48,7 +48,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
   CHIME_ORDER, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
-  DEFAULT_PREFS, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
+  DEFAULT_PREFS, ENVELOPE_FLOOR, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
   GAIN_CEILING, GAIN_FLOOR, gainForLevel, LEVEL_KEYS, levelFrom, LEVEL_MAX,
   LEVEL_MIN, LEVEL_STEP, PEAK_GAIN, peakFor, PREVIEW_DELAY_MS, readPrefs,
   type Chime, type Figure, type Note, type TonePrefs,
@@ -684,7 +684,7 @@ function fakeAudio() {
       return {
         gain: {
           setValueAtTime() {},
-          exponentialRampToValueAtTime(target: number) { if (target > 0.0001) peaks.push(target); },
+          exponentialRampToValueAtTime(target: number) { if (target > ENVELOPE_FLOOR) peaks.push(target); },
         },
         connect: (n: unknown) => n,
       } as unknown as GainNode;

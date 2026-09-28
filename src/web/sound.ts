@@ -371,6 +371,22 @@ export function peakFor(level: number, figure: Pick<Figure, "trim">): number {
   return Math.round(gainForLevel(level) * trim * 10_000) / 10_000;
 }
 
+// ── the envelope ────────────────────────────────────────────────────────────
+//
+// Every note is played in one shape: an exponential attack from the floor to
+// the note's peak, then an exponential decay back to the floor at the note's
+// end. Stated once for the two things that build it — the player below, live,
+// and chime-wav.ts, which renders the desktop app's notification files offline
+// and has to sound like the page (#1160).
+
+/** How long a note takes to reach its peak, in seconds. Shaped rather than a
+ *  raw start, because an abruptly gated oscillator clicks. */
+export const ENVELOPE_ATTACK_S = 0.012;
+
+/** Where every note starts and ends, in gain. Not zero: an exponential ramp to
+ *  zero is undefined in the spec. */
+export const ENVELOPE_FLOOR = 0.0001;
+
 /**
  * How loud a spoken custom voice is, for a level (#1207): SpeechSynthesis'
  * 0–1 volume.
@@ -603,14 +619,14 @@ export function createChimePlayer(opts: {
       osc.frequency.value = note.hz;
       const t0 = now + note.at;
       const t1 = t0 + note.ms / 1000;
-      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.setValueAtTime(ENVELOPE_FLOOR, t0);
       // `peak`, not PEAK_GAIN: the user's level, trimmed for this waveform. The
       // ramp is exponential and an exponential ramp to zero is undefined
       // behaviour in the spec — which is the second reason GAIN_FLOOR is above
       // zero rather than the first, and the reason peakFor clamps the trim
       // rather than trusting it.
-      gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t1);
+      gain.gain.exponentialRampToValueAtTime(peak, t0 + ENVELOPE_ATTACK_S);
+      gain.gain.exponentialRampToValueAtTime(ENVELOPE_FLOOR, t1);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t0);
       osc.stop(t1 + 0.02);
