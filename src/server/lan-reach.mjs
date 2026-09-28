@@ -230,8 +230,8 @@ export function fixSteps({ category, alias, exePath, rules = [] }) {
 //
 // SO THE MEASUREMENT CARRIES THE VERDICT AND THE CONFIGURATION ONLY RAISES
 // THE QUESTION. `inbound` is when a connection from another machine last
-// arrived on the sync listener (see lan-engine's inboundAt). If one ever has,
-// the path is open and nothing here has an opinion, whatever the rule files
+// arrived on the sync listener (see inboundAt in lan-inbound.mjs). If one ever
+// has, the path is open and nothing here has an opinion, whatever the rule files
 // say. Only when the firewall is on, its inbound default drops, and nothing
 // has ever got in does this speak — and it says what it measured, in those
 // terms, rather than claiming to have read a rule it cannot read.
@@ -483,7 +483,7 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   if (!name) return null;
   // MEASURED BEATS READ, here as on Linux: a connection from another machine
   // has arrived on the sync listener, so the path is open whatever rule this
-  // was about to fail to find. See lan-engine's inboundAt.
+  // was about to fail to find. See inboundAt in lan-inbound.mjs.
   if (inbound) return { blocked: false, why: "inbound seen", category, alias: net?.alias ?? "" };
   const prof = probe.profiles.find(p => p.name.toLowerCase() === name.toLowerCase());
   // A firewall that is off blocks nothing, and saying otherwise would send

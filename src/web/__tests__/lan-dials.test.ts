@@ -163,4 +163,44 @@ describe("a deck that called in, dialled back", () => {
     expect(d.failed("10.0.0.5:4800")).toBe(false);
     expect(d.rows()).toHaveLength(1);
   });
+
+  // #1674: the trial outlived its row. A settings write replaced the list and
+  // kept the address on trial, so the first failed round took away the row a
+  // person had typed there since.
+  it("is off trial once somebody types the address, by a settings write or by hand", () => {
+    for (const type of [
+      (d: ReturnType<typeof createDials>) => d.replace(["10.0.0.5:4800"]),
+      (d: ReturnType<typeof createDials>) => d.add("10.0.0.5", 4800),
+    ]) {
+      const d = createDials();
+      d.add("10.0.0.5", 4800, { typed: false });
+      d.trial("10.0.0.5:4800", { fp: "fp-a", name: "A" });
+      type(d);
+      expect(d.failed("10.0.0.5:4800")).toBe(false);
+      expect(d.rows()).toEqual([expect.objectContaining({ addr: "10.0.0.5", port: 4800, typed: true })]);
+      // Still the deck that answered there.
+      expect(d.metAt("10.0.0.5:4800")).toEqual({ fp: "fp-a", name: "A" });
+    }
+  });
+
+  it("ends with a settings write that drops its row", () => {
+    const d = createDials();
+    d.add("10.0.0.5", 4800, { typed: false });
+    d.trial("10.0.0.5:4800", { fp: "fp-a", name: "A" });
+    d.replace([]);
+    // A round that fails at that address later — to the same deck heard
+    // there, say — has no trial to end and nothing of this list to remove.
+    expect(d.failed("10.0.0.5:4800")).toBe(false);
+    // What answered there is still known, for a row that comes back.
+    expect(d.metAt("10.0.0.5:4800")).toEqual({ fp: "fp-a", name: "A" });
+  });
+
+  it("stays on trial when the deck adds the same address again itself", () => {
+    const d = createDials();
+    d.add("10.0.0.5", 4800, { typed: false });
+    d.trial("10.0.0.5:4800", { fp: "fp-a", name: "A" });
+    d.add("10.0.0.5", 4800, { typed: false });
+    expect(d.failed("10.0.0.5:4800")).toBe(true);
+    expect(d.rows()).toEqual([]);
+  });
 });

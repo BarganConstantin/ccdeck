@@ -126,7 +126,7 @@ export interface LanStatus {
   port: number | null;
   /** When a connection from another machine last arrived here. Null on a deck
    *  nobody has dialled, which is not the same as one nothing can reach — see
-   *  the engine's inboundAt. */
+   *  inboundAt in lan-inbound.mjs. */
   inboundAt?: number | null;
   addrs: string[];
   shared: string[];

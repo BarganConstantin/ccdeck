@@ -55,7 +55,8 @@ export function createDials() {
    *  peer from then on and leaves this set; one that does not is a caller this
    *  deck cannot reach back (a strict NAT, a one-way path), and its row is
    *  taken away again so it reverts to "calls in" rather than failing every
-   *  round. */
+   *  round. A person naming the address ends its trial too, and so does a
+   *  settings write that takes its row away (#1674). */
   const calledBack = new Set();
 
   /** Dial this address on every round from now on. Returns false for an
@@ -91,6 +92,10 @@ export function createDials() {
       fp: `manual:${at}`, name: host, addr: host, port: p, manual: true,
       typed: typed || was?.typed === true,
     });
+    // AND A PERSON NAMING IT ENDS ITS TRIAL (#1674). A dial-back is taken away
+    // when a round cannot reach it, and a row somebody typed is not the deck's
+    // to take away: it stays, failing, and says why.
+    if (typed) calledBack.delete(at);
     return true;
   };
 
@@ -104,6 +109,10 @@ export function createDials() {
      *  size of the list it leaves. */
     replace(entries) {
       manual.clear();
+      // The trials go with the rows they were for (#1674). One left behind
+      // outlived its row, and the next round that failed at that address took
+      // away whatever was dialled there by then.
+      calledBack.clear();
       for (const entry of Array.isArray(entries) ? entries : []) {
         const at = String(entry).lastIndexOf(":");
         if (at > 0) add(String(entry).slice(0, at), Number(String(entry).slice(at + 1)));
