@@ -21,6 +21,7 @@ import { armedPress } from "../panel-press";
 import { CONFIRM_GAP_MS } from "../components/LanSyncSection";
 import { withoutComments } from "./tsx-scan";
 import { accountsSurface } from "./accounts-surface";
+import { soundMenuSurface } from "./sound-menu-surface";
 
 const GAP = 400;
 const press = (armedFor: number | null, target: number, armedAt: number, now: number) =>
@@ -87,7 +88,10 @@ describe("every arm-then-confirm press asks armedPress", () => {
   const section = read("LanSyncSection.tsx");
   const list = read("LanDeckList.tsx");
   const modal = read("LanPeerModal.tsx");
-  const sound = read("SoundMenu.tsx");
+  /** A custom sound's Delete, lifted out of the menu with the rest of the
+   *  custom sounds; the menu and what was lifted out of it, for the sweeps. */
+  const customSounds = read("CustomSoundsSection.tsx");
+  const soundMenu = withoutComments(soundMenuSurface());
 
   it("routes the account's Remove through it, and only a fire posts the removal", () => {
     // The item asks the hook's press by name and does nothing else.
@@ -115,17 +119,17 @@ describe("every arm-then-confirm press asks armedPress", () => {
   });
 
   it("routes a custom sound's Delete through it, and only a fire deletes", () => {
-    const start = sound.indexOf("const pressDelete = ");
+    const start = customSounds.indexOf("const pressDelete = ");
     expect(start).toBeGreaterThan(-1);
     const call = "await onDeleteCustom(id);";
-    const handler = sound.slice(start, sound.indexOf(call, start) + call.length);
+    const handler = customSounds.slice(start, customSounds.indexOf(call, start) + call.length);
     expect(handler).toMatch(/armedFor: armedDelete, target: id, armedAt: deleteArmedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
     expect(handler).toMatch(/if \(press === "arm"\) \{ setArmedDelete\(id\); deleteArmedAt\.current = now; return; \}/);
     expect(handler).toMatch(/if \(press === "ignore"\) return;\s*setArmedDelete\(null\);/);
     // The row's button asks the handler and nothing else: no second road to
     // the delete that skips the arm.
-    expect([...sound.matchAll(/onDeleteCustom\(/g)]).toHaveLength(1);
-    expect(sound).toMatch(/onClick=\{e => pressDelete\(asset\.id, e\.currentTarget\)\}/);
+    expect([...soundMenu.matchAll(/onDeleteCustom\(/g)]).toHaveLength(1);
+    expect(customSounds).toMatch(/onClick=\{e => pressDelete\(asset\.id, e\.currentTarget\)\}/);
   });
 
   it("leaves no hand-written gap check anywhere in the components", () => {
@@ -134,7 +138,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
     // press lives in use-account-menu.ts now, and a sweep of the component alone
     // would pass over it.
     const panel = withoutComments(accountsSurface());
-    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx", sound]]) {
+    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx", modal], ["SoundMenu.tsx and its lifted files", soundMenu]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }

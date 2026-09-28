@@ -12,6 +12,7 @@ import {
 import { createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
 import { withoutComments } from "./tsx-scan";
 import { clientText } from "./client-source";
+import { soundMenuSurface } from "./sound-menu-surface";
 
 const audio = (size = 4, name = "voice.wav") =>
   Object.assign(new Blob([new Uint8Array(size)], { type: "audio/wav" }), { name });
@@ -151,8 +152,12 @@ const voice = (): CustomVoiceAsset => ({
 });
 const clipRow = { id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1.5, normalizationGain: 2 };
 const source = (rel: string) => readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
-/** Comment-stripped, so a sentence explaining the code cannot pass for it. */
-const menu = withoutComments(source("components/SoundMenu.tsx"));
+/** Comment-stripped, so a sentence explaining the code cannot pass for it. The
+ *  menu's custom sounds, lifted out of SoundMenu.tsx with their state and
+ *  handlers. */
+const customSounds = withoutComments(source("components/CustomSoundsSection.tsx"));
+/** The menu and every file lifted out of it, for the negatives, counts and lists. */
+const menuSurface = withoutComments(soundMenuSurface());
 const app = withoutComments(source("App.tsx"));
 const bytesOf = (asset: CustomNotificationAsset | null) =>
   asset?.kind === "audio" ? [...new Uint8Array(asset.bytes)] : null;
@@ -304,7 +309,7 @@ describe("the listing carries no bytes (#1207)", () => {
     // sound is added" means these are the only two, anywhere in the client.
     const client = clientText();
     expect(client).toMatch(/useState<CustomAssetSummary\[\]>\(\[\]\)/);
-    expect(menu).toMatch(/customAssets: CustomAssetSummary\[\];/);
+    expect(customSounds).toMatch(/customAssets: CustomAssetSummary\[\];/);
     // Both ways a sound is added put its row in state, never the asset.
     expect([...client.matchAll(/const row = summarizeCustomAsset\(asset\);\s*setCustomAssets\(prev => \[\.\.\.prev\.filter\(item => item\.id !== row\.id\), row\]\);/g)]).toHaveLength(2);
     expect(client).toMatch(/await renameCustomNotificationAsset\(id, nextName\);/);
@@ -345,39 +350,39 @@ describe("the custom section of the sound menu (#1207)", () => {
   const css = source("styles.css");
 
   it("says how full the library is where sounds are added, before any work is done", () => {
-    expect(menu).toMatch(/\{customCount\} of \{MAX_CUSTOM_ASSETS\}/);
-    expect(menu).toMatch(/\{full && <p className="sm-note" id="sm-custom-full">\{fullReason\}<\/p>\}/);
+    expect(customSounds).toMatch(/\{customCount\} of \{MAX_CUSTOM_ASSETS\}/);
+    expect(customSounds).toMatch(/\{full && <p className="sm-note" id="sm-custom-full">\{fullReason\}<\/p>\}/);
     // The recording refuses before the microphone is asked for, and the voice
     // form stays shut rather than being filled in for nothing.
-    expect(menu).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
-    expect(menu).toMatch(/onClick=\{e => \{ if \(full\) e\.preventDefault\(\); \}\}/);
-    expect(menu).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
+    expect(customSounds).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
+    expect(customSounds).toMatch(/onClick=\{e => \{ if \(full\) e\.preventDefault\(\); \}\}/);
+    expect(customSounds).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
     // Four controls carry the refusal: import, record, the form, Add voice.
-    expect([...menu.matchAll(/\{\.\.\.fullProps\}/g)]).toHaveLength(4);
+    expect([...menuSurface.matchAll(/\{\.\.\.fullProps\}/g)]).toHaveLength(4);
   });
 
   it("refuses at the ceiling with aria-disabled, never by disabling a control that may hold focus (#518)", () => {
-    expect(menu).toMatch(/const fullProps = full \? \{ "aria-disabled": true, "aria-describedby": "sm-custom-full" \} : \{\};/);
-    expect(menu).not.toMatch(/\bdisabled=\{/);
+    expect(customSounds).toMatch(/const fullProps = full \? \{ "aria-disabled": true, "aria-describedby": "sm-custom-full" \} : \{\};/);
+    expect(menuSurface).not.toMatch(/\bdisabled=\{/);
     expect(css).toMatch(/\.sm-custom \[aria-disabled="true"\] \{ opacity: var\(--dim-off\); cursor: default; \}/);
   });
 
   it("hands focus on from a deleted row, unless the person has already moved it", () => {
-    expect(menu).toMatch(/const next = deleteFocusTarget\(customAssets\.map\(asset => asset\.id\), id\);/);
-    expect(menu).toMatch(/await onDeleteCustom\(id\);\s*const active = document\.activeElement;\s*if \(active !== pressed && !focusDropped\(active\?\.tagName \?\? null\)\) return;\s*\(next \? deleteRefs\.current\.get\(next\) : importRef\.current\)\?\.focus\(\);/);
-    expect(menu).toMatch(/<input\s+ref=\{importRef\}\s+type="file"/);
+    expect(customSounds).toMatch(/const next = deleteFocusTarget\(customAssets\.map\(asset => asset\.id\), id\);/);
+    expect(customSounds).toMatch(/await onDeleteCustom\(id\);\s*const active = document\.activeElement;\s*if \(active !== pressed && !focusDropped\(active\?\.tagName \?\? null\)\) return;\s*\(next \? deleteRefs\.current\.get\(next\) : importRef\.current\)\?\.focus\(\);/);
+    expect(customSounds).toMatch(/<input\s+ref=\{importRef\}\s+type="file"/);
   });
 
   it("asks twice before deleting, and says which sound the second press is for", () => {
-    expect(menu).toMatch(/aria-label=\{armedDelete === asset\.id \? `Confirm deleting \$\{asset\.name\}` : `Delete \$\{asset\.name\}`\}/);
-    expect(menu).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
-    expect(menu).toMatch(/window\.setTimeout\(\(\) => setArmedDelete\(null\), 4_000\)/);
+    expect(customSounds).toMatch(/aria-label=\{armedDelete === asset\.id \? `Confirm deleting \$\{asset\.name\}` : `Delete \$\{asset\.name\}`\}/);
+    expect(customSounds).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
+    expect(customSounds).toMatch(/window\.setTimeout\(\(\) => setArmedDelete\(null\), 4_000\)/);
   });
 
   it("gives text and number fields a text field's class, and keeps .sm-select for the selects", () => {
-    const inputs = [...menu.matchAll(/<input\b[^>]*?className="([^"]+)"/g)].map(m => m[1]);
+    const inputs = [...menuSurface.matchAll(/<input\b[^>]*?className="([^"]+)"/g)].map(m => m[1]);
     expect(inputs).toEqual(["ap-manage-input", "ap-manage-input", "ap-manage-input", "ap-manage-input", "ap-manage-input"]);
-    const selects = [...menu.matchAll(/<select\b[\s\S]*?className="([^"]+)"/g)].map(m => m[1]);
+    const selects = [...menuSurface.matchAll(/<select\b[\s\S]*?className="([^"]+)"/g)].map(m => m[1]);
     expect(selects).toEqual(["sm-select", "sm-select"]);
   });
 });

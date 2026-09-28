@@ -59,6 +59,7 @@ import { ASSUMED } from "../providers";
 import { KEY_HELP } from "../key-help";
 import { openTags, withoutComments } from "./tsx-scan";
 import { clientText } from "./client-source";
+import { soundMenuSurface } from "./sound-menu-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
@@ -72,6 +73,10 @@ const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-
 // `app` stays App.tsx for the rest, including the one negative case.
 const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
+// The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
+// that file; the negatives read the menu and every file lifted out of it.
+const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"));
+const menuSurface = withoutComments(soundMenuSurface());
 const sheet = withoutComments(read("components/KeyboardHelp.tsx"));
 const css = read("styles.css");
 
@@ -888,6 +893,14 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(inside).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
     expect(inside).toMatch(/: "Plays even when Sounds is off"\}/);
     expect(inside).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
+    // The slice above ran to the menu's last </div>, so it also held the custom
+    // sounds, which moved to CustomSoundsSection.tsx. Their markup is held to the
+    // same three there.
+    const custom = customSounds.slice(customSounds.indexOf("  return ("));
+    expect(custom).toContain('<section className="sm-custom"');   // the right slice
+    expect(custom, "a custom-sound control was disabled").not.toMatch(/\bdisabled\b/);
+    expect(custom, "a custom-sound control was dimmed").not.toMatch(/\bopacity\b/);
+    expect(custom).not.toMatch(/\bsoundOn\b/);
   });
 
   it("gives the tooltip the exception and the description the reason", () => {
@@ -946,7 +959,7 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     expect(menu).toMatch(/role="dialog"/);
     expect(menu).toMatch(/aria-label="Sound settings"/);
     // Non-modal on purpose: there is no scrim and nothing behind it is inert.
-    expect(menu).not.toMatch(/aria-modal/);
+    expect(menuSurface).not.toMatch(/aria-modal/);
   });
 
   it("adds the one rule a popover needs and a modal does not", () => {
@@ -971,8 +984,8 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // refusal the menu does make — no more custom sounds at the ceiling
     // (#1207) — is aria-disabled, which leaves the control focusable, and is
     // the only spelling of the word allowed here.
-    expect(menu).toMatch(/"aria-disabled": true/);
-    expect(menu.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
+    expect(customSounds).toMatch(/"aria-disabled": true/);
+    expect(menuSurface.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
     const tags = openTags(read("App.tsx"), ["button"])
       .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags[0].attrs.replace(/\s+/g, " ")).toMatch(/\{\.\.\.selfPressProps\(false\)\}/);
@@ -1059,6 +1072,6 @@ describe("App owns the settings, the write and the round trip", () => {
     }
     // The menu writes nothing itself: every change leaves through a callback,
     // so there is one writer of the store and it is App.
-    expect(menu).not.toMatch(/localStorage/);
+    expect(menuSurface).not.toMatch(/localStorage/);
   });
 });
