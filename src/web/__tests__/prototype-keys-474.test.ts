@@ -222,11 +222,15 @@ describe("the admin-failure maps, on a reason code of the same shape", () => {
 });
 
 describe("the version row's upgrade-block copy", () => {
-  it("asks App.tsx's table whether it has a row rather than trusting `??`", () => {
+  it("asks the banner's table whether it has a row rather than trusting `??`", () => {
     // App.tsx cannot be imported here — React, JSX, reactflow — so this half is
     // pinned by reading the file, the way codex-tool-taxonomy.test.ts pins the
     // detail strip's use of the shared bucket table.
-    expect(APP).toMatch(/Object\.hasOwn\(UPGRADE_BLOCK_TEXT, version\.upgradeBlocked\)/);
+    // The table and the lookup moved with the version banner, out of App.tsx;
+    // the negative is asked of both.
+    const banner = src("../components/VersionBanner.tsx");
+    expect(banner).toMatch(/Object\.hasOwn\(UPGRADE_BLOCK_TEXT, version\.upgradeBlocked\)/);
+    expect(banner).not.toMatch(/UPGRADE_BLOCK_TEXT\[[^\]]+\]\s*\?\?/);
     expect(APP).not.toMatch(/UPGRADE_BLOCK_TEXT\[[^\]]+\]\s*\?\?/);
   });
 });

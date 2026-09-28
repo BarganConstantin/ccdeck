@@ -815,7 +815,7 @@ describe("how App.tsx wires it up", () => {
   // land in the hook's half, where the decision effect is.
   // The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
   const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts") + "\n" + src("../components/EmptyHero.tsx")
-    + "\n" + src("../components/VersionChip.tsx");
+    + "\n" + src("../components/VersionChip.tsx") + "\n" + src("../components/VersionBanner.tsx");
   const modal = src("../components/ReleaseNotesModal.tsx");
 
   it("decides from the version the SERVER is running, not the bundle's", () => {

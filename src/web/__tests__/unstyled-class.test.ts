@@ -105,7 +105,8 @@ describe("every class the markup hard-codes", () => {
     const policy = readFileSync(join(web, "components/AutoSwitchPolicy.tsx"), "utf8");
     expect(policy).toContain('className="switch ap-auto-state"');
     expect(accountsSurface()).not.toMatch(/ap-auto-state\$\{/);
-    expect(readFileSync(join(web, "App.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
+    // The version banner, out of App.tsx, carries the auto-restart switch.
+    expect(readFileSync(join(web, "components/VersionBanner.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
   });
 
   it("is read from enough files, and enough of them, for the sweep to mean something", () => {
