@@ -302,9 +302,14 @@ describe("the block is announced, and the region is always there to announce it"
     // arriving one utterance later costs nothing, and assertive would talk over
     // the screen reader's own announcement of a page that replays an existing
     // block during mount.
-    expect(appCode).toContain(`<div className="conn-banner" role="alert">`);
-    expect(appCode).not.toMatch(/waiting[^\n]*role="alert"/);
-    expect(appCode).not.toMatch(/role="alert"[^\n]*waiting/);
+    // The banner's markup lives in components/ConnectionBanner.tsx; App.tsx
+    // mounts it, so the negatives read both.
+    const banner = codeOf(read("../components/ConnectionBanner.tsx"));
+    expect(banner).toContain(`<div className="conn-banner" role="alert">`);
+    expect(appCode).toContain("<ConnectionBanner ");
+    const topbar = appCode + "\n" + banner;
+    expect(topbar).not.toMatch(/waiting[^\n]*role="alert"/);
+    expect(topbar).not.toMatch(/role="alert"[^\n]*waiting/);
   });
 
   it("computes both halves through the shared module, not inline", () => {

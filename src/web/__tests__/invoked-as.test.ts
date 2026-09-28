@@ -234,18 +234,20 @@ describe("what gets said, and to whom", () => {
   it("leads with the reassurance, in both surfaces, and never raises its voice", () => {
     // Nothing is breaking, no command is being taken away, and the notice has
     // to read that way or it is a lie about severity. The browser half is
-    // written in App.tsx (React cannot be rendered here) so it is read as text.
-    const app = read("src", "web", "App.tsx");
+    // written in components/OldNameBanner.tsx (React cannot be rendered here)
+    // so it is read as text; App.tsx only mounts it, and the negative reads both.
+    const banner = read("src", "web", "components", "OldNameBanner.tsx");
+    const app = read("src", "web", "App.tsx") + "\n" + banner;
     for (const name of ["agents-deck", "agent-dag"]) {
       const notice = renameNotice({ invoked: name, pkgRoot: "/usr/local/lib/node_modules/agents-deck" });
       expect(notice.said.startsWith(`${name} still works`), name).toBe(true);
       expect(`${notice.said} ${notice.fix}`).not.toMatch(/[!]/);
     }
-    expect(app).toContain("{oldName} still works — the deck is called {PRODUCT} now.");
-    // Only the first line is written in App.tsx. The second one is renameNotice's
+    expect(banner).toContain("{oldName} still works — the deck is called {PRODUCT} now.");
+    // Only the first line is written in the browser. The second one is renameNotice's
     // `fix`, handed over by /api/version — see "one fact, one place" below for
     // why it stopped being written twice.
-    expect(app).toContain("{version.renameFix}");
+    expect(banner).toContain("{version.renameFix}");
     expect(app).not.toMatch(/deprecated/i);
   });
 
@@ -383,16 +385,22 @@ describe("the wiring, which is the half no pure function can hold", () => {
 // have — while the terminal row, which asks isNpxInstall directly, printed the
 // right one a few lines above. Two surfaces, one fact, opposite answers.
 describe("one fact, one place: which line the rename notice ends with", () => {
-  const app = read("src", "web", "App.tsx");
+  // The banner's markup is components/OldNameBanner.tsx; App.tsx keeps the
+  // branch that mounts it. The negatives below read both.
+  const banner = read("src", "web", "components", "OldNameBanner.tsx");
+  const app = read("src", "web", "App.tsx") + "\n" + banner;
   const server = read("src", "server", "index.mjs");
 
   // The JSX comments carry the reasoning, including the name of the field this
   // must no longer branch on, so the assertion below reads the code only.
   const withoutComments = (jsx: string) => jsx.replace(/\{\/\*[^]*?\*\/\}/g, "");
   const bannerJsx = () => {
-    const start = app.indexOf("oldNameOpen && oldName ? (");
+    const mount = app.indexOf("oldNameOpen && oldName ? (");
+    expect(mount, "the rename banner moved — this test needs a new anchor").toBeGreaterThan(-1);
+    expect(app.slice(mount, app.indexOf("dismissOldName}", mount))).toContain("<OldNameBanner ");
+    const start = banner.indexOf('<div className="ver-banner" role="status">');
     expect(start, "the rename banner moved — this test needs a new anchor").toBeGreaterThan(-1);
-    return app.slice(start, app.indexOf("dismissOldName}", start));
+    return banner.slice(start, banner.indexOf("dismissOldName}", start));
   };
 
   /** Runs `body` with one AGENTS_DECK_* variable set, and puts it back. These
