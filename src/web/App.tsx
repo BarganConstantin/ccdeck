@@ -63,6 +63,7 @@ import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
 import { useBrowserWatchBadge } from "./use-browser-watch-badge";
+import { useChimePlayer } from "./use-chime-player";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useLeftColumn } from "./use-left-column";
@@ -156,8 +157,7 @@ import {
 import { emptyScope } from "./scope";
 import type { Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
-import { chimeFor, createChimePlayer, type ChimeState } from "./sound";
-import { getCustomNotificationAsset } from "./notification-audio";
+import { chimeFor, createChimePlayer } from "./sound";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -831,29 +831,10 @@ function Inner() {
   const appearanceButtonRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => { if (soundMenuOpen) setAppearanceMenuOpen(false); }, [soundMenuOpen]);
 
-  const [chimeState, setChimeState] = useState<ChimeState>("locked");
-  useEffect(() => {
-    const player = createChimePlayer({
-      enabled: () => soundOnRef.current === true,
-      prefs: () => tonePrefsRef.current,
-      customSelection: () => customSelectionsRef.current,
-      loadCustom: getCustomNotificationAsset,
-      onCustomFailure: (chime, id) => fallbackCustomRef.current(chime, id),
-      onState: setChimeState,
-    });
-    chimesRef.current = player;
-    setChimeState(player.state());
-    // Any gesture anywhere unlocks it, once. `pointerdown` rather than `click`
-    // so a press on the canvas counts, and `keydown` so a keyboard-only user
-    // is not left permanently silent.
-    const wake = () => player.unlock();
-    window.addEventListener("pointerdown", wake, { once: true, capture: true });
-    window.addEventListener("keydown", wake, { once: true, capture: true });
-    return () => {
-      window.removeEventListener("pointerdown", wake, { capture: true } as EventListenerOptions);
-      window.removeEventListener("keydown", wake, { capture: true } as EventListenerOptions);
-    };
-  }, []);
+  // The player behind the deck's own two tones, built once on mount and woken by
+  // the first gesture anywhere — use-chime-player.ts. It reads every setting
+  // through a ref at play time, so it never has to be rebuilt.
+  const { chimeState } = useChimePlayer({ chimesRef, soundOnRef, tonePrefsRef, customSelectionsRef, fallbackCustomRef });
 
   // ── version drift ─────────────────────────────────────────────────────────
   // A deck upgraded while it was running keeps executing the old code, silently
