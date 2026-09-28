@@ -9,7 +9,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
-import { INVOKED_AS, PKG_ROOT } from "./package.js";
+import { COMMAND, PKG_ROOT } from "./package.js";
 import { G } from "./screen.js";
 import { removedRecord } from "./login-item.js";
 
@@ -153,7 +153,7 @@ export async function uninstall(flags) {
         for (const f of holding) {
           console.log(`${PRODUCT}:   ${f.path}${f.holds === "unknown" ? `  (unreadable ${gDash} ${f.why})` : ""}`);
         }
-        console.log(`${PRODUCT}: every deck you paired with has pinned that key. \`${INVOKED_AS ?? PRODUCT} --uninstall --purge\` removes the file(s) above.`);
+        console.log(`${PRODUCT}: every deck you paired with has pinned that key. \`${COMMAND} --uninstall --purge\` removes the file(s) above.`);
       }
     }
   }
@@ -161,7 +161,7 @@ export async function uninstall(flags) {
   // The remedy last and once, after every symptom above it, rather than once
   // per refusal in the middle of the list.
   if (named.size > 0) {
-    console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${INVOKED_AS ?? PRODUCT} --uninstall\` again.`);
+    console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${COMMAND} --uninstall\` again.`);
   }
   // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
   // CI step that runs this stops on the failure instead of continuing past it.

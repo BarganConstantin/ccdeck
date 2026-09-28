@@ -328,8 +328,10 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // AGENTS_DECK_*, like every other variable the deck reads — display-name
     // .test.ts owns that boundary and this is the new one it applies to.
     expect(identity).toContain("invokedName({ pkgRoot: PKG_ROOT })");
-    // And the files that print it take it from there rather than working it out again.
-    expect(cliSurface()).toMatch(/import \{[^}]*\bINVOKED_AS\b[^}]*\} from "\.\/package\.js";/);
+    // And the files that print it take it from there rather than working it out
+    // again: COMMAND is the typed name with ccdeck as the fallback.
+    expect(identity).toContain("export const COMMAND = INVOKED_AS ?? PRODUCT;");
+    expect(cliSurface()).toMatch(/import \{[^}]*\bCOMMAND\b[^}]*\} from "\.\/package\.js";/);
     expect(cliSurface()).not.toContain("process.argv[1]");
   });
 
@@ -347,7 +349,7 @@ describe("the wiring, which is the half no pure function can hold", () => {
       .map(([f, l]) => `${f}: ${l.trim()}`);
     expect(hints).toEqual([]);
     // The scan is looking at the right spelling: the typed-name form is there.
-    expect(cliSurface()).toContain("\\`${INVOKED_AS ?? PRODUCT} --help\\`");
+    expect(cliSurface()).toContain("\\`${COMMAND} --help\\`");
   });
 
   it("warns and returns, rather than refusing to run", () => {

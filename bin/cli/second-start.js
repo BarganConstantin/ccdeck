@@ -22,7 +22,7 @@ import { isPortValue } from "../../src/server/args.mjs";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { liveDecks, olderVersion, secondStart, versionNote } from "../../src/server/running-deck.mjs";
 import { link } from "../../src/server/term.mjs";
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
+import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, LINKS, P, sleep, write } from "./screen.js";
 import { reportIncompleteFlags, reportUnknownFlags } from "./startup.js";
 
@@ -98,7 +98,7 @@ export async function settleSecondStart({ flags, workspace, persist, wantCodex, 
     // The line that says a second deck was NOT started. Without it the command
     // looks like it did nothing at all, which is the other way to be confusing
     // about this — and it names the flag for the person who wanted a fresh one.
-    write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${INVOKED_AS ?? PRODUCT} --new\` replaces it with a fresh one${P.reset}\n`);
+    write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${COMMAND} --new\` replaces it with a fresh one${P.reset}\n`);
     if (openBrowser) {
       write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
       try {

@@ -11,7 +11,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
+import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, P, write } from "./screen.js";
 
 // The copy of the deck this file belongs to: what `--install-service` and a
@@ -121,7 +121,7 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     // whenever it feels like it — a login item pointing at nothing, forever,
     // on a machine where nothing was ever installed.
     say(`\n  ${tone.warn}${gWarn}  an npx run cannot start at login ${dash} its files live in npm's cache and are deleted without warning.${tone.reset}`);
-    say(`     ${tone.muted}install it first: \`npm i -g ${INVOKED_AS ?? PRODUCT}\`${tone.reset}\n`);
+    say(`     ${tone.muted}install it first: \`npm i -g ${COMMAND}\`${tone.reset}\n`);
     return 1;
   }
   const out = svc.installService(loginJob(OWN_SCRIPT, deckLogDir));
@@ -138,7 +138,7 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
   }
   warnWhenLingerOff(svc, { say, tone, gWarn });
-  say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${tone.reset}\n`);
+  say(`     ${tone.muted}\`${COMMAND} --uninstall-service\` undoes it${tone.reset}\n`);
   return 0;
 }
 
@@ -172,7 +172,7 @@ export async function offerLoginItem({ deckDataDir, deckLogDir }) {
       // adds itself to your login items and does not mention it is a tool you
       // find later, in a settings pane, and stop trusting.
       write(out.ok
-        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${P.reset}\n\n`
+        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${COMMAND} --uninstall-service\` undoes it${P.reset}\n\n`
         : `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`);
     }
   } catch (err) {
