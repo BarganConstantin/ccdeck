@@ -22,6 +22,7 @@ import { WEB_DIR } from "./client-source";
 export const BROWSER_WATCH_FILES = [
   "components/BrowserWatchModal.tsx",
   "browser-watch-model.ts",
+  "use-browser-watch.ts",
 ] as const;
 
 let joined: string | null = null;

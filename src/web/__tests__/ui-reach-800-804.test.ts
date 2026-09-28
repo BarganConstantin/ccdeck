@@ -22,13 +22,16 @@ import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
 import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
 import { clientText } from "./client-source";
+import { browserWatchSurface } from "./browser-watch-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
 const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
 const soundMenu = read("../components/SoundMenu.tsx");
-const watchModal = read("../components/BrowserWatchModal.tsx");
+// Browser Watch's reads and writes moved to use-browser-watch.ts; the dialog and
+// what was lifted out of it are read as one, so #803's negative still sees them.
+const watchModal = browserWatchSurface();
 const css = read("../styles.css");
 
 describe("#800 — the session list", () => {
