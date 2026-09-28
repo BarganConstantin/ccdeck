@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport } from "../stored-viewport";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The <ReactFlow> element and its zoom range, out of App.tsx's markup. */
+const board = readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
 
 /** The check loadViewport made before #1006, verbatim apart from the return. */
 function oldCheck(raw: string): boolean {
@@ -80,9 +82,10 @@ describe("App.tsx", () => {
   });
 
   it("bounds the canvas with the same two numbers the check uses", () => {
-    expect(app).toContain("minZoom={CANVAS_MIN_ZOOM}");
-    expect(app).toContain("maxZoom={CANVAS_MAX_ZOOM}");
-    expect(app).not.toMatch(/minZoom=\{\d/);
-    expect(app).not.toMatch(/maxZoom=\{\d/);
+    expect(board).toContain("minZoom={CANVAS_MIN_ZOOM}");
+    expect(board).toContain("maxZoom={CANVAS_MAX_ZOOM}");
+    // Asked of both files, so a literal written back into either one fails.
+    expect(app + "\n" + board).not.toMatch(/minZoom=\{\d/);
+    expect(app + "\n" + board).not.toMatch(/maxZoom=\{\d/);
   });
 });

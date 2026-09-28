@@ -104,19 +104,24 @@ describe("the canvas wiring (#1237)", () => {
   // The layout signature, the visibility set and the nodes are use-board-graph.ts's,
   // which App.tsx hands the removals.
   const graph = readFileSync(fileURLToPath(new URL("../use-board-graph.ts", import.meta.url)), "utf8");
+  // The bubbles are mounted in components/BoardFlow.tsx, which App.tsx hands the graph.
+  const board = readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
 
   it("works the removal out once, from the removed-node store", () => {
     expect(removals).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
   });
 
   it("subtracts it from the visibility set the cards AND the tool bubbles both gate on", () => {
-    expect(app).toMatch(/const \{ spotlightSet, visibleAgentIds, nodes, edges, allNodes \} = useBoardGraph\(\{[^}]*\bremovedAgentIds\b/);
+    expect(app).toMatch(/const graph = useBoardGraph\(\{[^}]*\bremovedAgentIds\b/);
     const memo = /const visibleAgentIds = useMemo<Set<string>>\([\s\S]*?\n  \);/.exec(graph)?.[0] ?? "";
     expect(memo).toMatch(/for \(const id of removedAgentIds\) ids\.delete\(id\);/);
     expect(memo).toMatch(/removedAgentIds\],/);
-    // The two readers of that set: the cards and the bubble overlay.
+    // The two readers of that set: the cards and the bubble overlay, which
+    // BoardFlow mounts from the graph App.tsx hands it.
     expect(graph).toMatch(/selectedIds, spotlightSet, visibleAgentIds, openContext,/);
-    expect(app).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bgraph=\{graph\}/);
+    expect(board).toMatch(/const \{ allNodes, edges, visibleAgentIds, spotlightSet \} = graph;/);
+    expect(board).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
   });
 
   it("keeps the layout signature in step with it, so the board reflows around a removal", () => {

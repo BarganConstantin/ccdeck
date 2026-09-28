@@ -247,6 +247,8 @@ function stripComments(src: string): string {
 const sources: [string, string][] = clientSources(web)
   .map(p => [p.slice(web.length).replaceAll("\\", "/"), stripComments(readFileSync(p, "utf8"))]);
 const app = sources.find(([p]) => p === "App.tsx")![1];
+/** The <ReactFlow> element, the grid and the minimap, out of App.tsx's markup. */
+const boardFlow = sources.find(([p]) => p === "components/BoardFlow.tsx")![1];
 /** The theme, the palette and `cssVar` moved out of App.tsx into use-appearance.ts,
  *  so the cases about them read that one file. Not the whole client: they count
  *  mentions and compare positions, which only mean anything within one module. */
@@ -372,8 +374,11 @@ describe("nothing on the render path reads a CSS custom property", () => {
   });
 
   it("paints the grid and the minimap mask out of the palette", () => {
-    expect(app).toMatch(/<Background gap=\{28\} size=\{1\} color=\{palette\["--grid-line"\]\} \/>/);
-    expect(app).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
+    // App.tsx hands BoardFlow the appearance whole, and BoardFlow paints both.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bappearance=\{appearance\}/);
+    expect(boardFlow).toMatch(/const \{ palette, minimapNodeFill, characterEnabled \} = appearance;/);
+    expect(boardFlow).toMatch(/<Background gap=\{28\} size=\{1\} color=\{palette\["--grid-line"\]\} \/>/);
+    expect(boardFlow).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
   });
 
   it("hands MiniMap a memoised nodeColor and no style object at all", () => {
@@ -383,8 +388,8 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // that used to be the second such prop is gone: the minimap's surface,
     // edge and radius are the stylesheet's now (.react-flow__minimap), on the
     // same tokens as the control stack, so there is no object to memoise.
-    const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(app);
-    expect(minimap, "no <MiniMap> in App.tsx").not.toBeNull();
+    const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(boardFlow);
+    expect(minimap, "no <MiniMap> in components/BoardFlow.tsx").not.toBeNull();
     expect(minimap![0]).toMatch(/nodeColor=\{[A-Za-z_$][\w$]*\}/);
     expect(minimap![0]).not.toMatch(/\bstyle=/);
     expect(minimap![0]).not.toMatch(/=>/);
@@ -396,7 +401,7 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // itself it would be rebuilt during the render that flips it — before the
     // effect writes `data-theme` — and would hold the OLD colours forever.
     expect(appearance).toMatch(/const paletteToken = useMemo\(\(\) => paletteReader\(palette\), \[palette\]\);/);
-    expect(app).not.toMatch(/const minimapStyle\b/);
+    expect(app + "\n" + boardFlow).not.toMatch(/const minimapStyle\b/);
     expect(appearance).toMatch(/\[paletteToken\],/);
   });
 
@@ -422,7 +427,7 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // Spelled with or without a type argument, a memo may not produce it.
     // Asked of both files: the palette lives in use-appearance.ts now, so that is
     // where the trap could come back — asking App.tsx alone would pass forever.
-    for (const src of [app, appearance]) {
+    for (const src of [app, boardFlow, appearance]) {
       expect(src).not.toMatch(/useMemo\s*(<[^;=]*?>)?\s*\([^;]*\breadPalette\b/);
     }
     // And there are exactly three mentions of `readPalette` in the file that

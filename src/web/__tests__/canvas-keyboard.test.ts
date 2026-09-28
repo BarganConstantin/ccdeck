@@ -48,12 +48,14 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 // The detail panel moved to components/Detail.tsx, the selected ribbon to
 // components/SelectedRibbon.tsx, and focusing and stepping between cards to
-// use-agent-focus.ts; App.tsx and they are read as one.
+// use-agent-focus.ts, and the <ReactFlow> element to components/BoardFlow.tsx;
+// App.tsx and they are read as one.
 const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8")
   + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8")
   + "\n" + readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")
   + "\n" + readFileSync(join(web, "use-agent-focus.ts"), "utf8")
-  + "\n" + readFileSync(join(web, "use-canvas-clicks.ts"), "utf8");
+  + "\n" + readFileSync(join(web, "use-canvas-clicks.ts"), "utf8")
+  + "\n" + readFileSync(join(web, "components/BoardFlow.tsx"), "utf8");
 // Which element is a card's wrapper is canvas-node-element.ts's now.
 const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
@@ -150,7 +152,10 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     expect(canvasKeyIntent({ key: "Enter", shiftKey: true }, NODE))
       .toEqual({ kind: "activate", nodeId: NODE, additive: true });
     expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\)/);
-    // The click handler is use-canvas-clicks.ts's; App.tsx hands it to <ReactFlow>.
+    // The click handler is use-canvas-clicks.ts's; App.tsx hands the hook's
+    // return to BoardFlow, which hands the handler to <ReactFlow>.
+    expect(app).toMatch(/const clicks = useCanvasClicks\(\{/);
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bclicks=\{clicks\}/);
     expect(app).toMatch(/onNodeClick=\{onNodeClick\}/);
     expect(app).toMatch(/const onNodeClick = \(e: React\.MouseEvent, n: Node\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\)/);
   });

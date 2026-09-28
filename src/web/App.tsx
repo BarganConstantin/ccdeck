@@ -1,20 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactFlow, {
-  Background,
-  MiniMap,
-  ReactFlowProvider,
-  useReactFlow,
-} from "reactflow";
-import AgentNode from "./components/AgentNode";
+import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
 import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
-import SessionClusters from "./components/SessionClusters";
-import SessionGroupNode from "./components/SessionGroupNode";
-import RecapNoteNode from "./components/RecapNoteNode";
-import RecapTieEdge from "./components/RecapTieEdge";
-import ToolBursts from "./components/ToolBursts";
+import BoardFlow from "./components/BoardFlow";
 import SessionSummary from "./components/SessionSummary";
 import ContextModal from "./components/ContextModal";
 import SessionList from "./components/SessionList";
@@ -28,8 +18,6 @@ import GuideModal from "./components/GuideModal";
 import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
-import ClaudeFm from "./components/ClaudeFm";
-import { customFmSelection } from "./fm-stations";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
@@ -62,9 +50,7 @@ import VersionChip from "./components/VersionChip";
 import { SessionRun, SourceRun } from "./components/TopbarRuns";
 import { NotifySaid, StatusStrip, WaitingStat } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
-import CanvasControls from "./components/CanvasControls";
 import CategoryFilterBar from "./components/CategoryFilterBar";
-import AutoFitChip from "./components/AutoFitChip";
 import DragTrashZone from "./components/DragTrashZone";
 import VersionBanner from "./components/VersionBanner";
 import ConnectionBanner from "./components/ConnectionBanner";
@@ -104,9 +90,7 @@ const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import { LanPairRequests } from "./components/LanPairRequestModal";
 import { findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "./stored-viewport";
 import { selfPressProps } from "./panel-press";
-import { shouldAnimateViewport } from "./viewport-motion";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
@@ -116,14 +100,6 @@ import { finishSoundTitle } from "./provider-copy";
 import { createChimePlayer } from "./chime-player";
 import type { ToolCall } from "./types";
 
-const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
-/** The recap note's tie to its card — see RecapTieEdge. At module scope like
- *  nodeTypes, since a new object each render makes React Flow warn and remount. */
-const edgeTypes = { recapTie: RecapTieEdge };
-
-/** How long React Flow's own opening fit takes, when there is anyone watching
- *  it. Named because the answer to "should this animate" is asked of it too. */
-const OPENING_FIT_MS = 400;
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
 /** Named for the panel it opens rather than for the button, which is how it
@@ -317,7 +293,8 @@ function Inner() {
   // canvas; it does not drop the connection. The gate, the mirrored flag and
   // the toggle's eviction accounting live in use-pause-gate.ts, which carries
   // the reasoning.
-  const { pauseGate, paused, togglePause } = usePauseGate(stateRef);
+  const pause = usePauseGate(stateRef);
+  const { pauseGate, paused, togglePause } = pause;
   // The desktop app's update frames arrive on the same stream, and the handler
   // for them comes out of useDesktopUpdate below, which itself keys off `live`.
   // Bound once that hook has run; it is a stable callback.
@@ -403,15 +380,15 @@ function Inner() {
   // The deck's look — the theme, the pixel character, and the canvas palette
   // read from the theme's tokens — with the effects that keep the DOM, storage
   // and the window's title bar in step, in use-appearance.ts.
-  const { theme, setTheme, characterEnabled, setCharacterEnabled, palette, minimapNodeFill }
-    = useAppearance();
+  const appearance = useAppearance();
+  const { theme, setTheme, characterEnabled, setCharacterEnabled, palette } = appearance;
   // Claude FM's configuration — volume, mute, which station, the stations
   // somebody added, and which of them are not answering — with its storage, in
   // use-claude-fm.ts. Stations and the selection change only through its named
   // operations, which keep the two consistent.
+  const fm = useClaudeFm();
   const { fmVolume, setFmVolume, fmMuted, setFmMuted, fmSource, customFmStations,
-          unavailableFmStations, fmPlayRequest, addFmStation, renameFmStation,
-          removeFmStation, pickFmSource, markFmStationAvailability } = useClaudeFm();
+          unavailableFmStations, addFmStation, renameFmStation, removeFmStation, pickFmSource } = fm;
 
   // The camera's primitives — the one door every viewport the deck sets goes
   // through, the fit every structural change runs, and the bookkeeping that
@@ -443,7 +420,8 @@ function Inner() {
   // quantised for the layout, whole for the drift watchdog below. See
   // use-canvas-size.ts.
   const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize();
-  const { autoFitDisabled, autoFitDisabledRef, disableAutoFit, enableAutoFitAndRefit } = useAutoFitSwitch(fitLeft);
+  const autoFit = useAutoFitSwitch(fitLeft);
+  const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
   // True for the length of a drag gesture. A ref as well as state: the
   // measurement effect below reads it without wanting to re-run when it
@@ -490,9 +468,10 @@ function Inner() {
   const { lod, lodRef, applyZoom } = useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef });
   // The viewport: the one restored from storage, the one stored on every move,
   // and whether a move was the user's or the deck's — use-canvas-viewport.ts.
-  const { restoredViewport, markCanvasInput, onMoveStart, onMove } = useCanvasViewport({
+  const viewport = useCanvasViewport({
     applyViewport, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom,
   });
+  const { markCanvasInput } = viewport;
 
   // The selected agent. Declared this high because the rail measurement below
   // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
@@ -515,11 +494,12 @@ function Inner() {
 
   // Which agents are drawn and which are spotlit, and the arrays React Flow is
   // handed, a drag in flight patched over them — use-board-graph.ts.
-  const { spotlightSet, visibleAgentIds, nodes, edges, allNodes } = useBoardGraph({
+  const graph = useBoardGraph({
     stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
     layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
     dragTick, dragPatchRef, dragMoveTick,
   });
+  const { nodes, edges } = graph;
 
   // Re-column when the frame changes enough to change the answer, keeping what
   // the reader was looking at — use-reframe.ts.
@@ -555,7 +535,7 @@ function Inner() {
 
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.
-  const { onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDrag({
+  const drag = useNodeDrag({
     nodes, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
     setDragging, setDragMoveTick, setDragTick, endBubble, markInteract, disableAutoFit,
     beginTrashDrag, trackTrashDrag, endTrashDrag, removeNode,
@@ -582,7 +562,7 @@ function Inner() {
   });
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
-  const { onNodeClick, onPaneClick, onNodeDoubleClick, onNodeMouseEnter, onNodeMouseLeave } = useCanvasClicks({
+  const clicks = useCanvasClicks({
     clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
   });
 
@@ -1172,138 +1152,13 @@ function Inner() {
             presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
           />
         )}
-        <ReactFlow
-          nodes={allNodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          /* EDGES ARE NOT KEYBOARD STOPS. React Flow's store defaults
-             `edgesFocusable` to true, and its EdgeWrapper gates on that flag
-             alone rather than on `disableKeyboardA11y` below — so every parent
-             -> child connector took tabIndex 0, role="button", an aria-label of
-             `Edge from ${source} to ${target}`, and a description reading
-             "Press enter or space to select an edge. You can then press delete
-             to remove it or escape to cancel."
-
-             Subagent ids are `${sessionId}::${agentId}`, so that label was
-             about 110 characters of UUID, read out at a stop between every
-             parent and child. And every key it named was then swallowed:
-             `disableKeyboardA11y` short-circuits EdgeWrapper's onKeyDown, so
-             Enter, Space, Delete and Escape on a focused edge all did nothing.
-
-             This is what #853 and #367 fixed for nodes, applied to nodes only.
-             The edge keeps role="img" and its label, which is harmless — the
-             target node already carries the name. */
-          edgesFocusable={false}
-          edgeTypes={edgeTypes}
-          fitView={!restoredViewport}
-          /* The opening frame is React Flow's own, and it goes through the same
-             d3 transition every other viewport animation does — so a deck that
-             opened its tab behind whatever the user was already looking at drew
-             its graph and then left the pane at the identity transform, an
-             empty-looking canvas until the tab was brought forward. The library
-             re-reads this object into its store on every render and only fits
-             once, when the first nodes are measured, so asking for no animation
-             while the page is not being rendered takes the branch that applies
-             the transform outright. A visible tab still gets the 400ms. */
-          fitViewOptions={{
-            padding: 0.25,
-            duration: shouldAnimateViewport({ durationMs: OPENING_FIT_MS, documentHidden: document.hidden })
-              ? OPENING_FIT_MS
-              : 0,
-          }}
-          minZoom={CANVAS_MIN_ZOOM}
-          maxZoom={CANVAS_MAX_ZOOM}
-          panOnScroll
-          nodesDraggable
-          nodesConnectable={false}
-          selectionOnDrag={false}
-          // Without a threshold React Flow begins a drag on pointerdown, so a
-          // plain click ran onNodeDragStart/onNodeDragStop at zero delta: it
-          // pinned the card — every card of the session, for the group handle —
-          // and switched auto-fit off for good. The distance is measured in
-          // flow units, so it scales with the zoom; 5 is roughly the slop a
-          // mouse, a trackpad or a finger has to beat before the gesture counts
-          // as a drag instead of a click.
-          nodeDragThreshold={5}
-          // React Flow's own keyboard layer told a screen reader, on every card,
-          // "use the arrow keys to move the node around. Press delete to remove
-          // it" (#853). Neither is true here: the nodes are a controlled prop with
-          // no onNodesChange, so its arrow moves and deletes never land, and the
-          // deck answers Enter itself (canvas-keys.ts). So the description goes,
-          // with the live region that would announce a move that never happens,
-          // and Backspace stops being a key React Flow listens for at all.
-          disableKeyboardA11y
-          deleteKeyCode={null}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          onNodeDoubleClick={onNodeDoubleClick}
-          onNodeMouseEnter={onNodeMouseEnter}
-          onNodeMouseLeave={onNodeMouseLeave}
-          onMoveStart={onMoveStart}
-          onMove={onMove}
-          onNodeDragStart={onNodeDragStart}
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
-        >
-          <Background gap={28} size={1} color={palette["--grid-line"]} />
-          {/* The stamp that keeps a click on a session's name from reading as
-              the user grabbing the canvas — see the note on the component
-              (#785). Same line App's own focusSession runs after its fitView. */}
-          <SessionClusters onFocusSession={focusAgent} />
-          <ToolBursts
-            agents={stateRef.current.agents}
-            visibleAgentIds={visibleAgentIds}
-            positions={positionsRef.current}
-            pinned={pinnedRef.current}
-            measured={measuredRef.current}
-            spotlight={spotlightSet}
-            hiddenCategories={hiddenCats}
-            now={now}
-            onOpenTool={openTool}
-          />
-          {/* The state the recenter tint used to be the only sign of (#820).
-              While the reader's own pan or zoom holds the view, new sessions
-              can land off-screen; this says so on the canvas they would be
-              looked for on, with the way back in the same place. */}
-          {/* A status and an action, not one big button. The words say what
-              the state is and are not a control; Resume is the one thing here
-              that can be pressed, and it does what the whole chip used to. */}
-          {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
-          {/* No React Flow fit-view button (#840). Recenter below does the same
-              fit and also turns autofit back on, so two near-identical buttons
-              sat side by side and the reader had to guess the difference. F
-              still fits from the keyboard. */}
-          <CanvasControls
-            autoFitDisabled={autoFitDisabled} enableAutoFitAndRefit={enableAutoFitAndRefit}
-            paused={paused} pauseGate={pauseGate} togglePause={togglePause}
-            handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
-          />
-          <MiniMap
-            zoomable
-            pannable
-            nodeColor={minimapNodeFill}
-            nodeStrokeWidth={2}
-            maskColor={palette["--minimap-mask"]}
-            // The frame the view is showing, outlined. The minimap's surface
-            // sits close to the canvas now (.react-flow__minimap), so the mask
-            // alone no longer separates it well; a --line keyline does, in
-            // the same neutral the chrome's edges are drawn in.
-            maskStrokeColor={palette["--line"]}
-          />
-          {/* Above the minimap, and absent unless there is something to play —
-              ClaudeFm renders null until the server says the channel is on air,
-              so on a deck with no network this is nothing at all. */}
-          {characterEnabled && (
-            <ClaudeFm
-              volume={fmVolume}
-              muted={fmMuted}
-              source={fmSource}
-              playRequest={fmPlayRequest}
-              customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
-              onAvailabilityChange={markFmStationAvailability}
-            />
-          )}
-        </ReactFlow>
+        {/* React Flow, and everything drawn in its pane — components/BoardFlow.tsx. */}
+        <BoardFlow
+          graph={graph} layout={layout} viewport={viewport} clicks={clicks} drag={drag}
+          appearance={appearance} fm={fm} autoFit={autoFit} pause={pause}
+          stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
+          openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+        />
         {isMounted(trashPhase) && (
           <DragTrashZone trashZoneRef={trashZoneRef} trashState={trashState} trashPhase={trashPhase} trashLabel={trashLabel} />
         )}

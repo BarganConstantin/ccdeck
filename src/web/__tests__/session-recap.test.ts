@@ -294,11 +294,12 @@ describe("where it is drawn", () => {
     expect(card).toContain("const noteOpen = recap != null && !noteDismissed;");
     // The note is a node of its own, built beside the root while the recap is
     // true and not put away, and tied to it by an edge from note to root.
-    // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
-    const appSrc = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
+    // The two renderers are registered where <ReactFlow> is, in
+    // components/BoardFlow.tsx since it left App.tsx's markup.
+    const appSrc = read("../components/BoardFlow.tsx");
     expect(appSrc).toContain("const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };");
     expect(appSrc).toContain("const edgeTypes = { recapTie: RecapTieEdge };");
-    // The node and its tie are built in canvas-flow.ts since #1175 — App.tsx
+    // The node and its tie are built in canvas-flow.ts since #1175 — BoardFlow
     // registers the two renderers, and the snapshot decides what to draw.
     const flowSrc = read("../canvas-flow.ts");
     expect(flowSrc).toContain('type: "recapNote",');
