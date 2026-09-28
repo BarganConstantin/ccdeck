@@ -337,6 +337,14 @@ describe("what a cell calls its reading", () => {
 
 describe("the process section is one way in, and draws nothing", () => {
   const meter = readFileSync(at("../components/MachinePanel.tsx"), "utf8");
+  /** Processes, to the next function or the end of the file — it is the last
+   *  component in the panel's file since the drawing primitives moved out. */
+  const processes = () => {
+    const start = meter.indexOf("function Processes(");
+    if (start < 0) return "";
+    const next = meter.indexOf("\nfunction ", start + 1);
+    return meter.slice(start, next < 0 ? undefined : next);
+  };
   // Anchored at a line start, because a substring search finds the rule INSIDE
   // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
   // `.pl-cell-head {`. That is how four of these read the wrong block the
@@ -354,7 +362,7 @@ describe("the process section is one way in, and draws nothing", () => {
     // inside it and could not be reached by a keyboard at all. What is left is
     // `.sd-open`, which is what Cores, Memory, Load average and Thermal already
     // are — one button, one name, one hover, one press.
-    const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
+    const block = processes();
     expect(block).toContain('className="sd-open sd-door"');
     expect(block).toContain('aria-label="Show every process the deck is watching"');
   });
@@ -364,7 +372,7 @@ describe("the process section is one way in, and draws nothing", () => {
     // nothing under it, so a dim uppercase heading alone reads as a section
     // that failed to load rather than as a way through — and it is the whole
     // replacement for eight rows somebody was reading yesterday.
-    const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
+    const block = processes();
     expect(block).toContain("Busiest processes");
     expect(block).toContain("every process, with its command line");
     expect(block).toContain('<i className="sd-row-more" aria-hidden>›</i>');
@@ -379,7 +387,9 @@ describe("the process section is one way in, and draws nothing", () => {
   });
 
   it("keeps no press handler on the block itself", () => {
-    const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
+    const block = processes();
+    // Every assertion here is a negative, so an empty slice would pass them all.
+    expect(block).toContain('className="sd-open sd-door"');
     expect(block, "the section is a target again rather than a button").not.toContain("sd-openable");
     expect(block).not.toContain('(e.target as HTMLElement).closest("button")');
     expect(block).not.toContain('role="button"');
