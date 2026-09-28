@@ -30,6 +30,16 @@ on:
 permissions:
   contents: read
 
+# One run per pull request at a time. A new push to a PR — a rebase, a fixup —
+# cancels the run for the push before it, which is answering a question nobody
+# is asking any more, and the macOS and Windows legs are the slow, scarce ones.
+# Only pull requests are grouped: every other event (a push to main, a release
+# tag, a manual publish) gets a group of its own run id, so nothing here can
+# cancel or hold back a release.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
