@@ -167,7 +167,7 @@ describe("the modules that exist so that others need not import each other", () 
     expect(identity).toEqual(["claude-dir.mjs", "exec.mjs"]);
     expect(relativeDeps(read("claude-dir.mjs")), "claude-dir.mjs is no longer a leaf").toEqual([]);
     const exec = relativeDeps(read("exec.mjs"));
-    expect(exec).toEqual(["exec-not-found.mjs"]);
+    expect(exec).toEqual(["exec-children.mjs", "exec-not-found.mjs"]);
     for (const leaf of exec) {
       expect(relativeDeps(read(leaf)), `${leaf} is no longer a leaf`).toEqual([]);
     }
