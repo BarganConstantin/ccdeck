@@ -31,6 +31,9 @@ const metrics = readFileSync(at("../../server/system-metrics.mjs"), "utf8");
 const loadRule = readFileSync(at("../../server/load-average.mjs"), "utf8");
 /** The minute ring the sampler records into, lifted out of system-metrics.mjs. */
 const ring = readFileSync(at("../../server/metrics-history.mjs"), "utf8");
+/** The thermal sampler, lifted out of system-metrics.mjs with the throttle
+ *  row's name. */
+const thermalSampler = readFileSync(at("../../server/thermal-sampler.mjs"), "utf8");
 const strip = readFileSync(at("../components/MachineStrip.tsx"), "utf8");
 const css = readFileSync(at("../styles.css"), "utf8");
 
@@ -62,7 +65,8 @@ describe("the client's readings and the server's ring agree", () => {
   // Every `record("x", …)` the sampler makes, which is the complete list of
   // names the ring can ever be keyed by, read out of the server itself — the
   // sampler and every module lifted out of it, since the network's three are
-  // recorded from network-sampler.mjs.
+  // recorded from network-sampler.mjs and the thermal rows from
+  // thermal-sampler.mjs.
   const recorded = new Set(
     [...systemMetricsSurface().matchAll(/\brecord\(\s*(?:"([^"]+)"|`([^`]+)`)/g)]
       .map(m => m[1] ?? m[2])
@@ -93,7 +97,7 @@ describe("the client's readings and the server's ring agree", () => {
   });
 
   it("names throttling the way the server spells it", () => {
-    expect(metrics).toContain('export const THROTTLE_LABEL = "Throttling"');
+    expect(thermalSampler).toContain('export const THROTTLE_LABEL = "Throttling"');
     expect(THROTTLE_SERIES).toBe("thermal:Throttling");
     expect(liveReadings(full())[THROTTLE_SERIES]).toBe(18);
   });
@@ -725,8 +729,8 @@ describe("the server publishes a key for every series", () => {
     // Counted over `restsAtZero`, which the Series type requires of every
     // series and which nothing else in the function has. Counting `label`
     // instead was the first version and it counted seven for six: the
-    // `new Map((thermal?.celsius ?? []).map(r => [r.label, r]))` above the
-    // series is not a series.
+    // `new Map((lastThermal()?.celsius ?? []).map(r => [r.label, r]))` above
+    // the series is not a series.
     const seriesCount = (body.match(/\brestsAtZero:/g) ?? []).length;
     const keys = (body.match(/\bkey:/g) ?? []).length;
     expect(seriesCount).toBeGreaterThan(0);

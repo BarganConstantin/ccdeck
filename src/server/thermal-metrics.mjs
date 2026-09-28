@@ -1,11 +1,12 @@
 // The thermal section's sources: where each platform's degrees and its
 // throttle come from, and the parsers that read them.
 //
-// Moved out of system-metrics.mjs unchanged. The sampler there decides how often
-// the machine is asked and when one that has never answered stops being asked
-// (sampleThermal). This file is the asking: readThermal answers once per call,
-// per platform, and nothing here keeps state between two calls. WARN_C and
-// CRIT_C are exported because the history's thermal series fall back to them.
+// Moved out of system-metrics.mjs unchanged. The sampler in thermal-sampler.mjs
+// decides how often the machine is asked and when one that has never answered
+// stops being asked (sampleThermal). This file is the asking: readThermal
+// answers once per call, per platform, and nothing here keeps state between two
+// calls. WARN_C and CRIT_C are exported because the history's thermal series
+// fall back to them.
 import { readdir, readFile } from "node:fs/promises";
 import { run } from "./metrics-run.mjs";
 

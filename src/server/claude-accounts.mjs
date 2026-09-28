@@ -209,6 +209,19 @@ async function readJson(path) {
   }
 }
 
+/** claude-swap's sequence.json — the accounts, their order and which slot is
+ *  active — or null when it is missing or will not parse. seedFirstAccount
+ *  tells those two apart first, so it reads the file itself. */
+async function readSequence(root) {
+  return readJson(join(root, "sequence.json"));
+}
+
+/** The slot a sequence.json names as active, as the string its `accounts` are
+ *  keyed by, or null when it names none. */
+function activeSlot(seq) {
+  return seq?.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+}
+
 /** The usage rows in claude-swap's cache/usage.json, keyed by slot — see
  *  usageRows for which of them may be believed. */
 async function readUsageRows(root) {
@@ -353,7 +366,7 @@ async function readRoster(now, gen) {
   };
 
   const root = backupRoot();
-  const seq  = await readJson(join(root, "sequence.json"));
+  const seq  = await readSequence(root);
   if (!seq?.accounts) {
     // Asked before the tool is probed: while the deck's own install is running
     // there is nothing a `--version` spawn or installHint's interpreter checks
@@ -378,7 +391,7 @@ async function readRoster(now, gen) {
   // stored verdict and the live truth can disagree, and it is rare: a healthy
   // machine never spends this subprocess. Never fatal, because a CLI that
   // cannot be reached is not evidence either way.
-  const activeNum = seq.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+  const activeNum = activeSlot(seq);
   const activeRow = activeNum ? rows[activeNum] : null;
   const identity = (activeRow?.consecutiveFailures ?? 0) > 0
     ? await currentIdentity().catch(() => null)
@@ -447,7 +460,7 @@ function rosterRow({ seq, num, acct, row, identity, now }) {
     // store is dead, and the copy is what a share would carry and what a
     // peer's copy would heal. So both kinds of trouble read as not alive.
     alive:    storedCopyAlive(trouble == null, collector),
-    active:   String(seq.activeAccountNumber) === num,
+    active:   isActive,
     disabled: acct.disabled === true,
     lanes,
     // Headroom against the tightest lane — the number that decides whether
@@ -577,8 +590,8 @@ export function authTrouble(row, {
  */
 export async function activeAccountUsage() {
   const root = backupRoot();
-  const seq  = await readJson(join(root, "sequence.json"));
-  const num  = seq?.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+  const seq  = await readSequence(root);
+  const num  = activeSlot(seq);
   const acct = num ? seq?.accounts?.[num] : null;
   if (!acct) return null;
 
@@ -609,7 +622,7 @@ export async function activeAccountUsage() {
  */
 export async function requestCollection() {
   const root  = backupRoot();
-  const seq   = await readJson(join(root, "sequence.json"));
+  const seq   = await readSequence(root);
   if (!seq?.accounts) return false;
   const rows  = await readUsageRows(root);
   return nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
