@@ -48,9 +48,13 @@ const mod = await import("../../server/cswap-install.mjs") as {
   cswapBin: () => Promise<string>;
   cswapVersion: () => Promise<string | null>;
   resetCswapBin: () => void;
+};
+const { cswapBin, cswapVersion, resetCswapBin } = mod;
+// Where cswapBin looks when PATH does not answer, from the module that knows.
+// @ts-expect-error — .mjs server module, no types
+const { cswapCandidates } = await import("../../server/cswap-layout.mjs") as {
   cswapCandidates: (platform?: string, env?: Record<string, string>, home?: string) => string[];
 };
-const { cswapBin, cswapVersion, resetCswapBin, cswapCandidates } = mod;
 
 const prevOverride = process.env.AGENTS_DECK_CSWAP;
 beforeEach(() => {

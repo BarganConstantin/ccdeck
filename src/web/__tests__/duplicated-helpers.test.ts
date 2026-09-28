@@ -61,6 +61,9 @@ const sessionSummary = src("../components/SessionSummary.tsx");
 const toolModal = src("../components/ToolModal.tsx");
 const costBarSrc = src("../components/CostBar.tsx");
 const cswapInstall = src("../../server/cswap-install.mjs");
+// Where claude-swap lives on disk, lifted out of cswap-install.mjs. A negative
+// about cswap-install reads both.
+const cswapLayout = src("../../server/cswap-layout.mjs");
 const codexQuota = src("../../server/codex-quota.mjs");
 // The mapping that renders a reset label moved out of quota.mjs into
 // quota-shape.mjs; the sweeps below read quota.mjs and what left it.
@@ -573,7 +576,9 @@ describe("the version comparator", () => {
 
   it("is imported by the installer rather than written out there again", () => {
     expect(cswapInstall).toMatch(/import \{ isOlder \} from "\.\/self-update\.mjs";/);
-    expect(code(cswapInstall)).not.toMatch(/function isOlder\b/);
+    // Both halves of what was cswap-install.mjs: a copy written into the layout
+    // module lifted out of it is the same regression.
+    expect(code(cswapInstall + cswapLayout)).not.toMatch(/function isOlder\b/);
     expect(code(cswapInstall)).toMatch(/isOlder\(existing, latest\)/);
   });
 });
@@ -679,7 +684,7 @@ describe("the shapes these helpers replaced", () => {
     ["SessionSummary.tsx", sessionSummary],
     ["ToolModal.tsx", toolModal],
     ["CostBar.tsx", costBarSrc],
-    ["cswap-install.mjs", cswapInstall],
+    ["cswap-install.mjs and the file lifted out of it", cswapInstall + cswapLayout],
     ["codex-quota.mjs", codexQuota],
     ["quota.mjs and the files lifted out of it", quotaSurface()],
   ].map(([n, t]) => [n, code(t)]);

@@ -176,10 +176,11 @@ process.env.PIPX_HOME = PIPX_HOME;
 delete process.env.AGENTS_DECK_NO_INSTALL;
 delete process.env.AGENTS_DECK_CSWAP;
 
-// Imported after the environment is arranged, and re-imported per end-to-end
-// case: the module memoizes the resolved binary and the python list.
+// Imported after the environment is arranged. The end-to-end cases re-import
+// cswap-install.mjs per case, since it memoizes the resolved binary and the
+// python list; cswapOwner lives in cswap-layout.mjs, which holds no state.
 // @ts-expect-error — .mjs server module, no types
-const { cswapOwner } = await import("../../server/cswap-install.mjs");
+const { cswapOwner } = await import("../../server/cswap-layout.mjs");
 
 afterAll(() => {
   for (const [key, was] of [["HOME", prev.HOME], ["USERPROFILE", prev.USERPROFILE],
