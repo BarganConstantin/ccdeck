@@ -494,6 +494,15 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     if (menu && data?.accounts && !data.accounts.some(a => a.num === menu.num)) dropMenu();
     if (issueOpen && data?.accounts && !data.accounts.some(a => a.num === issueOpen.num)) setIssueOpen(null);
   }, [data, menu, issueOpen, dropMenu]);
+  // The account whose Projects report is open may have vanished — removed
+  // while the menu was open, or missing from a poll that found the store
+  // unreadable — so the report closes rather than open empty. Closed and not
+  // merely undrawn: a report that only hid while the account was missing would
+  // come back by itself on the next poll that found it, over whatever the
+  // reader had moved on to.
+  useEffect(() => {
+    if (projectsFor != null && !(data?.accounts ?? []).some(a => a.num === projectsFor)) setProjectsFor(null);
+  }, [data, projectsFor]);
 
   /**
    * Make a share for this account and turn the popover into it. Also what
@@ -1221,9 +1230,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       )}
       {projectsFor != null && (() => {
         const a = (data?.accounts ?? []).find(x => x.num === projectsFor);
-        // The account may have vanished (removed while the menu was open); close
-        // rather than open an empty report.
-        if (!a) { setProjectsFor(null); return null; }
+        // Gone from the roster: nothing to draw, and the effect that watches
+        // the roster closes the report.
+        if (!a) return null;
         return (
           <AccountProjectsModal
             num={a.num}
