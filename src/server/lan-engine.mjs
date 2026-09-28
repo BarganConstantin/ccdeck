@@ -632,6 +632,32 @@ export function createEngine({
     return sealed ? { about: sealed } : {};
   };
 
+  /** This deck's manifest for the deck on the other end of `key`: the accounts
+   *  it shares, which of them it is on, and its card. One frame whichever way
+   *  it travels — the question a round asks, and the answer `serve` gives. */
+  const manifestFrame = (accounts, key, toFp) => ({
+    t: "manifest", accounts: manifestFor(accounts, cfg.shared),
+    ...currentFor(accounts, cfg.shared, cfg.shareActive),
+    ...cardFor(key, toFp),
+  });
+
+  /**
+   * What a paired deck's manifest said about it, kept for the panel — the
+   * question a deck that calls in asks as much as the answer a dialled one
+   * gives. Its card, when the seal opens; and the accounts it offers with the
+   * one it is on, kept only when a list came — an older caller asks with its
+   * card alone, and a missing list is not an empty one. Returns that list, or
+   * null for a frame that carried none.
+   */
+  const keepManifest = (key, frame, fromFp) => {
+    const card = openAbout(key, frame.about, fromFp, identity.fp);
+    if (card) aboutBy.set(fromFp, { ...card, at: now() });
+    if (!Array.isArray(frame.accounts)) return null;
+    const list = offered(frame.accounts);
+    offersBy.set(fromFp, { at: now(), accounts: list, current: heardCurrent(frame.current, list) });
+    return list;
+  };
+
   /** Does this deck already hold an address it dials for `fp`? A beacon row it
    *  still hears, or a typed/learned row that answered as that deck. When
    *  neither is true, the only way it ever reaches that deck is if the deck
@@ -701,27 +727,16 @@ export function createEngine({
         // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck
         // that calls in ever says what it is: nothing here dials it, so nothing
         // here ever asks. A seal that does not open is a deck that said nothing.
-        const card = openAbout(ctx.key, msg.about, ctx.peerFp, identity.fp);
-        if (card) aboutBy.set(ctx.peerFp, { ...card, at: now() });
         // AND SO DOES ITS LIST, from a deck new enough to send one: what it
-        // offers, and which of those it is on. Kept only when it came — an
-        // older caller asks with its card alone, and a missing list is not an
-        // empty one. This is the only way a deck nothing here dials is ever
-        // known by what it offers.
-        if (Array.isArray(msg.accounts)) {
-          const list = offered(msg.accounts);
-          offersBy.set(ctx.peerFp, { at: now(), accounts: list, current: heardCurrent(msg.current, list) });
-        }
+        // offers, and which of those it is on. This is the only way a deck
+        // nothing here dials is ever known by what it offers.
+        keepManifest(ctx.key, msg, ctx.peerFp);
         const accounts = await localAccounts();
         // Reading the store can take long enough for the owner to unpair this
         // deck. Do not disclose account identities or the active account from
         // a manifest assembled before that decision.
         if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
-        return ctx.send({
-          t: "manifest", accounts: manifestFor(accounts, cfg.shared),
-          ...currentFor(accounts, cfg.shared, cfg.shareActive),
-          ...cardFor(ctx.key, ctx.peerFp),
-        });
+        return ctx.send(manifestFrame(accounts, ctx.key, ctx.peerFp));
       }
       if (msg.t === "want") {
         // A listener may have authenticated this socket before its owner
@@ -937,19 +952,12 @@ export function createEngine({
       // The owner can revoke trust or disable sync while the store is read.
       // Never send this deck's account identities on that old connection.
       if (!stillPaired()) throw new Error("peer no longer paired");
-      const theirs = await ask({
-        t: "manifest", accounts: manifestFor(mine, cfg.shared),
-        ...currentFor(mine, cfg.shared, cfg.shareActive),
-        ...cardFor(conn.key, conn.peerFp),
-      });
+      const theirs = await ask(manifestFrame(mine, conn.key, conn.peerFp));
       // A response from a round that was stopped or unpaired is stale even
       // when the peer had already sent it before the setting changed.
       if (!stillPaired()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
-      const card = openAbout(conn.key, theirs.about, conn.peerFp, identity.fp);
-      if (card) aboutBy.set(conn.peerFp, { ...card, at: now() });
-      const list = offered(theirs.accounts);
-      offersBy.set(conn.peerFp, { at: now(), accounts: list, current: heardCurrent(theirs.current, list) });
+      const list = keepManifest(conn.key, theirs, conn.peerFp);
       // Only accounts I have also ticked. Sharing is mutual by construction:
       // a peer cannot push an account at me that I never agreed to hold.
       // A HEAL NEEDS MY TICK; AN ADD DOES NOT, and the asymmetry is deliberate.
