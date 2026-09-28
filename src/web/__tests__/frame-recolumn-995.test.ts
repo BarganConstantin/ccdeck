@@ -179,9 +179,12 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     // move, and positionsRef holds nothing but the pins until the render the
     // reframe schedules has run — so the save has to be after that, not beside
     // the delete.
+    // The render is the one the layout epoch schedules — a bare rerender() was
+    // handed the cached board (#1331); relayout-stored-1331 pins the epoch.
     const effect = reframeEffect();
-    const afterRerender = effect.slice(effect.indexOf("rerender()"));
-    expect(afterRerender).toMatch(/saveLayout\(positionsRef\.current, pinnedRef\.current\)/);
-    expect(effect.slice(0, effect.indexOf("rerender()"))).not.toMatch(/saveLayout\(/);
+    const bump = effect.indexOf("setLayoutEpoch(e => e + 1);");
+    expect(bump).toBeGreaterThan(-1);
+    expect(effect.slice(bump)).toMatch(/saveLayout\(positionsRef\.current, pinnedRef\.current\)/);
+    expect(effect.slice(0, bump)).not.toMatch(/saveLayout\(/);
   });
 });
