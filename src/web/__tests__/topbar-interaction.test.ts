@@ -47,10 +47,12 @@ function markup(...path: string[]): string {
 }
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 // Two of the topbar's action runs moved to components/TopbarRuns.tsx, its readouts to
-// components/TopbarReadouts.tsx, and the connection banner to
-// components/ConnectionBanner.tsx; App.tsx and they are read as one.
+// components/TopbarReadouts.tsx, the connection banner to
+// components/ConnectionBanner.tsx, and the canvas stack the pause control went
+// down to (#527) to components/CanvasControls.tsx; App.tsx and they are read as one.
 const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx")
-  + "\n" + markup("components/TopbarReadouts.tsx") + "\n" + markup("components/ConnectionBanner.tsx");
+  + "\n" + markup("components/TopbarReadouts.tsx") + "\n" + markup("components/ConnectionBanner.tsx")
+  + "\n" + markup("components/CanvasControls.tsx");
 const systemMeter = markup("components", "MachinePanel.tsx");
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────

@@ -7,12 +7,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { KEY_HELP } from "../key-help";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The canvas stack is components/CanvasControls.tsx, which App.tsx mounts.
+const app = readFileSync(fileURLToPath(new URL("../components/CanvasControls.tsx", import.meta.url)), "utf8");
 const controls = /<Controls\b[^>]*>/.exec(app)?.[0] ?? "";
 
 describe("one way to fit the canvas (#840)", () => {
   it("hides React Flow's own fit-view button", () => {
-    expect(controls, "no <Controls> in App.tsx").not.toBe("");
+    expect(controls, "no <Controls> in components/CanvasControls.tsx").not.toBe("");
     expect(controls).toMatch(/showFitView=\{false\}/);
     expect(controls).toMatch(/showInteractive=\{false\}/);
   });
