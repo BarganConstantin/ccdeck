@@ -582,6 +582,19 @@ export function createEngine({
   };
 
   /**
+   * Pin a deck somebody here chose — pressed accept on, handed an invite to,
+   * or joined on an invite of its own — and take back any earlier unpair of
+   * it, because choosing it again is the undo. The list, and whether the pin
+   * is new.
+   */
+  const pin = ({ fp, pub, name }) => {
+    const { list, added } = addTrusted(cfg.trusted, { fp, pub, name, at: now() });
+    cfg = { ...cfg, trusted: list };
+    markUnpaired(fp, false);
+    return { list, added };
+  };
+
+  /**
    * Read the tailnet on a timer while the switch is on, and not at all while it
    * is off — the read at start covers telling a tailnet address from a local
    * one, and the dialog's own poll covers whether Tailscale is there at all.
@@ -840,9 +853,7 @@ export function createEngine({
   /** Somebody used the token. They are pinned, and the token is retired —
    *  one that pairs twice is one worth stealing twice. */
   const inviteUsed = entry => {
-    const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name, at: now() });
-    cfg = { ...cfg, trusted: list };
-    markUnpaired(entry.fp, false);
+    const { list } = pin(entry);
     invite = null;
     // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
     // deck with no way to reach it: an inbound connection puts nothing in
@@ -1613,11 +1624,7 @@ export function createEngine({
           // The handshake can complete after LAN was switched off (or the
           // identity was restarted). Never persist a pin from that old join.
           if (!stillJoining()) return { ok: false, reason: "not_running", tried };
-          const { list } = addTrusted(cfg.trusted, {
-            fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),
-          });
-          cfg = { ...cfg, trusted: list };
-          markUnpaired(conn.peerFp, false);
+          const { list } = pin({ fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name });
           this.addPeer(at.addr, at.port);
           onDial?.(`${at.addr}:${at.port}`);
           learned.set(`${at.addr}:${at.port}`, { fp: conn.peerFp, name: conn.peerName || inv.name });
@@ -1677,9 +1684,7 @@ export function createEngine({
         onChange?.();
         return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
       }
-      const { list, added } = addTrusted(cfg.trusted, { fp, pub: seen.pub, name: seen.name, at: now() });
-      cfg = { ...cfg, trusted: list };
-      markUnpaired(fp, false);
+      const { list, added } = pin({ fp, pub: seen.pub, name: seen.name });
       pending.delete(fp);
       strangers.delete(fp);
       onTrust?.(list);
