@@ -82,7 +82,8 @@ describe("spacing is a closed ladder (#887)", () => {
   it("keeps the tool bubble's 5px, which the canvas measures by", () => {
     const bubble = DECLS.find(d => d.sel === ".tool-burst" && d.prop === "padding")!;
     expect(atoms(bubble.value)[0]).toBe("5px");
-    expect(read("../components/ToolBursts.tsx")).toMatch(/const BUBBLE_HALF_H = 16;/);
+    // The layout's constant, which left components/ToolBursts.tsx with the layout.
+    expect(read("../burst-layout.ts")).toMatch(/const BUBBLE_HALF_H = 16;/);
   });
 });
 

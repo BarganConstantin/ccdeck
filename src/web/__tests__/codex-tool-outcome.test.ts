@@ -157,7 +157,7 @@ const root = (state: GraphState) => state.agents.get(SESSION)!;
 const toolOf = (state: GraphState, callId: string) => root(state).tools.find(t => t.id === callId)!;
 
 /** The five surfaces that render an outcome all ask exactly this question
- *  (`ToolBursts.tsx`, `App.tsx` twice, `ToolModal.tsx`, `SessionSummary.tsx`),
+ *  (`burst-layout.ts`, `App.tsx` twice, `ToolModal.tsx`, `SessionSummary.tsx`),
  *  so counting it here is counting what the user sees. */
 const errCount = (state: GraphState) => root(state).tools.filter(t => t.ok === false).length;
 

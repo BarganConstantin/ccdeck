@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
-import { collectBursts, primaryBubbleWidth } from "../components/ToolBursts";
+import { collectBursts, primaryBubbleWidth } from "../burst-layout";
 import {
   categoryFor,
   codexScriptCommand,
