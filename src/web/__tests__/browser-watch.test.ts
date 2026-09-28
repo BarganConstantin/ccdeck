@@ -16,6 +16,7 @@ import {
 } from "../../server/browser-watch.mjs";
 import { unseenEpisodes, SEEN_KEY } from "../components/BrowserWatchModal";
 import { flooredReader } from "./floored-reader";
+import { clientText } from "./client-source";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");
@@ -207,16 +208,20 @@ describe("how App.tsx wires it up", () => {
   const app = src("../App.tsx");
 
   it("feeds the badge from its own poll, not from opening the dialog", () => {
+    // The badge — its poll, its count and the seen stamp — moved to
+    // use-browser-watch-badge.ts; these matches are positive, so they read the client.
     // A badge that appears only once you have already looked is not a badge.
     // `live=0` on this one: it wants the number, not a look at the browsers.
     // The server honours that only while the watch is OFF — with it on, this
     // poll is what records, which is the whole feature.
-    expect(app).toMatch(/fetch\("\/api\/browser-watch\?live=0"\)/);
-    expect(app).toMatch(/setInterval\(pull, 5 \* 60_000\)/);
+    expect(clientText()).toMatch(/fetch\("\/api\/browser-watch\?live=0"\)/);
+    expect(clientText()).toMatch(/setInterval\(pull, 5 \* 60_000\)/);
   });
 
   it("marks the episodes read on the way out of the dialog", () => {
-    expect(app).toMatch(/localStorage\.setItem\(SEEN_KEY, String\(ms\)\)/);
+    // The badge — its poll, its count and the seen stamp — moved to
+    // use-browser-watch-badge.ts; these matches are positive, so they read the client.
+    expect(clientText()).toMatch(/localStorage\.setItem\(SEEN_KEY, String\(ms\)\)/);
   });
 
   it("says whether the watch is armed, in the shape and not only the hue", () => {
@@ -233,9 +238,11 @@ describe("how App.tsx wires it up", () => {
   });
 
   it("learns the armed state from the poll it already runs", () => {
+    // The badge — its poll, its count and the seen stamp — moved to
+    // use-browser-watch-badge.ts; these matches are positive, so they read the client.
     // Not from opening the dialog: the whole point is that the topbar answers
     // the question before anything is opened.
-    expect(app).toMatch(/setWatchOn\(j\.settings\?\.enabled === true\)/);
+    expect(clientText()).toMatch(/setWatchOn\(j\.settings\?\.enabled === true\)/);
   });
 
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {

@@ -62,6 +62,7 @@ import { createRenderCoalescer } from "./coalesce";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
+import { useBrowserWatchBadge } from "./use-browser-watch-badge";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useMirroredRef } from "./use-mirrored-ref";
@@ -80,8 +81,6 @@ import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
 import type { NotifyPermission } from "./notify";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
-import type { WatchEpisode } from "./components/BrowserWatchModal";
-import { SEEN_KEY, unseenEpisodes } from "./browser-watch-seen";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
@@ -1092,55 +1091,14 @@ function Inner() {
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
-  /** Episodes the reader has not looked at yet, and the moment they last did.
-   *  The badge is the whole reason the topbar can afford another control: at
-   *  rest this button is an outline like the five beside it, and it only
-   *  acquires a number when something happened that nobody has read. #720 took
-   *  a resting pill OUT of this bar for saying nothing; a second one that said
-   *  "no findings" all day would be the same mistake with a different icon. */
-  const [watchSeenMs, setWatchSeenMs] = useState(() => {
-    try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; }
-  });
-  const [watchEpisodes, setWatchEpisodes] = useState<WatchEpisode[]>([]);
-  const [watchOn, setWatchOn] = useState(false);
-
-  // What the badge counts, fetched on its own slow timer rather than by opening
-  // the dialog — a badge that only appears once you have already looked is not
-  // a badge. Five minutes, and cheap at that rate: the server answers from a
-  // cache keyed on each History file's mtime, so a machine nobody is browsing
-  // on costs one stat per profile per poll and re-reads nothing.
-  useEffect(() => {
-    let alive = true;
-    const pull = () => {
-      // `live=0`: this poll wants the badge's number, not a look at the
-      // browsers. With the watch off the server honours it and reads nothing at
-      // all — the switch used to gate only what was kept, so a deck nobody had
-      // switched on still copied every History database every five minutes.
-      // With the watch ON the server ignores it and records as usual, because
-      // recording in the background is the whole feature.
-      fetch("/api/browser-watch?live=0")
-        .then(r => (r.ok ? r.json() : null))
-        .then(j => {
-          if (!alive || !j?.ok) return;
-          setWatchEpisodes(j.episodes ?? []);
-          setWatchOn(j.settings?.enabled === true);
-        })
-        .catch(() => { /* the panel says so when it is opened; the badge stays quiet */ });
-    };
-    pull();
-    const t = setInterval(pull, 5 * 60_000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+  // The Browser Watch badge — what it counts, the slow poll behind it, and when
+  // the reader last looked — lives in use-browser-watch-badge.ts.
+  const { watchOn, setWatchOn, watchUnseen, markWatchSeen } = useBrowserWatchBadge();
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
   // use-lan-pair-requests.ts.
   const { lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair } = useLanPairRequests();
-
-  const watchUnseen = useMemo(
-    () => unseenEpisodes(watchEpisodes, watchSeenMs).length,
-    [watchEpisodes, watchSeenMs],
-  );
 
   /** Bumped on each group-drag move so snapshotToFlow recomputes immediately
    *  (reads the freshly-pinned positions) rather than waiting for the 250ms
@@ -5323,8 +5281,7 @@ function Inner() {
             // skipped — the next finding still speaks, because "" is the state
             // a first announcement is made from.
             setWatchSaid("");
-            setWatchSeenMs(ms);
-            try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
+            markWatchSeen(ms);
           }}
           /* The switch lives in the dialog and the eye lives up here, reading a
              five-minute poll. Without this the eye stays lit for up to five
