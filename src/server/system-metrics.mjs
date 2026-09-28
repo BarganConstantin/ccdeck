@@ -331,8 +331,7 @@ function networkSeries(at) {
   // The path the traffic took, as marks on the last chart — the question the
   // section exists for is "was it the VPN", and a line that jumps where a
   // mark sits answers it without a legend.
-  const since = oldestBucketMs();
-  const changes = routeLog.filter(c => c.t >= since).map(c => ({ t: c.t, label: c.label, from: c.from }));
+  const changes = routeChangesSince(oldestBucketMs());
   if (series.length && changes.length) series[series.length - 1].changes = changes;
   return series;
 }
@@ -686,6 +685,54 @@ function networkSnapshot(nowMs = Date.now()) {
   return { down: netRate?.down ?? null, up: netRate?.up ?? null, api, route: via };
 }
 
+/** The route changes the history still covers, as the chart marks them. */
+function routeChangesSince(since) {
+  return routeLog.filter(c => c.t >= since).map(c => ({ t: c.t, label: c.label, from: c.from }));
+}
+
+/**
+ * A poll of /api/system, which is how this section knows somebody is looking.
+ *
+ * The panel is the only poller, so a poll is the signal somebody is looking.
+ * The first one after the panel was closed asks at once rather than waiting
+ * out the probe timer, so the latency is on screen by the second poll; the
+ * guards inside probeNetwork are what keep a busy poller from paying twice.
+ */
+function notePanelPoll() {
+  const idle = Date.now() - askedAt > NET_ASKED_MS;
+  askedAt = Date.now();
+  if (idle && probeEnabled) void probeNetwork();
+}
+
+/** The section's two timers: the counters for the life of the process, and the
+ *  probe only when `probe` — the server's permission to leave the machine —
+ *  says it may. See startSystemMetrics. */
+function startNetworkTimers(probe) {
+  probeEnabled = probe;
+  netTimer = setInterval(sampleNetwork, NET_INTERVAL_MS);
+  if (probeEnabled) probeTimer = setInterval(() => { probeNetwork(); }, NET_PROBE_MS);
+  netTimer.unref?.();
+  probeTimer?.unref?.();
+}
+
+/** Stop both timers and forget every reading this section holds — its half of
+ *  stopSystemMetrics, and there for the same reason (#798). */
+function stopNetwork() {
+  if (netTimer) clearInterval(netTimer);
+  if (probeTimer) clearInterval(probeTimer);
+  netTimer = probeTimer = null;
+  probeEnabled = false;
+  prevNet = null;
+  netRate = null;
+  physical = null;
+  physicalAt = 0;
+  probeAt = 0;
+  askedAt = 0;
+  apiMs = undefined;
+  route = null;
+  routeLog.length = 0;
+}
+
 /**
  * Begin sampling. Idempotent, and every timer is unref'd so this can never be
  * the reason the process stays alive.
@@ -695,7 +742,6 @@ function networkSnapshot(nowMs = Date.now()) {
  */
 export function startSystemMetrics({ probe = false } = {}) {
   if (cpuTimer) return;
-  probeEnabled = probe;
   prevTicks = readTicks();          // baseline, so the first tick has a delta
   prevCoreTicks = readCoreTicks();
   sampleMemory();
@@ -705,13 +751,10 @@ export function startSystemMetrics({ probe = false } = {}) {
   cpuTimer = setInterval(sampleCpu, CPU_INTERVAL_MS);
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
   thermalTimer = setInterval(sampleThermal, THERMAL_INTERVAL_MS);
-  netTimer = setInterval(sampleNetwork, NET_INTERVAL_MS);
-  if (probeEnabled) probeTimer = setInterval(() => { probeNetwork(); }, NET_PROBE_MS);
+  startNetworkTimers(probe);
   cpuTimer.unref?.();
   memTimer.unref?.();
   thermalTimer.unref?.();
-  netTimer.unref?.();
-  probeTimer?.unref?.();
 }
 
 /**
@@ -735,19 +778,8 @@ export function stopSystemMetrics() {
   if (cpuTimer) clearInterval(cpuTimer);
   if (memTimer) clearInterval(memTimer);
   if (thermalTimer) clearInterval(thermalTimer);
-  if (netTimer) clearInterval(netTimer);
-  if (probeTimer) clearInterval(probeTimer);
-  cpuTimer = memTimer = thermalTimer = netTimer = probeTimer = null;
-  probeEnabled = false;
-  prevNet = null;
-  netRate = null;
-  physical = null;
-  physicalAt = 0;
-  probeAt = 0;
-  askedAt = 0;
-  apiMs = undefined;
-  route = null;
-  routeLog.length = 0;
+  cpuTimer = memTimer = thermalTimer = null;
+  stopNetwork();
   thermal = null;
   thermalMisses = 0;
   thermalEverAnswered = false;
@@ -773,13 +805,7 @@ export function stopSystemMetrics() {
  */
 export function systemSnapshot() {
   const cpu = cpuHistory.length ? cpuHistory[cpuHistory.length - 1] : null;
-  // The panel is the only poller, so a poll is the signal somebody is looking.
-  // The first one after the panel was closed asks at once rather than waiting
-  // out the probe timer, so the latency is on screen by the second poll; the
-  // guards inside probeNetwork are what keep a busy poller from paying twice.
-  const idle = Date.now() - askedAt > NET_ASKED_MS;
-  askedAt = Date.now();
-  if (idle && probeEnabled) void probeNetwork();
+  notePanelPoll();
   return {
     ok: true,
     cpu,
