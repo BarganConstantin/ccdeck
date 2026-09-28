@@ -18,7 +18,8 @@ import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
-import { type Peer } from "../other-accounts";
+import { isAutoArmed, pastThreshold, peersOf } from "../account-fold";
+import { lanAccounts } from "../account-lan";
 import { type PickerCommit, thresholdCommit } from "../picker-commit";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { focusDropped, rescueSelectors } from "../panel-press";
@@ -183,33 +184,12 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const roster = data?.accounts ?? [];
   const rest = activeAcct ? roster.filter(a => !a.active) : [];
   const head = rest.length ? roster.filter(a => a.active) : roster;
-  const peers: Peer[] = rest.map(a => {
-    const issue = accountIssue(a, nowSec);
-    return {
-      key: laneKey(a),
-      name: a.alias ?? a.email ?? `account ${a.num}`,
-      // The same pair of refusals the row's own `Switch` is withheld for, so
-      // the count and the button can never disagree about who can be reached.
-      ready: !a.disabled && !issue?.blocksSwitch,
-      why: a.disabled ? "held out" : issue?.blocksSwitch ? issue.text : null,
-      warn: issue?.tone === "warn",
-      headroom: a.headroom,
-    };
-  });
-  // Where auto-switch would already be acting. Past it, "where do I go next" is
-  // the question the reader has, and the row answers it before it is unfolded.
-  // Derived from the same `headroom` the peers carry rather than from a second
-  // walk over the lanes, so the two numbers cannot disagree.
-  const trip = Number(threshold);
-  const strained = activeAcct?.headroom != null && Number.isFinite(trip)
-    && 100 - activeAcct.headroom >= trip;
-  // WHETHER ANYTHING IS GOING TO SWITCH WITHOUT A PRESS. The deck's own loop
-  // and a `cswap auto` in a terminal are one fact to the fold's row: in both,
-  // the reader is not the one picking, and in both a roster with nothing
-  // reachable is a policy that will reach the threshold and do nothing. The
-  // toggle can read `off` while the terminal loop runs — that is what
-  // `external` is for — so the two are an OR and never the toggle alone.
-  const autoArmed = auto?.ok === true && (auto.enabled || auto.external);
+  // What the fold's row says about them — how many can be reached, whether
+  // the live account is past the threshold, whether anything will switch
+  // without a press — is read in account-fold.ts.
+  const peers = peersOf(rest, nowSec);
+  const strained = pastThreshold(activeAcct, threshold);
+  const autoArmed = isAutoArmed(auto);
   /** The box a row scrolls inside, which is what a popover hanging off it
    *  closes against. Once the fold is open its list has a scroll of its own —
    *  it is the one thing in the column that gives, so Auto-switch under it
@@ -581,20 +561,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           empty while claude-swap rewrote its store. */}
       {lanReady && (
         <LanSyncSection
-          accounts={(data?.accounts ?? []).map(a => ({
-            // The same key the server builds, from the same two fields: an
-            // account is (email, organizationUuid) and never a slot number,
-            // because slots are assigned max+1 per store and diverge between
-            // two machines that grew in a different order.
-            key: `${String(a.email ?? "").trim().toLowerCase()}@@${a.orgUuid ?? ""}`,
-            email: a.email ?? "",
-            alive: a.alive === true,
-            // A valid stored copy can still be unavailable for LAN export
-            // (locked Keychain, deferred refresh, or an unknown CLI verdict).
-            // The active slot needs a verdict, as on the server: its export is
-            // the live login — see cachedExportReadable.
-            shareable: a.collector === "ok" || (a.collector == null && !a.active),
-          }))}
+          // Named by the identity every deck agrees on, never by slot — see
+          // account-lan.ts.
+          accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
           view={view === "lan"}
           onOpen={openLan}

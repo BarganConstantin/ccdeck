@@ -36,6 +36,8 @@ export const ACCOUNTS_FILES = [
   "components/AccountsHeader.tsx",
   "use-account-roster.ts",
   "use-account-switching.ts",
+  "account-fold.ts",
+  "account-lan.ts",
 ] as const;
 
 let joined: string | null = null;
