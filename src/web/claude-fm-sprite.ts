@@ -66,10 +66,8 @@ export const SPRITE: readonly string[] = [
 export const SPRITE_W = 18;
 export const SPRITE_H = SPRITE.length;
 
-/** Which grid cells are holes rather than body. */
-export const EYE_CELLS: ReadonlySet<string> = new Set(["e"]);
-/** Which belong to the headphones, which follow the body rather than moving
- *  with it. The pad travels with the cup it is inside. */
+/** Which grid cells belong to the headphones, which follow the body rather
+ *  than moving with it. The pad travels with the cup it is inside. */
 export const GEAR_CELLS: ReadonlySet<string> = new Set(["a", "c", "p"]);
 
 export interface SpriteRect { x: number; y: number; w: number; cell: string }
