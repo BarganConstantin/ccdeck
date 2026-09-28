@@ -508,13 +508,36 @@ html, body, #root {
 }
 /* `:focus-within` beside `:hover` because a scroller can be driven from the
    keyboard, and a bar that only exists under a pointer does not exist for the
-   reader who is arrowing through the thing it measures. */
-:hover::-webkit-scrollbar-thumb,
-:focus-within::-webkit-scrollbar-thumb { background-color: var(--line); }
-/* Last, so it beats the two above on source order at equal specificity. */
-*::-webkit-scrollbar-thumb:hover { background-color: var(--muted-dim); }
+   reader who is arrowing through the thing it measures.
+   THE TWO DO NOT REVEAL THE SAME THUMB, and that is the parity (#1290). Both
+   used to show --line, which is 1.14:1 on --panel in dark and 1.60:1 in light:
+   a pointer can find a bar that faint, because it can hover the bar and get the
+   loud one, and a keyboard cannot hover anything, so what the keyboard is shown
+   is all it ever gets. It gets --ctl-edge, the edge every operable control in
+   the deck is found by: 4.10:1 on --panel in dark and 3.55:1 in light, the
+   worst of it 3.46:1 on the light canvas, and derived from --text so it exists
+   in both themes by construction. The pointer's reveal stays quiet on purpose
+   — it is a hint that there is something to grab, drawn under the pointer that
+   is about to grab it. contrast-floors.test.ts measures all four states.
+   WHICH ENGINE READS WHICH HALF, measured in Chromium 153: once
+   `scrollbar-color` is set, Chromium (every version since 121, so the desktop
+   shell's too) draws the thumb from it and ignores the ::-webkit-scrollbar
+   rules, shading the thumb itself under the pointer — so in Chromium, as in
+   Firefox, the two `scrollbar-color` lines at the end of this block are the
+   whole of it, and the webkit rules are Safari's. Both halves are kept in step.
+   Under forced colours none of this applies: Chromium draws its own system
+   scrollbar there, in every state including rest (measured), so the
+   forced-colours block at the end of this sheet has nothing to add for it. */
+:hover::-webkit-scrollbar-thumb { background-color: var(--line); }
+:focus-within::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }
+/* Last, so it beats the two above on source order at equal specificity — and
+   louder than either, so hovering the bar of a scroller that also holds focus
+   never dims it. That is why it is --muted now rather than --muted-dim: 2.35:1
+   in dark would have been a step DOWN from the keyboard's thumb. */
+*::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
 * { scrollbar-color: transparent transparent; scrollbar-width: thin; }
-:hover, :focus-within { scrollbar-color: var(--line) transparent; }
+:hover { scrollbar-color: var(--line) transparent; }
+:focus-within { scrollbar-color: var(--ctl-edge) transparent; }
 
 /* Visible focus ring for keyboard nav */
 :focus-visible {

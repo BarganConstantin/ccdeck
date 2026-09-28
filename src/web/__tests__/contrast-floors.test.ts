@@ -126,8 +126,12 @@ function tokens(theme: Theme): Record<string, string> {
 
 const TOK: Record<Theme, Record<string, string>> = { dark: tokens("dark"), light: tokens("light") };
 
-/** var() one level deep, plus the `color-mix(in srgb, var(--x) N%, transparent)`
- *  form the banners use — which is just var(--x) at N% alpha. */
+/** var() all the way down, plus the `color-mix(in srgb, var(--x) N%, transparent)`
+ *  form the banners use — which is just var(--x) at N% alpha.
+ *
+ *  All the way down since #1290: --ctl-edge is itself that color-mix(), so a
+ *  rule reading `var(--ctl-edge)` is two steps from a colour, and a resolver
+ *  that took one step handed parseColor() the color-mix() text and threw. */
 function resolve(value: string, theme: Theme): Rgba {
   const mix = /color-mix\(in srgb,\s*var\((--[\w-]+)\)\s*([\d.]+)%,\s*transparent\)/.exec(value);
   if (mix) {
@@ -135,7 +139,7 @@ function resolve(value: string, theme: Theme): Rgba {
     return [base[0], base[1], base[2], +mix[2] / 100];
   }
   const v = /^var\((--[\w-]+)\)$/.exec(value.trim());
-  return parseColor(v ? TOK[theme][v[1]] : value);
+  return v ? resolve(TOK[theme][v[1]], theme) : parseColor(value);
 }
 
 /** The colour stops of a gradient token, in order — and a failure naming the
@@ -242,8 +246,9 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
   });
 
   it("leaves --muted-dim alone for the decoration it was always sized for", () => {
-    // Scrollbar thumb, a hover hairline, the auto-restart dot, the idle
-    // sparkline bar, the session dot. None of them is text.
+    // A hover hairline, the auto-restart dot, the idle sparkline bar, the
+    // session dot. None of them is text. (The scrollbar thumb's hover was one
+    // too, until #1290 needed it louder than the thumb a keyboard reveals.)
     expect(css).toMatch(/background: var\(--muted-dim\)/);
     expect(css).toMatch(/fill: var\(--muted-dim\)/);
     for (const theme of themes) {
@@ -940,5 +945,120 @@ describe("one reader for every gradient this suite measures against (#664, #665)
     expect(PRIVATE_SCRAPE.test("const stops = gradientStops(token, theme, TOK[theme]);")).toBe(false);
     expect(GRADIENT_TOKEN.test('TOK[theme]["--node' + '-grad"]')).toBe(true);
     expect(GRADIENT_TOKEN.test('TOK[theme]["--panel"]')).toBe(false);
+  });
+});
+
+// ── #1290: the scrollbar thumb, the one colour here no sweep read ──────────
+//
+// Every sweep above measures a token against the surface a rule paints it on,
+// and the thumb was never one of those rules: `::-webkit-scrollbar-thumb` is a
+// pseudo-element under two pseudo-classes, `scrollbar-color` is a property no
+// sweep names, and the two states shared one selector list that rule() — which
+// anchors on a selector ending in `{` — cannot read the first member of. So the
+// colour a keyboard user got for the bar they scroll by was 1.14:1 in dark and
+// nothing noticed. These read the four states out of the sheet the way the
+// browser picks between them, and measure each on every surface a scroller has.
+
+/** Every style rule in the stripped sheet, at any depth, with its selector list
+ *  split and each member whitespace-collapsed. rule() finds a selector only
+ *  where it opens a line and closes with the brace; this finds it as any member
+ *  of a list, which is where both halves of the scrollbar used to live. */
+type SheetRule = { selectors: string[]; body: string; at: string };
+function sheetRules(src: string, at = ""): SheetRule[] {
+  const out: SheetRule[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const open = src.indexOf("{", i);
+    if (open < 0) break;
+    const prelude = src.slice(i, open).replace(/\s+/g, " ").trim();
+    let depth = 0, end = open;
+    for (; end < src.length; end++) {
+      if (src[end] === "{") depth++;
+      else if (src[end] === "}" && --depth === 0) break;
+    }
+    const inner = src.slice(open + 1, end);
+    if (prelude.startsWith("@")) out.push(...sheetRules(inner, prelude));
+    else out.push({ selectors: prelude.split(",").map(s => s.trim()).filter(Boolean), body: inner, at });
+    i = end + 1;
+  }
+  return out;
+}
+const SHEET = sheetRules(bare);
+
+/** The last value `prop` is given by a top-level rule listing `selector`, which
+ *  is the one the cascade keeps at equal specificity. */
+function declFor(selector: string, prop: string): string | null {
+  let found: string | null = null;
+  for (const r of SHEET) {
+    if (r.at || !r.selectors.includes(selector)) continue;
+    const v = decl(r.body, prop);
+    if (v !== null) found = v;
+  }
+  return found;
+}
+
+/** The colour before the first top-level space: the thumb half of a
+ *  `scrollbar-color: <thumb> <track>` pair, parentheses respected. */
+function firstColour(value: string): string {
+  let depth = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === "(") depth++;
+    else if (value[i] === ")") depth--;
+    else if (value[i] === " " && depth === 0) return value.slice(0, i);
+  }
+  return value;
+}
+
+describe("the scrollbar thumb, in every state it has (#1290)", () => {
+  const THUMB = {
+    rest: declFor("*::-webkit-scrollbar-thumb", "background-color"),
+    pointer: declFor(":hover::-webkit-scrollbar-thumb", "background-color"),
+    keyboard: declFor(":focus-within::-webkit-scrollbar-thumb", "background-color"),
+    grabbed: declFor("*::-webkit-scrollbar-thumb:hover", "background-color"),
+  };
+  const ratio = (value: string, bed: Rgba, theme: Theme) => contrastRatio(over(resolve(value, theme), bed), bed);
+
+  it("reads all four states out of the sheet, so the sweeps below measure something", () => {
+    expect(THUMB.rest).toBe("transparent");
+    for (const [state, value] of Object.entries(THUMB)) expect(value, state).not.toBeNull();
+  });
+
+  it("reproduces what the keyboard was shown — --line, at the ratios #1290 measured", () => {
+    const line = (theme: Theme) => contrastRatio(parseColor(TOK[theme]["--line"]), parseColor(TOK[theme]["--panel"]));
+    expect(line("dark")).toBeCloseTo(1.14, 2);
+    expect(line("light")).toBeCloseTo(1.60, 2);
+  });
+
+  it("reveals a thumb a keyboard can find: 3:1 on every surface a scroller has, in both themes", () => {
+    for (const theme of themes) {
+      for (const [name, bed] of surfaces(theme)) {
+        const r = ratio(THUMB.keyboard!, bed, theme);
+        expect(r, `${theme} keyboard thumb ${THUMB.keyboard} on ${name} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    }
+  });
+
+  it("keeps the grabbed thumb the loudest of the three, so hovering a focused bar never dims it", () => {
+    for (const theme of themes) {
+      for (const [name, bed] of surfaces(theme)) {
+        const grabbed = ratio(THUMB.grabbed!, bed, theme);
+        expect(grabbed, `${theme} grabbed vs keyboard on ${name}`).toBeGreaterThan(ratio(THUMB.keyboard!, bed, theme));
+        expect(grabbed, `${theme} grabbed vs pointer on ${name}`).toBeGreaterThan(ratio(THUMB.pointer!, bed, theme));
+      }
+    }
+    // Equal specificity, so source order is what makes it win: it has to come
+    // after both reveals.
+    const at = (sel: string) => SHEET.findIndex(r => !r.at && r.selectors.includes(sel));
+    expect(at("*::-webkit-scrollbar-thumb:hover")).toBeGreaterThan(at(":focus-within::-webkit-scrollbar-thumb"));
+    expect(at(":focus-within::-webkit-scrollbar-thumb")).toBeGreaterThan(at(":hover::-webkit-scrollbar-thumb"));
+  });
+
+  it("hands Chromium and Firefox the same two reveals through scrollbar-color", () => {
+    // Not a courtesy copy. Chromium ignores every ::-webkit-scrollbar rule once
+    // scrollbar-color is set, so for the browser and the desktop shell this
+    // property IS the thumb, and the webkit rules above are Safari's.
+    expect(firstColour(declFor("*", "scrollbar-color")!)).toBe("transparent");
+    expect(firstColour(declFor(":hover", "scrollbar-color")!)).toBe(THUMB.pointer);
+    expect(firstColour(declFor(":focus-within", "scrollbar-color")!)).toBe(THUMB.keyboard);
   });
 });

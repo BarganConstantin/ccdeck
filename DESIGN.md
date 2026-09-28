@@ -378,7 +378,14 @@ gets its compact face because *it* is small, not because the window is.
 the pointer or focus is inside the scroller, and the **track keeps its width
 always**, so arriving with the pointer never reflows the panel underneath.
 `:focus-within` sits beside `:hover` because a scroller can be driven from the
-keyboard — though the colour it reveals is currently below 3:1, tracked in #1290.
+keyboard, and the keyboard's thumb is the louder one (#1290): `--ctl-edge`, 3:1 or
+better on every surface in both themes, because a keyboard cannot hover the bar to
+get a louder one. The pointer's reveal stays `--line`, a hint under a pointer that
+is about to grab; the grabbed thumb is louder than both. Chromium and Firefox read
+only `scrollbar-color` (Chromium ignores `::-webkit-scrollbar` once it is set, and
+shades the grabbed thumb itself); Safari reads the webkit rules, whose grabbed thumb
+is `--muted`. Keep the two halves in step. Under forced colours Chromium draws its
+own system scrollbar in every state, so the forced-colours block has nothing to add.
 
 ## Elevation & Depth
 

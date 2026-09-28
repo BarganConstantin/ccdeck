@@ -836,7 +836,7 @@ describe("the scrollbar at rest", () => {
     // rest would reflow the panel under the pointer as it arrived, on the two
     // platforms this repo cannot render. Measured: clientWidth 267 in both
     // states.
-    const bar = css.slice(css.indexOf("*::-webkit-scrollbar {"), css.indexOf(":hover, :focus-within { scrollbar-color"));
+    const bar = css.slice(css.indexOf("*::-webkit-scrollbar {"), css.indexOf(":hover { scrollbar-color"));
     expect(bar).toMatch(/\*::-webkit-scrollbar \{ width: 10px; height: 10px; \}/);
     expect(bar).not.toMatch(/:hover[^{]*::-webkit-scrollbar \{/);
     const thumb = css.slice(css.indexOf("*::-webkit-scrollbar-thumb {"), css.indexOf("}", css.indexOf("*::-webkit-scrollbar-thumb {")));
@@ -851,12 +851,16 @@ describe("the scrollbar at rest", () => {
 
   it("comes back for a pointer and for a keyboard alike", () => {
     // A bar that only exists under a pointer does not exist for the reader
-    // arrowing through the thing it measures.
-    expect(css).toMatch(/:hover::-webkit-scrollbar-thumb,\s*\n:focus-within::-webkit-scrollbar-thumb \{ background-color: var\(--line\); \}/);
+    // arrowing through the thing it measures. Both still bring it back; since
+    // #1290 the keyboard's is the louder of the two, because a keyboard cannot
+    // hover the bar to get the loud one — contrast-floors.test.ts measures it.
+    expect(css).toContain(":hover::-webkit-scrollbar-thumb { background-color: var(--line); }");
+    expect(css).toContain(":focus-within::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }");
     // Firefox's half, in its own property, degrading to today's always-visible
     // bar if it declines a transparent thumb.
     expect(css).toContain("* { scrollbar-color: transparent transparent; scrollbar-width: thin; }");
-    expect(css).toContain(":hover, :focus-within { scrollbar-color: var(--line) transparent; }");
+    expect(css).toContain(":hover { scrollbar-color: var(--line) transparent; }");
+    expect(css).toContain(":focus-within { scrollbar-color: var(--ctl-edge) transparent; }");
     // The thumb's own hover has to stay the loudest of the three, so it is
     // declared last where source order settles the tie at equal specificity.
     expect(css.indexOf("*::-webkit-scrollbar-thumb:hover"))
