@@ -523,24 +523,6 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   };
 }
 
-/**
- * The way out that needs no rule at all, and the reason this module is not the
- * whole answer.
- *
- * A round is one OUTBOUND connection — `roundWith` dials, both sides prove
- * themselves over that socket, and the manifest and any transfer ride it home.
- * Nothing in a round needs this machine to accept a connection. So a deck that
- * cannot be reached can still do every part of this by dialling first, and the
- * two controls that make it dial are an address somebody typed and an invite
- * somebody else minted.
- *
- * WHICH WAY THE INVITE GOES IS THE WHOLE OF IT, and nothing said so before.
- * An invite carries the addresses of the deck that MINTED it, and the deck that
- * PASTES it dials them. So a blocked machine that mints an invite is asking to
- * be called, which is the one thing it cannot receive; the same pair works on
- * the first try if the invite is minted at the other end and pasted here. Same
- * two controls, opposite order, and only one of the orders works.
- */
 // ── the machine nothing can be asked about ──────────────────────────────────
 //
 // Every block above depends on the operating system answering a question.
@@ -598,6 +580,24 @@ export function silentInbound({ heard = 0, listeningSince = null, inbound = null
   };
 }
 
+/**
+ * The way out that needs no rule at all, and the reason this module is not the
+ * whole answer.
+ *
+ * A round is one OUTBOUND connection — `roundWith` dials, both sides prove
+ * themselves over that socket, and the manifest and any transfer ride it home.
+ * Nothing in a round needs this machine to accept a connection. So a deck that
+ * cannot be reached can still do every part of this by dialling first, and the
+ * two controls that make it dial are an address somebody typed and an invite
+ * somebody else minted.
+ *
+ * WHICH WAY THE INVITE GOES IS THE WHOLE OF IT, and nothing said so before.
+ * An invite carries the addresses of the deck that MINTED it, and the deck that
+ * PASTES it dials them. So a blocked machine that mints an invite is asking to
+ * be called, which is the one thing it cannot receive; the same pair works on
+ * the first try if the invite is minted at the other end and pasted here. Same
+ * two controls, opposite order, and only one of the orders works.
+ */
 export function workaround(blocked) {
   if (!blocked) return null;
   return {
