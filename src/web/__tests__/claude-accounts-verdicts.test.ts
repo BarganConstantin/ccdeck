@@ -95,14 +95,16 @@ async function freshAccounts(): Promise<Accounts> {
 /**
  * Three accounts, slot 2 active. Every row has been collected, so none counts
  * as never-fetched; `due` puts the active row's planned poll in the past,
- * which is claude-swap's own schedule saying a collection is owed.
+ * which is claude-swap's own schedule saying a collection is owed. `ageS` is
+ * how long ago every row was collected — a minute unless a case needs the
+ * active one old enough for the engine path to freshen it.
  */
-function seedStore({ due }: { due: boolean }) {
+function seedStore({ due, ageS = 60 }: { due: boolean; ageS?: number }) {
   const sec = Math.floor(Date.now() / 1000);
   const acct = (n: number) => ({ email: `acct${n}@example.invalid`, organizationUuid: `org-${n}` });
   const row = (n: number) => ({
     ...acct(n),
-    fetchedAt: sec - 60,
+    fetchedAt: sec - ageS,
     nextPollAt: due && n === 2 ? sec - 30 : sec + 3600,
     consecutiveFailures: 0,
     lastGood: { five_hour: { pct: 10 * n }, seven_day: { pct: n } },
@@ -251,5 +253,32 @@ describe("requestCollection, the Usage panel's refresh", () => {
     await collected();
     expect(await accounts.requestCollection()).toBe(false);
     expect(lists()).toHaveLength(1);
+  });
+
+  it("says it asked when it joined a collection still running, and starts no second one", async () => {
+    // The throttle is spent and the ask is made; the collection it would start
+    // is already under way, so the answer the button is waiting for is coming.
+    seedStore({ due: true });
+    let release = () => {};
+    proc.hold = new Promise<void>(r => { release = r; });
+    const accounts = await freshAccounts();
+    expect(await accounts.requestCollection()).toBe(true);
+    advance(2 * MIN);
+    expect(await accounts.requestCollection()).toBe(true);
+    expect(lists()).toHaveLength(1);
+    release();
+    await collected();
+  });
+
+  it("says it asked when nothing was due but the active account's numbers had aged", async () => {
+    // The engine path: one `cswap auto --once --dry-run`, detached, rather than
+    // a `cswap list` — claude-swap's plan says nothing is due, but the numbers
+    // are past its serve TTL and the row is healthy.
+    seedStore({ due: false, ageS: 10 * 60 });
+    const accounts = await freshAccounts();
+    expect(await accounts.requestCollection()).toBe(true);
+    await collected();
+    expect(lists()).toEqual([]);
+    expect(proc.calls).toEqual([["auto", "--once", "--dry-run", "--json"]]);
   });
 });

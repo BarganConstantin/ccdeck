@@ -332,6 +332,10 @@ export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
  *
  * Either way claude-swap decides whether a network call actually happens, and
  * this is throttled on top of that.
+ *
+ * Answers whether it asked — true from the moment the throttle is spent, even
+ * when the ask joins a collection already running — which is what
+ * requestCollection reports to the refresh button.
  */
 function nudgeCollector(rows, slots, now, activeNum) {
   // Did the last ask accomplish anything? Cheap proxy: the newest collection
@@ -344,11 +348,11 @@ function nudgeCollector(rows, slots, now, activeNum) {
   const moved = newest > _lastSeenFetch;
   _lastSeenFetch = Math.max(_lastSeenFetch, newest);
 
-  if (now - _lastNudge < (moved ? NUDGE_EVERY_MS : NUDGE_QUIET_MS)) return;
+  if (now - _lastNudge < (moved ? NUDGE_EVERY_MS : NUDGE_QUIET_MS)) return false;
 
   const due = collectionDue(rows, slots, now);
   const freshen = !due && freshenDue(rows[String(activeNum)], now);
-  if (!due && !freshen) return;
+  if (!due && !freshen) return false;
 
   _lastNudge = now;
   // The due path asks for JSON and KEEPS it — see _verdicts. The dry-run path
@@ -356,14 +360,15 @@ function nudgeCollector(rows, slots, now, activeNum) {
   // shape, and nothing here reads it.
   if (!due) {
     cswapBin().then(bin => runDetached(bin, ["auto", "--once", "--dry-run", "--json"])).catch(() => {});
-    return;
+    return true;
   }
-  if (verdictQueue.busy()) return;
+  if (verdictQueue.busy()) return true;
   // Fire-and-forget: this function is deliberately synchronous so callers never
   // wait on it, and resolving the binary is the only async part. `run` rather
   // than `runDetached` only so the output can be read; the caller is no more
   // aware of it than before.
   void verdictsNow();
+  return true;
 }
 
 async function readJson(path) {
@@ -763,9 +768,7 @@ export async function requestCollection() {
   const seq   = await readJson(join(root, "sequence.json"));
   if (!seq?.accounts) return false;
   const rows  = await readUsageRows(root);
-  const before = _lastNudge;
-  nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
-  return _lastNudge !== before;
+  return nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
 }
 
 /**
