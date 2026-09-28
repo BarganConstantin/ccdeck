@@ -81,8 +81,9 @@ export async function scanClaudeMdFiles(cwd) {
   // the user-global memory file and every auto-memory file went missing from
   // the modal and from the byte total beside it, while a stale ~/.claude left
   // over from before the variable was set got listed as if it were in context.
-  // Resolved per call, like the two other claudeConfigDir() readers in this
-  // file, so nothing captures the answer from an environment that has moved.
+  // Resolved per call, like every other claudeConfigDir() reader in
+  // src/server, so nothing captures the answer from an environment that has
+  // moved.
   const cfg = claudeConfigDir();
   // Walk up from cwd to filesystem root, checking the canonical CC memory
   // filenames plus CLAUDE.local.md (user-private) at each level.
@@ -145,9 +146,10 @@ export async function scanClaudeMdFiles(cwd) {
  * process (#375), so a relocated Codex home is honoured here without this
  * module growing a sixth spelling of the rule.
  *
- * Exported for the tests, like readContextFromTranscript beside it: the rule for
- * which files a session has in scope is worth pinning directly, rather than
- * through a watcher, a temp home and a 1.5s poll.
+ * Exported for the tests, like readContextFromTranscript in
+ * session-enrichment.mjs: the rule for which files a session has in scope is
+ * worth pinning directly, rather than through a watcher, a temp home and a
+ * 1.5s poll.
  */
 export async function scanAgentsMdFiles(cwd) {
   if (!cwd || typeof cwd !== "string") return [];
