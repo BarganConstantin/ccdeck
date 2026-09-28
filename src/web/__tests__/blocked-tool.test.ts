@@ -29,7 +29,7 @@
 import { describe, it, expect } from "vitest";
 import { applyEvent, BLOCK_GUESS_WINDOW_MS, initialState } from "../reducer";
 import type { GraphState } from "../reducer";
-import { blockedToolTooltip } from "../components/AgentNode";
+import { blockedToolTooltip } from "../agent-copy";
 import { guessLine } from "../notify";
 import type { HookEnvelope, HookPayload, WaitingBlock } from "../types";
 

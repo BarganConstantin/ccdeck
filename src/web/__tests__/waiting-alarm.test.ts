@@ -28,7 +28,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { waitingLabel, waitingSentence } from "../components/AgentNode";
+import { waitingLabel, waitingSentence } from "../agent-copy";
 import { buildRows, rank } from "../components/SessionList";
 import { ambientSignal } from "../ambient";
 import { isAlarming } from "../ambient-counts";

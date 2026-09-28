@@ -38,7 +38,9 @@ const metricsMod = await import("../../server/system-metrics.mjs");
 
 describe("blockedToolLabel — the wording function with two callers and neither of them real", () => {
   it("is gone from AgentNode", () => {
-    const text = src(WEB, "components/AgentNode.tsx");
+    // The card's words left AgentNode.tsx for agent-copy.ts, so the absence is
+    // asserted of both: the declaration must not come back in either.
+    const text = src(WEB, "components/AgentNode.tsx") + "\n" + src(WEB, "agent-copy.ts");
     expect(text).not.toContain("export function blockedToolLabel");
     expect(text, "the declaration survived the un-export").not.toContain("function blockedToolLabel");
   });
@@ -46,7 +48,7 @@ describe("blockedToolLabel — the wording function with two callers and neither
   it("left the two surfaces on the one function that always served them", () => {
     // notify.ts's own header: "ONE FUNCTION BECAUSE THERE ARE TWO SURFACES."
     // The tooltip goes through `guessLine`, and so does the notification body.
-    expect(src(WEB, "components/AgentNode.tsx")).toContain("const label = guessLine(waiting, said);");
+    expect(src(WEB, "agent-copy.ts")).toContain("const label = guessLine(waiting, said);");
     expect(src(WEB, "notify.ts")).toContain("const tool = guessLine(block, said);");
   });
 
