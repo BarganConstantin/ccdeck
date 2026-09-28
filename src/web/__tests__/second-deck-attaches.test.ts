@@ -359,7 +359,7 @@ describe("what the attach does and does not disturb", () => {
     // banner and the discovery file.
     const ask = DECK.indexOf("const plan = secondStart({");
     const bind = DECK.indexOf("const starting = startServer({");
-    const work = DECK.indexOf("const jobs = startupWork()");
+    const work = DECK.indexOf("const jobs = startupWork(");
     const register = DECK.indexOf("discovery = keepDiscovery({");
     expect(ask).toBeGreaterThan(0);
     for (const [name, at] of Object.entries({ bind, work, register })) {
