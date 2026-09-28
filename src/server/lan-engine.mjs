@@ -1068,10 +1068,12 @@ export function createEngine({
       // round. A heal unticked mid-round ends only that heal: the adds behind
       // it need no tick, and the skipped row says why rather than vanishing.
       const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
-      let cut = false;
-      for (const step of wanted) {
-        if (!stillPaired()) { cut = true; break; }
-        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
+      /** One login, asked for and opened: a `want` carrying its own proof that
+       *  names the account (see transferChallenge), and the `have` opened under
+       *  the additional data it was sealed with. The login, or why there is
+       *  none — the peer's refusal as this deck records it, or a seal that did
+       *  not open. */
+      const wantLogin = async step => {
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
           t: "want", key: step.key, nonce,
@@ -1079,9 +1081,16 @@ export function createEngine({
             nonce, accountKey: step.key, fromFp: identity.fp, toFp: conn.peerFp,
           }),
         });
-        if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: peerWhy(reply?.why) }); continue; }
+        if (reply?.t !== "have" || !reply.sealed) return { why: peerWhy(reply?.why) };
         const blob = open(conn.key, reply.sealed, credentialAad(conn.peerFp, identity.fp, step.key));
-        if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
+        return blob ? { blob } : { why: "could not open" };
+      };
+      let cut = false;
+      for (const step of wanted) {
+        if (!stillPaired()) { cut = true; break; }
+        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
+        const { blob, why } = await wantLogin(step);
+        if (!blob) { done.push({ ...step, ok: false, why }); continue; }
         // Unpairing, disabling LAN, or unticking a heal while export was in
         // progress takes effect before the received credential touches disk.
         if (!stillPaired()) { cut = true; break; }
