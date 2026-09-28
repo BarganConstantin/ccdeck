@@ -19,6 +19,7 @@ const SECTION = code("../components/LanSyncSection.tsx");
 /** The rows, which the section draws through a list of their own. */
 const LIST = code("../components/LanDeckList.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
+const PRESS = code("../panel-press.ts");
 const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 describe("LAN warning visibility", () => {
@@ -386,7 +387,8 @@ describe("the row is the door", () => {
     for (const src of [MODAL, SECTION]) {
       expect(src).toMatch(/if \(press === "ignore"\) return;/);
     }
-    expect(SECTION).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
+    // The gap is armedPress's own constant, beside it in panel-press.ts.
+    expect(PRESS).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
   });
 });
 

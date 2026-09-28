@@ -17,8 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { armedPress } from "../panel-press";
-import { CONFIRM_GAP_MS } from "../components/LanSyncSection";
+import { armedPress, CONFIRM_GAP_MS } from "../panel-press";
 import { withoutComments } from "./tsx-scan";
 import { accountsSurface } from "./accounts-surface";
 import { soundMenuSurface } from "./sound-menu-surface";

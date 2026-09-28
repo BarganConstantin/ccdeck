@@ -28,9 +28,9 @@
 // anything the row could not.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { armedPress, pressState } from "../panel-press";
+import { armedPress, CONFIRM_GAP_MS, pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, roundWhy, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
+import { askedLabel, exchangeLanes, roundLabel, roundWhy, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
 import type { DeckAbout, DeckRow, Lane, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
 
 interface Props {

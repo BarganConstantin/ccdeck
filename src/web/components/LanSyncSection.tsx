@@ -38,7 +38,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { checkedLabel, type DeckRow, deckRows, entryLine, rowSource, sectionState } from "../lan-roster";
 import type { LanAccount, LanTailscale } from "../lan-types";
-import { armedPress } from "../panel-press";
+import { armedPress, CONFIRM_GAP_MS } from "../panel-press";
 import { PEEK_DELAY_MS, useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import GuideModal from "./GuideModal";
@@ -55,10 +55,12 @@ import LanSetupModal from "./LanSetupModal";
 // between two decks in lan-exchange.ts; the poll's cadence and the sentence for
 // a write that did not land live with the section's writes, in
 // use-lan-section.ts; the share boxes' list while a write is out in
-// lan-share.ts, and a typed address and an invite's countdown in
-// lan-add-deck.ts. These are the names the dialogs and the pair-request hook
-// have always imported from here, passed through so that none of them had to
-// change with the move.
+// lan-share.ts, a typed address and an invite's countdown in lan-add-deck.ts,
+// the peek's timing in use-hover-peek.ts, and the gap an arm-then-confirm
+// press needs beside the rule that reads it, in panel-press.ts. These are the
+// names the dialogs, the pair-request hook, the fold at the foot of the
+// accounts and the other arm-then-confirm presses have always imported from
+// here, passed through so that none of them had to change with the move.
 export type { DeckAbout, LanAccount, LanReach, LanStatus, LanStranger, LanTailscale } from "../lan-types";
 export { roundLabel, roundWhy, seenLabel, silenceNote } from "../lan-round";
 export { askedLabel, type DeckRow, type RowSource, withAliases } from "../lan-roster";
@@ -67,12 +69,7 @@ export { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, writeFailure } from "../use-lan-sectio
 export { nextShared, sameKeys, settlePending } from "../lan-share";
 export { leftLabel, parseAddress } from "../lan-add-deck";
 export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
-
-/** The shortest gap between arming `unpair` and confirming it that counts as
- *  two decisions. A double-click on the right end of a row armed the verb and
- *  confirmed it in one gesture, and its second press lands before anybody
- *  could have read `confirm` — so a press sooner than this is not an answer. */
-export const CONFIRM_GAP_MS = 400;
+export { CONFIRM_GAP_MS } from "../panel-press";
 
 /**
  * What to say when this machine sends its local network through a tunnel. The
