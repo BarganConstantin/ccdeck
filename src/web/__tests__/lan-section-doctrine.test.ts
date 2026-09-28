@@ -14,9 +14,10 @@ import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
 import { clientText } from "./client-source";
 import {
-  askedLabel, checkedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel,
+  askedLabel, checkedLabel, deckRows, isOnline, leftLabel, parseAddress,
   nextShared, rosterSplit, sameKeys, sectionState, settlePending, writeFailure, ONLINE_MS,
 } from "../components/LanSyncSection";
+import { faultText, roundLabel } from "../lan-round";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),

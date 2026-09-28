@@ -26,7 +26,8 @@ import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
 import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, offered, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
-import { faultText, parseAddress } from "../components/LanSyncSection";
+import { parseAddress } from "../components/LanSyncSection";
+import { faultText } from "../lan-round";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
