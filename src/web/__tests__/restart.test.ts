@@ -316,6 +316,6 @@ describe("which update a dismissal was about", () => {
     const app = clientText();
     expect(app).toMatch(/const noticeKey = noticeKeyFor\(notice\);/);
     expect(app).toMatch(/const noticeOpen = noticeIsOpen\(notice, versionDismissed\);/);
-    expect(app).toMatch(/setVersionDismissed\(noticeKey\);[\s\S]{0,200}?setItem\(VERSION_DISMISSED_KEY, noticeKey\)/);
+    expect(app).toMatch(/setVersionDismissed\(noticeKey\);[\s\S]{0,200}?writeStored\(VERSION_DISMISSED_KEY, noticeKey\)/);
   });
 });

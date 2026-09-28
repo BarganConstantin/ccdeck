@@ -392,7 +392,7 @@ describe("the wiring, which is the half no pure function can hold", () => {
     expect(client, "the dismissal key was renamed, which silently un-dismisses everyone")
       .toMatch(/const OLD_NAME_DISMISSED_KEY\s*=\s*"agent-dag\.oldNameNoticeDismissed"/);
     expect(client, "the dismissal stores something other than the name it dismissed")
-      .toMatch(/localStorage\.setItem\(\s*OLD_NAME_DISMISSED_KEY\s*,\s*oldName\s*\)/);
+      .toMatch(/writeStored\(\s*OLD_NAME_DISMISSED_KEY\s*,\s*oldName\s*\)/);
     expect(client, "the notice no longer compares the dismissal against the current name")
       .toMatch(/oldNameDismissed\s*!==\s*oldName/);
     expect(client, "the notice no longer keys off the name the deck was invoked as")

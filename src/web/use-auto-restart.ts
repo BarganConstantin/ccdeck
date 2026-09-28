@@ -21,6 +21,7 @@ import { selfPressAccepted } from "./panel-press";
 import { activeCount, autoRestartRemainingMs, autoRestartStep, restartEndedInFailure, restartLandingStep, restartSafety } from "./restart";
 import type { GraphState } from "./reducer";
 import type { VersionInfo, VersionNotice } from "./use-version-check";
+import { removeStored } from "./storage";
 
 const AUTO_RESTART_KEY = "agent-dag.autoRestart";
 // Per-tab, not per-browser: it guards one reload, not a preference.
@@ -61,7 +62,7 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
   const toggleAutoRestart = useCallback(() => {
     const next = !autoRestart;
     autoTouchedRef.current = true;
-    try { window.localStorage.removeItem(AUTO_RESTART_KEY); } catch { /* private mode */ }
+    removeStored(AUTO_RESTART_KEY);
     setAutoRestart(next);
     fetch("/api/prefs", {
       method: "POST",

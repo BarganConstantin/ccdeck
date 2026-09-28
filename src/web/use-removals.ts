@@ -10,7 +10,7 @@ import type { BlockedSession } from "./ambient-counts";
 import type { GraphState } from "./reducer";
 import { readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, REMOVED_NODES_KEY, saveRemovedNodes, sessionsCalledBack, withoutRemovals } from "./remove-node";
 import type { useBoardLayout } from "./use-board-layout";
-import { localStore } from "./storage";
+import { localStore, removeStored } from "./storage";
 
 type Layout = ReturnType<typeof useBoardLayout>;
 
@@ -93,7 +93,7 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
   const forgetRemovals = useCallback(() => {
     setRemovedNodes(new Set());
     setLastRemoval(null);
-    try { window.localStorage.removeItem(REMOVED_NODES_KEY); } catch { /* disabled storage */ }
+    removeStored(REMOVED_NODES_KEY);
   }, []);
 
   // No setter leaves this file: every change to what is off the board goes

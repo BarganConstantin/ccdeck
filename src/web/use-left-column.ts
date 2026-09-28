@@ -18,6 +18,7 @@
 // that is an effect on the list's state rather than a step each caller must
 // remember.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { writeStored } from "./storage";
 
 const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
 const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
@@ -27,8 +28,7 @@ function loadSessionListOpen(): boolean {
   try { return window.localStorage.getItem(SESSION_LIST_OPEN_KEY) === "1"; } catch { return false; }
 }
 function saveSessionListOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(SESSION_LIST_OPEN_KEY, open ? "1" : "0"); } catch {}
+  writeStored(SESSION_LIST_OPEN_KEY, open ? "1" : "0");
 }
 
 export interface LeftColumn {
@@ -66,7 +66,7 @@ export function useLeftColumn(): LeftColumn {
   useEffect(() => {
     // An eviction is not the reader closing the panel, so it is not stored as one.
     if (!accountsPanelOpen && accountsEvictedRef.current) return;
-    try { window.localStorage.setItem(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0"); } catch {}
+    writeStored(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0");
   }, [accountsPanelOpen]);
   // The list gave the column back, by any of its ways out: so does the panel it
   // took the column from (#824).

@@ -182,7 +182,7 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     // frame record pointing at a board that no longer exists.
     const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(storage);
     expect(cleared, "clearStoredLayout is gone from layout-storage.ts").not.toBeNull();
-    expect(cleared![0]).toMatch(/removeItem\(LAYOUT_FRAME_KEY\)/);
+    expect(cleared![0]).toMatch(/removeStored\(LAYOUT_FRAME_KEY\)/);
   });
 
   it("stores the new board rather than the one it replaced", () => {

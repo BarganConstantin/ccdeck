@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { noticeIsOpen, noticeKeyFor } from "./version-chip";
+import { writeStored } from "./storage";
 
 const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
 
@@ -203,12 +204,12 @@ export function useVersionCheck(live: boolean): VersionCheck {
   // always spelled it.
   const showNotice = useCallback(() => {
     setVersionDismissed("");
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, ""); } catch { /* private mode */ }
+    writeStored(VERSION_DISMISSED_KEY, "");
   }, []);
   const dismissNotice = useCallback(() => {
     if (!notice) return;
     setVersionDismissed(noticeKey);
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, noticeKey); } catch { /* private mode */ }
+    writeStored(VERSION_DISMISSED_KEY, noticeKey);
   }, [notice, noticeKey]);
 
   return { version, notice, noticeOpen, showNotice, dismissNotice, versionChecking, loadVersion };

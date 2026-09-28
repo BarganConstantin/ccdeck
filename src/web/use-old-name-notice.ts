@@ -19,6 +19,7 @@ import { useCallback, useState } from "react";
 
 import { PRODUCT } from "./brand";
 import type { VersionInfo } from "./use-version-check";
+import { writeStored } from "./storage";
 
 // Which old command the name notice has already been dismissed for — the name
 // itself, not a boolean. Somebody who dismisses it under `agent-dag` and later
@@ -48,7 +49,7 @@ export function useOldNameNotice(version: VersionInfo | null): OldNameNotice {
   const dismissOldName = useCallback(() => {
     if (!oldName) return;
     setOldNameDismissed(oldName);
-    try { window.localStorage.setItem(OLD_NAME_DISMISSED_KEY, oldName); } catch { /* private mode */ }
+    writeStored(OLD_NAME_DISMISSED_KEY, oldName);
   }, [oldName]);
 
   return { oldName, oldNameOpen, dismissOldName };

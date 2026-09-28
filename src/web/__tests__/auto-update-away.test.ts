@@ -241,7 +241,7 @@ describe("the switch", () => {
   it("is read and written on the server, where a deck with no page open can see it", () => {
     expect(app).toMatch(/body: JSON\.stringify\(\{ autoUpdate: next \}\)/);
     expect(app).toMatch(/setAutoRestart\(d\.prefs\?\.autoUpdate !== false\);/);
-    expect(app).not.toMatch(/localStorage\.setItem\(AUTO_RESTART_KEY/);
+    expect(app).not.toMatch(/(?:localStorage\.setItem|writeStored)\(AUTO_RESTART_KEY/);
   });
 
   it("carries a switch turned off before the move over once, and drops the old key", () => {
@@ -256,7 +256,7 @@ describe("the switch", () => {
     // that answer triggered. The press marks the page and drops the old key.
     const toggle = app.slice(app.indexOf("const toggleAutoRestart = useCallback("));
     expect(toggle.slice(0, 400)).toMatch(/autoTouchedRef\.current = true;/);
-    expect(toggle.slice(0, 400)).toMatch(/localStorage\.removeItem\(AUTO_RESTART_KEY\)/);
+    expect(toggle.slice(0, 400)).toMatch(/removeStored\(AUTO_RESTART_KEY\)/);
     expect(app).toMatch(/if \(!autoTouchedRef\.current\) \{\s*let legacyOff = false;/);
   });
 });

@@ -34,7 +34,7 @@ describe("the session list evicts the accounts panel, and gives it back (#824)",
   });
 
   it("never stores an eviction as the reader closing the panel", () => {
-    expect(app).toMatch(/if \(!accountsPanelOpen && accountsEvictedRef\.current\) return;\s*try \{ window\.localStorage\.setItem\(ACCOUNTS_PANEL_OPEN_KEY/);
+    expect(app).toMatch(/if \(!accountsPanelOpen && accountsEvictedRef\.current\) return;\s*writeStored\(ACCOUNTS_PANEL_OPEN_KEY/);
   });
 
   it("keeps the panel waiting behind a list that is open on load", () => {

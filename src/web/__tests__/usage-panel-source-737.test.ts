@@ -652,13 +652,15 @@ describe("the period strip's keyboard and memory", () => {
     // Through storage.ts, because the bare property read throws outright on a
     // browser that blocks site data — and this one runs in a useState
     // initialiser, so it would take the panel's first render with it.
-    expect(panel).toContain('import { readStored } from "../storage";');
+    expect(panel).toContain('import { readStored, writeStored } from "../storage";');
     expect(panel).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
     // Validated, not cast. The store holds whatever was last written into it —
     // an older build's spelling, or a hand edit — and an unknown period would
     // ask /api/ccusage for a range it cannot spell.
     expect(panel).toContain("PERIODS.some(p => p.key === stored)");
-    expect(panel).toMatch(/function savePeriod[\s\S]{0,200}catch \{/);
+    // And written through storage.ts's writeStored, whose guard over the same
+    // refusal storage-blocked.test.ts drives.
+    expect(panel).toMatch(/function savePeriod\(period: PeriodKey\): void \{\s*writeStored\(PERIOD_KEY, period\);/);
   });
 
   it("says a read is running, where the finger just was", () => {
@@ -812,7 +814,7 @@ describe("the session section's disclosure", () => {
     // `=== "1"` is the spelling that gives it: anything that is not the string
     // written by `saveSessionsOpen` reads as shut.
     expect(panel).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
-    expect(panel).toMatch(/function saveSessionsOpen[\s\S]{0,220}catch \{/);
+    expect(panel).toMatch(/function saveSessionsOpen\(open: boolean\): void \{\s*writeStored\(SESSIONS_OPEN_KEY, open \? "1" : "0"\);/);
   });
 
   it("says how much is behind it, on the title rather than in ink", () => {

@@ -41,6 +41,27 @@ export function readStored(key: string): string | null {
 }
 
 /**
+ * Stores one string, or does nothing where the store refuses.
+ *
+ * The mirror of `readStored`, with the same two failures — the accessor that
+ * throws, the store that throws when asked — and a third a write has: a full
+ * quota. Each one costs the next load its memory of a preference and never
+ * this one's render, so all of them are swallowed. A caller that has to know
+ * whether the write stuck (the release notes' `writeSeen`) asks the store
+ * itself, through `localStore`.
+ */
+export function writeStored(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(key, value); } catch { /* private mode, blocked site data, full quota */ }
+}
+
+/** Forgets one key, or does nothing where the store refuses — see `writeStored`. */
+export function removeStored(key: string): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.removeItem(key); } catch { /* private mode, blocked site data */ }
+}
+
+/**
  * The tab's store itself, or null where there is not one to have: outside a
  * browser, or on a profile whose `window.localStorage` accessor throws.
  *

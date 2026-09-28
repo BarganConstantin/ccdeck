@@ -8,6 +8,7 @@
 import type { Frame } from "./layout";
 import { parseLayoutFrame, parseStoredLayout, serializeLayout, type StoredLayout } from "./stored-layout";
 import { parseStoredViewport, type StoredViewport } from "./stored-viewport";
+import { removeStored, writeStored } from "./storage";
 
 const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 /** The frame the stored layout was packed into columns for — see #995. */
@@ -28,10 +29,7 @@ export function saveLayout(
   positions: Map<string, { x: number; y: number }>,
   pinned: Map<string, { x: number; y: number }>,
 ): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(LAYOUT_STORAGE_KEY, serializeLayout(positions, pinned));
-  } catch { /* quota / private mode — ignore */ }
+  writeStored(LAYOUT_STORAGE_KEY, serializeLayout(positions, pinned));
 }
 
 /**
@@ -57,8 +55,7 @@ export function loadLayoutFrame(): Frame | null {
 }
 
 export function saveLayoutFrame(frame: Frame): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(LAYOUT_FRAME_KEY, JSON.stringify(frame)); } catch {}
+  writeStored(LAYOUT_FRAME_KEY, JSON.stringify(frame));
 }
 
 /** The viewport the canvas was last left at, or null. What it has to be to
@@ -72,18 +69,16 @@ export function loadViewport(): StoredViewport | null {
 }
 
 export function saveViewport(vp: { x: number; y: number; zoom: number }): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(vp)); } catch {}
+  writeStored(VIEWPORT_STORAGE_KEY, JSON.stringify(vp));
 }
 
 export function clearStoredLayout(): void {
-  if (typeof window === "undefined") return;
-  // Per-key try/catch so a failure removing one (quota / locked store)
-  // doesn't strand the other.
-  try { window.localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch {}
-  try { window.localStorage.removeItem(VIEWPORT_STORAGE_KEY); } catch {}
+  // One removeStored per key, each with its own try, so a failure removing one
+  // (quota / locked store) doesn't strand the other.
+  removeStored(LAYOUT_STORAGE_KEY);
+  removeStored(VIEWPORT_STORAGE_KEY);
   // The frame goes with the layout it describes. Left behind, it claims the
   // board that R is about to rebuild was packed for a window that may not be
   // the one on screen, and the first frame change would relayout again.
-  try { window.localStorage.removeItem(LAYOUT_FRAME_KEY); } catch {}
+  removeStored(LAYOUT_FRAME_KEY);
 }
