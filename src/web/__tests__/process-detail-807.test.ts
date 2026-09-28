@@ -38,7 +38,8 @@ import {
   parsePsThreadsBsd, parsePsThreadsProcps, psDetailArgs, CMD_MAX,
 } from "../../server/process-list.mjs";
 import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/ProcessListModal";
-import { fmtBytes, fmtUptime } from "../components/ProcessListModal";
+import { fmtUptime } from "../components/ProcessListModal";
+import { fmtBytes } from "../byte-format";
 import { machinePanelSurface } from "./machine-panel-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -183,11 +184,16 @@ describe("how long it has been up", () => {
 });
 
 describe("memory, printed as the quantity it is", () => {
-  it("carries three significant figures and a binary unit", () => {
-    expect(fmtBytes(512)).toBe("512 B");
+  it("carries one decimal and a binary unit, the deck's one byte format (#1128)", () => {
+    // Three significant figures until #1128, so these two read "512 B" and
+    // "725 MB"; the machine panel and the context modal each printed the same
+    // counts a third and a fourth way.
+    expect(fmtBytes(512)).toBe("512.0 B");
     expect(fmtBytes(2517368 * 1024)).toBe("2.4 GB");
-    expect(fmtBytes(725 * 1024 * 1024)).toBe("725 MB");
+    expect(fmtBytes(725 * 1024 * 1024)).toBe("725.0 MB");
     expect(fmtBytes(1536)).toBe("1.5 KB");
+    expect(modal).toMatch(/import \{ fmtBytes \} from "\.\.\/byte-format";/);
+    expect(modal).not.toMatch(/function fmtBytes\b/);
   });
 
   it("prints a dash for a reading that did not come back", () => {
