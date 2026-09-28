@@ -112,8 +112,6 @@ export interface VersionCheck {
   showNotice: () => void;
   /** Put the banner away for this version, persistently. */
   dismissNotice: () => void;
-  cmdCopied: boolean;
-  setCmdCopied: (copied: boolean) => void;
   /** True only during a FORCED check, which is the only one slow enough to be
    *  worth showing. */
   versionChecking: boolean;
@@ -132,7 +130,6 @@ export function useVersionCheck(live: boolean): VersionCheck {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
   });
-  const [cmdCopied, setCmdCopied] = useState(false);
   // `force` asks npm now instead of reusing the answer cached on disk. Used by
   // the chip, because "no banner" and "no check ran" look identical from here.
   const lastForcedRef = useRef(0);
@@ -208,5 +205,5 @@ export function useVersionCheck(live: boolean): VersionCheck {
     try { window.localStorage.setItem(VERSION_DISMISSED_KEY, noticeKey); } catch { /* private mode */ }
   }, [notice, noticeKey]);
 
-  return { version, notice, noticeOpen, showNotice, dismissNotice, cmdCopied, setCmdCopied, versionChecking, loadVersion };
+  return { version, notice, noticeOpen, showNotice, dismissNotice, versionChecking, loadVersion };
 }

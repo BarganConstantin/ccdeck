@@ -332,15 +332,16 @@ describe("a second press is refused by the handler, not by the browser", () => {
   });
 
   it("holds one upgrade at a time, across the gap before the poll answers", () => {
-    const app = codeOf("App.tsx");
+    // The press lock lives in use-deck-upgrade.ts and the round trip it awaits in
+    // use-version-check.ts; what this pins is how they fit together, so it reads
+    // the whole client. All three matches are positive.
+    const app = clientText();
     // `running` is the server's answer and does not arrive until the next
     // /api/version, so the ref covers the window in which nothing else says a
     // run started — and is released once the poll has been awaited.
     expect(app).toMatch(/if \(!selfPressAccepted\(upgradeAskedRef\.current \|\| upgradeState === "running"\)\) return;/);
     expect(app).toMatch(/await loadVersion\(\);\s*\n\s*upgradeAskedRef\.current = false;/);
-    // `loadVersion` lives in use-version-check.ts now. The press lock above
-    // is App.tsx's; the round trip it awaits is the client's, wherever written.
-    expect(clientText()).toMatch(/return fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
+    expect(app).toMatch(/return fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 
   it("holds one forced quota read at a time, per hook, and never blocks the poll", () => {
