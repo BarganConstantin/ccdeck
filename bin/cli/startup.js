@@ -15,7 +15,7 @@ import { PRODUCT } from "../../src/server/brand.mjs";
 import { renameNotice } from "../../src/server/invoked-as.mjs";
 import { link } from "../../src/server/term.mjs";
 import { wayBackNote } from "../../src/server/way-back.mjs";
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
+import { COMMAND, INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, LINKS, P, cols, fileLink, row, step, write } from "./screen.js";
 
 /**
@@ -212,7 +212,7 @@ export async function reportStartup(jobs, { workspace, wantClaude, wantCodex, CO
     const twice = wantCodex ? ", so Codex sessions can arrive twice" : "";
     write(row({
       mark: G.warn, tone: P.warn, label: "Codex hooks", keep: true,
-      detail: `left by an older deck in ${fileLink(leftover.settingsPath)}${twice} ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall\` takes them out`,
+      detail: `left by an older deck in ${fileLink(leftover.settingsPath)}${twice} ${G.dash} \`${COMMAND} --uninstall\` takes them out`,
     }));
   }
 
@@ -382,7 +382,7 @@ export function reportUnknownFlags(unknown) {
   for (const token of unknown) {
     write(row({
       mark: G.warn, tone: P.warn, label: "unknown option",
-      detail: `${token} ${G.dash} see \`${INVOKED_AS ?? PRODUCT} --help\``,
+      detail: `${token} ${G.dash} see \`${COMMAND} --help\``,
     }));
   }
 }
@@ -449,7 +449,7 @@ export function reportReady({ url, persist, openBrowser, flags }) {
   // boot — see way-back.mjs — and putting it above a typo warning would be
   // spending the reader's last line of attention on the calmer of the two.
   write(`\n  ${P.muted}${G.dash}  ${wayBackNote({
-    command: INVOKED_AS ?? PRODUCT, dash: G.dash, columns: cols(),
+    command: COMMAND, dash: G.dash, columns: cols(),
   })}${P.reset}\n`);
   // Only when one is actually being opened. Under --no-open — which is how an
   // npx update relaunches, with a tab already waiting — this was announcing

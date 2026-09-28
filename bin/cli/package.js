@@ -7,6 +7,7 @@
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
+import { PRODUCT } from "../../src/server/brand.mjs";
 import { invokedName } from "../../src/server/invoked-as.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -31,3 +32,8 @@ export const PKG_VERSION = versionOnDisk() ?? "0.0.0";
 // is this file under every one of the three names. Null when it cannot be
 // proven, and null is the answer that prints nothing.
 export const INVOKED_AS = invokedName({ pkgRoot: PKG_ROOT });
+
+// The command a hint tells somebody to type: the one they typed, or ours when
+// that cannot be told (#1501). INVOKED_AS stays null in that case for the one
+// caller that must say nothing rather than guess — the rename notice.
+export const COMMAND = INVOKED_AS ?? PRODUCT;

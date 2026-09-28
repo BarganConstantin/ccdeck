@@ -14,10 +14,9 @@ import { readFileSync as readLog, statSync as statLog } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isPortValue } from "../../src/server/args.mjs";
-import { PRODUCT } from "../../src/server/brand.mjs";
 import { sinceLabel } from "../../src/server/term.mjs";
 import { installGlobally, loginItemCommand } from "./login-item.js";
-import { INVOKED_AS, PKG_ROOT } from "./package.js";
+import { COMMAND, PKG_ROOT } from "./package.js";
 import { G, P } from "./screen.js";
 
 /**
@@ -69,7 +68,7 @@ const url = (d) => `http://127.0.0.1:${d.port}`;
 // the status and never mentioned the flag.
 function reportFlagRows(flags, { tone, gWarn, dash }) {
   for (const token of flags.unknown ?? []) {
-    process.stderr.write(`  ${tone.warn}${gWarn}  unknown option${tone.reset}  ${token} ${dash} see \`${INVOKED_AS ?? PRODUCT} --help\`\n`);
+    process.stderr.write(`  ${tone.warn}${gWarn}  unknown option${tone.reset}  ${token} ${dash} see \`${COMMAND} --help\`\n`);
   }
   for (const { flag, expects } of flags.incomplete ?? []) {
     process.stderr.write(`  ${tone.warn}${gWarn}  missing value${tone.reset}   ${flag} ${dash} expected ${expects}\n`);
@@ -93,8 +92,8 @@ function refusesPort(flags, { dash }) {
   const badPort = flags.port != null && !isPortValue(flags.port);
   if (badPort || askedPort) {
     const shown = badPort ? ` ${flags.port}` : "";
-    console.error(`${INVOKED_AS ?? PRODUCT}: --port${shown}: not a port number ${dash} expected 0-65535.`);
-    console.error(`${INVOKED_AS ?? PRODUCT}: refusing to stop every deck when you asked for one.`);
+    console.error(`${COMMAND}: --port${shown}: not a port number ${dash} expected 0-65535.`);
+    console.error(`${COMMAND}: refusing to stop every deck when you asked for one.`);
     return true;
   }
   return false;
@@ -162,7 +161,7 @@ async function defaultShape(deckLogDir) {
 async function printStatus(decks, mine, { say, tone, dash, gOk, bullet, arrow }) {
   const { sameShape } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
   if (!decks.length) {
-    say(`\n  ${tone.muted}${dash}  no deck is running ${dash} \`${INVOKED_AS ?? PRODUCT}\` starts one${tone.reset}\n`);
+    say(`\n  ${tone.muted}${dash}  no deck is running ${dash} \`${COMMAND}\` starts one${tone.reset}\n`);
     return 0;
   }
   // The one a bare `ccdeck` would open is marked, because with two decks up
@@ -176,7 +175,7 @@ async function printStatus(decks, mine, { say, tone, dash, gOk, bullet, arrow })
     const head = [d.version ? `v${d.version}` : "", `pid ${d.pid}`, `up ${age(d)}`]
       .filter(Boolean).join(`  ${bullet}  `);
     const mark = d === opens ? `${tone.ok}${gOk}${tone.reset}` : `${tone.muted}${bullet}${tone.reset}`;
-    const tail = d === opens ? `${tone.muted}   ${arrow} \`${INVOKED_AS ?? PRODUCT}\` opens this one${tone.reset}` : "";
+    const tail = d === opens ? `${tone.muted}   ${arrow} \`${COMMAND}\` opens this one${tone.reset}` : "";
     say(`  ${mark}  ${tone.muted}${head}${tone.reset}${tail}`);
     say(`     ${tone.accent}${tone.bold}${url(d)}${tone.reset}`);
     say(`     ${tone.muted}${where(d)} ${bullet} ${d.persist ?? "no log (--no-persist)"}${tone.reset}`);
@@ -210,7 +209,7 @@ async function stopDecks(flags, decks, { say, tone, dash, gOk, gWarn, bullet }) 
     // Two different silences, and saying the wrong one sends the reader looking
     // in the wrong place.
     const why = named !== null && decks.length
-      ? `no deck is listening on ${named} ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists them`
+      ? `no deck is listening on ${named} ${dash} \`${COMMAND} --status\` lists them`
       : `no deck is running`;
     say(`\n  ${tone.muted}${dash}  ${why}${tone.reset}\n`);
     return 0;
@@ -248,7 +247,7 @@ async function stopDecks(flags, decks, { say, tone, dash, gOk, gWarn, bullet }) 
     // is not: `--all` is a parsed no-op, and a bare `--stop` already ends every
     // deck — which is why this line is only reachable after `--stop --port <n>`
     // narrowed one. Naming the narrowing form is the half that is true.
-    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --stop\` ends every deck ${bullet} \`--stop --port <n>\` ends one${tone.reset}`);
+    say(`     ${tone.muted}\`${COMMAND} --stop\` ends every deck ${bullet} \`--stop --port <n>\` ends one${tone.reset}`);
   }
   say("");
   return refused ? 1 : 0;
