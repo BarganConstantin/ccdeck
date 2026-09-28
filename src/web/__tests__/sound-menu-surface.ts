@@ -22,6 +22,7 @@ export const SOUND_MENU_FILES = [
   "components/SoundMenu.tsx",
   "components/ToneSection.tsx",
   "components/CustomSoundsSection.tsx",
+  "components/SpokenVoiceForm.tsx",
   "use-clip-recorder.ts",
   "tone-option.ts",
 ] as const;

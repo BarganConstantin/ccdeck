@@ -1,16 +1,17 @@
 // The sound menu's custom sounds (#1207): a file imported, a clip recorded, a
 // line of text the browser speaks, and the list of what has been added.
 //
-// Lifted out of SoundMenu.tsx with everything only it uses — the voice form,
-// the recorder (use-clip-recorder.ts), the two-press Delete and the error they
-// share — so the menu reads as the switches and the two tones, and this as the
-// one section that adds and removes sounds. Which sound each tone plays stays
-// with the menu's own select; this is handed the library and the callbacks
-// that change it.
+// Lifted out of SoundMenu.tsx with everything only it uses — the voice form
+// (SpokenVoiceForm.tsx), the recorder (use-clip-recorder.ts), the two-press
+// Delete and the error they share — so the menu reads as the switches and the
+// two tones, and this as the one section that adds and removes sounds. Which
+// sound each tone plays stays with the menu's own select; this is handed the
+// library and the callbacks that change it.
 import { useEffect, useRef, useState } from "react";
 import { armedPress, focusDropped } from "../panel-press";
 import { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useClipRecorder } from "../use-clip-recorder";
+import SpokenVoiceForm from "./SpokenVoiceForm";
 import {
   MAX_CUSTOM_ASSETS,
   deleteFocusTarget,
@@ -31,16 +32,6 @@ export default function CustomSoundsSection({
   customAssets, onImportCustom, onCreateVoice, onRenameCustom, onPreviewCustom, onDeleteCustom,
 }: CustomSoundsProps) {
   const [customError, setCustomError] = useState("");
-  const [voiceName, setVoiceName] = useState("Custom voice");
-  const [voiceText, setVoiceText] = useState("Your turn");
-  const [voiceURI, setVoiceURI] = useState("");
-  // Kept as the text in the field, not a number. A controlled number input
-  // bound to Number(value) turns a cleared field into 0 on the spot, so the
-  // person could never empty it to type a new value — and 0 would then have
-  // been saved as the slowest rate rather than read as "not set".
-  const [voiceRate, setVoiceRate] = useState("1");
-  const [voicePitch, setVoicePitch] = useState("1");
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   // The ceiling, said where sounds are added and before any work is done. It
   // used to arrive as an error after the fact — after a 4.4-second recording,
   // or a voice form filled in — which is the person doing the work for the
@@ -67,21 +58,6 @@ export default function CustomSoundsSection({
     const t = window.setTimeout(() => setArmedDelete(null), 4_000);
     return () => window.clearTimeout(t);
   }, [armedDelete]);
-
-  // The browser's voices fill the dropdown and nothing else. The form starts on
-  // "System default" and stays there until the person picks a voice (#1562):
-  // it used to take the first voice listed, which is whatever the browser
-  // happens to put first — a novelty voice on macOS, another language on a
-  // machine with several — and not the voice the system speaks with.
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const refresh = () => {
-      setVoices(window.speechSynthesis.getVoices());
-    };
-    refresh();
-    window.speechSynthesis.addEventListener("voiceschanged", refresh);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", refresh);
-  }, []);
 
   const runCustom = async (work: () => Promise<void>) => {
     setCustomError("");
@@ -155,59 +131,7 @@ export default function CustomSoundsSection({
         </div>
       </div>
 
-      <details className="sm-voice">
-        <summary
-          {...fullProps}
-          // Held shut while full, so nobody fills in a form that cannot be
-          // saved. One already open can still be closed.
-          onClick={e => {
-            const details = e.currentTarget.parentElement as HTMLDetailsElement | null;
-            if (full && details && !details.open) e.preventDefault();
-          }}
-        >
-          <span>Spoken voice</span>
-          <span>Create from text</span>
-        </summary>
-        <div className="sm-voice-fields">
-          {/* The deck's text field, as the appearance menu's station fields
-              are: `.sm-select` is a select's class, and these are not. */}
-          <label>
-            <span>Name</span>
-            <input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} />
-          </label>
-          <label>
-            <span>Text</span>
-            <input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} />
-          </label>
-          <label>
-            <span>Voice</span>
-            <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
-              <option value="">System default</option>
-              {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
-            </select>
-          </label>
-          <div className="sm-voice-pair">
-            <label><span>Rate</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
-            <label><span>Pitch</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
-          </div>
-          <button
-            type="button"
-            className="btn sm-custom-action"
-            {...fullProps}
-            onClick={() => {
-              if (full) return;
-              void runCustom(async () => {
-                // parseFloat, so an empty field is NaN and createCustomVoice's
-                // default rather than Number("")'s 0.
-                await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
-                setVoiceText("Your turn");
-              });
-            }}
-          >
-            Add spoken voice
-          </button>
-        </div>
-      </details>
+      <SpokenVoiceForm full={full} fullProps={fullProps} runCustom={runCustom} onCreateVoice={onCreateVoice} />
 
       {customAssets.length > 0 && (
         <div className="sm-custom-list">
