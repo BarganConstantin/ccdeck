@@ -51,6 +51,7 @@ import { pruneSelection, sweepTick } from "./prune";
 import { REMOVED_NODES_KEY, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "./remove-node";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
+import { useZoomLod } from "./use-zoom-lod";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -100,7 +101,7 @@ import { selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
-import { fitZoomForDrawnLanes, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { fitZoomForDrawnLanes } from "./semantic-zoom";
 import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { fmtCost, fmtCostRate } from "./pricing";
@@ -1457,43 +1458,7 @@ function Inner() {
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
   const { trashDragging, trashLabel, trashState, trashZoneRef, trashPhase, beginTrashDrag, trackTrashDrag, endTrashDrag } = useDragTrash();
-  /** WHICH CARD IS DRAWN AT THIS DISTANCE — detail, compact or overview.
-   *
-   *  The canvas zooms to 0.2, and below the full card every word on it is drawn
-   *  at the canvas's scale: at 0.3 the 12px name is under 4px. The two smaller
-   *  modes are faces laid out in screen pixels instead (AgentNode's NodeFace);
-   *  which one is drawn is decided in semantic-zoom.ts from what the smallest
-   *  card measures on screen, with a band either side of each threshold so a
-   *  zoom resting near one cannot flip the canvas back and forth.
-   *
-   *  It lives on the canvas element rather than in each node ON PURPOSE. A node
-   *  that subscribed to the viewport would re-render every card on every frame
-   *  of a pinch, on a surface that already runs a 200-iteration relaxation and
-   *  four resting animations; this is one attribute on one element, written
-   *  only when the mode actually changes, which is a handful of times per
-   *  gesture at most.
-   *
-   *  Nothing here changes a card's BOX. The faces are drawn over the card's own
-   *  rows, which keep their space, because the measured height of a node is a
-   *  layout input — shrinking a card at a distance would reflow the graph under
-   *  the reader's hands, and the auto-fit would chase it. */
-  const [lod, setLod] = useState<LodMode>("detail");
-  const lodRef = useRef<LodMode | null>(null);
-  /** The card the mode has to work for: the smallest agent card on the board,
-   *  re-measured only when a measurement moved (measuredVersionRef). */
-  const lodCardRef = useRef<{ version: number; card: CardSize } | null>(null);
-  const lodCard = useCallback((): CardSize => {
-    const version = measuredVersionRef.current;
-    if (lodCardRef.current?.version === version) return lodCardRef.current.card;
-    const sizes: CardSize[] = [];
-    for (const id of stateRef.current.agents.keys()) {
-      const m = measuredRef.current.get(id);
-      if (m) sizes.push(m);
-    }
-    const card = referenceCard(sizes);
-    lodCardRef.current = { version, card };
-    return card;
-  }, []);
+  const { lod, lodRef, applyZoom } = useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef });
 
   // The selected agent. Declared this high because the rail measurement below
   // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
@@ -3691,15 +3656,7 @@ function Inner() {
             // rather than through state: it changes every frame of a gesture,
             // and the sheet is the only reader.
             canvasRef.current?.style.setProperty("--zoom", String(vp.zoom));
-            const mode = nextLod(lodRef.current, vp.zoom, lodCard());
-            if (mode !== lodRef.current) {
-              lodRef.current = mode;
-              // The attribute now, the state for React with it: the face must
-              // not wait a render to appear on the frame the mode changed on.
-              canvasRef.current?.setAttribute("data-lod", mode);
-              setLod(mode);
-              if (mode === "detail") hidePeek();
-            }
+            if (applyZoom(vp.zoom) === "detail") hidePeek();
             if (vpSaveTimerRef.current) window.clearTimeout(vpSaveTimerRef.current);
             vpSaveTimerRef.current = window.setTimeout(() => saveViewport(vp), 250);
           }}
