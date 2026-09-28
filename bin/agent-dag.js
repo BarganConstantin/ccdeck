@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 import { killTree } from "../src/server/exec.mjs";
 import { invokedAs } from "../src/server/invoked-as.mjs";
 import { isOneShot, parseArgs } from "../src/server/args.mjs";
-import { npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
+import { holdOutput, npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
   isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
@@ -531,18 +531,8 @@ function launchNpx() {
   // Held, not discarded: the moment the replacement is serving, everything it
   // wrote goes to the terminal and every later byte passes straight through.
   // Until then it is only evidence for a failure that may not happen.
-  let tail = "";
-  let teeing = false;
-  const tee = () => {
-    if (teeing) return;
-    teeing = true;
-    if (tail) process.stderr.write(tail);
-  };
-  started.stderr?.on("data", (d) => {
-    const s = String(d);
-    if (teeing) { process.stderr.write(s); return; }
-    tail = (tail + s).slice(-8000);
-  });
+  const held = holdOutput({ write: (s) => process.stderr.write(s) });
+  started.stderr?.on("data", held.take);
 
   // Whether the replacement ever got as far as serving. An npx that cannot
   // resolve exits in seconds having bound nothing; a deck the user stops with
@@ -552,7 +542,7 @@ function launchNpx() {
     if (boundPort == null || served) return;
     const sock = connect({ port: boundPort, host: "127.0.0.1" });
     sock.setTimeout(1000);
-    sock.on("connect", () => { served = true; tee(); sock.destroy(); });
+    sock.on("connect", () => { served = true; held.release(); sock.destroy(); });
     sock.on("timeout", () => sock.destroy());
     sock.on("error", () => { /* not up yet */ });
   }, 1000);
@@ -562,8 +552,8 @@ function launchNpx() {
     clearInterval(probe);
     child = null;
     if (stopping || served) return; // the user stopped it, or it ran and ended
-    const summary = npxFailureSummary(tail);
-    const hint = npxFailureHint(tail);
+    const summary = npxFailureSummary(held.tail);
+    const hint = npxFailureHint(held.tail);
     console.error(`${PRODUCT}: ${why} ${G.dash} staying on v${VERSION}`);
     if (summary) console.error(`  ${summary}`);
     if (hint) console.error(`  ${hint}`);
