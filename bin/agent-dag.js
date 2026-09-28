@@ -45,7 +45,7 @@ import {
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
-  CRASH_CEILING, CRASH_WINDOW_MS, crashPolicy, dieOfSignal, dieWithParent, isCrash, replacedNote,
+  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, replacedNote,
   upgradeAttempt, upgradeRefusalText, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
@@ -76,13 +76,6 @@ const INVOKED_AS = invokedAs({ pkgRoot: PKG_ROOT, argv1: process.argv[1], platfo
 const P = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
 const G = glyphs(unicodeOK());
 
-// Who the restart-failure note below belongs to. Several decks of the same
-// package run out of one home directory — two `npx ccdeck` runs even share the
-// _npx directory and therefore the version — so a note named after the package
-// alone was read by every one of them, and a deck that had never asked for an
-// update reported someone else's failed npx as its own. Our pid is unique among
-// the decks alive on the machine, and putting it in our own environment is what
-// carries it to the worker: launch() spawns with a copy of it.
 // ── the terminal stops being the deck's leash ────────────────────────────────
 //
 // Everything about why is in src/server/detach.mjs. Here is only the decision,
@@ -170,6 +163,13 @@ if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
   console.error(`${PRODUCT}: could not open ${PRODUCT}'s log (${outcome.reason}) ${G.dash} staying in the foreground.`);
 }
 
+// Who the restart-failure note below belongs to. Several decks of the same
+// package run out of one home directory — two `npx ccdeck` runs even share the
+// _npx directory and therefore the version — so a note named after the package
+// alone was read by every one of them, and a deck that had never asked for an
+// update reported someone else's failed npx as its own. Our pid is unique among
+// the decks alive on the machine, and putting it in our own environment is what
+// carries it to the worker: launch() spawns with a copy of it.
 claimRestartFailureKey();
 
 // The port the worker actually bound, which is not necessarily the one it was
@@ -198,6 +198,23 @@ let stopping = false;
 // back every time; one that dies five times in ten minutes is broken, and the
 // answer to broken is to stop and say so rather than to spin.
 let crashes = [];
+
+/**
+ * Stop the npx fetch in flight, if there is one, and say whether there was.
+ *
+ * A fetch ends early three ways — the worker it was for exits, a signal
+ * reaches this process, the parent holding our leash goes away — and all three
+ * stop it with killTree, which on Windows is the only thing that reaches npm
+ * under cmd.exe. The answer is for the first of them: a worker that leaves
+ * mid-fetch writes its attempt off, while one that leaves after a fetch that
+ * worked is handing the attempt to launchNpx.
+ */
+function stopFetch(signal) {
+  if (!fetching) return false;
+  killTree(fetching, signal);
+  fetching = null;
+  return true;
+}
 
 function launch(respawn) {
   // Asked on every spawn rather than once at boot: the deletion this catches
@@ -272,7 +289,7 @@ function launch(respawn) {
     // download is spent effort and the process holding it has to be stopped:
     // left running it would keep writing into the npx cache directory the next
     // attempt reads, minutes after the deck stopped waiting for it.
-    if (fetching) { killTree(fetching); fetching = null; attempting = null; }
+    if (stopFetch()) attempting = null;
     // `stopping` outranks the exit code — see supervisor.mjs. A restart and a
     // Ctrl+C can land together, and honouring the code first is how the deck
     // came back to life after the user stopped it.
@@ -292,14 +309,16 @@ function launch(respawn) {
     // Before this ran in the background a crash was self-reporting: the terminal
     // came back with the stack on it. Detached, the first sign is noticing hours
     // later that a day of work was never recorded — so it goes back up. The
-    // whole of which crashes qualify is in isCrash, and the ceiling that stops
-    // this becoming a spin loop is in crashPolicy.
+    // whole of which crashes qualify is in isCrash, the ceiling that stops this
+    // becoming a spin loop is in crashPolicy, and what each answer says is in
+    // crashRestartNote and crashCeilingNote.
     if (isCrash({ code, signal, served: boundPort != null, stopping })) {
       const verdict = crashPolicy(crashes);
       if (verdict.restart) {
         crashes = verdict.history;
-        const how = signal ? `killed by ${signal}` : `exit ${code}`;
-        console.error(`${PRODUCT}: the deck stopped on its own (${how}) ${G.dash} starting it again in ${Math.round(verdict.delayMs / 1000)}s (${verdict.recent}/${CRASH_CEILING}).`);
+        console.error(crashRestartNote({
+          code, signal, delayMs: verdict.delayMs, recent: verdict.recent, product: PRODUCT, dash: G.dash,
+        }));
         restarts++;
         // Unref'd would be wrong here: this timer IS the supervisor's reason to
         // stay alive, and without it the event loop empties and the process
@@ -310,7 +329,7 @@ function launch(respawn) {
       // Said once, with the two numbers that make it actionable, and then this
       // process really does end — a supervisor that keeps trying forever is the
       // failure the ceiling exists to prevent.
-      console.error(`${PRODUCT}: the deck has stopped ${CRASH_CEILING} times in ${Math.round(CRASH_WINDOW_MS / 60000)} minutes ${G.dash} not starting it again. Run \`${INVOKED_AS ?? PRODUCT}\` when you have looked at the log above.`);
+      console.error(crashCeilingNote({ product: PRODUCT, command: INVOKED_AS ?? PRODUCT, dash: G.dash }));
     }
 
     // Anything else is the worker's own verdict and belongs to whoever started
@@ -610,7 +629,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     // Windows the shim path leaves npm as a grandchild of cmd.exe that only
     // killTree can reach. Stopped before the worker, since the worker's own
     // exit path is what ends this process.
-    if (fetching) { killTree(fetching, second ? "SIGKILL" : sig); fetching = null; }
+    stopFetch(second ? "SIGKILL" : sig);
     if (!child) { process.exit(0); return; }
     try { child.kill(second ? "SIGKILL" : sig); } catch { /* already gone */ }
     // The npx step is a shell that exec's the new deck, and a signal can land in
@@ -643,7 +662,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 // the deck kill itself a second after every successful start.
 if (!DETACHED) dieWithParent(() => {
   stopping = true;
-  if (fetching) { killTree(fetching, "SIGTERM"); fetching = null; }
+  stopFetch("SIGTERM");
   if (child) killTree(child, "SIGTERM");
   // Long enough for the worker to unregister its discovery file and let the
   // port go, short enough that nothing is waiting on us. Unref'd: if the worker

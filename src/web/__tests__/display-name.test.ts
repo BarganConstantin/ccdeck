@@ -29,7 +29,7 @@ import { PRODUCT } from "../brand";
 import { ambientSignal } from "../ambient";
 import { SCHEMA_KEY, SHAPE_KEYS } from "../storage";
 import { PRODUCT as SERVER_PRODUCT } from "../../server/brand.mjs";
-import { wordmark } from "../../server/term.mjs";
+import { wordmark } from "../../server/wordmark.mjs";
 import { cliSurface } from "./cli-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));

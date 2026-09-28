@@ -14,11 +14,17 @@ import { fileURLToPath } from "node:url";
 
 // @ts-expect-error — plain .mjs module, no types
 const sup = await import("../../server/supervisor.mjs");
-const { CRASH_BACKOFF_MAX_MS, CRASH_CEILING, CRASH_WINDOW_MS, crashPolicy, isCrash } = sup as {
+const {
+  CRASH_BACKOFF_MAX_MS, CRASH_CEILING, CRASH_WINDOW_MS, crashCeilingNote, crashPolicy, crashRestartNote, isCrash,
+} = sup as {
   CRASH_BACKOFF_MAX_MS: number;
   CRASH_CEILING: number;
   CRASH_WINDOW_MS: number;
+  crashCeilingNote: (o?: { product?: string; command?: string; dash?: string }) => string;
   crashPolicy: (h?: number[], o?: Record<string, number>) => Verdict;
+  crashRestartNote: (o: {
+    code?: number | null; signal?: string | null; delayMs: number; recent: number; product?: string; dash?: string;
+  }) => string;
   isCrash: (o: { code?: number | null; signal?: string | null; served?: boolean; stopping?: boolean }) => boolean;
 };
 type Verdict = { restart: boolean; delayMs: number; recent: number; history: number[] };
@@ -131,9 +137,19 @@ describe("how the supervisor spends it", () => {
   });
 
   it("says the count and the ceiling, so the number means something", () => {
-    expect(SUPERVISOR).toContain("the deck stopped on its own");
-    expect(SUPERVISOR).toContain("${verdict.recent}/${CRASH_CEILING}");
-    expect(SUPERVISOR).toContain("not starting it again");
+    const verdict = crashPolicy([1_000], { now: 2_000 });
+    const said = crashRestartNote({ code: 1, signal: null, delayMs: verdict.delayMs, recent: verdict.recent });
+    expect(said).toContain("the deck stopped on its own (exit 1)");
+    expect(said).toContain(`starting it again in 2s (2/${CRASH_CEILING})`);
+    expect(crashRestartNote({ code: null, signal: "SIGKILL", delayMs: 1_000, recent: 1 }))
+      .toContain("(killed by SIGKILL)");
+    const last = crashCeilingNote({ command: "npx ccdeck" });
+    expect(last).toContain(`stopped ${CRASH_CEILING} times in ${CRASH_WINDOW_MS / 60_000} minutes`);
+    expect(last).toContain("not starting it again");
+    expect(last).toContain("Run `npx ccdeck`");
+    // And those are the lines the supervisor prints, with the verdict it acted on.
+    expect(SUPERVISOR).toMatch(/console\.error\(crashRestartNote\(\{\s*code, signal, delayMs: verdict\.delayMs, recent: verdict\.recent,/);
+    expect(SUPERVISOR).toContain("console.error(crashCeilingNote({");
   });
 
   it("guards the `booted` forward, which a crash restart is what found", () => {

@@ -44,7 +44,7 @@ import { emptyScope } from "../scope";
 import { machinePanelSurface } from "./machine-panel-surface";
 
 // @ts-expect-error — .mjs server module, no types
-const { pulseText, unregisteredDetail } = await import("../../server/term.mjs");
+const { pulseText, unregisteredDetail } = await import("../../server/pulse-line.mjs");
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
