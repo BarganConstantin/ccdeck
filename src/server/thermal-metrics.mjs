@@ -59,6 +59,13 @@ import { run } from "./metrics-run.mjs";
 //            Intel-only and an undocumented scale, and printing it as though it
 //            were degrees would be exactly the lie this module refuses.
 //
+//            ON APPLE SILICON ioreg and pmset both come back empty, and the
+//            degrees come from macmon instead: the sensors sit behind a HID
+//            sensor hub that only native code reaches without root. It is
+//            asked only when those two were silent, so an Intel Mac never pays
+//            for it, and the deck fetches its release binary itself — see
+//            macmon.mjs.
+//
 //   Windows  The performance counter `\Thermal Zone Information(*)\High
 //            Precision Temperature`, in TENTHS OF A KELVIN, read through
 //            Get-Counter.
@@ -86,10 +93,15 @@ import { run } from "./metrics-run.mjs";
 //
 //            THE COUNTER PATH IS LOCALISED. `Thermal Zone Information` is the
 //            English name and a German or French Windows publishes its own, so
-//            this reaches the counter on an English install and falls through
-//            to MSAcpi elsewhere. Translating it means resolving a numeric
-//            index through the registry, which is a change with no way to be
-//            tested from here — see #747.
+//            when the English path answers nothing the local spelling is
+//            resolved through Perflib's index tables (WIN_THERMAL_PS below).
+//            Reasoned from the documented layout, not yet run on a localised
+//            Windows.
+//
+//            A MODERN INTEL LAPTOP declares no zone at all: Intel DTT manages
+//            its sensors and publishes them only to an administrator. There the
+//            degrees come from LibreHardwareMonitor's local web server when the
+//            user already runs it — see hwmonitor.mjs.
 //
 // NEVER INVENT A READING. No sensor means no row, and no rows at all means the
 // section is not rendered: not 0°C, not a dash, not a grey empty bar. Same rule
