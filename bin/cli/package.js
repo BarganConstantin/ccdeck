@@ -11,10 +11,21 @@ import { invokedName } from "../../src/server/invoked-as.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PKG_ROOT = resolve(__dirname, "../..");
-export const PKG_VERSION = (() => {
-  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? "0.0.0"; }
-  catch { return "0.0.0"; }
-})();
+
+/**
+ * The version package.json names right now, or null when it cannot be read.
+ *
+ * Asked twice in a deck's life, and the second answer is only worth having
+ * because it can differ from the first: once at boot, for the version this
+ * process runs, and again as a restart is about to land, for the version it
+ * will land on — whatever an upgrade has installed underneath it since.
+ */
+export function versionOnDisk() {
+  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? null; }
+  catch { return null; }
+}
+
+export const PKG_VERSION = versionOnDisk() ?? "0.0.0";
 
 // The command the user typed, handed down by the supervisor — our own argv[1]
 // is this file under every one of the three names. Null when it cannot be

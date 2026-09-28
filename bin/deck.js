@@ -6,7 +6,7 @@
 // take about a second instead of the better part of ten.
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dieOfSignal, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
 import {
@@ -27,7 +27,7 @@ import { deckRegistryDir, liveDecks, olderVersion, secondStart, versionNote } fr
 // reason: it is taken before anything else in the boot has run.
 import { takeBootLock } from "../src/server/boot-lock.mjs";
 // The package this worker belongs to and the name it was typed as — see there.
-import { INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./cli/package.js";
+import { INVOKED_AS, PKG_ROOT, PKG_VERSION, versionOnDisk } from "./cli/package.js";
 import { printHelp } from "./cli/help.js";
 
 const argv = process.argv.slice(2);
@@ -1254,7 +1254,9 @@ function beginRestart(mode) {
       catch (err) { abandonUpgrade(err?.message ?? "the supervisor is no longer listening"); }
       return;
     }
-    const to = restartTarget();
+    // What a restart would land on. Read from disk now rather than remembered
+    // from boot, because the whole point is that the two differ.
+    const to = versionOnDisk();
     write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}restarting${to ? ` ${G.arrow} v${to}` : ""}${G.ellipsis}${P.reset}\n`);
     shutdown(RESTART_CODE);
   } catch (err) {
@@ -1326,13 +1328,6 @@ process.on("message", (m) => {
     abandonUpgrade(m.error);
   }
 });
-
-// What a restart would land on. Read from disk now rather than remembered from
-// boot, because the whole point is that the two differ.
-function restartTarget() {
-  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? null; }
-  catch { return null; }
-}
 
 // The three things `shutdown` has to tear down, named before the boot that
 // fills them in rather than by it. From the line below onwards this process is
