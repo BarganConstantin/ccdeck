@@ -142,6 +142,44 @@ describe("answering and refusing", () => {
     expect(r.seen("a")).toMatchObject({ pub: "pub-a" });
   });
 
+  // A deck that asked AND is heard is on both lists, and `dismiss` takes it
+  // off the first one it finds. The heard row it leaves is the one the next
+  // beacon writes anyway — a declined deck heard is still recorded, only never
+  // asked — so nothing can tell the two apart: every reader of the heard list
+  // asks the declined one first, and once the answer is taken back the deck is
+  // where a fresh beacon would have put it.
+  it("told no while on both lists, is offered and asked by nothing until allowed", () => {
+    const both = rig({ autoAsk: false });
+    both.r.heardStranger(heard("a"));
+    both.r.askToAccept(asking("a"));
+    expect(both.r.dismiss("a")).toBe(true);
+    // The same deck heard only, told no, and heard again while declined.
+    const heardOnly = rig({ autoAsk: false });
+    heardOnly.r.heardStranger(heard("a"));
+    heardOnly.r.dismiss("a");
+    heardOnly.r.heardStranger(heard("a"));
+    for (const { r, st, pressed } of [both, heardOnly]) {
+      expect(r.pendingRows()).toEqual([]);
+      expect(r.strangerRows()).toEqual([]);
+      expect(r.declinedRows().map((p: { fp: string }) => p.fp)).toEqual(["a"]);
+      // Neither the beacon nor the switch asks it.
+      r.heardStranger(heard("a"));
+      const was = st.cfg;
+      st.cfg = { ...was, autoAsk: true };
+      r.switched(was);
+      r.heardStranger(heard("a"));
+      expect(pressed).toEqual([]);
+      // Allowed again, it is the heard row it always was, not asked by a
+      // beacon, and a request again the next time it dials.
+      r.allow("a");
+      r.heardStranger(heard("a"));
+      expect(pressed).toEqual([]);
+      expect(r.strangerRows().map((p: { fp: string }) => p.fp)).toEqual(["a"]);
+      r.askToAccept(asking("a"));
+      expect(r.pendingRows().map((p: { fp: string }) => p.fp)).toEqual(["a"]);
+    }
+  });
+
   it("keeps a declined deck by name and address until somebody changes their mind", () => {
     const { r, st } = rig();
     r.heardStranger(heard("a"));
