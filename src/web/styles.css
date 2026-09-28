@@ -385,10 +385,18 @@
      a 12px dialog, an 18px bar and 999px pills on most small things, which is
      most of what made it read as a generic dashboard. Pills stay where the
      shape is the meaning: an atomic state (active, expired), a count, and the
-     switch's own track. */
+     switch's own track.
+     AND A SECOND TIER, FOR THE CANVAS (#1288). A card and a recap note are
+     10px and a session's cluster 16px, rounder than any panel on purpose: a
+     canvas object reads as a thing you can pick up, and chrome reads as the
+     frame around it. That was true and unwritten, so the first reader of the
+     three steps above would have brought the node down to 8px. The tier is
+     named now, and nothing in the chrome may read it. */
   --r-tag: 4px;
   --r-ctl: 6px;
   --r-panel: 8px;
+  --r-node: 10px;
+  --r-cluster: 16px;
 }
 
 /* The two dimmings, in their own block and in neither theme for the same reason
@@ -4277,7 +4285,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   padding: 10px 12px 10px 16px;
   background: var(--node-grad);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-node);
   color: var(--text);
   font-size: 12px;
   box-shadow: var(--shadow-1);
@@ -4879,7 +4887,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   padding: 10px 12px 12px;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-  border-radius: 10px;
+  border-radius: var(--r-node);
   box-shadow: var(--shadow-1);
   color: var(--text);
   font-size: 12px;
@@ -5371,7 +5379,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    arithmetic with nothing on the other side of it. */
 .cluster-card {
   position: absolute;
-  border-radius: 16px;
+  border-radius: var(--r-cluster);
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
   background: hsl(var(--session-hue, 200) 70% 50% / 0.04);
   /* All four are kept, and all four are now worth keeping, because since #353

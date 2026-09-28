@@ -441,13 +441,17 @@ a panel.
 | Tier | Values | Used by |
 |---|---|---|
 | Chrome | `--r-tag: 4px` · `--r-ctl: 6px` · `--r-panel: 8px` | tags, controls, panels, modals |
-| Canvas | `10px` · `16px` | `.agent-node` and `.recap-note` at 10px, `.cluster-card` at 16px |
+| Canvas | `--r-node: 10px` · `--r-cluster: 16px` | `.agent-node` and `.recap-note`, `.cluster-card` — and nothing in the chrome |
 | Sub-scale | `3px` ×15 · `2px` ×10 · `1px` ×7 | hairlines, stripes, meter fills |
 | Round | `50%` ×41 · `999px` | dots, knobs, pills |
 
-The canvas tier has no token yet — #1288. **Do not bring the agent node down to
-8px**; it is 10px on purpose. Note also that only 35 declarations use `var(--r-*)`
-while `6px` ×22, `4px` ×20 and `8px` ×15 are the same values written as literals.
+Both tiers are tokens in the geometry `:root` block (#1288), and
+`radius-tiers-1288.test.ts` holds the canvas tier rounder than the chrome and
+keeps chrome from reading it. **Do not bring the agent node down to 8px**; it is
+10px on purpose. Many chrome rules still write `4px`, `6px` and `8px` as literals.
+They were not bulk-converted, because the same number is not always the same
+decision: 4px is also the focus ring's radius and a `kbd`'s, and 6px is also the
+overview face's. Convert one when its role is a tag, a control or a panel.
 
 Control height is `--ctl-h: 30px`. Panel padding is `--panel-inset: 14px`.
 
@@ -501,7 +505,7 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Canvas objects
 
-- **Agent node** — the canvas's primary object. `--node-grad` fill, `10px` radius,
+- **Agent node** — the canvas's primary object. `--node-grad` fill, `--r-node` radius,
   the session's hashed accent as its own `--accent`. State is carried by **both the
   border and the state pill** (`stateLabel()`: `live` / `done` / `err`), never the
   border alone — 1.4.1. It has **level-of-detail variants** via `@container lod`:
