@@ -62,6 +62,9 @@ const sessions = read("../components/UsageSessionBreakdown.tsx");
 const models = read("../components/UsageModelTable.tsx");
 /** The two preferences the panel keeps between reloads, lifted out of it. */
 const prefs = read("../usage-prefs.ts");
+/** The panel's small decisions — rows worth a line, the unpriced note, the ↻'s
+ *  name — lifted out of its render. */
+const rules = read("../usage-panel-rules.ts");
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -404,8 +407,11 @@ describe("markup, read as source", () => {
   it("says unpriced by the source's own answer", () => {
     // A model ccusage priced at nothing is one IT does not know; a board row
     // carries its own `priced` flag. Same words, two different questions.
-    expect(panel).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
-    expect(panel).toContain(": boardModelRows.some(m => !m.priced);");
+    // The decision is usage-panel-rules.ts's anyUnpriced, which
+    // usage-panel-rules.test.ts drives from both sources; the panel asks it.
+    expect(rules).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
+    expect(rules).toContain(": boardModelRows.some(m => !m.priced);");
+    expect(panel).toContain("const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);");
   });
 
   it("offers the three spans from the shaping layer, never a fourth spelled here", () => {

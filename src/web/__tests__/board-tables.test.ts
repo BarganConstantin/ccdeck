@@ -283,10 +283,10 @@ describe("the panel draws its two board tables from these", () => {
   it("keeps the rows whose dollars are unknown but whose tokens are not", () => {
     // #400's rule, on the columns these tables now name: a row is selected on
     // tokens, so an unpriced model is listed with the floor marker rather than
-    // filtered out of a table that still counts it in the strip above.
-    expect(panel).toMatch(
-      /const boardModelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
-    expect(panel).toMatch(
-      /const boardSessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
+    // filtered out of a table that still counts it in the strip above. The
+    // rule is usage-panel-rules.ts's worthALine, which usage-panel-rules.test.ts
+    // calls with both row shapes; this is the wire from both tables to it.
+    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
+    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
   });
 });

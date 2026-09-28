@@ -27,6 +27,7 @@ import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
+import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
@@ -236,21 +237,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   const shownOut    = useCountUp(figures.outputTokens);
   const shownCacheR = useCountUp(figures.cacheReadTokens);
   const shownCacheC = useCountUp(figures.cacheCreateTokens);
-  // Rows worth a line, which is not the same question as rows worth a dollar.
-  // Both tables used to filter on `cost > 0`, and in a deck holding one priced
-  // Claude session and any number of unpriced Codex ones that filter was
-  // invisible: `hasCost` was true, so the tables rendered, and every Codex row
-  // was dropped out of them while its tokens stayed in the strip above. The
-  // panel's own headline number then matched no visible row — the arithmetic
-  // was right and there was nothing on screen to reconcile it against.
-  const boardModelRows   = byModel.filter(m => m.cost.total > 0 || (m.inputTokens + m.outputTokens) > 0);
-  const boardSessionRows = bySessions.filter(s => s.cost > 0 || (s.inputTokens + s.outputTokens) > 0);
-  // A model ccusage priced at nothing is one IT does not know, and the note
-  // below means the same thing either way: these tokens are real and their
-  // dollars are not in the total above them.
-  const hasUnpriced = fromRange
-    ? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)
-    : boardModelRows.some(m => !m.priced);
+  // Rows worth a line, which is not the same question as rows worth a dollar,
+  // and whether the note about unpriced tokens is owed — both
+  // usage-panel-rules.ts's, with why.
+  const boardModelRows   = byModel.filter(worthALine);
+  const boardSessionRows = bySessions.filter(worthALine);
+  const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);
 
   const anyLoading = quotaLoading || codexLoading;
 
@@ -268,10 +260,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // construction: the name a voice-control user says is the words the tooltip
   // shows, per provider, and cannot drift into promising a section that is not
   // rendered.
-  const refreshLabel = providers.claude && providers.codex
-    ? "Refresh Claude + Codex quota"
-    : providers.codex ? "Refresh Codex quota"
-      : "Refresh Claude quota";
+  const refreshLabel = quotaRefreshLabel(providers);
 
   return (
     // The id is the target of the topbar toggle's aria-controls. It is spelled

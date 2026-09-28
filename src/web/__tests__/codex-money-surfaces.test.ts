@@ -76,6 +76,8 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 const panel = strip(read("../components/UsagePanel.tsx"));
 /** The panel and every file lifted out of it, for the negatives and counts. */
 const panelSurface = strip(usageSurface());
+/** The panel's small decisions, lifted out of its render. */
+const rules = strip(read("../usage-panel-rules.ts"));
 /** The two quota sections, lifted out of the panel. */
 const sections = strip(read("../components/QuotaSections.tsx"));
 const card = strip(read("../components/AgentNode.tsx"));
@@ -247,8 +249,11 @@ describe("a model with no rate says so instead of vanishing", () => {
     // CANVAS's rows, the ones this rule is about, and the ccusage rows beside
     // them keep an unpriced model for the same reason (`m.cost <= 0 &&
     // m.tokens > 0` there — tokens present, dollars unknown).
-    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
-    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
+    // Both through one rule since the two spellings were merged: worthALine in
+    // usage-panel-rules.ts, which keeps a row with tokens and no dollars.
+    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
+    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
+    expect(rules).toContain("return dollars > 0 || (row.inputTokens + row.outputTokens) > 0;");
     expect(panel).toMatch(/\{UNPRICED_LABEL\}/);
   });
 
