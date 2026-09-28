@@ -58,6 +58,8 @@ import { useDeckScope } from "./use-deck-scope";
 import { useDeckUpgrade } from "./use-deck-upgrade";
 import { useBrowserWatchBadge } from "./use-browser-watch-badge";
 import { useAppearance } from "./use-appearance";
+import { CatGlyph, DETAIL_CAT_EMOJI, DETAIL_CAT_LABEL, detailCategoryFor, type DetailCategory } from "./detail-category";
+import { useCategoryFilterBar } from "./use-category-filter-bar";
 import { useChimePlayer } from "./use-chime-player";
 import { useClaudeFm } from "./use-claude-fm";
 import { useDesktopUpdate } from "./use-desktop-update";
@@ -80,7 +82,6 @@ import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-cou
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { canAsk } from "./notify";
 import type { NotifyPermission } from "./notify";
-import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
@@ -90,7 +91,7 @@ const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { columnsWouldChange, type Frame } from "./layout";
 import { applyEvent, findToolOnBoard, initialState, type GraphState } from "./reducer";
-import { isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
+import { isAgentVisible, computeVisibleIds } from "./visibility";
 import { SESSION_GROUP_TYPE } from "./minimap";
 import { parseLayoutFrame, parseStoredLayout, restoreLayout, serializeLayout, type StoredLayout } from "./stored-layout";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport, type StoredViewport } from "./stored-viewport";
@@ -424,69 +425,6 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
-// Tool categories used both by the detail-panel strip and the canvas filter
-// chips. These are the buckets ToolBursts tints its bubbles by, and they used
-// to be a second copy of that table living here, "kept in sync manually —
-// small enough that a shared module isn't worth it". It was not: when Codex
-// renamed its shell tool to `exec` the copy here went on filing it under
-// "other" while the canvas coloured it grey, and the two were only ever going
-// to drift again (#417). Both now read the one table in tool-taxonomy.ts.
-type DetailCategory = ToolCategory;
-const DETAIL_CAT_EMOJI: Record<DetailCategory, string> = {
-  file: "📁", shell: "⚡", web: "🌐", agent: "🤖",
-  task: "📋", plan: "🧭", mcp: "🔌", other: "✨",
-};
-/** The canvas filter bar's glyph for a category: drawn, monochrome, on the
- *  topbar's icon spec (13px on a 14 viewBox, a 1.4 stroke, round caps). The
- *  emoji above stay for the detail rail's activity chips; on the bar they were
- *  eight colours of decoration beside a word that already names the category,
- *  on the one piece of chrome that sits over the canvas. The bubbles and the
- *  nodes carry each category's colour; the bar only has to say which is which. */
-const CAT_GLYPH_PATHS: Record<DetailCategory, string> = {
-  file: "M3.4 1.8h4.5l2.7 2.7v7.7H3.4z M7.9 1.8v2.7h2.7",
-  shell: "M2.4 3.8 5.6 7l-3.2 3.2 M7.4 10.6h4.2",
-  web: "M7 1.8a5.2 5.2 0 1 0 0 10.4A5.2 5.2 0 1 0 7 1.8z M1.8 7h10.4 M7 1.8c-1.5 1.4-2.3 3.1-2.3 5.2s.8 3.8 2.3 5.2c1.5-1.4 2.3-3.1 2.3-5.2S8.5 3.2 7 1.8z",
-  agent: "M3.3 4.8h7.4a1.2 1.2 0 0 1 1.2 1.2v4.8a1.2 1.2 0 0 1-1.2 1.2H3.3a1.2 1.2 0 0 1-1.2-1.2V6a1.2 1.2 0 0 1 1.2-1.2z M7 4.8V2.4 M5.3 8.2h.01 M8.7 8.2h.01",
-  task: "M2.2 4l1.2 1.2 2-2.2 M7.4 4.2h4.4 M2.2 9.4l1.2 1.2 2-2.2 M7.4 9.6h4.4",
-  plan: "M7 1.8a5.2 5.2 0 1 0 0 10.4A5.2 5.2 0 1 0 7 1.8z M9 5 8 8 5 9l1-3z",
-  mcp: "M5 1.8v2.6 M9 1.8v2.6 M3.6 4.4h6.8v2.2a3.4 3.4 0 0 1-6.8 0z M7 10v2.2",
-  other: "M3.5 7h.01 M7 7h.01 M10.5 7h.01",
-};
-function CatGlyph({ cat }: { cat: DetailCategory }) {
-  return (
-    <svg className="cat-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={CAT_GLYPH_PATHS[cat]} />
-    </svg>
-  );
-}
-/* An identity map on purpose — kept, not overlooked (#383).
- *
- * Every value below spells its own key, which is exactly what the eight
- * TOOL_CATEGORY rows deleted in the same sweep looked like. They are not the
- * same thing. Those rows sat behind a lookup whose default already returned
- * what they returned, so their presence could not change a rendered pixel;
- * this table is the only place a category's visible TEXT is decided — the
- * chip's `cat-name` span, plus the tooltips on the filter button and on the
- * activity strip. And being a `Record<DetailCategory, string>` it is how the
- * compiler asks for a label the day a ninth ToolCategory member arrives.
- *
- * Inlining `{c}` at those three call sites is what deleting it would mean, and
- * that promotes the union's member identifiers to user-facing prose: renaming
- * one would silently rewrite the UI, and the day `mcp` should read "MCP
- * servers" the map has to come back. One line changes here instead.
- *
- * Read with plain bracket access on purpose: unlike the tables #474 fixed, the
- * key is never an outside string — it is a DetailCategory that
- * `detailCategoryFor` produced, and none of the eight names an
- * Object.prototype member. */
-const DETAIL_CAT_LABEL: Record<DetailCategory, string> = {
-  file: "file", shell: "shell", web: "web", agent: "agent",
-  task: "task", plan: "plan", mcp: "mcp", other: "other",
-};
-/** The detail panel's name for the shared bucket lookup. Kept as a local alias
- *  purely so the call sites below read the way they always have. */
-const detailCategoryFor = categoryFor;
 
 export default function App() {
   return (
@@ -847,21 +785,11 @@ function Inner() {
    *  tick. A plain counter — value is irrelevant, only the change matters. */
   const [dragTick, setDragTick] = useState(0);
 
-  // ── the filter bar stepping out of the way ─────────────────────────────────
-  // The bar floats over the top-left of the canvas, which is fine until you pan:
-  // then cards and tool bubbles slide underneath it and stay there, because
-  // nothing re-frames a viewport the user chose. Reported with a screenshot of a
-  // Bash bubble half-eaten by the bar, and a workaround — pressing Clear after
-  // every update — that throws away the canvas to move one toolbar.
-  //
-  // So the bar yields instead. When anything is beneath it the bar drops to a
-  // fifth of its opacity, and hovering or focusing it brings it straight back.
-  // Measured rather than derived: bubbles are positioned by the burst layer in
-  // screen space, so the DOM is the only place both live in the same
-  // coordinates. A 300ms poll of a bounded set of rects is cheaper than it
-  // sounds and stops entirely when the tab is hidden or the bar is absent.
-  const catBarRef = useRef<HTMLDivElement | null>(null);
-  const [catBarOccluded, setCatBarOccluded] = useState(false);
+  // The category filter row over the canvas: which categories are on the board,
+  // which ones somebody muted, and the bar dimming itself when a card or a
+  // bubble slides under it — in use-category-filter-bar.ts.
+  const { presentCats, hiddenCats, toggleCat, catBarRef, catBarOccluded }
+    = useCategoryFilterBar(stateRef);
 
   /**
    * Live positions of whatever is being dragged, applied over the rendered
@@ -906,10 +834,6 @@ function Inner() {
    *  member's start position, captured at drag start. */
   const groupDragRef = useRef<{ start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
   const restoredViewport = useState(() => loadViewport())[0];
-  /** Categories the user has muted via the filter chips. Bursts whose
-   *  category is in this set don't render. Reset only by toggling them
-   *  back on (R / clear don't touch it — filters are user intent). */
-  const [hiddenCats, setHiddenCats] = useState<Set<DetailCategory>>(() => new Set());
   // The deck's look — the theme, the pixel character, and the canvas palette
   // read from the theme's tokens — with the effects that keep the DOM, storage
   // and the window's title bar in step, in use-appearance.ts.
@@ -2003,45 +1927,6 @@ function Inner() {
       return p ? { ...nd, position: p } : nd;
     });
   }, [groupNodes, nodes, dragMoveTick]);
-
-  // Which categories currently have at least one tool on the canvas — the
-  // filter row only shows chips for active categories so users aren't
-  // staring at empty toggle buttons.
-  const presentCats = useMemo<DetailCategory[]>(() => {
-    const set = new Set<DetailCategory>();
-    for (const a of stateRef.current.agents.values()) {
-      for (const t of a.tools) set.add(detailCategoryFor(t.name));
-    }
-    // Stable order: same as DETAIL_CAT_EMOJI declaration order.
-    return (Object.keys(DETAIL_CAT_EMOJI) as DetailCategory[]).filter(c => set.has(c));
-  }, [stateRef.current, stateRef.current.revision]);
-  useEffect(() => {
-    if (presentCats.length <= 1) { setCatBarOccluded(false); return; }
-    let timer = 0;
-    const tick = () => {
-      const bar = catBarRef.current;
-      if (bar && !document.hidden) {
-        const b = bar.getBoundingClientRect();
-        // Cards and bubbles both — a bubble is what the report showed, and it
-        // lives in a different layer from the nodes.
-        const boxes = Array.from(document.querySelectorAll(".react-flow__node, .tool-burst"))
-          .map(el => el.getBoundingClientRect());
-        const hit = anyTouches(b, boxes, 8);
-        setCatBarOccluded(prev => (prev === hit ? prev : hit));
-      }
-      timer = window.setTimeout(tick, 300);
-    };
-    tick();
-    return () => window.clearTimeout(timer);
-  }, [presentCats.length]);
-
-  const toggleCat = useCallback((c: DetailCategory) => {
-    setHiddenCats(prev => {
-      const next = new Set(prev);
-      if (next.has(c)) next.delete(c); else next.add(c);
-      return next;
-    });
-  }, []);
 
   // `selected` is declared with the rail measurement further up this file,
   // which needs to know whether the detail panel is mounted.

@@ -32,7 +32,8 @@ describe("the rail's activity chips say their category (#841)", () => {
   it("has a word for every category the taxonomy knows", () => {
     const union = /export type ToolCategory\s*=([^;]*);/.exec(taxonomy)![1];
     const cats = [...union.matchAll(/"([a-z][a-z0-9-]*)"/g)].map(m => m[1]);
-    const labels = /const DETAIL_CAT_LABEL: Record<DetailCategory, string> = \{([\s\S]*?)\};/.exec(app)![1];
+    // The labels live in detail-category.tsx now, beside the rest of the vocabulary.
+    const labels = /const DETAIL_CAT_LABEL: Record<DetailCategory, string> = \{([\s\S]*?)\};/.exec(read("../detail-category.tsx"))![1];
     for (const c of cats) expect(labels, c).toMatch(new RegExp(`\\b${c}: "`));
   });
 

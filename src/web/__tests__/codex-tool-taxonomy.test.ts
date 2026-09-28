@@ -162,12 +162,17 @@ describe("where the six tables get their Codex names from", () => {
   const toolBursts = readFileSync(join(web, "components", "ToolBursts.tsx"), "utf8");
   const app = readFileSync(join(web, "App.tsx"), "utf8");
 
-  it("has App.tsx reading the shared bucket table instead of its own copy", () => {
+  it("has the detail categories reading the shared bucket table instead of their own copy", () => {
     // The seventh copy is the one that would restart the drift, and it is the
     // one a future edit is most likely to re-introduce, because App.tsx is
-    // where the filter chips and the activity strip live.
-    expect(app).toMatch(/import \{ categoryFor[^}]*\} from "\.\/tool-taxonomy"/);
-    expect(app).not.toMatch(/const DETAIL_TOOL_CAT/);
+    // where the filter chips and the activity strip live. The categories now
+    // come to App.tsx through detail-category.tsx, so the chain is pinned link
+    // by link, and the copy is refused in both files — either is a place a
+    // future edit could put it back.
+    const detail = readFileSync(join(web, "detail-category.tsx"), "utf8");
+    expect(detail).toMatch(/import \{ categoryFor[^}]*\} from "\.\/tool-taxonomy"/);
+    expect(app).toMatch(/import \{[^}]*\bdetailCategoryFor\b[^}]*\} from "\.\/detail-category"/);
+    for (const src of [app, detail]) expect(src).not.toMatch(/const DETAIL_TOOL_CAT/);
   });
 
   it("has ToolBursts.tsx deriving its five tables rather than listing them", () => {
