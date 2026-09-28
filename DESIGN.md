@@ -29,9 +29,9 @@ colors:
   cat-other: "#94a3b8"
   usage-purple: "#c4b5fd"
   usage-blue: "#7dd3fc"
-  usage-green: "#86efac"
-  usage-amber: "#fcd34d"
-  usage-red: "#fca5a5"
+  usage-teal: "#5eead4"
+  usage-lime: "#bef264"
+  usage-pink: "#f9a8d4"
   usage-indigo: "#a5b4fc"
   usage-orange: "#fdba74"
   usage-zinc: "#94a3b8"
@@ -144,7 +144,7 @@ Three consequences that decide everything else:
 
 - **Calm by default, loud only for a real event.** Colour carries state, not
   decoration. A screen with nothing wrong on it is almost monochrome. The shipped
-  palette breaks this in two places, all recorded below — they are debt, not
+  palette breaks this in one place, recorded below — they are debt, not
   precedent.
 - **Dark is the default, light is a full peer.** `:root` is the dark ramp;
   `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
@@ -243,11 +243,11 @@ chart, so both ramps are here rather than dark alone:
 |---|---|---|---|---|---|---|
 | `--cat-file` | `#7dd3fc` | `#0369a1` | | `--usage-purple` | `#c4b5fd` | `#7e22ce` |
 | `--cat-shell` | `#fcd34d` | `#b45309` | | `--usage-blue` | `#7dd3fc` | `#0369a1` |
-| `--cat-web` | `#67e8f9` | `#0e7490` | | `--usage-green` | `#86efac` | `#157a3a` |
-| `--cat-agent` | `#f0abfc` | `#a21caf` | | `--usage-amber` | `#fcd34d` | `#7a5c00` |
-| `--cat-task` | `#86efac` | `#15803d` | | `--usage-red` | `#fca5a5` | `#be123c` |
+| `--cat-web` | `#67e8f9` | `#0e7490` | | `--usage-teal` | `#5eead4` | `#0f766e` |
+| `--cat-agent` | `#f0abfc` | `#a21caf` | | `--usage-lime` | `#bef264` | `#4d7c0f` |
+| `--cat-task` | `#86efac` | `#15803d` | | `--usage-pink` | `#f9a8d4` | `#be185d` |
 | `--cat-plan` | `#c4b5fd` | `#6d28d9` | | `--usage-indigo` | `#a5b4fc` | `#3730a3` |
-| `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#b0490c` |
+| `--cat-mcp` | `#5eead4` | `#0f766e` | | `--usage-orange` | `#fdba74` | `#7c2d12` |
 | `--cat-other` | `#94a3b8` | `#64748b` | | `--usage-zinc` | `#94a3b8` | `#4a5260` |
 | | | | | `--usage-cyan` | `#67e8f9` | `#0e7490` |
 
@@ -259,6 +259,11 @@ Code's own band), `--model-sonnet`, `--model-haiku` (also Copilot's),
 (also Mythos), and `--model-other` for anything `modelColor` does not recognise.
 Anything that draws a model — the chart, the by-CLI strip, the model chip — reads the
 family token and never a palette member.
+
+**The palette never wears a state colour** (#1284). Every member stays 16 ΔE or more
+from `--ok`, `--warn` and `--err` in both themes, and there is no red in it: a band
+that is the error colour reads as a failure whatever its legend says. On white the
+orange slot is a burnt orange, because that theme's `--warn` is an orange.
 
 **A category is never identified by colour alone; the chip carries its name.**
 That is already what `.cat-chip .cat-name` does, and it has to stay true: in dark,
@@ -283,9 +288,6 @@ Recorded because a reader will otherwise copy them:
 - **`--inflight` `#f0abfc` is also `--cat-agent` and the dark Opus chip**, so with
   nothing running, every Opus chip and agent-category stripe wears the *right now*
   hue — #1283.
-- **In dark, three usage series are byte-identical to the status colours:**
-  `--usage-green` = `--ok`, `--usage-amber` = `--warn`, `--usage-red` = `--err`. A
-  GPT band reads as *failed* — #1284. Legibility is fine; meaning is not.
 
 ### Two palettes that are exempt from theming
 

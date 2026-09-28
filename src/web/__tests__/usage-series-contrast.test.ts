@@ -241,6 +241,8 @@ function resolve(value: string, theme: Theme): Rgba {
   return resolve(raw, theme);
 }
 const tokenNameOf = (value: string) => /^var\(\s*(--[\w-]+)\s*\)$/.exec(value.trim())?.[1] ?? null;
+/** The --usage-* palette member a family token names (#1285). */
+const memberOf = (value: string) => tokenNameOf(TOK.dark[tokenNameOf(value)!] ?? "")!;
 
 // ── what the components hand to an inline style ─────────────────────────────
 
@@ -387,17 +389,20 @@ describe("the series colours answer the theme now, and still say which model the
     }
   });
 
-  it("pins the dark canvas — every dark value is the hex that shipped", () => {
-    // #330's rule, and the same reason: this issue is about the light theme,
-    // and quietly re-tuning dark on the way past would be a separate call.
-    expect(TOK.dark["--usage-purple"]).toBe(WAS.opus);
-    expect(TOK.dark["--usage-blue"]).toBe(WAS.sonnet);
-    expect(TOK.dark["--usage-green"]).toBe(WAS.haiku);
-    expect(TOK.dark["--usage-amber"]).toBe(WAS["gpt-5"]);
-    expect(TOK.dark["--usage-red"]).toBe(WAS.gpt);
-    expect(TOK.dark["--usage-indigo"]).toBe(WAS.gemini);
-    expect(TOK.dark["--usage-orange"]).toBe(WAS.codex);
-    expect(TOK.dark["--usage-zinc"]).toBe(WAS.fallback);
+  it("pins the dark canvas — every dark value #1284 did not move is the hex that shipped", () => {
+    // #330's rule, and the same reason: #583 was about the light theme, and
+    // quietly re-tuning dark on the way past would have been a separate call.
+    // #1284 was that call, for exactly the three bands that were state colours
+    // (swept below); the other five still draw what they drew.
+    const dark = (id: string) => TOK.dark[memberOf(modelColor(id))];
+    expect(dark("claude-opus-5")).toBe(WAS.opus);
+    expect(dark("claude-sonnet-5")).toBe(WAS.sonnet);
+    expect(dark("gemini-2.5-pro")).toBe(WAS.gemini);
+    expect(dark("codex-mini-latest")).toBe(WAS.codex);
+    expect(dark("llama-3")).toBe(WAS.fallback);
+    expect(dark("claude-haiku-4-5")).not.toBe(WAS.haiku);
+    expect(dark("gpt-5.4")).not.toBe(WAS["gpt-5"]);
+    expect(dark("gpt-4.1")).not.toBe(WAS.gpt);
   });
 
   it("keeps the by-CLI strip reading as a summary of the chart above it", () => {
@@ -520,6 +525,51 @@ describe("no two bands are told apart by luminance, which is why there is a hair
     // colour stood alone, and the cut is where the fix belongs.
     expect(historySrc).toMatch(/<span className="uh-legend-dot"[^>]*\/>\s*\n\s*\{shortModel\(m\)\}/);
     expect(dayDetailSrc).toMatch(/<span className="uh-model-label">\{shortModel\(mb\.modelName\)\}<\/span>/);
+  });
+});
+
+// ── the palette off the state colours (#1284) ───────────────────────────────
+//
+// Contrast was never the problem here — every band cleared 7.06:1 on the dark
+// panel. Meaning was: three of the dark bands were byte-identical to the deck's
+// state colours, green to --ok, amber to --warn, red to --err, so a GPT band
+// read as failed and a GPT-5 band as attention. On white orange sat 3.9 ΔE from
+// that theme's --warn, which is an orange. A palette that is not allowed to
+// mean anything has to stay measurably away from the three colours that do.
+
+/** CIE76 ΔE a band keeps from every state colour: twice HUE_APART — further
+ *  from a state than two bands need to be from each other to read as two. */
+const STATE_APART = 2 * HUE_APART;
+const STATES = ["--ok", "--warn", "--err"] as const;
+/** Every member of the palette, which is wider than the series: the cost bar,
+ *  its key and the projects bar draw from it too. */
+const PALETTE = Object.keys(TOK.dark).filter(t => /^--usage-/.test(t));
+
+describe("no band wears a state colour (#1284)", () => {
+  it("reproduces the three the report found, byte for byte, from the hexes that shipped", () => {
+    expect(WAS.haiku).toBe(TOK.dark["--ok"]);
+    expect(WAS["gpt-5"]).toBe(TOK.dark["--warn"]);
+    expect(WAS.gpt).toBe(TOK.dark["--err"]);
+    expect(deltaE(parseColor("#b0490c"), parseColor(TOK.light["--warn"]))).toBeCloseTo(3.9, 1);
+  });
+
+  it("keeps every palette member — and so every series — 16 ΔE from --ok, --warn and --err, in both themes", () => {
+    expect(PALETTE.length).toBeGreaterThanOrEqual(SERIES.length);
+    for (const value of SERIES) expect(PALETTE, value).toContain(memberOf(value));
+    for (const theme of themes) {
+      for (const member of PALETTE) {
+        for (const state of STATES) {
+          const d = deltaE(resolve(`var(${member})`, theme), parseColor(TOK[theme][state]));
+          expect(d, `${theme} ${member} vs ${state} — ΔE ${d.toFixed(1)}`).toBeGreaterThanOrEqual(STATE_APART);
+        }
+      }
+    }
+  });
+
+  it("draws the cost bar and its key from the palette too, so they left the state colours with it", () => {
+    for (const sel of [".cost-bar .cb-cache-r", ".cost-bar .cb-cache-w", ".session-summary .ssl-cr::before", ".session-summary .ssl-cw::before"]) {
+      expect(PALETTE, sel).toContain(tokenNameOf(decl(sel, "background")!));
+    }
   });
 });
 

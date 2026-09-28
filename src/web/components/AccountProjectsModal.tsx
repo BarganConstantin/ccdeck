@@ -46,8 +46,8 @@ const WINDOWS: Array<{ days: number; label: string }> = [
  *  deck's shared usage-chart tokens — declared in both themes — so a colour
  *  literal never reaches an inline style (usage-series-contrast.test.ts). */
 const PALETTE = [
-  "var(--usage-blue)", "var(--usage-green)", "var(--usage-amber)", "var(--usage-purple)",
-  "var(--usage-indigo)", "var(--usage-red)", "var(--usage-orange)", "var(--usage-zinc)",
+  "var(--usage-blue)", "var(--usage-teal)", "var(--usage-lime)", "var(--usage-purple)",
+  "var(--usage-indigo)", "var(--usage-pink)", "var(--usage-orange)", "var(--usage-zinc)",
 ];
 const UNATTRIBUTED_COLOR = "var(--usage-zinc)";
 const MAX_ROWS = 6;
