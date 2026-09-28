@@ -257,11 +257,13 @@ describe("the deck found must be the deck we would have built", () => {
     expect(DECK).toMatch(/const codexHome = codexHomeField\(wantCodex\);/);
     // One function for both ends, so a start and a record cannot canonicalise
     // the same tree two ways and disagree about a symlinked ~/.codex.
-    const installer = readFileSync(
-      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    // Both ends are in discovery.mjs, the record's writer, which installer.mjs
+    // re-exports them from.
+    const discovery = readFileSync(
+      fileURLToPath(new URL("../../server/discovery.mjs", import.meta.url)), "utf8",
     );
-    expect(installer).toMatch(/export function codexHomeField\(codex\)/);
-    expect(installer).toMatch(/codexHome: codexHomeField\(codex\)/);
+    expect(discovery).toMatch(/export function codexHomeField\(codex\)/);
+    expect(discovery).toMatch(/codexHome: codexHomeField\(codex\)/);
   });
 
   it("never passes a deck older than the `claude` field for one, so it is replaced", () => {
@@ -272,11 +274,11 @@ describe("the deck found must be the deck we would have built", () => {
   });
 
   it("publishes both fields, or nothing downstream can compare them", () => {
-    const installer = readFileSync(
-      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    const discovery = readFileSync(
+      fileURLToPath(new URL("../../server/discovery.mjs", import.meta.url)), "utf8",
     );
-    expect(installer).toMatch(/claude: claude !== false/);
-    expect(installer).toMatch(/version: typeof version === "string"/);
+    expect(discovery).toMatch(/claude: claude !== false/);
+    expect(discovery).toMatch(/version: typeof version === "string"/);
     // And the deck actually fills them in — a field published as its default
     // for every deck is a field that decides nothing.
     expect(DECK).toMatch(/claude: wantClaude,\s*\n\s*version: PKG_VERSION,/);

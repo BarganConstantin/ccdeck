@@ -172,7 +172,7 @@ export function codexCwdInWorkspace(cwd, workspace, platform = process.platform)
  * one directory with one reader, and on Linux they are two directories, each
  * read by its own deck. The other ways to spell one directory — a symlinked
  * ~/.codex, an 8.3-shortened USERPROFILE, /tmp against /private/tmp — are
- * settled before the value is published (writeDiscovery in installer.mjs runs
+ * settled before the value is published (writeDiscovery in discovery.mjs runs
  * it through canonicalLogPath), so two records compared here already agree on
  * everything but case.
  */

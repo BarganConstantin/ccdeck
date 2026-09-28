@@ -537,10 +537,11 @@ describe("which deck is allowed to win the election", () => {
     // that is not doing the work must be left out of the election rather than
     // win it. An older deck has no such field and loses by construction, which
     // is why this is a capability flag and not a version comparison.
-    const installer = src("../../server/installer.mjs");
-    expect(installer).toMatch(/watch: true,/);
-    const codex = installer.indexOf("codex: codex !== false,");
-    const watch = installer.indexOf("watch: true,");
+    // The record is written in discovery.mjs, which moved out of installer.mjs.
+    const discovery = src("../../server/discovery.mjs");
+    expect(discovery).toMatch(/watch: true,/);
+    const codex = discovery.indexOf("codex: codex !== false,");
+    const watch = discovery.indexOf("watch: true,");
     expect(codex).toBeGreaterThan(0);
     expect(watch).toBeGreaterThan(codex);
   });
