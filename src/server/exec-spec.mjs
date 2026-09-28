@@ -311,8 +311,8 @@ export const spawnSpec = (file, args, platform = process.platform) =>
  * was handed. A bare `claude.cmd` carries no directory at all, so `%~dp0` came
  * out as the deck's WORKING DIRECTORY and the shim went hunting for its
  * JavaScript under whatever folder the deck happened to be started from. #456
- * proved exactly that for ccusage's `npm.cmd` and `npx.cmd`; it left the three
- * helpers below alone, and they carry the shims the panels depend on — the
+ * proved exactly that for ccusage's `npm.cmd` and `npx.cmd`; it left exec.mjs's
+ * three runners alone, and they carry the shims the panels depend on — the
  * `claude.cmd` behind the quota poll and the sign-in, and whatever `.cmd` a
  * Python installer left for cswap. Same defect, same machine, wider blast
  * radius.

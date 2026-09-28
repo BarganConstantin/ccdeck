@@ -12,8 +12,8 @@ import { run } from "./exec.mjs";
 // type guard this copy lacked, and only the self-update one was under test
 // (#374). No cycle: self-update.mjs and the four modules it reads from
 // (install-layout, npm-latest, restart-note, npm-upgrade) import node:* and
-// three leaves — exec.mjs, app-host.mjs and deck-probe.mjs — and none of them
-// imports this file.
+// three modules that reach nothing but leaves — exec.mjs, app-host.mjs and
+// deck-probe.mjs — and none of them imports this file.
 import { isOlder } from "./self-update.mjs";
 import { bootstrapUv, existingBootstrappedUv } from "./uv-bootstrap.mjs";
 // Where installers leave claude-swap and which one owns this machine's copy —
