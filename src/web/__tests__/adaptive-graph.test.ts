@@ -23,7 +23,8 @@ import { hidePeek, peekedId, showPeek } from "../components/SessionPeek";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts");
 /** The node-and-edge half of the canvas, out of App.tsx since #1175. */
 const flow = read("../canvas-flow.ts");
 const node = read("../components/AgentNode.tsx");

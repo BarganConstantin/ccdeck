@@ -47,7 +47,9 @@ describe("a button the mouse pressed leaves the letters to the deck (#851)", () 
   });
 });
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
 // The listeners that fill the ref live in use-pointer-focus.ts; the keydown
 // handler that reads it stays in App.tsx.
 const pointerCode = readFileSync(fileURLToPath(new URL("../use-pointer-focus.ts", import.meta.url)), "utf8");

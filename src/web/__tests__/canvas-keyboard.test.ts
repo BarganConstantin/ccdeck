@@ -45,7 +45,8 @@ import { ownsKeystroke, type FocusTarget } from "../shortcuts";
 import { escapeOutcome } from "../modal-dismiss";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const app = readFileSync(join(web, "App.tsx"), "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8");
 // Which element is a card's wrapper is canvas-node-element.ts's now.
 const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");

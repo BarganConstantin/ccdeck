@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import { nextWaiting, type BlockedSession } from "../ambient-counts";
 import { KEY_HELP } from "../key-help";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
 
 /** Oldest first, the order blockedSessions returns. */
 const queue = (...ids: string[]) =>

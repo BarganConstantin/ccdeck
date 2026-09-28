@@ -32,7 +32,8 @@ import { ASSUMED } from "../providers";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
-const app = read("App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = read("App.tsx") + "\n" + read("use-deck-shortcuts.ts");
 const sheet = read("components/KeyboardHelp.tsx");
 
 /** The body of the deck's one window keydown handler. Sliced rather than

@@ -419,7 +419,9 @@ describe("what a Codex-only boot does on the user's behalf", () => {
 });
 
 describe("which panels the UI draws for each machine", () => {
-  const appSrc   = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+  const appSrc   = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
   const usageSrc = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
 
   /** The source immediately before `needle`, which is where a JSX gate lives. */

@@ -46,7 +46,8 @@ import {
 } from "../modal-dismiss";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const app = readFileSync(`${web}/App.tsx`, "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = readFileSync(`${web}/App.tsx`, "utf8") + "\n" + readFileSync(`${web}/use-deck-shortcuts.ts`, "utf8");
 const dismiss = readFileSync(`${web}/modal-dismiss.ts`, "utf8");
 const meter = readFileSync(`${web}/components/MachinePanel.tsx`, "utf8");
 const usagePanel = readFileSync(`${web}/components/UsagePanel.tsx`, "utf8");

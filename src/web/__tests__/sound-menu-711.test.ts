@@ -64,7 +64,8 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 /** Comment-stripped, so a paragraph explaining a decision cannot satisfy an
  *  assertion about the code that carries it out (#513). */
-const app = withoutComments(read("App.tsx"));
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-deck-shortcuts.ts"));
 // The tone settings, their write-through and the preview timer moved to
 // use-tone-prefs.ts. The cases about them read the whole client — every one of
 // them is a positive match, so the wider text cannot make one pass falsely.
