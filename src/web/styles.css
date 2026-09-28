@@ -554,7 +554,12 @@ button:focus-visible { outline-offset: 1px; }
 .app:has(.accounts-panel) .ver-banner { grid-column: 2; }
 .canvas-wrap { grid-column: 1; grid-row: 3; }
 .detail { grid-column: 2; grid-row: 2 / -1; }
-.app:has(.session-list) .detail { grid-column: 3; }
+/* Either left panel adds a column, so either one moves the detail panel into
+   the third. With only the session list's line, an open Accounts panel left it
+   in column 2 — the canvas's 1fr track — where it covered the whole board and
+   left its own 360px column standing empty (#1326). */
+.app:has(.session-list) .detail,
+.app:has(.accounts-panel) .detail { grid-column: 3; }
 
 /* ---------------- shared utilities ---------------- */
 
