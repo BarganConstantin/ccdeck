@@ -46,6 +46,8 @@ import { escapeOutcome } from "../modal-dismiss";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(join(web, "App.tsx"), "utf8");
+// Which element is a card's wrapper is canvas-node-element.ts's now.
+const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
 const css = readFileSync(join(web, "styles.css"), "utf8");
 
@@ -200,9 +202,10 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     // bubbles UP — an onKeyDown on the card AgentNode renders inside would
     // never fire. And matching an ancestor instead would have answered the
     // context donut's Enter, since the donut is a real <button> in the card.
-    expect(app).toMatch(/const RF_NODE_CLASS = "react-flow__node";/);
-    expect(app).toMatch(/el\.classList\?\.contains\?\.\(RF_NODE_CLASS\)/);
+    expect(nodeElement).toMatch(/const RF_NODE_CLASS = "react-flow__node";/);
+    expect(nodeElement).toMatch(/el\.classList\?\.contains\?\.\(RF_NODE_CLASS\)/);
     expect(app).not.toMatch(/closest\(["'`]\.react-flow__node/);
+    expect(nodeElement).not.toMatch(/closest\(["'`]\.react-flow__node/);
     expect(readFileSync(join(web, "components/AgentNode.tsx"), "utf8")).not.toMatch(/onKeyDown/);
   });
 
@@ -271,8 +274,8 @@ describe("traversal order", () => {
     expect(app).toMatch(/if \(follow\) focusCanvasNode\(target\.id\);/);
     // preventScroll: the canvas is a transformed plane in a fixed box, and the
     // browser's own scroll-into-view would shove the whole layer behind the
-    // panels. fitView is what brings the node on screen.
-    expect(app).toMatch(/\.focus\(\{ preventScroll: true \}\)/);
+    // panels. focusAgent is what brings the node on screen.
+    expect(nodeElement).toMatch(/\.focus\(\{ preventScroll: true \}\)/);
   });
 });
 

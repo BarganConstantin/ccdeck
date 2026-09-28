@@ -58,6 +58,7 @@ import { useNodeMeasurements } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { TOOL_LANE_ALLOWANCE, useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
+import { focusCanvasNode, isCanvasNodeElement } from "./canvas-node-element";
 import { spotlightUnion } from "./spotlight";
 import { type Provisional } from "./placement";
 import { usePauseGate } from "./use-pause-gate";
@@ -150,36 +151,6 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
-
-/** The class React Flow puts on the wrapper it renders around every node — the
- *  element it makes tabbable, not the .agent-node card AgentNode draws inside
- *  it. That distinction is the whole reason the keyboard handling lives in
- *  App.tsx: a keydown fires on the focused wrapper and bubbles UP, so an
- *  onKeyDown on AgentNode's own root would never see it. */
-const RF_NODE_CLASS = "react-flow__node";
-
-/** True when this element IS a node wrapper. Deliberately not a `closest()`
- *  walk: the context donut inside a card is a real <button> with its own
- *  Enter, and matching an ancestor would have answered the donut's keys too. */
-function isCanvasNodeElement(el: Element | null | undefined): boolean {
-  return !!el && el.classList?.contains?.(RF_NODE_CLASS) === true;
-}
-
-/** Move the keyboard onto an agent card. Used when j/k traverses while the
- *  keyboard is already on the canvas, so the card the selection moved to is
- *  also the card Enter and Tab now speak about.
- *
- *  preventScroll because the canvas is a transformed plane inside a fixed-size
- *  box: the browser's own "scroll it into view" would shove the whole layer
- *  sideways behind the panels, and fitView is already bringing the node on
- *  screen properly. CSS.escape because an agent id is a session id and has
- *  never been promised to be a bare identifier. */
-function focusCanvasNode(id: string): void {
-  try {
-    const el = document.querySelector(`.${RF_NODE_CLASS}[data-id="${CSS.escape(id)}"]`);
-    (el as HTMLElement | null)?.focus({ preventScroll: true });
-  } catch {}
-}
 
 /** What a mouse press can put focus on: the elements the browser looks for,
  *  walking up from whatever was pressed, when it decides where a click's focus
