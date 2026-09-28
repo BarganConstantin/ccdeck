@@ -262,7 +262,10 @@ describe("the switch", () => {
 });
 
 describe("the wiring", () => {
+  // The route table, pushEvent and startServer are index.mjs's; the tick, its
+  // timer and the routes it shares a hand-off with are lifecycle.mjs's.
   const index = src("../../server/index.mjs");
+  const lifecycle = src("../../server/lifecycle.mjs");
   const app = src("../App.tsx");
 
   it("learns about turns from every live event and never from a replay", () => {
@@ -283,21 +286,24 @@ describe("the wiring", () => {
     // The report is not free: on Windows it proves the npm prefix writable by
     // creating a file in it, and a deck left alone overnight would do that once
     // a minute. The npm lookup behind it is hourly regardless.
-    expect(index).toContain("_awayNothingUntil = now + AWAY_RECHECK_MS;");
-    expect(index).toContain("if (now < _awayNothingUntil && _awayNothingUntil - now <= AWAY_RECHECK_MS) return null;");
+    expect(lifecycle).toContain("_awayNothingUntil = now + AWAY_RECHECK_MS;");
+    expect(lifecycle).toContain("if (now < _awayNothingUntil && _awayNothingUntil - now <= AWAY_RECHECK_MS) return null;");
   });
 
   it("arms the tick when the server starts, and asks again after the lookup", () => {
     const start = index.indexOf("export async function startServer(");
-    expect(index.indexOf("_awayTimer = setInterval(", start)).toBeGreaterThan(start);
-    expect(index).toContain("if (presence.looking(again) || activity.busy(again) || _restarting) return null;");
+    expect(start).toBeGreaterThan(-1);
+    expect(index.indexOf("startAwayUpdate();", start)).toBeGreaterThan(start);
+    // And that call is the timer, armed afresh on every boot.
+    expect(lifecycle).toMatch(/function startAwayUpdate\(\) \{[^}]*?clearInterval\(_awayTimer\);\s+_awayTimer = setInterval\(/);
+    expect(lifecycle).toContain("if (presence.looking(again) || activity.busy(again) || _restarting) return null;");
   });
 
   it("acts only through what a press would do", () => {
-    expect(index).toContain("su.startUpgrade({ pkgRoot: PKG_ROOT });");
-    expect(index).toContain('handOffRestart(step.act === "npx" ? "npx" : null);');
+    expect(lifecycle).toContain("su.startUpgrade({ pkgRoot: PKG_ROOT });");
+    expect(lifecycle).toContain('handOffRestart(step.act === "npx" ? "npx" : null);');
     // The press goes through the same hand-off.
-    const press = index.slice(index.indexOf("async function handleRestart("));
+    const press = lifecycle.slice(lifecycle.indexOf("async function handleRestart("));
     expect(press.slice(0, press.indexOf("\nfunction handOffRestart("))).toContain("handOffRestart(mode);");
   });
 
