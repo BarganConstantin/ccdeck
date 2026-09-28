@@ -36,11 +36,6 @@
 // the second caller rather than a second implementation.
 import { basename } from "node:path";
 
-/** Set `AGENTS_DECK_NO_NOTIFY=1` to keep the deck off the desktop entirely.
- *  Same shape as AGENTS_DECK_NO_DOWNLOAD and AGENTS_DECK_NO_INSTALL, which is
- *  the sheet of switches a user already knows to look for. */
-export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
-
 /**
  * How long one session stays quiet after it has been announced.
  *

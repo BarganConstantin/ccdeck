@@ -380,7 +380,7 @@ Environment:
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
 | `AGENTS_DECK_NO_FRESHEN=1` | Never nudge claude-swap to collect usage early |
-| `AGENTS_DECK_NO_NOTIFY=1` | Never raise a desktop notification when a session blocks and no page is open |
+| `AGENTS_DECK_NO_NOTIFY=1` | Never raise a desktop notification: not when a session blocks and no page is open, and not when Browser Watch finds something |
 | `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
