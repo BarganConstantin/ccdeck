@@ -7,7 +7,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { deckRows, exchangeLanes, offerLine, rowSource, versionOrder, withAliases } from "../components/LanSyncSection";
+import { exchangeLanes, offerLine, versionOrder } from "../components/LanSyncSection";
+import { deckRows, rowSource, withAliases } from "../lan-roster";
 
 const NOW = 1_700_000_000_000;
 /** A file with its comments taken out, so a rule cannot be satisfied by a
