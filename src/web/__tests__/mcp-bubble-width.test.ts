@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts, primaryBubbleWidth } from "../components/ToolBursts";
+import { collectBursts, primaryBubbleWidth } from "../burst-layout";
 import { cutSubLabel, primaryDisplayFor } from "../tool-skin";
 
 /** Same constants the layout uses: the fixed floor and the sub-bubble gap. */

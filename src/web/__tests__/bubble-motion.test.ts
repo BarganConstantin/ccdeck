@@ -6,7 +6,7 @@
 // against the seven literal declarations that happened to be wrong.
 //
 // There is no jsdom here and no layout engine, so nothing rendered can be
-// observed. The sheet and ToolBursts.tsx are the evidence. Every parser below
+// observed. The sheet, ToolBursts.tsx and burst-layout.ts are the evidence. Every parser below
 // is re-derived rather than imported from another test file: a test that
 // borrowed another one's collector would go green the moment that one was
 // loosened. Comments are stripped before anything is read, because the comments
@@ -52,7 +52,7 @@
 //    so it leaves rest at zero speed and arrives at full speed, which is the
 //    hang the report describes. Measured pre-fix, 150ms into the 600ms exit the
 //    bubble was still at opacity 0.907 while the SVG leader line pointing at it
-//    — whose opacity ToolBursts computes in JS as a dead-linear `1 - since /
+//    — whose opacity burst-layout.ts computes in JS as a dead-linear `1 - since /
 //    FADE_MS` over the same 600ms — had already given up a quarter of its own.
 //    The bubble was outliving its own connector, which is the exact desync
 //    .tool-burst-wrap was fixed for in #259.
@@ -82,7 +82,11 @@ const rawCss = readFileSync(join(web, "styles.css"), "utf8");
 const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
 const lineOf = (at: number) => css.slice(0, at).split("\n").length;
 
-const rawBursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
+// The canvas layer and the layout it draws from, read as one: the fade's
+// duration and ramp moved to burst-layout.ts, the connector that wears it is
+// still drawn in ToolBursts.tsx.
+const rawBursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8")
+  + "\n" + readFileSync(join(web, "burst-layout.ts"), "utf8");
 /** `[^\r\n]` rather than `.` so a CRLF checkout on Windows strips the same
  *  line comments a LF one does — `.` excludes \r, so `.*$` would fail to reach
  *  the end of a \r-terminated line and quietly strip nothing at all. */

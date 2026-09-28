@@ -23,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { collectBursts } from "../components/ToolBursts";
+import { collectBursts } from "../burst-layout";
 import { mcpChipIdentity } from "../tool-skin";
 import type { AgentNodeData, ToolCall } from "../types";
 

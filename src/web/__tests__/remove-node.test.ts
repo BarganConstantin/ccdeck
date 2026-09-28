@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { collectBursts } from "../components/ToolBursts";
+import { collectBursts } from "../burst-layout";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
 import { blockedSessions } from "../ambient-counts";
 import { applyEvent, initialState, pruneDoneSessions, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "../reducer";

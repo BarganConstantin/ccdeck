@@ -38,7 +38,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts } from "../components/ToolBursts";
+import { collectBursts } from "../burst-layout";
 import { cutLabel, cutSubLabel } from "../tool-skin";
 import { categoryFor, CODEX_TOOL_EMOJI, TOOL_CATEGORY, type ToolCategory } from "../tool-taxonomy";
 import { agentLabel } from "../provider-copy";

@@ -8,7 +8,7 @@
 // and that the keys built from it are unique across the whole canvas.
 import { describe, it, expect } from "vitest";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts, distinctRecentTools } from "../components/ToolBursts";
+import { collectBursts, distinctRecentTools } from "../burst-layout";
 
 const NOW = 1_000_000;
 
