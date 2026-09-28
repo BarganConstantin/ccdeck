@@ -50,7 +50,10 @@ describe("the camera under reduced motion (#870)", () => {
   });
 });
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// focusAgent moved to use-agent-focus.ts; App.tsx and it are read as one, so a
+// fitView brought back in either still has to ask.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");

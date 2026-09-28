@@ -132,7 +132,12 @@ describe("#785 — a camera move the deck made itself", () => {
   // The cluster label used to move the camera itself and stamp through an
   // `onFit` prop. It asks App now, and App's focusAgent — the one routine every
   // "go to this card" shares — moves and stamps in one place.
-  const focus = app.slice(app.indexOf("const focusAgent = useCallback("), app.indexOf("const peekAgent = useCallback("));
+  // focusAgent lives in use-agent-focus.ts, which App.tsx calls; the slice runs
+  // to the next callback there, and is empty (failing the checks) if it is gone.
+  const focusSrc = read("../use-agent-focus.ts");
+  const focusAt = focusSrc.indexOf("const focusAgent = useCallback(");
+  const focusEnd = focusSrc.indexOf("const stepAgent = useCallback(", focusAt);
+  const focus = focusAt === -1 ? "" : focusSrc.slice(focusAt, focusEnd === -1 ? undefined : focusEnd);
 
   it("leaves the moving to App, so there is one stamp to keep right", () => {
     expect(clusters).not.toContain("rf.fitView(");
