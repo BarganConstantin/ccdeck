@@ -28,6 +28,9 @@ import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { killTree, shimPath, spawnSpec } from "./exec.mjs";
+// The package's one liveness probe, the Windows errno included. This file kept a
+// copy of it, comment and all, from before deck-probe.mjs existed.
+import { isProcessAlive } from "./deck-probe.mjs";
 
 // Once an hour, not once a day.
 //
@@ -1279,24 +1282,9 @@ function sweepOrphanedNotes(keep) {
   for (const f of files) {
     if (f === keep || !f.startsWith(NOTE_PREFIX)) continue;
     const owner = Number(f.slice(f.lastIndexOf("-") + 1));
-    if (Number.isInteger(owner) && owner > 0 && processAlive(owner)) continue;
+    if (Number.isInteger(owner) && owner > 0 && isProcessAlive(owner)) continue;
     try { rmSync(join(MARKER_DIR, f), { force: true }); } catch { /* ignore */ }
   }
-}
-
-// Signal 0 delivers nothing; it asks whether the pid could be signalled.
-//
-// BOTH ERRNOS, and the second one is the Windows spelling. POSIX `kill(2)`
-// answers EPERM for a process this account may not signal. On Windows
-// `uv_kill` calls `OpenProcess`, a denial is ERROR_ACCESS_DENIED, and libuv
-// maps that to EACCES — so a deck started from an elevated terminal, or under
-// another account, read as DEAD to every probe in this repo. What followed was
-// silent: the live deck's discovery file was unlinked on the next hook fire,
-// rewritten five seconds later by keepDiscovery, and its banner went on
-// claiming it was receiving events it had stopped receiving.
-function processAlive(pid) {
-  try { process.kill(pid, 0); return true; }
-  catch (e) { return e?.code === "EPERM" || e?.code === "EACCES"; }
 }
 
 /**
