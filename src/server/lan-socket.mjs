@@ -399,6 +399,26 @@ export function createSyncServer({
       sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
     };
 
+    /**
+     * Step 4, and the only way `authed` turns true: sealed from here when both
+     * challenges said so, the handshake deadline off, and this deck's own proof
+     * sent — with the invite's proof back when the caller held one. `ok` goes
+     * out in the clear; the frames after it are the sealed kind.
+     */
+    const welcome = back => {
+      authed = true;
+      chan = sealedChannel();
+      clearTimeout(deadline);
+      sendFrame(sock, {
+        t: "ok", fp, name,
+        proof: proof(key, {
+          challenge: myChallenge, peerChallenge: theirChallenge,
+          fromFp: fp, toFp: peerFp, direction: "reply",
+        }),
+        ...back,
+      });
+    };
+
     /** Step 3: the caller's proof, and then who it turns out to be — a deck
      *  somebody here accepted, one holding this deck's invite, or a refusal
      *  that says which. */
@@ -458,17 +478,7 @@ export function createSyncServer({
         if (heldInvite) {
           // So there is nothing to press: the deck is pinned here.
           onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
-          authed = true;
-          chan = sealedChannel();
-          clearTimeout(deadline);
-          sendFrame(sock, {
-            t: "ok", fp, name,
-            proof: proof(key, {
-              challenge: myChallenge, peerChallenge: theirChallenge,
-              fromFp: fp, toFp: peerFp, direction: "reply",
-            }),
-            ...back,
-          });
+          welcome(back);
           return;
         }
         // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
@@ -504,22 +514,12 @@ export function createSyncServer({
         return refuse("pending");
       }
 
-      authed = true;
-      chan = sealedChannel();
-      clearTimeout(deadline);
       // And ours, so the caller knows it reached the deck it pinned rather
       // than something standing in the way of one. Plus the invite, when one
       // was presented and held: a deck already on this list is not a reason
       // to leave a caller's question unanswered. Nothing is retired on this
       // path — nobody was paired, because they already were.
-      sendFrame(sock, {
-        t: "ok", fp, name,
-        proof: proof(key, {
-          challenge: myChallenge, peerChallenge: theirChallenge,
-          fromFp: fp, toFp: peerFp, direction: "reply",
-        }),
-        ...back,
-      });
+      welcome(back);
     };
 
     sock.on("data", frameReader(msg => {
