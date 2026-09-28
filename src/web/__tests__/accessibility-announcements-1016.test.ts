@@ -17,7 +17,9 @@ describe("the deck announces state that is already visible (#1016)", () => {
   });
 
   it("announces Browser Watch findings from an always-mounted polite region", () => {
-    const app = strip(read("../App.tsx"));
+    // The sentence and its reducer moved to use-live-announcements.ts; the region
+    // is still mounted in App.tsx. All three matches are positive.
+    const app = strip(read("../App.tsx") + "\n" + read("../use-live-announcements.ts"));
     expect(app).toMatch(/const watchNow = watchUnseen > 0[\s\S]*?Browser watch has/);
     expect(app).toContain('nextAnnouncement(said, watchNow, "Browser watch has no unread findings.")');
     expect(app).toContain('<div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>');
