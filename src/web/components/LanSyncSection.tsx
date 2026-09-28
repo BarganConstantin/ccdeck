@@ -153,7 +153,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
     if (peerOpen && status && !openRow) setPeerOpen(null);
   }, [peerOpen, status, openRow]);
   // The requests, and the rest split at the fold — see viewRows.
-  const { asks, rest, live, folded, troubled, showFolded, paired } = viewRows(rows, foldOpen);
+  const { asks, rest, live, folded, troubled, shown, paired } = viewRows(rows, foldOpen);
   const state = sectionState(status, now);
   // What the way in says, from the same rows the list is drawn from.
   const entry = entryLine(status, rows);
@@ -370,13 +370,9 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                     what is happening and the one control that changes it. They were
                     three lists in two surfaces, and the question a reader has is one
                     question. See deckRows. */}
-                {(showFolded ? [...live, ...folded] : live).length > 0 && (
+                {shown.length > 0 && (
                   <LanDeckList
-                    // The ones that are on stay at the top when the fold opens.
-                    // Sorting the whole list by presence would move a row between
-                    // two five-second polls on a lost beacon; sorting the two GROUPS
-                    // moves a row only when the thing it reports actually changed.
-                    rows={showFolded ? [...live, ...folded] : live}
+                    rows={shown}
                     pairingMode={status?.pairingMode}
                     armed={armed}
                     pressProps={pressProps}

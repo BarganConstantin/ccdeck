@@ -32,6 +32,9 @@ describe("the view's rows, split at the fold", () => {
     expect(split.live).toEqual([on, nearby]);
     expect(split.folded).toEqual([off, declined]);
     expect(split.showFolded).toBe(false);
+    expect(split.shown).toEqual([on, nearby]);
+    // Open, the folded ones come after the ones that are on, never among them.
+    expect(viewRows([off, on, nearby, declined], true).shown).toEqual([on, nearby, off, declined]);
   });
 
   it("opens the fold when asked to, and on its own when there is nothing to lead with", () => {
@@ -40,6 +43,7 @@ describe("the view's rows, split at the fold", () => {
     expect(viewRows([off, on], true).showFolded).toBe(true);
     // An empty list over a `1 more` is a list that has hidden all of itself.
     expect(viewRows([off], false).showFolded).toBe(true);
+    expect(viewRows([off], false).shown).toEqual([off]);
     expect(viewRows([], false).showFolded).toBe(true);
   });
 

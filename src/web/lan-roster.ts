@@ -614,6 +614,11 @@ export function viewRows(rows: DeckRow[], foldOpen: boolean) {
   // Nothing to lead with means nothing to fold behind: an empty list over a
   // `3 more` is a list that has hidden all of itself.
   const showFolded = foldOpen || live.length === 0;
+  // The ones that are on stay at the top when the fold opens. Sorting the
+  // whole list by presence would move a row between two five-second polls on
+  // a lost beacon; sorting the two GROUPS moves a row only when the thing it
+  // reports actually changed.
+  const shown = showFolded ? [...live, ...folded] : live;
   const paired = rest.filter(r => r.kind === "paired").length;
-  return { asks, rest, live, folded, troubled, showFolded, paired };
+  return { asks, rest, live, folded, troubled, showFolded, shown, paired };
 }
