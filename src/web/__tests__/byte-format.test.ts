@@ -2,6 +2,7 @@
 // zero. Run, not read — every case below calls the function.
 import { describe, it, expect } from "vitest";
 import { fmtBytes } from "../byte-format";
+import { clientPairs, sourceOf } from "./client-source";
 
 const KB = 1024, MB = 1024 ** 2, GB = 1024 ** 3, TB = 1024 ** 4;
 
@@ -56,5 +57,31 @@ describe("fmtBytes", () => {
     }
     // The sweep reached every unit, so a pass is not a pass over one of them.
     expect([...seen].sort()).toEqual(["B", "GB", "KB", "MB", "TB"]);
+  });
+});
+
+describe("the three panels that each had their own (#1128)", () => {
+  // The process list's fmtBytes, the machine panel's bytes and the context
+  // modal's fmtKB, which printed one mebibyte as "1.0 MB", "1 MB" and "1.00 MB".
+  const SITES: Array<[file: string, call: string]> = [
+    ["components/ProcessListModal.tsx", "fmtBytes(p.rssBytes)"],
+    ["components/MachinePanel.tsx", "fmtBytes(memory.total)"],
+    ["components/ContextModal.tsx", "fmtBytes(f.bytes)"],
+  ];
+
+  it("print through this one", () => {
+    for (const [file, call] of SITES) {
+      const text = sourceOf(file);
+      expect(text, file).toMatch(/import \{ fmtBytes \} from "\.\.\/byte-format";/);
+      expect(text, file).toContain(call);
+    }
+  });
+
+  it("leave no private copy behind anywhere in the client", () => {
+    const copies = clientPairs()
+      .filter(([file]) => file !== "byte-format.ts")
+      .filter(([, text]) => /\bfunction (?:fmtBytes|fmtKB|bytes)\s*\(/.test(text))
+      .map(([file]) => file);
+    expect(copies).toEqual([]);
   });
 });

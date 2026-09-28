@@ -13,6 +13,7 @@
 // section says so instead of printing five zeroes (#399).
 import { useRef } from "react";
 import type { AgentNodeData, Provider } from "../types";
+import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
 import { agentCost } from "../usage-models";
@@ -75,11 +76,6 @@ export function contextCopy(provider: Provider | undefined): ContextCopy {
 }
 
 function fmtN(n: number): string { return n.toLocaleString(); }
-function fmtKB(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-}
 
 /** Widest path the row can print. `.ctx-md-path` is 12px monospace inside a
  *  560px modal, sharing the row with the size column, so ~60 columns is what
@@ -225,7 +221,7 @@ export default function ContextModal({ agent, onClose }: Props) {
             {ctx!.memoryFiles.map(f => (
               <li key={f.path}>
                 <span className="ctx-md-path" title={f.path}>{truncatePathStart(f.path)}</span>
-                <span className="ctx-md-size">{fmtKB(f.bytes)}</span>
+                <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
               </li>
             ))}
           </ul>
