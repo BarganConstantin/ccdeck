@@ -98,8 +98,9 @@ describe("what a boot replay is allowed to stage", () => {
     //
     // Read off the file rather than off `replayLog.toString()`: the two bounds
     // are imported now (ring-bounds.mjs), and the test runner's transform
-    // renames an imported binding inside a function's own text.
-    const file = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+    // renames an imported binding inside a function's own text. replayLog is
+    // log-replay.mjs's.
+    const file = readFileSync(fileURLToPath(new URL("../../server/log-replay.mjs", import.meta.url)), "utf8");
     const from = file.indexOf("export async function replayLog(");
     expect(from, "replayLog is no longer declared where this test reads it").toBeGreaterThan(-1);
     const src = file.slice(from, file.indexOf("\n}\n", from));
