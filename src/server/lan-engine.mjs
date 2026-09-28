@@ -47,6 +47,7 @@ import { createTurns } from "./lan-turns.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
+import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -80,23 +81,9 @@ export const BIND_RETRY_MS = 30_000;
  *  going to answer, and holding the attempt open would stall the next round. */
 const ROUND_MS = 10_000;
 
-/**
- * The most addresses `autoAsk` may put on the dial list on its own.
- *
- * Measured, because the shape of it is not the obvious one: the dial list is
- * keyed `host:port`, not by fingerprint, so five hundred beacons from one
- * address on one port make one row. Five hundred beacons from one address on
- * five hundred PORTS make five hundred rows, and a round dials them one at a
- * time with a ROUND_MS bell on each — so a list that size is eighty minutes of
- * round, and the decks somebody actually paired with sit at the end of it
- * waiting their turn. The ceiling on that without this number is 65,535 rows
- * from a single host.
- *
- * It bounds only what the deck added BY ITSELF. Addresses a person typed are
- * not capped: a list of those is somebody's own decision and the deck is in no
- * position to tell them they have too many machines.
- */
-export const MAX_AUTO_PEERS = 32;
+/** The most addresses `autoAsk` may put on the dial list on its own — see
+ *  lan-dials.mjs, which keeps the list and the cap. */
+export { MAX_AUTO_PEERS };
 
 /** What this machine calls itself when the user has not said. The hostname,
  *  because that is the word they already use for this machine everywhere else. */
@@ -431,37 +418,10 @@ export function createEngine({
    *  still be said to come over the tailnet or the local network — it has no
    *  address of its own here, and without this its row could not say which. */
   const spokeFrom = new Map();
-  /** Peers the user typed in, which the beacon will never find.
-   *
-   *  Broadcast dies at the first router and is dropped by a switch that
-   *  filters it, so a deck across a VPN or on another subnet is unreachable by
-   *  discovery and perfectly reachable by address. Typing one is a decision to
-   *  trust whatever answers there the first time, and to pin it: an address is
-   *  a way to reach a deck, and the accept on the other machine is what lets
-   *  anything move.
-   *
-   *  Keyed by `host:port` rather than by fingerprint, because a fingerprint is
-   *  what a deck says about itself after the handshake and this list has to
-   *  exist before there has been one.
-   *
-   *  EVERY ROW SAYS WHERE IT CAME FROM, in `typed`, and the difference decides
-   *  whether reaching it may pin a key sight unseen. A row somebody put in the
-   *  address field — or pressed accept on, or joined by invite — is a person
-   *  naming a machine. A row `autoAsk` added from a beacon is this deck
-   *  answering a shout, which is not the same claim and must not read as one.
-   *  See roundWith, where the difference is the whole of the trust rule. */
-  const manual = new Map();
-  /** What answered at a typed address, once something has. Keyed the same way
-   *  `manual` is, because until a connection succeeds an address is all there
-   *  is to key on. */
-  const learned = new Map();
-  /** Addresses this deck added because a paired deck called in from them and
-   *  nothing here dialled it — see learnCaller. Kept until a round proves the
-   *  address answers: one that does is an ordinary dialled peer from then on
-   *  and leaves this set; one that does not is a caller this deck cannot reach
-   *  back (a strict NAT, a one-way path), and its row is taken away again so it
-   *  reverts to "calls in" rather than failing every round. */
-  const calledBack = new Set();
+  /** The addresses this deck dials that the beacon did not hand it, and what
+   *  answered at each — see lan-dials.mjs, where every row says whether a
+   *  person named it, which is the whole of roundWith's trust rule. */
+  const dials = createDials();
   /**
    * When a connection from ANOTHER MACHINE last arrived on the sync listener.
    *
@@ -598,8 +558,7 @@ export function createEngine({
    *  keeps calling — and a called deck is never pulled from. */
   const dialsAlready = fp => {
     if (beacon && [...beacon.peers.values()].some(p => p.fp === fp && stillListed(p, now()))) return true;
-    for (const [at, met] of learned) if (met?.fp === fp && manual.has(at)) return true;
-    return false;
+    return dials.answersAs(fp);
   };
 
   /**
@@ -627,13 +586,12 @@ export function createEngine({
     if (!trustedPeer(cfg.trusted, fp)) return;
     if (dialsAlready(fp)) return;
     // As a row the deck ADDED ITSELF, not one a person typed: capped like every
-    // other automatic row, and — through calledBack — taken away again if the
+    // other automatic row, and — through its trial — taken away again if the
     // address turns out not to answer. The caller is already trusted, so the
     // round dials and pulls without a press; `typed` decides only the cap and
     // the undo, never the trust. See roundWith.
     if (engine.addPeer(at, port, { typed: false })) {
-      learned.set(`${at}:${port}`, { fp, name: trustedPeer(cfg.trusted, fp)?.name || "" });
-      calledBack.add(`${at}:${port}`);
+      dials.trial(`${at}:${port}`, { fp, name: trustedPeer(cfg.trusted, fp)?.name || "" });
       onChange?.();
     }
   };
@@ -770,8 +728,9 @@ export function createEngine({
    * dial list, and through onDial in prefs, so a restart does not make the
    * pairing one-way again.
    *
-   * AND SAY WHO IS THERE, NOW. `learned` is what joins a dialled row to a
-   * heard one, and it was only ever filled by a round that succeeded — so
+   * AND SAY WHO IS THERE, NOW. What the dial list learned at an address is
+   * what joins a dialled row to a heard one (see `learned` in lan-dials.mjs),
+   * and it was only ever filled by a round that succeeded — so
    * between accepting a deck and the next round, one machine appeared as two
    * rows. We already know the answer here: the handshake that just finished
    * said so.
@@ -779,7 +738,7 @@ export function createEngine({
   const keepDialling = (addr, port, met) => {
     engine.addPeer(addr, port);
     onDial?.(`${addr}:${port}`);
-    learned.set(`${addr}:${port}`, met);
+    dials.meet(`${addr}:${port}`, met);
   };
 
   /** Somebody used the token. It is retired — one that pairs twice is one
@@ -898,11 +857,11 @@ export function createEngine({
       // on the other end has told us what it calls itself. The row says that
       // from then on, because "Constantin-PC" is what the person who typed the
       // address was trying to reach.
-      learned.set(`${peer.addr}:${peer.port}`, { fp: conn.peerFp, name: conn.peerName || "" });
+      //
       // A DIAL-BACK THAT ANSWERED IS AN ORDINARY PEER NOW. It was on trial only
       // until it proved the deck can reach it; from here it is dialled like any
       // other and is no longer a candidate for the undo below. See learnCaller.
-      calledBack.delete(`${peer.addr}:${peer.port}`);
+      dials.answered(`${peer.addr}:${peer.port}`, { fp: conn.peerFp, name: conn.peerName || "" });
 
       // TRUST ON FIRST USE, AND ONLY FOR AN ADDRESS SOMEBODY NAMED. Reaching a
       // deck we have no pin for used to mean the person at this keyboard put
@@ -1098,12 +1057,9 @@ export function createEngine({
       // whether the call can be returned. It could not — a strict NAT, a
       // one-way path — so the row is removed rather than left to fail every
       // minute, and the peer goes back to "calls in". Its next call tries once
-      // more. A row that answered has already left calledBack above.
+      // more. A row that answered has already left its trial above.
       const at = `${peer.addr}:${peer.port}`;
-      if (calledBack.has(at)) {
-        calledBack.delete(at);
-        manual.delete(at);
-        learned.delete(at);
+      if (dials.failed(at)) {
         lastRound.delete(peer.fp);
         onChange?.();
       }
@@ -1133,12 +1089,12 @@ export function createEngine({
     // AND ONE DIAL PER DECK, not one per address. A row asked from a tailnet
     // beacon keeps that address after the same deck is heard on the local
     // network, and both used to be dialled every round — two handshakes, and
-    // two lines of work for one machine. `learned` says which deck a row
+    // two lines of work for one machine. `dials.metAt` says which deck a row
     // reached; the heard row already dials it by the better route.
     const heardFps = new Set(heard.map(p => p.fp));
-    const typed = [...manual.values()].filter(p => {
+    const typed = dials.rows().filter(p => {
       const at = `${p.addr}:${p.port}`;
-      if (seen.has(at) || heardFps.has(learned.get(at)?.fp)) return false;
+      if (seen.has(at) || heardFps.has(dials.metAt(at)?.fp)) return false;
       return cfg.tailscale || p.typed || !routeTo(p.addr);
     });
     for (const peer of [...heard, ...typed]) {
@@ -1207,7 +1163,7 @@ export function createEngine({
     // fingerprint it announced, the typed row by `host:port`, and until a
     // connection succeeds nothing joins them.
     //
-    // What joins them is `learned`: the fingerprint that actually
+    // What joins them is `dials.metAt`: the fingerprint that actually
     // answered at that address. So every row is given the identity it is
     // really about, and rows that turn out to share one are merged — the
     // heard half brings liveness, the dialled half brings the last round.
@@ -1232,9 +1188,9 @@ export function createEngine({
       offers: offersBy.get(id) ?? null,
       pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
     });
-    for (const p of [...beacon.peers.values(), ...manual.values()]) {
+    for (const p of [...beacon.peers.values(), ...dials.rows()]) {
       if (!stillListed(p, now())) continue;
-      const met = p.manual ? learned.get(`${p.addr}:${p.port}`) : null;
+      const met = p.manual ? dials.metAt(`${p.addr}:${p.port}`) : null;
       const id = met?.fp ?? p.fp;
       put({
         ...p,
@@ -1543,7 +1499,7 @@ export function createEngine({
       // invite's is (#1643): `addPeer` alone lives in memory, and the next
       // settings write or restart made the pairing one-way again.
       const back = seen.addr && seen.port && this.addPeer(seen.addr, seen.port)
-        ? (learned.set(`${seen.addr}:${seen.port}`, { fp, name: seen.name || "" }),
+        ? (dials.meet(`${seen.addr}:${seen.port}`, { fp, name: seen.name || "" }),
            onDial?.(`${seen.addr}:${seen.port}`),
            { addr: seen.addr, port: seen.port })
         : null;
@@ -1633,7 +1589,7 @@ export function createEngine({
     async roundOne(fp) {
       if (!beacon || typeof fp !== "string" || !fp) return null;
       const heard = [...beacon.peers.values()].find(p => p.fp === fp && stillListed(p, now()));
-      const typed = [...manual.values()].find(p => learned.get(`${p.addr}:${p.port}`)?.fp === fp);
+      const typed = dials.rowAnswering(fp);
       const peer = heard ?? typed;
       if (!peer) return null;
       const had = lastRound.get(peer.fp);
@@ -1643,54 +1599,14 @@ export function createEngine({
       // A deck switched off while the press waited is not dialled after all.
       return turns.inTurn(() => (beacon ? roundWith(peer) : []));
     },
-    /** Dial this address on every round from now on. Returns false for an
-     *  address that is not one, rather than storing a row that can never
-     *  connect and reports an error every minute forever. */
-    addPeer(addr, port, { typed = true } = {}) {
-      const p = Number(port);
-      if (typeof addr !== "string" || !addr.trim() || !Number.isInteger(p) || p < 1 || p > 65_535) return false;
-      const host = addr.trim();
-      const at = `${host}:${p}`;
-      // MAKING ROOM RATHER THAN REFUSING, and only among rows the deck added
-      // itself. A hard refusal at the cap would let whoever got there first
-      // keep the whole budget, so a real deck starting later would never be
-      // asked — which turns a cap meant to protect the round into a way to
-      // silence it. Evicted first is the oldest auto row that has never
-      // answered: `learned` holds an entry only for an address that completed a
-      // handshake, so a row with no entry there has cost a round and returned
-      // nothing. When every auto row has answered, the new one waits.
-      if (!typed && !manual.has(at)) {
-        const auto = [...manual.entries()].filter(([, v]) => !v.typed);
-        if (auto.length >= MAX_AUTO_PEERS) {
-          const stale = auto.find(([k]) => !learned.has(k));
-          if (!stale) return false;
-          manual.delete(stale[0]);
-          learned.delete(stale[0]);
-        }
-      }
-      // A row somebody typed outranks one the deck added: the same address
-      // arriving by hand after a beacon put it there is a person vouching for
-      // it, and nothing about that should be undone by the next beacon.
-      const was = manual.get(at);
-      manual.set(at, {
-        fp: `manual:${at}`, name: host, addr: host, port: p, manual: true,
-        typed: typed || was?.typed === true,
-      });
-      return true;
-    },
-    removePeer(addr, port) { return manual.delete(`${String(addr).trim()}:${Number(port)}`); },
-    /** Replace the typed list wholesale, which is what a settings write means.
-     *  Adding one at a time would leave a removed address still being dialled
-     *  every minute until the next restart — the row would vanish from the
-     *  panel while the socket kept opening, which is the worst of both. */
-    setPeers(entries) {
-      manual.clear();
-      for (const entry of Array.isArray(entries) ? entries : []) {
-        const at = String(entry).lastIndexOf(":");
-        if (at > 0) this.addPeer(String(entry).slice(0, at), Number(String(entry).slice(at + 1)));
-      }
-      return manual.size;
-    },
+    /** Dial this address on every round from now on; false for an address
+     *  that is not one. The list, its cap and why a typed row outranks one the
+     *  deck added are lan-dials.mjs's. */
+    addPeer(addr, port, { typed = true } = {}) { return dials.add(addr, port, { typed }); },
+    removePeer(addr, port) { return dials.remove(addr, port); },
+    /** Replace the typed list wholesale, which is what a settings write means
+     *  — see replace in lan-dials.mjs. */
+    setPeers(entries) { return dials.replace(entries); },
     status() {
       return {
         enabled: !!cfg.enabled,
