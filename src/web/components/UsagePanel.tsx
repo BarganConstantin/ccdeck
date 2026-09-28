@@ -2,19 +2,18 @@
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fmtCost, fmtCostRate, UNPRICED_LABEL } from "../pricing";
+import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
-import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
 import {
-  boardModelTable, boardSessionTable, boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
+  boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
   type BoardSessionRow,
 } from "../board-usage";
 import {
-  PERIODS, modelRows as ccModelRows, sessionRows as ccSessionRows,
+  modelRows as ccModelRows, sessionRows as ccSessionRows,
   rangeTotals, sessionListScale, nounFor, panelFigures,
   type PeriodKey,
 } from "../usage-from-ccusage";
-import { readStored, writeStored } from "../storage";
+import { loadPeriod, loadSessionsOpen, savePeriod, saveSessionsOpen } from "../usage-prefs";
 import type { GraphState } from "../reducer";
 import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
@@ -27,56 +26,9 @@ import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
+import { useBoardSpend } from "../use-board-spend";
+import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
-
-/** Where the chosen period lives between reloads.
- *
- *  It was the one preference in this panel that did not survive one. The deck
- *  remembers whether the panel is open and which theme it is in, and a reader
- *  who works in `month` re-selected it on every reload — which is also the
- *  slowest of the three to answer, so the cost of forgetting was paid twice.
- *
- *  Read through storage.ts rather than off `window.localStorage`: this runs
- *  inside a useState initialiser and the property access itself throws on a
- *  browser that blocks site data, which would take the panel's first render
- *  with it. And validated against PERIODS rather than cast, because the stored
- *  string is whatever was in the store — an older build's key, or a hand edit —
- *  and an unknown period would ask /api/ccusage for a range it cannot spell.
- */
-const PERIOD_KEY = "agent-dag.usagePeriod";
-
-function loadPeriod(): PeriodKey {
-  const stored = readStored(PERIOD_KEY);
-  return PERIODS.some(p => p.key === stored) ? (stored as PeriodKey) : "today";
-}
-
-function savePeriod(period: PeriodKey): void {
-  writeStored(PERIOD_KEY, period);
-}
-
-/** Whether the session list is open, and it is shut until asked for.
- *
- *  It is the one unbounded block in this panel — every other section is a
- *  fixed two or three rows, or a model table that cannot exceed the models
- *  that exist — and it is the reason the panel scrolls at all. Shut, the whole
- *  panel is one screen: quota, period, money, models. The reader who wants the
- *  per-session breakdown asks for it and gets it, and their answer is
- *  remembered, so this costs them one press once rather than one press a day.
- *
- *  Defaults SHUT rather than open, which is the deliberate half of this. The
- *  section is the panel's deepest detail and its least glanceable; the figure
- *  most readers open this panel for is the one at the top.
- */
-const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";
-
-function loadSessionsOpen(): boolean {
-  return readStored(SESSIONS_OPEN_KEY) === "1";
-}
-
-function saveSessionsOpen(open: boolean): void {
-  writeStored(SESSIONS_OPEN_KEY, open ? "1" : "0");
-}
-
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -97,6 +49,10 @@ function saveSessionsOpen(open: boolean): void {
 // The three quota reads, and the shapes their routes answer in, are
 // use-quota.ts; the ccusage read for the chosen period is use-usage-range.ts,
 // and the count the headline figures move by is use-count-up.ts.
+//
+// The two things this panel remembers between reloads — the period and
+// whether the session list is open — are usage-prefs.ts's, with the reasons
+// each is kept and the default each falls back to.
 
 interface Props {
   state: GraphState;
@@ -123,72 +79,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
     const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
     return () => window.clearInterval(t);
   }, []);
-  /** Per-session spend against the clock, for the header's $/min (#821). A ref,
-   *  because the samples are history the memo below reads and extends — not
-   *  state, which would re-render the panel for every sample it takes. */
-  const spendSamples = useRef<SpendHistory>(NO_SPEND_HISTORY);
-  /** The replay the samples above were taken after. A new one — a reconnect —
-   *  starts them again, since it re-applies the ring the board was built from. */
-  const spendSince = useRef<number | null>(null);
+  // The By model rows, the board's own headline figures and the header's
+  // $/min, with the samples that rate is measured from — use-board-spend.ts.
+  const { byModel, totalCost, totalTokens, burnRate } = useBoardSpend(state, now, liveSince);
 
-  // Both memos below key on `state.revision`, not on `state.lastSeq`. The
-  // `state` prop is `stateRef.current` and `applyEvent` mutates it in place, so
-  // its identity never moves after mount and the second dep is the whole of
-  // what decides whether either of these recomputes. `lastSeq` answers "when did
-  // the last envelope arrive", which is a different question from "has anything
-  // in here changed": the four periodic sweeps mutate this same object every
-  // 250ms tick and move only `revision` — see the note on GraphState.
+  // Keyed on `state.revision` for the reason use-board-spend.ts gives.
   //
-  // This one carries `now` as well, because `burnRate` samples the board total
-  // against the clock (spend-rate.ts, #821) and has to keep moving while nothing
-  // arrives. That third dep is
-  // also what hid the wrong second one: `now` is a fresh Date.now() every tick,
-  // so this recomputed four times a second whatever `lastSeq` said, and the
-  // headline strip stayed honest through a prune by luck rather than by rule.
-  // `bySessions` below has no clock in it, and it is the one that went stale.
-  const { byModel, totalCost, totalTokens, burnRate } = useMemo(() => {
-    // The headline's own arithmetic is `boardTotals`, called once below rather
-    // than accumulated here (#687). It was a second copy of the topbar's, and
-    // the file it moved to is the file that declares what the figure may be
-    // called — which is the whole of the fix: the sum walks the agents on the
-    // canvas, the pruners take agents off the canvas, and the only honest label
-    // for such a number names the canvas. Splitting the label from the sum is
-    // how "total spend" came to stand over a figure that falls by a third on a
-    // quiet tick.
-    //
-    // The table is one pass per MODEL SHARE (#686), in board-usage.ts beside
-    // `boardTotals` so the rows and the headline price the same shares through
-    // the same helper — see boardModelTable.
-    const byModel = boardModelTable(state.agents.values());
-
-    const board = boardTotals(state.agents.values());
-    // How fast the board is spending: its total's rise over the last ten minutes
-    // (#821), not live agents' cost over the longest one's age — see
-    // spend-rate.ts for why that swung eightfold between two tabs of one deck.
-    // And only once the replay has landed: before that the board total is
-    // history arriving, not spending (see liveSince in App.tsx).
-    if (spendSince.current !== liveSince) {
-      spendSince.current = liveSince;
-      spendSamples.current = NO_SPEND_HISTORY;
-    }
-    // PER SESSION, not the board total (#987). The board gains a session's whole
-    // accumulated cost the moment it first reaches the canvas, and against one
-    // total that is indistinguishable from spending: a joining session carrying
-    // $15 of history took a true $0.20/min to $1.70/min and held it for the
-    // full ten-minute window. This is the same map the live delta below is
-    // built on, and the same rule — only work the deck watched happen counts.
-    const bySession = boardBySession(state.agents.values(), now);
-    if (liveSince != null) spendSamples.current = recordSpend(spendSamples.current, now, bySession);
-    const rate = liveSince == null ? null : spendRate(spendSamples.current, now, bySession);
-    const burnRate = rate ? { label: fmtCostRate(rate.spent, rate.spanSec), spanMin: rate.spanMin } : null;
-    return {
-      byModel,
-      totalCost: board.cost,
-      totalTokens: board,
-      burnRate,
-    };
-  }, [state, state.revision, now, liveSince]);
-
   // No clock in these deps, and none wanted — every figure in a row is a running
   // total, not an elapsed time. That made this the one memo in the panel with
   // nothing to mask the wrong dependency, and #575 is what it cost: on a quiet
@@ -341,21 +237,12 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   const shownOut    = useCountUp(figures.outputTokens);
   const shownCacheR = useCountUp(figures.cacheReadTokens);
   const shownCacheC = useCountUp(figures.cacheCreateTokens);
-  // Rows worth a line, which is not the same question as rows worth a dollar.
-  // Both tables used to filter on `cost > 0`, and in a deck holding one priced
-  // Claude session and any number of unpriced Codex ones that filter was
-  // invisible: `hasCost` was true, so the tables rendered, and every Codex row
-  // was dropped out of them while its tokens stayed in the strip above. The
-  // panel's own headline number then matched no visible row — the arithmetic
-  // was right and there was nothing on screen to reconcile it against.
-  const boardModelRows   = byModel.filter(m => m.cost.total > 0 || (m.inputTokens + m.outputTokens) > 0);
-  const boardSessionRows = bySessions.filter(s => s.cost > 0 || (s.inputTokens + s.outputTokens) > 0);
-  // A model ccusage priced at nothing is one IT does not know, and the note
-  // below means the same thing either way: these tokens are real and their
-  // dollars are not in the total above them.
-  const hasUnpriced = fromRange
-    ? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)
-    : boardModelRows.some(m => !m.priced);
+  // Rows worth a line, which is not the same question as rows worth a dollar,
+  // and whether the note about unpriced tokens is owed — both
+  // usage-panel-rules.ts's, with why.
+  const boardModelRows   = byModel.filter(worthALine);
+  const boardSessionRows = bySessions.filter(worthALine);
+  const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);
 
   const anyLoading = quotaLoading || codexLoading;
 
@@ -373,10 +260,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // construction: the name a voice-control user says is the words the tooltip
   // shows, per provider, and cannot drift into promising a section that is not
   // rendered.
-  const refreshLabel = providers.claude && providers.codex
-    ? "Refresh Claude + Codex quota"
-    : providers.codex ? "Refresh Codex quota"
-      : "Refresh Claude quota";
+  const refreshLabel = quotaRefreshLabel(providers);
 
   return (
     // The id is the target of the topbar toggle's aria-controls. It is spelled

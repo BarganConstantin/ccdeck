@@ -119,11 +119,14 @@ const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.ur
 
 describe("the usage header's pill (#821)", () => {
   const panel = read("../components/UsagePanel.tsx");
+  /** Where the samples are taken and the rate is read, since the headline memo
+   *  and its two refs left the panel. */
+  const spend = read("../use-board-spend.ts");
   const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("no longer divides live agents' cost by the longest one's age", () => {
     expect(usageSurface()).not.toMatch(/liveCost|liveSec/);
-    expect(panel).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
+    expect(spend).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
   });
 
   it("counts only from the moment the replay landed, and starts again on each one", () => {
@@ -133,8 +136,10 @@ describe("the usage header's pill (#821)", () => {
     expect(stream).toMatch(/es\.addEventListener\("replay-end", \(\) => \{[\s\S]*?setLiveSince\(Date\.now\(\)\);/);
     expect(stream).toMatch(/es\.addEventListener\("error", \(\) => \{ setLive\(false\); setLiveSince\(null\); \}\);/);
     expect(app).toMatch(/liveSince=\{liveSince\}/);
-    expect(panel).toMatch(/if \(spendSince\.current !== liveSince\) \{[\s\S]*?spendSamples\.current = NO_SPEND_HISTORY;/);
-    expect(panel).toMatch(/const rate = liveSince == null \? null : spendRate\(/);
+    // And the panel hands it to the hook that samples against it.
+    expect(panel).toContain("useBoardSpend(state, now, liveSince)");
+    expect(spend).toMatch(/if \(spendSince\.current !== liveSince\) \{[\s\S]*?spendSamples\.current = NO_SPEND_HISTORY;/);
+    expect(spend).toMatch(/const rate = liveSince == null \? null : spendRate\(/);
   });
 
   it("says the span it measured, beside the figure and in its title", () => {

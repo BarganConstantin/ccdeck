@@ -306,6 +306,8 @@ const boardUsage = read("board-usage.ts");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 const app = code(read("App.tsx")) + "\n" + code(read("use-deck-shortcuts.ts"));
 const panel = code(read("components/UsagePanel.tsx"));
+/** The panel's board figures, lifted out of it into a hook of their own. */
+const spend = code(read("use-board-spend.ts"));
 /** The panel and every file lifted out of it, for the negatives. */
 const panelSurface = code(usageSurface());
 const sessionList = code(read("components/SessionList.tsx"));
@@ -467,8 +469,10 @@ describe("no surface computes a board figure of its own", () => {
     // are declared beside the loop that produces it, and that is worth as much
     // to one surface as to two — the panel is where the next such label will be
     // written, and re-inlining the sum there is how #687 was built.
-    expect(panel).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\.\/board-usage";/);
-    expect(panel).toContain("boardTotals(state.agents.values())");
+    // Through the hook the panel's board figures moved into.
+    expect(panel).toContain("useBoardSpend(state, now, liveSince)");
+    expect(spend).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\/board-usage";/);
+    expect(spend).toContain("boardTotals(state.agents.values())");
     expect(app, "the topbar computes a board figure again").not.toContain("boardTotals");
   });
 });

@@ -36,6 +36,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { quotaRefreshLabel } from "../usage-panel-rules";
 import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
 import { usageSurface } from "./usage-surface";
@@ -618,7 +619,10 @@ describe("no control is named by its title attribute alone (#381)", () => {
     // words a voice-control user says are the words on screen. It is per
     // provider, so it never promises a section the panel is not rendering.
     expect(code(usage)).toMatch(/aria-label=\{refreshLabel\}\n\s+title=\{refreshLabel\}/);
-    expect(code(usage)).toMatch(/providers\.claude && providers\.codex\s*\n?\s*\? "Refresh Claude \+ Codex quota"/);
+    // The sentence is usage-panel-rules.ts's since it left the render, so it is
+    // asked for rather than matched, and the panel is checked to use it.
+    expect(code(usage)).toContain("const refreshLabel = quotaRefreshLabel(providers);");
+    expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota");
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {

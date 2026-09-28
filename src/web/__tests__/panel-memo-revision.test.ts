@@ -257,7 +257,9 @@ describe("no memo in the client watches lastSeq", () => {
     // state dependency said, and the strip stayed honest through a prune by
     // luck. Migrated anyway: the day this memo gets a cheaper refresh rule, the
     // luck goes with it and nothing in the diff would explain the bug arriving.
-    expect(watchedField("components/UsagePanel.tsx", "const { byModel, totalCost, totalTokens, burnRate } = useMemo("))
+    // The memo is use-board-spend.ts's since it left the panel with the refs
+    // it reads and extends.
+    expect(watchedField("use-board-spend.ts", "return useMemo("))
       .toBe("revision");
   });
 

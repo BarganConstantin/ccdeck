@@ -60,6 +60,11 @@ const strip = read("../components/UsagePeriodStrip.tsx");
 const sessions = read("../components/UsageSessionBreakdown.tsx");
 /** The By model table, lifted out of the panel. */
 const models = read("../components/UsageModelTable.tsx");
+/** The two preferences the panel keeps between reloads, lifted out of it. */
+const prefs = read("../usage-prefs.ts");
+/** The panel's small decisions — rows worth a line, the unpriced note, the ↻'s
+ *  name — lifted out of its render. */
+const rules = read("../usage-panel-rules.ts");
 const css = read("../styles.css");
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
@@ -402,8 +407,11 @@ describe("markup, read as source", () => {
   it("says unpriced by the source's own answer", () => {
     // A model ccusage priced at nothing is one IT does not know; a board row
     // carries its own `priced` flag. Same words, two different questions.
-    expect(panel).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
-    expect(panel).toContain(": boardModelRows.some(m => !m.priced);");
+    // The decision is usage-panel-rules.ts's anyUnpriced, which
+    // usage-panel-rules.test.ts drives from both sources; the panel asks it.
+    expect(rules).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
+    expect(rules).toContain(": boardModelRows.some(m => !m.priced);");
+    expect(panel).toContain("const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);");
   });
 
   it("offers the three spans from the shaping layer, never a fourth spelled here", () => {
@@ -652,21 +660,23 @@ describe("the period strip's keyboard and memory", () => {
   });
 
   it("remembers the period, under a key of the deck's own shape", () => {
-    expect(panel).toContain('const PERIOD_KEY = "agent-dag.usagePeriod";');
+    // The key and the two functions are usage-prefs.ts's, and
+    // usage-prefs.test.ts calls them; the panel keeps the wire.
+    expect(prefs).toContain('const PERIOD_KEY = "agent-dag.usagePeriod";');
     expect(panel).toContain("useState<PeriodKey>(loadPeriod)");
     expect(panel).toContain("useEffect(() => { savePeriod(period); }, [period]);");
     // Through storage.ts, because the bare property read throws outright on a
     // browser that blocks site data — and this one runs in a useState
     // initialiser, so it would take the panel's first render with it.
-    expect(panel).toContain('import { readStored, writeStored } from "../storage";');
-    expect(panel).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
+    expect(prefs).toContain('import { readStored, writeStored } from "./storage";');
+    expect(prefs).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
     // Validated, not cast. The store holds whatever was last written into it —
     // an older build's spelling, or a hand edit — and an unknown period would
     // ask /api/ccusage for a range it cannot spell.
-    expect(panel).toContain("PERIODS.some(p => p.key === stored)");
+    expect(prefs).toContain("PERIODS.some(p => p.key === stored)");
     // And written through storage.ts's writeStored, whose guard over the same
     // refusal storage-blocked.test.ts drives.
-    expect(panel).toMatch(/function savePeriod\(period: PeriodKey\): void \{\s*writeStored\(PERIOD_KEY, period\);/);
+    expect(prefs).toMatch(/function savePeriod\(period: PeriodKey\): void \{\s*writeStored\(PERIOD_KEY, period\);/);
   });
 
   it("says a read is running, where the finger just was", () => {
@@ -812,15 +822,15 @@ describe("the session section's disclosure", () => {
   });
 
   it("remembers whether it is open, and starts shut", () => {
-    expect(panel).toContain('const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";');
+    expect(prefs).toContain('const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";');
     expect(panel).toContain("useState<boolean>(loadSessionsOpen)");
     expect(panel).toContain("useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);");
     // Shut is the default, which is the deliberate half. An absent key, a
     // blocked store and a junk value all have to land on the same answer, and
     // `=== "1"` is the spelling that gives it: anything that is not the string
     // written by `saveSessionsOpen` reads as shut.
-    expect(panel).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
-    expect(panel).toMatch(/function saveSessionsOpen\(open: boolean\): void \{\s*writeStored\(SESSIONS_OPEN_KEY, open \? "1" : "0"\);/);
+    expect(prefs).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
+    expect(prefs).toMatch(/function saveSessionsOpen\(open: boolean\): void \{\s*writeStored\(SESSIONS_OPEN_KEY, open \? "1" : "0"\);/);
   });
 
   it("says how much is behind it, on the title rather than in ink", () => {

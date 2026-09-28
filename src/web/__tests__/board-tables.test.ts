@@ -261,9 +261,12 @@ describe("the panel draws its two board tables from these", () => {
   // how the replicas came to be testing code the panel had stopped running.
   const panel = readFileSync(
     fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+  /** The headline memo, lifted out of the panel with the By model rows it builds. */
+  const spend = readFileSync(
+    fileURLToPath(new URL("../use-board-spend.ts", import.meta.url)), "utf8");
 
   it("calls boardModelTable and boardSessionTable, and folds nothing itself", () => {
-    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    expect(spend).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
     expect(panel).toMatch(/\(\): BoardSessionRow\[\] => boardSessionTable\(state\.agents\.values\(\)\)/);
     // Nor does anything lifted out of it: the negatives and the count read
     // the panel's whole surface.
@@ -280,10 +283,10 @@ describe("the panel draws its two board tables from these", () => {
   it("keeps the rows whose dollars are unknown but whose tokens are not", () => {
     // #400's rule, on the columns these tables now name: a row is selected on
     // tokens, so an unpriced model is listed with the floor marker rather than
-    // filtered out of a table that still counts it in the strip above.
-    expect(panel).toMatch(
-      /const boardModelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
-    expect(panel).toMatch(
-      /const boardSessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
+    // filtered out of a table that still counts it in the strip above. The
+    // rule is usage-panel-rules.ts's worthALine, which usage-panel-rules.test.ts
+    // calls with both row shapes; this is the wire from both tables to it.
+    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
+    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
   });
 });
