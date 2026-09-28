@@ -391,86 +391,100 @@ async function readRoster(now, gen) {
     if (!acct) continue;                       // sequence lists a slot that no longer exists
 
     const row = rows[num];
-    const matches = rowIsFor(row, acct);
-    const good = matches ? row.lastGood : null;
-
-    const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
-    const isActive = String(seq.activeAccountNumber) === num;
-    const trouble = authTrouble(row, {
-      matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
-    });
-
-    const lanes = [
-      lane("five_hour", "5h", good?.five_hour),
-      lane("seven_day", "7d", good?.seven_day),
-      ...(Array.isArray(good?.scoped) ? good.scoped : [])
-        .map((s, i) => lane(`scoped-${i}`, s?.name ?? "model", s))
-        .filter(Boolean),
-    ].filter(Boolean);
-
-    const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
-    accounts.push({
-      num:      Number(num),
-      email:    acct.email ?? null,
-      alias:    acct.alias ?? null,
-      org:      acct.organizationName ?? null,
-      // The other half of an account's identity, and the reason a slot number
-      // is not one: claude-swap keys on `(email, organizationUuid)` — the same
-      // email under two orgs is two accounts on purpose — and assigns slots
-      // max+1 per store, so the account that is 4 here is 2 on another machine.
-      // Surfaced for LAN sync, which has to match accounts across two stores
-      // that grew in a different order.
-      orgUuid:  acct.organizationUuid ?? null,
-      // Whether CLAUDE-SWAP'S STORED COPY works — not whether the user is
-      // signed in. The two differ, and #721 is the whole argument: a
-      // `stale-copy` row means the live session is fine while the copy in the
-      // store is dead, and the copy is what a share would carry and what a
-      // peer's copy would heal. So both kinds of trouble read as not alive.
-      alive:    storedCopyAlive(trouble == null, collector),
-      active:   String(seq.activeAccountNumber) === num,
-      disabled: acct.disabled === true,
-      lanes,
-      // Headroom against the tightest lane — the number that decides whether
-      // this account is worth switching to.
-      headroom: lanes.length ? Math.max(0, 100 - Math.max(...lanes.map(l => l.pct))) : null,
-      fetchedAt: fetchedAtMs,
-      // When this account will next be read — the earlier of claude-swap's own
-      // plan and, for a healthy active account, the deck's freshen tick. The
-      // plan alone would promise "next in 15m" while the panel actually
-      // updates in three.
-      nextAt: nextReadAt(row, matches, fetchedAtMs, isActive, now),
-      stale:     fetchedAtMs == null || now - fetchedAtMs > STALE_AFTER_MS,
-      // Surfaced rather than hidden: a rate-limited or re-login-needed account
-      // is exactly the one the user is about to try switching to.
-      //
-      // Through authTrouble rather than read straight off the row: see #721.
-      // consecutiveFailures says the COLLECTOR is failing, which for the active
-      // account is not the same claim as the user being signed out — and the
-      // CLI can settle that.
-      error: trouble?.error ?? null,
-      // True when the collector cannot read this account but the user is signed
-      // in as it anyway. The panel says so quietly instead of offering to log
-      // them in again.
-      staleCopy: trouble?.kind === "stale-copy",
-      // How the deck's own repair of that is going — `{ state: "running" }` or
-      // `{ state: "failed", reason, retryAt }` — and null on every other row.
-      // Asking is what starts it; see repairStaleCopyWith.
-      repair: trouble?.kind === "stale-copy" ? repairFor(Number(num), acct.email ?? null, now) : null,
-      // Nothing has been collected for this account in half a day, and nothing
-      // says why. Its own word because the two existing ones would both be
-      // wrong: `error` claims a rejection that was never reported, and
-      // `staleCopy` promises the user is signed in as it, which is only
-      // knowable for the active account.
-      stopped:   trouble?.kind === "stopped",
-      // claude-swap's own verdict for this slot, when there is a fresh one:
-      // "no_credentials", "relogin_required", "keychain_unavailable", … It is
-      // what turns "not collecting" into a sentence with a next step in it, and
-      // it is null on every machine where the collector has not been asked yet.
-      collector,
-    });
+    accounts.push(rosterRow({ seq, num, acct, row, identity, now }));
   }
 
   return finish({ ok: true, accounts, activeNum: seq.activeAccountNumber ?? null, fetchedAt: now });
+}
+
+/**
+ * One account's row on the roster: who it is, what claude-swap last saw for it,
+ * and what is wrong with it, if anything.
+ *
+ * `row` is the usage row stored under this account's slot, which may belong to
+ * whoever held the slot before (see rowIsFor); `identity` is who the CLI says
+ * is signed in, or null when readRoster did not need to ask. It reads the
+ * verdict cache, and asks the registered repair about a `stale-copy` row —
+ * which is what starts that repair (see repairStaleCopyWith).
+ */
+function rosterRow({ seq, num, acct, row, identity, now }) {
+  const matches = rowIsFor(row, acct);
+  const good = matches ? row.lastGood : null;
+
+  const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
+  const isActive = String(seq.activeAccountNumber) === num;
+  const trouble = authTrouble(row, {
+    matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
+  });
+
+  const lanes = [
+    lane("five_hour", "5h", good?.five_hour),
+    lane("seven_day", "7d", good?.seven_day),
+    ...(Array.isArray(good?.scoped) ? good.scoped : [])
+      .map((s, i) => lane(`scoped-${i}`, s?.name ?? "model", s))
+      .filter(Boolean),
+  ].filter(Boolean);
+
+  const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
+  return {
+    num:      Number(num),
+    email:    acct.email ?? null,
+    alias:    acct.alias ?? null,
+    org:      acct.organizationName ?? null,
+    // The other half of an account's identity, and the reason a slot number
+    // is not one: claude-swap keys on `(email, organizationUuid)` — the same
+    // email under two orgs is two accounts on purpose — and assigns slots
+    // max+1 per store, so the account that is 4 here is 2 on another machine.
+    // Surfaced for LAN sync, which has to match accounts across two stores
+    // that grew in a different order.
+    orgUuid:  acct.organizationUuid ?? null,
+    // Whether CLAUDE-SWAP'S STORED COPY works — not whether the user is
+    // signed in. The two differ, and #721 is the whole argument: a
+    // `stale-copy` row means the live session is fine while the copy in the
+    // store is dead, and the copy is what a share would carry and what a
+    // peer's copy would heal. So both kinds of trouble read as not alive.
+    alive:    storedCopyAlive(trouble == null, collector),
+    active:   String(seq.activeAccountNumber) === num,
+    disabled: acct.disabled === true,
+    lanes,
+    // Headroom against the tightest lane — the number that decides whether
+    // this account is worth switching to.
+    headroom: lanes.length ? Math.max(0, 100 - Math.max(...lanes.map(l => l.pct))) : null,
+    fetchedAt: fetchedAtMs,
+    // When this account will next be read — the earlier of claude-swap's own
+    // plan and, for a healthy active account, the deck's freshen tick. The
+    // plan alone would promise "next in 15m" while the panel actually
+    // updates in three.
+    nextAt: nextReadAt(row, matches, fetchedAtMs, isActive, now),
+    stale:     fetchedAtMs == null || now - fetchedAtMs > STALE_AFTER_MS,
+    // Surfaced rather than hidden: a rate-limited or re-login-needed account
+    // is exactly the one the user is about to try switching to.
+    //
+    // Through authTrouble rather than read straight off the row: see #721.
+    // consecutiveFailures says the COLLECTOR is failing, which for the active
+    // account is not the same claim as the user being signed out — and the
+    // CLI can settle that.
+    error: trouble?.error ?? null,
+    // True when the collector cannot read this account but the user is signed
+    // in as it anyway. The panel says so quietly instead of offering to log
+    // them in again.
+    staleCopy: trouble?.kind === "stale-copy",
+    // How the deck's own repair of that is going — `{ state: "running" }` or
+    // `{ state: "failed", reason, retryAt }` — and null on every other row.
+    // Asking is what starts it; see repairStaleCopyWith.
+    repair: trouble?.kind === "stale-copy" ? repairFor(Number(num), acct.email ?? null, now) : null,
+    // Nothing has been collected for this account in half a day, and nothing
+    // says why. Its own word because the two existing ones would both be
+    // wrong: `error` claims a rejection that was never reported, and
+    // `staleCopy` promises the user is signed in as it, which is only
+    // knowable for the active account.
+    stopped:   trouble?.kind === "stopped",
+    // claude-swap's own verdict for this slot, when there is a fresh one:
+    // "no_credentials", "relogin_required", "keychain_unavailable", … It is
+    // what turns "not collecting" into a sentence with a next step in it, and
+    // it is null on every machine where the collector has not been asked yet.
+    collector,
+  };
 }
 
 /**
