@@ -9,10 +9,12 @@
 // switch answers them (lan-requests.mjs), the addresses it dials and what
 // answered at each (lan-dials.mjs), what a manifest says and what is kept of
 // one heard (lan-manifest.mjs), the store's rows in the rules' shape
-// (lan-accounts.mjs), the line every round waits in (lan-turns.mjs), the
-// invite on offer (lan-invite-offer.mjs), when the tailnet is read
-// (lan-tailnet-poll.mjs), and what a deck that cannot hear says
-// (lan-hearing.mjs).
+// (lan-accounts.mjs), the line every round waits in (lan-turns.mjs) and the
+// clock that asks for the next one (lan-round-timer.mjs), who has called this
+// deck (lan-inbound.mjs), the invite on offer (lan-invite-offer.mjs), when the
+// tailnet is read (lan-tailnet-poll.mjs), and what a deck that cannot hear
+// says (lan-hearing.mjs). What it answers a paired deck that asks lives in
+// lan-serve.mjs; the asking — a round, and joining on an invite — is here.
 //
 // WHAT ONE ROUND LOOKS LIKE, from a deck whose copy of an account has died:
 //
