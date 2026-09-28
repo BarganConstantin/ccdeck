@@ -1,5 +1,4 @@
 // Event → graph reducer. Pure-ish: same events in any order = same end state.
-import { salientInput } from "./tool-input";
 import { injectedPrompt } from "./injected-prompt";
 import { extractModel } from "./payload-model";
 import { extractUsage, usageByModelFromWire, usageFromWire } from "./usage-wire";
@@ -9,7 +8,8 @@ import {
   subagentLabel,
 } from "./agent-attribution";
 import { findTool, shortPreview, trimTools } from "./tool-calls";
-import type { AgentNodeData, BlockedTool, ContextBreakdown, HookEnvelope, HookPayload, ToolCall, WaitingBlock } from "./types";
+import { clearsWaiting, WAITING_KEEPERS, waitingBlock, waitingKind } from "./waiting-block";
+import type { AgentNodeData, ContextBreakdown, HookEnvelope, ToolCall } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
 // the modules this file applies events through can read them too. The rest of
@@ -23,6 +23,8 @@ export {
   noteDroppedEvents, pruneDoneSessions, pruneOldAgents, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools,
   type ForgetSession,
 } from "./board-sweeps";
+// And how long a guess at the blocked call may be printed, for its tests.
+export { BLOCK_GUESS_WINDOW_MS } from "./waiting-block";
 
 // NOTHING IN THIS FILE ADDS TOKENS TO AN AGENT ANY MORE, and that is the point
 // of #685 rather than an accident of it. There was one `addUsage(owner, …)`,
@@ -121,198 +123,6 @@ function sessionEvidenceAt(root: AgentNodeData): number {
   let newest = root.startedAt;
   for (const prompt of root.prompts) if (prompt.at > newest) newest = prompt.at;
   return newest;
-}
-
-/** The two `notification_type` values Claude Code emits, as the chore each one
- *  actually is. Anything else is a kind nobody here has seen and would have no
- *  wording for, so it sets no block rather than a badge that says nothing. */
-function waitingKind(notificationType: unknown): WaitingBlock["kind"] | null {
-  if (notificationType === "permission_prompt") return "permission";
-  // The agent asked a question and stopped for the answer, and the message
-  // carries the question itself — "ccdeck needs your input: which improvements
-  // to prioritize: all three, or specific ones?". This used to fall through to
-  // `null`, so the session showed no block at all: no chip, no sidebar row, no
-  // notification. On a machine running `bypassPermissions` — where Claude Code
-  // never asks to run anything — it is the ONLY kind that fires, so the whole
-  // blocked-session feature was dead there. Measured on one real log: 1683
-  // events, all bypassPermissions, five of these and a single permission
-  // prompt in the entire history.
-  if (notificationType === "agent_needs_input") return "asked";
-  if (notificationType === "idle_prompt") return "idle";
-  return null;
-}
-
-/** Events that are NOT proof the session moved, and so must leave a waiting
- *  block standing whoever they are attributed to. `Notification` is the one that
- *  sets it. The three *Observed events are the server's own transcript scans,
- *  not session traffic: it starts one for every hook payload that carries a
- *  `transcript_path`, the notification included, so treating them as movement
- *  would clear the block a second or two after it was set and no badge would
- *  ever survive long enough to be read. Everything else — a prompt, a tool call,
- *  a subagent, a Stop — is the session moving again; `clearsWaiting` below
- *  decides whether that movement is also evidence the HUMAN moved. */
-const WAITING_KEEPERS = new Set([
-  "Notification", "ModelObserved", "ContextObserved", "UsageObserved",
-  // Same story, fourth scanner: SessionNamed comes off the transcript cursor,
-  // not off session traffic. A session parked on a permission prompt is exactly
-  // when the deck has time to notice its name, and clearing the badge there
-  // would hide the one thing the card is trying to say.
-  "SessionNamed",
-  // And the recap, which is written precisely BECAUSE nothing is moving: three
-  // minutes after a turn ended, with the "Your turn" badge already up. It is
-  // the badge's explanation, not the end of it.
-  "SessionRecapped",
-]);
-
-/**
- * Which subagent a permission prompt landing right now is about, or undefined
- * when the root asked (or when we cannot tell, which is the same answer as far
- * as the clear rule is concerned).
- *
- * `Notification` names nobody — no agent_id, no tool_name, no tool_use_id — so
- * the only thing left to read is where it sits in the stream. CC runs the
- * PreToolUse hook BEFORE it asks the human for permission, so the call that is
- * about to block is the newest one still in flight on this session, and whoever
- * that call's payload named is the one waiting on an answer.
- *
- * Deliberately NOT the top of `activeSubagentStack`, which is the attribution
- * rule everything else here uses: with three Tasks running in parallel the stack
- * top is a one-in-three guess about which of them asked, whereas the newest
- * in-flight call is the one whose PreToolUse fired milliseconds ago. The only
- * way it picks wrong is another agent starting a call inside that gap, and both
- * ways of being wrong are bounded by what the deck did before #361: attribute to
- * a sibling and that sibling's traffic clears the block early (today's bug, now
- * needing a millisecond race to happen at all), attribute to nobody and only
- * root-level traffic clears it (the plain #361 rule).
- *
- * The call's own `explicitSubagentId` decides whose it is, not the node it was
- * drawn under. Those differ for exactly the case that matters here: while a Task
- * is live, the root's own tool calls carry no agent_id and are attributed to the
- * subagent by the stack heuristic — so reading the owner would hand a prompt the
- * ROOT raised to whichever Task happened to be running, and let that Task's
- * traffic clear it. Payload attribution both ways, or the rule contradicts
- * itself.
- */
-function blockedCall(state: GraphState, sessionId: string): ToolCall | null {
-  let newest: ToolCall | null = null;
-  for (const tc of state.toolIndex.values()) {
-    // `toolIndex` holds every session's in-flight calls in one map — its KEYS
-    // name a session (#1009), its values do not — and holds exactly the calls
-    // that have not settled: PostToolUse and the stale sweep both delete. So the
-    // session filter stays a filter over the values, read off the owner the call
-    // is actually drawn under rather than off the key it was filed by.
-    const owner = tc.agentId ? state.agents.get(tc.agentId) : undefined;
-    if (!owner || owner.sessionId !== sessionId) continue;
-    if (!newest || tc.startedAt > newest.startedAt) newest = tc;
-  }
-  return newest;
-}
-
-/**
- * How stale the newest in-flight call may be and still be printed as the thing
- * the human is being asked about.
- *
- * The attribution above needs no window. CC fires PreToolUse and then asks, so
- * the blocked call is the newest in flight — and it STAYS in flight for the
- * whole block, because the PostToolUse that would settle it is what the human's
- * answer produces. Any window at all is therefore about the OTHER direction:
- * the newest in-flight call when the prompt lands may be a genuinely
- * long-running one — a build, a test run, a fetch — that nobody is being asked
- * about, and on a session with no PreToolUse captured (a deck started
- * mid-session, a hook that timed out) that is the only candidate there is.
- *
- * Thirty seconds is chosen against the gap being measured, not against how long
- * blocks last: PreToolUse to permission prompt is milliseconds of CC's own
- * control flow. Anything older is a different call still running, and naming it
- * would print a confident sentence about the wrong command. Widening this trades
- * a silence the user can recover from — CC's own sentence, which is what they
- * had before — for a lie they cannot detect.
- */
-export const BLOCK_GUESS_WINDOW_MS = 30_000;
-
-/** What the prompt is most likely about, when the stream implies it recently
- *  enough to print. See `BlockedTool` in types.ts for why this is held to a
- *  stricter standard than the attribution that reads the same call. */
-function blockedToolOf(call: ToolCall | null, now: number): BlockedTool | undefined {
-  if (!call || !call.name) return undefined;
-  if (now - call.startedAt > BLOCK_GUESS_WINDOW_MS) return undefined;
-  // A call that started after the notification landed cannot be the one it is
-  // about. Clock skew between a replayed log and this tab makes that reachable
-  // rather than impossible, and "0s from now" is not evidence of anything.
-  if (call.startedAt > now) return undefined;
-  // `inputPreview` is the JSON-shaped one `shortPreview` builds for the modal,
-  // where the reader wants the object. Here the string is read as a sentence —
-  // in a tooltip and in a desktop notification — and
-  // `{"command":"rm -rf node_modules"}` buries the four words that decide the
-  // answer inside punctuation. tool-input.ts returns the line a person reads,
-  // and null for a shape with nothing worth reading, which leaves the tool name
-  // standing on its own rather than beside a fragment of JSON.
-  return { name: call.name, preview: salientInput(call.input) ?? "" };
-}
-
-/** A fresh block, attributed. Only a `permission` block is ever about one agent:
- *  an idle prompt is the session's own input box sitting empty, which belongs to
- *  nobody underneath it. The field is left off entirely rather than set to
- *  undefined so a block with no subagent behind it is the same object it has
- *  always been. */
-function waitingBlock(
-  state: GraphState, sessionId: string, kind: WaitingBlock["kind"], message: string, now: number,
-): WaitingBlock {
-  // An idle block is the session's input box sitting empty. There is no call
-  // under it to name, and the newest one still in flight belongs to whatever
-  // the session was doing before the turn ended — so neither field is read.
-  if (kind !== "permission") return { kind, message, since: now };
-  const call = blockedCall(state, sessionId);
-  const block: WaitingBlock = { kind, message, since: now };
-  // A call whose payload named nobody is the root's own, and root-level traffic
-  // already clears the block — there is nothing to name.
-  if (call?.explicitSubagentId) block.subagentId = call.explicitSubagentId;
-  const tool = blockedToolOf(call, now);
-  if (tool) block.tool = tool;
-  return block;
-}
-
-/**
- * Is this event evidence the human dealt with `w`?
- *
- * #361: it used to be enough that the event was not a keeper, keyed on nothing
- * but `hook_event_name` and `session_id`. A subagent's tool call carries the
- * ROOT's session_id — and on a real log 79% of PreToolUse and PostToolUse
- * events are subagent-attributed — so in any session running a Task the alarm
- * was wiped milliseconds after it was raised, while the human was still looking
- * at the prompt in the terminal. Nothing re-raises it: the notification is not
- * re-sent, and since #348 the idle_prompt that follows is not an alarm.
- *
- * The two kinds are different claims and are answered by different evidence:
- *
- *  - `permission` says a specific agent is stopped until the human answers. Only
- *    the root's own traffic, or traffic from the very subagent that asked, can
- *    mean the answer arrived; a sibling Task working away means nothing at all.
- *  - `idle` says nothing is happening — the input box has been empty for a
- *    minute. ANY traffic on the session falsifies that directly, including a
- *    subagent's, so it keeps the old rule. Being wrong in that direction is also
- *    the cheap one: an idle block is not an alarm post-#348, it only sorts the
- *    sidebar and prints "waiting 3m", and printing that over a session whose
- *    subagents are visibly working is the lie worth avoiding.
- */
-function clearsWaiting(w: WaitingBlock, p: HookPayload, sessionId: string): boolean {
-  // `idle` is the only kind ANY traffic falsifies. The other two are claims
-  // that a specific agent is stopped until a human answers, so they need the
-  // narrow rule below — an `asked` block wiped by a sibling subagent's tool
-  // call is #361 again, and it would be worse here because the message the
-  // block carries is the question itself.
-  if (w.kind === "idle") return true;
-  const key = explicitSubagentKey(p);
-  // Root-level traffic — every UserPromptSubmit, Stop, SessionStart, SessionEnd
-  // and the root's own tool calls, none of which carries an agent_id or a
-  // parent_tool_use_id. This is the whole of what used to clear it correctly.
-  if (key == null) return true;
-  // Subagent-attributed traffic clears only the block that subagent itself
-  // raised, which is what the human answering a subagent's prompt produces:
-  // its PostToolUse if they approved, its next call or its SubagentStop if they
-  // denied. Siblings, and every subagent when the root is the one asking, leave
-  // it standing.
-  return w.subagentId != null && subagentIdFor(sessionId, key) === w.subagentId;
 }
 
 /** How far back the activity spark looks, and the most stamps worth keeping

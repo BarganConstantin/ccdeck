@@ -117,9 +117,10 @@ export interface PromptEntry {
  *  believing they know what it was.
  *
  *  That is why this one carries a window `subagentId` does not need
- *  (`BLOCK_GUESS_WINDOW_MS` in reducer.ts) and why every surface that renders it
- *  hedges the wording. When the window rejects the call the field is absent and
- *  the deck says only what CC said, which is the behaviour before this existed. */
+ *  (`BLOCK_GUESS_WINDOW_MS` in waiting-block.ts) and why every surface that
+ *  renders it hedges the wording. When the window rejects the call the field is
+ *  absent and the deck says only what CC said, which is the behaviour before this
+ *  existed. */
 export interface BlockedTool {
   /** The tool as CC named it — `Bash`, `Edit`, `WebFetch`. */
   name: string;
