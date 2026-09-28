@@ -22,6 +22,7 @@ import { WEB_DIR } from "./client-source";
 export const REDUCER_FILES = [
   "reducer.ts",
   "usage-wire.ts",
+  "payload-model.ts",
 ] as const;
 
 let joined: string | null = null;
