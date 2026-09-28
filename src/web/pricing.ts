@@ -491,6 +491,12 @@ export interface CostBreakdown {
 // it would need per-request input (the rollout's `last_token_usage`)
 // accumulated request by request.
 
+/** Dollars for `tokens` at a rate quoted per million tokens, which is how
+ *  every rate in ModelRates is written. */
+function usdAt(tokens: number, perMtok: number): number {
+  return tokens * perMtok / 1_000_000;
+}
+
 /** Cache-creation tokens grouped by the TTL they were billed at, with the
  *  dollars each bucket contributes. Exported so the cost tooltip can print
  *  the same multiplication the total is built from rather than re-deriving
@@ -518,8 +524,8 @@ export function cacheWriteBreakdown(usage: TokenUsage, rates: ModelRates): Cache
   return {
     tokens5m,
     tokens1h,
-    usd5m: tokens5m * rates.cacheWrite / 1_000_000,
-    usd1h: tokens1h * rate1h / 1_000_000,
+    usd5m: usdAt(tokens5m, rates.cacheWrite),
+    usd1h: usdAt(tokens1h, rate1h),
   };
 }
 
@@ -576,9 +582,9 @@ export function costForUsage(
   const rates = ratesForModel(modelId, now);
   if (!rates) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
-  const input      = billedInputTokens(usage, modelId, now) * rates.input / 1_000_000;
-  const output     = usage.outputTokens      * rates.output     / 1_000_000;
-  const cacheRead  = usage.cacheReadTokens   * rates.cacheRead  / 1_000_000;
+  const input      = usdAt(billedInputTokens(usage, modelId, now), rates.input);
+  const output     = usdAt(usage.outputTokens, rates.output);
+  const cacheRead  = usdAt(usage.cacheReadTokens, rates.cacheRead);
   const cw = cacheWriteBreakdown(usage, rates);
   const cacheWrite = cw.usd5m + cw.usd1h;
   return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
