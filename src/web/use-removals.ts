@@ -10,6 +10,7 @@ import type { BlockedSession } from "./ambient-counts";
 import type { GraphState } from "./reducer";
 import { readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, REMOVED_NODES_KEY, saveRemovedNodes, sessionsCalledBack, withoutRemovals } from "./remove-node";
 import type { useBoardLayout } from "./use-board-layout";
+import { localStore } from "./storage";
 
 type Layout = ReturnType<typeof useBoardLayout>;
 
@@ -22,8 +23,12 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
   clearSelection: () => void;
   primarySelectedId: string | null;
 }) {
-  const [removedNodes, setRemovedNodes] = useState<Set<string>>(() =>
-    readRemovedNodes(typeof window === "undefined" ? null : window.localStorage));
+  // The store through localStore(), never `window.localStorage` as the
+  // argument: on a profile that blocks site data the accessor itself throws,
+  // and an argument is evaluated here, before readRemovedNodes' own try has
+  // begun. Thrown from this initialiser it took the whole deck with it — src/web
+  // has no error boundary, so #root came up empty.
+  const [removedNodes, setRemovedNodes] = useState<Set<string>>(() => readRemovedNodes(localStore()));
   /** The last card taken off the board, for the sentence a screen reader
    *  hears. Nothing is drawn for it: the session list (L) is the way back. */
   const [lastRemoval, setLastRemoval] = useState<{ id: string; label: string } | null>(null);
@@ -43,7 +48,7 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
     setRemovedNodes(previous => {
       const next = new Set(previous);
       next.add(id);
-      saveRemovedNodes(window.localStorage, next);
+      saveRemovedNodes(localStore(), next);
       return next;
     });
     setLastRemoval({ id, label: agent.label });
@@ -71,7 +76,7 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
     const list = [...ids];
     setRemovedNodes(previous => {
       const next = withoutRemovals(previous, list);
-      if (next !== previous) saveRemovedNodes(window.localStorage, next);
+      if (next !== previous) saveRemovedNodes(localStore(), next);
       return next;
     });
   }, []);

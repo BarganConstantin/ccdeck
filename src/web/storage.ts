@@ -45,10 +45,11 @@ export function readStored(key: string): string | null {
  * browser, or on a profile whose `window.localStorage` accessor throws.
  *
  * For the callers that hand a store to a function taking one, so the rules can
- * be driven with a fake — the release notes' seen markers. Those functions
- * guard their own `getItem` and `setItem`; what they cannot guard is the
- * accessor, because it is read by the CALLER, as the argument, before any try
- * of theirs has begun. Read here, it is inside one.
+ * be driven with a fake — the release notes' seen markers, the cards "Remove
+ * node" took off the board. Those functions guard their own `getItem` and
+ * `setItem`; what they cannot guard is the accessor, because it is read by the
+ * CALLER, as the argument, before any try of theirs has begun (#1628). Read
+ * here, it is inside one.
  */
 export function localStore(): Storage | null {
   if (typeof window === "undefined") return null;

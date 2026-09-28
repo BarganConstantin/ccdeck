@@ -457,7 +457,7 @@ describe("live work brings a removed card back (#1315)", () => {
     // Re-run on every revision and every change to the set, or new work and a
     // new removal would both wait for something else to render.
     expect(effect).toMatch(/\}, \[waitingSessions, removedAgentIds, removedNodes, bringBack\]\);$/);
-    expect(client).toMatch(/const next = withoutRemovals\(previous, list\);\s*if \(next !== previous\) saveRemovedNodes\(window\.localStorage, next\);/);
+    expect(client).toMatch(/const next = withoutRemovals\(previous, list\);\s*if \(next !== previous\) saveRemovedNodes\(localStore\(\), next\);/);
   });
 });
 
