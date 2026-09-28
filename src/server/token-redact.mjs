@@ -102,11 +102,11 @@ function redactDeckToken(raw) {
       }
     } else {
       // `for…in` is safe on these: they come from JSON.parse or from an object
-      // literal in index.mjs, so the prototype chain is Object.prototype, which
-      // has nothing enumerable. A `"__proto__"` key in the posted JSON becomes
-      // an OWN data property — JSON.parse does not run the setter — so it both
-      // enumerates here and takes the assignment below as an ordinary write,
-      // leaving the prototype alone.
+      // literal in the server's own code, so the prototype chain is
+      // Object.prototype, which has nothing enumerable. A `"__proto__"` key in
+      // the posted JSON becomes an OWN data property — JSON.parse does not run
+      // the setter — so it both enumerates here and takes the assignment below
+      // as an ordinary write, leaving the prototype alone.
       for (const k in node) {
         const v = node[k];
         if (typeof v === "string") {
