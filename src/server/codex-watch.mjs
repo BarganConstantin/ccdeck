@@ -100,7 +100,10 @@ function rememberCodexPath(path) {
     codexSeenEver.delete(codexSeenEver.values().next().value);
   }
 }
-let codexScanRunning = false;
+// The scan in flight, if any, as its promise. A tick that lands while one is
+// still reading joins it rather than starting a second over the same cursors,
+// and scanCodexNow can wait it out.
+let codexScan = null;
 let codexWatchTimer = null;
 let codexWorkspace = "";
 
@@ -215,7 +218,7 @@ function emitCodexEvent(payload, persist) {
  * `sawBeginning` is the one fact that separates the two, and it is not a
  * filesystem question. It is set where the tail cursor is: TRUE when this
  * watcher opened the rollout at byte 0 and therefore holds every line the
- * session ever wrote, FALSE when openCodexCursor, on codexScanOnce's
+ * session ever wrote, FALSE when openCodexCursor, on scanRollouts'
  * `firstRun`, skipped a pre-existing file's history by seeking to its current
  * size. That is the same fact the event states, read off the only thing that
  * actually knows it, and it is the same on Linux, macOS and Windows because no
@@ -252,7 +255,7 @@ function emitCodexEvent(payload, persist) {
  * read off the `SessionStart` is lost with it.
  *
  * `rootOpened` still flips in both cases, and deliberately: it gates the
- * per-batch AGENTS.md resolution in codexScanOnce, which asks "is this session
+ * per-batch AGENTS.md resolution in scanRollouts, which asks "is this session
  * being drawn", not "did we announce it".
  */
 function ensureCodexRoot(state, persist) {
@@ -368,9 +371,27 @@ function sweepCodexCursors(now) {
   }
 }
 
-async function codexScanOnce(firstRun) {
-  if (codexScanRunning) return;
-  codexScanRunning = true;
+function codexScanOnce(firstRun) {
+  codexScan ??= scanRollouts(firstRun).finally(() => { codexScan = null; });
+  return codexScan;
+}
+
+/**
+ * One scan that begins after this call, awaited — what the poll does every
+ * 1500ms, on demand.
+ *
+ * A scan already reading when this is called may have listed the tree before
+ * whatever the caller just changed, so it is waited out first and not counted.
+ * The suite waits on this rather than on the poll's clock: a case that needs
+ * "the watcher has looked since I wrote" used to sleep two polls for it, and a
+ * case that needs "and nothing more came" two polls more (#994).
+ */
+export async function scanCodexNow() {
+  if (codexScan) await codexScan;
+  await codexScanOnce(false);
+}
+
+async function scanRollouts(firstRun) {
   try {
     const now = Date.now();
     // Read at most once per scan, and only from the first rollout that actually
@@ -449,8 +470,6 @@ async function codexScanOnce(firstRun) {
     if (files.length) sweepCodexCursors(now);
   } catch {
     /* swallow — watcher must never crash the server */
-  } finally {
-    codexScanRunning = false;
   }
 }
 

@@ -36,7 +36,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomBytes } from "node:crypto";
 import net from "node:net";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 // @ts-expect-error — plain .mjs server modules, no types
@@ -48,6 +48,13 @@ import {
   connectToPeer, createSyncServer, frameReader, sendFrame, HANDSHAKE_MS, IDLE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
   MAX_SOCKETS_PER_HOST,
 } from "../../server/lan-socket.mjs";
+
+/** The listener's source, and every server module beside it — for the pins
+ *  that say what the deck itself runs on rather than what a case passed. */
+const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url));
+const LAN_SOCKET_SRC = readFileSync(`${SERVER_DIR}lan-socket.mjs`, "utf8");
+const LAN_SOURCES = readdirSync(SERVER_DIR).filter(f => f.endsWith(".mjs"))
+  .map(f => readFileSync(`${SERVER_DIR}${f}`, "utf8")).join("\n");
 
 /** One caller and one listener for the whole file. Identities are the point of
  *  the handshake now, so they are made once and reused rather than regenerated
@@ -385,15 +392,29 @@ describe("a caller who is trying to cost something", () => {
     // The cheapest way to hold a resource is to connect and wait. So the
     // deadline is armed before the first byte is read and cleared only by a
     // finished handshake.
-    const { s } = server();
+    //
+    // `handshakeMs` rather than the shipped HANDSHAKE_MS, as the idle case
+    // below does with IDLE_MS: this sat through the real five seconds (#994),
+    // and the timer is the same timer. The one the deck runs on is pinned
+    // after this case.
+    const DEADLINE = 300;
+    const { s } = server({ handshakeMs: DEADLINE });
     const port = await s.start();
     const sock = net.createConnection({ port, host: "127.0.0.1" });
     const closed = new Promise<void>(res => sock.on("close", () => res()));
     await expect(Promise.race([
       closed,
-      new Promise((_, rej) => setTimeout(() => rej(new Error("still open")), HANDSHAKE_MS + 2000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("still open")), DEADLINE + 2000)),
     ])).resolves.toBeUndefined();
-  }, HANDSHAKE_MS + 5000);
+  }, 10_000);
+
+  it("drops it at HANDSHAKE_MS in the deck itself", () => {
+    // The parameter above exists for the suite; nothing in the deck passes it.
+    expect(LAN_SOCKET_SRC).toMatch(/^  handshakeMs = HANDSHAKE_MS,$/m);
+    expect(LAN_SOCKET_SRC).toMatch(/setTimeout\(\(\) => \{ if \(!authed\) sock\.destroy\(\); \}, handshakeMs\);/);
+    const passed = [...LAN_SOURCES.matchAll(/\bhandshakeMs\s*:/g)];
+    expect(passed, "a caller of createSyncServer overrides the handshake deadline").toEqual([]);
+  });
 
   // THE CLIENT HAS TO READ, and that is a change worth writing down. These two
   // used to attach no `data` handler at all and wait for `close`, which worked
@@ -462,12 +483,16 @@ describe("a caller who is trying to cost something", () => {
     const { s } = server();
     const port = await s.start();
     const socks = Array.from({ length: MAX_SOCKETS + 4 }, () => net.createConnection({ port, host: "127.0.0.1" }));
-    const closes = socks.map(so => new Promise<boolean>(res => {
-      so.on("close", () => res(true));
-      setTimeout(() => res(false), 1200);
-    }));
-    const results = await Promise.all(closes);
-    expect(results.filter(Boolean).length).toBeGreaterThanOrEqual(4);
+    // Counted as the closes arrive, and done at the fourth. This waited a flat
+    // 1200ms for all twenty, most of which — the ones inside the cap — stay
+    // open until the handshake deadline and so could only ever answer "not
+    // yet" (#994). The ceiling is still 1200ms, so a listener that closes fewer
+    // than four fails as it did.
+    let closed = 0;
+    for (const so of socks) so.on("close", () => { closed++; });
+    const deadline = Date.now() + 1200;
+    while (closed < 4 && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
+    expect(closed).toBeGreaterThanOrEqual(4);
     for (const so of socks) so.destroy();
   }, 10_000);
 
@@ -526,7 +551,12 @@ describe("a caller who is trying to cost something", () => {
       .rejects.toThrow();
     // And handed back when they have been silent long enough. Before this there
     // was no deadline of any kind past `authed`, so this never came round.
-    await new Promise(r => setTimeout(r, 900));
+    // Waited for as the reclaim itself — each held socket closing — rather than
+    // a flat 900ms past the 400ms deadline (#994).
+    await Promise.all(held.map(h => new Promise<void>(res => {
+      if (h.sock.destroyed) return res();
+      h.sock.on("close", () => res());
+    })));
     const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller(), timeoutMs: 2000 });
     expect(peer.peerFp).toBeTruthy();
     peer.sock.destroy();

@@ -207,6 +207,11 @@ export function createSyncServer({
    *  case that slept for the real value would be thirty seconds of CI per run
    *  and would still only be checking a timer. */
   idleMs = IDLE_MS,
+  /** How long a connection has to finish the handshake — see HANDSHAKE_MS,
+   *  which is what the deck runs on. A parameter for idleMs' reason: so the
+   *  suite can watch a silent caller dropped in a few hundred milliseconds
+   *  rather than sitting through the real five seconds of it (#994). */
+  handshakeMs = HANDSHAKE_MS,
   /** Whether this deck seals every frame after the handshake with a peer that
    *  says it does too — see frameChannel. On in every real deck. False makes
    *  this listener announce nothing and seal nothing, which is the wire every
@@ -298,7 +303,7 @@ export function createSyncServer({
     // Armed before the first byte is read, and cleared only by a completed
     // handshake. A socket that connects and says nothing is the cheapest
     // possible way to hold a resource, so it is also the first one closed.
-    const deadline = setTimeout(() => { if (!authed) sock.destroy(); }, HANDSHAKE_MS);
+    const deadline = setTimeout(() => { if (!authed) sock.destroy(); }, handshakeMs);
     deadline.unref?.();
 
     const done = () => { clearTimeout(deadline); live.delete(sock); };

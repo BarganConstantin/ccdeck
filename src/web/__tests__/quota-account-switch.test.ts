@@ -28,6 +28,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { withGapsSkipped } from "./skip-gaps";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-quota-switch-"));
 const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_SWAP_BACKUP"] as const;
@@ -130,6 +131,11 @@ afterAll(() => {
   rmTempDir(DIR);
 });
 
+/** A forced read. A CLI that answers without its quota lines is asked three
+ *  times, 1.2s apart, and that is the CLI every case here has — so the gaps are
+ *  skipped rather than slept through (#994; see skip-gaps.ts). */
+const forced = () => withGapsSkipped(() => mod.fetchClaudeQuota({ force: true }));
+
 /** Serve one good reading for account 2, the way a poll before the switch did. */
 async function readingForAccount2() {
   swap.entry = row(2, 63);
@@ -157,14 +163,14 @@ describe("the quota held across a Claude account switch", () => {
     // Spend the self-poll floor the way an ordinary refresh does, so the next
     // call lands in the fallback that hands back whatever is held.
     swap.entry = null;
-    const held = await mod.fetchClaudeQuota({ force: true });
+    const held = await forced();
     expect(held).toMatchObject({ ok: true, session5hPct: 63, stale: true });
 
     // The switch. Nothing has been collected for the new account yet, so there
     // is genuinely nothing to say about it.
     mod.invalidateQuotaCache();
     const spent = cli.calls.length;
-    const after = await mod.fetchClaudeQuota({ force: true });
+    const after = await forced();
 
     expect(after.ok).toBe(false);
     expect(after.reason).toBe("waiting");
@@ -185,7 +191,7 @@ describe("the quota held across a Claude account switch", () => {
     cli.stdout = "";          // not even the preamble, so nothing counts as a run
 
     mod.invalidateQuotaCache();
-    const after = await mod.fetchClaudeQuota({ force: true });
+    const after = await forced();
 
     expect(cli.calls.length).toBeGreaterThan(0);   // it really did try
     expect(after.ok).toBe(false);
@@ -200,7 +206,7 @@ describe("the quota held across a Claude account switch", () => {
     const before = await readingForAccount2();
     swap.entry = null;
 
-    const after = await mod.fetchClaudeQuota({ force: true });
+    const after = await forced();
 
     expect(after).toMatchObject({ ok: true, session5hPct: 63, stale: true });
     expect(after.fetchedAt).toBe(before.fetchedAt);   // the answer it actually is

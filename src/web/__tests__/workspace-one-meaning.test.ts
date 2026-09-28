@@ -56,7 +56,7 @@ process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 
 // @ts-expect-error — .mjs server module, no types
-const { canonicalWorkspace, canonicalCwd, startCodexWatcher, eventsSince } = await import("../../server/index.mjs");
+const { canonicalWorkspace, canonicalCwd, startCodexWatcher, scanCodexNow, eventsSince } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -463,26 +463,21 @@ describe("the cwd each capture path compares", () => {
     try {
       writeFileSync(rollout, header, "utf8");
 
-      // The prompt is appended in the loop rather than written once, and that is
-      // about determinism, not impatience. The watcher's first scan skips the
-      // history of everything already on disk — root and all — so a rollout
-      // written in full before that scan gets CPU produces no event at all,
-      // whatever the workspace test said. Only bytes appended AFTER the file is
-      // catalogued are replayed. A fixed pause before writing would be a bet on
-      // how quickly the first scan is scheduled, and vitest runs this file
-      // beside 245 others; appending each time round means whichever pass first
-      // lands after the catalogue is the one that draws, and none of it depends
-      // on the order the first two happen in.
-      const deadline = Date.now() + 15_000;
-      let drawn: Array<Record<string, unknown>> = [];
-      for (;;) {
-        appendFileSync(rollout, prompt, "utf8");
-        await new Promise(r => setTimeout(r, 250));
-        drawn = (eventsSince(0) as Array<{ source: string; payload: Record<string, unknown> }>)
-          .filter(e => e.source === "codex" && e.payload?.session_id === sid)
-          .map(e => e.payload);
-        if (drawn.some(p => p.hook_event_name === "UserPromptSubmit") || Date.now() >= deadline) break;
-      }
+      // The prompt is appended after the watcher's first scan, and that is about
+      // determinism, not impatience. That scan skips the history of everything
+      // already on disk — root and all — so a rollout written in full before it
+      // gets CPU produces no event at all, whatever the workspace test said. Only
+      // bytes appended AFTER the file is catalogued are replayed. This used to
+      // append every 250ms until a poll drew one, because a fixed pause would
+      // have been a bet on how quickly the first scan was scheduled; scanCodexNow
+      // waits that scan out instead, and the second is one begun after the
+      // append (#994).
+      await scanCodexNow();
+      appendFileSync(rollout, prompt, "utf8");
+      await scanCodexNow();
+      const drawn = (eventsSince(0) as Array<{ source: string; payload: Record<string, unknown> }>)
+        .filter(e => e.source === "codex" && e.payload?.session_id === sid)
+        .map(e => e.payload);
 
       expect(drawn.map(p => p.hook_event_name), "the Codex session in the junction-reached workspace never reached the deck")
         .toContain("UserPromptSubmit");
@@ -493,10 +488,10 @@ describe("the cwd each capture path compares", () => {
       //
       // Read off the prompt rather than off a leading `SessionStart` (#684).
       // That event is now minted only for a rollout the watcher opened at byte
-      // 0, and whether this one existed before the startup catalogue ran is
-      // exactly the race the loop above is written to tolerate — so the root
-      // event is sometimes there and sometimes not, while the canonical cwd
-      // this case is about rides on every payload either way.
+      // 0, and whether the header above was written before the startup
+      // catalogue listed the tree is a race this case leaves as it is — so the
+      // root event is sometimes there and sometimes not, while the canonical
+      // cwd this case is about rides on every payload either way.
       expect(drawn.find(p => p.hook_event_name === "UserPromptSubmit"))
         .toMatchObject({ cwd: realpathSync.native(proj), provider: "codex" });
     } finally {

@@ -29,7 +29,9 @@
 // The whole watcher runs for real here — real files under a temporary
 // CODEX_HOME, the real 1.5s poll — because the fault was in when the watcher
 // decides, and a hand-fed mapper cannot tell a rollout that pre-dates the deck
-// from one born under its watch.
+// from one born under its watch. What the cases wait on is `scanCodexNow`, the
+// scan that poll runs, awaited: "the watcher has looked since I wrote" without
+// sitting through the poll's clock for it (#994).
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
@@ -69,6 +71,7 @@ afterAll(() => {
 type Envelope = { seq: number; source: string; receivedAt: number; payload: HookPayload };
 type ServerModule = {
   startCodexWatcher: (workspace: string) => ReturnType<typeof setInterval>;
+  scanCodexNow: () => Promise<void>;
   eventsSince: (seq: number) => Envelope[];
   CODEX_SESSIONS_DIR: string;
 };
@@ -153,8 +156,11 @@ const forSession = (mod: ServerModule, id: string): HookPayload[] =>
 
 const names = (payloads: HookPayload[]) => payloads.map(p => p.hook_event_name);
 
-/** Wait until this session has produced the named event, or fail saying so. */
+/** Wait until this session has produced the named event, or fail saying so.
+ *  One scan first, so what the rollout says is read; the poll after it is for
+ *  what a scan only sets going — the AGENTS.md walk behind a ContextObserved. */
 async function until(mod: ServerModule, id: string, name: string, what: string, ms = 20_000) {
+  await mod.scanCodexNow();
   const got = await waitFor(() => {
     const seen = forSession(mod, id);
     return seen.some(p => p.hook_event_name === name) ? seen : null;
@@ -167,32 +173,28 @@ async function until(mod: ServerModule, id: string, name: string, what: string, 
  * Start a Codex session that this deck genuinely watches appear, and return the
  * events it produced.
  *
- * Retried with a fresh session id rather than written once after a fixed sleep,
- * because `startCodexWatcher` fires its startup catalogue without awaiting it:
- * a rollout written in the moments right after boot can still be swept up as
- * "already on disk" and skipped — which is the correct conservative reading,
- * and would make a one-shot version of this helper a coin toss. A session whose
- * `SessionStart` arrives is one a POLL TICK read from byte 0, and a poll tick
- * cannot run until the catalogue has finished, because codexScanOnce refuses to
- * overlap itself. So a success here is also the barrier every "and now the
- * pre-existing file appends" step below depends on.
+ * `startCodexWatcher` fires its startup catalogue without awaiting it, and a
+ * rollout written while that catalogue is still reading can be swept up as
+ * "already on disk" and skipped — the correct conservative reading. So the
+ * first scanCodexNow is the barrier: it waits the catalogue out, and every "and
+ * now the pre-existing file appends" step below depends on it. The rollout is
+ * written after, and the second is a scan begun after the write, which reads it
+ * from byte 0 — so its `SessionStart` is there, or the watcher is wrong. This
+ * used to retry on fresh ids under a 4s wait each, because the only barrier it
+ * had was the poll's.
  */
 async function newbornUnderWatch(
   mod: ServerModule, day: string, workspace: string, prompt: string,
 ): Promise<{ id: string; events: HookPayload[] }> {
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const id = sid("newb");
-    writeFileSync(rolloutPath(day, id), history(id, workspace, prompt), "utf8");
-    const got = await waitFor(
-      () => {
-        const seen = forSession(mod, id);
-        return seen.some(p => p.hook_event_name === "SessionStart") ? seen : null;
-      },
-      "", 4_000,
-    );
-    if (got) return { id, events: got };
+  await mod.scanCodexNow();
+  const id = sid("newb");
+  writeFileSync(rolloutPath(day, id), history(id, workspace, prompt), "utf8");
+  await mod.scanCodexNow();
+  const events = forSession(mod, id);
+  if (!events.some(p => p.hook_event_name === "SessionStart")) {
+    throw new Error(`the watcher did not read a rollout written after it started: ${JSON.stringify(events.map(p => p.hook_event_name))}`);
   }
-  throw new Error("the watcher never read a rollout written after it started");
+  return { id, events };
 }
 
 /** Replay a payload stream through the real reducer, as a deck does. */

@@ -52,7 +52,9 @@ process.env.CODEX_HOME = FAKE_CODEX;
 process.env.XDG_CONFIG_HOME = join(FAKE_HOME, ".config");
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, eventsSince, hookToken, challengeProof } = await import("../../server/index.mjs");
+const { startServer, scanCodexNow, eventsSince, hookToken, challengeProof } = await import("../../server/index.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { drainAppends } = await import("../../server/log-writer.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -112,15 +114,23 @@ const tick = (ms: number) => new Promise(r => setTimeout(r, ms));
 const lines = () =>
   (existsSync(LOG) ? readFileSync(LOG, "utf8") : "").split("\n").filter(Boolean).length;
 
+/** Every line this process has queued for the log, landed. The append is
+ *  fire-and-forget, and waiting on log-writer's own queue — not on a window of
+ *  the clock — is what makes "and nothing more was written" a statement about
+ *  what was queued (#994). */
+async function landed(): Promise<void> {
+  expect(await drainAppends(), "the log's append queue did not drain").toBe(true);
+}
+
 /**
- * Wait for the log to reach `n` lines — then a little longer, which is the
- * window a line that should NOT be there would land in. The append is
- * fire-and-forget and the rollout watcher polls on its own clock.
+ * Wait for the log to reach `n` lines, then for the queue behind them, which
+ * is where a line that should NOT be there would be. This used to wait 200ms
+ * more instead.
  */
 async function settle(n: number, ms = 15000) {
   const deadline = Date.now() + ms;
   while (lines() < n && Date.now() < deadline) await tick(25);
-  await tick(200);
+  await landed();
   return lines();
 }
 
@@ -265,7 +275,12 @@ describe("a hook event with a ghost record on a lower port", () => {
 
     const before = lines();
     const id = await fireHook("sess-elsewhere");
-    await settle(before + 1, 2000);
+    // Drawn means admitted, and admitting is where this deck decides whether
+    // to write: once it has, the queue says whether it did. This waited 2s
+    // for a line that should never come.
+    const deadline = Date.now() + 15_000;
+    while (!drawnHook().includes(id) && Date.now() < deadline) await tick(25);
+    await landed();
     expect(lines()).toBe(before);
     // Drawn here all the same — the fan-out is the point, only the second copy
     // on disk is dropped — and posted to the elected deck unflagged.
@@ -295,10 +310,13 @@ describe("a Codex rollout with a ghost record on a lower port", () => {
     .filter((p: Record<string, unknown>) => p.session_id === SID)
     .map((p: Record<string, unknown>) => p.hook_event_name);
 
-  async function drew(n: number, ms = 15000) {
-    const deadline = Date.now() + ms;
-    while (drawn().length < n && Date.now() < deadline) await tick(50);
-    await tick(200);
+  /** What this deck has drawn once the watcher has scanned twice since the
+   *  last write — the second scan being the next tick, where a line drawn
+   *  twice would appear. These are scanCodexNow, the scan the watcher's 1500ms
+   *  poll runs, awaited instead of waited for (#994). */
+  async function drew() {
+    await scanCodexNow();
+    await scanCodexNow();
     return drawn().length;
   }
 
@@ -314,7 +332,7 @@ describe("a Codex rollout with a ghost record on a lower port", () => {
       line({ type: "event_msg", payload: { type: "user_message", message: "hello codex" } }) +
       line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_ONE", arguments: "{}" } }),
       "utf8");
-    expect(await drew(3)).toBe(3);
+    expect(await drew()).toBe(3);
     expect(await settle(before + 3)).toBe(before + 3);
     expect(drawn()).toEqual(["SessionStart", "UserPromptSubmit", "PreToolUse"]);
   }, 40_000);
@@ -325,7 +343,7 @@ describe("a Codex rollout with a ghost record on a lower port", () => {
     writeGhost();
     const before = lines();
     appendFileSync(ROLLOUT, line({ type: "response_item", payload: { type: "function_call_output", call_id: "call_ONE", output: "ok" } }), "utf8");
-    expect(await drew(4)).toBe(4);
+    expect(await drew()).toBe(4);
     expect(await settle(before + 1)).toBe(before + 1);
   }, 40_000);
 
@@ -338,7 +356,7 @@ describe("a Codex rollout with a ghost record on a lower port", () => {
     writeGhost({ port: stranger.port, token: randomBytes(32).toString("hex") });
     const before = lines();
     appendFileSync(ROLLOUT, line({ type: "event_msg", payload: { type: "user_message", message: "second turn" } }), "utf8");
-    expect(await drew(5)).toBe(5);
+    expect(await drew()).toBe(5);
     expect(await settle(before + 1)).toBe(before + 1);
   }, 40_000);
 
@@ -350,14 +368,15 @@ describe("a Codex rollout with a ghost record on a lower port", () => {
     const other = await listenBelow(PORT, honestDeck(token));
     writeGhost({ port: other.port, token });
     // The verdict on the previous record for this pid is cached for a few
-    // seconds and this one is a different question (new port, new token), but
-    // the scan also has to notice the file at all.
-    await tick(300);
+    // seconds and this one is a different question (new port, new token); the
+    // scans in drew() are begun after the record is written, so they see it.
 
     const before = lines();
     appendFileSync(ROLLOUT, line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_TWO", arguments: "{}" } }), "utf8");
-    expect(await drew(6)).toBe(6);
-    await settle(before + 1, 3000);
+    expect(await drew()).toBe(6);
+    // The scans decided, and the queue says whether they wrote. This waited 3s
+    // for a line that should never come.
+    await landed();
     expect(lines()).toBe(before);
     dropGhost();
   }, 40_000);
