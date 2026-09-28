@@ -1212,6 +1212,18 @@ export function startCodexWatcher(workspace) {
   return codexWatchTimer;
 }
 
+/**
+ * Everything kept about one Codex session by id, dropped: where its rollout is,
+ * when its usage was last read, and the model and approval policy the
+ * translation remembers. Its one caller is forgetSession.
+ */
+function forgetCodexSession(sid) {
+  codexRolloutPathBySid.delete(sid);
+  lastCodexUsageReadAt.delete(sid);
+  codexSessionModel.delete(sid);
+  codexSessionApproval.delete(sid);
+}
+
 /** Envelopes newer than `seq` from the ring buffer, oldest first. */
 export function eventsSince(seq) {
   const after = Number(seq) || 0;
@@ -1343,10 +1355,7 @@ function startOutputWatch() {
 function forgetSession(sid) {
   outputWatch.forget(sid);
   forgetEnrichment(sid);
-  codexRolloutPathBySid.delete(sid);
-  lastCodexUsageReadAt.delete(sid);
-  codexSessionModel.delete(sid);
-  codexSessionApproval.delete(sid);
+  forgetCodexSession(sid);
 }
 
 function touchSession(sid) {
