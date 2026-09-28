@@ -260,15 +260,23 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // switches itself off the first time anyone clicks a session in the list.
     // A focus turns auto-fit off on purpose (see focusAgent); it still stamps,
     // so its move is never ALSO read as a drag.
-    // Both files that make fits: the focus in App.tsx, fitLeft in use-camera.ts.
+    // Every fit and focus is one call to moveCamera (use-camera.ts), and that
+    // is where the stamp is, right after the door. Asked three ways: the stamp
+    // follows the move inside it, both callers go through it, and nothing in
+    // either file takes the door with a fit's or a focus's frame on its own.
     const lines = (appCode + "\n" + cameraCode).split("\n");
     const calls = lines
       .map((line, i) => ({ line, i }))
       .filter(({ line }) => /\brf\.fitView\(|\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
-    expect(calls.length).toBeGreaterThanOrEqual(2);
+    expect(calls.length).toBeGreaterThanOrEqual(1);
     for (const { i } of calls) {
       expect(lines.slice(i, i + 4).join("\n")).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
     }
+    const doors = lines.filter(line => /\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
+    expect(doors, "a fit or a focus takes the door outside moveCamera").toHaveLength(1);
+    expect(cameraCode).toMatch(/const moveCamera = useCallback\([\s\S]*?applyViewport\(want, duration\);\s*lastFitTimeRef\.current = Date\.now\(\);/);
+    expect(cameraCode).toMatch(/const epoch = moveCamera\(want, duration\);/);
+    expect(appCode).toMatch(/moveCamera\(want, FOCUS_MS\);/);
   });
 
   it("stamps the viewport restored from storage on reload", () => {

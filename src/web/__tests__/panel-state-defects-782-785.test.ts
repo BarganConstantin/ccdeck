@@ -140,8 +140,13 @@ describe("#785 — a camera move the deck made itself", () => {
   });
 
   it("stamps the move after it is made, inside the routine that makes it", () => {
-    const move = focus.indexOf("applyViewport(want, FOCUS_MS);");
-    const stamp = focus.indexOf("lastFitTimeRef.current = Date.now();");
+    // The routine is moveCamera now, in use-camera.ts, and the focus goes
+    // through it; the order inside is the one this pinned.
+    expect(focus).toContain("moveCamera(want, FOCUS_MS);");
+    const camera = read("../use-camera.ts");
+    const moveBody = camera.slice(camera.indexOf("const moveCamera = useCallback("));
+    const move = moveBody.indexOf("applyViewport(want, duration);");
+    const stamp = moveBody.indexOf("lastFitTimeRef.current = Date.now();");
     expect(move).toBeGreaterThan(-1);
     expect(stamp, "the stamp is before the move").toBeGreaterThan(move);
   });
@@ -151,6 +156,6 @@ describe("#785 — a camera move the deck made itself", () => {
     // the next layout change must not frame the whole board over it. It says
     // so through the one door a pan uses, so the chip and its Resume appear.
     expect(focus).toContain("disableAutoFit();");
-    expect(focus.indexOf("disableAutoFit();")).toBeLessThan(focus.indexOf("applyViewport(want, FOCUS_MS);"));
+    expect(focus.indexOf("disableAutoFit();")).toBeLessThan(focus.indexOf("moveCamera(want, FOCUS_MS);"));
   });
 });

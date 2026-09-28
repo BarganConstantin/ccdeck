@@ -116,6 +116,26 @@ export function useCamera() {
   const cameraEpochRef = useRef(0);
   const lastFitTimeRef = useRef(0);
 
+  /** A MOVE THE DECK MAKES ON PURPOSE, to `want` over `duration`. Every one of
+   *  them does the same four things in the same order, and they used to be
+   *  spelled out at each: take the next epoch so an older move can tell it has
+   *  been superseded, go through the door, stamp the time so the move is never
+   *  read as the reader's own gesture (viewport-intent.ts), and remember the
+   *  target while an animation is carrying it there, for the visibility
+   *  handler below to land if the tab goes away mid-flight. Returns the epoch,
+   *  for a caller that checks later whether its move is still the latest. */
+  const moveCamera = useCallback((want: { x: number; y: number; zoom: number }, duration: number): number => {
+    const epoch = ++cameraEpochRef.current;
+    applyViewport(want, duration);
+    lastFitTimeRef.current = Date.now();
+    // Remembered only while an animation is actually running: a move that went
+    // straight to the pane is already there, and nothing about it is pending.
+    pendingFitRef.current = shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })
+      ? { target: want, until: Date.now() + duration + 60 }
+      : null;
+    return epoch;
+  }, [applyViewport]);
+
   /**
    * Frame the graph against the left edge of the canvas.
    *
@@ -177,14 +197,7 @@ export function useCamera() {
         y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom,
         zoom,
       };
-      const epoch = ++cameraEpochRef.current;
-      applyViewport(want, duration);
-      lastFitTimeRef.current = Date.now();
-      // Remembered only while an animation is actually running: a fit that went
-      // straight to the pane is already there, and nothing about it is pending.
-      pendingFitRef.current = shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })
-        ? { target: want, until: Date.now() + duration + 60 }
-        : null;
+      const epoch = moveCamera(want, duration);
       // A transition can also be cut short — the pane loses its frames when the
       // tab is hidden mid-animation, and the user can grab it. Check afterwards
       // and, if the frame never arrived, put it there outright. Not fitView:
@@ -203,7 +216,7 @@ export function useCamera() {
         } catch { /* ignore */ }
       }, duration + 60);
     } catch { /* viewport not ready */ }
-  }, [rf, applyViewport]);
+  }, [rf, applyViewport, moveCamera]);
 
   // A fit that is animating when the tab goes away loses its frames where it
   // stands — a canvas stopped part-way to a frame nobody chose, which is worse
@@ -231,5 +244,5 @@ export function useCamera() {
     return () => document.removeEventListener("visibilitychange", land);
   }, [applyViewport]);
 
-  return { applyViewport, fitLeft, pendingFitRef, cameraEpochRef, lastFitTimeRef };
+  return { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef };
 }

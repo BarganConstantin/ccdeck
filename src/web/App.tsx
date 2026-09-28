@@ -643,7 +643,7 @@ function Inner() {
   // The camera's primitives — the one door every viewport the deck sets goes
   // through, the fit every structural change runs, and the bookkeeping that
   // lets a move tell it has been superseded: see use-camera.ts.
-  const { applyViewport, fitLeft, pendingFitRef, cameraEpochRef, lastFitTimeRef } = useCamera();
+  const { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef } = useCamera();
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -1390,15 +1390,8 @@ function Inner() {
     hidePeek();
     disableAutoFit();
     lastFocusRef.current = { id, at: Date.now() };
-    cameraEpochRef.current += 1;
-    applyViewport(want, FOCUS_MS);
-    lastFitTimeRef.current = Date.now();
-    // The same insurance fitLeft takes against a tab hidden mid-flight: the
-    // visibility handler lands whatever is pending where it was going.
-    pendingFitRef.current = shouldAnimateViewport({ durationMs: FOCUS_MS, documentHidden: document.hidden })
-      ? { target: want, until: Date.now() + FOCUS_MS + 60 }
-      : null;
-  }, [applyViewport, disableAutoFit]);
+    moveCamera(want, FOCUS_MS);
+  }, [moveCamera, disableAutoFit]);
 
   focusAgentRef.current = focusAgent;
 
