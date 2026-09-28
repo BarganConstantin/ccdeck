@@ -22,6 +22,7 @@ import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { withGapsSkipped } from "./skip-gaps";
 
 const world = vi.hoisted(() => ({
   /** Every `run(cmd, args)` the module made. */
@@ -95,24 +96,29 @@ afterEach(() => { spy.mockRestore(); });
 
 const claudeRuns = () => world.calls.filter(c => c.includes("/usage"));
 
+/** One forced quota read, with source 3's retry gaps skipped: a CLI that runs
+ *  and prints no quota lines is asked three times, 1.2s apart, and most reads
+ *  in this file are that (#994). See skip-gaps.ts. */
+const read = () => withGapsSkipped(() => fetchClaudeQuota({ force: true }));
+
 describe("a machine with no Claude Code", () => {
   it("runs the CLI once, not three times", async () => {
     // The retry is for a CLI that answered without the quota lines. ENOENT is
     // not that, and `run` normalises a missing binary to exactly that code on
     // every platform — see exec.mjs, where it is the value every panel keys
     // its "not installed" message off.
-    await fetchClaudeQuota({ force: true });
+    await read();
     expect(claudeRuns()).toHaveLength(1);
   }, 30_000);
 
   it("says so once, however many times it is asked", async () => {
-    await fetchClaudeQuota({ force: true });
+    await read();
     invalidateQuotaCache();
     resetQuotaPollFloor();
-    await fetchClaudeQuota({ force: true });
+    await read();
     invalidateQuotaCache();
     resetQuotaPollFloor();
-    await fetchClaudeQuota({ force: true });
+    await read();
 
     // Three polls, three spawns — the deck still checks, because Claude Code
     // can be installed while it runs. One line.
@@ -121,7 +127,7 @@ describe("a machine with no Claude Code", () => {
   }, 30_000);
 
   it("still names the failure the first time, rather than swallowing it", async () => {
-    await fetchClaudeQuota({ force: true });
+    await read();
     expect(said.some(l => l.includes("claude CLI failed") && l.includes("ENOENT"))).toBe(true);
   }, 30_000);
 });
@@ -132,7 +138,7 @@ describe("a Claude Code that is there and answering badly", () => {
     // simply had no quota lines yet. Nothing here is missing, so all three
     // attempts happen.
     world.reply = { ok: true, code: 0, stdout: "Claude Code usage\nsubscription: max\n", stderr: "" };
-    await fetchClaudeQuota({ force: true });
+    await read();
     expect(claudeRuns()).toHaveLength(3);
   }, 30_000);
 
@@ -140,11 +146,11 @@ describe("a Claude Code that is there and answering badly", () => {
     // Said-once is per message, not per process. A machine whose CLI starts
     // failing for a NEW reason has something the user has not been told.
     world.reply = { ok: false, code: 1, stdout: "", stderr: "not logged in" };
-    await fetchClaudeQuota({ force: true });
+    await read();
     invalidateQuotaCache();
     resetQuotaPollFloor();
     world.reply = { ok: false, code: 1, stdout: "", stderr: "rate limited" };
-    await fetchClaudeQuota({ force: true });
+    await read();
 
     const failures = said.filter(l => l.includes("claude CLI failed"));
     expect(failures.some(l => l.includes("not logged in"))).toBe(true);
@@ -166,7 +172,7 @@ describe("a Claude Code that is there and answering badly", () => {
       stdout: "Claude Code usage\n",
       stderr: "Error: unable to contact api.anthropic.com",
     };
-    const out = await fetchClaudeQuota({ force: true });
+    const out = await read();
     expect(out.ok, "a run that errored is not a measurement").toBe(false);
     expect(out.reason).toBe("cli_failed");
     expect(out.session5hPct).toBeUndefined();
@@ -183,24 +189,24 @@ describe("a Claude Code that is there and answering badly", () => {
       stdout: "Claude Code usage\nCurrent session: 42% used (resets in 2h)\nCurrent week: 13% used (resets in 3d)\n",
       stderr: "warning: something unrelated",
     };
-    const out = await fetchClaudeQuota({ force: true });
+    const out = await read();
     expect(out.ok, "printed numbers are a measurement whatever the exit code").toBe(true);
     expect(out.session5hPct).toBe(42);
   }, 30_000);
 
   it("forgets a failure once the CLI works, so the next one is heard", async () => {
     world.reply = { ok: false, code: 1, stdout: "", stderr: "not logged in" };
-    await fetchClaudeQuota({ force: true });
+    await read();
     invalidateQuotaCache();
     resetQuotaPollFloor();
 
     world.reply = { ok: true, code: 0, stdout: "Claude Code usage\nsubscription: max\n", stderr: "" };
-    await fetchClaudeQuota({ force: true });
+    await read();
     invalidateQuotaCache();
     resetQuotaPollFloor();
 
     world.reply = { ok: false, code: 1, stdout: "", stderr: "not logged in" };
-    await fetchClaudeQuota({ force: true });
+    await read();
 
     expect(said.filter(l => l.includes("not logged in"))).toHaveLength(2);
   }, 30_000);
@@ -215,7 +221,7 @@ describe("the probe's own Claude Code run", () => {
     // The hook's half is in hook-read-only.test.ts. This is the other half: a
     // rename here, or a spawn helper that rebuilds the environment, and the
     // hook never sees the variable.
-    await fetchClaudeQuota({ force: true });
+    await read();
     const i = world.calls.findIndex(c => c.slice(1).join(" ") === "--print /usage");
     expect(i, "the probe never ran `claude --print /usage`").toBeGreaterThanOrEqual(0);
     expect(world.opts[i].env?.AGENTS_DECK_INTERNAL).toBe("1");
