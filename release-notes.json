@@ -59,6 +59,12 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.29.10": [
+    {
+      "title": "💲 Claude Opus 5.5 has a price",
+      "body": "Sessions on Claude Opus 5.5 showed \"not priced\" on the board, and the Projects report counted them as costing nothing, so its totals read far too low. They are now priced at Anthropic's published rate. If a model still has no price, Projects shows its total as a minimum, like $11.19+, and names the model, instead of a total that looks complete."
+    }
+  ],
   "3.29.8": [
     {
       "title": "🔁 Removed cards come back when their agent works again",
