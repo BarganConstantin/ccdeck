@@ -558,6 +558,16 @@
   flex: 1;
   min-width: 0;
 }
+/* The repair a refused settings write can make from here (#1711): the same
+   pill the accounts panel offers for its one unwaitable failure, kept on the
+   message's first line rather than squeezed by it. */
+.ap-failure .ap-give-back { flex: none; margin: -1px 0 0; }
+/* The same box once the folder is given back: the good news where the refusal
+   was, so the reader's eye does not have to move to find it. */
+.ap-failure-done {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--ok);
+}
 /* DRAWN like the message rather than like a button: it sits inside two lines
    of 10px text in a 288px panel, where anything with a real hit area would be
    the loudest thing in the box. That argument is about ink and it still holds

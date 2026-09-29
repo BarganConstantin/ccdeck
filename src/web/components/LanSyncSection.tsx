@@ -51,6 +51,7 @@ import LanEntryRow from "./LanEntryRow";
 import LanPeerModal from "./LanPeerModal";
 import LanSetupModal from "./LanSetupModal";
 import LanViewHeader from "./LanViewHeader";
+import { SettingsFailureLine } from "./SettingsFailureLine";
 
 // The peek's timing lives in use-hover-peek.ts and the gap an arm-then-confirm
 // press needs in panel-press.ts, beside the rule that reads it. The fold at
@@ -99,7 +100,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   // to it. Switching the network on is the one write that opens something
   // here: the setup dialog, on the press that did it.
   const {
-    status, manual, now, busy, failure, dismissFailure, pressProps, load,
+    status, manual, now, busy, failure, dismissFailure, answerGiveBack, pressProps, load,
     toggle, answer, dropAddress, rename, checkOne, checkNow,
   } = useLanSection(onChanged, () => setSetupOpen(true));
   // Which paired row's unpair is armed, and what a press on one means. Held
@@ -300,13 +301,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               {state.tone === "ok" ? "" : state.text}
             </p>
 
-            {failure && (
-              <div className="ap-failure" role="alert">
-                <span className="ap-failure-text">{failure}</span>
-                <button type="button" className="ap-failure-x" onClick={dismissFailure}
-                  aria-label="Dismiss this message" title="Dismiss">×</button>
-              </div>
-            )}
+            <SettingsFailureLine line={failure} onDismiss={dismissFailure} onAnswer={answerGiveBack} />
 
             {on && (
               <>

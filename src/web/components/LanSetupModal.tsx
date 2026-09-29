@@ -69,6 +69,8 @@ import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
 import { nextShared, settlePending } from "../lan-share";
 import { writeFailure } from "../use-lan-section";
+import { refusalLine, type SettingsLine } from "../settings-give-back";
+import { SettingsFailureLine } from "./SettingsFailureLine";
 import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus, LanTailscale } from "../lan-types";
 
@@ -106,7 +108,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
 }) {
   const dialogRef = useModalDismiss(onClose);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<SettingsLine | null>(null);
   /** The fingerprint's copy word reads `copied` for a moment after it lands. */
   const [copied, setCopied] = useState(false);
   // THE SECOND PRESS IS GONE, AND WITH IT #828's ARMING. That guard was built
@@ -159,11 +161,11 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
       });
       const out = await res.json().catch(() => null);
       if (!alive.current) return false;
-      if (out?.ok) setFailure(null); else setFailure(writeFailure(what, out));
+      if (out?.ok) setFailure(null); else setFailure(refusalLine(writeFailure(what, out), out));
       onChanged();
       return out?.ok === true;
     } catch {
-      if (alive.current) setFailure(writeFailure(what, null));
+      if (alive.current) setFailure(refusalLine(writeFailure(what, null)));
       return false;
     } finally {
       busyRef.current = null;
@@ -191,7 +193,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     if (!status.fp) return;
     const ok = await copyText(status.fp);
     if (!alive.current) return;
-    if (!ok) { setFailure("Could not copy it — select the fingerprint and copy it by hand."); return; }
+    if (!ok) { setFailure(refusalLine("Could not copy it — select the fingerprint and copy it by hand.")); return; }
     setCopied(true);
     window.setTimeout(() => { if (alive.current) setCopied(false); }, 1_600);
   };
@@ -235,13 +237,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
         </header>
 
         <section className="modal-body">
-          {failure && (
-            <div className="ap-failure" role="alert">
-              <span className="ap-failure-text">{failure}</span>
-              <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-                aria-label="Dismiss this message" title="Dismiss">×</button>
-            </div>
-          )}
+          {/* A folder given back is a deck that read its settings again, so
+              the section and the roster behind this reload with it (#1711). */}
+          <SettingsFailureLine line={failure} onDismiss={() => setFailure(null)}
+            onAnswer={next => { setFailure(next); if (next.done) onChanged(); }} />
 
           <div className="modal-section">
             <h3 className="lan-h">Name</h3>

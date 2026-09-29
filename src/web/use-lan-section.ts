@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { LanStatus } from "./lan-types";
 import { pressAccepted, pressState } from "./panel-press";
+import { refusalLine, type SettingsLine } from "./settings-give-back";
 
 /** How often to ask the deck about the network while it IS on the network.
  *  A pairing request arriving is the point of this section and of the dialog in
@@ -67,7 +68,7 @@ const SETTINGS_OUT_OF_REACH: Record<string, string> = {
 /** What the deck says blocked a settings write — deck-prefs.mjs's
  *  prefsRefusalDetail: an errno, who owns what blocked it, file or folder.
  *  Closed sets, never a path. A deck older than this sends none. */
-export type RefusalDetail = { code?: string; owner?: string; on?: string };
+export type RefusalDetail = { code?: string; owner?: string; on?: string; fix?: string };
 
 /** The only read errors that can be about who owns the file. */
 const PERMISSION = new Set(["EACCES", "EPERM"]);
@@ -140,7 +141,7 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
    *  "yours" from "somebody else's", which is the whole of the rule. */
   const [busy, setBusy] = useState<string | null>(null);
   /** The one thing this section could not say. See writeFailure. */
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<SettingsLine | null>(null);
   /** Read by the press guard rather than the state, because `busy` is a render
    *  behind: two clicks in the same frame both see `null` and both fire. */
   const busyRef = useRef<string | null>(null);
@@ -231,11 +232,11 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
         // already on, or when the server switched it on by itself.
         if (!on) onSwitchedOn();
       } else {
-        setFailure(writeFailure(on ? "turn this off" : "turn this on", out));
+        setFailure(refusalLine(writeFailure(on ? "turn this off" : "turn this on", out), out));
       }
       await load();
     } catch {
-      if (alive.current) setFailure(writeFailure(on ? "turn this off" : "turn this on", null));
+      if (alive.current) setFailure(refusalLine(writeFailure(on ? "turn this off" : "turn this on", null)));
     } finally {
       release();
     }
@@ -260,11 +261,11 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
       const out = await post("/api/lan/peer", { action, fp });
       if (!alive.current) return null;
       if (out?.ok) { setStatus(out); setFailure(null); }
-      else { said = writeFailure(what, out); setFailure(said); }
+      else { said = writeFailure(what, out); setFailure(refusalLine(said, out)); }
       await load();
     } catch {
       said = writeFailure(what, null);
-      if (alive.current) setFailure(said);
+      if (alive.current) setFailure(refusalLine(said));
     } finally {
       release();
     }
@@ -285,11 +286,11 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
       const out = await post("/api/prefs", { lan: { manual: manual.filter(m => m !== entry) } });
       if (!alive.current) return null;
       if (out?.ok) { setFailure(null); onChanged(); }
-      else { said = writeFailure("stop dialling that address", out); setFailure(said); }
+      else { said = writeFailure("stop dialling that address", out); setFailure(refusalLine(said, out)); }
       await load();
     } catch {
       said = writeFailure("stop dialling that address", null);
-      if (alive.current) setFailure(said);
+      if (alive.current) setFailure(refusalLine(said));
     } finally {
       release();
     }
@@ -341,10 +342,10 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
       const out = await post("/api/lan/sync", {});
       if (!alive.current) return;
       if (out?.ok) { setStatus(out); setFailure(null); }
-      else setFailure(writeFailure("check the other decks", out));
+      else setFailure(refusalLine(writeFailure("check the other decks", out), out));
       onChanged();
     } catch {
-      if (alive.current) setFailure(writeFailure("check the other decks", null));
+      if (alive.current) setFailure(refusalLine(writeFailure("check the other decks", null)));
     } finally {
       release();
     }
@@ -352,9 +353,16 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
 
   /** The failure line's ×. */
   const dismissFailure = () => setFailure(null);
+  /** The failure line's give-back press has an answer (#1711). A folder given
+   *  back is a deck that read its settings again, so everything drawn from them
+   *  is read again too. */
+  const answerGiveBack = (next: SettingsLine) => {
+    setFailure(next);
+    if (next.done) { void load(); onChanged(); }
+  };
 
   return {
-    status, manual, now, busy, failure, dismissFailure, pressProps, load,
+    status, manual, now, busy, failure, dismissFailure, answerGiveBack, pressProps, load,
     toggle, answer, dropAddress, rename, checkOne, checkNow,
   };
 }
