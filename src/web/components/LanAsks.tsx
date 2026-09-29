@@ -33,16 +33,22 @@ export default function LanAsks({ asks, pressProps, answer }: {
               at all. The dialog that opens over the deck has printed it
               since it was written; this is the same fact on the row
               that does the same job. */}
-          <span className="ap-lan-ask-fp">
+          <span className="ap-lan-ask-fp" id={`lan-ask-fp-${p.fp}`}>
             fingerprint <code className="ap-lan-code">{p.fp}</code>
           </span>
+          {/* Named for the deck each one answers, as the deck list names its
+              verbs (#1745): tabbing from button to button reads no row, so a
+              bare "accept" did not say which machine it would pair. Both are
+              described by the fingerprint printed above them. */}
           <span className="ap-lan-ask-acts">
             <button type="button" className="ap-manage-btn" {...pressProps(`accept:${p.fp}`)}
+              aria-label={`Accept ${p.name}`} aria-describedby={`lan-ask-fp-${p.fp}`}
               onClick={() => void answer("accept", p.fp, "accept that deck")}
               title={`Talk to this deck from now on. Its fingerprint is ${p.fp} — check it matches the one on their screen before you accept.`}>
               accept
             </button>
             <button type="button" className="ap-manage-btn" {...pressProps(`dismiss:${p.fp}`)}
+              aria-label={`Decline ${p.name}`} aria-describedby={`lan-ask-fp-${p.fp}`}
               onClick={() => void answer("dismiss", p.fp, "decline that request")}
               title="Say no. Nothing is shared, and that deck is told rather than left waiting.">
               decline
