@@ -13,8 +13,9 @@ import { roundWhy } from "../lan-round";
 import type { DeckRow } from "../lan-roster";
 import type { LanStatus } from "../lan-types";
 
-/** A machine, at the same stroke: a screen and the desk under it. */
-function Machine() {
+/** A machine, at the same stroke: a screen and the desk under it. The network
+ *  map draws every deck on it with the same one. */
+export function Machine() {
   return (
     <svg className="lan-machine" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
       strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
