@@ -143,10 +143,15 @@ async function freePort(): Promise<number> {
 
 type Status = { enabled?: boolean; lastTick?: unknown } | null;
 
-/** GET /api/cswap-auto, the route the panel reads. null for any way a port can say no. */
+/** GET /api/cswap-auto, the route the panel reads, asked the way the panel asks
+ *  it — a guarded read answers the page's same-origin fetch. null for any way a
+ *  port can say no. */
 function status(port: number): Promise<Status> {
   return new Promise(done => {
-    const req = request({ host: "127.0.0.1", port, path: "/api/cswap-auto", method: "GET", timeout: 10_000 }, res => {
+    const req = request({
+      host: "127.0.0.1", port, path: "/api/cswap-auto", method: "GET", timeout: 10_000,
+      headers: { "sec-fetch-site": "same-origin" },
+    }, res => {
       let body = "";
       res.setEncoding("utf8");
       res.on("data", c => { body += c; });

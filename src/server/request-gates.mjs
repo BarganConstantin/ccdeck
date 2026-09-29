@@ -440,6 +440,20 @@ export const GUARDED_READS = new Set([
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.
   "/api/account-projects",
+  // The signed-in Codex account's email, plan type and credit balance ride on
+  // this answer (codex-quota.mjs), which is the account identity the roster
+  // route above is guarded for.
+  "/api/codex-quota",
+  // And the rest of the usage panel, by the rule /api/account-projects is here
+  // under: the active account's quota windows, Claude's spend by day and by
+  // session, Codex's token spend, and the auto-switch settings with the last
+  // account it moved to. Each is about what the user is doing rather than about
+  // the machine, and each has one caller, the deck's own page in src/web —
+  // the desktop app, bin/ and the hook never read them.
+  "/api/quota",
+  "/api/ccusage",
+  "/api/codex-usage",
+  "/api/cswap-auto",
   // Not a secret, and here for the other reason a read can be dangerous: it is
   // the one route where the caller names what the deck goes and fetches
   // (#1208). fm-station.mjs holds that to YouTube, but a page on another site

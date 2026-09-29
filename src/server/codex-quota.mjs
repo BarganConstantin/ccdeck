@@ -259,8 +259,10 @@ let _inflight = null;
 // then asks again got a fresh round trip every time — two authenticated HTTPS
 // GETs carrying the user's live ChatGPT session, as fast as the round trip
 // allows, from any page the user happens to have open (#580). Reads on this
-// server are deliberately open (isTrustedRead), so "any page" is the real
-// threat model rather than a hypothetical one.
+// server were deliberately open (isTrustedRead), so "any page" was the real
+// threat model rather than a hypothetical one. The route is a guarded read now
+// (GUARDED_READS in request-gates.mjs), and the floor stays for the callers
+// that still reach it: the deck's own page and a client holding the token.
 //
 // The sharper half is the credential rather than the traffic. On a 401
 // doFetchCodexQuota spends the SINGLE-USE refresh token via forceCodexRefresh,

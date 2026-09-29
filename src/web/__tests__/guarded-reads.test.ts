@@ -36,6 +36,8 @@ if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new 
 
 // @ts-expect-error — plain .mjs server module, no types
 const mod = await import("../../server/index.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 
 let server: Server;
 let port = 0;
@@ -255,6 +257,32 @@ describe("the LAN routes carry the same class of secret as the roster", () => {
     // half that had to be right. It keeps `lan.shared` and every trusted
     // peer's name, which is the same inventory by another door.
     expect(await get("/api/prefs")).toBe(401);
+  });
+});
+
+// The usage panel's reads. /api/codex-quota answers with the signed-in Codex
+// account's email, plan and credit balance, the same class of answer the
+// roster route above is guarded for; the other four are the user's own usage,
+// spend and account-switch state. Every caller is the deck's own page.
+describe("the usage panel's reads are the user's own, not the machine's", () => {
+  const USAGE = ["/api/codex-quota", "/api/quota", "/api/codex-usage", "/api/ccusage", "/api/cswap-auto"];
+
+  it("lists each of them with the other guarded reads", () => {
+    for (const path of USAGE) expect(GUARDED_READS.has(path), path).toBe(true);
+  });
+
+  it("refuses each to a loopback client that presents nothing", async () => {
+    // Every answer at once, so a failure names each route that answered.
+    const got: Record<string, number> = {};
+    for (const path of USAGE) got[path] = await get(path, { host: `127.0.0.1:${port}` });
+    expect(got).toEqual(Object.fromEntries(USAGE.map(p => [p, 401])));
+  });
+
+  it("answers the Codex quota to the token, and to the deck's own page", async () => {
+    // The one of the five this asks all the way through: with no Codex sign-in
+    // in the sandbox it answers from the auth file alone and never reaches out.
+    expect(await get("/api/codex-quota", { "x-ccdeck-token": mod.hookToken() })).not.toBe(401);
+    expect(await get("/api/codex-quota", uiHeaders())).not.toBe(401);
   });
 });
 

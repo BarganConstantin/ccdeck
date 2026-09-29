@@ -46,6 +46,10 @@ const CACHE_MS = 60_000;
 // silent undercount rather than an error. Unbounded calls let that EMFILE back
 // in through the door the pool does not cover.
 //
+// The route is a guarded read now (GUARDED_READS in request-gates.mjs), so a
+// page on another site is refused before it gets here. The bounds stay: the
+// deck's own page and any client holding the token still reach this.
+//
 // The two things between a caller and a scan are the ones quota.mjs established
 // and codex-quota.mjs adopted in #597, spelled the same way in all three:
 //
