@@ -71,20 +71,23 @@ export default function AccountsHeader({
             <path d="M7 2.2v9.6M2.2 7h9.6" />
           </svg>
         </button>
-        {/* THE USAGE REPORT (#1707): the 5-hour and 7-day quota added up
-            across every account here — the question ten rows cannot answer
-            at a glance. A panel-level read, so it is up here with the
-            panel's other acts, and drawn only when there is an account to
-            report on. A gauge, drawn to the small-icon spec: three bars
-            would be the topbar's History glyph again, one button over. */}
+        {/* ACCOUNT CAPACITY (#1707, #1713): how many accounts are ready, and
+            what the 5-hour and 7-day windows have left across them — the
+            question ten rows cannot answer at a glance. A panel-level read, so
+            it is up here with the panel's other acts, and drawn only when there
+            is an account to report on. A gauge, drawn to the small-icon spec:
+            three bars would be the topbar's History glyph again, one button
+            over. A dial open at the bottom, not a half-circle: the half-circle
+            it was sat in the lower half of the box with half its neighbours'
+            height of ink, and read as a stray arc on the baseline (#1713). */}
         {canReport && (
           <button type="button" className="glyph-btn" onClick={() => onReport()}
             aria-label="Account capacity" aria-haspopup="dialog"
             title="Account capacity — how many accounts are ready, and what the 5h and 7d windows have left">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-              <path d="M2.5 10.5a4.5 4.5 0 0 1 9 0" />
-              <path d="M7 10.5l2.2-2.6" />
+              <path d="M2.5 10.9A5.2 5.2 0 1 1 11.5 10.9" />
+              <path d="M7 8.3l2.1-2.1" />
             </svg>
           </button>
         )}
