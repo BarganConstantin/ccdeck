@@ -133,9 +133,14 @@ export { anotherMachine };
  * came from the group and the group therefore has it, and a tailnet can reach
  * further than one person's own machines. Sharing there stays a decision
  * somebody makes rather than one an arrival makes for them.
+ *
+ * AND ONLY FROM A DECK SOMEBODY HERE CHOSE. "The group has it" is true of a
+ * group a person put together; a deck the accept switch paired (`pin.auto`,
+ * see addTrusted) is one nobody here chose, and what arrives from it is not
+ * passed on in this deck's name.
  */
-export function ticksOnArrival(step, via) {
-  return !!step?.key && step.action === "add" && via !== "tailscale";
+export function ticksOnArrival(step, via, pin = null) {
+  return !!step?.key && step.action === "add" && via !== "tailscale" && pin?.auto !== true;
 }
 
 /** The two permissions that answer for one route — see lan-requests.mjs,
@@ -373,9 +378,12 @@ export function createEngine({
    * or joined on an invite of its own — and take back any earlier unpair of
    * it, because choosing it again is the undo. The list, and whether the pin
    * is new.
+   *
+   * Or one the accept switch chose for them, which `auto` says and the pin
+   * keeps — see addTrusted, and roundWith for what such a deck may not do.
    */
-  const pin = ({ fp, pub, name }) => {
-    const { list, added } = addTrusted(cfg.trusted, { fp, pub, name, at: now() });
+  const pin = ({ fp, pub, name }, { auto = false } = {}) => {
+    const { list, added } = addTrusted(cfg.trusted, { fp, pub, name, at: now(), ...(auto ? { auto: true } : {}) });
     cfg = { ...cfg, trusted: list };
     markUnpaired(fp, false);
     return { list, added };
@@ -627,6 +635,14 @@ export function createEngine({
       // them, which is the whole of "I do not want to paste blobs any more".
       // What can reach this is what a deck somebody here pressed accept on
       // chose to offer.
+      //
+      // WHICH IS ONLY TRUE OF A DECK SOMEBODY CHOSE. The accept switch presses
+      // accept for the owner, so "somebody here pressed accept" is not a
+      // premise about a deck it paired: nobody here chose that deck, and the
+      // logins this store holds would be whatever it decided to offer. A deck
+      // the switch paired is treated as a heal is — what it offers comes in
+      // only for an account ticked here — and a person's own press or invite
+      // takes the mark off its pin (see addTrusted).
       // OVER `list`, NOT THE RAW ARRAY. `offered`, which keepManifest runs the
       // list through above (see lan-manifest.mjs), slices to 50 and type-
       // filters `key` and `email`; this line read `theirs.accounts` and got
@@ -637,13 +653,14 @@ export function createEngine({
       // the store lock, while the panel drew 50 and every other paired deck
       // waited behind it. `step.key` also reached transferChallenge and
       // importAccount untyped, which `offered`'s filter would have caught.
-      const wanted = plan(mine, list)
-        .filter(step => step.action === "add" || cfg.shared.includes(step.key));
+      const chosen = () => trustedPeer(cfg.trusted, conn.peerFp)?.auto !== true;
+      const takes = step => cfg.shared.includes(step.key) || (step.action === "add" && chosen());
+      const wanted = plan(mine, list).filter(takes);
       // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
       // LAN switched off, the peer unpaired (`stillPaired`, above) — ends the
       // round. A heal unticked mid-round ends only that heal: the adds behind
       // it need no tick, and the skipped row says why rather than vanishing.
-      const stillWanted = step => step.action !== "heal" || cfg.shared.includes(step.key);
+      const stillWanted = takes;
       /** One login, asked for and opened: a `want` carrying its own proof that
        *  names the account (see transferChallenge), and the `have` opened under
        *  the additional data it was sealed with. The login, or why there is
@@ -705,7 +722,7 @@ export function createEngine({
         // The store can finish an import after the owner disabled LAN or
         // revoked this peer. Keep the imported slot, but do not turn it into
         // a newly shared credential on behalf of an obsolete transfer.
-        if (ok && stillPaired() && ticksOnArrival(step, viaOf(peer))) {
+        if (ok && stillPaired() && ticksOnArrival(step, viaOf(peer), trustedPeer(cfg.trusted, conn.peerFp))) {
           try { await onShared?.(step.key); }
           catch { /* the account is here; the tick is retried the next time one arrives */ }
         }
@@ -862,6 +879,9 @@ export function createEngine({
     const card = id => ({
       ...heardOf(id),
       pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
+      // And whether a switch said that yes rather than a person, which is
+      // what the dialog needs to say which logins will not arrive from it.
+      ...(trustedPeer(cfg.trusted, id)?.auto ? { autoPaired: true } : {}),
     });
     for (const p of [...beacon.peers.values(), ...dials.rows()]) {
       if (!stillListed(p, now())) continue;
@@ -1128,7 +1148,7 @@ export function createEngine({
         onChange?.();
         return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
       }
-      const { list, added } = pin({ fp, pub: seen.pub, name: seen.name });
+      const { list, added } = pin({ fp, pub: seen.pub, name: seen.name }, { auto: !byHand });
       requests.drop(fp);
       onTrust?.(list);
       onChange?.();

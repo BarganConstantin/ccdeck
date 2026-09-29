@@ -390,6 +390,13 @@ export function trustedPeer(trusted, fp) {
  * different deck wearing the name — and 48 bits of fingerprint is far past
  * accident, so it is somebody trying. The old entry stands and the caller is
  * told nothing changed.
+ *
+ * `auto` SAYS A SWITCH MADE THE PIN, not a person — the accept switch pressing
+ * accept for the owner. A pin that says so may take what this deck shares and
+ * may not place logins here: see roundWith in lan-engine.mjs. A person's pin
+ * of the same key takes the mark away, because pressing accept, or pairing by
+ * invite, is the choice the switch only stood in for; a switch never puts it
+ * back on a pin a person made.
  */
 export function addTrusted(trusted, entry) {
   const list = Array.isArray(trusted) ? trusted : [];
@@ -397,8 +404,13 @@ export function addTrusted(trusted, entry) {
   const had = trustedPeer(list, entry.fp);
   if (had) {
     if (had.pub !== entry.pub) return { list, added: false };
+    const chosen = had.auto && entry.auto !== true;
     return {
-      list: list.map(t => (t.fp === entry.fp ? { ...t, name: entry.name ?? t.name } : t)),
+      list: list.map(t => {
+        if (t.fp !== entry.fp) return t;
+        const { auto: _auto, ...kept } = t;
+        return { ...(chosen ? kept : t), name: entry.name ?? t.name };
+      }),
       added: false,
     };
   }
@@ -406,7 +418,8 @@ export function addTrusted(trusted, entry) {
   // was already trusted keeps whatever date it had, and one pinned before this
   // field existed keeps having none rather than being given today's.
   const at = Number.isFinite(entry.at) && entry.at > 0 ? { at: entry.at } : {};
-  return { list: [...list, { fp: entry.fp, pub: entry.pub, name: entry.name ?? "", ...at }], added: true };
+  const auto = entry.auto === true ? { auto: true } : {};
+  return { list: [...list, { fp: entry.fp, pub: entry.pub, name: entry.name ?? "", ...at, ...auto }], added: true };
 }
 
 /** Take one back out. Unpairing stops what has not happened yet and takes back
