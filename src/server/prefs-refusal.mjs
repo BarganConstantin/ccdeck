@@ -62,16 +62,25 @@ const ERRNO = /^E?[A-Z][A-Z0-9]{1,15}$/;
  *
  * Every field is picked from a closed set. Still no path and no uid: the route's
  * body is readable by a DNS-rebound page (see prefsWriteRefusal), and a path
- * names the user. Null when there is nothing precise to add.
+ * names the user. Null when there is nothing precise to add. `fix` is present
+ * only when the panel can offer the repair itself — see givesBack.
  */
-export function prefsRefusalDetail(err) {
+export function prefsRefusalDetail(err, platform = process.platform) {
   const blocked = err?.code === "PREFS_UNREADABLE" ? err.blocked
     : NOT_WRITABLE.has(err?.code) ? { code: err.code, owner: "unknown", on: "folder" }
     : null;
   if (!blocked || typeof blocked !== "object") return null;
-  return {
+  const detail = {
     code: ERRNO.test(blocked.code ?? "") ? blocked.code : "",
     owner: OWNERS.has(blocked.owner) ? blocked.owner : "unknown",
     on: blocked.on === "folder" ? "folder" : "file",
   };
+  return givesBack(detail, platform) ? { ...detail, fix: "give_back" } : detail;
+}
+
+/** The one refusal the panel can repair with a press (#1711): a settings folder
+ *  another user owns, on the platform whose password dialog can give it back.
+ *  Everywhere else the log's command is still the way out. */
+function givesBack({ owner, on }, platform) {
+  return platform === "darwin" && owner === "other" && on === "folder";
 }

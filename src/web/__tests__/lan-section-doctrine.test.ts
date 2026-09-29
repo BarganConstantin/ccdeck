@@ -73,6 +73,9 @@ const HEADER = readFileSync(fileURLToPath(new URL("../components/LanViewHeader.t
  *  every write — which moved out of the component into its own hook. The rules
  *  about the writes and the poll are asked of it, where they now live. */
 const HOOK_SRC = readFileSync(fileURLToPath(new URL("../use-lan-section.ts", import.meta.url)), "utf8");
+/** The failure box the section and its dialog both draw (#1711). */
+const FAILURE_LINE = readFileSync(fileURLToPath(new URL("../components/SettingsFailureLine.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const HOOK = HOOK_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The list of machines, which the section draws through a component of its
  *  own. The rules about how a row is drawn are asked of it. */
@@ -407,20 +410,26 @@ describe("the three rules the panel above it already keeps", () => {
   });
 
   it("has a failure box, announced and dismissible, like the panel's own", () => {
-    expect(CODE).toMatch(/className="ap-failure"/);
-    expect(CODE).toMatch(/role="alert"/);
-    expect(CODE).toMatch(/className="ap-failure-x"/);
+    // Drawn by SettingsFailureLine since the box learned its one repair
+    // (#1711), and the dialog draws the same one — so the rule is read where
+    // the markup now lives, and the section is held to using it.
+    expect(CODE).toMatch(/<SettingsFailureLine line=\{failure\}/);
+    expect(FAILURE_LINE).toMatch(/"ap-failure"/);
+    expect(FAILURE_LINE).toMatch(/role="alert"/);
+    expect(FAILURE_LINE).toMatch(/className="ap-failure-x"/);
   });
 
   it("reports every write that did not land, in both ways it can fail", () => {
     // The `else` that was missing, and the `catch` that was missing. Counted
     // rather than merely present: a single setFailure would satisfy a `toMatch`
     // and leave the other path silent. The section's writes are its hook's.
-    expect([...HOOK.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
+    // Each sentence reaches the line through refusalLine, which adds only
+    // whether the refusal is the one the line can repair (#1711).
+    expect([...HOOK.matchAll(/setFailure\(refusalLine\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
     // Two in the dialog, and that is every path it has left: one `write`, its
     // `else` and its `catch`. The dialog shrank to two fields when the pairing
     // moved into the panel — the rule is unchanged, the surface is smaller.
-    expect([...MODAL.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(2);
+    expect([...MODAL.matchAll(/setFailure\(refusalLine\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(2);
     expect(HOOK).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
   });
 
@@ -758,7 +767,7 @@ describe("switching on says what switching on does", () => {
     // reports a refusal. A dialog over a switch that did not move would be the
     // panel telling somebody about a network they are not on.
     const ok = TOGGLE.indexOf("if (out?.ok)");
-    const failed = TOGGLE.indexOf("setFailure(writeFailure(");
+    const failed = TOGGLE.indexOf("setFailure(refusalLine(writeFailure(");
     const opens = TOGGLE.indexOf("onSwitchedOn()");
     expect(ok).toBeGreaterThan(-1);
     expect(opens).toBeGreaterThan(ok);

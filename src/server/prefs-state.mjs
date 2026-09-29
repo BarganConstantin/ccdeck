@@ -15,7 +15,7 @@
 // The disk half is deck-prefs.mjs, unchanged: the queue, the merge and the
 // refusal to write over a file it could not read all live there. This holds
 // what they return and nothing else.
-import { DEFAULTS, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS, loadPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 
 /**
  * The deck's own settings, in memory, refreshed whenever they are written.
@@ -48,4 +48,13 @@ export const heldPrefs = Object.freeze({
   /** `updatePrefs(mutate)`, and keep what it wrote: for a patch that has to be
    *  computed from the file rather than from `current()` — see updatePrefs. */
   update: async mutate => (_prefs = await updatePrefs(mutate)),
+  /** Read the file again, as a boot would, once something outside the deck has
+   *  made it readable (#1711). Kept only when it really is the user's file: a
+   *  read that still fails leaves the copy this process was already running on,
+   *  rather than trading it for the defaults. Answers the read's `source`. */
+  reload: async () => {
+    const { prefs, source } = await loadPrefs();
+    if (source === "file") _prefs = prefs;
+    return source;
+  },
 });
