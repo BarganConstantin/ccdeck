@@ -39,7 +39,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { killTree } from "../src/server/exec.mjs";
 import { invokedAs } from "../src/server/invoked-as.mjs";
-import { isOneShot, parseArgs } from "../src/server/args.mjs";
+import { parseArgs } from "../src/server/args.mjs";
 import { holdOutput, npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
@@ -51,7 +51,7 @@ import {
   replacedNote, upgradeAttempt, upgradeRefusalText, workerArgs, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
-import { DETACHED_ENV, backgroundNote, detachAndWatch, noConsoleOptions } from "../src/server/detach.mjs";
+import { DETACHED_ENV, backgroundNote, detachAndWatch, noConsoleOptions, shouldDetach } from "../src/server/detach.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 
 const BIN_DIR = dirname(fileURLToPath(import.meta.url));
@@ -80,40 +80,23 @@ const G = glyphs(unicodeOK());
 
 // ── the terminal stops being the deck's leash ────────────────────────────────
 //
-// Everything about why is in src/server/detach.mjs. Here is only the decision,
-// and it has exactly two ways out:
-//
-//   ALREADY DETACHED — we ARE the background copy. Carry on as this file always
-//   has: spawn the worker, supervise it, never come back here.
-//
-//   A ONE-SHOT — `--version`, `--stop`, `--status`, `--help`, `--uninstall`.
-//   Those answer and leave, and a one-shot that detached would print its answer
-//   into a log file and hand the terminal back empty. They run in the
-//   foreground exactly as they always have.
-//
-// Anything else is a start, and a start goes to the background.
+// Everything about why is in src/server/detach.mjs, and so is the decision —
+// shouldDetach, which names every way of staying in the foreground. Here is
+// only what it is asked, and what a yes does.
 const DETACHED = process.env[DETACHED_ENV] === "1";
 
 // How the worker (and an upgrade's replacement) is started when this
-// supervisor has no console of its own: on Windows, with none of its own
-// either, or it opens a console window — see noConsoleOptions.
+// supervisor has no console of its own — without one either, on Windows,
+// where a console program given none opens a window. See noConsoleOptions.
 const NO_CONSOLE = noConsoleOptions({ detached: DETACHED, platform: process.platform });
 // A parent already holding our lifecycle. `process.send` exists only when
 // somebody spawned us with an IPC channel, and that somebody has armed
-// dieWithParent below and is waiting on our exit code — running away from them
-// into our own process group is precisely the wrong answer to being supervised.
-// The suite's spawnSupervised is the caller that does this today.
+// dieWithParent below and is waiting on our exit code. The suite's
+// spawnSupervised is the caller that does this today.
 const LEASHED = typeof process.send === "function";
-// And the way to ask for the old behaviour out loud.
-//
-// Every version before this one held the terminal, and something out there
-// depends on that: a wrapper script, a CI step, a supervisor of somebody else's
-// that starts `ccdeck` and waits on it, a `ccdeck && open …`. Handing all of
-// those an immediate exit and no way to say otherwise would be a breaking change
-// with no escape hatch — and the marker above is an internal one, not something
-// to tell a user to export.
+// `--foreground` and the one-shots are read off these.
 const FLAGS = parseArgs(process.argv.slice(2));
-if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
+if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
   const { deckLogDir } = await import("../src/server/deck-home.mjs");
   const { registeredDecks } = await import("../src/server/running-deck.mjs");
   const isTTY = Boolean(process.stdout.isTTY);

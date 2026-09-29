@@ -113,11 +113,12 @@ export function isPortValue(raw) {
 /**
  * The flags that do a thing and exit, rather than starting a deck.
  *
- * bin/agent-dag.js reads this before it decides whether to detach, and that is
- * the whole reason it exists as a list rather than as a condition written out
- * at the call site: a one-shot that detached would print its answer into a log
- * file and hand the terminal back empty. `ccdeck --version` detaching itself is
- * the shape of the bug this prevents.
+ * bin/agent-dag.js asks this, through shouldDetach in detach.mjs, before it
+ * decides whether to detach, and that is the whole reason it exists as a list
+ * rather than as a condition written out at the call site: a one-shot that
+ * detached would print its answer into a log file and hand the terminal back
+ * empty. `ccdeck --version` detaching itself is the shape of the bug this
+ * prevents.
  */
 export const ONE_SHOT = Object.freeze([
   "help", "version", "uninstall", "stop", "status", "logs",

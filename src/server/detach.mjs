@@ -47,6 +47,7 @@
 import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { isOneShot } from "./args.mjs";
 
 /** The marker that stops the child doing this again. A fork bomb is the only
  *  way this file can fail catastrophically, so the guard is one variable with
@@ -88,6 +89,38 @@ export function detachEnv({ isTTY = false, profile = "none", columns = 0 } = {})
   out.FORCE_COLOR = profile === "truecolor" ? "3" : profile === "ansi256" ? "2" : "1";
   if (Number.isInteger(columns) && columns > 0) out.COLUMNS = String(columns);
   return out;
+}
+
+/**
+ * Does this start go to the background?
+ *
+ * bin/agent-dag.js asks, and a yes sends it to detachAndWatch. Every no is a
+ * way of staying put:
+ *
+ *   ALREADY DETACHED — we ARE the background copy. Carry on as the supervisor
+ *   always has: spawn the worker, supervise it, never come back here.
+ *
+ *   LEASHED — a parent is already holding our lifecycle, over an IPC channel,
+ *   and is waiting on our exit code. Running away from it into our own process
+ *   group is precisely the wrong answer to being supervised.
+ *
+ *   `--foreground` — the way to ask for the old behaviour out loud. Every
+ *   version before this one held the terminal, and something out there depends
+ *   on that: a wrapper script, a CI step, a supervisor of somebody else's that
+ *   starts `ccdeck` and waits on it, a `ccdeck && open …`. Handing all of those
+ *   an immediate exit and no way to say otherwise would be a breaking change
+ *   with no escape hatch — and DETACHED_ENV is an internal marker, not
+ *   something to tell a user to export.
+ *
+ *   A ONE-SHOT — `--version`, `--stop`, `--status`, `--help`, `--uninstall`.
+ *   Those answer and leave, and a one-shot that detached would print its answer
+ *   into a log file and hand the terminal back empty. They run in the
+ *   foreground exactly as they always have.
+ *
+ * Anything else is a start, and a start goes to the background.
+ */
+export function shouldDetach({ detached = false, leashed = false, flags = {} } = {}) {
+  return !detached && !leashed && flags.foreground !== true && !isOneShot(flags);
 }
 
 /**
