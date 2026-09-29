@@ -106,19 +106,66 @@ export function hookCommand(installedHookPath, provider, node = process.execPath
   return `${q(node)} ${q(installedHookPath)} --provider ${q(provider)}`;
 }
 
-function isOurEntry(g) {
-  if (!g || typeof g !== "object") return false;
+function isMarked(g) {
   if (g[MARK_KEY] === true) return true;
   for (const k of LEGACY_MARKS) if (g[k] === true) return true;
-  const cmds = Array.isArray(g.hooks) ? g.hooks : [];
-  for (const h of cmds) {
-    const c = typeof h?.command === "string" ? h.command : "";
-    for (const dir of LEGACY_DIRS) {
-      if (c.includes(`.claude/${dir}/hook.js`) || c.includes(`.claude\\${dir}\\hook.js`)) return true;
-      if (c.includes(`.codex/${dir}/hook.js`) || c.includes(`.codex\\${dir}\\hook.js`)) return true;
-    }
+  return false;
+}
+
+/**
+ * Whether one command is our forwarder. In a group we marked, any path ending
+ * in one of our directories' hook.js — the config dir may be relocated and so
+ * not be called `.claude` at all. Anywhere else only the `.claude`/`.codex`
+ * spelling, which is what an entry from before the mark, or one written by
+ * hand, looks like.
+ */
+function isOurCommand(h, marked) {
+  const c = typeof h?.command === "string" ? h.command : "";
+  for (const dir of LEGACY_DIRS) {
+    if (c.includes(`.claude/${dir}/hook.js`) || c.includes(`.claude\\${dir}\\hook.js`)) return true;
+    if (c.includes(`.codex/${dir}/hook.js`) || c.includes(`.codex\\${dir}\\hook.js`)) return true;
+    if (marked && (c.includes(`/${dir}/hook.js`) || c.includes(`\\${dir}\\hook.js`))) return true;
   }
   return false;
+}
+
+/** What withoutOurCommands answers for a group with nothing left in it. */
+const DROP = Symbol("drop");
+
+/**
+ * One group with our forwarders taken out of it: `g` itself when nothing in it
+ * was ours, DROP when nothing is left, and otherwise a copy holding the rest
+ * with its matcher and without our marks.
+ *
+ * PER COMMAND, NOT PER GROUP (#1734). This used to decide for the whole group —
+ * marked, or one command naming our hook.js — and drop all of it. But the group
+ * we write has no matcher, and Claude Code's own hook editor files a new
+ * matcher-less hook into the first group for that event whose matcher is
+ * missing or empty, which on a machine with no hook of the user's own for that
+ * event is ours. The next start then rewrote settings.json without the user's
+ * sound or PreToolUse guard, and said nothing. Only our forwarder is ours.
+ *
+ * A marked group whose `hooks` is not a list is dropped, as it always was; an
+ * unmarked one is left exactly where it is, as it always was.
+ */
+function withoutOurCommands(g) {
+  if (!g || typeof g !== "object") return g;
+  const marked = isMarked(g);
+  if (!Array.isArray(g.hooks)) return marked ? DROP : g;
+  const kept = g.hooks.filter(h => !isOurCommand(h, marked));
+  if (!marked && kept.length === g.hooks.length) return g;
+  if (kept.length === 0) return DROP;
+  const rest = {};
+  for (const [k, v] of Object.entries(g)) {
+    if (k === MARK_KEY || LEGACY_MARKS.includes(k)) continue;
+    rest[k] = k === "hooks" ? kept : v;
+  }
+  return rest;
+}
+
+/** Whether a group holds anything of ours — a forwarder, or our mark. */
+function isOurEntry(g) {
+  return withoutOurCommands(g) !== g;
 }
 
 async function ensureDir(p) {
@@ -207,7 +254,7 @@ function buildHookEntry(command) {
 
 function dedupeOurEntries(group) {
   if (!Array.isArray(group)) return [];
-  return group.filter(g => !isOurEntry(g));
+  return group.map(withoutOurCommands).filter(g => g !== DROP);
 }
 
 /**
@@ -422,8 +469,11 @@ export async function uninstallHooks({ provider = "claude", beforeWrite = null }
   if (!current?.hooks) return { ok: true, changed: false, provider, settingsPath: cfg.settingsPath };
   let changed = false;
   for (const evt of Object.keys(current.hooks)) {
-    const cleaned = dedupeOurEntries(current.hooks[evt]);
-    if (cleaned.length !== (current.hooks[evt]?.length ?? 0)) changed = true;
+    const was = current.hooks[evt];
+    const cleaned = dedupeOurEntries(was);
+    // A count alone no longer sees every change: a group that loses our
+    // forwarder but keeps the user's own hooks is still there, as a new object.
+    if (cleaned.length !== (was?.length ?? 0) || cleaned.some((g, i) => g !== was[i])) changed = true;
     if (cleaned.length === 0) delete current.hooks[evt];
     else current.hooks[evt] = cleaned;
   }

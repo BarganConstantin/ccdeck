@@ -206,6 +206,12 @@ function launch(respawn) {
       // claude-swap probe with its 8s timeout, the ccusage prime). Repeating it
       // is what would make a restart feel like a restart.
       AGENTS_DECK_RESPAWN: respawn ? "1" : "",
+      // Except when the package under it has changed since (#1735). VERSION is
+      // read once, when this process started, so it is the version the first
+      // worker booted on and installed the hooks with; a respawn running a
+      // different one installs them again. Empty for "we could not tell",
+      // which the worker reads as different.
+      AGENTS_DECK_BOOT_VERSION: VERSION === "?" ? "" : VERSION,
       AGENTS_DECK_RESTARTS: String(restarts),
       // Empty for "we could not tell", which knownCommand reads as unknown just
       // like an absent one. Set on the worker's environment only: the npx

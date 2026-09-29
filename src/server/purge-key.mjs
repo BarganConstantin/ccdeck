@@ -28,7 +28,7 @@
 // strip the field: a partial rewrite of the file that holds the pairings is a
 // worse thing to get wrong than an unlink, and after an uninstall there is
 // nothing left the rest of the file is for.
-import { readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { deckDataDir, legacyDeckDir } from "./deck-home.mjs";
@@ -37,6 +37,23 @@ import { stripBom } from "./atomic-write.mjs";
 /** The file. Named once, because it is spelled in deck-prefs.mjs too and the
  *  two must not drift — see `prefsPath`, which is the same join. */
 export const KEY_FILE = "prefs.json";
+
+/**
+ * The other names a copy of that file can have in the same folder, and every
+ * one of them can hold the key.
+ *
+ *   `.corrupt-<ms>` and `.foreign-<ms>` are prefs-set-aside.mjs's: a file the
+ *   deck could not parse, or one another user owns, is moved aside rather than
+ *   written over — and the deck tells the user the key is in the moved file.
+ *   `.agent-dag-<pid>-<n>.tmp` is atomic-write.mjs's temp file and
+ *   `.<pid>.migrating` is migrateDeckFiles', both left by a process killed
+ *   before the copy was moved into place. The boot sweeps those two, but
+ *   after an uninstall there is no next boot.
+ *
+ * Exact shapes, anchored, so nothing else in the folder — which on some
+ * machines is also the discovery folder — is ever listed or removed.
+ */
+const KEY_COPY = /^prefs\.json\.(?:corrupt-\d+|foreign-\d+|agent-dag-\d+-\d+\.tmp|\d+\.migrating)$/;
 
 /**
  * Every directory on this machine that may still hold one.
@@ -74,34 +91,45 @@ export function keyDirs({ env = process.env, home = homedir(), platform = proces
  */
 export async function findKeyFiles(dirs = keyDirs(), deps = {}) {
   const read = deps.readFile ?? readFile;
+  const list = deps.readdir ?? readdir;
   const out = [];
   for (const dir of dirs) {
-    const path = join(dir, KEY_FILE);
-    let raw;
-    try {
-      raw = await read(path, "utf8");
-    } catch (err) {
-      // Anything but "no such file" means there IS something there and this
-      // could not see into it, which is the "unknown" case with the read having
-      // failed rather than the parse.
-      if (err?.code === "ENOENT") continue;
-      out.push({ path, holds: "unknown", why: err?.message ?? String(err) });
-      continue;
-    }
-    try {
-      // The BOM, stripped by the rule settings.json, prefs.json and the
-      // browser-watch state are all read with: `JSON.parse` throws on one and
-      // a file Notepad saved is not damaged. This was a copy of it, spelled out
-      // while stripBom was private; it is exported now (atomic-write.mjs), so
-      // the rule has one spelling.
-      const parsed = JSON.parse(stripBom(String(raw)));
-      const secret = parsed?.lan?.secret;
-      out.push({ path, holds: typeof secret === "string" && secret !== "" ? "key" : "no-key", why: "" });
-    } catch (err) {
-      out.push({ path, holds: "unknown", why: err?.message ?? String(err) });
+    // prefs.json first, then its copies by name. A folder that cannot be
+    // listed still has prefs.json asked about, which reports anything but
+    // ENOENT as "unknown" below.
+    const copies = await list(dir).then(names => names.filter(n => KEY_COPY.test(n)).sort(), () => []);
+    for (const name of [KEY_FILE, ...copies]) {
+      const found = await keyFile(join(dir, name), read);
+      if (found) out.push(found);
     }
   }
   return out;
+}
+
+/** One candidate, as findKeyFiles lists it, or null when it is not there. */
+async function keyFile(path, read) {
+  let raw;
+  try {
+    raw = await read(path, "utf8");
+  } catch (err) {
+    // Anything but "no such file" means there IS something there and this
+    // could not see into it, which is the "unknown" case with the read having
+    // failed rather than the parse.
+    if (err?.code === "ENOENT") return null;
+    return { path, holds: "unknown", why: err?.message ?? String(err) };
+  }
+  try {
+    // The BOM, stripped by the rule settings.json, prefs.json and the
+    // browser-watch state are all read with: `JSON.parse` throws on one and
+    // a file Notepad saved is not damaged. This was a copy of it, spelled out
+    // while stripBom was private; it is exported now (atomic-write.mjs), so
+    // the rule has one spelling.
+    const parsed = JSON.parse(stripBom(String(raw)));
+    const secret = parsed?.lan?.secret;
+    return { path, holds: typeof secret === "string" && secret !== "" ? "key" : "no-key", why: "" };
+  } catch (err) {
+    return { path, holds: "unknown", why: err?.message ?? String(err) };
+  }
 }
 
 /**

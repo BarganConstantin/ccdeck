@@ -36,7 +36,7 @@ import {
   G, P, fileLink, printBanner, showCursor, step, takeCursor, tty, write,
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
-import { reportReady, reportRestarted, reportStartup, startupWork } from "./cli/startup.js";
+import { reportReady, reportRestarted, reportStartup, respawnHooks, startupWork } from "./cli/startup.js";
 import { restartLatch } from "./cli/restart.js";
 import { startPulse } from "./cli/pulse.js";
 import { settleSecondStart } from "./cli/second-start.js";
@@ -384,6 +384,8 @@ const starting = startServer({
 // banner it runs underneath. A respawn is the same session continuing, so it
 // skips the lot and prints one line instead. This is the difference between a
 // restart that feels instant and one that makes you wonder whether it worked.
+// The hooks are the exception, when the respawn runs a different package from
+// the one the session started on — see respawnHooks.
 if (!RESPAWN) {
   const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
   jobs.cswapQuiet.then(settleCswap);
@@ -391,6 +393,7 @@ if (!RESPAWN) {
   await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
 } else {
   settleCswap();
+  await respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
 }
 
 // Usually settled long ago by the time we get here, which is the point: `step`
