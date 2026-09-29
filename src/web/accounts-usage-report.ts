@@ -29,10 +29,9 @@
 //
 // AND AN AVERAGE PER WINDOW CANNOT SAY WHICH WINDOW HOLDS AN ACCOUNT BACK. An
 // account at 12% of its 5 hours and 100% of its week adds 88 points of "5h
-// available" that nobody can use. So the report also counts, per window, the
-// accounts the OTHER window has capped, and leads with how many accounts have
-// room in both — the panel's own "free" measure, which is the tighter of the
-// two.
+// available" that nobody can use. So the report leads with how many accounts
+// have room in both — the panel's own "free" measure, which is the tighter of
+// the two — and gives each row a state that names the spent window (#1713).
 //
 // Pure, so the suite can call it. The modal is components/AccountsUsageReport.tsx.
 import { accountIssue } from "./account-issue";
@@ -55,7 +54,15 @@ export type Unread = "none" | "login" | "stale" | "reset";
  *  number it last had, when it had one, for the row to show dimmed. */
 export type Cell =
   | { counted: true; pct: number; resetAt: number | null }
-  | { counted: false; why: Unread; say: string; last: number | null };
+  | {
+    counted: false; why: Unread; say: string; last: number | null;
+    /** What the windows' totals take for it (#1713): the last reading, or 0
+     *  for a window that has reset since it was read — that reading belongs to
+     *  the window before — and null when there has never been a reading. */
+    estimate: number | null;
+    /** Its reset, when the last reading had one still ahead. */
+    resetAt: number | null;
+  };
 
 export interface ReportRow {
   num: number;
@@ -67,6 +74,37 @@ export interface ReportRow {
    *  Switch to it, so the row says so. */
   heldOut: boolean;
   cells: Record<WindowId, Cell>;
+  /** What the row can do now — see statusOf. */
+  status: Status;
+}
+
+/**
+ * What an account can do now, from its two readings (#1713).
+ *
+ * Two questions, kept apart: can the readings be trusted, and then how many
+ * windows are spent. A reading that is not current — none, too old, a window
+ * reset since, a login no switch gets past — makes the row `stale`, whatever
+ * its last numbers were: an account is never called ready on a reading the
+ * report would not count. Otherwise it is `ready` with room in both windows,
+ * `limited` with one at 100%, and `exhausted` with both. Near a limit is not a
+ * state of its own; the row's number wears the warning ink instead.
+ */
+export type Status = "ready" | "limited" | "exhausted" | "stale";
+
+export function statusOf(cells: Record<WindowId, Cell>): Status {
+  const f = cells.five_hour, s = cells.seven_day;
+  if (!f.counted || !s.counted) return "stale";
+  const spent = Number(f.pct >= 100) + Number(s.pct >= 100);
+  return spent === 0 ? "ready" : spent === 1 ? "limited" : "exhausted";
+}
+
+/** Why a stale row is stale, in the words its first unread reading gives. */
+export function staleReason(cells: Record<WindowId, Cell>): string | null {
+  for (const w of REPORT_WINDOWS) {
+    const c = cells[w.id];
+    if (!c.counted) return c.say;
+  }
+  return null;
 }
 
 /** How old a reading may be and still count — the server's own line. */
@@ -76,18 +114,18 @@ export interface WindowTotal {
   id: WindowId;
   label: string;
   long: string;
-  /** Accounts with a reading that counts, and accounts in the report. */
+  /** Accounts with a current reading, accounts in the total — the current
+   *  ones and the stale ones at their last reading — and accounts in the
+   *  report. `total - included` have never been read. */
   reporting: number;
+  included: number;
   total: number;
-  /** The average of the counted readings, unrounded; null when none count.
-   *  Rounded once, where it is printed — see usedAndAvailable. */
+  /** The average over the accounts in the total, unrounded; null when none
+   *  has a number. Rounded once, where it is printed — see usedAndAvailable. */
   used: number | null;
-  /** The soonest reset still ahead among the counted readings: whose, at what
-   *  reading, and how many more accounts reset in the same minute. */
+  /** The soonest reset still ahead among the accounts in the total: whose, at
+   *  what reading, and how many more accounts reset in the same minute. */
   nextReset: { at: number; name: string; pct: number; more: number } | null;
-  /** Counted here, but at the limit of the OTHER window, so the room this
-   *  window shows for them cannot be used until that one resets. */
-  capped: number;
 }
 
 export interface UsageReport {
@@ -108,16 +146,20 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   // In the order a reader would fix them: a login that cannot be used says
   // more than the age of the numbers it left behind.
   const issue = accountIssue(a, nowSec);
-  if (issue?.blocksSwitch) return { counted: false, why: "login", say: issue.text, last };
-  if (last == null) return { counted: false, why: "none", say: `No ${label} reading`, last: null };
+  const lapsed = lane?.resetAt != null && lane.resetAt <= nowSec;
+  const unread = (why: Unread, say: string): Cell => ({
+    counted: false, why, say, last,
+    estimate: last == null ? null : lapsed ? 0 : last,
+    resetAt: lapsed ? null : lane?.resetAt ?? null,
+  });
+  if (issue?.blocksSwitch) return unread("login", issue.text);
+  if (last == null) return unread("none", `No ${label} reading`);
   const old = a.stale || a.fetchedAt == null || nowSec * 1000 - a.fetchedAt > REPORT_STALE_MS;
-  if (old) {
-    return { counted: false, why: "stale", say: a.fetchedAt ? `Last read ${ago(a.fetchedAt, nowSec)}` : "Never read", last };
-  }
-  if (lane!.resetAt != null && lane!.resetAt <= nowSec) {
+  if (old) return unread("stale", a.fetchedAt ? `Updated ${ago(a.fetchedAt, nowSec)}` : "Never read");
+  if (lapsed) {
     // Good news the numbers have not caught up with: the window has come back
     // since this was read, so the account is likely emptier than it says.
-    return { counted: false, why: "reset", say: `Reset ${ago(lane!.resetAt * 1000, nowSec)}, not read since`, last };
+    return unread("reset", `Reset ${ago(lane!.resetAt! * 1000, nowSec)}, not updated`);
   }
   return { counted: true, pct: last, resetAt: lane!.resetAt };
 }
@@ -127,31 +169,35 @@ const clamp = (pct: number) => Math.min(100, Math.max(0, pct));
 /** A window's total over the rows. */
 export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTotal {
   const w = REPORT_WINDOWS.find(x => x.id === id)!;
-  const other: WindowId = id === "five_hour" ? "seven_day" : "five_hour";
   let sum = 0;
   let count = 0;
-  let capped = 0;
+  let included = 0;
   let nextReset: WindowTotal["nextReset"] = null;
   for (const r of rows) {
     const c = r.cells[id];
-    if (!c.counted) continue;
-    sum += c.pct;
-    count++;
-    const o = r.cells[other];
-    if (o.counted && o.pct >= 100) capped++;
+    // EVERY ACCOUNT WITH A NUMBER IS IN THE TOTAL (#1713). Inactive accounts
+    // are read on claude-swap's own plan, which is often slower than the
+    // report's fifteen minutes, so a total of the fresh ones alone was a total
+    // of whichever few happened to be read lately. A stale one counts at its
+    // last reading and says so; the row still marks it Stale.
+    const pct = c.counted ? c.pct : c.estimate;
+    if (pct == null) continue;
+    sum += pct;
+    included++;
+    if (c.counted) count++;
     if (c.resetAt == null) continue;
     // "The same minute": resets are stamped to the second, and two accounts
     // coming back within one are one moment to a reader.
-    if (!nextReset || c.resetAt < nextReset.at - 59) nextReset = { at: c.resetAt, name: r.name, pct: c.pct, more: 0 };
+    if (!nextReset || c.resetAt < nextReset.at - 59) nextReset = { at: c.resetAt, name: r.name, pct, more: 0 };
     else if (c.resetAt - nextReset.at < 60) nextReset.more++;
   }
   return {
     id, label: w.label, long: w.long,
     reporting: count,
+    included,
     total: rows.length,
-    used: count ? sum / count : null,
+    used: included ? sum / included : null,
     nextReset,
-    capped,
   };
 }
 
@@ -161,22 +207,35 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
  * are the rows the reader already knows.
  */
 export function usageReport(accounts: readonly Account[], nowSec: number): UsageReport {
-  const rows: ReportRow[] = accounts.map(a => ({
-    num: a.num,
-    key: laneKey(a),
-    name: accountName(a),
-    active: a.active,
-    heldOut: a.disabled === true,
-    cells: {
+  const rows: ReportRow[] = accounts.map(a => {
+    const cells = {
       five_hour: readingOf(a, "five_hour", nowSec),
       seven_day: readingOf(a, "seven_day", nowSec),
-    },
-  }));
-  const roomInBoth = rows.filter(r => {
-    const f = r.cells.five_hour, s = r.cells.seven_day;
-    return f.counted && s.counted && f.pct < 100 && s.pct < 100;
-  }).length;
+    };
+    return {
+      num: a.num,
+      key: laneKey(a),
+      name: accountName(a),
+      active: a.active,
+      heldOut: a.disabled === true,
+      cells,
+      status: statusOf(cells),
+    };
+  });
+  // Counted off the rows' own status, so the lead's "7 of 9 ready" and the
+  // rows that say Ready cannot disagree.
+  const roomInBoth = rows.filter(r => r.status === "ready").length;
   return { rows, windows: REPORT_WINDOWS.map(w => windowTotal(rows, w.id)), roomInBoth };
+}
+
+/**
+ * A used percent as a whole number to print, which says 100 only at the limit
+ * (#1713). The states are decided on the unrounded reading, so 99.6% is room:
+ * Ready, and counted as ready. Rounded plainly it printed "100%" on that row,
+ * and "0% remaining" on a card whose lead said the account was ready.
+ */
+export function shownUsed(pct: number): number {
+  return pct >= 100 ? 100 : Math.min(99, Math.round(pct));
 }
 
 /**
@@ -185,7 +244,7 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
  * their own could print 27% used and 74% available.
  */
 export function usedAndAvailable(used: number): { used: number; available: number } {
-  const u = Math.round(used);
+  const u = shownUsed(used);
   return { used: u, available: 100 - u };
 }
 

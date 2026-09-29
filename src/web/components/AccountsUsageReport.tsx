@@ -1,12 +1,14 @@
-// The accounts panel's Usage report (#1707): the 5-hour and the 7-day quota
-// added up across every Claude account in the panel, and the rows it was
-// added up from.
+// The accounts panel's Account capacity report (#1707, reworked in #1713): how
+// many Claude accounts are ready now, what the 5-hour and the 7-day windows
+// have left across them, and each account's own reading and state.
 //
-// What counts, how it is averaged and why a reading is left out are
-// accounts-usage-report.ts's. This file draws it: two totals over a table, in
-// the Projects report's dialog shell — the same header, the same × that takes
-// focus on open, the same portal out of the panel — so the two reports opened
-// from this panel read as one family.
+// What counts, how it is averaged, why a reading is left out and what a row's
+// state is are accounts-usage-report.ts's. This file draws it, in the order a
+// glance needs: the accounts ready, then the two windows' capacity, then the
+// rows, then — folded away — how it is worked out. It keeps the Projects
+// report's dialog shell — the same × that takes focus on open, the same portal
+// out of the panel — so the two reports opened from this panel read as one
+// family.
 //
 // NOTHING HERE FETCHES. The rows are the panel's own roster, handed in on
 // every poll, and the countdowns run on the panel's clock, so an open report
@@ -22,98 +24,132 @@ import type { Account } from "../claude-accounts";
 import { resetCountdown } from "../relative-time";
 import { holdOrder } from "../other-accounts-order";
 import {
-  heldNote, usageReport, usedAndAvailable, type Cell, type ReportRow, type WindowTotal,
+  heldNote, REPORT_WINDOWS, shownUsed, staleReason, usageReport, usedAndAvailable,
+  type Cell, type ReportRow, type Status, type WindowTotal,
 } from "../accounts-usage-report";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
- *  70% and the error past 90%. */
+ *  70% used and the error past 90%. A warning, never a state — see statusOf. */
 function level(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/** Whose reset the card's countdown is, and what else comes back with it —
+ *  on hover, since the card says only when (#1713). */
+function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
+  const more = next.more > 0 ? `, and ${plural(next.more, "more account", "more accounts")} in the same minute` : "";
+  return `First: ${next.name} (${shownUsed(next.pct)}% used)${more}`;
+}
+
 /**
- * One window's total. AVAILABLE LEADS, because it is the question — how much
- * is left — and used, the same fact the other way round, follows it smaller,
- * in the rows' warning ink once it is high. Under them, one mark per counted
- * account in its fullness ink rather than a bar of the average: an average of
- * 56% is five empty accounts and five spent ones as readily as ten half-used
- * ones, and only the spread says which.
+ * One window's capacity. REMAINING, because a card is read for how much is
+ * left; the rows below keep what each account has USED, as the panel does,
+ * and both say which in words. The bar is the same remaining, continuous and
+ * quiet, and takes the warning ink only once the window runs low. It is an
+ * average, and an average can hide five spent accounts behind five fresh ones,
+ * which is why it sits under the count of accounts ready rather than above it.
  */
-function WindowSum({ w, rows, nowSec }: { w: WindowTotal; rows: readonly ReportRow[]; nowSec: number }) {
+function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   const id = `ap-report-${w.id}`;
+  const stale = w.included - w.reporting;
+  const never = w.total - w.included;
+  const basis = (stale > 0 || never > 0) && (
+    <p className="ap-report-basis">
+      {[
+        stale > 0 && `Includes ${plural(stale, "stale account", "stale accounts")} at the last reading`,
+        never > 0 && `${never} never read`,
+      ].filter(Boolean).join(" · ")}
+    </p>
+  );
   if (w.used == null) {
     return (
       <section className="ap-report-sum" aria-labelledby={id}>
-        <h3 className="ap-report-win" id={id}>{w.label}<span className="vis-hidden"> window</span></h3>
-        <p className="ap-report-none">No account has a current {w.long} reading.</p>
-        <p className="ap-report-count">0 of {plural(w.total, "account", "accounts")} counted</p>
+        <h3 className="ap-report-win" id={id}>{w.long} window</h3>
+        <p className="ap-report-none">No account has a {w.long} reading yet.</p>
+        {basis}
       </section>
     );
   }
   const { used, available } = usedAndAvailable(w.used);
   const reset = w.nextReset ? resetCountdown(w.nextReset.at, nowSec) : null;
-  const marks = rows.flatMap(r => { const c = r.cells[w.id]; return c.counted ? [c.pct] : []; });
   return (
     <section className="ap-report-sum" aria-labelledby={id}>
-      <h3 className="ap-report-win" id={id}>{w.label}<span className="vis-hidden"> window</span></h3>
-      <p className="ap-report-figs">
-        <span className="ap-report-avail"><b>{available}%</b> available</span>
-        <span className="ap-report-used" data-level={level(used)}><b>{used}%</b> used</span>
-      </p>
-      <div className="ap-report-strip" aria-hidden>
-        {marks.map((pct, i) => <i key={i} data-level={level(pct)} />)}
+      <h3 className="ap-report-win" id={id}>{w.long} window</h3>
+      <p className="ap-report-left"><b>{available}%</b> remaining</p>
+      <div className="ap-report-meter" data-level={level(used)} aria-hidden>
+        <i style={{ width: `${available}%` }} />
       </div>
-      <p className="ap-report-count">
-        {w.reporting} of {plural(w.total, "account", "accounts")} counted
-      </p>
-      {/* Room this window shows that the other one has already spent. */}
-      {w.capped > 0 && (
-        <p className="ap-report-capped">
-          {plural(w.capped, "of these is", "of these are")} at the limit of {w.capped === 1 ? "its" : "their"}
-          {" "}{w.id === "five_hour" ? "7d" : "5h"} window
-        </p>
-      )}
-      {/* The soonest reset, whose, and what it brings back: resets happen per
-          account, so there is no one moment the whole quota returns, and the
-          report does not invent one. Each account's own is in its row. */}
       {reset && w.nextReset && (
-        <p className="ap-report-reset">
-          Next reset in {reset} · <span className="ap-report-who" title={w.nextReset.name}>{w.nextReset.name}</span>
-          {" "}({Math.round(w.nextReset.pct)}%){w.nextReset.more > 0 ? ` and ${w.nextReset.more} more` : ""}
+        <p className="ap-report-reset" title={soonest(w.nextReset)}>
+          Resets in <span className="ap-report-num">{reset}</span>
+          {/* Whose, for the reader a hover never reaches. */}
+          <span className="vis-hidden">. {soonest(w.nextReset)}</span>
         </p>
       )}
+      {basis}
     </section>
   );
 }
 
-/** One account's reading of one window: the percent and when it resets, or,
- *  for a reading that is not in the total, the last number dimmed and why —
- *  never a zero it was not given. */
-function ReadingCell({ cell, nowSec, span }: { cell: Cell; nowSec: number; span?: number }) {
+/** One account's use of one window, and when it resets — or, for a reading
+ *  that is not in the totals, the last number dimmed, never a zero it was not
+ *  given. Why it is left out is the row's state to say, once. */
+function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
   if (!cell.counted) {
     return (
-      <td className="ap-report-cell" data-uncounted="" colSpan={span}>
-        <span className="ap-report-pct">{cell.last == null ? <span aria-hidden>—</span> : `${Math.round(cell.last)}%`}</span>
-        <span className="ap-report-why">{cell.say}<span className="vis-hidden">, not counted</span></span>
+      <td className="ap-report-cell" data-uncounted="">
+        <span className="ap-report-pct">
+          {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${shownUsed(cell.last)}%`}
+        </span>
+        <span className="vis-hidden">, not counted</span>
       </td>
     );
   }
   const reset = cell.resetAt != null ? resetCountdown(cell.resetAt, nowSec) : null;
   return (
     <td className="ap-report-cell">
-      <span className="ap-report-pct" data-level={level(cell.pct)}>{Math.round(cell.pct)}%</span>
+      <span className="ap-report-pct" data-level={level(cell.pct)}>{shownUsed(cell.pct)}%</span>
       {reset && <span className="ap-report-in"><span className="vis-hidden">resets in </span>{reset}</span>}
     </td>
   );
 }
 
+const STATE_WORD: Record<Status, string> = {
+  ready: "Ready",
+  limited: "Limited",
+  exhausted: "Exhausted",
+  stale: "Stale",
+};
+
+/** What the row can do now, as a mark and a word; a stale row also says why,
+ *  quietly, in the words its reading gave. */
+function StateCell({ row }: { row: ReportRow }) {
+  const why = row.status === "stale" ? staleReason(row.cells) : null;
+  return (
+    <td className="ap-report-state" data-status={row.status}>
+      <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
+      {why && <span className="ap-report-why">{why}</span>}
+    </td>
+  );
+}
+
+/** The disclosure's mark: drawn, in the stroke the deck's other glyphs use. */
+function InfoMark() {
+  return (
+    <svg className="ap-report-how-mark" viewBox="0 0 16 16" width="12" height="12" aria-hidden focusable="false">
+      <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 7.2v4.1M8 4.8v.1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /**
- * What the dialog holds: the lead, the two totals, the rows, and how they add
- * up. Its own component so the suite can draw it — a portal has no server
- * render.
+ * What the dialog holds: the accounts ready, the two windows' capacity, the
+ * rows, and how they add up. Its own component so the suite can draw it — a
+ * portal has no server render.
  */
 export function UsageReportBody({ accounts, nowSec, held }: {
   accounts: readonly Account[];
@@ -130,50 +166,66 @@ export function UsageReportBody({ accounts, nowSec, held }: {
     // deck's own — it invents no tab stops (canvas-keyboard.test.ts).
     <div className="ap-proj-body ap-report-body" role="region" aria-label="Report">
       {held && <p className="ap-report-held">{held}</p>}
-      {/* The question a reader brings, answered first: how many accounts can
-          be worked on now — room in both windows, the panel's own "free". */}
-      <p className="ap-report-lead">
-        <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} {report.roomInBoth === 1 ? "has" : "have"} room
-        in both windows
-      </p>
+      {/* The question a reader brings, answered first and loudest: how many
+          accounts can be worked on now. The same count as the rows that say
+          Ready, by construction. */}
+      <div className="ap-report-ready">
+        <p className="ap-report-lead">
+          <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} ready
+        </p>
+        <p className="ap-report-lead-sub">Available in both usage windows</p>
+      </div>
       <div className="ap-report-sums">
-        {report.windows.map(w => <WindowSum key={w.id} w={w} rows={report.rows} nowSec={nowSec} />)}
+        {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
 
       <table className="ap-report-table">
-        <caption className="vis-hidden">Each account's reading, which the totals above are the average of</caption>
+        <caption className="vis-hidden">Each account's use of each window, and what it can do now</caption>
+        <colgroup>
+          <col />
+          {REPORT_WINDOWS.map(w => <col key={w.id} className="ap-report-col-win" />)}
+          <col className="ap-report-col-state" />
+        </colgroup>
         <thead>
           <tr>
-            <th scope="col" className="ap-report-acct-h">Account</th>
-            {report.windows.map(w => <th key={w.id} scope="col">{w.label}</th>)}
+            <th scope="col">Account</th>
+            {REPORT_WINDOWS.map(w => <th key={w.id} scope="col">{w.label} used</th>)}
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
-          {report.rows.map(r => {
-            const f = r.cells.five_hour, s = r.cells.seven_day;
-            // A login that blocks both windows is one fact, said once.
-            const oneLogin = !f.counted && !s.counted && f.why === "login" && s.why === "login";
-            return (
-              <tr key={r.num} data-active={r.active ? "" : undefined}>
-                <th scope="row" className="ap-report-acct" title={r.name}>
-                  {r.active && <span className="ap-live" aria-hidden />}
-                  {r.name}
-                  {r.active && <span className="vis-hidden"> (active)</span>}
+          {report.rows.map(r => (
+            <tr key={r.num} data-active={r.active ? "" : undefined}>
+              <th scope="row" className="ap-report-acct">
+                <span className="ap-report-acct-in">
+                  <span className="ap-report-name" title={r.name}>{r.name}</span>
+                  {r.active && <span className="ap-report-current">Current</span>}
                   {r.heldOut && <span className="ap-report-tag">held out</span>}
-                </th>
-                {oneLogin
-                  ? <ReadingCell cell={{ ...f, last: null }} nowSec={nowSec} span={2} />
-                  : report.windows.map(w => <ReadingCell key={w.id} cell={r.cells[w.id]} nowSec={nowSec} />)}
-              </tr>
-            );
-          })}
+                </span>
+              </th>
+              {REPORT_WINDOWS.map(w => <UsedCell key={w.id} cell={r.cells[w.id]} nowSec={nowSec} />)}
+              <StateCell row={r} />
+            </tr>
+          ))}
         </tbody>
       </table>
 
-      <p className="ap-report-note">
-        Each counted account is one full window and <b>used</b> is their average — the deck is never
-        told a limit, so there is no total in tokens or dollars.
-      </p>
+      <details className="ap-report-how">
+        <summary><InfoMark />How usage is calculated</summary>
+        <div className="ap-report-how-body">
+          <p>
+            Each account is one full window, and <b>used</b> is their average; <b>remaining</b> is the
+            rest. A stale account counts at its last reading, and a window that has reset since as
+            unused; an account never read is left out. The deck is never told a limit, so there is no
+            total in tokens or dollars.
+          </p>
+          <p>
+            <b>Ready</b> has room in both windows. <b>Limited</b> has reached the limit of one,
+            and <b>Exhausted</b> of both. <b>Stale</b> has a reading that is not current, so it is
+            dimmed and never called ready.
+          </p>
+        </div>
+      </details>
     </div>
   );
 }
@@ -207,7 +259,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
         role="dialog" aria-modal="true" aria-labelledby="ap-report-title ap-report-sub">
         <header className="ap-proj-head">
           <div className="ap-proj-titlewrap">
-            <h2 className="ap-proj-title" id="ap-report-title">Usage report</h2>
+            <h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>
             <div className="ap-proj-sub" id="ap-report-sub">
               {plural(count, "Claude account", "Claude accounts")}
             </div>
