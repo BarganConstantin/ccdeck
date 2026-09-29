@@ -48,6 +48,24 @@ describe("the environment the new version starts with", () => {
     });
   });
 
+  it("drops older mounts of the same AppImage that earlier relaunches left in the lists", () => {
+    // What an app seen after a few self-updates carried: its own mount, and
+    // two from versions before it that no longer existed.
+    const old1 = "/tmp/.mount_ccdeckaNAIMh", old2 = "/tmp/.mount_ccdeckNGdDEL";
+    const env = relaunchEnv({
+      APPDIR: MOUNT,
+      XDG_DATA_DIRS: `${MOUNT}/usr/share/:${old1}/usr/share/:${old2}/usr/share/:/usr/share/ubuntu:/usr/share/`,
+      LD_LIBRARY_PATH: `${MOUNT}/usr/lib:${old1}/usr/lib:${old2}/usr/lib`,
+      GSETTINGS_SCHEMA_DIR: `${MOUNT}/usr/share/glib-2.0/schemas:${old1}/usr/share/glib-2.0/schemas:${old2}/usr/share/glib-2.0/schemas`,
+      // Another AppImage's mount is not this one's to take out.
+      PATH: `${MOUNT}:/tmp/.mount_OtherAXyZ12/usr/bin:/usr/bin`,
+    });
+    expect(env).toEqual({
+      XDG_DATA_DIRS: "/usr/share/ubuntu:/usr/share/",
+      PATH: "/tmp/.mount_OtherAXyZ12/usr/bin:/usr/bin",
+    });
+  });
+
   it("does not let XDG_DATA_DIRS grow by AppRun's share dirs on every update", () => {
     // AppRun appends these three each time it runs, so after two updates the
     // list carries them twice, behind the mount's own entry.

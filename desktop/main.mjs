@@ -26,6 +26,8 @@ import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
+import { canRestartForTray, MISSES_BEFORE_RESTART, trayMissesNext, trayPresence } from "./tray-presence.mjs";
+import { restartApp } from "./relaunch-linux.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -40,7 +42,13 @@ function deckRoot() {
 }
 
 // ── one app per machine ─────────────────────────────────────────────────────
-if (!app.requestSingleInstanceLock()) {
+// The copy that finds one already running has handed it its launch by the
+// time the lock is refused — "second-instance" opens that one's window — and
+// only has to leave. It must start nothing on the way: quitting before ready
+// does not stop `ready` from firing, and a startup run here drew a tray icon
+// of its own that the panel showed as "…" until the copy was gone (#1725).
+const primary = app.requestSingleInstanceLock();
+if (!primary) {
   app.quit();
 } else {
   app.on("second-instance", () => openWindow());
@@ -127,6 +135,33 @@ function scheduleRedraw() {
     tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
     tray.setContextMenu(buildMenu());
   }, 150);
+}
+
+/**
+ * Linux: every half minute, ask the panel whether it still holds this app's
+ * icon (#1630). A registration that fails once leaves the app with an icon
+ * only it can see for as long as it runs, and only a new process registers
+ * again — so a lost icon is counted here, and updateWhenQuiet restarts the app
+ * at its next quiet spell. See tray-presence.mjs.
+ */
+let trayMisses = 0;
+let trayRestartAt = null;         // the last restart for the icon's sake, from desktop-state.json
+let trayBackAfterRestart;         // whether the icon has been seen since then
+function watchTray() {
+  if (process.platform !== "linux") return;
+  ({ trayRestartAt = null, trayBackAfterRestart } = desktopState.read());
+  setInterval(async () => {
+    const present = await trayPresence();
+    const before = trayMisses;
+    trayMisses = trayMissesNext(trayMisses, present);
+    if (before < MISSES_BEFORE_RESTART && trayMisses >= MISSES_BEFORE_RESTART) {
+      trace("the panel holds no tray icon of this app's; restarting at the next quiet spell");
+    }
+    if (present === true && trayBackAfterRestart === false) {
+      trayBackAfterRestart = true;
+      try { desktopState.merge({ trayBackAfterRestart }); } catch { /* asked again at the next check */ trayBackAfterRestart = false; }
+    }
+  }, 30_000);
 }
 
 // ── the deck ────────────────────────────────────────────────────────────────
@@ -662,6 +697,7 @@ async function offerToReplaceLoginItem() {
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  if (!primary) return;
   installNotificationAudioIpc();
   setRegular(false);
   updateNoticeVersion = desktopState.read().readyUpdateNoticeVersion ?? null;
@@ -671,6 +707,7 @@ app.whenReady().then(async () => {
   tray.setContextMenu(buildMenu());
   // Windows and Linux: a left click opens the window, the menu is on the right.
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
+  watchTray();
   updater = createUpdater({
     app,
     onChange: s => {
@@ -700,8 +737,15 @@ app.whenReady().then(async () => {
   // The status pages, every five minutes while there is work going on — see
   // statusWorthAsking.
   setInterval(() => { if (statusWorthAsking(snapshot)) refreshProviderStatus(); }, 5 * 60_000);
-  // Nobody asked for this one — see openWindow's own doc on `steal`.
-  if (deck) openWindow(false);
+  // Nobody asked for this one — see openWindow's own doc on `steal`. After a
+  // restart the app made by itself, only if the window was open before it: an
+  // open window is a page, and the deck holds its notifications while a page
+  // is open, so one put back that nobody had open would silence them.
+  const { windowOpenAtSelfRestart } = desktopState.read();
+  if (windowOpenAtSelfRestart !== undefined) {
+    try { desktopState.merge({ windowOpenAtSelfRestart: undefined }); } catch { /* read once more at the next start */ }
+  }
+  if (deck && windowOpenAtSelfRestart !== false) openWindow(false);
   await firstRun();
   await offerToReplaceLoginItem().catch(err => trace(`login item check failed: ${err?.message ?? err}`));
 });
@@ -715,19 +759,52 @@ app.whenReady().then(async () => {
  * clock of its own.
  */
 function updateWhenQuiet() {
+  // A Quit being carried out, while its deck shuts down, is not a quiet spell.
+  if (quitting) return;
   const where = {
     windowFocused: !!win && !win.isDestroyed() && win.isFocused(),
     busy: !!starting || !!restarting,
     now: Date.now(),
   };
   quietSince = quietSinceNext(quietSince, where);
-  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", quietSince, ...where })) return;
+  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", quietSince, ...where })) {
+    restartForTrayWhenQuiet(where);
+    return;
+  }
   trace(`installing ${updater.state.version} by itself after a quiet spell`);
   quietSince = null;
+  try { desktopState.merge({ windowOpenAtSelfRestart: windowOpen() }); } catch { /* the window opens, as it always did */ }
   updater.restartNow();
 }
 
-app.on("activate", () => openWindow());
+/** Whether the window is up now, for a restart the app makes by itself to
+ *  put back as it was. */
+function windowOpen() {
+  return !!win && !win.isDestroyed() && win.isVisible();
+}
+
+/** The same quiet, spent on a tray icon the panel has lost (#1630): a restart
+ *  is the one thing that registers it again — see watchTray. An update that
+ *  is ready goes first, above, and brings the icon back on its own way. */
+function restartForTrayWhenQuiet(where) {
+  const updateStatus = updater?.state.status ?? "idle";
+  if (!canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, backAfterRestart: trayBackAfterRestart, updateStatus, quietSince, ...where })) return;
+  trayRestartAt = where.now;
+  // Written down before going, or the next process would not know about this
+  // restart: the six hours between two, and whether it brought the icon back,
+  // would not hold across them.
+  try {
+    desktopState.merge({ trayRestartAt, trayBackAfterRestart: false, windowOpenAtSelfRestart: windowOpen() });
+  } catch (err) {
+    trace(`not restarting for the tray icon: ${err?.message ?? err}`);
+    return;
+  }
+  trace("restarting by itself after a quiet spell, to put the tray icon back");
+  quietSince = null;
+  restartApp(app);
+}
+
+app.on("activate", () => { if (primary) openWindow(); });
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
