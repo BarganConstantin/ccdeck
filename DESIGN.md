@@ -126,7 +126,8 @@ components:
 # ccdeck design system
 
 Extracted from `src/web/styles.css` on 2026-09-26, revised 2026-09-27 after review.
-The stylesheet is the single source of truth — one file, 14.8k lines, with its
+The stylesheet is the single source of truth — `styles.css` and the parts it
+imports from `src/web/styles/`, in cascade order, 15k lines, with its
 reasoning written inline. **When this file and the stylesheet disagree, the
 stylesheet is right and this file is stale.**
 
@@ -608,7 +609,7 @@ are literals today.
 **Do**
 
 - Take colour from a token. If a value needs a new tier, add the tier to
-  `styles.css` in both theme blocks and let the contrast tests judge it.
+  `styles/tokens.css` in both theme blocks and let the contrast tests judge it.
 - Monospace every value and give every live number `tabular-nums`; leave sentences
   in the sans stack.
 - Give every state a mark **and** a word.
