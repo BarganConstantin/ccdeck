@@ -19,6 +19,7 @@
 // already loaded the page and sent the user's cookies. Closing it is cleanup.
 // The session that opened it is still attached and can still read every other
 // tab. Only quitting takes anything back.
+import { homedir } from "node:os";
 import { run } from "./exec.mjs";
 import { notificationsVetoed } from "./deck-prefs.mjs";
 // The one table of process names, shared with the presence probe so the reaction
@@ -26,7 +27,10 @@ import { notificationsVetoed } from "./deck-prefs.mjs";
 // and, with it, the two questions that table cannot answer on its own: which
 // browsers this platform cannot tell apart by name, and where each of those is
 // installed.
-import { installMarker, processName, sharesProcessName } from "./browser-presence.mjs";
+import { installMarker, processName, rootOwner, sharesProcessName } from "./browser-presence.mjs";
+// Where each browser keeps its profiles, which on Linux is where the lock that
+// names its process is (see quitLinux).
+import { browserRoots } from "./browser-profiles.mjs";
 
 /** Reactions this platform can actually carry out, in the order the panel
  *  should offer them. Never a list the caller has to filter again. */
@@ -251,8 +255,39 @@ export async function quitBrowser(browserKey, platform = process.platform, deps 
   const proc = processName(browserKey, platform);
   if (!proc) return { ok: false, reason: "unknown_browser" };
   if (platform === "win32") return await quitWindows(browserKey, proc, exec);
-  const r = await exec("pkill", ["-x", proc]).catch(() => null);
-  return { ok: r?.ok === true, reason: r?.ok ? "quit" : "pkill_failed" };
+  return await quitLinux(browserKey, platform, exec, deps);
+}
+
+/**
+ * Quit a browser on Linux — the one process holding the profile, and no other.
+ *
+ * WHAT THIS USED TO BE (#1752): `exec("pkill", ["-x", proc])`. Chrome, Chrome
+ * Beta and Chrome Canary all run as `chrome`, and so does every Playwright or
+ * Puppeteer browser, headless or not — so a finding in one Chrome sent SIGTERM
+ * to all three channels and to whatever test run was in progress, and the feed
+ * said it had quit "the browser". The Windows leg was narrowed for the same
+ * collision in #1028; this one never asked.
+ *
+ * Now it asks the profile. `rootOwner` reads the lock the browser keeps in its
+ * user-data root and checks the process it names, and only that pid is sent
+ * SIGTERM — still the polite signal, which Chrome answers by saving its
+ * session. When it cannot name that process it does nothing and says why. It
+ * does not fall back to the name, as the Windows leg can: on this platform the
+ * name is exactly the thing that reaches the wrong browsers, and a reaction that
+ * quit a test run or a second Chrome is worse than one that reports it could
+ * not act.
+ *
+ * `deps.home` and `deps.env` say where the roots are, for a test; the deck's own
+ * are the ones its profiles were read from.
+ */
+async function quitLinux(browserKey, platform, exec, deps) {
+  const root = browserRoots(platform, deps.env ?? process.env, deps.home ?? homedir())
+    .find(r => r.key === browserKey)?.root;
+  if (!root) return { ok: false, reason: "unknown_browser" };
+  const owner = await rootOwner(root, deps);
+  if (owner.pid === null) return { ok: false, reason: owner.reason };
+  const r = await exec("kill", ["-TERM", String(owner.pid)]).catch(() => null);
+  return { ok: r?.ok === true, reason: r?.ok ? "quit" : "kill_failed" };
 }
 
 /**
@@ -339,7 +374,7 @@ export function pickInstallPids(json, marker) {
  * `/F` is TerminateProcess. It is not a request and nothing gets to refuse it:
  * no beforeunload, no session write, no "restore pages?" on the next launch.
  * The other two legs of this same function are graceful — macOS sends the
- * AppleScript `quit`, Linux sends SIGTERM through `pkill -x` — so Windows was
+ * AppleScript `quit`, Linux sends SIGTERM — so Windows was
  * the one platform where arming this reaction meant losing whatever was typed
  * into every open form. Without `/F`, taskkill posts WM_CLOSE, which is the
  * Windows spelling of the same polite request the other two legs make, and

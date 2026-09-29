@@ -25,6 +25,7 @@ import { describe, it, expect } from "vitest";
 const { processName, isRunning } = await import("../../server/browser-presence.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { quitBrowser, notify } = await import("../../server/browser-react.mjs");
+const { linuxMachine } = await import("./linux-browser-fixture");
 
 type Call = { cmd: string; args: string[]; opts?: { env?: Record<string, string> } };
 const recorder = (result: unknown = { ok: true, stdout: "", stderr: "" }) => {
@@ -90,9 +91,19 @@ describe("quitting a browser", () => {
     expect(win.calls[0].cmd.toLowerCase()).toContain("powershell");
     expect(win.calls[0].args.at(-1)).toContain("Get-Process -Name chrome");
 
-    const lin = recorder();
-    await quitBrowser("edge", "linux", { run: lin.run });
-    expect(lin.calls[0]).toMatchObject({ cmd: "pkill", args: ["-x", "msedge"] });
+    // On Linux the table's name is what the pid in the profile's lock has to
+    // turn out to be before it is signalled (#1752), and no name is ever
+    // handed to a signal. The machine is held in memory, so no real lock is read.
+    const lin = linuxMachine();
+    lin.started(4242, ["/opt/microsoft/msedge/msedge"]);
+    lin.lock(".config/microsoft-edge", 4242);
+    await quitBrowser("edge", "linux", lin.deps);
+    expect(lin.calls).toEqual([{ cmd: "kill", args: ["-TERM", "4242"] }]);
+    const wrongName = linuxMachine();
+    wrongName.started(4242, ["/opt/microsoft/msedge/msedge"], "Microsoft Edge");
+    wrongName.lock(".config/microsoft-edge", 4242);
+    await quitBrowser("edge", "linux", wrongName.deps);
+    expect(wrongName.calls).toEqual([]);
   });
 
   it("refuses a browser this platform has no name for", async () => {

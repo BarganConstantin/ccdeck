@@ -26,7 +26,9 @@
 // this platform). There is deliberately no state that means "definitely not
 // connected", because nothing here can establish that.
 import { existsSync } from "node:fs";
-import { basename } from "node:path";
+import { readFile, readlink } from "node:fs/promises";
+import { hostname } from "node:os";
+import { basename, posix } from "node:path";
 import { browserRoots, hasExtension, profileDirs } from "./browser-profiles.mjs";
 import { run } from "./exec.mjs";
 
@@ -158,6 +160,81 @@ const WIN_INSTALL_DIR = {
 export const installMarker = (key, platform = process.platform) =>
   platform === "win32" ? (WIN_INSTALL_DIR[key] ?? null) : null;
 
+/**
+ * The process holding a Chromium user-data root, on Linux, or why none can be
+ * named.
+ *
+ * -> { pid } | { pid: null, reason: "not_running" | "other_host" | "unverified" }
+ *
+ * THE BROWSER SAYS WHICH PROCESS OWNS ITS PROFILE, and nothing else here can
+ * (#1752). Chrome, Chrome Beta and Chrome Canary are all `chrome` to `pgrep -x`
+ * and `pkill -x` — the table above collides three ways on it — and so is every
+ * Playwright or Puppeteer browser, headless or not, each started with a
+ * `--user-data-dir` of its own. A name answers for all of them at once. What
+ * answers for one is the lock every Chromium browser keeps in its user-data
+ * root while it runs: `SingletonLock`, a symlink to `<host>-<pid>` naming the
+ * one process holding that root. Only one can, because the lock is how the
+ * browser refuses to open a profile twice.
+ *
+ * THE LOCK IS CHECKED BEFORE IT IS BELIEVED. It outlives a browser that
+ * crashed, and the pid it names can come round again as anything, so the
+ * process is looked up in /proc and the answer is a pid only when:
+ *
+ *   * the lock was taken on this host — a home on a network share can hold
+ *     another machine's lock, and its pid means nothing here;
+ *   * the process is named as one of the browsers in the Linux table;
+ *   * it is a browser's main process: no `--type=`, which every renderer, GPU
+ *     and utility process carries;
+ *   * it is not headless, which is what an automation run looks like;
+ *   * and a `--user-data-dir` it was started with names this root. None means
+ *     the channel's default root, which is the one the lock is in.
+ *
+ * Anything else is `unverified`, and the caller does nothing with it: a
+ * process this cannot attribute is one it must not signal. A Flatpak browser
+ * lands there, since its lock carries a pid from its own pid namespace.
+ * `not_running` is no lock, or a lock whose process is gone — which is also
+ * what a system without /proc reads as, and that too does nothing.
+ *
+ * `deps` takes `readlink`, `readFile`, `procRoot` and `hostname`, so every case
+ * of this is checkable without a browser, a /proc or a lock on the machine.
+ */
+export async function rootOwner(root, deps = {}) {
+  const link = deps.readlink ?? readlink;
+  const read = deps.readFile ?? readFile;
+  const proc = deps.procRoot ?? "/proc";
+  let target;
+  try { target = String(await link(posix.join(root, "SingletonLock"))); }
+  catch { return { pid: null, reason: "not_running" }; }
+  // The host may itself contain dashes; the pid is the digits after the last.
+  const m = /^(.*)-(\d+)$/.exec(target);
+  if (!m) return { pid: null, reason: "unverified" };
+  if (m[1] !== (deps.hostname ?? hostname)()) return { pid: null, reason: "other_host" };
+  const pid = Number(m[2]);
+  if (!Number.isSafeInteger(pid) || pid <= 1) return { pid: null, reason: "unverified" };
+
+  let comm, argv;
+  try {
+    comm = String(await read(posix.join(proc, String(pid), "comm"), "utf8")).trim();
+    argv = String(await read(posix.join(proc, String(pid), "cmdline"), "utf8")).split("\0").filter(Boolean);
+  } catch (err) {
+    return { pid: null, reason: err?.code === "ENOENT" ? "not_running" : "unverified" };
+  }
+  if (!LINUX_BROWSER_NAMES.has(comm)) return { pid: null, reason: "unverified" };
+  if (argv.some(a => a.startsWith("--type=") || a === "--headless" || a.startsWith("--headless="))) {
+    return { pid: null, reason: "unverified" };
+  }
+  const flag = argv.find(a => a.startsWith("--user-data-dir="));
+  if (flag !== undefined && posix.resolve(flag.slice("--user-data-dir=".length)) !== posix.resolve(root)) {
+    return { pid: null, reason: "unverified" };
+  }
+  return { pid };
+}
+
+/** Every name the Linux table gives a browser's process. Any of them, not only
+ *  the root's own: the check is that the pid is a browser at all, and the lock
+ *  is what says which one. */
+const LINUX_BROWSER_NAMES = new Set(Object.values(APP_NAME.linux));
+
 /** Every address the relay currently resolves to.
  *
  *  Empty is not an error — a machine with no `dig`, or one where the name is
@@ -188,6 +265,25 @@ export async function isRunning(app, platform = process.platform, deps = {}) {
   if (out === null) return null;
   if (out.ok) return true;
   return String(out.stderr ?? "").trim() === "" ? false : null;
+}
+
+/**
+ * Whether one browser root's browser is running.
+ *
+ * By name, except where the name is shared (#1752): on Linux, `pgrep -x chrome`
+ * answers yes for Chrome Beta whenever stable Chrome or any Playwright browser
+ * is up. There the answer is whether a process holds the root's own lock —
+ * the same test the quit reaction makes before it signals anything, so the
+ * panel and the reaction cannot disagree about which Chrome is running. A lock
+ * that cannot be checked is "cannot tell", not "no".
+ */
+async function runningHere(root, app, platform, deps) {
+  if (platform === "win32" || platform === "darwin" || sharesProcessName(root.key, platform).length === 0) {
+    return await isRunning(app, platform, deps);
+  }
+  const owner = await rootOwner(root.root, deps);
+  if (owner.pid !== null) return true;
+  return owner.reason === "not_running" ? false : null;
 }
 
 /**
@@ -254,7 +350,7 @@ export async function browserSurvey({
     const installed = exists(root.root);
     const profiles = installed ? profileDirs(root.root, deps.fs) : [];
     const app = processName(root.key, platform);
-    const running = installed && app ? await isRunning(app, platform, deps) : false;
+    const running = installed && app ? await runningHere(root, app, platform, deps) : false;
     out.push({
       key: root.key,
       name: root.name,
