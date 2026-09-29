@@ -35,7 +35,7 @@
 // not happened yet; a refresh token that has left this machine is gone, and the
 // only real revocation is a re-login at Anthropic, which kills the session on
 // every machine at once.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { checkedLabel, deckRows, entryLine, rowSource, sectionState, viewRows } from "../lan-roster";
 import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
@@ -48,6 +48,7 @@ import LanAsks from "./LanAsks";
 import LanDeckList from "./LanDeckList";
 import LanDiscoveryNotes from "./LanDiscoveryNotes";
 import LanEntryRow from "./LanEntryRow";
+import LanNetworkMap from "./LanNetworkMap";
 import LanPeerModal from "./LanPeerModal";
 import LanSetupModal from "./LanSetupModal";
 import LanViewHeader from "./LanViewHeader";
@@ -111,12 +112,19 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  deck that changes kind under it, asked and then paired, stays open on the
    *  same machine. */
   const [peerOpen, setPeerOpen] = useState<string | null>(null);
+  /** The network map, over whichever of the two presentations opened it.
+   *  A deck's own dialog opens over the map rather than instead of it, so
+   *  closing that dialog lands back on the picture it was opened from. */
+  const [mapOpen, setMapOpen] = useState(false);
 
   const on = status?.enabled === true;
   // Invite-only has no actionable manual pairing requests, including during
   // the brief interval before a refreshed engine status reaches this panel.
-  const rows = deckRows(status?.pairingMode === "invite" && status
-    ? { ...status, pending: [] } : status, now);
+  // Memoised on the two things it reads, so the network map — which lays
+  // every deck out from these rows — is not asked to again on a render that
+  // changed neither.
+  const rows = useMemo(() => deckRows(status?.pairingMode === "invite" && status
+    ? { ...status, pending: [] } : status, now), [status, now]);
   // The deck whose dialog is open, found again in every poll's rows. When it
   // is gone — unpaired and not heard since, or an address whose answer just
   // gave it an identity — the dialog closes rather than drawing a machine that
@@ -170,6 +178,18 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
         />
       )}
 
+      {mapOpen && (
+        <LanNetworkMap
+          status={status}
+          rows={rows}
+          accounts={accounts}
+          now={now}
+          covered={!!openRow || setupOpen || !!addOpen || guideOpen}
+          onOpenDeck={setPeerOpen}
+          onClose={() => setMapOpen(false)}
+        />
+      )}
+
       {openRow && status && (
         <LanPeerModal
           row={openRow}
@@ -211,7 +231,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   if (!view) {
     return (
       <div className="ap-foot">
-        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} {...hoverPeek} />
+        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} onMap={on ? () => setMapOpen(true) : undefined} {...hoverPeek} />
         <p className="vis-hidden" role="status">{state.tone === "ok" ? "" : state.text}</p>
         {modals}
       </div>
@@ -225,7 +245,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   return (
     <div className="ap-lan-view">
       <LanViewHeader on={on} status={status} paired={paired} busy={busy} pressProps={pressProps}
-        checkNow={checkNow} setAddOpen={setAddOpen} setSetupOpen={setSetupOpen} onBack={onBack}
+        checkNow={checkNow} setAddOpen={setAddOpen} setSetupOpen={setSetupOpen} setMapOpen={setMapOpen} onBack={onBack}
         closeButton={closeButton} />
       <div className="ap-scroll" id="ap-lan-scroll">
         <div className="ap-lan">

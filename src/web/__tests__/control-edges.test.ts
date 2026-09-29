@@ -601,6 +601,14 @@ const CONTROLS: Control[] = [
     states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
+  // The network map's way in, over Local network's row, on the same terms as
+  // the two above: no boundary at rest, an edge under the pointer and the
+  // keyboard, measured on the column's foot.
+  { at: ".ap-lan-map:hover", fillFrom: ".ap-lan-map:hover",
+    states: [".ap-lan-map:focus-visible"], beds: ["--panel"] },
+  // A deck on the network map: a disc that is a control at rest, so its edge
+  // is the control edge, measured on the stage's ground it floats over.
+  { at: ".nm-node", fillFrom: ".nm-node", states: [".nm-node[data-on]"], beds: ["--bg"] },
   { at: ".ap-lan-who .ap-manage-btn.danger:hover:not(:disabled)",
     fillFrom: ".ap-lan-who .ap-manage-btn.danger:hover:not(:disabled)",
     states: [
@@ -797,8 +805,11 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
     // The ceiling moved from 96 to 100 with #1579's two quiet controls, which
-    // are controls gaining an edge under the pointer, four rules between them.
-    expect(EDGED_CONTROLS.length).toBeLessThan(100);
+    // are controls gaining an edge under the pointer, four rules between them,
+    // and from 100 to 104 with the network map's two: its way in, which gains
+    // one under the pointer and the keyboard, and its decks, which draw one at
+    // rest and a louder one while looked at.
+    expect(EDGED_CONTROLS.length).toBeLessThan(104);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

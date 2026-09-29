@@ -273,8 +273,9 @@ describe("the deck's ten overlays", () => {
     // The sixteenth is the guide — the two picture tours share one dialog —
     // and the seventeenth is a deck's own dialog, opened from its row in
     // Local network. The nineteenth is the accounts panel's Usage report
-    // (#1707), which adds every account's 5h and 7d up.
-    expect(MODALS.length).toBe(19);
+    // (#1707), which adds every account's 5h and 7d up. The twentieth is the
+    // network map, opened from Local network's row and its view's header.
+    expect(MODALS.length).toBe(20);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -326,6 +327,9 @@ describe("the deck's ten overlays", () => {
       // pressed `+ add a deck` holding either an address or a token and only
       // one of the two is a field they can start typing into.
       "LanAddDeckModal.tsx",
+      // The network map names its ×: it is opened to be looked at, and its
+      // first control is a deck on the ring, which a stray Enter would open.
+      "LanNetworkMap.tsx",
       // The pair request names Decline for the reason the clear prompt names
       // Cancel: a dialog that arrives on its own must not put the answer that
       // shares a login under whatever key is pressed next.

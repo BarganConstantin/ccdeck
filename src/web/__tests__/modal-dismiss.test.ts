@@ -186,6 +186,9 @@ describe("the modals themselves", () => {
       // question of every file in this list.
       "KeyboardHelp.tsx",
       "LanAddDeckModal.tsx",
+      // The network map, opened from Local network's row and its view's
+      // header — named here for the same reason as the shortcuts sheet.
+      "LanNetworkMap.tsx",
       "LanPairRequestModal.tsx",
       // A deck's own dialog, opened from its row in the LAN section — named
       // here for the same reason as the shortcuts sheet above.

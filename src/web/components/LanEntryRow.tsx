@@ -10,15 +10,19 @@
 // each thing that can happen to it asks of the peek.
 import type { DeckRow, entryLine } from "../lan-roster";
 import { PEEK_DELAY_MS, type useHoverPeek } from "../use-hover-peek";
+import { MapGlyph } from "./LanNetworkMap";
 import LanPeek from "./LanPeek";
 
-export default function LanEntryRow({ entry, rows, onOpen, peek, openPeek, shutPeek, holdPeek, dropPeek }: {
+export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek, shutPeek, holdPeek, dropPeek }: {
   /** What the row says: entryLine, from the same rows the list is drawn from. */
   entry: ReturnType<typeof entryLine>;
   /** The rows the peek names. */
   rows: DeckRow[];
   /** The row was pressed: give the section the column. */
   onOpen: () => void;
+  /** Open the network map — absent while this deck is off the network, when
+   *  the map would be one machine and a sentence saying so. */
+  onMap?: () => void;
 } & ReturnType<typeof useHoverPeek>) {
   return (
     <>
@@ -65,6 +69,17 @@ export default function LanEntryRow({ entry, rows, onOpen, peek, openPeek, shutP
           <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
         </svg>
       </button>
+      {/* THE MAP, BESIDE THE ROW RATHER THAN IN IT. The row is one button
+          and a button cannot hold another, so this one is laid over the row's
+          right side, the way the fold's own controls are (#1579). A glyph, in
+          the family the view's header draws its acts in. */}
+      {onMap && (
+        <button type="button" className="ap-lan-map" onClick={() => { dropPeek(); onMap(); }}
+          aria-label="Show the network map"
+          title="Network map — every deck this one knows, drawn around it">
+          <MapGlyph />
+        </button>
+      )}
       {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} onHold={holdPeek} onLet={shutPeek} />}
     </>
   );

@@ -10,11 +10,12 @@ import type { ReactNode } from "react";
 
 import type { LanStatus } from "../lan-types";
 import type { useLanSection } from "../use-lan-section";
+import { MapGlyph } from "./LanNetworkMap";
 
 type Section = ReturnType<typeof useLanSection>;
 
 export default function LanViewHeader({
-  on, status, paired, busy, pressProps, checkNow, setAddOpen, setSetupOpen, onBack, closeButton,
+  on, status, paired, busy, pressProps, checkNow, setAddOpen, setSetupOpen, setMapOpen, onBack, closeButton,
 }: {
   /** Whether this deck is on the network. Every act here is about a deck that is. */
   on: boolean;
@@ -29,6 +30,8 @@ export default function LanViewHeader({
   setAddOpen: (door: "add") => void;
   /** Open this deck's own settings. */
   setSetupOpen: (open: true) => void;
+  /** Open the network map. */
+  setMapOpen: (open: true) => void;
   /** Give the column back to the accounts. */
   onBack: () => void;
   /** The panel's close, drawn in this view's header as it is in the accounts'. */
@@ -69,6 +72,15 @@ export default function LanViewHeader({
             reload, a few rows up, meaning two other things (#838). So adding a
             deck is a link — pairing is what it starts — and checking the paired
             decks is a broadcast, one ask sent to all of them. */}
+        {/* THE MAP, FIRST OF THE FOUR: it is the one act here that changes
+            nothing, and it is about every deck on the list at once. */}
+        {on && (
+          <button type="button" className="glyph-btn" onClick={() => setMapOpen(true)}
+            aria-label="Show the network map"
+            title="Network map — every deck this one knows, drawn around it">
+            <MapGlyph />
+          </button>
+        )}
         {on && (
           <button type="button" className="glyph-btn ap-lan-plus"
             onClick={() => setAddOpen("add")}

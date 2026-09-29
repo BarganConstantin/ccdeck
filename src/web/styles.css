@@ -48,6 +48,7 @@
 @import "./styles/account-share.css";            /* sharing a set of accounts, and what an import did */
 @import "./styles/machine-history.css";          /* thermal history and the whole process list */
 @import "./styles/lan-setup.css";                /* local network setup */
+@import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
 @import "./styles/claude-fm.css";                /* Claude FM */
