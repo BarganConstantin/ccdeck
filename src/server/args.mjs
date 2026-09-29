@@ -131,6 +131,17 @@ export function startPort({ flag, env } = {}) {
  * one used to be dropped in silence (see launchNpx in bin/agent-dag.js).
  */
 /**
+ * Whether a start serves one of the two CLIs: never with its `--no-` flag,
+ * always with its plain one, and otherwise when it looks installed. The same
+ * rule for Claude Code and for Codex, with the opt-out first so `--no-codex
+ * --codex` is a no. `installed` is a function because it looks at the disk,
+ * and a flag that already answered the question should not.
+ */
+export function wantsCli({ off, on, installed }) {
+  return off ? false : (on === true || installed());
+}
+
+/**
  * The flags that do a thing and exit, rather than starting a deck.
  *
  * bin/agent-dag.js asks this, through shouldDetach in detach.mjs, before it
