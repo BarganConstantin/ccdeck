@@ -72,6 +72,7 @@ const PINNED: Array<[string, ModelRates]> = [
   ["claude-mythos-5",  A(10, 50, 1, 12.5, 20)],
   ["claude-opus-5-5",  A(4, 20, 0.2, 5, 8)],        // #1330 — was unpriced
   ["claude-opus-5",    A(5, 25, 0.5, 6.25, 10)],
+  ["claude-sonnet-5-5", A(2, 10, 0.2, 2.5, 4)],      // #1700 — was unpriced
   ["claude-sonnet-5",  A(2, 10, 0.2, 2.5, 4)],       // one rate, every date
   ["claude-opus-4-5",  A(5, 25, 0.5, 6.25, 10)],
   ["claude-opus-4-6",  A(5, 25, 0.5, 6.25, 10)],
@@ -216,6 +217,8 @@ const BEDROCK_IDS: Array<[string, ModelRates]> = [
   ["us.anthropic.claude-opus-5",                   A(5, 25, 0.5, 6.25, 10)],
   ["us.anthropic.claude-sonnet-4-6",               A(3, 15, 0.3, 3.75, 6)],
   ["us.anthropic.claude-sonnet-5",                 A(2, 10, 0.2, 2.5, 4)],
+  ["us.anthropic.claude-sonnet-5-5",               A(2, 10, 0.2, 2.5, 4)],
+  ["anthropic.claude-sonnet-5-5",                  A(2, 10, 0.2, 2.5, 4)],
   ["us.anthropic.claude-fable-5",                  A(10, 50, 1, 12.5, 20)],
   ["us.anthropic.claude-mythos-5",                 A(10, 50, 1, 12.5, 20)],
   ["anthropic.claude-mythos-5",                    A(10, 50, 1, 12.5, 20)],

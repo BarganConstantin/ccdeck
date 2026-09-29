@@ -59,6 +59,12 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.29.11": [
+    {
+      "title": "💲 Claude Sonnet 5.5 has a price",
+      "body": "Sessions on Claude Sonnet 5.5 showed \"not priced\" on the board, and the Projects report could only show a minimum for them. They are now priced at Anthropic's published rate, the same as Sonnet 5: $2 per million input tokens and $10 per million output tokens."
+    }
+  ],
   "3.29.10": [
     {
       "title": "💲 Claude Opus 5.5 has a price",
