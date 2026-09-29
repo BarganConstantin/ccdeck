@@ -29,10 +29,9 @@
 //
 // AND AN AVERAGE PER WINDOW CANNOT SAY WHICH WINDOW HOLDS AN ACCOUNT BACK. An
 // account at 12% of its 5 hours and 100% of its week adds 88 points of "5h
-// available" that nobody can use. So the report also counts, per window, the
-// accounts the OTHER window has capped, and leads with how many accounts have
-// room in both — the panel's own "free" measure, which is the tighter of the
-// two.
+// available" that nobody can use. So the report leads with how many accounts
+// have room in both — the panel's own "free" measure, which is the tighter of
+// the two — and gives each row a state that names the spent window (#1713).
 //
 // Pure, so the suite can call it. The modal is components/AccountsUsageReport.tsx.
 import { accountIssue } from "./account-issue";
@@ -116,9 +115,6 @@ export interface WindowTotal {
   /** The soonest reset still ahead among the counted readings: whose, at what
    *  reading, and how many more accounts reset in the same minute. */
   nextReset: { at: number; name: string; pct: number; more: number } | null;
-  /** Counted here, but at the limit of the OTHER window, so the room this
-   *  window shows for them cannot be used until that one resets. */
-  capped: number;
 }
 
 export interface UsageReport {
@@ -158,18 +154,14 @@ const clamp = (pct: number) => Math.min(100, Math.max(0, pct));
 /** A window's total over the rows. */
 export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTotal {
   const w = REPORT_WINDOWS.find(x => x.id === id)!;
-  const other: WindowId = id === "five_hour" ? "seven_day" : "five_hour";
   let sum = 0;
   let count = 0;
-  let capped = 0;
   let nextReset: WindowTotal["nextReset"] = null;
   for (const r of rows) {
     const c = r.cells[id];
     if (!c.counted) continue;
     sum += c.pct;
     count++;
-    const o = r.cells[other];
-    if (o.counted && o.pct >= 100) capped++;
     if (c.resetAt == null) continue;
     // "The same minute": resets are stamped to the second, and two accounts
     // coming back within one are one moment to a reader.
@@ -182,7 +174,6 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
     total: rows.length,
     used: count ? sum / count : null,
     nextReset,
-    capped,
   };
 }
 
@@ -214,12 +205,22 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
 }
 
 /**
+ * A used percent as a whole number to print, which says 100 only at the limit
+ * (#1713). The states are decided on the unrounded reading, so 99.6% is room:
+ * Ready, and counted as ready. Rounded plainly it printed "100%" on that row,
+ * and "0% remaining" on a card whose lead said the account was ready.
+ */
+export function shownUsed(pct: number): number {
+  return pct >= 100 ? 100 : Math.min(99, Math.round(pct));
+}
+
+/**
  * The two figures a window's block prints, as whole percents that add up to a
  * hundred: "used" rounded, and "available" as the rest of it. Rounding both on
  * their own could print 27% used and 74% available.
  */
 export function usedAndAvailable(used: number): { used: number; available: number } {
-  const u = Math.round(used);
+  const u = shownUsed(used);
   return { used: u, available: 100 - u };
 }
 

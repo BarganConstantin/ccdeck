@@ -88,7 +88,8 @@
   .session-summary .ss-tt-bar,
   .uh-model-bar,
   .uh-agent-bar,
-  .cost-bar { outline: 1px solid CanvasText; outline-offset: -1px; }
+  .cost-bar,
+  .ap-report-meter { outline: 1px solid CanvasText; outline-offset: -1px; }
   /* The notch in a thermal track is the panel's ground showing through, and a
      Contrast theme repaints that ground: it takes Canvas so the gap stays a
      gap, against a fill that is now Highlight and a track that is outlined. */

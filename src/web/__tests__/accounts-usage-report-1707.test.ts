@@ -68,7 +68,7 @@ describe("adding it up", () => {
 
   it("says nobody is counted rather than printing a total of nothing", () => {
     const w = windowTotal(usageReport([acct(1, null, 10)], NOW).rows, "five_hour");
-    expect(w).toMatchObject({ reporting: 0, total: 1, used: null, nextReset: null, capped: 0 });
+    expect(w).toMatchObject({ reporting: 0, total: 1, used: null, nextReset: null });
   });
 });
 
@@ -122,11 +122,10 @@ describe("what is left out, and why — never as 0%", () => {
 });
 
 describe("room that cannot be used", () => {
-  it("flags the accounts one window counts that the other has spent", () => {
+  it("names the accounts one window has spent Limited, whichever window it is", () => {
+    // What the per-window capped count said until #1713; the row says it now.
     const r = usageReport([acct(1, 12, 100), acct(2, 100, 40), acct(3, 30, 30)], NOW);
-    const [five, seven] = r.windows;
-    expect(five.capped).toBe(1);   // account 1: room in 5h, none in 7d
-    expect(seven.capped).toBe(1);  // account 2: the other way round
+    expect(r.rows.map(x => x.status)).toEqual(["limited", "limited", "ready"]);
   });
 
   it("leads with how many accounts have room in both windows", () => {
@@ -161,6 +160,16 @@ describe("what each account can do now (#1713)", () => {
     expect(stateOf(acct(1, 100, 100, { stale: true }))).toBe("stale");
   });
 
+  it("draws a lead that matches the rows that say Ready", () => {
+    const out = renderToStaticMarkup(createElement(UsageReportBody, {
+      accounts: [acct(1, 0, 0), acct(2, 95, 50), acct(3, 100, 50), acct(4, 10, 10, { stale: true }), acct(5, 30, 30)],
+      nowSec: NOW, held: null,
+    }));
+    const lead = Number(/<b>(\d+)<\/b> of \d+ accounts? ready/.exec(out)?.[1]);
+    expect(lead).toBe(out.match(/data-status="ready"/g)?.length);
+    expect(lead).toBe(3);
+  });
+
   it("counts as ready exactly the rows that say Ready", () => {
     const r = usageReport([
       acct(1, 0, 0), acct(2, 95, 50), acct(3, 100, 50), acct(4, 100, 100),
@@ -169,6 +178,20 @@ describe("what each account can do now (#1713)", () => {
     expect(r.rows.map(x => x.status)).toEqual(["ready", "ready", "limited", "exhausted", "stale", "stale", "ready"]);
     expect(r.roomInBoth).toBe(r.rows.filter(x => x.status === "ready").length);
     expect(r.roomInBoth).toBe(3);
+  });
+
+  it("never prints 100% on a window that has room, nor 0% remaining on one", () => {
+    // 99.6% used is room: Ready, counted as ready — and so it must not be
+    // drawn as the limit. Rounded plainly it read "100%" in the error ink on a
+    // row that said Ready, and "0% remaining" on a card whose lead said 1 of 1
+    // ready.
+    const out = renderToStaticMarkup(createElement(UsageReportBody, { accounts: [acct(1, 99.6, 99.6)], nowSec: NOW, held: null }));
+    expect(out).toContain('<span class="ap-report-pct" data-level="hi">99%</span>');
+    expect(out).not.toContain(">100%<");
+    expect(out).toContain('<p class="ap-report-left"><b>1%</b> remaining</p>');
+    expect(out).toContain("<b>1</b> of 1 account ready");
+    expect(usedAndAvailable(99.6)).toEqual({ used: 99, available: 1 });
+    expect(usedAndAvailable(100)).toEqual({ used: 100, available: 0 });
   });
 
   it("says why a stale row is stale in its first unread reading's words", () => {
@@ -238,7 +261,7 @@ describe("the report, drawn", () => {
 
   it("says when the soonest reset comes, and whose it is on hover", () => {
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)">Resets in <span class="ap-report-num">1h 0m</span></p>');
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)">Resets in <span class="ap-report-num">1h 0m</span><span class="vis-hidden">. First: work (12% used)</span></p>');
   });
 
   it("labels the rows' numbers as used, beside a state for each", () => {

@@ -24,7 +24,7 @@ import type { Account } from "../claude-accounts";
 import { resetCountdown } from "../relative-time";
 import { holdOrder } from "../other-accounts-order";
 import {
-  heldNote, REPORT_WINDOWS, staleReason, usageReport, usedAndAvailable,
+  heldNote, REPORT_WINDOWS, shownUsed, staleReason, usageReport, usedAndAvailable,
   type Cell, type ReportRow, type Status, type WindowTotal,
 } from "../accounts-usage-report";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -41,7 +41,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  *  on hover, since the card says only when (#1713). */
 function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
   const more = next.more > 0 ? `, and ${plural(next.more, "more account", "more accounts")} in the same minute` : "";
-  return `First: ${next.name} (${Math.round(next.pct)}% used)${more}`;
+  return `First: ${next.name} (${shownUsed(next.pct)}% used)${more}`;
 }
 
 /**
@@ -81,6 +81,8 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
       {reset && w.nextReset && (
         <p className="ap-report-reset" title={soonest(w.nextReset)}>
           Resets in <span className="ap-report-num">{reset}</span>
+          {/* Whose, for the reader a hover never reaches. */}
+          <span className="vis-hidden">. {soonest(w.nextReset)}</span>
         </p>
       )}
       {basis}
@@ -96,7 +98,7 @@ function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
     return (
       <td className="ap-report-cell" data-uncounted="">
         <span className="ap-report-pct">
-          {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${Math.round(cell.last)}%`}
+          {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${shownUsed(cell.last)}%`}
         </span>
         <span className="vis-hidden">, not counted</span>
       </td>
@@ -105,7 +107,7 @@ function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
   const reset = cell.resetAt != null ? resetCountdown(cell.resetAt, nowSec) : null;
   return (
     <td className="ap-report-cell">
-      <span className="ap-report-pct" data-level={level(cell.pct)}>{Math.round(cell.pct)}%</span>
+      <span className="ap-report-pct" data-level={level(cell.pct)}>{shownUsed(cell.pct)}%</span>
       {reset && <span className="ap-report-in"><span className="vis-hidden">resets in </span>{reset}</span>}
     </td>
   );
@@ -213,8 +215,8 @@ export function UsageReportBody({ accounts, nowSec, held }: {
           </p>
           <p>
             <b>Ready</b> has room in both windows. <b>Limited</b> has reached the limit of one,
-            and <b>Exhausted</b> of both. <b>Stale</b> has no current reading, so its last numbers are
-            dimmed and left out of every total.
+            and <b>Exhausted</b> of both. <b>Stale</b> has a reading that is not current; that reading
+            is dimmed and left out of its window's total.
           </p>
         </div>
       </details>

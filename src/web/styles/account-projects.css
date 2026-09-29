@@ -207,6 +207,8 @@
 .ap-report-modal .ap-proj-head { padding: 18px 24px 0; border-bottom: 0; background: none; }
 .ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
 .ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; }
+/* The stuck names' own 8px above them is part of the gap in flow. */
+.ap-report-table { margin-top: -8px; }
 /* The body scrolls with enough accounts, and a scroller is a Tab stop in the
    browsers that make it one: the ring goes inside, where the dialog's own
    clipping cannot cut it off. */
@@ -276,7 +278,9 @@
   position: sticky;
   top: -20px;
   z-index: 1;
-  padding-top: 0;
+  /* Room above the names once they are stuck under the dialog's title, which
+     has no rule of its own to stand them off. */
+  padding-top: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--panel);
@@ -286,7 +290,7 @@
   text-transform: uppercase;
   color: var(--report-meta);
 }
-.ap-report-acct { font-weight: 400; color: var(--text); }
+.ap-report-acct { overflow: hidden; font-weight: 400; color: var(--text); }
 .ap-report-acct-in { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ap-report-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-report-current,
@@ -307,18 +311,25 @@
   font-variant-numeric: tabular-nums;
 }
 .ap-report-cell[data-uncounted] .ap-report-pct { color: var(--muted); }
-/* A mark and a word for each state. Ready is the resting state and stays
-   neutral, so a panel with nothing wrong on it has no colour in this column;
-   Limited and Exhausted wear the warning and the error inks, and Stale is a
-   hollow mark in the muted one. */
+/* A mark and a word for each state, the mark in the word's own ink. Ready is
+   the resting state and stays neutral, so a panel with nothing wrong on it has
+   no colour in this column; Limited and Exhausted wear the warning and the
+   error inks, and Stale is a hollow mark in the muted one. The mark reads
+   currentColor, so under a Contrast theme it follows the word to CanvasText
+   with nothing to override. */
 .ap-report-state-word { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--report-meta); }
-.ap-report-state-word i { flex: none; box-sizing: border-box; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.ap-report-state-word i {
+  flex: none;
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
 .ap-report-state[data-status="limited"] .ap-report-state-word { color: var(--warn); }
-.ap-report-state[data-status="limited"] i { background: var(--warn); }
 .ap-report-state[data-status="exhausted"] .ap-report-state-word { font-weight: 600; color: var(--err); }
-.ap-report-state[data-status="exhausted"] i { background: var(--err); }
 .ap-report-state[data-status="stale"] .ap-report-state-word { color: var(--muted); }
-.ap-report-state[data-status="stale"] i { border: 1.5px solid var(--muted); background: none; }
+.ap-report-state[data-status="stale"] .ap-report-state-word i { border: 1.5px solid; background: none; }
 .ap-report-why { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--report-meta); }
 
 /* How it is worked out, folded away: it matters once, not on every glance. */
@@ -361,4 +372,12 @@
   .ap-report-col-state { width: 96px; }
   .ap-report-in { display: block; margin-left: 0; }
   .ap-report-acct-in { flex-wrap: wrap; row-gap: 2px; }
+}
+/* A phone's narrowest: the percent columns take only what "100%" needs and the
+   rows drop their own reset, which the cards above still give, so the names
+   keep a column wide enough to read. */
+@media (max-width: 360px) {
+  .ap-report-col-win { width: 48px; }
+  .ap-report-col-state { width: 88px; }
+  .ap-report-in { display: none; }
 }
