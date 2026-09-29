@@ -15,8 +15,11 @@ export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
   onAnswer: (next: SettingsLine) => void;
 }) {
   const [asking, setAsking] = useState(false);
+  /** Read by the press rather than `asking`, which is a render behind: two
+   *  clicks in one frame would both see false and open two dialogs. */
+  const askingRef = useRef(false);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const pressRef = useRef<HTMLButtonElement>(null);
   const xRef = useRef<HTMLButtonElement>(null);
   /** Focus was on the press when its answer took the press away. */
@@ -33,9 +36,11 @@ export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
   // Never disabled while it works, so focus stays where the press was (#518):
   // busy, and a second press is ignored.
   const press = async () => {
-    if (asking) return;
+    if (askingRef.current) return;
+    askingRef.current = true;
     setAsking(true);
     const answer = await requestGiveBack();
+    askingRef.current = false;
     if (!alive.current) return;
     setAsking(false);
     rescue.current = document.activeElement === pressRef.current;

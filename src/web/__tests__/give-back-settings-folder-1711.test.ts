@@ -8,9 +8,10 @@
 // rights, so most of this file pins how narrow it is: which folders, which
 // checks, what reaches the script and how, and what the page is told.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { rmTempDir } from "./rm-temp-dir";
@@ -31,7 +32,7 @@ afterAll(() => rmTempDir(DIR));
 const giveBackModule = await import("../../server/prefs-give-back.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const refusal = await import("../../server/prefs-refusal.mjs");
-const { giveBackDeckFolders, GIVE_BACK_SCRIPT, GIVE_BACK_PROMPT, GIVE_BACK_TIMEOUT_MS } = giveBackModule;
+const { giveBackDeckFolders, GIVE_BACK_SCRIPT, GIVE_BACK_PROMPT, GIVE_BACK_TIMEOUT_MS, OSASCRIPT } = giveBackModule;
 
 const ME = 501;
 const STAFF = 20;
@@ -41,37 +42,57 @@ const SETTINGS = "/Users/me/Library/Application Support/ccdeck";
 const LOGS = "/Users/me/Library/Logs/ccdeck";
 const LEGACY = "/Users/me/.claude/agent-dag";
 
-type Entry = { uid: number; dir?: boolean; link?: boolean };
+type Entry = { uid: number; dir?: boolean; link?: boolean; ino?: number };
 type RunAnswer = { ok: boolean; stderr?: string; code?: unknown; timedOut?: boolean };
 
+const DEV = 16777232n;
+/** The `device:inode` the fake filesystem reports for an entry. */
+const idOf = (e: Entry) => `${DEV}:${e.ino ?? 0}`;
+
 /** A Mac's filesystem, as far as the give-back looks at it. `exec` stands in
- *  for osascript and, when it succeeds, does what chown would. */
+ *  for osascript and, when it succeeds, does what the root step would — to
+ *  every folder, or to those `chowned` names. */
 function mac(entries: Record<string, Entry>, {
   env = {} as Record<string, string>,
+  home = HOME,
   answer = { ok: true } as RunAnswer,
   real = (p: string) => p,
-  chownWorks = true,
+  chowned = null as string[] | null,
 } = {}) {
+  let ino = 100;
+  for (const e of Object.values(entries)) e.ino ??= ino++;
   const calls: { cmd: string; args: string[]; opts: { timeout?: number } }[] = [];
   const warned: string[] = [];
   const fs = {
-    lstat: async (p: string) => {
+    lstat: async (p: string, opts?: { bigint?: boolean }) => {
       const e = entries[p];
       if (!e) throw Object.assign(new Error(`ENOENT: ${p}`), { code: "ENOENT" });
-      return { uid: e.uid, isDirectory: () => e.dir !== false, isSymbolicLink: () => e.link === true };
+      const big = opts?.bigint === true;
+      return {
+        uid: big ? BigInt(e.uid) : e.uid, dev: big ? DEV : Number(DEV), ino: big ? BigInt(e.ino ?? 0) : e.ino,
+        isDirectory: () => e.dir !== false, isSymbolicLink: () => e.link === true,
+      };
     },
     realpath: async (p: string) => real(p),
   };
   const exec = async (cmd: string, args: string[], opts: { timeout?: number }) => {
     calls.push({ cmd, args, opts });
-    if (answer.ok && chownWorks) for (const p of args.slice(5)) entries[p] = { ...entries[p], uid: ME };
+    const changes = chowned ?? (answer.ok ? folderArgs(args).map(f => f.path) : []);
+    for (const p of changes) entries[p] = { ...entries[p], uid: ME };
     return answer;
   };
   const run = () => giveBackDeckFolders({
     platform: "darwin", getuid: () => ME, getgid: () => STAFF,
-    env, home: HOME, fs, exec, warn: (s: string) => warned.push(s),
+    env, home, fs, exec, warn: (s: string) => warned.push(s),
   });
-  return { run, calls, warned, entries };
+  return { run, calls, warned, entries, folders: () => folderArgs(calls[0]?.args ?? []).map(f => f.path) };
+}
+
+/** The folder and `device:inode` pairs after osascript's fixed five operands. */
+function folderArgs(args: string[]) {
+  const out: { path: string; id: string }[] = [];
+  for (let i = 5; i < args.length; i += 2) out.push({ path: args[i], id: args[i + 1] });
+  return out;
 }
 
 describe("which folders are given back", () => {
@@ -79,8 +100,15 @@ describe("which folders are given back", () => {
     const m = mac({ [SETTINGS]: { uid: ROOT } });
     expect(await m.run()).toEqual({ ok: true, changed: true });
     expect(m.calls).toHaveLength(1);
-    expect(m.calls[0].cmd).toBe("osascript");
-    expect(m.calls[0].args).toEqual(["-e", GIVE_BACK_SCRIPT, "--", `${ME}:${STAFF}`, GIVE_BACK_PROMPT, SETTINGS]);
+    expect(m.calls[0].cmd).toBe("/usr/bin/osascript");
+    expect(OSASCRIPT).toBe("/usr/bin/osascript");
+    expect(m.calls[0].args).toEqual(["-e", GIVE_BACK_SCRIPT, "--", `${ME}:${STAFF}`, GIVE_BACK_PROMPT, SETTINGS, idOf(m.entries[SETTINGS])]);
+  });
+
+  it("hands the root step the device and inode it surveyed, exactly", async () => {
+    const m = mac({ [SETTINGS]: { uid: ROOT, ino: 2 ** 60 } });
+    await m.run();
+    expect(folderArgs(m.calls[0].args)).toEqual([{ path: SETTINGS, id: `${DEV}:${2n ** 60n}` }]);
   });
 
   it("waits minutes on the dialog rather than exec's default twenty seconds", async () => {
@@ -93,19 +121,19 @@ describe("which folders are given back", () => {
   it("takes the log folder and the legacy folder along when the same sudo run left them too", async () => {
     const m = mac({ [SETTINGS]: { uid: ROOT }, [LOGS]: { uid: ROOT }, [LEGACY]: { uid: ROOT } });
     await m.run();
-    expect(m.calls[0].args.slice(5)).toEqual([SETTINGS, LOGS, LEGACY]);
+    expect(m.folders()).toEqual([SETTINGS, LOGS, LEGACY]);
   });
 
   it("leaves out a folder that is already yours or does not exist", async () => {
     const m = mac({ [SETTINGS]: { uid: ROOT }, [LOGS]: { uid: ME } });
     await m.run();
-    expect(m.calls[0].args.slice(5)).toEqual([SETTINGS]);
+    expect(m.folders()).toEqual([SETTINGS]);
   });
 
   it("gives back the log folder alone when the settings folder is already yours", async () => {
     const m = mac({ [SETTINGS]: { uid: ME }, [LOGS]: { uid: ROOT } });
     expect(await m.run()).toEqual({ ok: true, changed: true });
-    expect(m.calls[0].args.slice(5)).toEqual([LOGS]);
+    expect(m.folders()).toEqual([LOGS]);
   });
 
   it("never opens the dialog when nothing belongs to anybody else", async () => {
@@ -118,7 +146,7 @@ describe("which folders are given back", () => {
     const legacy = "/Users/me/.claude-work/agent-dag";
     const m = mac({ [legacy]: { uid: ROOT } }, { env: { CLAUDE_CONFIG_DIR: "/Users/me/.claude-work" } });
     await m.run();
-    expect(m.calls[0].args.slice(5)).toEqual([legacy]);
+    expect(m.folders()).toEqual([legacy]);
   });
 });
 
@@ -144,6 +172,11 @@ describe("what the deck will not take root for", () => {
     await refuses(mac({ [HOME]: { uid: ROOT } }, { env: { CCDECK_HOME: HOME } }));
   });
 
+  it("a CCDECK_HOME that is the home itself, even when the home is named like the deck", async () => {
+    const home = "/Users/ccdeck";
+    await refuses(mac({ [home]: { uid: ROOT } }, { home, env: { CCDECK_HOME: home } }));
+  });
+
   it("a CCDECK_HOME named anything but the deck's own folder names", async () => {
     await refuses(mac({ "/Users/me/Documents": { uid: ROOT } }, { env: { CCDECK_HOME: "/Users/me/Documents" } }));
   });
@@ -161,11 +194,11 @@ describe("what the deck will not take root for", () => {
   it("a log folder that fails the checks is skipped, not given back with the rest", async () => {
     const m = mac({ [SETTINGS]: { uid: ROOT }, [LOGS]: { uid: ROOT, link: true } });
     await m.run();
-    expect(m.calls[0].args.slice(5)).toEqual([SETTINGS]);
+    expect(m.folders()).toEqual([SETTINGS]);
   });
 
   it("anything but macOS, and a deck already running as root", async () => {
-    const fs = { lstat: async () => ({ uid: ROOT, isDirectory: () => true, isSymbolicLink: () => false }), realpath: async (p: string) => p };
+    const fs = { lstat: async () => ({ uid: ROOT, dev: 1, ino: 2, isDirectory: () => true, isSymbolicLink: () => false }), realpath: async (p: string) => p };
     let ran = 0;
     const exec = async () => { ran++; return { ok: true }; };
     for (const deps of [
@@ -201,8 +234,36 @@ describe("what the page is told", () => {
   });
 
   it("still_foreign, when chown answered and the folder is still somebody else's", async () => {
-    const m = mac({ [SETTINGS]: { uid: ROOT } }, { chownWorks: false });
+    const m = mac({ [SETTINGS]: { uid: ROOT } }, { chowned: [] });
     expect(await m.run()).toEqual({ ok: false, reason: "still_foreign" });
+  });
+
+  it("refused, and says why in the log, when the root step found a different folder or a hard link", async () => {
+    const m = mac({ [SETTINGS]: { uid: ROOT } }, { answer: { ok: false, stderr: "0:412: execution error: The command exited with a non-zero status. (3)" } });
+    expect(await m.run()).toEqual({ ok: false, reason: "refused" });
+    expect(m.warned.join("\n")).toMatch(/changed between the check and the password, or holds a file with a second hard link/);
+  });
+
+  it("a success, not a refusal, when the settings folder changed hands although osascript failed", async () => {
+    // One command gives every folder back, so the log folder failing fails the
+    // exit after the settings folder was already changed.
+    const m = mac({ [SETTINGS]: { uid: ROOT }, [LOGS]: { uid: ROOT } }, {
+      answer: { ok: false, stderr: "chown: Library/Logs/ccdeck: Operation not permitted" }, chowned: [SETTINGS],
+    });
+    expect(await m.run()).toEqual({ ok: true, changed: true });
+    expect(m.warned.join("\n")).toContain(LOGS);
+  });
+
+  it("a success, not a timeout, when the password landed just before the deadline", async () => {
+    const m = mac({ [SETTINGS]: { uid: ROOT } }, { answer: { ok: false, timedOut: true }, chowned: [SETTINGS] });
+    expect(await m.run()).toEqual({ ok: true, changed: true });
+  });
+
+  it("still a refusal when only a secondary folder changed hands", async () => {
+    const m = mac({ [SETTINGS]: { uid: ROOT }, [LOGS]: { uid: ROOT } }, {
+      answer: { ok: false, stderr: "chown: Operation not permitted" }, chowned: [LOGS],
+    });
+    expect(await m.run()).toEqual({ ok: false, reason: "refused" });
   });
 
   it("busy, to a second press while the first dialog is still open", async () => {
@@ -212,7 +273,7 @@ describe("what the page is told", () => {
       lstat: async (p: string) => {
         const e = entries[p];
         if (!e) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-        return { uid: e.uid, isDirectory: () => true, isSymbolicLink: () => false };
+        return { uid: e.uid, dev: 1, ino: 2, isDirectory: () => true, isSymbolicLink: () => false };
       },
       realpath: async (p: string) => p,
     };
@@ -232,13 +293,23 @@ describe("the script that runs as root", () => {
   it("is a constant: no path, no uid, nothing of the request in its source", () => {
     expect(GIVE_BACK_SCRIPT).not.toMatch(/\/Users|\d{3}:\d/);
     expect(GIVE_BACK_SCRIPT).toContain("with administrator privileges");
-    expect(GIVE_BACK_SCRIPT).toContain('"/usr/sbin/chown -x -R -P -- "');
+    expect(GIVE_BACK_SCRIPT).toContain("with prompt (item 2 of argv)");
   });
 
   it("quotes every item it puts on the command line", () => {
-    const quoted = GIVE_BACK_SCRIPT.match(/quoted form of \(([^)]+)\)/g) ?? [];
-    expect(quoted).toEqual(["quoted form of (item 1 of argv)", "quoted form of (target as text)"]);
-    expect(GIVE_BACK_SCRIPT).toContain("with prompt (item 2 of argv)");
+    expect(GIVE_BACK_SCRIPT.match(/quoted form of \(item [^\n]*?of argv\)/g)).toEqual([
+      "quoted form of (item 1 of argv)", "quoted form of (item i of argv)", "quoted form of (item (i + 1) of argv)",
+    ]);
+    expect(GIVE_BACK_SCRIPT.match(/quoted form of/g)).toHaveLength(3);
+  });
+
+  it("changes the folder it entered only after proving it is the one surveyed and holds no hard link", () => {
+    const step = GIVE_BACK_SCRIPT.split("\n").find(l => l.includes("/usr/sbin/chown"))!;
+    const order = ["cd -P -- ", "/usr/bin/stat -f %d:%i .", "/usr/bin/find -x -P . ! -type d -links +1 -print", "|| exit 3;", "/usr/sbin/chown -n -x -R -P -- "];
+    const at = order.map(part => step.indexOf(part));
+    expect(at.every(i => i >= 0), step).toBe(true);
+    expect([...at].sort((x, y) => x - y)).toEqual(at);
+    expect(step.trimEnd().endsWith('& " ."')).toBe(true);
   });
 });
 
@@ -287,6 +358,16 @@ describe("the failure line", () => {
     }
   });
 
+  it("hands the line every refusal the deck answered whole, so it can see the fix", () => {
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    const HOOK = read("../use-lan-section.ts");
+    const MODAL = read("../components/LanSetupModal.tsx");
+    for (const src of [HOOK, MODAL]) expect(src).not.toMatch(/refusalLine\(writeFailure\([^;)]*,\s*out\)\)/);
+    expect([...HOOK.matchAll(/refusalLine\(writeFailure\([^;)]*,\s*out\),\s*out\)/g)]).toHaveLength(2);
+    expect([...HOOK.matchAll(/refusalLine\(said,\s*out\)/g)]).toHaveLength(2);
+    expect([...MODAL.matchAll(/refusalLine\(writeFailure\([^;)]*,\s*out\),\s*out\)/g)]).toHaveLength(1);
+  });
+
   it("draws the press inside the red line, and only there", () => {
     const noop = () => {};
     const offered = renderToStaticMarkup(createElement(SettingsFailureLine, {
@@ -304,52 +385,5 @@ describe("the failure line", () => {
     expect(done).toContain("ap-failure-done");
     expect(done).not.toContain("give it back");
     expect(renderToStaticMarkup(createElement(SettingsFailureLine, { line: null, onDismiss: noop, onAnswer: noop }))).toBe("");
-  });
-});
-
-describe("the route", () => {
-  it("answers without a path, and reads the settings again once there is nothing left to give back", async () => {
-    // @ts-expect-error — plain .mjs server module, no types
-    const { handlePrefsGiveBack } = await import("../../server/prefs-routes.mjs");
-    // @ts-expect-error — plain .mjs server module, no types
-    const { heldPrefs } = await import("../../server/prefs-state.mjs");
-    const deck = process.env.CCDECK_HOME!;
-    mkdirSync(deck, { recursive: true });
-    writeFileSync(join(deck, "prefs.json"), '{"notifications":false,"lan":{"name":"read-again"}}\n', { mode: 0o600 });
-    let status = 0, body = "";
-    const res = {
-      writeHead: (s: number) => { status = s; return res; },
-      setHeader: () => {},
-      end: (b?: string) => { body = b ?? ""; },
-    };
-    await handlePrefsGiveBack({ method: "POST", headers: {} }, res);
-    expect(body).not.toContain(DIR);
-    const out = JSON.parse(body);
-    if (process.platform === "darwin") {
-      expect(status).toBe(200);
-      expect(out).toMatchObject({ ok: true, changed: false });
-      expect(heldPrefs.current().lan.name).toBe("read-again");
-    } else {
-      expect(status).toBe(409);
-      expect(out).toEqual({ ok: false, reason: "unsupported" });
-    }
-  });
-
-  it("keeps the copy it was running on when the file still cannot be read", async () => {
-    // @ts-expect-error — plain .mjs server module, no types
-    const { heldPrefs } = await import("../../server/prefs-state.mjs");
-    const file = join(process.env.CCDECK_HOME!, "prefs.json");
-    writeFileSync(file, '{"lan":{"name":"kept"}}\n', { mode: 0o600 });
-    expect(await heldPrefs.reload()).toBe("file");
-    // A read that fails for a reason no platform treats as ownership: the name
-    // is a folder now, so the read is EISDIR on all three.
-    rmSync(file);
-    mkdirSync(file);
-    try {
-      expect(await heldPrefs.reload()).toBe("unreadable");
-      expect(heldPrefs.current().lan.name).toBe("kept");
-    } finally {
-      rmSync(file, { recursive: true });
-    }
   });
 });

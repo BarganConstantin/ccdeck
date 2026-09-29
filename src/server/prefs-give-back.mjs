@@ -24,10 +24,20 @@
 //   THE PATHS ARE DATA, NOT SOURCE. They reach AppleScript as argv, after `--`
 //   (see notify in browser-react.mjs for what a leading dash did without it),
 //   and reach the shell through `quoted form of`. The script text is a
-//   constant.
+//   constant, and osascript is named by its full path.
 //
-//   `chown -x -R -P`: no symlink inside the tree is followed, and no mount
-//   point is crossed, so the change cannot leave the folders it names.
+//   THE FOLDER ROOT CHANGES IS THE FOLDER THAT WAS CHECKED. The checks run
+//   before the dialog and root acts after it, minutes later if the person is
+//   slow, and the parent folder is the user's: anything running as the user
+//   could put a folder of its own in place of the checked one, holding a hard
+//   link to a file root owns, and `chown -R` would hand that file over. So the
+//   root step does not trust the path. It enters the folder, compares the
+//   device and inode of where it landed with the ones surveyed here, refuses
+//   a tree holding any file with a second hard link, and only then changes
+//   `.`, which a rename of the path can no longer move.
+//
+//   `chown -n -x -R -P`: numeric ids with no name lookup, no mount point
+//   crossed, and no symlink inside the tree followed.
 import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, normalize, sep } from "node:path";
@@ -49,14 +59,24 @@ export const GIVE_BACK_TIMEOUT_MS = 180_000;
 export const GIVE_BACK_PROMPT =
   `${PRODUCT} needs your password to make its settings folder yours again. It was left owned by another user, most likely by a run with sudo.`;
 
+/** osascript, by its full path: this is the one call that asks for the
+ *  administrator's password, and a PATH lookup is a way to put a different
+ *  dialog in front of it. */
+export const OSASCRIPT = "/usr/bin/osascript";
+
 /** The whole of what runs as root. Item 1 is `uid:gid`, item 2 the prompt, and
- *  every item after them a folder; each one is quoted by AppleScript, never by
- *  hand. */
+ *  after them a folder and its `device:inode` for each folder; every one is
+ *  quoted by AppleScript, never by hand. A folder that is not the one surveyed,
+ *  or that holds a file with a second hard link, stops the whole command with
+ *  status 3 before anything in it changes owner. */
 export const GIVE_BACK_SCRIPT = [
   "on run argv",
-  'set cmd to "/usr/sbin/chown -x -R -P -- " & quoted form of (item 1 of argv)',
-  "repeat with target in (items 3 thru -1 of argv)",
-  'set cmd to cmd & " " & quoted form of (target as text)',
+  "set owner to quoted form of (item 1 of argv)",
+  'set cmd to "true"',
+  "repeat with i from 3 to (count of argv) by 2",
+  "set target to quoted form of (item i of argv)",
+  "set wanted to quoted form of (item (i + 1) of argv)",
+  'set cmd to cmd & " && { cd -P -- " & target & " && [ \\"$(/usr/bin/stat -f %d:%i .)\\" = " & wanted & " ] && [ -z \\"$(/usr/bin/find -x -P . ! -type d -links +1 -print)\\" ] || exit 3; } && /usr/sbin/chown -n -x -R -P -- " & owner & " ."',
   "end repeat",
   "do shell script cmd with prompt (item 2 of argv) with administrator privileges",
   "end run",
@@ -64,6 +84,9 @@ export const GIVE_BACK_SCRIPT = [
 
 /** osascript's "User canceled." — the person closed the dialog. */
 const CANCELLED = /\(-128\)/;
+/** The root step's own refusal: the folder was not the one surveyed, or held a
+ *  hard link. osascript reports the shell's status in brackets. */
+const GUARD_TRIPPED = /\(3\)\s*$/m;
 
 /**
  * Which of the deck's folders belong to somebody else, and whether each one is
@@ -83,18 +106,20 @@ export function deckFolders(platform = process.platform, env = process.env, home
 async function survey(path, { uid, home, fs }) {
   let st;
   try {
-    st = await fs.lstat(path);
+    // BigInt, because the inode is handed to the root step to compare with
+    // stat(1)'s, and a number past 2^53 would compare unequal to itself.
+    st = await fs.lstat(path, { bigint: true });
   } catch (err) {
     return { path, state: err?.code === "ENOENT" ? "missing" : "unsafe" };
   }
-  if (st.uid === uid) return { path, state: "yours" };
+  if (Number(st.uid) === uid) return { path, state: "yours" };
   if (!st.isDirectory() || st.isSymbolicLink()) return { path, state: "unsafe" };
   if (!DECK_FOLDER_NAMES.has(basename(path))) return { path, state: "unsafe" };
   if (!strictlyInside(path, home)) return { path, state: "unsafe" };
   const real = await fs.realpath(path).catch(() => "");
   const realHome = await fs.realpath(home).catch(() => "");
   if (!real || !realHome || !strictlyInside(real, realHome)) return { path, state: "unsafe" };
-  return { path, state: "foreign" };
+  return { path, state: "foreign", id: `${st.dev}:${st.ino}` };
 }
 
 function strictlyInside(path, home) {
@@ -143,20 +168,34 @@ async function giveBack({ platform, uid, gid, env = process.env, home = homedir(
     warn(`${PRODUCT}: ${settings.path} is not a folder this deck will change the owner of from the panel — it has to be a real folder named like the deck's, inside your home. Give it back by hand: sudo chown -R "$(id -un)" "${settings.path}"`);
     return { ok: false, reason: "not_eligible" };
   }
-  const foreign = folders.filter(f => f.state === "foreign").map(f => f.path);
+  const foreign = folders.filter(f => f.state === "foreign");
   if (!foreign.length) return { ok: true, changed: false };
 
-  const r = await exec("osascript", ["-e", GIVE_BACK_SCRIPT, "--", `${uid}:${gid}`, GIVE_BACK_PROMPT, ...foreign], { timeout: GIVE_BACK_TIMEOUT_MS });
+  const r = await exec(OSASCRIPT, [
+    "-e", GIVE_BACK_SCRIPT, "--", `${uid}:${gid}`, GIVE_BACK_PROMPT, ...foreign.flatMap(f => [f.path, f.id]),
+  ], { timeout: GIVE_BACK_TIMEOUT_MS });
+  const said = (r?.stderr || r?.code || "osascript failed").toString().trim();
+  if (!r?.ok && !r?.timedOut && CANCELLED.test(r?.stderr ?? "")) return { ok: false, reason: "cancelled" };
+
+  // WHO OWNS THEM NOW, WHATEVER osascript ANSWERED. One command gives every
+  // folder back, so a failure on the log folder fails the exit after the
+  // settings folder was already changed, and a password typed just before the
+  // deadline can land after it. Answering that as a refusal would leave the
+  // deck on defaults with its writes now succeeding.
+  const owners = await Promise.all(foreign.map(f => fs.lstat(f.path).then(st => Number(st.uid), () => undefined)));
+  const left = foreign.filter((_, i) => owners[i] !== uid).map(f => f.path);
+  const settingsGiven = settings.state === "foreign" && !left.includes(settings.path);
+  if (!left.length || settingsGiven) {
+    if (left.length) warn(`${PRODUCT}: the settings folder is yours again, but ${left.join(", ")} still belongs to another user: ${said}`);
+    return { ok: true, changed: true };
+  }
   if (r?.timedOut) return { ok: false, reason: "timed_out" };
   if (!r?.ok) {
-    if (CANCELLED.test(r?.stderr ?? "")) return { ok: false, reason: "cancelled" };
-    warn(`${PRODUCT}: could not give ${foreign.join(", ")} back: ${(r?.stderr || r?.code || "osascript failed").toString().trim()}`);
+    warn(GUARD_TRIPPED.test(r?.stderr ?? "")
+      ? `${PRODUCT}: did not give ${left.join(", ")} back: the folder changed between the check and the password, or holds a file with a second hard link. Nothing in it changed owner.`
+      : `${PRODUCT}: could not give ${left.join(", ")} back: ${said}`);
     return { ok: false, reason: "refused" };
   }
-  const after = await Promise.all(foreign.map(path => fs.lstat(path).then(st => st.uid, () => undefined)));
-  if (after.some(owner => owner !== uid)) {
-    warn(`${PRODUCT}: chown answered, but ${foreign.filter((_, i) => after[i] !== uid).join(", ")} still belongs to another user.`);
-    return { ok: false, reason: "still_foreign" };
-  }
-  return { ok: true, changed: true };
+  warn(`${PRODUCT}: chown answered, but ${left.join(", ")} still belongs to another user.`);
+  return { ok: false, reason: "still_foreign" };
 }

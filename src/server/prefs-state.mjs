@@ -15,7 +15,7 @@
 // The disk half is deck-prefs.mjs, unchanged: the queue, the merge and the
 // refusal to write over a file it could not read all live there. This holds
 // what they return and nothing else.
-import { DEFAULTS, loadPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS, loadPrefs, loadPrefsInTurn, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 
 /**
  * The deck's own settings, in memory, refreshed whenever they are written.
@@ -29,6 +29,10 @@ import { DEFAULTS, loadPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-
  * same freshness every other cross-deck setting has.
  */
 let _prefs = { ...DEFAULTS };
+/** Where that copy came from: loadPrefs' `source` for the boot read, and
+ *  "file" once a write has landed, since a write only lands on a file it could
+ *  read. Anything else is a deck running on the defaults (#1711). */
+let _source = "missing";
 
 // Read at import, so `consider` has its answer from the first event. LAN sync
 // used to start from this same read, and it must not: bin/deck.js imports the
@@ -37,24 +41,34 @@ let _prefs = { ...DEFAULTS };
 // in — which is the `lan sync (listen): EADDRINUSE` line a second `ccdeck`
 // printed above `deck already running`. The engine starts from the listen that
 // succeeds, in startServer, which is the only process that may hold a port.
-export const prefsRead = readPrefs().then(p => { _prefs = p; }).catch(() => {});
+export const prefsRead = loadPrefs().then(r => { _prefs = r.prefs; _source = r.source; }).catch(() => {});
 
 export const heldPrefs = Object.freeze({
   /** What the last read or write left here. Never a disk read — see above. */
   current: () => _prefs,
   /** `writePrefs(patch)`, and keep what it wrote. A write that throws keeps
    *  nothing, so the copy is never ahead of the file. */
-  write: async patch => (_prefs = await writePrefs(patch)),
+  write: async patch => kept(await writePrefs(patch)),
   /** `updatePrefs(mutate)`, and keep what it wrote: for a patch that has to be
    *  computed from the file rather than from `current()` — see updatePrefs. */
-  update: async mutate => (_prefs = await updatePrefs(mutate)),
+  update: async mutate => kept(await updatePrefs(mutate)),
   /** Read the file again, as a boot would, once something outside the deck has
-   *  made it readable (#1711). Kept only when it really is the user's file: a
-   *  read that still fails leaves the copy this process was already running on,
-   *  rather than trading it for the defaults. Answers the read's `source`. */
+   *  made it readable (#1711) — and only then. A copy that already came from
+   *  the file is left alone and answers "held": re-reading it would race the
+   *  engine's own writes for nothing. Otherwise the read waits its turn behind
+   *  the writes, and is kept only when it really is the user's file; a read
+   *  that still fails leaves the copy this process was running on. Answers
+   *  "held", or the read's `source`. */
   reload: async () => {
-    const { prefs, source } = await loadPrefs();
-    if (source === "file") _prefs = prefs;
+    if (_source === "file") return "held";
+    const { prefs, source } = await loadPrefsInTurn();
+    if (source === "file") { _prefs = prefs; _source = "file"; }
     return source;
   },
 });
+
+function kept(prefs) {
+  _prefs = prefs;
+  _source = "file";
+  return prefs;
+}
