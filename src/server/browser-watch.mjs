@@ -338,6 +338,21 @@ const _lastRead = new Map();
  *  read, so a row can report what was ADDED rather than the running total. */
 const _lastCount = new Map();
 
+/**
+ * The reason each profile was last reported unreadable, until a read of it
+ * succeeds (#1754).
+ *
+ * An unreadable profile usually STAYS unreadable — no SQLite reader on this
+ * Node, a profile folder with no History file, a copy that keeps failing — and
+ * each poll said so again, every ten seconds with the panel open. The feed is
+ * bounded at 200, so within half an hour it was that one warning 200 times and
+ * the reader's own lines were gone. A state is reported when it begins or
+ * changes. Kept across a Refresh, like `_lastCount`: it is a record of what the
+ * feed has already said, and the profile's row in the panel still shows the
+ * reason on every poll.
+ */
+const _warned = new Map();
+
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same
  *  episodes writes nothing — which is most polls, most of the time. */
@@ -356,17 +371,25 @@ function changedFrom(before, after) {
  *
  * One function because it is one rule: the delta is computed against the same
  * map it then writes, so the deltas the feed shows add up to the total the
- * overview shows (#989). A degraded read says why, a cached one — the file has
- * not moved — says nothing at all, and a real read says what it added, if it
- * added anything. `key` is the profile's browser/profile, the key `_lastCount`
+ * overview shows (#989). A degraded read says why, once until the reason
+ * changes or a read succeeds (#1754); a cached one — the file has not moved —
+ * says nothing at all, and a real read says what it added, if it added
+ * anything. `key` is the profile's browser/profile, the key `_lastCount`
  * and `_lastRead` are kept under.
  */
 function noteRead(profile, key, read, findings, now) {
   const where = `${profile.name}/${profile.profile}`;
-  if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
+  if (read.degraded) {
+    // Once per reason, cached poll or not: see `_warned`.
+    const reason = read.reason ?? "could not read";
+    if (_warned.get(key) !== reason) note("warn", `${where} — ${reason}`, now);
+    _warned.set(key, reason);
+  }
   // A poll that found the file unchanged says nothing at all.
   else if (read.cached) { /* silent */ }
   else {
+    // Read, so the next failure is news again.
+    _warned.delete(key);
     // `, 0 flagged` on every line is what made them all look alike: the
     // count that matters is the one that is not zero, and printing the zero
     // beside it buried the difference. Absence is the message.
