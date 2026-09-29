@@ -1156,7 +1156,7 @@ describe("who is here, which is what the panel is for now", () => {
     expect(checkedLabel(NOW2 - 5_000, NOW2, false)).toBe("checked just now");
     // And it comes from the engine's own clock rather than from a render, so a
     // panel opened an hour later reads the round rather than the visit.
-    expect(SERVER_ROUND_RECORD).toMatch(/finished\(\) \{ roundAt = now\(\); \}/);
+    expect(SERVER_ROUND_RECORD).toMatch(/finished\(\) \{\s*roundAt = now\(\);/);
     expect(SERVER_ROUND_RECORD).toMatch(/checkedAt: \(\) => roundAt/);
     expect(SERVER_ENGINE).toMatch(/lastRound\.finished\(\);/);
     expect(SERVER_ENGINE).toMatch(/checkedAt: lastRound\.checkedAt\(\)/);
