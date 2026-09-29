@@ -51,6 +51,15 @@ export const QUIET_MS = 60_000;
  */
 export function canInstallQuietly({ status, windowFocused, busy, quietSince, now, quietMs = QUIET_MS }) {
   if (status !== "ready") return false;
+  return quietLongEnough({ windowFocused, busy, quietSince, now, quietMs });
+}
+
+/**
+ * Has the app been left alone for a full `quietMs`, and is it still? The rule
+ * canInstallQuietly applies to an update, and the one the app restarts by
+ * itself under for any other reason (tray-presence.mjs).
+ */
+export function quietLongEnough({ windowFocused, busy, quietSince, now, quietMs = QUIET_MS }) {
   if (windowFocused || busy) return false;
   // `quietSince` is null until there has been a quiet moment to measure from,
   // which is also what an app that has just started has: it waits out one full

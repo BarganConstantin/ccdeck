@@ -59,6 +59,20 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.32.1": [
+    {
+      "title": "🔔 The tray icon comes back on Linux",
+      "body": "On Linux the app could lose its icon in the panel, after it updated itself or when the panel restarted, and stay without it until it was quit. It now notices within a minute and restarts by itself the next time you are away from its window, the way it installs an update. It does this at most once every six hours, and not again if a restart did not help."
+    },
+    {
+      "title": "🔕 A window you closed stays closed after a self-update",
+      "body": "When the app restarted by itself to install an update, it opened its window again even if you had closed it, and while that window was open the deck held back its notifications. A window you closed now stays closed."
+    },
+    {
+      "title": "🪟 No empty icon when ccdeck is already open",
+      "body": "Opening ccdeck again while it was running flashed an empty \"…\" icon in the Linux panel before bringing the window forward. It now only brings the window forward."
+    }
+  ],
   "3.32.0": [
     {
       "title": "🗺️ A map of your network",
