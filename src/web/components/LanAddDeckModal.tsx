@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { pressAccepted, pressState } from "../panel-press";
+import { focusDropped, pressAccepted, pressState } from "../panel-press";
 import LanReachNote from "./LanReachNote";
 import { leftLabel, parseAddress } from "../lan-add-deck";
 import type { LanStatus } from "../lan-types";
@@ -95,6 +95,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   const addrRef = useRef<HTMLInputElement>(null);
   const joinRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
+  const makeRef = useRef<HTMLButtonElement>(null);
   const inviteOnly = status.pairingMode === "invite";
   // The address field takes focus rather than the dialog's first control: the
   // reader pressed `+ add a deck` and the deck they mean is either an address
@@ -119,6 +120,11 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   useEffect(() => () => { alive.current = false; }, []);
 
   const busyRef = useRef<string | null>(null);
+  /** The invite press here that worked and whose answer is not drawn yet. The
+   *  reload it asks for takes the pressed control away — `make one to send` is
+   *  drawn only while no invite is live, `cancel` only inside one — so focus
+   *  is handed on once the invite has arrived or gone (#1747). */
+  const pressedInvite = useRef<"make" | "withdraw" | null>(null);
   const claim = useCallback((tag: string) => {
     if (!pressAccepted(busyRef.current)) return false;
     busyRef.current = tag;
@@ -186,7 +192,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
     try {
       const out = await post("/api/lan/invite", { action });
       if (!alive.current) return;
-      if (out?.ok) { setFailure(null); setCopied(null); onChanged(); }
+      if (out?.ok) { pressedInvite.current = action; setFailure(null); setCopied(null); onChanged(); }
       else setFailure({ text: faultLine(MINT_FAULTS, out, what) });
     } catch {
       if (alive.current) setFailure({ text: writeFailure(what, null) });
@@ -247,6 +253,17 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
     focusedCopy.current = true;
     copyRef.current?.focus();
   }, [startWith, live]);
+  // A make or a cancel pressed here takes its own control away once the
+  // status catches up, so focus goes to what took its place: the copy word
+  // after a make, `make one to send` after a cancel. Only when it fell with
+  // the control — whoever tabbed on while the request was out stays put.
+  useEffect(() => {
+    const pressed = pressedInvite.current;
+    if (!pressed || (pressed === "make") !== Boolean(live)) return;
+    pressedInvite.current = null;
+    if (!focusDropped(document.activeElement?.tagName ?? null)) return;
+    (pressed === "make" ? copyRef : makeRef).current?.focus();
+  }, [live]);
   // Every address this machine can be dialled at, with the one port that
   // answers on all of them. More than one is ordinary and none of them is
   // preferable from here — a peer on Tailscale cannot use the wifi address and
@@ -367,7 +384,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
             <h3 className="lan-h">
               With an invite
               {!live && (
-                <button type="button" className="ap-lan-word lan-h-act" {...pressProps("invite:make")}
+                <button type="button" className="ap-lan-word lan-h-act" ref={makeRef} {...pressProps("invite:make")}
                   onClick={() => void invite("make")}
                   title="One piece of text you send them. They paste it, and the two decks pair — nobody has to press anything here.">
                   {busy === "invite:make" ? "making…" : "make one to send"}
