@@ -106,8 +106,13 @@ function scanIn(zone: string, cfg: { nowMs: number; sessions: Session[]; offsetP
 //
 //   alpha  started 6d20h ago: INSIDE the window. Its whole cumulative total is
 //          the window's, since it has no snapshot older than the window start.
-//   beta   started 7d04h ago: OUTSIDE it. `listRolloutFiles` gates on when a
-//          session STARTED, so beta does not count however recently it spent.
+//   beta   started 7d04h ago: OUTSIDE it. By its NAME, which is the gate these
+//          cases measure, beta does not count however recently it spent.
+//          #1731 added a second way in — a rollout written to inside the window
+//          is read whatever its name, because `codex resume` appends to the file
+//          a session started in — and the probe holds every file's mtime a month
+//          back so that way lets nothing in here. See the probe, and
+//          codex-usage-resumed-rollout-1731.test.ts for that rule.
 //
 // Neither is a boundary case by accident: four hours is more than every zone's
 // DST step and less than every zone's offset, so the answer is the same in all

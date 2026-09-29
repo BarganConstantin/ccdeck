@@ -17,7 +17,7 @@
 //
 // Reads one argument: a directory holding `config.json`. Everything it touches
 // lives under that directory. Writes one line of JSON to stdout.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2];
@@ -75,6 +75,14 @@ for (const s of cfg.sessions) {
   const name = rolloutName(startMs, s.id);
   names.push(name);
   writeFileSync(join(day, name), s.events.map(e => tokenCount(NOW - e.ageMs, e.total)).join(""), "utf8");
+  // Last written a month before NOW, whatever the events inside say. Since
+  // #1731 a rollout named before the window is also read when its mtime lies
+  // inside it, and that second way in would let every file here through in every
+  // zone — the name would stop deciding anything these cases can see. Held
+  // outside the window, the mtime lets nothing in, and the NAME is the one gate
+  // being measured.
+  const staleSec = (NOW - 30 * 24 * 60 * 60 * 1000) / 1000;
+  utimesSync(join(day, name), staleSec, staleSec);
 }
 
 // Imported only now, so the frozen clock and CODEX_HOME are both already in

@@ -224,17 +224,22 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
   // When multiple sessions resolve to the same label (e.g. two Claude sessions
   // running in the same cwd both pick the basename as their label), append a
   // short session-id suffix so the user can tell them apart at a glance.
-  const labelCounts = new Map<string, number>();
-  for (const b of bySession.values()) {
-    labelCounts.set(b.label, (labelCounts.get(b.label) ?? 0) + 1);
+  // The ids themselves rather than a count of them, so the suffix can be made
+  // long enough to differ from every other session under the label (#1732).
+  const idsByLabel = new Map<string, string[]>();
+  for (const [sessionId, b] of bySession) {
+    const ids = idsByLabel.get(b.label);
+    if (ids) ids.push(sessionId);
+    else idsByLabel.set(b.label, [sessionId]);
   }
 
   const out: Cluster[] = [];
   for (const [sessionId, b] of bySession) {
-    const needsSuffix = (labelCounts.get(b.label) ?? 0) > 1;
+    const peers = idsByLabel.get(b.label) ?? [];
+    const needsSuffix = peers.length > 1;
     out.push({
       sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, needsSuffix),
+      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,

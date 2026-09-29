@@ -5,6 +5,7 @@
 // Lifted out of components/SessionClusters.tsx unchanged. None of it touches
 // React or the canvas: clusterBounds asks clusterHeader for the three fields
 // when it builds a cluster, and the component draws them with SEP.
+import { distinctIdTail } from "./session-id-tail";
 
 /**
  * The three fields a cluster header draws, kept apart rather than joined into
@@ -25,8 +26,10 @@ export interface ClusterHeader {
    *  to NAME_COLUMNS. Absent when there is neither: a Codex session, or a Claude
    *  one too young to have been named. */
   name?: string;
-  /** Four characters of the session id. Present ONLY when another cluster
-   *  carries the same workspace label; a name never replaces it. */
+  /** The last four characters of the session id, or as many more as it takes
+   *  to differ from the other sessions under the label. Present ONLY when
+   *  another cluster carries the same workspace label; a name never replaces
+   *  it. */
   shortId?: string;
   /** The same three fields on one line with nothing truncated — the tooltip,
    *  which is where a cut name is recovered. */
@@ -145,15 +148,22 @@ export function truncateName(name: string, budget = NAME_COLUMNS): string {
  * cluster carries the same workspace label, and not otherwise. A name does not
  * earn it and does not excuse it: two sessions in one workspace can be named
  * the same thing, so the name cannot do the job the id is there to do.
+ *
+ * It is the id's last four characters, and more when one of `peers` — the
+ * other sessions under this workspace label — ends the same way. It used to be
+ * the first four, and a Codex id is a UUIDv7 that opens with its timestamp, so
+ * two Codex sessions in one repo both read `· 01A0` for seven weeks at a time
+ * (#1732). See session-id-tail.ts.
  */
 export function clusterHeader(
   workspace: string,
   name: string | undefined,
   sessionId: string,
   collides: boolean,
+  peers: readonly string[] = [],
 ): ClusterHeader {
   const named = name?.trim() ?? "";
-  const id = collides ? shortId(sessionId) : undefined;
+  const id = collides ? distinctIdTail(sessionId, peers) : undefined;
   const fields = [workspace, named || undefined, id].filter(Boolean) as string[];
   return {
     // THE LAST UNBOUNDED STRING ON THE HEADER, and it is capped by the same
@@ -174,9 +184,3 @@ export function clusterHeader(
   };
 }
 
-function shortId(sessionId: string): string {
-  // First 4 alphanumeric chars — enough to disambiguate in practice and
-  // matches the visual weight of the rest of the label.
-  const m = sessionId.match(/[a-zA-Z0-9]{4}/);
-  return m ? m[0] : sessionId.slice(0, 4);
-}
