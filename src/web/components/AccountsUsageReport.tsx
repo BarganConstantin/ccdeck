@@ -54,17 +54,21 @@ function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
  */
 function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   const id = `ap-report-${w.id}`;
-  const unread = w.total - w.reporting;
-  const basis = unread > 0 && (
+  const stale = w.included - w.reporting;
+  const never = w.total - w.included;
+  const basis = (stale > 0 || never > 0) && (
     <p className="ap-report-basis">
-      Based on {w.reporting} of {plural(w.total, "account", "accounts")} · {unread} stale
+      {[
+        stale > 0 && `Includes ${plural(stale, "stale account", "stale accounts")} at the last reading`,
+        never > 0 && `${never} never read`,
+      ].filter(Boolean).join(" · ")}
     </p>
   );
   if (w.used == null) {
     return (
       <section className="ap-report-sum" aria-labelledby={id}>
         <h3 className="ap-report-win" id={id}>{w.long} window</h3>
-        <p className="ap-report-none">No account has a current {w.long} reading.</p>
+        <p className="ap-report-none">No account has a {w.long} reading yet.</p>
         {basis}
       </section>
     );
@@ -210,13 +214,15 @@ export function UsageReportBody({ accounts, nowSec, held }: {
         <summary><InfoMark />How usage is calculated</summary>
         <div className="ap-report-how-body">
           <p>
-            Each counted account is one full window, and <b>used</b> is their average; <b>remaining</b> is
-            the rest. The deck is never told a limit, so there is no total in tokens or dollars.
+            Each account is one full window, and <b>used</b> is their average; <b>remaining</b> is the
+            rest. A stale account counts at its last reading, and a window that has reset since as
+            unused; an account never read is left out. The deck is never told a limit, so there is no
+            total in tokens or dollars.
           </p>
           <p>
             <b>Ready</b> has room in both windows. <b>Limited</b> has reached the limit of one,
-            and <b>Exhausted</b> of both. <b>Stale</b> has a reading that is not current; that reading
-            is dimmed and left out of its window's total.
+            and <b>Exhausted</b> of both. <b>Stale</b> has a reading that is not current, so it is
+            dimmed and never called ready.
           </p>
         </div>
       </details>

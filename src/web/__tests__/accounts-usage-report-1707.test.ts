@@ -74,7 +74,8 @@ describe("adding it up", () => {
 
 describe("what is left out, and why — never as 0%", () => {
   it("leaves out a window the account has no reading for", () => {
-    expect(readingOf(acct(1, null, 10), "five_hour", NOW)).toEqual({ counted: false, why: "none", say: "No 5h reading", last: null });
+    expect(readingOf(acct(1, null, 10), "five_hour", NOW))
+      .toEqual({ counted: false, why: "none", say: "No 5h reading", last: null, estimate: null, resetAt: null });
   });
 
   it("leaves out a reading nothing has refreshed in a quarter of an hour, by the server's flag or this page's clock", () => {
@@ -110,14 +111,22 @@ describe("what is left out, and why — never as 0%", () => {
     expect(readingOf(acct(1, 40, 10, { error: "http-429" }), "five_hour", NOW)).toMatchObject({ counted: true, pct: 40 });
   });
 
-  it("counts the rest, and leaves the denominator to the accounts that count", () => {
+  it("totals every account with a number: a stale one at its last reading, a reset window as unused (#1713)", () => {
+    // Until #1713 the total was the fresh accounts' alone — 20% here — and
+    // inactive accounts, read on claude-swap's slower plan, were routinely
+    // stale, so the cards added up whichever few had been read lately.
     const r = usageReport([
       acct(1, 20, 20),
       acct(2, 80, 80, { stale: true }),
       acct(3, 60, 60, {}, [NOW - 1, NOW - 1]),
       acct(4, null, null),
     ], NOW);
-    expect(r.windows.map(w => [w.reporting, w.total, w.used])).toEqual([[1, 4, 20], [1, 4, 20]]);
+    expect(r.windows.map(w => [w.reporting, w.included, w.total])).toEqual([[1, 3, 4], [1, 3, 4]]);
+    for (const w of r.windows) expect(w.used).toBeCloseTo((20 + 80 + 0) / 3, 10);
+    // Only the account never read is out; it is never a 0% it was not given.
+    expect(r.rows[3].cells.five_hour).toMatchObject({ counted: false, estimate: null });
+    // And being in the total does not make a stale row ready.
+    expect(r.rows.map(x => x.status)).toEqual(["ready", "stale", "stale", "stale"]);
   });
 });
 
@@ -203,14 +212,16 @@ describe("what each account can do now (#1713)", () => {
 });
 
 describe("the resets", () => {
-  it("names the soonest one ahead among the readings that count, with what it brings back", () => {
+  it("names the soonest one ahead among every account in the total, with what it brings back", () => {
     const r = usageReport([
       acct(1, 10, 10, {}, [NOW + 3 * HOUR]),
       acct(2, 12, 10, { alias: "work" }, [NOW + HOUR]),
-      // Sooner, but stale: not the report's to promise.
-      acct(3, 10, 10, { stale: true }, [NOW + 60]),
+      // Stale, but a reset time does not move with the reading's age (#1713).
+      acct(3, 15, 10, { stale: true, alias: "old" }, [NOW + 60]),
+      // Already passed: nothing ahead to name.
+      acct(4, 10, 10, { stale: true, alias: "gone" }, [NOW - 60]),
     ], NOW);
-    expect(r.windows[0].nextReset).toEqual({ at: NOW + HOUR, name: "work", pct: 12, more: 0 });
+    expect(r.windows[0].nextReset).toEqual({ at: NOW + 60, name: "old", pct: 15, more: 0 });
   });
 
   it("says how many more come back in the same minute", () => {
@@ -246,10 +257,13 @@ describe("the report, drawn", () => {
     expect(out).not.toMatch(/available<|% used</);
   });
 
-  it("says what a card's average is based on only when some accounts are left out", () => {
-    const out = html([acct(1, 20, 40), acct(2, 40, null)]);
-    expect(out.match(/ap-report-basis/g)).toHaveLength(1);
-    expect(out).toContain("Based on 1 of 2 accounts · 1 stale");
+  it("says a card counts stale accounts at their last reading, and which were never read", () => {
+    expect(html([acct(1, 20, 40), acct(2, 40, 40)])).not.toContain("ap-report-basis");
+    const stale = html([acct(1, 20, 40), acct(2, 40, 40, { stale: true }), acct(3, 40, 40, { stale: true })]);
+    expect(stale.match(/Includes 2 stale accounts at the last reading/g)).toHaveLength(2);
+    const never = html([acct(1, 20, 40), acct(2, 40, null)]);
+    expect(never.match(/ap-report-basis/g)).toHaveLength(1);
+    expect(never).toContain('<p class="ap-report-basis">1 never read</p>');
   });
 
   it("draws one quiet bar of what remains, in the warning ink only once the window runs low", () => {
@@ -312,7 +326,7 @@ describe("the report, drawn", () => {
   });
 
   it("says when a window has no current reading at all", () => {
-    expect(html([acct(1, null, 10)])).toContain("No account has a current 5-hour reading.");
+    expect(html([acct(1, null, 10)])).toContain("No account has a 5-hour reading yet.");
   });
 
   it("names no absolute limit it was never told", () => {

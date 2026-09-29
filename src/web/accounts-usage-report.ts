@@ -54,7 +54,15 @@ export type Unread = "none" | "login" | "stale" | "reset";
  *  number it last had, when it had one, for the row to show dimmed. */
 export type Cell =
   | { counted: true; pct: number; resetAt: number | null }
-  | { counted: false; why: Unread; say: string; last: number | null };
+  | {
+    counted: false; why: Unread; say: string; last: number | null;
+    /** What the windows' totals take for it (#1713): the last reading, or 0
+     *  for a window that has reset since it was read — that reading belongs to
+     *  the window before — and null when there has never been a reading. */
+    estimate: number | null;
+    /** Its reset, when the last reading had one still ahead. */
+    resetAt: number | null;
+  };
 
 export interface ReportRow {
   num: number;
@@ -106,14 +114,17 @@ export interface WindowTotal {
   id: WindowId;
   label: string;
   long: string;
-  /** Accounts with a reading that counts, and accounts in the report. */
+  /** Accounts with a current reading, accounts in the total — the current
+   *  ones and the stale ones at their last reading — and accounts in the
+   *  report. `total - included` have never been read. */
   reporting: number;
+  included: number;
   total: number;
-  /** The average of the counted readings, unrounded; null when none count.
-   *  Rounded once, where it is printed — see usedAndAvailable. */
+  /** The average over the accounts in the total, unrounded; null when none
+   *  has a number. Rounded once, where it is printed — see usedAndAvailable. */
   used: number | null;
-  /** The soonest reset still ahead among the counted readings: whose, at what
-   *  reading, and how many more accounts reset in the same minute. */
+  /** The soonest reset still ahead among the accounts in the total: whose, at
+   *  what reading, and how many more accounts reset in the same minute. */
   nextReset: { at: number; name: string; pct: number; more: number } | null;
 }
 
@@ -135,16 +146,20 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   // In the order a reader would fix them: a login that cannot be used says
   // more than the age of the numbers it left behind.
   const issue = accountIssue(a, nowSec);
-  if (issue?.blocksSwitch) return { counted: false, why: "login", say: issue.text, last };
-  if (last == null) return { counted: false, why: "none", say: `No ${label} reading`, last: null };
+  const lapsed = lane?.resetAt != null && lane.resetAt <= nowSec;
+  const unread = (why: Unread, say: string): Cell => ({
+    counted: false, why, say, last,
+    estimate: last == null ? null : lapsed ? 0 : last,
+    resetAt: lapsed ? null : lane?.resetAt ?? null,
+  });
+  if (issue?.blocksSwitch) return unread("login", issue.text);
+  if (last == null) return unread("none", `No ${label} reading`);
   const old = a.stale || a.fetchedAt == null || nowSec * 1000 - a.fetchedAt > REPORT_STALE_MS;
-  if (old) {
-    return { counted: false, why: "stale", say: a.fetchedAt ? `Updated ${ago(a.fetchedAt, nowSec)}` : "Never read", last };
-  }
-  if (lane!.resetAt != null && lane!.resetAt <= nowSec) {
+  if (old) return unread("stale", a.fetchedAt ? `Updated ${ago(a.fetchedAt, nowSec)}` : "Never read");
+  if (lapsed) {
     // Good news the numbers have not caught up with: the window has come back
     // since this was read, so the account is likely emptier than it says.
-    return { counted: false, why: "reset", say: `Reset ${ago(lane!.resetAt * 1000, nowSec)}, not updated`, last };
+    return unread("reset", `Reset ${ago(lane!.resetAt! * 1000, nowSec)}, not updated`);
   }
   return { counted: true, pct: last, resetAt: lane!.resetAt };
 }
@@ -156,23 +171,32 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
   const w = REPORT_WINDOWS.find(x => x.id === id)!;
   let sum = 0;
   let count = 0;
+  let included = 0;
   let nextReset: WindowTotal["nextReset"] = null;
   for (const r of rows) {
     const c = r.cells[id];
-    if (!c.counted) continue;
-    sum += c.pct;
-    count++;
+    // EVERY ACCOUNT WITH A NUMBER IS IN THE TOTAL (#1713). Inactive accounts
+    // are read on claude-swap's own plan, which is often slower than the
+    // report's fifteen minutes, so a total of the fresh ones alone was a total
+    // of whichever few happened to be read lately. A stale one counts at its
+    // last reading and says so; the row still marks it Stale.
+    const pct = c.counted ? c.pct : c.estimate;
+    if (pct == null) continue;
+    sum += pct;
+    included++;
+    if (c.counted) count++;
     if (c.resetAt == null) continue;
     // "The same minute": resets are stamped to the second, and two accounts
     // coming back within one are one moment to a reader.
-    if (!nextReset || c.resetAt < nextReset.at - 59) nextReset = { at: c.resetAt, name: r.name, pct: c.pct, more: 0 };
+    if (!nextReset || c.resetAt < nextReset.at - 59) nextReset = { at: c.resetAt, name: r.name, pct, more: 0 };
     else if (c.resetAt - nextReset.at < 60) nextReset.more++;
   }
   return {
     id, label: w.label, long: w.long,
     reporting: count,
+    included,
     total: rows.length,
-    used: count ? sum / count : null,
+    used: included ? sum / included : null,
     nextReset,
   };
 }
