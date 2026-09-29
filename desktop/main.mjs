@@ -24,6 +24,7 @@ import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
+import { statusLine, trayMenuItems } from "./tray-menu.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -68,72 +69,34 @@ function trayImage(icon) {
   return nativeImage.createFromPath(join(icons, name));
 }
 
-/** "3m", "2h" — how long a session has been waiting. */
-function ago(ms) {
-  const m = Math.max(0, Math.round(ms / 60_000));
-  return m < 60 ? `${m}m` : `${Math.round(m / 60)}h`;
-}
-
-function statusLine() {
-  if (restarting) return "Restarting the deck…";
-  if (starting) return "Starting the deck…";
-  if (!deck) return "No deck running";
-  if (snapshot.icon === "offline") return "Reconnecting to the deck…";
-  if (snapshot.waiting > 0) return `${snapshot.waiting} session${snapshot.waiting === 1 ? "" : "s"} waiting for you`;
-  if (snapshot.running > 0) return `${snapshot.running} session${snapshot.running === 1 ? "" : "s"} running`;
-  return "Idle";
-}
-
+/** The menu for the state the app is in now — see tray-menu.mjs, which owns
+ *  its rows. What each row does is below, and reads this file's variables
+ *  when it is clicked rather than when the menu was drawn. */
 function buildMenu() {
-  const now = Date.now();
-  const items = [{ label: statusLine(), enabled: false }];
-  for (const b of snapshot.blocked.slice(0, 6)) {
-    const what = b.kind === "asked" ? "asking" : "needs permission";
-    items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => openWindow() });
-  }
-  if (!deck && !starting) items.push({ label: "Start the deck", click: () => ensureDeck().then(() => openWindow()) });
-  items.push(
-    { type: "separator" },
-    { label: "Open ccdeck", enabled: !!deck, click: () => openWindow() },
-    { label: "Open in browser", enabled: !!deck, click: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`) },
-    { type: "separator" },
-    {
-      label: "Notifications while closed",
-      type: "checkbox",
-      checked: notifyOn === true,
-      enabled: !!deck && notifyOn !== null,
-      click: () => toggleNotifications(),
-    },
-    {
-      label: "Start at login",
-      type: "checkbox",
-      checked: app.getLoginItemSettings().openAtLogin,
-      click: item => app.setLoginItemSettings({ openAtLogin: item.checked }),
-    },
-    { type: "separator" },
-    { label: `ccdeck v${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck v${deck.version}` : ""}`, enabled: false },
-    updateItem(),
-    // #1163: the deck restarted from the tray, the way the page's version
-    // dialog does it, rather than Quit and a trip to the Start menu.
-    { label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: () => restartDeck() },
-    { label: "Quit ccdeck", click: () => app.quit() },
-  );
-  return Menu.buildFromTemplate(items);
+  return Menu.buildFromTemplate(trayMenuItems({
+    now: Date.now(),
+    snapshot,
+    deck,
+    starting,
+    restarting,
+    notifyOn,
+    openAtLogin: app.getLoginItemSettings().openAtLogin,
+    appVersion: app.getVersion(),
+    update: updater?.state ?? { status: "idle" },
+  }, TRAY_ACTIONS));
 }
 
-/** The update line of the menu, which says where the update is rather than
- *  offering a button that does nothing while one is already on its way.
- *  "Restart to update" and "v1.64.0" are the words the native sheet and the
- *  window's dialog use for the same action — one verb and one spelling of the
- *  version on all three surfaces, so a person told to find this line by the
- *  window can recognise it. */
-function updateItem() {
-  const u = updater?.state ?? { status: "idle" };
-  if (u.status === "ready") return { label: `Restart to update to v${u.version}`, click: () => updater.restartNow() };
-  if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
-  if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
-  return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => updater?.check() };
-}
+const TRAY_ACTIONS = {
+  openWindow: () => openWindow(),
+  startDeck: () => ensureDeck().then(() => openWindow()),
+  openInBrowser: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`),
+  toggleNotifications: () => toggleNotifications(),
+  setOpenAtLogin: checked => app.setLoginItemSettings({ openAtLogin: checked }),
+  restartToUpdate: () => updater.restartNow(),
+  checkForUpdates: () => updater?.check(),
+  restartDeck: () => restartDeck(),
+  quit: () => app.quit(),
+};
 
 /** Redraw the icon, the count, the tooltip and the menu — coalesced, because
  *  a reconnect replays up to two thousand events and each one changes the
@@ -148,7 +111,7 @@ function scheduleRedraw() {
     tray.setImage(trayImage(snapshot.icon));
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
-    tray.setToolTip(`${snapshot.title} — ${statusLine()}`);
+    tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
     tray.setContextMenu(buildMenu());
   }, 150);
 }

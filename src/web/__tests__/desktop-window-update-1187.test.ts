@@ -159,25 +159,30 @@ describe("the ready chip's words (#1187)", () => {
 
 describe("one phrase and one version spelling on all three surfaces (#1187)", () => {
   const main = read("../../../desktop/main.mjs");
+  /** The tray's rows, which main.mjs draws through trayMenuItems. */
+  const trayMenu = read("../../../desktop/tray-menu.mjs");
+  /** Everything the desktop app says, for the assertions that say what it does not. */
+  const desktop = `${main}\n${trayMenu}`;
   const modal = read("../components/ReleaseNotesModal.tsx");
 
   it("says Restart to update in the window, the native sheet and the tray", () => {
     expect(RESTART_TO_UPDATE).toBe("Restart to update");
     expect(modal).toContain("RESTART_TO_UPDATE");
     expect(main).toContain('buttons: ["Restart to update", "Later"]');
-    expect(main).toContain("label: `Restart to update to v${u.version}`");
-    for (const src of [main, modal, clientText()]) {
+    expect(trayMenu).toContain("label: `Restart to update to v${u.version}`");
+    for (const src of [desktop, modal, clientText()]) {
       expect(src).not.toMatch(/"Update and restart"|"Restart now", "Later"/);
     }
   });
 
   it("spells the version with its v everywhere the update is named", () => {
     expect(main).toContain("message: `ccdeck v${version} is ready`");
-    expect(main).toContain("label: `Downloading ccdeck v${u.version}…`");
-    expect(main).toContain("`ccdeck v${app.getVersion()}");
+    expect(trayMenu).toContain("label: `Downloading ccdeck v${u.version}…`");
+    expect(trayMenu).toContain("`ccdeck v${appVersion}");
+    expect(main).toContain("appVersion: app.getVersion(),");
     expect(modal).toContain("ccdeck v{updateVersion} is downloaded and verified.");
     // No bare version after "ccdeck " or "update to " in the desktop copy.
-    expect(main).not.toMatch(/(?:ccdeck|update to|deck) \$\{(?:u\.version|version|app\.getVersion\(\)|deck\.version)\}/);
+    expect(desktop).not.toMatch(/(?:ccdeck|update to|deck) \$\{(?:u\.version|version|appVersion|app\.getVersion\(\)|deck\.version)\}/);
   });
 
   it("names the tray menu the way the native sheet does", () => {
