@@ -28,6 +28,25 @@ import { pushEvent } from "./event-sink.mjs";
 // pass below keeps. See session-read-gate.mjs.
 import { sessionReadGate } from "./session-read-gate.mjs";
 
+/**
+ * The session a hook payload is about and the transcript it names, or null when
+ * it names either one not at all. The model, usage, naming and context passes
+ * below each begin here, because each reads that transcript for that session
+ * and has nothing to do without both; it was the same four lines at the top of
+ * all four.
+ *
+ * Pure and exported for its test. The passes reduce it to "a read was
+ * scheduled or it was not", which a test can only watch through a throttle and
+ * a filesystem.
+ */
+export function transcriptTarget(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const sid = payload.session_id;
+  const tp = payload.transcript_path;
+  if (!sid || !tp) return null;
+  return { sid, tp };
+}
+
 // ─── Model enrichment ────────────────────────────────────────────────────
 // CC's hook payloads never carry the `model` field — but every hook
 // references a `transcript_path` JSONL that contains lines like
@@ -179,10 +198,9 @@ function scanSubagentDir(transcriptPath) {
 }
 
 function maybeResolveModel(payload) {
-  if (!payload || typeof payload !== "object") return;
-  const sid = payload.session_id;
-  const tp = payload.transcript_path;
-  if (!sid || !tp) return;
+  const target = transcriptTarget(payload);
+  if (!target) return;
+  const { sid, tp } = target;
   // Re-read on every event for this session — the cache was preventing us
   // from picking up subagent models that arrive after the root is known.
   // Throttle so we don't thrash the filesystem.
@@ -307,10 +325,9 @@ export async function sessionUsageTotals(transcriptPath) {
 }
 
 function maybeResolveUsage(payload) {
-  if (!payload || typeof payload !== "object") return;
-  const sid = payload.session_id;
-  const tp = payload.transcript_path;
-  if (!sid || !tp) return;
+  const target = transcriptTarget(payload);
+  if (!target) return;
+  const { sid, tp } = target;
   usageReads.run(sid, () => Promise.all([sessionUsageTotals(tp), sessionUsageByModel(tp)])
     .then(([usage, usageByModel]) => {
       if (!usage) return;
@@ -380,10 +397,9 @@ async function readSessionNamingFromTranscript(path) {
 }
 
 function maybeResolveSessionName(payload) {
-  if (!payload || typeof payload !== "object") return;
-  const sid = payload.session_id;
-  const tp = payload.transcript_path;
-  if (!sid || !tp) return;
+  const target = transcriptTarget(payload);
+  if (!target) return;
+  const { sid, tp } = target;
   nameReads.run(sid, () => readSessionNamingFromTranscript(tp)
     .then(read => {
       if (!read) return;
@@ -464,11 +480,10 @@ export async function readContextFromTranscript(path) {
 }
 
 function maybeResolveContext(payload) {
-  if (!payload || typeof payload !== "object") return;
-  const sid = payload.session_id;
-  const tp = payload.transcript_path;
+  const target = transcriptTarget(payload);
+  if (!target) return;
+  const { sid, tp } = target;
   const cwd = payload.cwd;
-  if (!sid || !tp) return;
   contextReads.run(sid, () => Promise.all([readContextFromTranscript(tp), scanClaudeMdFiles(cwd)])
     .then(([breakdown, memoryFiles]) => {
       if (!breakdown && (!memoryFiles || memoryFiles.length === 0)) return;
