@@ -50,17 +50,23 @@
 
   /* The network map's marks keep their shapes — filled for on, hollow for
      quiet, dashed for not paired — in the theme's own inks, and its wires keep
-     their dashes in them. The round's light is motion over a fact the wire
-     already carries, so it goes. */
+     their dashes in them. The round's light keeps running in the highlight,
+     one colour both ways, so the key under the map still describes it. */
   .nm-mark,
-  .nm-key-mark { forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
+  .nm-key-mark { forced-color-adjust: none; background: Canvas; border-color: CanvasText; box-shadow: 0 0 0 2px Canvas; }
   .nm-mark[data-tier="online"],
   .nm-mark[data-kind="asks"],
   .nm-key-mark[data-tier="online"] { background: Highlight; border-color: Highlight; }
+  .nm-mark[data-kind="asks"]::after { border-color: Highlight; }
   .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; }
+  .nm-wire[data-on] { --nm-wire: Highlight; --nm-wire-quiet: Highlight; }
   .nm-wire,
   .nm-key-wire { forced-color-adjust: none; }
-  .nm-glint { display: none; }
+  .nm-core-orb { forced-color-adjust: none; background: Highlight; box-shadow: none; }
+  .nm-lane-dot { forced-color-adjust: none; background: CanvasText; }
+  .nm-glint,
+  .nm-key-glint { forced-color-adjust: none; background: Highlight; box-shadow: none; }
+  .nm-glint::after { display: none; }
 
   .sl-dot::before,
   .bw-dot,

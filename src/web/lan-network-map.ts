@@ -258,11 +258,13 @@ export function nodeCaption(row: DeckRow, os: string | null | undefined): string
 /** Whether a deck is there, in a sentence: the list's presence word without
  *  the round the list appends to it. */
 export function presenceLine(row: DeckRow): string {
-  if (row.kind !== "paired") return row.state;
+  if (row.kind !== "paired") return row.via === "tailscale" ? `${row.state}, over Tailscale` : row.state;
   if (row.here) return row.via === "tailscale" ? "online, over Tailscale" : "online";
   const since = lastOnline(row);
-  if (since) return since === "now" ? "offline · last online just now" : `offline · last online ${since}`;
-  return row.state.startsWith("one-way") ? row.state : "offline";
+  const quiet = since
+    ? (since === "now" ? "offline · last online just now" : `offline · last online ${since}`)
+    : row.state.startsWith("one-way") ? row.state : "offline";
+  return row.via === "tailscale" ? `${quiet}, over Tailscale` : quiet;
 }
 
 function lastOnline(row: DeckRow): string | null {
@@ -284,4 +286,25 @@ export function ownAddresses(status: Pick<LanStatus, "addrs" | "port" | "tailsca
   const ts = status.tailscale?.addr;
   if (ts && !(status.addrs ?? []).includes(ts)) out.push(`${ts}:${status.port}`);
   return out;
+}
+
+/** The machine a row stands for, as a key that survives its twins trading
+ *  places. A machine running two decks is one row whose lead — and so whose
+ *  `fp` — is whichever of the two answered last (see oneRowPerMachine), so a
+ *  row's own fp can change between two polls while the machine does not. The
+ *  least of its decks' fingerprints does not. */
+export function machineKey(row: Pick<DeckRow, "fp" | "twins">): string {
+  let least = row.fp;
+  for (const t of row.twins ?? []) if (t.fp < least) least = t.fp;
+  return least;
+}
+
+/** The next angle for a wire that already stands at `prev`, turned the short
+ *  way round. A wire at 350° whose deck moves to 10° would otherwise sweep
+ *  back through the whole circle, since CSS eases the two numbers and not the
+ *  direction. Unbounded on purpose: 370° and 10° point the same way. */
+export function continuousAngle(prev: number | undefined, next: number): number {
+  if (prev == null) return next;
+  const delta = ((((next - prev) % 360) + 540) % 360) - 180;
+  return prev + delta;
 }

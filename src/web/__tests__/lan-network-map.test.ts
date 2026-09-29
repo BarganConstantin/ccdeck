@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  mapHeadline, mapLayout, mapSummary, mapTier, nodeCaption, ownAddresses, presenceLine,
+  continuousAngle, machineKey, mapHeadline, mapLayout, mapSummary, mapTier, nodeCaption, ownAddresses, presenceLine,
 } from "../lan-network-map";
 import type { DeckRow } from "../lan-roster";
 
@@ -150,6 +150,43 @@ describe("the side panel's presence line", () => {
     expect(presenceLine(row({ state: "online · 0 of 1 logins arrived" }))).toBe("online");
     expect(presenceLine(row({ state: "online · all logins fine", via: "tailscale" }))).toBe("online, over Tailscale");
     expect(presenceLine(row({ here: false, state: "no answer · last online 3m ago" }))).toBe("offline · last online 3m ago");
+  });
+
+  it("says a deck is over the tailnet whether or not it is on", () => {
+    expect(presenceLine(row({ here: false, state: "last online 2h ago", via: "tailscale" })))
+      .toBe("offline · last online 2h ago, over Tailscale");
+    expect(presenceLine(row({ kind: "nearby", state: "not paired yet", via: "tailscale" })))
+      .toBe("not paired yet, over Tailscale");
+  });
+});
+
+describe("which machine a deck is, across polls", () => {
+  it("is the same machine when its two decks trade the lead", () => {
+    const a = row({ fp: "b-deck" });
+    const b = row({ fp: "a-deck" });
+    const ledByA = { ...a, twins: [b] };
+    const ledByB = { ...b, twins: [a] };
+    expect(machineKey(ledByA)).toBe(machineKey(ledByB));
+  });
+
+  it("is the deck's own fingerprint for the ordinary machine running one", () => {
+    expect(machineKey(row({ fp: "only" }))).toBe("only");
+  });
+});
+
+describe("the way a wire turns when its deck moves", () => {
+  it("turns the short way across twelve o'clock's seam", () => {
+    expect(continuousAngle(350, 10)).toBe(370);
+    expect(continuousAngle(10, 350)).toBe(-10);
+  });
+
+  it("turns the short way from three o'clock to twelve, as two decks becoming three does", () => {
+    expect(continuousAngle(0, 270)).toBe(-90);
+  });
+
+  it("keeps building on an angle that has already wound past a full turn", () => {
+    expect(continuousAngle(370, 20)).toBe(380);
+    expect(continuousAngle(undefined, 45)).toBe(45);
   });
 });
 
