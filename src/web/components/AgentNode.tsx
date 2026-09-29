@@ -14,7 +14,7 @@ import { codexApprovalTell } from "../codex-approval";
 import { shortModel, modelFamily } from "../model-label";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { stateLabel, waitingLabel, waitingSentence } from "../agent-copy";
+import { spawnBadgeTitle, stateLabel, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -158,7 +158,7 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
       <div className="sub">
         {data.kind === "root" ? "session" : "subagent"}
         {data.childCount > 0 && (
-          <span className="spawn-badge" title={`${data.childCount} subagents spawned`}>→ {data.childCount}</span>
+          <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
         )}
         {data.cwdBasename && data.kind === "subagent" ? ` · ${data.cwdBasename}` : ""}
         {/* The chip README.md names as how the two CLIs are told apart, on the

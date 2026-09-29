@@ -26,6 +26,18 @@
 // day instead: that is a whole day's spend across every token type, and
 // spreading it over our tokens by count is the guess the paragraph above
 // refuses for a partial day, made worse by a mix nobody has checked.
+//
+// A DRIFT IS A RATIO OF FLAT PRICES, SO IT MULTIPLIES A FLAT PRICE (#1773).
+// ccusage's breakdowns carry one `cacheCreationTokens` and no TTL split, so
+// pricing.ts prices ccusage's side with every write at the 5-minute rate, and
+// whatever ccusage charged for 1-hour writes arrives inside the drift. Our
+// counters carry the split, and priced WITH it the 1-hour premium was counted
+// twice, once by pricing.ts and once by the drift: a day ccusage billed at
+// $19.10 read $21.65. So wherever a drift calibrates a figure, our tokens are
+// priced flat as well, on the drift's own basis, and a day the deck tracked in
+// full lands on ccusage's cost to the cent at whatever rate ccusage used. The
+// split is kept where nothing calibrates, the one place pricing.ts's rate is
+// the answer rather than the shape.
 import { costForUsage, fmtCost, ratesForModel, UNPRICED_LABEL } from "./pricing";
 import { bareModelId } from "./model-id";
 import { fmtTokens } from "./token-format";
@@ -65,6 +77,12 @@ export function toUsage(c: Counters): TokenUsage {
     cacheReadTokens: c.cr, cacheCreateTokens: c.cc,
     cacheCreate1hTokens: c.c1h, cacheCreate5mTokens: c.c5m,
   };
+}
+
+/** The same counters as ccusage's breakdowns report them: every write in one
+ *  flat count, with no TTL split — the basis a drift is measured on. */
+function flatUsage(c: Counters): TokenUsage {
+  return { ...toUsage(c), cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 };
 }
 
 /** Billed tokens of one counter set. c1h/c5m are a split OF cc, not extra. */
@@ -131,7 +149,7 @@ export function reconcile(
   now: number = Date.now(),
 ): Reconciled {
   // The drift factor per (day, model): ccusage's cost over pricing.ts's price of
-  // ccusage's OWN tokens. Near 1; 1 when a day/model is not in ccusage. A cell
+  // ccusage's OWN tokens. Near 1; none when a day/model is not in ccusage. A cell
   // is a calibration only when BOTH sides priced it: pricing.ts's zero is a
   // model it has no row for, and ccusage's zero is one it could not price, and
   // neither is a rate to scale anything by.
@@ -155,17 +173,23 @@ export function reconcile(
     m.set(model, cell.cost / priced);
   }
   const calibrated = winPriced > 0;
-  const driftFor = (day: string, model: string): number => {
+  const driftFor = (day: string, model: string): number | null => {
     const m = driftByDay.get(day);
-    return (m?.get(model) ?? m?.get(bareModelId(model))) ?? 1;
+    return (m?.get(model) ?? m?.get(bareModelId(model))) ?? null;
   };
 
   const unpricedModels = new Set<string>();
-  /** A spread's priced dollars at the given drift, and the tokens no row reached. */
-  const priceSpread = (models: Record<string, Counters>, drift: (model: string) => number) => {
+  /** A spread's priced dollars, and the tokens no row reached. A model with a
+   *  drift is priced flat and scaled by it, which is ccusage's rate; one with
+   *  none (null) is pricing.ts's own price, TTL split and all (#1773). */
+  const priceSpread = (models: Record<string, Counters>, drift: (model: string) => number | null) => {
     let cost = 0, unpriced = 0;
     for (const [m, c] of Object.entries(models)) {
-      if (ratesForModel(m, now)) { cost += costForUsage(toUsage(c), m, now).total * drift(m); continue; }
+      if (ratesForModel(m, now)) {
+        const d = drift(m);
+        cost += d === null ? costForUsage(toUsage(c), m, now).total : costForUsage(flatUsage(c), m, now).total * d;
+        continue;
+      }
       const t = billedOf(c);
       if (t > 0) { unpriced += t; unpricedModels.add(m); }
     }
@@ -201,7 +225,7 @@ export function reconcile(
   // ccusage's pre-tracking spend. Priced by pricing.ts, nudged by the window's
   // average drift so it reads in ccusage terms too. Zero ⇒ no row, which is what
   // a fresh install (or a reset) shows until work happens.
-  const winDrift = calibrated ? winCost / winPriced : 1;
+  const winDrift = calibrated ? winCost / winPriced : null;
   const unTokens = unattributedWin ? tokensOf(unattributedWin) : 0;
   const un = unattributedWin ? priceSpread(unattributedWin, () => winDrift) : { cost: 0, unpriced: 0 };
   const unattributed = (un.cost > 0 || unTokens > 0) ? { cost: un.cost, tokens: unTokens, unpricedTokens: un.unpriced } : null;

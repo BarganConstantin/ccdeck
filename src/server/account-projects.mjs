@@ -113,10 +113,19 @@ export function localDay(ts) {
   return `${y}-${m}-${day}`;
 }
 
-/** The earliest day a window of `days` includes, counting today as day 1. */
+/** The earliest day a window of `days` includes, counting today as day 1.
+ *
+ *  Counted in calendar days (#1775). `now − (days − 1) × 24h` read the wrong
+ *  date for an hour of each day when the span held a clock change, since one of
+ *  its days is 23 or 25 hours long: a 7-day window opened just after midnight
+ *  in the week after spring-forward covered eight. Today's date is read off the
+ *  local clock and the step back is taken in UTC, where every day is 24 hours —
+ *  presetSince's rule in usage-range.ts, which the page asks ccusage with, so
+ *  the tally and its calibration cover the same days. */
 export function windowCutoff(days, now = Date.now()) {
   if (!days || days <= 0) return null;
-  return localDay(now - (days - 1) * 86_400_000);
+  const d = new Date(now);
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() - (days - 1))).toISOString().slice(0, 10);
 }
 
 /** CC encodes a cwd `/Users/x/y` as the folder `-Users-x-y`. The reverse is
