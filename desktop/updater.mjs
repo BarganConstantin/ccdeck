@@ -78,6 +78,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   let lastInfo = null;
   let packageType;          // read once, when first asked
   let installing = false;   // Windows/Linux: an install has been started
+  let relaunch = false;     // macOS: this quit is Restart to update, not Quit
 
   const set = next => { state = next; onChange?.(state); };
 
@@ -137,14 +138,15 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
 
   /** Called as the app quits (will-quit, which a normal Quit reaches and
    *  app.exit does not): install what is ready without starting it again.
-   *  macOS hands the staged bundle to the swap script. Windows and Linux make
+   *  macOS hands the staged bundle to the swap script, which opens the new
+   *  version only after Restart to update (#1758). Windows and Linux make
    *  the call electron-updater's own install-on-quit would have made (#1757),
    *  silent and with no relaunch — only for a verified update, and not for an
    *  install that would ask for a password (#1755). */
   function installOnQuit() {
     if (process.platform === "darwin") {
       if (staged) {
-        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir });
+        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir, relaunch });
         staged = null;
       }
       return;
@@ -175,7 +177,9 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
    *  install (#1176). */
   function restartNow() {
     if (state.status !== "ready") return;
-    if (process.platform === "darwin") { app.quit(); return; }
+    // macOS installs on the way out either way; what makes this a restart
+    // rather than a Quit is the swap opening the new version after (#1758).
+    if (process.platform === "darwin") { relaunch = true; app.quit(); return; }
     if (process.platform === "linux" && process.env.APPIMAGE) { restartAppImage(); return; }
     if (!auto) return;
     installing = true;

@@ -135,14 +135,17 @@ export async function stageUpdate(update, { runningApp, fetchImpl = fetch, execF
 }
 
 /**
- * Swap the bundle once this process has gone, then start the new one.
+ * Swap the bundle once this process has gone, then — for a restart — start
+ * the new one.
  *
  * A detached /bin/sh, handed everything as argv — never interpolated — so a
  * path with a space or a quote is data. The old bundle is moved aside rather
  * than deleted until the new one is in place, and put back if the move fails.
+ * `relaunch` is "1" when the app is restarting into the update; a plain Quit
+ * is the person closing ccdeck, and leaves it closed (#1758).
  */
 export const SWAP_SCRIPT = `
-pid="$1"; target="$2"; staged="$3"; work="$4"
+pid="$1"; target="$2"; staged="$3"; work="$4"; relaunch="$5"
 while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
 backup="$target.ccdeck-old"
 rm -rf "$backup"
@@ -154,11 +157,11 @@ else
 fi
 xattr -dr com.apple.quarantine "$target" 2>/dev/null
 rm -rf "$work"
-open "$target"
+if [ "$relaunch" = 1 ]; then open "$target"; fi
 `;
 
-export function installOnExit({ pid, target, staged, dir }) {
-  const child = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), target, staged, dir], {
+export function installOnExit({ pid, target, staged, dir, relaunch = false }) {
+  const child = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), target, staged, dir, relaunch ? "1" : "0"], {
     detached: true,
     stdio: "ignore",
   });

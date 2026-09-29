@@ -319,7 +319,8 @@ describe("the macOS update", () => {
     u.installOnQuit();
     u.installOnQuit();
     expect(mac.installOnExit).toHaveBeenCalledTimes(1);
-    expect(mac.installOnExit).toHaveBeenCalledWith({ pid: process.pid, target: "/Applications/ccdeck.app", ...staged });
+    // A plain Quit: the swap leaves the app closed (#1758).
+    expect(mac.installOnExit).toHaveBeenCalledWith({ pid: process.pid, target: "/Applications/ccdeck.app", ...staged, relaunch: false });
   });
 
   it("reports a refused update as an error, and installs nothing on quit", async () => {

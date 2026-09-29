@@ -170,8 +170,9 @@ export const GATES = [
   // #1176's swap-script block. The script that replaces an installed Mac app
   // is /bin/sh with mv, rm, kill and sleep, run for real against a bundle in a
   // temp folder with ditto, xattr and open stood in for — which runs on Linux
-  // as well as macOS, and cannot run on Windows, which has no /bin/sh.
-  { file: "desktop-updater.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 4 },
+  // as well as macOS, and cannot run on Windows, which has no /bin/sh. Two of
+  // its cases are #1758's: a plain Quit swaps the app in and opens nothing.
+  { file: "desktop-updater.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 6 },
   // #1630's relaunch script, the Linux counterpart of the swap script above:
   // bash, kill and /dev/fd, run for real against a stand-in AppImage. The
   // environment it hands on and the packaging check beside it are un-gated.
