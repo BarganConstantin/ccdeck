@@ -41,6 +41,16 @@ const STATE_WORDS: Record<string, string> = {
   maintenance: "maintenance",
 };
 
+/** The same states as the topbar chip says them, where every pixel is spent
+ *  twice: "degraded performance" is the one that does not fit, and "degraded"
+ *  is the start of it, so the chip's name still contains what it shows. */
+const CHIP_WORDS: Record<string, string> = {
+  degraded: "degraded",
+  partial_outage: "partial outage",
+  major_outage: "major outage",
+  maintenance: "maintenance",
+};
+
 const PROVIDER_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex" };
 
 /** The two pages a link may go to. The route names the page, and this is the
@@ -63,8 +73,10 @@ export interface Incident {
   name: string;
   /** "Claude · partial outage", or "Claude · partial outage · as of 14:05" when stale. */
   label: string;
-  /** "partial outage" */
+  /** "partial outage", "degraded performance" */
   words: string;
+  /** The chip's shorter form of `words`: "degraded" for degraded performance. */
+  chipWords: string;
   /** "14:05" when the answer is stale — the time it was last true — else null. */
   asOf: string | null;
   /** The incident's title, or failing that the affected components; null when the page gave neither. */
@@ -131,6 +143,7 @@ export function incidentOf(s: ProviderStatus, now: number): Incident | null {
     name,
     label: `${name} · ${words}${asOf ? ` · as of ${asOf}` : ""}`,
     words,
+    chipWords: ownRow(CHIP_WORDS, s.state) ?? words,
     asOf,
     what: s.summary || (components.length > 0 ? components.join(", ") : null),
     href: page.href,

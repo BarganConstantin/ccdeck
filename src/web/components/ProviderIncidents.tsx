@@ -31,8 +31,9 @@ export function IncidentChips({ incidents }: { incidents: Incident[] }) {
           <span className="pi-dot" aria-hidden />
           <span className="pi-name">{i.name}</span>
           {/* The state's words go at the narrow breakpoint, as the waiting
-              chip's do; the dot, the name and the accessible name stay. */}
-          <span className="pi-words">· {i.words}</span>
+              chip's do, and while two chips share a bar that is short of
+              room; the dot, the name and the accessible name stay. */}
+          <span className="pi-words">· {i.chipWords}</span>
           {i.asOf && <span className="pi-asof">· as of {i.asOf}</span>}
         </a>
       ))}
@@ -57,9 +58,12 @@ export function QuotaIncident({ incident }: { incident: Incident | null | undefi
         {/* "Partial outage": it opens the line, where the chip's words follow a name. */}
         {incident.words[0].toUpperCase() + incident.words.slice(1)}{incident.asOf ? ` · as of ${incident.asOf}` : ""}
       </span>
+      <span className="up-incident-go" aria-hidden>↗</span>
+      {/* Its own row, under the state: the panel is a 280px column, and on one
+          line with the state and the page's host the title was cut to four
+          letters. The host is said to a screen reader and in the title. */}
       {incident.what && <span className="up-incident-what">{incident.what}</span>}
-      <span className="up-incident-host">{incident.host}<span aria-hidden> ↗</span></span>
-      <span className="vis-hidden">, opens in a new tab</span>
+      <span className="vis-hidden">, on {incident.host}, opens in a new tab</span>
     </a>
   );
 }

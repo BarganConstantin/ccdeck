@@ -119,6 +119,15 @@ describe("the topbar chip", () => {
     expect(out).toContain(">· partial outage<");
   });
 
+  it("says degraded performance as \"degraded\", which its name still contains", () => {
+    const i = incidentOf(line({ state: "degraded" }), NOW)!;
+    const out = renderToStaticMarkup(createElement(IncidentChips, { incidents: [i] }));
+    expect(out).toContain(">· degraded<");
+    expect(i.label).toBe("Claude · degraded performance");
+    // 2.5.3: the visible words are inside the accessible name.
+    expect(out).toContain('aria-label="Claude · degraded performance. Opens status.claude.com in a new tab"');
+  });
+
   it("draws a stale incident dashed and dated", () => {
     const out = html([line({ stale: true, checkedAt: NOW - 10 * 60_000 })]);
     expect(out).toContain('class="provider-incident provider-incident-stale"');
@@ -151,10 +160,11 @@ describe("the usage panel's line", () => {
     const out = renderToStaticMarkup(createElement(QuotaIncident, { incident: claude }));
     expect(out).toContain(">Partial outage<");
     expect(out).toContain(">Elevated errors for multiple models<");
-    expect(out).toContain("status.claude.com");
+    expect(out).toContain(", on status.claude.com, opens in a new tab");
     expect(out).toContain('href="https://status.claude.com/"');
     expect(out).toContain('rel="noopener noreferrer"');
-    expect(out).toContain("opens in a new tab");
+    // The title has a row of its own, after the state and the arrow.
+    expect(out.indexOf("up-incident-what")).toBeGreaterThan(out.indexOf("up-incident-go"));
   });
 
   it("sits under the provider's own quota heading, whatever the quota says", () => {

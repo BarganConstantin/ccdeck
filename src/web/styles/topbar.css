@@ -264,6 +264,17 @@
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
    controls still do not shrink; the bar spends less on padding and gaps so all
    of them fit down to a 320px screen. */
+/* Two providers in an incident at once, on a bar that is showing its words
+   (#1311). The readout gives from the left, so two full chips — Claude's and
+   Codex's, about 280px — would cost the wordmark on a 1440px screen with a
+   session waiting, and the stream pill next. With two, each chip keeps its dot
+   and its name and says the rest in its title and its accessible name; one
+   chip, the usual case, keeps its words at every width above the narrow
+   breakpoint. Past 1680px there is room for both in full. */
+@media (min-width: 1440px) and (max-width: 1679px) {
+  .topbar .readout:has(.provider-incident + .provider-incident) .pi-words,
+  .topbar .readout:has(.provider-incident + .provider-incident) .pi-asof { display: none; }
+}
 @media (max-width: 640px) {
   .topbar { gap: 12px; padding: 0 10px; }
   .topbar .actions { gap: 8px; }
