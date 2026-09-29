@@ -52,3 +52,24 @@ export function stopChild(child, { graceMs = 4000, signals = 2 } = {}) {
     wait();
   });
 }
+
+/**
+ * What a look for a running deck does with the one it found (#1783): "attach"
+ * to it, "replace" it — shut it down, so the app's own deck starts in its
+ * place — or "none" when there is none.
+ *
+ * A deck OLDER than the one the app carries is replaced, as a newer `ccdeck`
+ * started in a terminal replaces an older one (running-deck.mjs olderVersion,
+ * which a deck reporting no version also fails). But only when `willStart`:
+ * on the path that starts the app's own deck straight after (ensureDeck). The
+ * other looks — every five seconds while there is no deck, and after the tray
+ * stream or the app's own deck is lost — start nothing, and shutting a deck
+ * down there left the machine with none. They attach to it instead; the
+ * version note says it is older. Never while the app has a deck of its own or
+ * is starting one.
+ */
+export function discoverPlan({ found, ours, ownDeck, starting, willStart = false, olderVersion }) {
+  if (!found) return "none";
+  if (willStart && !ownDeck && !starting && olderVersion(found.version, ours)) return "replace";
+  return "attach";
+}

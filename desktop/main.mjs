@@ -29,7 +29,7 @@ import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
-import { createOwnDeck, stopChild } from "./own-deck.mjs";
+import { createOwnDeck, discoverPlan, stopChild } from "./own-deck.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -312,7 +312,7 @@ function publishUpdateState() {
  * is listening.
  */
 async function ensureDeck() {
-  await discover();
+  await discover({ willStart: true });
   if (deck) return deck;
   if (starting) return starting;
   starting = (async () => {
@@ -396,31 +396,31 @@ function bundledDeckVersion() {
 
 /**
  * Attach to the running deck — unless it is OLDER than the one this app
- * carries, in which case it is replaced, exactly as a newer `ccdeck` started in
- * a terminal replaces an older running one (running-deck.mjs `olderVersion`,
- * the rule `secondStart` uses). An older deck may not know the tray connection
- * at all, and would count the app as a page open forever — the notifications
- * the app exists to deliver would never come.
+ * carries and `willStart` says the app's own deck starts next (ensureDeck), in
+ * which case it is replaced, exactly as a newer `ccdeck` started in a terminal
+ * replaces an older running one (running-deck.mjs `olderVersion`, the rule
+ * `secondStart` uses). An older deck may not know the tray connection at all,
+ * and would count the app as a page open forever — the notifications the app
+ * exists to deliver would never come. Every other look attaches to it rather
+ * than leave the machine with no deck (#1783) — see discoverPlan.
  */
-async function discover() {
+async function discover({ willStart = false } = {}) {
   try {
     const decks = await findDecks(deckRoot());
     const found = decks[0] ?? null;
-    if (found && !ownDeck.current() && !starting) {
-      const { olderVersion } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href);
-      const ours = bundledDeckVersion();
-      if (olderVersion(found.version, ours)) {
-        trace(`replacing an older deck (${found.version || "unversioned"} on ${found.port}) with this app's ${ours}`);
-        await deckJson(found, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 }).catch(() => {});
-        // Until it has let go of its port, so the app's deck gets 4317 rather
-        // than a random one beside it.
-        for (let i = 0; i < 24; i++) {
-          if (!(await findDecks(deckRoot())).some(d => d.pid === found.pid)) break;
-          await new Promise(r => setTimeout(r, 250));
-        }
-        attach(null);
-        return;
+    const { olderVersion } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href);
+    const ours = bundledDeckVersion();
+    if (discoverPlan({ found, ours, ownDeck: ownDeck.current(), starting, willStart, olderVersion }) === "replace") {
+      trace(`replacing an older deck (${found.version || "unversioned"} on ${found.port}) with this app's ${ours}`);
+      await deckJson(found, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 }).catch(() => {});
+      // Until it has let go of its port, so the app's deck gets 4317 rather
+      // than a random one beside it.
+      for (let i = 0; i < 24; i++) {
+        if (!(await findDecks(deckRoot())).some(d => d.pid === found.pid)) break;
+        await new Promise(r => setTimeout(r, 250));
       }
+      attach(null);
+      return;
     }
     attach(found);
   } catch {
