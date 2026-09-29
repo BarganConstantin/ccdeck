@@ -1,4 +1,5 @@
 import { CUSTOM_TARGET_PEAK } from "./notification-audio";
+import { ownRow } from "./own-row";
 
 // The two moments worth hearing, played by the deck itself.
 //
@@ -524,11 +525,11 @@ export function chimeFor(
   if (isReplay) return null;
   const name = env?.payload?.hook_event_name;
   if (typeof name !== "string") return null;
-  // `Object.hasOwn`, the rule admin-failure.ts states for the same shape (#474).
+  // `ownRow`, the rule admin-failure.ts states for the same shape (#474).
   // `hook_event_name` is a string off the wire and `/api/event` is
   // credential-free and validates no field shapes, so `CHIMES["constructor"]`
   // answered with the Object function — not nullish, so `??` never fired — and
   // `play()` threw into the `catch { }` in App.tsx, costing a chime silently.
   // The last unguarded member of a set this codebase already swept once.
-  return Object.hasOwn(CHIMES, name) ? CHIMES[name as keyof typeof CHIMES] : null;
+  return ownRow(CHIMES, name) ?? null;
 }

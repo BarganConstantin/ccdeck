@@ -112,4 +112,19 @@ describe("the six copies it replaced", () => {
     expect(skin).not.toMatch(/Object\.hasOwn\(/);
     expect(skin.match(/\bownRow\(/g)).toHaveLength(6);
   });
+
+  it("is what every other table read in the client asks with too", () => {
+    // The six tables outside tool-skin.ts that answered a name off the wire or
+    // off a reply with the same guard spelled out, each its own copy.
+    const SITES: Array<[file: string, calls: number]> = [
+      ["tool-taxonomy.ts", 1], ["provider-copy.ts", 1], ["injected-prompt.ts", 1],
+      ["lan-round.ts", 1], ["sound.ts", 1], ["admin-failure.ts", 2],
+    ];
+    for (const [file, calls] of SITES) {
+      const text = withoutComments(readFileSync(`${WEB_DIR}${file}`, "utf8"));
+      expect(text, file).toMatch(/^import \{ ownRow \} from "\.\/own-row";$/m);
+      expect(text, file).not.toMatch(/Object\.hasOwn\(/);
+      expect(text.match(/\bownRow\(/g), file).toHaveLength(calls);
+    }
+  });
 });

@@ -128,7 +128,7 @@ describe("the two lookup tables a caller can choose the key of (#1046)", () => {
   it("asks the same of CHIMES, whose key is hook_event_name off /api/event", () => {
     // `Record<string, Chime>` typed the read as Chime and never undefined,
     // which is what made the missing guard invisible to tsc.
-    expect(sound).toMatch(/Object\.hasOwn\(CHIMES, name\)/);
+    expect(sound).toMatch(/ownRow\(CHIMES, name\)/);
     expect(sound).not.toMatch(/const CHIMES: Record<string, Chime>/);
   });
 });
