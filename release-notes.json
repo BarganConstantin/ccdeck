@@ -59,6 +59,24 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.31.0": [
+    {
+      "title": "📊 Account capacity",
+      "body": "A gauge button in the accounts panel's header opens Account capacity: how many of your Claude accounts are ready now, what the 5-hour and 7-day windows have left across all of them, and a row for each account with its use, its state (Ready, Limited, Exhausted or Stale) and when it was last read. Each window also says whose reset comes next."
+    },
+    {
+      "title": "🚦 Claude and Codex incidents",
+      "body": "When Anthropic's or OpenAI's status page reports an incident on something your sessions use, the deck says so in the topbar, the Usage panel and the tray, and every mark links to the status page. A provider with nothing wrong draws nothing."
+    },
+    {
+      "title": "↕️ Order your other accounts",
+      "body": "The Other accounts row can sort the list by slot, by how full a window is, or by most room, and open every account at once. Both stay as you left them after a reload."
+    },
+    {
+      "title": "🔐 A settings folder left by sudo can be given back",
+      "body": "On a Mac, running ccdeck once with sudo left its settings folder owned by another user, and every settings change was refused, sharing an account included. The message now offers \"give it back\": macOS asks for your password, the folder is yours again, and the deck reads its settings back without a restart."
+    }
+  ],
   "3.30.0": [
     {
       "title": "🧮 Token counts and costs are no longer doubled",
