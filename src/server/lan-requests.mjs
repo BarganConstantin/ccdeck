@@ -94,9 +94,11 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     const via = route ? "tailscale" : "lan";
     const own = !!route?.own;
     pending.set(entry.fp, { ...entry, via, own, at: had?.at ?? now(), lastAt: now() });
+    // An accept the switch pressed that did not pin — the switch's own budget
+    // is spent, see MAX_AUTO_PINS in lan-engine.mjs — leaves the request as it
+    // would be with the switch off: a row, drawn, for somebody to answer.
     if (!wasUnpaired(entry.fp) && saysYesOn(cfg, via) && (via === "lan" || own)) {
-      engineNow()?.accept(entry.fp, { byHand: false });
-      return;
+      if (engineNow()?.accept(entry.fp, { byHand: false })) return;
     }
     if (!had) onChange?.();
   };

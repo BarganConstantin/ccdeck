@@ -81,6 +81,21 @@ const ROUND_MS = 10_000;
  *  lan-dials.mjs, which keeps the list and the cap. */
 export { MAX_AUTO_PEERS };
 
+/**
+ * The most pairings the accept switch may make on its own (#1737).
+ *
+ * It had no limit, and a pin is a line in prefs.json and a deck every round
+ * dials: one host handshaking with a fresh key each time made sixty of them in
+ * well under a second. Only pins a SWITCH made count (`auto`, see addTrusted);
+ * a person's accepts are theirs, as a person's typed addresses are.
+ *
+ * THE SAME NUMBER AS MAX_AUTO_PEERS, because every pin the switch makes brings
+ * a dial-back row out of that budget, so a pin past it is a deck this one
+ * mostly could not dial back anyway. Thirty-two machines is also well past one
+ * person's own fleet, which is who the switch is for.
+ */
+export const MAX_AUTO_PINS = MAX_AUTO_PEERS;
+
 /** What this machine calls itself when the user has not said. The hostname,
  *  because that is the word they already use for this machine everywhere else. */
 export function defaultName() {
@@ -1148,6 +1163,18 @@ export function createEngine({
         onChange?.();
         return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
       }
+      // THE SWITCH HAS A BUDGET OF ITS OWN (#1737) — see MAX_AUTO_PINS.
+      //
+      // REFUSED RATHER THAN MAKING ROOM, which is the opposite of the dial
+      // list's choice and for a reason. Evicting a dial row the deck added
+      // undoes nothing anybody chose; evicting a pin is an unpair nobody asked
+      // for, of a deck that may be one of the owner's own machines — and which
+      // pins ever finished a round is known only in memory, so after a restart
+      // there is no telling. Past the cap the switch simply stops pressing,
+      // and the request waits in the panel for a person, as it would with the
+      // switch off.
+      const bySwitch = cfg.trusted.filter(t => t?.auto === true).length;
+      if (!byHand && !trustedPeer(cfg.trusted, fp) && bySwitch >= MAX_AUTO_PINS) return null;
       const { list, added } = pin({ fp, pub: seen.pub, name: seen.name }, { auto: !byHand });
       requests.drop(fp);
       onTrust?.(list);
@@ -1160,9 +1187,16 @@ export function createEngine({
       // port it listens on for exactly this. AND KEPT, through onDial, as an
       // invite's is (#1643): `addPeer` alone lives in memory, and the next
       // settings write or restart made the pairing one-way again.
-      const back = seen.addr && seen.port && this.addPeer(seen.addr, seen.port)
+      //
+      // ONLY A PERSON'S ACCEPT IS KEPT, OR COUNTED AS TYPED (#1737). The row
+      // the switch leaves is one the deck added itself, the way a beacon's is:
+      // capped by MAX_AUTO_PEERS, in memory only, and never written into prefs
+      // as an address somebody named — the port in a hello is whatever the
+      // caller claimed. After a restart such a deck is reached as any paired
+      // deck is: by its beacon, or by calling in (see learnCaller).
+      const back = seen.addr && seen.port && this.addPeer(seen.addr, seen.port, { typed: byHand })
         ? (dials.meet(`${seen.addr}:${seen.port}`, { fp, name: seen.name || "" }),
-           onDial?.(`${seen.addr}:${seen.port}`),
+           byHand && onDial?.(`${seen.addr}:${seen.port}`),
            { addr: seen.addr, port: seen.port })
         : null;
       return added ? { fp, name: seen.name, addr: seen.addr, port: seen.port ?? null, dialBack: back } : null;
