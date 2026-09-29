@@ -20,7 +20,7 @@ import { bootstrapUv, existingBootstrappedUv } from "./uv-bootstrap.mjs";
 // Where installers leave claude-swap and which one owns this machine's copy —
 // pure layout, with the platform a parameter, so it lives on its own.
 import { PKG, cswapCandidates, cswapOwner } from "./cswap-layout.mjs";
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -92,6 +92,98 @@ function sameVersion(a, b) { return !isOlder(a, b) && !isOlder(b, a); }
 
 let _bin = null;
 
+// ── a copy this deck refused ─────────────────────────────────────────────────
+//
+// #1799. installAndConfirm refuses a claude-swap whose version is not the one it
+// asked for, and the refusal used to exist only in the value it returned. The
+// copy was still on disk, cswapBin memoized it the moment it answered
+// `--version`, and everything after the boot row drove it anyway: the roster
+// called it installed-and-empty and offered Add account, `/api/cswap-auto` ran
+// `cswap config` with it, and the NEXT launch could not tell it from a copy the
+// user installed themselves — which ensureCswap deliberately accepts whatever
+// its number — so it read "accounts panel enabled" and was seeded with
+// `cswap add`.
+//
+// So a refusal is written down, next to the update marker, and kept until
+// something changes: while a copy answering the refused version is what
+// resolves, cswapBin hands out REFUSED_BIN instead of it and cswapVersion
+// answers null. It is matched on the VERSION, not on the spelling: the same
+// file answers as `cswap` once ~/.local/bin is on PATH and by its absolute path
+// before, and telling those apart would need a PATH walk to be right in both
+// directions. A copy answering any other version clears the record — that is a
+// different copy, most likely one the user installed, and it is left alone the
+// way any other is — and so does an install that lands an acceptable one.
+// AGENTS_DECK_CSWAP wins over all of it, as it wins over every other lookup
+// here: someone who names a binary has chosen it.
+const REFUSED_RECORD = join(homedir(), ".agents-deck", "cswap-refused.json");
+
+/**
+ * What cswapBin answers while the refusal holds: a path under the deck's own
+ * state directory that nothing creates, with an extension so that Windows spawns
+ * it as given rather than trying `.cmd` spellings through cmd.exe. Every caller
+ * already handles a cswap that is not there, and this is one — so a mutation
+ * that reaches it (an Add pressed from a panel drawn before the refusal) fails
+ * the way a missing tool fails, and runs nothing.
+ */
+const REFUSED_BIN = join(homedir(), ".agents-deck", "cswap-refused", "cswap.refused");
+
+/** The refusal in effect for THIS process, `{ path, version, want, via }` — set
+ *  when an install is refused, or when cswapBin resolves a copy the record
+ *  names. */
+let _refused = null;
+
+function readRefusal() {
+  try {
+    const r = JSON.parse(readFileSync(REFUSED_RECORD, "utf8"));
+    return r && typeof r.version === "string" ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearRefusal() {
+  try { rmSync(REFUSED_RECORD, { force: true }); } catch { /* best-effort */ }
+}
+
+/** Refuse this copy from now on, in this process and in the next. */
+function refuse(entry) {
+  _refused = entry;
+  _bin = null;
+  _probe = null;
+  try {
+    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true });
+    writeFileSync(REFUSED_RECORD, JSON.stringify({ ...entry, at: new Date().toISOString() }, null, 2) + "\n");
+  } catch { /* the in-process refusal still holds; a note on disk is the next launch's */ }
+}
+
+/**
+ * The refusal cswapBin's resolution found, or null — `{ path, version, want,
+ * via }`. As of the last cswapBin(), so a caller that has just awaited one can
+ * ask this without another hop; one that has not wants cswapRefusal.
+ */
+export function cswapRefused() {
+  return process.env.AGENTS_DECK_CSWAP ? null : _refused;
+}
+
+/**
+ * The refusal this deck is keeping, or null, for a caller that may be asking
+ * before anything has resolved the binary: the roster and the first-run seed.
+ * Resolves it first only when there is a record to match and nothing has been
+ * resolved yet, so a process pays one `--version` for the question and a
+ * machine with no record pays a missing file.
+ */
+export async function cswapRefusal() {
+  if (process.env.AGENTS_DECK_CSWAP) return null;
+  if (!_refused && !_bin && existsSync(REFUSED_RECORD)) await cswapBin();
+  return _refused;
+}
+
+/** ensureCswap's answer for a refused copy: the install-time row's shape, so
+ *  the boot says the same thing on every launch the refusal holds. */
+function refusedState(r) {
+  return { state: "unavailable", reason: "unexpected_version", version: r.version, want: r.want ?? RANGE_SPEC, via: r.via ?? null };
+}
+
 /**
  * What the probe that resolved `_bin` printed, and when.
  *
@@ -136,9 +228,19 @@ export async function cswapBin() {
   // debugging a bad resolution needs it to take effect immediately.
   if (process.env.AGENTS_DECK_CSWAP) return process.env.AGENTS_DECK_CSWAP;
   if (_bin) return _bin;
+  if (_refused) return REFUSED_BIN;
 
   const take = (spelling, r) => {
-    _probe = { version: versionIn(r), at: Date.now() };
+    const version = versionIn(r);
+    // The copy the deck refused, still answering: decline it (#1799). Any
+    // other version is another copy, and the record goes.
+    const refused = readRefusal();
+    if (refused && refused.version === version) {
+      _refused = refused;
+      return REFUSED_BIN;
+    }
+    if (refused) clearRefusal();
+    _probe = { version, at: Date.now() };
     return (_bin = spelling);
   };
 
@@ -173,11 +275,12 @@ export async function cswapBin() {
  * ensureCswap below, whose return value says nothing about which binary the
  * following twenty account operations will be sent to. See cswap-bin-memo.test.ts.
  */
-export function resetCswapBin() { _bin = null; _probe = null; }
+export function resetCswapBin() { _bin = null; _probe = null; _refused = null; }
 
 /** Installed version string, or null when cswap cannot be found. */
 export async function cswapVersion() {
   const bin = await cswapBin();
+  if (bin === REFUSED_BIN) return null;   // declined, not asked — see _refused
   // The call above may have just asked this very question — see _probe. Nothing
   // is remembered past PROBE_FRESH_MS, so this is the second half of one
   // lookup rather than a cache of the answer.
@@ -600,10 +703,17 @@ export async function ensureCswap({ onInstalling = null } = {}) {
 
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") {
     const version = await cswapVersion();
+    if (cswapRefused()) return refusedState(cswapRefused());
     return version ? { state: "present", version } : { state: "skipped" };
   }
 
   const existing = await cswapVersion();
+  // STILL THE COPY IT REFUSED (#1799). Asked before the existing-install branch,
+  // which accepts any version on purpose and would call this one present, and
+  // before the install below, which would fetch the same answer from the same
+  // index on every launch. The boot row repeats the refusal instead, and nothing
+  // is seeded.
+  if (cswapRefused()) return refusedState(cswapRefused());
   if (existing) {
     // Installed — the only question left is whether it's stale. One PyPI
     // request a day, and the upgrade itself never blocks startup.
@@ -650,6 +760,9 @@ async function installAndConfirm() {
   // found nothing — see resetCswapBin — but a lookup that DID resolve, to a copy
   // whose `--version` then failed, is exactly the case that got us here.
   resetCswapBin();
+  // And whatever was refused before: what arrived is judged below, afresh, and
+  // an acceptable version is the end of the refusal.
+  clearRefusal();
 
   // Freshly installed tools land in ~/.local/bin, which may not be on the PATH
   // of the shell that launched us — cswapBin looks there directly, so this
@@ -675,6 +788,8 @@ async function installAndConfirm() {
   if (version !== "installed") {
     const wrong = result.want ? !sameVersion(version, result.want) : !isAcceptableVersion(version);
     if (wrong) {
+      // Kept, not only reported (#1799): see REFUSED_RECORD.
+      refuse({ path: _bin, version, want: result.want ?? RANGE_SPEC, via: result.via });
       return { state: "unavailable", reason: "unexpected_version", version, want: result.want ?? RANGE_SPEC, via: result.via };
     }
   }

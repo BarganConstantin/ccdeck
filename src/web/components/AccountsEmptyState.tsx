@@ -1,14 +1,14 @@
 // What the accounts panel says when there is no roster to draw.
 //
 // Lifted out of AccountsPanel.tsx unchanged. The roster read answers `ok:
-// false` for four different reasons — claude-swap still installing, not
-// installed, installed with nothing in its store, or a store that could not be
-// read — and each needs a different thing from the reader, so each gets its own
-// sentence. It was a forty-line branch of the panel's render that read nothing
+// false` for five different reasons — claude-swap still installing, not
+// installed, installed with nothing in its store, a copy the deck refused to
+// drive, or a store that could not be read — and each needs a different thing
+// from the reader, so each gets its own sentence. It was a forty-line branch of the panel's render that read nothing
 // but the answer's reason and hint, and that is all it is handed.
 import { type AccountsData } from "../claude-accounts";
 
-export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, "reason" | "hint"> }) {
+export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, "reason" | "hint" | "version" | "want"> }) {
   return (
     <div className="ap-empty">
       {/* The deck's own install, still running. Said as a wait rather
@@ -35,6 +35,20 @@ export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, 
           </span>
           {data.hint && <code className="ap-cmd">{data.hint}</code>}
           <span className="ap-hint">Then add an account with the <strong>+</strong> button above.</span>
+        </>
+      ) : data.reason === "cswap_refused" ? (
+        <>
+          {/* #1799: the deck installed claude-swap and a different version
+              answered. Said as the deck's decision, with the two ways out of
+              it, rather than as "not installed" — it is installed, and the
+              boot row names it. */}
+          <span>claude-swap was installed, but not the version the deck asked for.</span>
+          <span className="ap-hint">
+            {data.version ? `v${data.version} answered` : "A different version answered"}
+            {data.want ? ` where ${data.want} was asked for` : ""}, so the deck is not
+            driving it. Install the version it asked for, or set AGENTS_DECK_CSWAP to a
+            claude-swap you trust.
+          </span>
         </>
       ) : data.reason === "no_accounts" ? (
         <>

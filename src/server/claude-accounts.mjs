@@ -14,7 +14,7 @@
 // and cannot lose a login. Switching shells out to `cswap` rather than
 // reimplementing the lock protocol its correctness depends on.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cswapBin, cswapInstalling, cswapVersion, installHint } from "./cswap-install.mjs";
+import { cswapBin, cswapInstalling, cswapRefusal, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
 import { failureDetail } from "./exec-output.mjs";
 import { storedCopyAlive } from "./account-health.mjs";
@@ -291,12 +291,13 @@ function lane(id, label, win) {
 /**
  * Every managed account with whatever usage claude-swap last saw for it.
  *
- * When there is nothing to show, says which of the three reasons it is:
+ * When there is nothing to show, says which of the four reasons it is:
  * "cswap_installing" (the deck is installing the tool and there is nothing to
  * do), "no_cswap" (the tool is not installed, and here is the command for this
- * machine) or "no_accounts" (it is installed but nothing has been added yet).
- * They need different things from the user, and reporting them as one empty
- * panel leaves whichever one they are in with nowhere to go.
+ * machine), "no_accounts" (it is installed but nothing has been added yet) or
+ * "cswap_refused" (the copy that answers is one the deck installed and refused
+ * to drive). They need different things from the user, and reporting them as
+ * one empty panel leaves whichever one they are in with nowhere to go.
  */
 export async function fetchClaudeAccounts({ force = false } = {}) {
   const now = Date.now();
@@ -375,6 +376,14 @@ async function readRoster(now, gen) {
     _cacheAt = Date.now();
     return r;
   };
+
+  // A COPY THE DECK REFUSED (#1799), before the store is even read. Its roster
+  // would be a panel whose every button — Add, Switch, Remove — runs that copy,
+  // and its empty store read as `no_accounts`, which is "installed, add one".
+  const refused = await cswapRefusal();
+  if (refused) {
+    return finish({ ok: false, reason: "cswap_refused", version: refused.version, want: refused.want ?? null, fetchedAt: now });
+  }
 
   const root = backupRoot();
   const seq  = await readSequence(root);
@@ -769,6 +778,9 @@ const SEED_MARKER = join(homedir(), ".agents-deck", ".cswap-seeded");
 export async function seedFirstAccount() {
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") return { state: "skipped" };
   if (existsSync(SEED_MARKER)) return { state: "already-tried" };
+  // Before the marker, so a refused copy does not also spend the one attempt
+  // (#1799). The boot does not seed one either; this is the seed saying so.
+  if (await cswapRefusal()) return { state: "refused" };
 
   // THE TEST AND THE WRITE ARE ONE CRITICAL SECTION (#1039). The whole guard
   // below is a read of sequence.json — "only when the store holds no accounts

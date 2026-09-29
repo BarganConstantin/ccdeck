@@ -37,6 +37,8 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 
 vi.mock("../../server/cswap-install.mjs", () => ({
   cswapBin: async () => "cswap",
+  cswapRefused: () => null,
+  cswapRefusal: async () => null,
   cswapVersion: async () => "0.25.0",
   installHint: () => "",
 }));

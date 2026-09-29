@@ -8,7 +8,7 @@
 // engine before every tick, and drops both readings when it writes a setting;
 // it re-exports all five names, which is where the suite reaches them.
 import { run } from "./exec.mjs";
-import { cswapBin } from "./cswap-install.mjs";
+import { cswapBin, cswapRefused } from "./cswap-install.mjs";
 
 // ── one reading at a time ──────────────────────────────────────────────────
 
@@ -167,7 +167,11 @@ export function readCswapConfig() {
 }
 
 async function readCswapConfigNow() {
-  const r = await run(await cswapBin(), ["config"]);
+  const bin = await cswapBin();
+  // Not a copy the deck refused (#1799): the panel's settings are no reason to
+  // run it, and null is what a tool that cannot be asked already answers.
+  if (cswapRefused()) return null;
+  const r = await run(bin, ["config"]);
   if (!r.ok) return null;
   const out = {};
   for (const line of r.stdout.split("\n")) {
