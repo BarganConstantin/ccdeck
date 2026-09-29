@@ -40,8 +40,8 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  addTrusted, ANNOUNCE_MS, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, stillListed,
-  transferChallenge, trustedPeer,
+  addTrusted, ANNOUNCE_MS, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, PRESENT_MS,
+  stillListed, transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
@@ -423,12 +423,35 @@ export function createEngine({
     about, now, myFp: () => identity.fp, settings: () => cfg,
   });
 
+  /**
+   * WHERE EACH PAIRED DECK LAST ANSWERED: the address and port of the last
+   * round whose handshake with it completed against its pin, by fingerprint.
+   *
+   * A beacon carries a fingerprint and a port, and nothing binds either to the
+   * address it came from — so for a paired deck it may say where to try FIRST
+   * and nothing more. It used to be the whole answer: the heard row took the
+   * beacon's address, was dialled for a day, and a typed row for the same deck
+   * was skipped as dialled already. A deck reached by typed address, which is
+   * the usual reason to type one, sends no beacon that would ever correct it.
+   * This is what a round falls back to when a heard address fails, and what
+   * lets a heard address that did answer stay dialled after its beacons stop.
+   */
+  const lastGood = new Map();
+  const answeredThere = p => {
+    const g = lastGood.get(p.fp);
+    return !!g && g.addr === p.addr && g.port === p.port;
+  };
+  /** Whether a round dials this heard row: listed, and either answered at that
+   *  address or still being announced there. One that never answered is
+   *  dialled for as long as a deck stays present (PRESENT_MS), not a day. */
+  const dialsHeard = p => stillListed(p, now()) && (answeredThere(p) || now() - p.lastSeen < PRESENT_MS);
+
   /** Does this deck already hold an address it dials for `fp`? A beacon row it
-   *  still hears, or a typed/learned row that answered as that deck. When
+   *  still dials, or a typed/learned row that answered as that deck. When
    *  neither is true, the only way it ever reaches that deck is if the deck
    *  keeps calling — and a called deck is never pulled from. */
   const dialsAlready = fp => {
-    if (beacon && [...beacon.peers.values()].some(p => p.fp === fp && stillListed(p, now()))) return true;
+    if (beacon && [...beacon.peers.values()].some(p => p.fp === fp && dialsHeard(p))) return true;
     return dials.answersAs(fp);
   };
 
@@ -584,8 +607,9 @@ export function createEngine({
     arrived.forEach((d, i) => { if (typeof found?.[i] === "string") d.why = found[i]; });
   };
 
-  /** Ask one peer what it has, and heal whatever it can heal. */
-  const roundWith = async peer => {
+  /** Ask one peer what it has, and heal whatever it can heal. `reached` is
+   *  told the deck's fingerprint once the handshake with it has held. */
+  const roundWith = async (peer, reached = null) => {
     let conn = null;
     const startedIn = session;
     // Out here, so a round that dies after some logins arrived still reports
@@ -675,6 +699,12 @@ export function createEngine({
         });
         if (added) { cfg = { ...cfg, trusted: list }; onTrust?.(list); }
       }
+
+      // A PAIRED DECK, ANSWERING HERE against its pin — which is what makes
+      // this address one to fall back to, and a heard one worth dialling after
+      // its beacons stop. See lastGood.
+      lastGood.set(conn.peerFp, { addr: peer.addr, port: peer.port, via: viaOf(peer) });
+      reached?.(conn.peerFp);
 
       // Our card goes with the question and theirs comes back with the answer
       // — see lan-about.mjs for why it is here and nowhere earlier.
@@ -847,40 +877,65 @@ export function createEngine({
     if (!beacon) return [];
     const startedIn = session;
     const all = [];
-    // Heard first, typed second, and a typed one is skipped when the beacon
-    // already found that address: otherwise a deck that is both would be dialled
-    // twice a round and its work counted twice.
+    // Heard first, typed second, and a typed one is skipped when this round
+    // already dialled that address: otherwise a deck that is both would be
+    // dialled twice a round and its work counted twice.
     // The same rule the list uses. A deck that has been silent for a day is not
-    // dialled once a minute forever on the chance it comes back.
+    // dialled once a minute forever on the chance it comes back — and one that
+    // never answered at the address it announced, not past PRESENT_MS (see
+    // dialsHeard).
     //
     // A deck heard over the tailnet is dialled only while that switch is on, and
     // so is a row the deck added itself from a tailnet beacon. An address a
     // person typed is theirs whatever the switch says — pairing by a typed
     // 100.x address worked before any of this.
     const heard = [...beacon.peers.values()]
-      .filter(p => stillListed(p, now()) && (cfg.tailscale || p.via !== "tailscale"));
-    const seen = new Set(heard.map(p => `${p.addr}:${p.port}`));
+      .filter(p => dialsHeard(p) && (cfg.tailscale || p.via !== "tailscale"));
+    /** Every address this round has dialled, and every paired deck it reached
+     *  by any of them. */
+    const tried = new Set();
+    const reached = new Set();
+    const dial = async peer => {
+      tried.add(`${peer.addr}:${peer.port}`);
+      all.push(...await roundWith(peer, fp => reached.add(fp)));
+    };
+    // Sequential rather than parallel. The store takes one mutation at a
+    // time anyway (the mutex in store-lock.mjs), and two peers healing the
+    // same account at once would race for a slot number claude-swap assigns
+    // as max+1 without a lock of its own.
+    //
+    // And given up when LAN is switched off under it: the rest of the list
+    // belongs to no session, and dialling it only delays the next round.
+    for (const peer of heard) {
+      if (session !== startedIn) return all;
+      await dial(peer);
+      // A HEARD ADDRESS THAT DID NOT ANSWER, for a deck that answered somewhere
+      // else before: that address, in the same round. A beacon says where a
+      // deck moved and cannot say it truly — see lastGood. One on the dial list
+      // is tried below with the rest of the list; one heard over the tailnet
+      // waits for that switch, as its beacon would.
+      const back = reached.has(peer.fp) ? null : lastGood.get(peer.fp);
+      if (!back || (back.via === "tailscale" && !cfg.tailscale)) continue;
+      const at = `${back.addr}:${back.port}`;
+      if (tried.has(at) || dials.rows().some(r => `${r.addr}:${r.port}` === at)) continue;
+      if (session !== startedIn) return all;
+      await dial({ fp: peer.fp, name: peer.name, addr: back.addr, port: back.port, via: back.via });
+    }
     // AND ONE DIAL PER DECK, not one per address. A row asked from a tailnet
     // beacon keeps that address after the same deck is heard on the local
     // network, and both used to be dialled every round — two handshakes, and
     // two lines of work for one machine. `dials.metAt` says which deck a row
-    // reached; the heard row already dials it by the better route.
-    const heardFps = new Set(heard.map(p => p.fp));
+    // reached; when this round already reached that deck, by the heard route
+    // or any other, the row is skipped. When it did not, the row is the next
+    // way to it and is dialled — a heard address alone never stands in for it.
     const typed = dials.rows().filter(p => {
       const at = `${p.addr}:${p.port}`;
-      if (seen.has(at) || heardFps.has(dials.metAt(at)?.fp)) return false;
+      if (tried.has(at) || reached.has(dials.metAt(at)?.fp)) return false;
       return cfg.tailscale || p.typed || !routeTo(p.addr);
     });
-    for (const peer of [...heard, ...typed]) {
-      // Sequential rather than parallel. The store takes one mutation at a
-      // time anyway (the mutex in store-lock.mjs), and two peers healing the
-      // same account at once would race for a slot number claude-swap assigns
-      // as max+1 without a lock of its own.
-      //
-      // And given up when LAN is switched off under it: the rest of the list
-      // belongs to no session, and dialling it only delays the next round.
+    for (const peer of typed) {
       if (session !== startedIn) return all;
-      all.push(...await roundWith(peer));
+      await dial(peer);
     }
     if (session !== startedIn) return all;
     lastRound.finished();
@@ -931,12 +986,16 @@ export function createEngine({
     // heard half brings liveness, the dialled half brings the last round.
     const rows = [];
     const byId = new Map();
+    /** Of two records of asking one deck, the one written last. */
+    const later = (x, y) => (!x ? y : !y ? x : (y.at ?? 0) >= (x.at ?? 0) ? y : x);
     const put = row => {
       const had = byId.get(row.id);
       if (!had) { byId.set(row.id, row); rows.push(row); return; }
-      // Keep what each half is the authority on.
+      // Keep what each half is the authority on — and the LATER ask of the
+      // two, which is how the deck is now: a round that could not reach it by
+      // its heard address and reached it by the typed one wrote both.
       had.lastSeen = had.lastSeen ?? row.lastSeen;
-      had.last = had.last ?? row.last;
+      had.last = later(had.last, row.last);
       had.manual = had.manual || row.manual;
       had.met = had.met || row.met;
       if (row.name && !had.name) had.name = row.name;
@@ -1274,6 +1333,7 @@ export function createEngine({
       const list = dropTrusted(cfg.trusted, fp);
       if (list.length === cfg.trusted.length) return false;
       cfg = { ...cfg, trusted: list };
+      lastGood.delete(fp);
       markUnpaired(fp, true);
       onTrust?.(list);
       onChange?.();
@@ -1324,7 +1384,7 @@ export function createEngine({
      */
     async roundOne(fp) {
       if (!beacon || typeof fp !== "string" || !fp) return null;
-      const heard = [...beacon.peers.values()].find(p => p.fp === fp && stillListed(p, now()));
+      const heard = [...beacon.peers.values()].find(p => p.fp === fp && dialsHeard(p));
       const typed = dials.rowAnswering(fp);
       const peer = heard ?? typed;
       if (!peer) return null;
