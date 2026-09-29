@@ -47,6 +47,10 @@ export function loadOpenness(): Openness {
   return NONE_OPEN;
 }
 
+/** Written without the `slot:` keys: an account with no address is named by
+ *  where it stands, and whoever stands there next time the deck opens is not
+ *  who was opened — #542, across a reload. Those rows are remembered for as
+ *  long as the page is open, as they always were. */
 export function saveOpenness(state: Openness): void {
-  writeStored(OPEN_KEY, JSON.stringify(state));
+  writeStored(OPEN_KEY, JSON.stringify({ mode: state.mode, keys: state.keys.filter(k => !k.startsWith("slot:")) }));
 }

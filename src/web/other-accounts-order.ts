@@ -11,8 +11,8 @@
 //
 //   - the ORDER: slot, or how full each account is by one window — 5h, 7d or
 //     a model's — fullest first (what is about to run out) or emptiest first
-//     (where to switch next), or by room, the tightest window's headroom,
-//     which is how the deck already ranks where to go;
+//     (where to switch next), or by room, the tightest window's headroom —
+//     the fold's peek's own measure of where to go;
 //   - which rows are OPEN, as a mode and its exceptions, so "expand all" is a
 //     fact that holds for an account that arrives later rather than a list of
 //     whoever was there when it was pressed;
@@ -22,7 +22,7 @@
 // What is remembered between reloads — the order and the open rows — is
 // accounts-prefs.ts's.
 import type { Account, Lane } from "./claude-accounts";
-import { knownLanes, laneKey, type LaneOwner } from "./lane-open";
+import { laneKey, toggleLane, type LaneOwner } from "./lane-open";
 
 // ── the order ───────────────────────────────────────────────────────────────
 
@@ -43,6 +43,23 @@ const WINDOWS: { lane: string; name: string }[] = [
 
 /** A model lane's name, which is the label the server gives it ("Opus"). */
 const isModelLane = (l: Lane) => l.id.startsWith("scoped-");
+
+/** The name an order calls a lane by: "5h", "7d", or the model's label. */
+export function laneName(l: Lane): string {
+  return WINDOWS.find(w => w.lane === l.id)?.name ?? l.label;
+}
+
+/**
+ * What an order sorts by, for the rows to mark: a window's name, "room" for
+ * the tightest window of each account, or null for slot order. A sorted list
+ * that did not say what it was sorted by left the reader to work it out from
+ * numbers at ragged positions in every row.
+ */
+export function orderKey(order: string): string | null {
+  if (order === "room") return "room";
+  const m = /^(.+):(full|empty)$/.exec(order);
+  return m ? m[1] : null;
+}
 
 /**
  * Every order the menu offers for these accounts: slot, then fullest and
@@ -82,17 +99,33 @@ function windowPct(a: Account, name: string): number | null {
  * a zero would put an unread account at the top of "emptiest first", which is
  * the list of where to switch next.
  *
+ * AND THE TWO ORDERS THAT ANSWER "WHERE NEXT" PUT THE ACCOUNTS NOBODY CAN
+ * SWITCH TO AFTER THE ONES THEY CAN. Emptiest first and most room are read as
+ * a queue, and an account held out of rotation, or one whose login no switch
+ * can get past, at the top of that queue is a row with no Switch on it where
+ * the next hop should be — the fold's own peek already ranks them that way.
+ * Fullest first is a list of what is about to run out, and every account is
+ * part of that answer. `reachable` is account-fold.ts's.
+ *
  * An order this build does not offer, or one for a model no account has any
  * more, is slot order: the stored choice is whatever was in the store.
  */
-export function sortAccounts<T extends Account>(accounts: readonly T[], order: string): T[] {
-  const bySlot = [...accounts].sort((x, y) => x.num - y.num);
-  if (order === "room") return rank(bySlot, a => a.headroom, "desc");
+export function sortAccounts<T extends Account>(
+  accounts: readonly T[], order: string, reachable: (a: T) => boolean = () => true,
+): T[] {
+  // "Slot" is the roster's own order — claude-swap's sequence, which the live
+  // row above is drawn in too — and it is every other order's tiebreak.
+  const bySlot = [...accounts];
+  const reachableFirst = (sorted: T[]) => [...sorted.filter(reachable), ...sorted.filter(a => !reachable(a))];
+  if (order === "room") {
+    return reachableFirst(rank(bySlot, a => (Number.isFinite(a.headroom) ? a.headroom : null), "desc"));
+  }
   const m = /^(.+):(full|empty)$/.exec(order);
   if (!m) return bySlot;
   const [, name, dir] = m;
   if (!bySlot.some(a => windowPct(a, name) != null)) return bySlot;
-  return rank(bySlot, a => windowPct(a, name), dir === "full" ? "desc" : "asc");
+  const ranked = rank(bySlot, a => windowPct(a, name), dir === "full" ? "desc" : "asc");
+  return dir === "empty" ? reachableFirst(ranked) : ranked;
 }
 
 function rank<T>(items: T[], value: (x: T) => number | null, dir: "asc" | "desc"): T[] {
@@ -130,13 +163,41 @@ export function holdOrder<T extends LaneOwner>(sorted: readonly T[], held: reado
 // ── which rows are open ─────────────────────────────────────────────────────
 
 /**
+ * The name a row's openness is remembered by: laneKey's — the account, never
+ * the slot it stands in (#542) — HASHED, because it is written to the
+ * browser's store and laneKey is the address itself. The hash is enough to
+ * tell a handful of accounts apart, and it keeps the list of addresses out of
+ * a file anything on this origin can read. A `slot:` key, for an account with
+ * no address, stays as it is and is never written down: see saveOpenness.
+ */
+export function rowKey(a: LaneOwner): string {
+  const key = laneKey(a);
+  return key.startsWith("slot:") ? key : `h:${cyrb53(key)}`;
+}
+
+/** A 53-bit string hash (cyrb53, public domain). Not a secret; a short,
+ *  stable name for a longer one. */
+function cyrb53(str: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/**
  * Which of the other accounts are open.
  *
  * "some": `keys` are the rows the reader opened, one by one — how the panel
  * always worked. "all": every row is open, and `keys` are the rows the reader
  * shut since. So "expand all" keeps holding for an account signed in after it
  * was pressed, and a row's own press still works afterwards, both ways.
- * Keys are laneKey's: the account, never the slot it stands in (#542).
+ * Keys are rowKey's.
  */
 export interface Openness {
   mode: "some" | "all";
@@ -146,15 +207,14 @@ export interface Openness {
 export const NONE_OPEN: Openness = { mode: "some", keys: [] };
 
 export function isOpen(state: Openness, a: LaneOwner): boolean {
-  const listed = state.keys.includes(laneKey(a));
+  const listed = state.keys.includes(rowKey(a));
   return state.mode === "all" ? !listed : listed;
 }
 
-/** The state after one row's own press. */
+/** The state after one row's own press: lane-open.ts's toggle, over the
+ *  mode's list of exceptions. */
 export function toggleOne(state: Openness, a: LaneOwner): Openness {
-  const key = laneKey(a);
-  const keys = state.keys.includes(key) ? state.keys.filter(k => k !== key) : [...state.keys, key];
-  return { mode: state.mode, keys };
+  return { mode: state.mode, keys: toggleLane(state.keys, a, rowKey) };
 }
 
 /** Whether every one of these rows is open — what the expand-all control
@@ -177,6 +237,8 @@ export function toggleAll(state: Openness, rows: readonly LaneOwner[]): Openness
  * roster changes nothing, and neither does one nobody left.
  */
 export function trimOpenness(state: Openness, roster: readonly LaneOwner[] | null | undefined): Openness {
-  const keys = knownLanes(state.keys, roster);
-  return keys === state.keys ? state : { mode: state.mode, keys };
+  if (!Array.isArray(roster)) return state;
+  const live = new Set(roster.map(rowKey));
+  const keys = state.keys.filter(k => live.has(k));
+  return keys.length === state.keys.length ? state : { mode: state.mode, keys };
 }

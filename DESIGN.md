@@ -491,6 +491,12 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   step so a destructive action is never one click.
 - `.btn.warn` was removed on purpose. Do not bring it back.
 - `.icon-btn` is the square variant for a glyph alone.
+- **Edgeless at rest, in a dense column.** A few controls identified by their
+  own word or name draw no boundary until they are pointed at or focused, and
+  then take `--ctl-edge` and `--ctl-fill` — the verbs on a Local network row
+  (`.ap-lan-who .ap-manage-btn`) and the Other accounts list's order and
+  expand-all (`.ap-rest-sort select`, `.ap-rest-all`, #1579).
+  `control-edges.test.ts` measures the edge they draw when they draw one.
 
 ### Switch, fields, modal
 

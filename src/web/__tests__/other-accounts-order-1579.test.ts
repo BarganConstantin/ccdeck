@@ -14,9 +14,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Account } from "../claude-accounts";
 import { laneKey } from "../lane-open";
 import {
-  allOpen, holdOrder, isOpen, NONE_OPEN, orderChoices, SLOT_ORDER, sortAccounts, toggleAll, toggleOne,
-  trimOpenness, validOrder, type Openness,
+  allOpen, holdOrder, isOpen, NONE_OPEN, orderChoices, orderKey, rowKey, SLOT_ORDER, sortAccounts, toggleAll,
+  toggleOne, trimOpenness, validOrder, type Openness,
 } from "../other-accounts-order";
+import AccountRow from "../components/AccountRow";
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import OtherAccounts from "../components/OtherAccounts";
 import { sourceOf } from "./client-source";
@@ -54,8 +55,9 @@ describe("the orders on offer", () => {
 });
 
 describe("sorting", () => {
-  it("is slot order by default, whatever order the roster came in", () => {
-    expect(nums(sortAccounts([...LIST].reverse(), SLOT_ORDER))).toEqual([5, 8, 9, 10, 16]);
+  it("is the roster's own order for slot — claude-swap's sequence, which the live row follows too", () => {
+    expect(nums(sortAccounts(LIST, SLOT_ORDER))).toEqual([5, 8, 9, 10, 16]);
+    expect(nums(sortAccounts([...LIST].reverse(), SLOT_ORDER))).toEqual([16, 10, 9, 8, 5]);
   });
 
   it("puts the fullest first, or the emptiest", () => {
@@ -65,8 +67,28 @@ describe("sorting", () => {
   });
 
   it("sorts by a model window, and puts the accounts without one last", () => {
-    expect(nums(sortAccounts(LIST, "Opus:full"))).toEqual([5, 8, 9, 10, 16]);
+    // Two Opus readings that run against slot order, so the sort has to act.
+    const opus = [acct(2, 1, 1, [["Opus", 20]]), acct(3, 1, 1), acct(4, 1, 1, [["Opus", 80]])];
+    expect(nums(sortAccounts(opus, "Opus:full"))).toEqual([4, 2, 3]);
+    expect(nums(sortAccounts(opus, "Opus:empty"))).toEqual([2, 4, 3]);
     expect(nums(sortAccounts(LIST, "Sonnet:empty"))).toEqual([10, 5, 8, 9, 16]);
+  });
+
+  it("puts the accounts nobody can switch to after the rest, in the two orders that answer 'where next'", () => {
+    const can = (a: Account) => a.num !== 9;
+    // Emptiest first and most room: 9 is the emptiest, and held out.
+    expect(nums(sortAccounts(LIST, "5h:empty", can))).toEqual([5, 10, 8, 16, 9]);
+    expect(nums(sortAccounts(LIST, "room", can))).toEqual([5, 10, 8, 16, 9]);
+    // Fullest first is what is about to run out, and every account is in that answer.
+    expect(nums(sortAccounts(LIST, "5h:full", can))).toEqual([16, 8, 10, 5, 9]);
+    expect(nums(sortAccounts(LIST, "7d:full", can))).toEqual([10, 8, 16, 5, 9]);
+  });
+
+  it("names what it sorts by, for the rows to mark", () => {
+    expect(orderKey("5h:full")).toBe("5h");
+    expect(orderKey("Opus:empty")).toBe("Opus");
+    expect(orderKey("room")).toBe("room");
+    expect(orderKey(SLOT_ORDER)).toBeNull();
   });
 
   it("puts an unread account last in either direction, never at the top of 'emptiest'", () => {
@@ -81,8 +103,8 @@ describe("sorting", () => {
     expect(nums(sortAccounts(LIST, "room"))).toEqual([9, 5, 10, 8, 16]);
   });
 
-  it("keeps slot order between two accounts at the same reading", () => {
-    expect(nums(sortAccounts([acct(12, 40, 0), acct(3, 40, 0), acct(7, 40, 0)], "5h:full"))).toEqual([3, 7, 12]);
+  it("keeps the roster's order between two accounts at the same reading", () => {
+    expect(nums(sortAccounts([acct(12, 40, 0), acct(3, 40, 0), acct(7, 40, 0)], "5h:full"))).toEqual([12, 3, 7]);
   });
 
   it("falls back to slot order for an order it does not know or can no longer apply", () => {
@@ -157,9 +179,31 @@ describe("which rows are open", () => {
   it("forgets an account that left, and changes nothing on a poll nobody left", () => {
     const s = toggleOne(toggleOne(NONE_OPEN, LIST[0]), LIST[1]);
     const trimmed = trimOpenness(s, LIST.slice(1));
-    expect(trimmed.keys).toEqual([laneKey(LIST[1])]);
+    expect(trimmed.keys).toEqual([rowKey(LIST[1])]);
     expect(trimOpenness(s, LIST)).toBe(s);
     expect(trimOpenness(s, null)).toBe(s);
+  });
+
+  it("forgets a shut exception in 'all' mode the same way, so the account comes back open", () => {
+    const s = toggleOne(toggleAll(NONE_OPEN, LIST), LIST[0]);
+    const trimmed = trimOpenness(s, LIST.slice(1));
+    expect(trimmed).toEqual({ mode: "all", keys: [] });
+    expect(isOpen(trimmed, LIST[0])).toBe(true);
+  });
+
+  it("is still all open when the one row shut is the live account, which is not in the list", () => {
+    const live = { ...acct(1, 50, 50), active: true };
+    const s = toggleOne(toggleAll(NONE_OPEN, LIST), live);
+    expect(allOpen(s, LIST)).toBe(true);
+  });
+
+  it("names a row by a hash of its account, so the store holds no address", () => {
+    const k = rowKey(LIST[0]);
+    expect(k).toMatch(/^h:[0-9a-z]+$/);
+    expect(k).not.toContain("@");
+    expect(rowKey({ ...LIST[0], num: 99 })).toBe(k);
+    // An account with no address keeps the slot name, which is never written down.
+    expect(rowKey({ num: 7, email: null })).toBe("slot:7");
   });
 
   it("says nothing is all open when there is nothing to open", () => {
@@ -187,6 +231,12 @@ describe("what the browser keeps", () => {
     saveOpenness(s);
     expect(loadOrder()).toBe("7d:empty");
     expect(loadOpenness()).toEqual(s);
+    expect(store.get("agent-dag.otherAccountsOpen")).not.toContain("@");
+  });
+
+  it("never writes a slot's name down, since whoever stands there next is not who was opened (#542)", () => {
+    saveOpenness({ mode: "some", keys: ["slot:4", rowKey(LIST[0])] });
+    expect(loadOpenness()).toEqual({ mode: "some", keys: [rowKey(LIST[0])] });
   });
 
   it("falls back to slot order and nothing open for what it cannot read", () => {
@@ -238,9 +288,37 @@ describe("the controls, in the fold's own row", () => {
     expect(html({ order: SLOT_ORDER })).not.toContain("data-sorted");
   });
 
-  it("name the expand-all control by which way its next press goes", () => {
-    expect(html({ allOpen: false })).toContain('aria-label="Expand every account"');
-    expect(html({ allOpen: true })).toContain('aria-label="Collapse every account"');
+  it("make expand-all a toggle with one name, pressed while every row is open", () => {
+    // A name that changed under focus is one most screen readers never announce.
+    expect(html({ allOpen: false })).toMatch(/aria-label="Expand every account" aria-pressed="false" aria-controls="ap-rest-list" title="Expand every account"/);
+    expect(html({ allOpen: true })).toMatch(/aria-label="Expand every account" aria-pressed="true" aria-controls="ap-rest-list" title="Collapse every account"/);
+  });
+
+  it("mark the order held, and say why, while the reader is in the list", () => {
+    expect(html({ held: true })).toContain("data-held");
+    expect(html({ held: true })).toContain('title="5h · fullest — held where it was while you are in the list"');
+    expect(html({ held: false })).not.toContain("data-held");
+    expect(html({ held: false })).toContain('title="5h · fullest"');
+  });
+});
+
+describe("the row marks the number it was placed by", () => {
+  const row = (a: Account, sortKey: string | null, opened = false) => renderToStaticMarkup(createElement(AccountRow, {
+    a, nowSec: 1_790_000_000, opened, onToggleLanes: () => {}, busy: null, pressProps: () => ({}),
+    onSwitch: () => {}, menuOpen: false, onOpenMenu: () => {}, onCloseMenu: () => {}, refusal: null,
+    onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
+    issueExpanded: false, onOpenIssue: () => {}, sortKey,
+  } as never));
+  const marked = (html: string) => [...html.matchAll(/class="ap-(?:q|lane)" data-sort-key=""[^]*?(?:ap-q-label|ap-lane-label)[^>]*>([^<]+)</g)].map(m => m[1]);
+
+  it("in the shut line and on the bars", () => {
+    expect(marked(row(LIST[3], "7d"))).toEqual(["7d"]);
+    expect(marked(row(LIST[3], "7d", true))).toEqual(["7d"]);
+  });
+
+  it("marks the tightest window under 'room', and nothing in slot order", () => {
+    expect(marked(row(LIST[3], "room"))).toEqual(["7d"]);
+    expect(row(LIST[3], null)).not.toContain("data-sort-key");
   });
 });
 
@@ -254,11 +332,23 @@ describe("the panel's wiring", () => {
     expect(panel).toContain("useEffect(() => { saveOrder(order); }, [order]);");
   });
 
-  it("holds the list while the pointer or the keyboard is in it, and lets go when the fold shuts", () => {
-    expect(panel).toContain("const rest = holdOrder(sortAccounts(others, shownOrder), held);");
-    expect(panel).toContain("onPointerEnter={() => setHeld(rest.map(laneKey))}");
-    expect(panel).toContain("onFocus={() => setHeld(h => h ?? rest.map(laneKey))}");
-    expect(panel).toContain("useEffect(() => { if (!restOpen) setHeld(null); }, [restOpen]);");
+  it("orders the list with reachability, and holds it while a reader is in it", () => {
+    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\)\), held\);/);
+    expect(panel).toMatch(/<ul className="ap-list ap-others" id="ap-rest-list" \{\.\.\.listHold\}>/);
+  });
+
+  it("holds for the pointer, the keyboard's focus only, and a row's open menu", () => {
+    // Every way in takes the order once; letting go asks all three.
+    expect(panel).toMatch(/onPointerEnter: \(\) => \{ pointerIn\.current = true; take\(\); \}/);
+    expect(panel).toMatch(/onPointerLeave: \(\) => \{ pointerIn\.current = false; letGo\(\); \}/);
+    expect(panel).toMatch(/if \(\(e\.target as Element\)\.matches\(":focus-visible"\)\) \{ keysIn\.current = true; take\(\); \}/);
+    expect(panel).toMatch(/if \(!pointerIn\.current && !keysIn\.current && !popoverIn\.current\) setHeld\(null\);/);
+    expect(panel).toMatch(/const popoverHolds = \(menuFor != null && others\.some\(a => a\.num === menuFor\)\)/);
+  });
+
+  it("lets go of a list that is not on screen", () => {
+    expect(panel).toMatch(/const listShown = restOpen && others\.length > 0;/);
+    expect(panel).toMatch(/if \(listShown\) return;\s*pointerIn\.current = keysIn\.current = popoverIn\.current = false;\s*setHeld\(null\);/);
   });
 
   it("still shuts the fold every time the panel opens", () => {
@@ -271,6 +361,6 @@ describe("the sheet", () => {
   it("draws the controls quiet at rest and neutral under the pointer", () => {
     expect(css).toMatch(/\.ap-rest-sort select \{[^}]*border: 1px solid transparent;[^}]*color: var\(--muted\);/);
     expect(css).toContain(".ap-rest-sort select:hover,\n.ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
-    expect(css).toContain(".ap-rest-all:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
+    expect(css).toContain(".ap-rest-all:hover,\n.ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
   });
 });

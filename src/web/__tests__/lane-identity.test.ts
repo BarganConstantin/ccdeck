@@ -202,9 +202,11 @@ describe("what counts as the same account", () => {
 describe("the panel holds the set the way this module says", () => {
   it("names rows by account and never by slot number", () => {
     // Whether the reader opened it is read off the set by account, once.
-    expect(clientText()).toMatch(/const opened = openLanes\.includes\(laneKey\(a\)\);/);
+    // Since #1579 the set is a mode and its exceptions, still keyed by laneKey —
+    // isOpen and toggleOne in other-accounts-order.ts, pinned there.
+    expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
     expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
-    expect(panelCode).toMatch(/setOpenLanes\((\w+) => toggleLane\(\1, a\)\)/);
+    expect(panelCode).toMatch(/setOpenness\((\w+) => toggleOne\(\1, a\)\)/);
     // The two shapes the bug was made of.
     expect(surfaceCode).not.toMatch(/openLanes\.includes\(a\.num\)/);
     expect(surfaceCode).not.toMatch(/\[\.\.\.open, a\.num\]/);
@@ -213,10 +215,13 @@ describe("the panel holds the set the way this module says", () => {
   it("trims the set against every roster it loads", () => {
     // Where it has to happen: the load is the only place an account's departure
     // is observable, and doMove cannot see a removal at all.
-    expect(panelCode).toMatch(/setOpenLanes\(open => knownLanes\(open, fresh\.accounts\)\)/);
+    expect(panelCode).toMatch(/setOpenness\(open => trimOpenness\(open, fresh\.accounts\)\)/);
   });
 
   it("takes all three from the module rather than re-deriving them", () => {
-    expect(panelCode).toMatch(/import \{ knownLanes, laneKey, toggleLane \} from "\.\.\/lane-open";/);
+    // The key from lane-open.ts; the set's rules from other-accounts-order.ts,
+    // which reads the key and knownLanes from lane-open.ts in its turn.
+    expect(panelCode).toMatch(/import \{ laneKey \} from "\.\.\/lane-open";/);
+    expect(panelCode).toMatch(/allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,/);
   });
 });

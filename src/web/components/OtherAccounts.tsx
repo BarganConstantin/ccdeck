@@ -106,7 +106,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * column rather than behind a view and a way back.
  */
 export default function OtherAccounts({
-  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll,
+  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false,
 }: {
   peers: Peer[];
   /** Where auto-switch trips. This row says it because the control that sets
@@ -128,6 +128,8 @@ export default function OtherAccounts({
   /** Every row behind the fold is open, so the next press shuts them all. */
   allOpen: boolean;
   onToggleAll: () => void;
+  /** The list is holding the order the reader found it in — see holdOrder. */
+  held?: boolean;
 }) {
   const [peek, setPeek] = useState(false);
   const peekTimer = useRef(0);
@@ -203,7 +205,7 @@ export default function OtherAccounts({
       {peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
       {open && <RestTools order={order} choices={choices} onOrder={onOrder}
-        allOpen={allOpen} onToggleAll={onToggleAll} />}
+        allOpen={allOpen} onToggleAll={onToggleAll} held={held} />}
     </div>
   );
 }
@@ -217,29 +219,54 @@ export default function OtherAccounts({
  * of controls would be the one toolbar in a column that has none. Drawn only
  * while the list is open, because there is nothing to order or open while it
  * is shut, and siblings of the row's button rather than inside it — a control
- * inside a button is not a control.
+ * inside a button is not a control. Their box is the height of the row, so a
+ * press that misses one of them by a few pixels lands on nothing rather than
+ * on the row, which would fold the list shut under the reader's hand.
  *
  * QUIET AT REST — no edge, --muted — and clear under the pointer and the
  * keyboard, with the neutral edge and fill every control in this column comes
  * up to. The order is a native select: the keyboard, a screen reader and a
  * touch screen all get the platform's own list, and what it shows closed is
  * the order the list is in. It is drawn at --text once it is anything but
- * slot, so a sorted list says so.
+ * slot, so a sorted list says so, and with a dashed edge while the list is
+ * holding the order the reader found — the deck's mark for "the last thing,
+ * not the latest" — with the reason in its title.
+ *
+ * ITS WIDTH IS MEASURED, not reserved. The row's words stop short of the
+ * controls, and a fixed reservation sized for the longest order cut "Auto-
+ * switch has nowhere to go" in half beside "Slot", with sixty pixels unused.
  */
-function RestTools({ order, choices, onOrder, allOpen, onToggleAll }: {
+function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
   order: string;
   choices: OrderChoice[];
   onOrder: (order: string) => void;
   allOpen: boolean;
   onToggleAll: () => void;
+  held: boolean;
 }) {
-  const verb = allOpen ? "Collapse every account" : "Expand every account";
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const row = el?.parentElement;
+    if (!el || !row) return;
+    const measure = () => row.style.setProperty("--rest-tools-w", `${Math.ceil(el.offsetWidth)}px`);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => { ro.disconnect(); row.style.removeProperty("--rest-tools-w"); };
+  }, []);
+  const label = choices.find(c => c.id === order)?.label ?? "Slot";
   return (
-    <div className="ap-rest-tools">
+    <div className="ap-rest-tools" ref={ref}>
       <span className="ap-rest-sort">
         <select value={order} onChange={e => onOrder(e.target.value)}
-          aria-label="Order of the other accounts" title="Order of the other accounts"
-          data-sorted={order === SLOT_ORDER ? undefined : ""}>
+          aria-label="Order of the other accounts"
+          // The whole order, for a label the cap has cut; and while the list
+          // is held, why it does not match what the numbers now say.
+          title={held ? `${label} — held where it was while you are in the list` : label}
+          data-sorted={order === SLOT_ORDER ? undefined : ""}
+          data-held={held ? "" : undefined}>
           {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
         <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"
@@ -247,12 +274,19 @@ function RestTools({ order, choices, onOrder, allOpen, onToggleAll }: {
           <path d="M2.5 3.8 5 6.3l2.5-2.5" />
         </svg>
       </span>
-      {/* One glyph that says which way the press goes: chevrons apart to open
-          every row, together to shut them. Its name says it in words. */}
-      <button type="button" className="ap-rest-all" aria-label={verb} title={verb} onClick={onToggleAll}>
+      {/* A toggle, named once and pressed or not: a name that changed under
+          the keyboard's focus is one most screen readers never announce.
+          The glyph is unfold and fold — arrows away from a rule and towards
+          it — because two chevrons stacked are the platform's sign for sort
+          and for a list box, and this sits beside one. */}
+      <button type="button" className="ap-rest-all" aria-label="Expand every account" aria-pressed={allOpen}
+        aria-controls="ap-rest-list" title={allOpen ? "Collapse every account" : "Expand every account"}
+        onClick={onToggleAll}>
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
           strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d={allOpen ? "M4 2.4 7 5.2l3-2.8M4 11.6 7 8.8l3 2.8" : "M4 5.2 7 2.4l3 2.8M4 8.8 7 11.6l3-2.8"} />
+          <path d={allOpen
+            ? "M2 7h10M7 1.5V5M5.2 3.2 7 5l1.8-1.8M7 12.5V9M5.2 10.8 7 9l1.8 1.8"
+            : "M2 7h10M7 1.5V5M5.2 3.3 7 1.5l1.8 1.8M7 12.5V9M5.2 10.7 7 12.5l1.8-1.8"} />
         </svg>
       </button>
     </div>

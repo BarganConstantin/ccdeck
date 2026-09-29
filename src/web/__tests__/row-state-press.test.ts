@@ -325,9 +325,11 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(focusDropped("BUTTON")).toBe(false);
     expect(focusDropped("INPUT")).toBe(false);
     expect(panelCode).toMatch(/if \(!focusDropped\(document\.activeElement\?\.tagName \?\? null\)\) return;/);
-    // Exactly the five sites that unmount, and no others: a rescue on a press
-    // that kept its control would take focus off it for no reason.
-    expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(5);
+    // Exactly the sites that unmount, and no others: a rescue on a press that
+    // kept its control would take focus off it for no reason. Six since #1579:
+    // the Other accounts list's own controls leave with the last of the others.
+    expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(6);
+    expect(panelCode).toMatch(/if \(hadOthers\.current && others\.length === 0\) rescueFocus\(null\);/);
     expect(panelCode).toMatch(/setProjectsFor\(null\);\s*rescueFocus\(null\);/);
     // The retry's is the panel's; the switch's went to the switching hook and
     // the move's and the remove's to the menu's, with the requests that make

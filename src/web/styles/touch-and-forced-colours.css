@@ -61,6 +61,9 @@
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */
   .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* The order's caret takes the select's own system colour rather than the
+     --muted it rests in, which a contrast theme does not repaint (#1579). */
+  .ap-rest-sort svg { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
