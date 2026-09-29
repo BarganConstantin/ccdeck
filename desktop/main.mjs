@@ -40,7 +40,13 @@ function deckRoot() {
 }
 
 // ── one app per machine ─────────────────────────────────────────────────────
-if (!app.requestSingleInstanceLock()) {
+// The copy that finds one already running has handed it its launch by the
+// time the lock is refused — "second-instance" opens that one's window — and
+// only has to leave. It must start nothing on the way: quitting before ready
+// does not stop `ready` from firing, and a startup run here drew a tray icon
+// of its own that the panel showed as "…" until the copy was gone (#1725).
+const primary = app.requestSingleInstanceLock();
+if (!primary) {
   app.quit();
 } else {
   app.on("second-instance", () => openWindow());
@@ -662,6 +668,7 @@ async function offerToReplaceLoginItem() {
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  if (!primary) return;
   installNotificationAudioIpc();
   setRegular(false);
   updateNoticeVersion = desktopState.read().readyUpdateNoticeVersion ?? null;
@@ -727,7 +734,7 @@ function updateWhenQuiet() {
   updater.restartNow();
 }
 
-app.on("activate", () => openWindow());
+app.on("activate", () => { if (primary) openWindow(); });
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
