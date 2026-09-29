@@ -4,7 +4,9 @@
 // `run` the same way — stderr when the tool wrote any, stdout otherwise,
 // trimmed, and cut to a length a panel can print — and each wrote that out in
 // full, seven times over. One rule spelled seven times is seven places to fix
-// the day a tool starts putting its reason somewhere else.
+// the day a tool starts putting its reason somewhere else. The auto-switch tick
+// (cswap-auto-loop.mjs) had an eighth spelling — stderr or nothing, on the one
+// path where stdout is already known to be empty — and asks here too.
 //
 // A module of its own rather than a line in exec.mjs, which owns `run`: more
 // than a dozen suites replace exec.mjs with a mock that carries `run` and

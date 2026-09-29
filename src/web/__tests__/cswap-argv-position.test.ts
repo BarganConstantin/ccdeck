@@ -589,14 +589,15 @@ function isFixedWord(e: string): boolean {
 const isSlotNumber = (e: string): boolean => /^String\([A-Za-z_$][\w$]*\)$/.test(e.trim());
 
 /**
- * The modules that put a value of the deck's into claude-swap's argv. The last
- * two were lifted out of claude-accounts.mjs — the collector nudge and the
- * verdict read — and are scanned so that the census still covers every spawn
- * that file used to hold.
+ * The modules that put a value of the deck's into claude-swap's argv. The
+ * collector nudge and the verdict read were lifted out of claude-accounts.mjs,
+ * and the settings read and the tick out of cswap-auto.mjs; all four are scanned
+ * so that the census still covers every spawn those files used to hold.
  */
 const CSWAP_MODULES = [
   "cswap-auto.mjs", "cswap-admin.mjs", "claude-accounts.mjs",
-  "claude-collector.mjs", "claude-verdicts.mjs",
+  "claude-collector.mjs", "claude-verdicts.mjs", "cswap-auto-readers.mjs",
+  "cswap-auto-loop.mjs",
 ] as const;
 
 const moduleSource = (name: string) =>

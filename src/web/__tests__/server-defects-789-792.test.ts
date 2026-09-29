@@ -108,11 +108,13 @@ describe("#791 — a restart asked for while one is in flight", () => {
     // the interval in that window hit `if (_timer || _starting) return;` and
     // the boot's own start then installed the timer at the value it had read
     // BEFORE the write — the panel reading back the new number while the loop
-    // kept the old one for the life of the process.
-    const src = read("../../server/cswap-auto.mjs");
+    // kept the old one for the life of the process. The loop is
+    // cswap-auto-loop.mjs's; the negative reads cswap-auto.mjs too, where it
+    // used to live.
+    const src = read("../../server/cswap-auto-loop.mjs");
     expect(src).toContain("if (_starting) { _restartWanted = true; return; }");
     expect(src).toContain("if (_restartWanted) continue;   // the interval changed under this read");
-    expect(src, "the old swallow-and-forget guard is back")
+    expect(src + read("../../server/cswap-auto.mjs"), "the old swallow-and-forget guard is back")
       .not.toContain("if (_timer || _starting) return;");
   });
 
@@ -120,7 +122,7 @@ describe("#791 — a restart asked for while one is in flight", () => {
     // The flag is cleared at the top of each pass and checked after the await,
     // so the value that wins is the last one written rather than the first one
     // noticed.
-    const src = read("../../server/cswap-auto.mjs");
+    const src = read("../../server/cswap-auto-loop.mjs");
     expect(src).toMatch(/for \(;;\) \{[\s\S]{0,200}?_restartWanted = false;[\s\S]{0,200}?await tickInterval\(\)/);
   });
 });

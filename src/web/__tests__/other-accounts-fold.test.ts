@@ -112,7 +112,7 @@ describe("what the row says once something else is doing the switching", () => {
 
   it("never names which one is next, because this side of the wire does not know", () => {
     // A tick shells out to `cswap auto --once` and claude-swap picks the
-    // target; the deck only learns what happened afterwards. See cswap-auto.mjs.
+    // target; the deck only learns what happened afterwards. See cswap-auto-loop.mjs.
     expect(restLine([peer("a", 40), peer("b", 96)], { ...ARMED, strained: true }).text)
       .not.toMatch(/next|will|→/);
   });

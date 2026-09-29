@@ -116,12 +116,13 @@ const CACHE_MS = 5_000;
 //
 // The reason to fix it anyway is the second half. This is the only one of the
 // six whose cache is invalidated from elsewhere — by every mutation in
-// cswap-admin.mjs, the auto-switch tick and the rotation flag in cswap-auto.mjs,
-// the manual switch in account-routes.mjs and the first `cswap add` below, and
-// by lan-deck.mjs once it has asked claude-swap for fresh verdicts — and #582
-// has already shown what a read that started before an invalidation does when
-// it lands after one. So the in-flight slot this route was missing arrives with the
-// generation guard that makes it safe, rather than after the next bug report.
+// cswap-admin.mjs, the auto-switch tick in cswap-auto-loop.mjs, the rotation
+// flag in cswap-auto.mjs, the manual switch in account-routes.mjs and the first
+// `cswap add` below, and by lan-deck.mjs once it has asked claude-swap for
+// fresh verdicts — and #582 has already shown what a read that started before
+// an invalidation does when it lands after one. So the in-flight slot this
+// route was missing arrives with the generation guard that makes it safe,
+// rather than after the next bug report.
 const FORCE_POLL_MS = 60_000;
 
 // A read in progress, offered to callers that arrive while it is running.
