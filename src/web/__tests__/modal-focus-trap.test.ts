@@ -272,8 +272,9 @@ describe("the deck's ten overlays", () => {
     // unchanged.
     // The sixteenth is the guide — the two picture tours share one dialog —
     // and the seventeenth is a deck's own dialog, opened from its row in
-    // Local network.
-    expect(MODALS.length).toBe(18);
+    // Local network. The nineteenth is the accounts panel's Usage report
+    // (#1707), which adds every account's 5h and 7d up.
+    expect(MODALS.length).toBe(19);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -312,6 +313,10 @@ describe("the deck's ten overlays", () => {
       // its header opens with a range strip, and a greeting of "7d" reads as a
       // setting to change rather than a thing to read or leave.
       "AccountProjectsModal.tsx",
+      // The Usage report names its × for the same reason as the Projects
+      // report beside it: it is opened to be read, and it has nothing else to
+      // press.
+      "AccountsUsageReport.tsx",
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
       // A guide names Next, because it is read forwards: a reader who opened
       // it with Enter can keep pressing Enter to the end, and the × is still

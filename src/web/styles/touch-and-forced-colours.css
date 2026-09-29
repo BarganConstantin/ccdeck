@@ -74,6 +74,7 @@
   .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
   .qb-fill,
   .ap-lane-fill,
+  .ap-report-fill,
   .uh-bar-seg,
   .uh-agent-seg,
   .uh-model-bar-fill,
@@ -81,6 +82,7 @@
   .cost-bar .cb-seg { forced-color-adjust: none; }
   .qb-track,
   .ap-lane-track,
+  .ap-report-meter,
   .sd-track,
   .sd-core,
   .session-summary .ss-tt-bar,

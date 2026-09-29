@@ -13,6 +13,7 @@ import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
+import AccountsUsageReport from "./AccountsUsageReport";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
@@ -67,6 +68,8 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
   const [addOpen, setAddOpen] = useState(false);
+  // The Usage report (#1707): every account's 5h and 7d added up.
+  const [reportOpen, setReportOpen] = useState(false);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
   // account to somebody else. Its own dialog, so the row keeps its one-click
@@ -430,8 +433,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts"
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
-        <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
-          onAdd={() => setAddOpen(true)} onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
+        <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0} canReport={(data?.accounts?.length ?? 0) > 0}
+          onAdd={() => setAddOpen(true)} onReport={() => setReportOpen(true)}
+          onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
           pressProps={pressProps} reloading={reloading} closeButton={closeBtn} />
       )}
 
@@ -672,6 +676,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           />
         );
       })()}
+      {/* The Usage report (#1707) — components/AccountsUsageReport.tsx. The
+          roster as the panel lists it, the live account first and the rest in
+          the reader's order, handed in on every poll and read on the panel's
+          clock: an open report moves with the panel and starts no poll. */}
+      {reportOpen && (
+        <AccountsUsageReport accounts={[...head, ...rest]} nowSec={nowSec} onClose={() => setReportOpen(false)} />
+      )}
     </aside>
   );
 }
