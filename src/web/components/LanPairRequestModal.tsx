@@ -81,6 +81,7 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
         role="dialog"
         aria-modal="true"
         aria-labelledby="lan-ask-title"
+        aria-describedby="lan-ask-who"
       >
         <header className="modal-head">
           <div className="modal-title">
@@ -94,7 +95,9 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
         </header>
 
         <section className="modal-body">
-          <p className="lan-ask-who">
+          {/* The dialog's description, because its title is the same sentence
+              for every request: entering it has to say which deck is asking. */}
+          <p id="lan-ask-who" className="lan-ask-who">
             <strong className="lan-ask-name">{request.name}</strong>
             {" at "}<code className="ap-lan-code">{request.addr}</code>
             {" · asked "}{askedLabel(request.at, now)}
@@ -142,12 +145,19 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
 /** What DeckDialogs mounts: the request to ask about now, if any — the oldest not
  *  put off this session, see nextRequest — with its answers wired to the hook
  *  that holds them (use-lan-pair-requests.ts). Moved out of App.tsx's markup,
- *  where it was an inline function, unchanged. */
+ *  where it was an inline function.
+ *
+ *  Keyed by the request, so the next deck in the queue is a new dialog rather
+ *  than this one filled in again. The answer to one request brings the next
+ *  one with it, and without the key React kept the same dialog, with focus on
+ *  whichever answer was just pressed. A fresh mount puts it on Decline, the
+ *  way every request is first asked. */
 export function LanPairRequests({ lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair }: ReturnType<typeof useLanPairRequests>) {
   const { request, waiting } = nextRequest(lanPending, lanDeferred.current);
   if (!request) return null;
   return (
     <LanPairRequestModal
+      key={request.fp}
       request={request}
       waiting={waiting}
       busy={lanBusy}
