@@ -17,6 +17,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import path from "node:path";
 import os from "node:os";
 import { killTree, shimPath, spawnSpec } from "./exec.mjs";
+import { npmCliLaunch } from "./npx.mjs";
 import { oneLine } from "./term.mjs";
 import { note } from "./ccusage-failure.mjs";
 
@@ -56,11 +57,14 @@ export const winShim = (name, deps) => shimPath(name, deps) ?? name;
 // routes the .cmd through cmd.exe with every argument quoted, and hands back
 // the argument vector untouched everywhere else.
 //
-// POSIX is untouched by any of this: `npm` there is a real executable on PATH,
-// not a batch file, so isBatch is false, viaCmd never runs, and the vector goes
-// to spawn exactly as it always has.
+// POSIX is untouched by any of this: `npm` there is a real executable, not a
+// batch file, so isBatch is false, viaCmd never runs, and the vector goes to
+// spawn intact. It is run as the npm-cli.js beside this node, though, and by
+// the bare name only when there is none: a deck started at login has no PATH
+// that finds npm on a Homebrew or nvm install (#1777). See npmCliLaunch.
 function npmSpec(args, platform = process.platform, deps) {
-  return spawnSpec(platform === "win32" ? winShim("npm.cmd", deps) : "npm", args, platform);
+  if (platform !== "win32") return npmCliLaunch(args, { platform, ...deps }) ?? spawnSpec("npm", args, platform);
+  return spawnSpec(winShim("npm.cmd", deps), args, platform);
 }
 
 /**

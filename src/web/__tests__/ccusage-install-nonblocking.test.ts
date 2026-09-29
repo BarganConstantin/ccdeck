@@ -378,8 +378,11 @@ describe("what the install spawns", () => {
 
   it("is byte-for-byte the vector #456 left behind, on Windows and on POSIX", () => {
     expect(hashOf(installSpec("latest", "win32", STOCK_WINDOWS))).toBe(WIN32_SPEC_SHA);
-    expect(hashOf(installSpec("latest", "linux"))).toBe(POSIX_SPEC_SHA);
-    expect(hashOf(installSpec("latest", "darwin"))).toBe(POSIX_SPEC_SHA);
+    // POSIX by the bare name, which is what it spawns when no npm-cli.js sits
+    // beside node; with one there, it is that script run by node (#1777).
+    const NO_NPM_CLI = { execPath: "/usr/local/bin/node", exists: () => false };
+    expect(hashOf(installSpec("latest", "linux", NO_NPM_CLI))).toBe(POSIX_SPEC_SHA);
+    expect(hashOf(installSpec("latest", "darwin", NO_NPM_CLI))).toBe(POSIX_SPEC_SHA);
     // Said again in words, because the hash alone would not say WHICH byte
     // matters: cmd.exe is handed the shim's full path, never the bare name.
     const win = installSpec("latest", "win32", STOCK_WINDOWS);

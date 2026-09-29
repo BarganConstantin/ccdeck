@@ -37,8 +37,9 @@ import { killTree, shimPath, spawnSpec } from "./exec.mjs";
 
 /**
  * Where npm's own `npx-cli.js` sits relative to the running Node binary, most
- * likely first. Pure: the platform and the executable path are parameters, so
- * the Windows layout can be checked from any OS.
+ * likely first — or `npm-cli.js`, which `cli` names for npmCliLaunch below.
+ * Pure: the platform and the executable path are parameters, so the Windows
+ * layout can be checked from any OS.
  *
  * Windows keeps npm beside node.exe (`C:\Program Files\nodejs\node_modules\npm`,
  * and the same shape under nvm-windows). POSIX puts it in a `lib` next to the
@@ -55,18 +56,44 @@ import { killTree, shimPath, spawnSpec } from "./exec.mjs";
  * platform running the SUITE, so a Windows layout checked from macOS would come
  * back with forward slashes and a `..` nothing resolves.
  */
-export function npxCliCandidates(execPath = process.execPath, platform = process.platform) {
+export function npxCliCandidates(execPath = process.execPath, platform = process.platform, cli = "npx-cli.js") {
   if (typeof execPath !== "string" || !execPath) return [];
   const sep = platform === "win32" ? "\\" : "/";
   const dir = execPath.split(/[\\/]/);
   dir.pop(); // the binary itself
   if (!dir.length) return [];
-  const beside = [...dir, "node_modules", "npm", "bin", "npx-cli.js"].join(sep);
+  const beside = [...dir, "node_modules", "npm", "bin", cli].join(sep);
   const above = [];
   for (let up = 1; up <= 4 && dir.length - up > 0; up++) {
-    above.push([...dir.slice(0, -up), "lib", "node_modules", "npm", "bin", "npx-cli.js"].join(sep));
+    above.push([...dir.slice(0, -up), "lib", "node_modules", "npm", "bin", cli].join(sep));
   }
   return platform === "win32" ? [beside, ...above] : [...above, beside];
+}
+
+/**
+ * `npm <args>` through the `npm-cli.js` beside the running Node, or null when
+ * there is none — the caller then falls back to the name it always used.
+ *
+ * npxLaunch's rule for npx, and the reason is the same one: nothing here reads
+ * PATH. A deck started at login runs with the service manager's PATH, which on
+ * a Homebrew, nvm, fnm or Volta install does not name the directory npm is in,
+ * so a bare `npm` was `spawn npm ENOENT` for the in-app update and the managed
+ * ccusage install alike (#1777). This is also the npm that goes with the node
+ * the deck is running on, rather than whichever one PATH meets first.
+ *
+ * For POSIX callers. Windows already reaches npm by the shim's full path.
+ */
+export function npmCliLaunch(args, {
+  platform = process.platform,
+  execPath = process.execPath,
+  exists = existsSync,
+} = {}) {
+  for (const cli of npxCliCandidates(execPath, platform, "npm-cli.js")) {
+    let found = false;
+    try { found = exists(cli); } catch { found = false; }
+    if (found) return { file: execPath, args: [cli, ...args], opts: {} };
+  }
+  return null;
 }
 
 /**

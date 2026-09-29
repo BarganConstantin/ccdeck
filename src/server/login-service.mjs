@@ -360,6 +360,30 @@ export function scopeEnv(env = process.env) {
 }
 
 /**
+ * The PATH for the login item's job (#1777).
+ *
+ * The service manager's, not the shell's, is what a login item gets: launchd's
+ * is /usr/bin:/bin:/usr/sbin:/sbin, and the systemd user manager's names no
+ * nvm, fnm or Volta directory. A deck started there could not find the npm its
+ * own update runs, or the node a `#!/usr/bin/env node` claude asks for — on
+ * exactly the installs where the prefix is the user's own, so the update is
+ * offered and then fails with `spawn npm ENOENT` on every retry.
+ *
+ * Node's own directory first, since npm, npx and a global claude sit beside it
+ * on every layout that installs them together; then the installing shell's
+ * PATH in its own order, each directory once. Empty entries are dropped: a
+ * shell reads one as the current directory, and a login job has no business
+ * resolving programs out of wherever it happened to start.
+ */
+export function jobPath({ execPath, path = "", platform = process.platform } = {}) {
+  const sep = platform === "win32" ? ";" : ":";
+  const exe = String(execPath ?? "");
+  const node = exe ? (platform === "win32" ? winPath : posixPath).dirname(exe) : "";
+  const dirs = [node === "." ? "" : node, ...String(path ?? "").split(sep)].filter(d => d !== "");
+  return [...new Set(dirs)].join(sep);
+}
+
+/**
  * Write the login item and register it.
  *
  * Returns a verdict rather than throwing. Nothing here is worth refusing to run
@@ -428,9 +452,14 @@ export function installService({
       return { ok: true, path: `Task Scheduler ${GLYPH_ARROW} ${SERVICE_LABEL}`, how: "schtasks" };
     }
 
+    // PATH beside the scope directories rather than among them: it is not
+    // which deck this is but whether the deck can find its own tools, so it is
+    // in every job — and a caller's own serviceEnv can still name one.
+    const PATH = jobPath({ execPath, path: env?.PATH, platform });
+    const jobEnv = { ...(PATH ? { PATH } : {}), ...serviceEnv };
     const body = platform === "darwin"
-      ? plistFor({ execPath, script, logPath, args, env: serviceEnv })
-      : unitFor({ execPath, script, logPath, args, env: serviceEnv, product });
+      ? plistFor({ execPath, script, logPath, args, env: jobEnv })
+      : unitFor({ execPath, script, logPath, args, env: jobEnv, product });
     fs.mkdirSync(dirOf(path), { recursive: true });
     fs.writeFileSync(path, body, { mode: 0o644 });
     const cmd = registerCommand(platform, path);
