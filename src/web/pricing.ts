@@ -139,9 +139,25 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   { match: /^claude[-_]opus[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, cacheWrite1h: 10 } },
 
-  // Sonnet 5 — $3 / $15, or $2 / $10 until 2026-08-31 (see above). The version
-  // guard earns its keep twice here: an unrecognised Sonnet 5.1 would not just
-  // inherit a price it was never quoted, it would inherit an INTRODUCTORY one.
+  // Sonnet 5.5 — $2 / $10, the same five numbers as Sonnet 5 (#1700).
+  //
+  // Read 2026-09-29 from platform.claude.com/docs/en/about-claude/pricing:
+  // "Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.20 / MTok |
+  // $10 / MTok", with no footnote, so its cache read is the standard 0.1x.
+  // LiteLLM's `claude-sonnet-5-5`, which ccusage prices from, carries the same
+  // five numbers.
+  //
+  // A row of its own although the rates match Sonnet 5's today. Loosening
+  // Sonnet 5's guard would have priced it too, and would also have priced every
+  // Sonnet 5.x nobody has read a price for (#688) — Opus 5.5 is the proof that
+  // a ".5" can come with a different cache rate. Above Sonnet 5 because it is
+  // the more specific of the two.
+  { match: /^claude[-_]sonnet[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 } },
+
+  // Sonnet 5 — $2 / $10 (see above: the increase to $3 / $15 was cancelled).
+  // The version guard earns its keep here: an unrecognised Sonnet 5.x would
+  // otherwise inherit a price it was never quoted.
   { match: /^claude[-_]sonnet[-_]5\b(?![-_.]\d{1,7}(?!\d))/i, rates: SONNET_5 },
 
   // Opus 4.5 - 4.8 — $5 / $25 (the "new" Opus tier introduced with 4.5)
