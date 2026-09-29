@@ -191,7 +191,7 @@ Quota is the one thing that is not just reading. It needs a live token, so when 
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. The [desktop app](#desktop-app) also asks this repository's GitHub releases for its own updates. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
+What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. While the page is open, and while the desktop app has a session running or waiting, it also reads Anthropic's and OpenAI's public status pages (`status.claude.com`, `status.openai.com`), unsigned, about every three minutes, and once a minute at most while a page is not answering, so an outage on their side shows as a chip in the topbar instead of looking like a fault on yours. The [desktop app](#desktop-app) also asks this repository's GitHub releases for its own updates. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
 
 ## Browser Watch
 
@@ -376,9 +376,10 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
-| `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage, and never ask npm about releases |
+| `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage, never ask npm about releases, and never read the status pages |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
+| `AGENTS_DECK_NO_STATUS=1` | Don't read Anthropic's and OpenAI's status pages, so no incident chip appears |
 | `AGENTS_DECK_NO_FRESHEN=1` | Never nudge claude-swap to collect usage early |
 | `AGENTS_DECK_NO_NOTIFY=1` | Never raise a desktop notification: not when a session blocks and no page is open, and not when Browser Watch finds something |
 | `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |

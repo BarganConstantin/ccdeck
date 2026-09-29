@@ -41,7 +41,12 @@
   .topbar .status .pill.dead::before,
   .conn-banner .conn-dot,
   .waiting-dot,
-  .ap-dot { forced-color-adjust: none; background: CanvasText; }
+  .ap-dot,
+  .pi-dot { forced-color-adjust: none; background: CanvasText; }
+  /* The incident mark keeps its shape: a ring for degraded, a grey square for
+     maintenance (#1311). */
+  [data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
+  [data-state="maintenance"] > .pi-dot { background: GrayText; }
 
   .sl-dot::before,
   .bw-dot,

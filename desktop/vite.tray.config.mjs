@@ -9,10 +9,13 @@ export default defineConfig({
   logLevel: "warn",
   build: {
     lib: {
-      // The tray's board, and the page's tones rendered for notifications.
+      // The tray's board, the page's tones rendered for notifications, and the
+      // page's reading of the providers' status pages.
       entry: {
         "tray-model": fileURLToPath(new URL("../src/web/tray-model.ts", import.meta.url)),
         "chime-wav": fileURLToPath(new URL("../src/web/chime-wav.ts", import.meta.url)),
+        // And which of the providers' status lines is an incident (#1311).
+        "provider-status": fileURLToPath(new URL("../src/web/provider-status.ts", import.meta.url)),
       },
       formats: ["es"],
       fileName: (_format, name) => `${name}.mjs`,

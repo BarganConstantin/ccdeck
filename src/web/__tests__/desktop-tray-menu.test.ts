@@ -164,7 +164,7 @@ describe("the app's wiring", () => {
   const main = readFileSync(fileURLToPath(new URL("../../../desktop/main.mjs", import.meta.url)), "utf8");
 
   it("draws the menu and the tooltip from tray-menu.mjs, with the app's live state", () => {
-    expect(main).toContain('import { statusLine, trayMenuItems } from "./tray-menu.mjs";');
+    expect(main).toContain('import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";');
     expect(main).toMatch(/Menu\.buildFromTemplate\(trayMenuItems\(\{[\s\S]*?\}, TRAY_ACTIONS\)\)/);
     expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);");
     // Nothing of the menu is left written out in main.mjs to drift from it.
