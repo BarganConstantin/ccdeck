@@ -281,7 +281,7 @@ describe("the report, drawn", () => {
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
     // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span class="ap-report-reset-when">Next reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
     expect(out).not.toMatch(/>Resets in /);
     const two = html([acct(1, 12, 10, { alias: "a" }, [NOW + HOUR]), acct(2, 10, 10, { alias: "b" }, [NOW + HOUR + 20])]);
     expect(two).toContain('<span class="ap-report-who">a</span><span class="ap-report-more">+1</span>');
@@ -341,8 +341,10 @@ describe("the report, drawn", () => {
 
   it("names no absolute limit it was never told", () => {
     const out = html([acct(1, 10, 10)]);
+    // The deck is never told a limit, so it prints no amount of one. The
+    // sentence saying so was cut from the disclosure for length (#1713); the
+    // guarantee is this line.
     expect(out).not.toMatch(/\$\d|tokens? (?:left|remaining)/i);
-    expect(out).toContain("there is no total in tokens or dollars");
   });
 
   it("folds how it is worked out, and what each state means, into a disclosure", () => {

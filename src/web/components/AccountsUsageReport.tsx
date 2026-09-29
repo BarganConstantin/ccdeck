@@ -83,7 +83,7 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
         // 25m" under 88% read as all of it coming back then. The name is the
         // one part that may be cut; the rest stays whole.
         <p className="ap-report-reset" title={soonest(w.nextReset)}>
-          <span className="ap-report-reset-when">Next reset in <span className="ap-report-num">{reset}</span></span>
+          <span>Next reset in <span className="ap-report-num">{reset}</span></span>
           <span aria-hidden>·</span>
           <span className="ap-report-who">{w.nextReset.name}</span>
           {w.nextReset.more > 0 && <span className="ap-report-more">+{w.nextReset.more}</span>}
@@ -213,16 +213,12 @@ export function UsageReportBody({ accounts, nowSec, held }: {
         <summary><InfoMark />How usage is calculated</summary>
         <div className="ap-report-how-body">
           <p>
-            Each account is one full window, and <b>used</b> is their average; <b>remaining</b> is the
-            rest. A stale account counts at its last reading, and a window that has reset since as
-            unused; an account never read is left out. The deck is never told a limit, so there is no
-            total in tokens or dollars.
+            Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is
+            the rest.
           </p>
           <p>
-            <b>Ready</b> has room in both windows. <b>Limited</b> has reached the limit of one,
-            and <b>Exhausted</b> of both, judged on the last reading however old it is, since an
-            account nobody is using spends nothing between two reads. <b>Stale</b> is an account never
-            read, or behind a login, whose room cannot be used.
+            <b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of
+            both. <b>Stale</b> was never read, or is signed out.
           </p>
         </div>
       </details>
