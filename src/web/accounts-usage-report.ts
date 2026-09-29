@@ -76,6 +76,8 @@ export interface ReportRow {
   cells: Record<WindowId, Cell>;
   /** What the row can do now — see statusOf. */
   status: Status;
+  /** When the account was last read, in ms; null when it never was. */
+  updatedAt: number | null;
 }
 
 /**
@@ -110,14 +112,23 @@ export function statusOf(cells: Record<WindowId, Cell>): Status {
   return spent === 0 ? "ready" : spent === 1 ? "limited" : "exhausted";
 }
 
-/** Why a row's readings are not current — why it is stale, or how old the
- *  numbers it was judged on are — in its first unread reading's words. */
-export function staleReason(cells: Record<WindowId, Cell>): string | null {
-  for (const w of REPORT_WINDOWS) {
-    const c = cells[w.id];
-    if (!c.counted) return c.say;
+/**
+ * The row's Updated column (#1713): how current the numbers it was judged on
+ * are, in one short word or phrase, so the Status column can stay one word.
+ *
+ * "now" for a current reading — the report's own fifteen-minute line — and the
+ * age for an older one, since the row is still judged on it. A row the numbers
+ * cannot speak for says why instead of when: a login no switch gets past, or a
+ * window never read. `old` is whether the reader should notice it.
+ */
+export function freshness(row: ReportRow, nowSec: number): { text: string; old: boolean } {
+  const cells = REPORT_WINDOWS.map(w => row.cells[w.id]);
+  for (const c of cells) {
+    if (!c.counted && (c.why === "login" || c.why === "none")) return { text: c.say, old: true };
   }
-  return null;
+  if (row.updatedAt == null) return { text: "never read", old: true };
+  if (cells.every(c => c.counted)) return { text: "now", old: false };
+  return { text: ago(row.updatedAt, nowSec), old: true };
 }
 
 /** How old a reading may be and still count — the server's own line. */
@@ -233,6 +244,7 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
       heldOut: a.disabled === true,
       cells,
       status: statusOf(cells),
+      updatedAt: a.fetchedAt ?? null,
     };
   });
   // Counted off the rows' own status, so the lead's "7 of 9 ready" and the
