@@ -48,6 +48,12 @@ export function waitingSentence(waiting: WaitingBlock): string {
   return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
 }
 
+/** The hover text on a card's → N badge: how many subagents the session has
+ *  spawned, singular for one (#1776). */
+export function spawnBadgeTitle(count: number): string {
+  return `${count} subagent${count === 1 ? "" : "s"} spawned`;
+}
+
 /** What a screen reader says for a card (#853). React Flow names a node from
  *  its content when it is given no `ariaLabel`, so a card was heard as its
  *  whole text run together — "liveagents-deck?1622m 12ssession…", a median of

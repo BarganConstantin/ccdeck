@@ -220,6 +220,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const maxDay = chart.reduce((m, d) => Math.max(m, d.total), 0);
 
     return {
+      // Projects, not rows: `rows` folds everything past MAX_ROWS into Other,
+      // so its length is at most seven whatever the count (#1776).
+      projectCount: rec.projects.length,
       rows, totalCost, totalTokens, basis, denom, un: rec.unattributed, chart, maxDay, colorOrder,
       unpricedTokens: rec.unpricedTokens, unpricedNote: unpricedNote(rec.unpricedModels),
       calibrated: rec.calibrated, reconciled: rec.reconciled,
@@ -295,9 +298,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       window — or of its tokens, when some of the spend has no
                       price and a share of it would be a share of a floor. */}
                   <div className="ap-proj-bar" role="img"
-                    aria-label={view.basis === "cost"
-                      ? `Share of ${fmtCost(view.totalCost)} across ${view.rows.length} projects`
-                      : `Share of ${fmtTokens(view.totalTokens)} tokens across ${view.rows.length} projects`}>
+                    aria-label={`Share of ${view.basis === "cost" ? fmtCost(view.totalCost) : `${fmtTokens(view.totalTokens)} tokens`} across ${view.projectCount} project${view.projectCount > 1 ? "s" : ""}`}>
                     {view.rows.map(r => {
                       const val = view.basis === "cost" ? r.cost : r.tokens;
                       const pct = view.denom > 0 ? (val / view.denom) * 100 : 0;
