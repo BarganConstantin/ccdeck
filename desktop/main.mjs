@@ -96,6 +96,7 @@ function buildMenu() {
     openAtLogin: app.getLoginItemSettings().openAtLogin,
     appVersion: app.getVersion(),
     update: updater?.state ?? { status: "idle" },
+    updateAsksPassword: !!updater && !updater.canInstallUnattended(),
     // Read against now, so an answer held past its expiry leaves the menu on
     // the next redraw rather than at the next ask.
     incidents: incidentsOf?.(providerStatus, Date.now()) ?? [],
@@ -338,8 +339,10 @@ async function restartDeck() {
   // A RESTART THIS APP IS ALREADY DOING IS THE CHEAPEST MOMENT TO UPDATE
   // (#1187). The person asked for the deck to go down and come back; taking
   // the app through the same second, into the version already verified and
-  // staged, costs them nothing more and saves the trip through the menu.
-  if (updater?.state.status === "ready") {
+  // staged, costs them nothing more and saves the trip through the menu —
+  // unless the install asks for a password (#1755), which is more than a
+  // restart of the deck asked for.
+  if (updater?.state.status === "ready" && updater.canInstallUnattended()) {
     trace(`restart takes the staged update ${updater.state.version}`);
     updater.restartNow();
     return;
@@ -650,6 +653,7 @@ async function offerReadyUpdate() {
   })) return;
 
   const version = u.version;
+  const asksPassword = !updater.canInstallUnattended();
   updateNoticePrompting = true;
   try {
     const { response } = await dialog.showMessageBox(target, {
@@ -657,7 +661,7 @@ async function offerReadyUpdate() {
       message: `ccdeck v${version} is ready`,
       // The tray's own words for where it lives, the ones the window's dialog
       // uses when a restart from there fails (trayMenuName in desktop-update.ts).
-      detail: `It has been downloaded and verified. To do it later, use Restart to update in ${process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu"}.`,
+      detail: `It has been downloaded and verified.${asksPassword ? " Installing it asks for your password." : ""} To do it later, use Restart to update in ${process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu"}.`,
       buttons: ["Restart to update", "Later"],
       defaultId: 0,
       cancelId: 1,
@@ -811,7 +815,7 @@ function updateWhenQuiet() {
     now: Date.now(),
   };
   quietSince = quietSinceNext(quietSince, where);
-  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", quietSince, ...where })) {
+  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", unattended: updater?.canInstallUnattended() ?? false, quietSince, ...where })) {
     restartForTrayWhenQuiet(where);
     return;
   }
@@ -857,8 +861,10 @@ app.on("activate", () => { if (primary) openWindow(); });
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
-// The staged macOS update is handed to its swap script as the app leaves —
-// after its own deck has been stopped, so nothing runs from the old bundle.
+// A verified update installs as the app leaves — the staged macOS bundle
+// through its swap script, a Windows or Linux download through
+// electron-updater (#1757) — after its own deck has been stopped, so nothing
+// runs from the old version.
 app.on("will-quit", () => { updater?.installOnQuit(); });
 
 // Quit stops this app's own deck before leaving, once: the first before-quit

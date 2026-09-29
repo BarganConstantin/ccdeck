@@ -16,7 +16,9 @@
 //   4. the unpacked app satisfies the RUNNING app's designated requirement:
 //      same app id, same signing certificate. A dev build (ad-hoc, requirement
 //      = its own hash) can therefore never be updated over, which is correct
-//   5. only then is the bundle swapped — by a detached script that waits for
+//   5. the unpacked app is the version the manifest offered it as, read from
+//      its own Info.plist, which the code signature verified in check 4 seals
+//   6. only then is the bundle swapped — by a detached script that waits for
 //      this process to exit, so nothing replaces files under a running app
 //
 // The manifest and the zip are plain files on a GitHub Release, fetched from
@@ -86,6 +88,14 @@ async function designatedRequirement(appPath, execFileImpl = run) {
   return line.slice("designated => ".length);
 }
 
+/** The version an unpacked app says it is: the CFBundleShortVersionString
+ *  electron-builder writes, which is the version it packaged. */
+async function bundleVersion(appPath, execFileImpl = run) {
+  const plist = join(appPath, "Contents", "Info.plist");
+  const { stdout } = await execFileImpl("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleShortVersionString", plist]);
+  return String(stdout).trim();
+}
+
 /** Look for an update. Returns what to install, or null when there is none. */
 export async function checkForUpdate({ manifestUrl, currentVersion, arch = process.arch, fetchImpl = fetch }) {
   const res = await fetchImpl(manifestUrl, { redirect: "follow", cache: "no-store" });
@@ -123,6 +133,11 @@ export async function stageUpdate(update, { runningApp, fetchImpl = fetch, execF
     // Check 4: same identity as the app that is running.
     const requirement = await designatedRequirement(runningApp, execFileImpl);
     await execFileImpl("codesign", ["--verify", "--deep", "--strict", `-R=${requirement}`, staged]);
+
+    // Check 5: the version that will run is the one that was offered, so an
+    // update only ever moves forward, by as far as it said it would.
+    const version = await bundleVersion(staged, execFileImpl);
+    if (version !== update.version) throw new Error(`the update is ccdeck ${version || "of no version"}, not the ${update.version} it was offered as`);
     return { staged, dir };
   } catch (err) {
     // A refused update is thrown away here, because nothing else knows where it
@@ -135,14 +150,17 @@ export async function stageUpdate(update, { runningApp, fetchImpl = fetch, execF
 }
 
 /**
- * Swap the bundle once this process has gone, then start the new one.
+ * Swap the bundle once this process has gone, then — for a restart — start
+ * the new one.
  *
  * A detached /bin/sh, handed everything as argv — never interpolated — so a
  * path with a space or a quote is data. The old bundle is moved aside rather
  * than deleted until the new one is in place, and put back if the move fails.
+ * `relaunch` is "1" when the app is restarting into the update; a plain Quit
+ * is the person closing ccdeck, and leaves it closed (#1758).
  */
 export const SWAP_SCRIPT = `
-pid="$1"; target="$2"; staged="$3"; work="$4"
+pid="$1"; target="$2"; staged="$3"; work="$4"; relaunch="$5"
 while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
 backup="$target.ccdeck-old"
 rm -rf "$backup"
@@ -154,11 +172,11 @@ else
 fi
 xattr -dr com.apple.quarantine "$target" 2>/dev/null
 rm -rf "$work"
-open "$target"
+if [ "$relaunch" = 1 ]; then open "$target"; fi
 `;
 
-export function installOnExit({ pid, target, staged, dir }) {
-  const child = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), target, staged, dir], {
+export function installOnExit({ pid, target, staged, dir, relaunch = false }) {
+  const child = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), target, staged, dir, relaunch ? "1" : "0"], {
     detached: true,
     stdio: "ignore",
   });

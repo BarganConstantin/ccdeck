@@ -15,8 +15,9 @@ import { canInstallQuietly, QUIET_MS, quietSinceNext } from "../../../desktop/au
 const main = readFileSync(fileURLToPath(new URL("../../../desktop/main.mjs", import.meta.url)), "utf8");
 const NOW = 1_800_000_000_000;
 const quiet = { windowFocused: false, busy: false, now: NOW };
-/** Quiet for long enough, with the update verified and staged. */
-const ripe = { status: "ready", quietSince: NOW - QUIET_MS, ...quiet };
+/** Quiet for long enough, with the update verified and staged, and an install
+ *  that asks nobody for anything (#1755). */
+const ripe = { status: "ready", unattended: true, quietSince: NOW - QUIET_MS, ...quiet };
 
 describe("installing an update by itself", () => {
   it("happens when the update is ready and the app has been left alone", () => {

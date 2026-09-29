@@ -29,7 +29,13 @@
 //
 //   and it must have been QUIET for a minute: the window unfocused and no deck
 //   start or restart in flight, for a minute rather than at this instant, so an
-//   app being clicked through does not update between two of the clicks.
+//   app being clicked through does not update between two of the clicks;
+//
+//   and the install must ASK NOBODY ANYTHING (#1755). A .deb installs through
+//   dpkg under pkexec or sudo, and a password prompt that comes up by itself a
+//   minute after the person looked away, freezing the tray until it is
+//   answered and coming back after every check, is somebody being asked. That
+//   one waits for the person's own Restart to update.
 //
 // Nothing here bypasses the deck's own shutdown: the restart goes through the
 // same quit path, which stops the deck before the swap and starts it again
@@ -43,14 +49,15 @@ export const QUIET_MS = 60_000;
  *
  * @param {object} o
  * @param {string} o.status        the updater's state: "ready" and nothing else will do
+ * @param {boolean} o.unattended    the install asks nothing of anybody; only true will do
  * @param {boolean} o.windowFocused is somebody in the deck's window right now
  * @param {boolean} o.busy         a deck start or restart is already in flight
  * @param {number} o.quietSince    when the last of all that stopped being true
  * @param {number} o.now
  * @param {number} [o.quietMs]
  */
-export function canInstallQuietly({ status, windowFocused, busy, quietSince, now, quietMs = QUIET_MS }) {
-  if (status !== "ready") return false;
+export function canInstallQuietly({ status, unattended, windowFocused, busy, quietSince, now, quietMs = QUIET_MS }) {
+  if (status !== "ready" || unattended !== true) return false;
   return quietLongEnough({ windowFocused, busy, quietSince, now, quietMs });
 }
 

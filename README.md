@@ -129,7 +129,7 @@ The same deck as an app: it starts the deck itself, puts an icon in the menu bar
 - **Windows** — installs for your user, with no admin prompt. It is not signed yet, so SmartScreen asks once: More info, then Run anyway.
 - **Linux** — on Debian and Ubuntu take the **.deb**: it installs with a double click and puts ccdeck in the applications menu. The AppImage is one file for every other distribution, and a browser saves it without the permission to run, so it does nothing at all until you give it one back — `chmod +x ccdeck-linux-x86_64.AppImage`, then open it. The icon also needs a tray to sit in: KDE and waybar have one, and GNOME needs the AppIndicator extension.
 
-The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, never under a running session.
+The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, never under a running session. On the .deb, where installing asks for your password, it installs only when you choose Restart to update.
 
 ## Requirements
 

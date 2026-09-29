@@ -6,6 +6,7 @@
 //
 //   newer version → the manifest's size and SHA-256 → an Ed25519 signature by
 //   ccdeck's update key → (on a Mac) the running app's designated requirement
+//   → the version the unpacked app says it is
 //
 // The last one needs codesign and a real bundle, and was exercised end to end
 // on a Mac in the phase-0 spike: 3.25.3 updated itself to 3.25.4; a tampered
@@ -221,15 +222,17 @@ describe("staging a download", () => {
   const leftBehind = () => readdirSync(tmp).filter(n => n.startsWith("ccdeck-update-"));
   const served = (body: Buffer) => async () => ({ ok: true, arrayBuffer: async () => Uint8Array.from(body).buffer });
 
-  /** ditto and codesign as a Mac would answer them: `unpack` fills the folder
-   *  ditto was asked to unpack into, and `identity` answers the check. */
-  function tools({ unpack = (_dir: string) => {}, identity = () => {} } = {}) {
+  /** ditto, codesign and PlistBuddy as a Mac would answer them: `unpack`
+   *  fills the folder ditto was asked to unpack into, `identity` answers the
+   *  check, and the unpacked app says it is `version`. */
+  function tools({ unpack = (_dir: string) => {}, identity = () => {}, version = "3.25.4" } = {}) {
     const calls: string[][] = [];
     const execFileImpl = async (cmd: string, args: string[]) => {
       calls.push([cmd, ...args]);
       if (cmd === "ditto") { mkdirSync(args[3], { recursive: true }); unpack(args[3]); return { stdout: "", stderr: "" }; }
       if (cmd === "codesign" && args[0] === "-d") return { stdout: `designated => ${REQUIREMENT}\n`, stderr: `Executable=${RUNNING}/Contents/MacOS/ccdeck\n` };
       if (cmd === "codesign" && args[0] === "--verify") { identity(); return { stdout: "", stderr: "" }; }
+      if (cmd === "/usr/libexec/PlistBuddy") return { stdout: `${version}\n`, stderr: "" };
       throw new Error(`nothing here answers ${cmd}`);
     };
     return { calls, execFileImpl };
@@ -293,6 +296,9 @@ describe("staging a download", () => {
       // satisfy it — never the other way round.
       ["codesign", "-d", "-r-", RUNNING],
       ["codesign", "--verify", "--deep", "--strict", `-R=${REQUIREMENT}`, staged],
+      // And only after that, the version it says it is: the Info.plist it is
+      // read from is sealed by the signature just verified.
+      ["/usr/libexec/PlistBuddy", "-c", "Print :CFBundleShortVersionString", join(staged, "Contents", "Info.plist")],
     ]);
     await discard(dir);
     expect(leftBehind()).toEqual([]);
@@ -418,9 +424,10 @@ function swapBed({ folder = "Applications", ditto = 'cp -R "$1" "$2"' } = {}) {
   };
 }
 
-/** The script exactly as installOnExit hands it to /bin/sh, run to the end. */
-const swap = (bed: ReturnType<typeof swapBed>, pid: number) =>
-  spawnSync("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), bed.target, bed.staged, bed.work], { env: bed.env, encoding: "utf8" });
+/** The script exactly as installOnExit hands it to /bin/sh, run to the end —
+ *  as a restart ("1"), which opens the app afterwards, unless told otherwise. */
+const swap = (bed: ReturnType<typeof swapBed>, pid: number, relaunch = "1") =>
+  spawnSync("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), bed.target, bed.staged, bed.work, relaunch], { env: bed.env, encoding: "utf8" });
 
 describe.skipIf(process.platform === "win32")("the swap script, run", () => {
   // The step that deletes the installed app, pinned until now by one line of
@@ -443,12 +450,32 @@ describe.skipIf(process.platform === "win32")("the swap script, run", () => {
     // part of what is run.
     const bed = bedFor();
     for (const k of ["PATH", "OPEN_LOG"]) { env[k] = process.env[k]; process.env[k] = bed.env[k]; }
-    installOnExit({ pid: deadPid(), target: bed.target, staged: bed.staged, dir: bed.work });
+    installOnExit({ pid: deadPid(), target: bed.target, staged: bed.staged, dir: bed.work, relaunch: true });
     for (let i = 0; i < 500 && bed.opened().length === 0; i++) await new Promise(r => setTimeout(r, 20));
     expect(bed.opened()).toEqual([bed.target]);
     expect(bed.installed()).toBe("new");
     expect(existsSync(`${bed.target}.ccdeck-old`)).toBe(false);
     expect(existsSync(bed.work)).toBe(false);
+  });
+
+  it("leaves the app closed after a plain Quit (#1758)", async () => {
+    // Quit is the person closing ccdeck; only a restart opens it again.
+    const bed = bedFor();
+    for (const k of ["PATH", "OPEN_LOG"]) { env[k] = process.env[k]; process.env[k] = bed.env[k]; }
+    installOnExit({ pid: deadPid(), target: bed.target, staged: bed.staged, dir: bed.work, relaunch: false });
+    for (let i = 0; i < 500 && existsSync(bed.work); i++) await new Promise(r => setTimeout(r, 20));
+    expect(bed.installed()).toBe("new");
+    // `open` was the step after the work folder went; give it the time it
+    // would have had.
+    await new Promise(r => setTimeout(r, 300));
+    expect(bed.opened()).toEqual([]);
+  });
+
+  it("opens nothing when told it is no restart, run to the end (#1758)", () => {
+    const bed = bedFor();
+    expect(swap(bed, deadPid(), "0").status).toBe(0);
+    expect(bed.installed()).toBe("new");
+    expect(bed.opened()).toEqual([]);
   });
 
   it("puts the old app back when the new one cannot be copied in, and still opens it", () => {
@@ -465,7 +492,7 @@ describe.skipIf(process.platform === "win32")("the swap script, run", () => {
   it("touches nothing until the app it replaces has exited", async () => {
     const bed = bedFor();
     const app = spawn("sleep", ["1"]);
-    const script = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(app.pid), bed.target, bed.staged, bed.work], { env: bed.env, stdio: "ignore" });
+    const script = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(app.pid), bed.target, bed.staged, bed.work, "1"], { env: bed.env, stdio: "ignore" });
     const done = new Promise(r => script.on("exit", r));
     await new Promise(r => setTimeout(r, 300));
     expect(bed.installed()).toBe("old");
