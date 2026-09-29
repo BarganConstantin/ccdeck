@@ -69,7 +69,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isPortValue, looksLikeFlag, parseArgs } from "../../server/args.mjs";
+import { isPortValue, looksLikeFlag, parseArgs, startPort } from "../../server/args.mjs";
 import { workerArgs } from "../../server/supervisor.mjs";
 
 const ARGS_MJS = fileURLToPath(new URL("../../server/args.mjs", import.meta.url));
@@ -276,6 +276,35 @@ describe("isPortValue, which is what makes a bad --port name the flag", () => {
     for (const p of ["banana", "--no-open", "", "   ", "-1", "65536", "1e3", "0x10e4", "4500.5", "Infinity", null, undefined, {}]) {
       expect(isPortValue(p as never), String(p)).toBe(false);
     }
+  });
+});
+
+describe("startPort, which port a start binds and whose mistake a bad one is", () => {
+  it("takes --port over AGENT_DAG_PORT, and 4317 when neither names one", () => {
+    expect(startPort({ flag: "4500", env: "4600" })).toEqual({ port: 4500, refused: null });
+    expect(startPort({ flag: undefined, env: "4600" })).toEqual({ port: 4600, refused: null });
+    expect(startPort({ flag: undefined, env: undefined })).toEqual({ port: 4317, refused: null });
+    expect(startPort({ flag: "0", env: undefined })).toEqual({ port: 0, refused: null });
+  });
+
+  it("reads a blank AGENT_DAG_PORT as unset, and trims one that is not", () => {
+    // A variable that did not expand is not a request for port zero.
+    for (const env of ["", "   "]) expect(startPort({ env })).toEqual({ port: 4317, refused: null });
+    expect(startPort({ env: " 4600 " })).toEqual({ port: 4600, refused: null });
+  });
+
+  it("refuses a value that is not a port, naming where it came from and quoting it", () => {
+    expect(startPort({ flag: "banana", env: "4600" }))
+      .toEqual({ port: null, refused: { named: "--port", raw: "banana" } });
+    expect(startPort({ flag: undefined, env: "banana" }))
+      .toEqual({ port: null, refused: { named: "AGENT_DAG_PORT", raw: "banana" } });
+    // --port wins even when it is the bad one and the variable is fine.
+    expect(startPort({ flag: "65536", env: "4600" }).refused?.named).toBe("--port");
+  });
+
+  it("is what bin/deck.js asks, with the flag and the variable", () => {
+    expect(readFileSync(DECK_JS, "utf8"))
+      .toContain("const asked = startPort({ flag: flags.port, env: process.env.AGENT_DAG_PORT });");
   });
 });
 

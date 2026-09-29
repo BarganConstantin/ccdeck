@@ -57,6 +57,26 @@ export function isPortValue(raw) {
 }
 
 /**
+ * The port a start binds: `--port`, else AGENT_DAG_PORT, else 4317.
+ *
+ * An empty `AGENT_DAG_PORT` is an unset one — a variable that did not expand is
+ * not a request for port zero. `--port ""` never reaches this, because the
+ * parser records an empty value as `incomplete` and leaves the flag unset.
+ *
+ * Answers `{ port }`, or — for a value that is not a port — `refused`, naming
+ * which of the two it came from and what it said, so bin/deck.js can quote the
+ * user's own flag and value back at them.
+ */
+export function startPort({ flag, env } = {}) {
+  const envPort = env?.trim();
+  const rawPort = flag ?? (envPort ? envPort : null);
+  if (rawPort != null && !isPortValue(rawPort)) {
+    return { port: null, refused: { named: flag != null ? "--port" : "AGENT_DAG_PORT", raw: rawPort } };
+  }
+  return { port: rawPort == null ? 4317 : Number(rawPort), refused: null };
+}
+
+/**
  * Parse `process.argv.slice(2)`.
  *
  * Returns the flags that were set, plus two lists that are always present and

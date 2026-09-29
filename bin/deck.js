@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
-import { isPortValue, parseArgs } from "../src/server/args.mjs";
+import { parseArgs, startPort } from "../src/server/args.mjs";
 import { unregisteredDetail } from "../src/server/pulse-line.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
@@ -100,22 +100,18 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
 // `listen` with Node's own wording: "options.port should be >= 0 and < 65536.
 // Received type number (NaN)." That names neither the flag nor the value the
 // user typed, and arrives after a page of green ticks. Same outcome, said here:
-// early, in the deck's own voice, quoting the flag and the value back.
-//
-// An empty `AGENT_DAG_PORT` is an unset one — a variable that did not expand is
-// not a request for port zero. `--port ""` never reaches this, because the
-// parser records an empty value as `incomplete` and leaves the flag unset.
-const envPort = process.env.AGENT_DAG_PORT?.trim();
-const rawPort = flags.port ?? (envPort ? envPort : null);
-if (rawPort != null && !isPortValue(rawPort)) {
-  const named = flags.port != null ? "--port" : "AGENT_DAG_PORT";
+// early, in the deck's own voice, quoting the flag and the value back. Which
+// value counts, and which name it goes by, is startPort's.
+const asked = startPort({ flag: flags.port, env: process.env.AGENT_DAG_PORT });
+if (asked.refused) {
+  const { named, raw } = asked.refused;
   // `G.dash`, not an em dash: the console may be the legacy Windows one (#797).
   // `G` is bin/cli/screen.js's, answered when that module loads, so it is there
   // on this path too, long before the boot draws anything with it.
-  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${G.dash} expected 0-65535.`);
+  console.error(`${PRODUCT}: ${named} ${raw}: not a port number ${G.dash} expected 0-65535.`);
   process.exit(1);
 }
-const port = rawPort == null ? 4317 : Number(rawPort);
+const port = asked.port;
 // Default = machine-wide (capture every CC session on this box). Pass
 // `--workspace <path>` (or `--scope`) to restrict to a single tree. Canonicalized
 // just below, once the module that owns that rule is loaded.
