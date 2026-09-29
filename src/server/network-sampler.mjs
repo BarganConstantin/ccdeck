@@ -18,6 +18,7 @@ import {
   classifyRoute, parseNetstatE, parseNetstatIbn, parseProcNetDev, rateBetween,
   routeIfaceDarwin, routeIfaceLinux, routeLabel, tailscaleExitFromStatus,
 } from "./network-metrics.mjs";
+import { cliEnv, tailscaleCandidates } from "./tailscale.mjs";
 
 // ── the network ────────────────────────────────────────────────────────────
 //
@@ -136,6 +137,16 @@ function connectMs(address, port = API_PORT, timeoutMs = CONNECT_TIMEOUT_MS) {
   });
 }
 
+/** `tailscale status --json` as an object, or null for anything that is not
+ *  one: nothing on stdout, the macOS GUI's message, a version warning. */
+function statusDocument(out) {
+  if (typeof out !== "string") return null;
+  try {
+    const doc = JSON.parse(out);
+    return doc && typeof doc === "object" ? doc : null;
+  } catch { return null; }
+}
+
 /** Which way traffic to `address` leaves, and — for a Tailscale exit node —
  *  through which machine and whether through a relay. */
 async function readRoute(address, platform, runner) {
@@ -147,8 +158,20 @@ async function readRoute(address, platform, runner) {
   // Tailscale on a Mac is a utun like every other VPN there, so the question is
   // asked of any tunnel rather than only of one named tailscale0. A machine
   // without the CLI answers null and keeps the generic label.
-  const exit = tailscaleExitFromStatus(await runner("tailscale", ["status", "--json"], 3_000));
-  if (exit) return { kind: "tailscale-exit", iface, ...exit };
+  //
+  // WHERE THE CLI IS AND HOW IT IS RUN are tailscale.mjs's answers, not PATH's
+  // (#1772). This asked a bare `tailscale`, and the Mac app keeps its CLI in
+  // the bundle and puts nothing on PATH unless its owner pressed "Install CLI"
+  // — and a deck started at login has launchd's PATH anyway. The bundle binary
+  // is also the GUI, which without cliEnv() prints a message and exits 0. So
+  // the candidates are tried in the LAN code's order, as a CLI, and the first
+  // one that answers with a status document is the one that is installed.
+  for (const file of tailscaleCandidates(platform)) {
+    const doc = statusDocument(await runner(file, ["status", "--json"], 3_000, cliEnv()));
+    if (!doc) continue;
+    const exit = tailscaleExitFromStatus(doc);
+    return exit ? { kind: "tailscale-exit", iface, ...exit } : kind;
+  }
   return kind;
 }
 

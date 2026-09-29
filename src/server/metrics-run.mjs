@@ -66,14 +66,16 @@ const C_LOCALE = { LC_ALL: "", LC_NUMERIC: "C" };
 
 /** Run a command and resolve its stdout, or null. Never rejects, never inherits
  *  a shell, never inherits a locale, and is killed rather than allowed to hang
- *  the sampler. */
-export function run(file, args, timeoutMs = 2_000) {
+ *  the sampler. `env` is what the child starts from — the deck's own, unless a
+ *  command needs more than that, as Tailscale's CLI does (cliEnv in
+ *  tailscale.mjs) — and the forced number format goes over it either way. */
+export function run(file, args, timeoutMs = 2_000, env = process.env) {
   return new Promise(resolve => {
     let child;
     try {
       child = spawn(file, args, {
         windowsHide: true,
-        env: { ...process.env, ...C_LOCALE },
+        env: { ...env, ...C_LOCALE },
         // stderr is PIPED AND NEVER READ, which is a deadlock waiting for a
         // chatty child: a pipe nobody drains fills at 64 KB and the writer
         // blocks there until this function's own deadline kills it. Nothing
