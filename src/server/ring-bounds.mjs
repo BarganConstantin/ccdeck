@@ -77,6 +77,16 @@ export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subs
 const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed"]);
 
 /**
+ * Whether this payload is enrichment MAX_BUFFER does not count — see
+ * LAST_VALUE_WINS. One test, asked by the ring's eviction and by the boot
+ * replay's staging alike, so the replay reads back the window the ring keeps
+ * rather than a window of log lines, most of which are enrichment (#1750).
+ */
+export function isEnrichment(raw) {
+  return raw != null && typeof raw === "object" && LAST_VALUE_WINS.has(raw.hook_event_name);
+}
+
+/**
  * The ring's array-length backstop, distinct from its event budget.
  *
  * MAX_BUFFER now counts hook events only, so the array holds those plus

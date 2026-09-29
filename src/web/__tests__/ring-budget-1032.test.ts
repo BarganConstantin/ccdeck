@@ -39,7 +39,7 @@ if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new 
 
 // @ts-expect-error — plain .mjs server module, no types
 const mod = await import("../../server/index.mjs");
-const replayLog = mod.replayLog as (p: string, w?: string, o?: { maxEvents?: number; maxChars?: number }) => Promise<number>;
+const replayLog = mod.replayLog as (p: string, w?: string, o?: { maxEvents?: number; maxEntries?: number; maxChars?: number }) => Promise<number>;
 const eventsSince = mod.eventsSince as (seq: number) => { seq: number; payload: { hook_event_name?: string } }[];
 const stats = mod.eventBufferStats as () => { events: number; hookEvents: number; chars: number; oldestSeq: number; newestSeq: number };
 const MAX_BUFFER = mod.MAX_BUFFER as number;
@@ -56,7 +56,7 @@ async function feed(payloads: Record<string, unknown>[]): Promise<void> {
   })).join("\n") + "\n", "utf8");
   // Past the staging caps on purpose: those bound what a BOOT replay reads, and
   // what is under test here is what the ring does with everything it is handed.
-  await replayLog(path, "", { maxEvents: 1e6, maxChars: 1e9 });
+  await replayLog(path, "", { maxEvents: 1e6, maxEntries: 1e6, maxChars: 1e9 });
 }
 /** One hook event and the enrichment a real deck derives from it, in the
  *  proportion measured above: usage and context every time, model now and then.
