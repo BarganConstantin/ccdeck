@@ -31,12 +31,12 @@ export function desktopAppVersion(ua: string = typeof navigator === "undefined" 
 
 /** The one phrase for applying the app's verified update, on all three
  *  surfaces that offer it: this window's dialog, the native sheet and the tray
- *  line (desktop/main.mjs spells the same words, and a test holds the two
- *  files to each other). It was "Update and restart" here, "Restart now" on the
- *  sheet and "Restart to update" in the tray, so the place a failed press sends
- *  people to did not use the words of the button that failed. The tray's was
- *  kept because it names both halves in the order they happen, and it is what
- *  the updater itself calls the action. */
+ *  line (desktop/main.mjs and desktop/tray-menu.mjs spell the same words, and a
+ *  test holds the three files to each other). It was "Update and restart"
+ *  here, "Restart now" on the sheet and "Restart to update" in the tray, so the
+ *  place a failed press sends people to did not use the words of the button
+ *  that failed. The tray's was kept because it names both halves in the order
+ *  they happen, and it is what the updater itself calls the action. */
 export const RESTART_TO_UPDATE = "Restart to update";
 
 /** How long a press waits for the window to close before it is handed back.

@@ -13,7 +13,7 @@
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
@@ -24,6 +24,8 @@ import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
+import { createDesktopState } from "./desktop-state.mjs";
+import { statusLine, trayMenuItems } from "./tray-menu.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -51,6 +53,7 @@ let win = null;
 let deck = null;              // { pid, port, token, version }
 let stream = null;
 let model = null;             // TrayModel from dist/lib/tray-model.mjs
+let chimeFiles = {};          // CHIME_FILES from dist/lib/chime-wav.mjs
 let snapshot = { icon: "offline", waiting: 0, running: 0, title: "ccdeck", blocked: [] };
 let notifyOn = null;          // the deck's own switch, read from /api/prefs
 let redraw = null;
@@ -68,72 +71,34 @@ function trayImage(icon) {
   return nativeImage.createFromPath(join(icons, name));
 }
 
-/** "3m", "2h" — how long a session has been waiting. */
-function ago(ms) {
-  const m = Math.max(0, Math.round(ms / 60_000));
-  return m < 60 ? `${m}m` : `${Math.round(m / 60)}h`;
-}
-
-function statusLine() {
-  if (restarting) return "Restarting the deck…";
-  if (starting) return "Starting the deck…";
-  if (!deck) return "No deck running";
-  if (snapshot.icon === "offline") return "Reconnecting to the deck…";
-  if (snapshot.waiting > 0) return `${snapshot.waiting} session${snapshot.waiting === 1 ? "" : "s"} waiting for you`;
-  if (snapshot.running > 0) return `${snapshot.running} session${snapshot.running === 1 ? "" : "s"} running`;
-  return "Idle";
-}
-
+/** The menu for the state the app is in now — see tray-menu.mjs, which owns
+ *  its rows. What each row does is below, and reads this file's variables
+ *  when it is clicked rather than when the menu was drawn. */
 function buildMenu() {
-  const now = Date.now();
-  const items = [{ label: statusLine(), enabled: false }];
-  for (const b of snapshot.blocked.slice(0, 6)) {
-    const what = b.kind === "asked" ? "asking" : "needs permission";
-    items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => openWindow() });
-  }
-  if (!deck && !starting) items.push({ label: "Start the deck", click: () => ensureDeck().then(() => openWindow()) });
-  items.push(
-    { type: "separator" },
-    { label: "Open ccdeck", enabled: !!deck, click: () => openWindow() },
-    { label: "Open in browser", enabled: !!deck, click: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`) },
-    { type: "separator" },
-    {
-      label: "Notifications while closed",
-      type: "checkbox",
-      checked: notifyOn === true,
-      enabled: !!deck && notifyOn !== null,
-      click: () => toggleNotifications(),
-    },
-    {
-      label: "Start at login",
-      type: "checkbox",
-      checked: app.getLoginItemSettings().openAtLogin,
-      click: item => app.setLoginItemSettings({ openAtLogin: item.checked }),
-    },
-    { type: "separator" },
-    { label: `ccdeck v${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck v${deck.version}` : ""}`, enabled: false },
-    updateItem(),
-    // #1163: the deck restarted from the tray, the way the page's version
-    // dialog does it, rather than Quit and a trip to the Start menu.
-    { label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: () => restartDeck() },
-    { label: "Quit ccdeck", click: () => app.quit() },
-  );
-  return Menu.buildFromTemplate(items);
+  return Menu.buildFromTemplate(trayMenuItems({
+    now: Date.now(),
+    snapshot,
+    deck,
+    starting,
+    restarting,
+    notifyOn,
+    openAtLogin: app.getLoginItemSettings().openAtLogin,
+    appVersion: app.getVersion(),
+    update: updater?.state ?? { status: "idle" },
+  }, TRAY_ACTIONS));
 }
 
-/** The update line of the menu, which says where the update is rather than
- *  offering a button that does nothing while one is already on its way.
- *  "Restart to update" and "v1.64.0" are the words the native sheet and the
- *  window's dialog use for the same action — one verb and one spelling of the
- *  version on all three surfaces, so a person told to find this line by the
- *  window can recognise it. */
-function updateItem() {
-  const u = updater?.state ?? { status: "idle" };
-  if (u.status === "ready") return { label: `Restart to update to v${u.version}`, click: () => updater.restartNow() };
-  if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
-  if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
-  return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => updater?.check() };
-}
+const TRAY_ACTIONS = {
+  openWindow: () => openWindow(),
+  startDeck: () => ensureDeck().then(() => openWindow()),
+  openInBrowser: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`),
+  toggleNotifications: () => toggleNotifications(),
+  setOpenAtLogin: checked => app.setLoginItemSettings({ openAtLogin: checked }),
+  restartToUpdate: () => updater.restartNow(),
+  checkForUpdates: () => updater?.check(),
+  restartDeck: () => restartDeck(),
+  quit: () => app.quit(),
+};
 
 /** Redraw the icon, the count, the tooltip and the menu — coalesced, because
  *  a reconnect replays up to two thousand events and each one changes the
@@ -148,15 +113,18 @@ function scheduleRedraw() {
     tray.setImage(trayImage(snapshot.icon));
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
-    tray.setToolTip(`${snapshot.title} — ${statusLine()}`);
+    tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
     tray.setContextMenu(buildMenu());
   }, 150);
 }
 
 // ── the deck ────────────────────────────────────────────────────────────────
+/** The page's own code, bundled into dist/lib by vite.tray.config.mjs: the
+ *  board the tray counts with, and the names the tones were written under. */
 async function loadModel() {
   const { createTrayModel } = await import(pathToFileURL(join(here, "dist", "lib", "tray-model.mjs")).href);
   model = createTrayModel();
+  ({ CHIME_FILES: chimeFiles } = await import(pathToFileURL(join(here, "dist", "lib", "chime-wav.mjs")).href));
 }
 
 async function refreshPrefs() {
@@ -350,12 +318,15 @@ function discoverSoon(ms = 2000) {
 /** The tone the page would have played, as the sound the notification makes:
  *  a file in the app's Resources on macOS (scripts/chimes.mjs). Windows and
  *  Linux take no custom sound for an unpackaged app's notification, so there it
- *  is the system's own. */
-const CHIME_SOUNDS = { done: "ccdeck-done.wav", "needs-input": "ccdeck-asking.wav" };
-
+ *  is the system's own.
+ *
+ *  Named by CHIME_FILES, the list scripts/chimes.mjs wrote those files under,
+ *  rather than by a copy of it: a copy that drifted would name a sound macOS
+ *  cannot find, and the notification would arrive in silence. Loaded with the
+ *  tray model, before any deck can ask for a notification. */
 function showNotification({ title, body, chime }) {
   if (!Notification.isSupported()) return;
-  const sound = process.platform === "darwin" ? CHIME_SOUNDS[chime] : undefined;
+  const sound = process.platform === "darwin" ? chimeFiles[chime] : undefined;
   const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? ""), sound, silent: false });
   n.on("click", () => openWindow());
   n.show();
@@ -453,10 +424,8 @@ function openWindow(steal = true) {
 }
 
 // ── first run ───────────────────────────────────────────────────────────────
-function statePath() { return join(app.getPath("userData"), "desktop-state.json"); }
-function readState() {
-  try { return JSON.parse(readFileSync(statePath(), "utf8")); } catch { return {}; }
-}
+// What this app remembers between launches — see desktop-state.mjs.
+const desktopState = createDesktopState(() => join(app.getPath("userData"), "desktop-state.json"));
 
 // Custom notification sounds and voices (#1207): local app data the page
 // reaches through preload.cjs by opaque id, never by path. What may be stored,
@@ -539,8 +508,7 @@ function rememberUpdateNotice(version) {
   if (updateNoticeVersion === version) return;
   updateNoticeVersion = version;
   try {
-    const state = readState();
-    writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
+    desktopState.merge({ readyUpdateNoticeVersion: version });
   } catch (err) {
     trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
   }
@@ -603,8 +571,7 @@ async function offerReadyUpdate() {
 }
 
 async function firstRun() {
-  const state = readState();
-  if (state.askedLogin) return;
+  if (desktopState.read().askedLogin) return;
   const { checkboxChecked } = await ask({
     type: "question",
     message: "ccdeck lives in the menu bar",
@@ -614,7 +581,11 @@ async function firstRun() {
     buttons: ["OK"],
   });
   app.setLoginItemSettings({ openAtLogin: checkboxChecked });
-  writeFileSync(statePath(), JSON.stringify({ ...state, askedLogin: true }, null, 2));
+  // Merged into the file as it is NOW (#1695). The question stays up for as
+  // long as nobody answers it, and the update notice can be dismissed in the
+  // meantime — writing back the copy read before asking put that version's
+  // notice in front of the person again at the next launch.
+  desktopState.merge({ askedLogin: true });
 }
 
 /**
@@ -628,7 +599,7 @@ async function firstRun() {
  * something the person, or a script of theirs, set up.
  */
 async function offerToReplaceLoginItem() {
-  const state = readState();
+  const state = desktopState.read();
   if (state.askedReplaceService) return;
   const root = deckRoot();
   const svc = await import(pathToFileURL(join(root, "src", "server", "login-service.mjs")).href);
@@ -642,7 +613,7 @@ async function offerToReplaceLoginItem() {
   } else {
     present = existsSync(svc.servicePath());
   }
-  writeFileSync(statePath(), JSON.stringify({ ...readState(), askedReplaceService: true }, null, 2));
+  desktopState.merge({ askedReplaceService: true });
   if (!present) return;
   const { response } = await ask({
     type: "question",
@@ -664,7 +635,7 @@ async function offerToReplaceLoginItem() {
 app.whenReady().then(async () => {
   installNotificationAudioIpc();
   setRegular(false);
-  updateNoticeVersion = readState().readyUpdateNoticeVersion ?? null;
+  updateNoticeVersion = desktopState.read().readyUpdateNoticeVersion ?? null;
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
