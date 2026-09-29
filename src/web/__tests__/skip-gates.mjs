@@ -177,6 +177,10 @@ export const GATES = [
   // bash, kill and /dev/fd, run for real against a stand-in AppImage. The
   // environment it hands on and the packaging check beside it are un-gated.
   { file: "desktop-appimage-relaunch-1630.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
+  // #1756: publish.yml's "Create the release" script, run with bash and a `gh`
+  // stub that writes down what it was asked, so a prerelease tag is seen to
+  // make a prerelease that is never Latest. Windows has no /bin/sh to hand it.
+  { file: "desktop-release-prerelease-1756.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
