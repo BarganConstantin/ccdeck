@@ -2,6 +2,8 @@
 // figures sound.ts plays live, rendered to WAV, and the server naming which of
 // the two a notification stands in for — by the page's own rule.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { CHIME_FILES, renderChime, wavFile } from "../chime-wav";
 import { chimeFor, figureFor, DEFAULT_FIGURE_ID } from "../sound";
 import { chimeOf, isChimeEvent } from "../../server/block-notify.mjs";
@@ -118,6 +120,20 @@ describe("the rendered tones", () => {
 
   it("have one file per tone", () => {
     expect(CHIME_FILES).toEqual({ done: "ccdeck-done.wav", "needs-input": "ccdeck-asking.wav" });
+  });
+
+  it("are named by the desktop app from that one list, not from a copy of it", () => {
+    // scripts/chimes.mjs writes the files under CHIME_FILES, and a macOS
+    // notification names its sound by file. A copy of the names in main.mjs
+    // that drifted from it would arrive in silence, and nothing would say so.
+    const desktop = (name: string) => readFileSync(fileURLToPath(new URL(`../../../desktop/${name}`, import.meta.url)), "utf8");
+    const main = desktop("main.mjs");
+    expect(main).toContain('({ CHIME_FILES: chimeFiles } = await import(pathToFileURL(join(here, "dist", "lib", "chime-wav.mjs")).href));');
+    expect(main).toContain('const sound = process.platform === "darwin" ? chimeFiles[chime] : undefined;');
+    expect(main).not.toMatch(/\.wav["'`]/);
+    // The same bundle the tones themselves are rendered from.
+    expect(desktop("vite.tray.config.mjs")).toContain('"chime-wav": fileURLToPath(new URL("../src/web/chime-wav.ts", import.meta.url)),');
+    expect(desktop("scripts/chimes.mjs")).toContain('join(here, "..", "dist", "lib", "chime-wav.mjs")');
   });
 });
 

@@ -53,6 +53,7 @@ let win = null;
 let deck = null;              // { pid, port, token, version }
 let stream = null;
 let model = null;             // TrayModel from dist/lib/tray-model.mjs
+let chimeFiles = {};          // CHIME_FILES from dist/lib/chime-wav.mjs
 let snapshot = { icon: "offline", waiting: 0, running: 0, title: "ccdeck", blocked: [] };
 let notifyOn = null;          // the deck's own switch, read from /api/prefs
 let redraw = null;
@@ -118,9 +119,12 @@ function scheduleRedraw() {
 }
 
 // ── the deck ────────────────────────────────────────────────────────────────
+/** The page's own code, bundled into dist/lib by vite.tray.config.mjs: the
+ *  board the tray counts with, and the names the tones were written under. */
 async function loadModel() {
   const { createTrayModel } = await import(pathToFileURL(join(here, "dist", "lib", "tray-model.mjs")).href);
   model = createTrayModel();
+  ({ CHIME_FILES: chimeFiles } = await import(pathToFileURL(join(here, "dist", "lib", "chime-wav.mjs")).href));
 }
 
 async function refreshPrefs() {
@@ -314,12 +318,15 @@ function discoverSoon(ms = 2000) {
 /** The tone the page would have played, as the sound the notification makes:
  *  a file in the app's Resources on macOS (scripts/chimes.mjs). Windows and
  *  Linux take no custom sound for an unpackaged app's notification, so there it
- *  is the system's own. */
-const CHIME_SOUNDS = { done: "ccdeck-done.wav", "needs-input": "ccdeck-asking.wav" };
-
+ *  is the system's own.
+ *
+ *  Named by CHIME_FILES, the list scripts/chimes.mjs wrote those files under,
+ *  rather than by a copy of it: a copy that drifted would name a sound macOS
+ *  cannot find, and the notification would arrive in silence. Loaded with the
+ *  tray model, before any deck can ask for a notification. */
 function showNotification({ title, body, chime }) {
   if (!Notification.isSupported()) return;
-  const sound = process.platform === "darwin" ? CHIME_SOUNDS[chime] : undefined;
+  const sound = process.platform === "darwin" ? chimeFiles[chime] : undefined;
   const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? ""), sound, silent: false });
   n.on("click", () => openWindow());
   n.show();
