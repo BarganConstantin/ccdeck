@@ -1,0 +1,210 @@
+/* ── accounts panel: the details that decide whether it feels built ────────── */
+
+/* No opacity here: the button is visible at rest, so what moves is the colour
+   it lifts to and the fill it takes, not whether it exists. */
+.ap-more { transition: color 120ms, background 120ms,
+                       transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ap-more:active { transform: scale(0.94); }
+
+/* Armed remove: the four-second window is real, so it is visible. A bar drains
+   left to right, linear, for exactly as long as the button stays armed —
+   nothing about a countdown should ease. */
+.ap-manage-btn.danger.armed {
+  position: relative;
+  overflow: hidden;
+}
+.ap-manage-btn.danger.armed::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  transform-origin: left center;
+  animation: ap-disarm 4000ms linear forwards;
+}
+@keyframes ap-disarm { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* The share view: one click selects the whole thing, because the next move is
+   always "copy this somewhere else" and a partial selection is a broken share.
+   And it is ONE line — nobody reads a base64 payload, and four lines of it
+   would be most of the popover. The ellipsis says "there is more", `Copy`
+   takes all of it, and select-all still gets the lot for anyone who wants to
+   see it. `Copy` is the view's primary, so it is `.btn.primary` like every
+   other primary in the deck, not an accent pill of its own. */
+.ap-share-blob {
+  user-select: all;
+  max-height: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+}
+/* The warning belongs to what the text IS, not to the timer beside it. The
+   countdown says when another deck stops accepting the share; it is not a lock
+   winding down, and colouring it as the loudest thing in the block was the UI
+   claiming a protection the envelope does not have. --warn is the same token
+   the last-minute countdown already used, so this moves the emphasis rather
+   than adding a new one. */
+.ap-share-warn { color: var(--warn); }
+.ap-share-expiry.soon { color: var(--warn); }
+.ap-share-expiry.gone { color: var(--err); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still fades, as the sound menu does here: the popover appearing is the
+     state change, and a cut to it is harder to follow than 120ms of opacity.
+     What goes is the travel. */
+  .anchored-popover { animation: fadeIn 120ms ease-out; }
+  .ap-menu-item.danger.armed::after { animation: none; transform: scaleX(0); }
+  /* The chevron still turns — it is the state, not decoration — it just
+     arrives there without travelling. */
+  .ap-lan-chev { transition: none; }
+  .ap-manage-btn.danger.armed::after { animation: none; transform: scaleX(0); }
+  .ap-policy > .ap-manage-btn { animation: none; }
+  /* Every press in the app lands here, not just this panel's — the scale is one
+     convention and it has to switch off in one place, or the next control to
+     adopt it quietly reintroduces the motion. */
+  button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
+  .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
+  /* One entry where there were five. `.sd-close`, `.detail-close`,
+     `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
+     `button.btn` are all `.glyph-btn` now, and the press they share switches off
+     with them. */
+  .glyph-btn:active:not(:disabled),
+  .cat-filter:active, .uh-range-btn:active,
+  .selected-ribbon .selected-close:active,
+  .ver-banner .ver-cmd:active,
+  .ver-banner .ver-close:active,
+  .topbar .brand button.v:active,
+  .ver-banner .ver-act:active:not(:disabled),
+  .ctx-donut:active,
+  .session-list .sl-row:active, button.tool.clickable:active,
+  .uh-bar-col:active, .ap-failure-x:active,
+  /* Every switch in the deck, one control since #886. */
+  .switch:active:not(:disabled),
+  .ap-field select:active:not(:disabled),
+  .ap-switch:active:not(:disabled), .ap-issue:active, .ap-notice-fix:active,
+  button.qb-pace:active,
+  .aa-tab:active,
+  .aa-result-fix:active,
+  .autofit-resume:active,
+  .bw-ep-head:active,
+  /* The usage panel's one section that opens. Its chevron turns as well, and a
+     rotation is the motion this block exists for — `transform: none` reaches
+     both, because both are transforms on elements this list names. */
+  .up-disclose:active,
+  .bw-help:active,
+  .bw-settings select:active:not(:disabled),
+    /* Two that cannot join the list above, for two different reasons.
+     The ribbon's selector carries `:has()`, and one selector a browser cannot
+     parse invalidates the whole list it sits in — put it there and an engine
+     without `:has()` would lose reduced motion for every press in the app, not
+     just this one. On its own it fails exactly as far as the rule it answers.
+     The bubble's press is the independent `scale` property, so `transform:
+     none` never reaches it. */
+  .selected-ribbon:active:not(:has(.selected-close:active)) { transform: none; }
+  .tool-burst.clickable:active { scale: none; }
+  /* The chevron's rotation is a state, not an entrance: it still turns, it
+     just stops travelling. `transform: none` would have frozen it pointing
+     down over an open section, which is the one thing it must never do. */
+  .up-chev { transition: none; }
+  /* The period strip's read signal. A pulse is motion and a loop is the kind
+     that has to stop first, so the mark simply stands still — the figures below
+     it are still dimmed and the live region still says what is being read, so
+     nothing about the wait is only in the animation. */
+  .up-period .uh-range-btn[data-pending]::after { animation: none; }
+  /* The history modal's two. The axis keeps its hairline and stops travelling;
+     the words beside it already say a subprocess is running. The days are
+     simply there, at their full height, with no rise and no stagger — the
+     reserved box means nothing jumps either way, which is the part of this that
+     was never decoration. */
+  .uh-wait-axis { animation: none; }
+  .uh-bar { animation: none; }
+}
+
+
+/* The one failure in this panel that waiting cannot fix. Sized like the other
+   row affordances, coloured like the error it belongs to. */
+.ap-fix {
+  position: relative;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-fix:hover { background: color-mix(in srgb, var(--warn) 22%, transparent); border-color: var(--warn); }
+.ap-fix:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .ap-fix:active { transform: none; } }
+/* The same pill retries a reload that never landed — one failure, one thing to
+   do about it. The empty state is a flex column, which would otherwise stretch
+   a button across the whole panel and make it read as a banner. */
+.ap-empty .ap-fix { align-self: flex-start; margin: 5px 0 0; }
+.ap-empty .ap-fix:disabled { opacity: var(--dim-off); cursor: default; }
+
+/* ── reduced motion, where it is not the canvas and not a press ───────────── */
+/*
+ * #260 carried reduced motion onto the canvas and #357 found the four places it
+ * still stopped short of, all of them in panels and all of them easing a
+ * property that lays the element out rather than one the compositor can hand to
+ * the GPU. Each of the four is driven by a number that changes on its own: the
+ * quota fill and its pace marker move whenever a new usage sample lands, the
+ * context fill whenever a turn adds tokens, and the usage-history bar whenever
+ * a day's total is revised. So a reader who asked the OS for less motion got a
+ * panel of bars sliding and a marker walking sideways under their eyes, on a
+ * schedule they do not control and cannot predict — which is the exact case
+ * 2.3.3 is written about. They still show the same value; they arrive at it in
+ * one step instead of travelling to it over 300–400ms.
+ *
+ * The dialogs are the entrances in the app that carry a transform. `popIn`
+ * lifts one 4px and scales it from 0.985, and it opens over whatever the reader
+ * was looking at. It becomes the same 140ms fade the canvas entrances collapse
+ * to, matched to each backdrop's own fadeIn so the dialog and the dim it sits on
+ * arrive together rather than one behind the other. All three are listed:
+ * #356 gave the context breakdown and the usage history the tool inspector's
+ * entrance, and an entrance that is not answered here is one this contract does
+ * not reach — a media query does not inherit through a shared shape, only
+ * through a selector actually written down.
+ *
+ * This block is at the end of the sheet, not beside each rule, for one reason:
+ * a media query adds no specificity, so a reduced-motion rule beats the rule it
+ * answers only by coming later in source order. The seven selectors here are
+ * spread over four thousand lines, and last-in-the-file is the single position
+ * that is after all of them and stays after all of them.
+ *
+ * Not here, and deliberately: the pulse on a live status dot. `pulse` animates
+ * opacity and nothing else, and a fade is the recommended answer to reduced
+ * motion rather than a thing to escape from — switching it off would remove a
+ * channel that says "this is running right now" and put nothing back. The same
+ * reasoning already keeps the topbar, banner and sidebar dots out of every
+ * other reduced-motion block in this file, and reduced-motion-reach.test.ts
+ * derives the exclusion from the keyframes instead of listing the selectors, so
+ * a dot that ever starts moving will be caught rather than grandfathered.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ctx-window-fill,
+  .qb-fill,
+  .qb-pace-rail,
+  .uh-bar { transition: none; }
+
+  /* Every dialog, the context and usage-history ones included since #874
+     put them on this shell. */
+  .modal,
+  /* #711's popover. Not a dialog, and listed here for exactly the reason the
+     paragraph above gives: a media query does not inherit through a shared
+     shape, only through a selector actually written down. It carries the same
+     popIn — a 4px lift and a scale — over whatever the reader was looking at,
+     which is the case 2.3.3 is about whether the thing lifting is modal or not. */
+  .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
+  .appearance-theme,
+  .appearance-preview,
+  .appearance-check,
+  .appearance-row { transition: none; }
+}
+
+

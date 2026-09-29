@@ -7,6 +7,7 @@ import {
   FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableNote, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
 } from "../fm-stations";
+import { sheetText } from "./sheet-source";
 
 // Claude FM's state, storage and station operations moved to use-claude-fm.ts;
 // the props they are handed on are still App.tsx's. This reads the client:
@@ -192,7 +193,7 @@ describe("the station form in the Appearance menu (#1208)", () => {
 const strip = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const menuCode = strip(menu);
 const appCode = strip(app);
-const css = strip(readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8"));
+const css = strip(sheetText());
 const between = (text: string, from: string, to: string) => text.slice(text.indexOf(from), text.indexOf(to));
 
 /** The value of `prop` in the rule written for exactly this selector. */

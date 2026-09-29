@@ -24,6 +24,7 @@ import { fmtReading, fmtThreshold, liveReadings, THROTTLE_SERIES, type LiveSourc
 import { cellLabel, worthACell, windowOf, SPARK_W, SPARK_H, WINDOW_BUCKETS, REFRESH_MS, GROUPS } from "../components/MachineStrip";
 import { spanLabel, type Series } from "../components/SectionHistoryModal";
 import { systemMetricsSurface } from "./system-metrics-surface";
+import { sheetText } from "./sheet-source";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const metrics = readFileSync(at("../../server/system-metrics.mjs"), "utf8");
@@ -35,7 +36,7 @@ const ring = readFileSync(at("../../server/metrics-history.mjs"), "utf8");
  *  row's name. */
 const thermalSampler = readFileSync(at("../../server/thermal-sampler.mjs"), "utf8");
 const strip = readFileSync(at("../components/MachineStrip.tsx"), "utf8");
-const css = readFileSync(at("../styles.css"), "utf8");
+const css = sheetText();
 
 /** A series with everything filled in, so each test states only what it is
  *  about. */

@@ -20,6 +20,7 @@ import { exchangeLanes } from "../lan-exchange";
 import { peerView } from "../lan-peer";
 import { deckRows, rowSource } from "../lan-roster";
 import { lanPeerSurface } from "./lan-peer-surface";
+import { sheetText } from "./sheet-source";
 
 /** A file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
@@ -31,7 +32,7 @@ const MAP = code("../components/LanPeerMap.tsx");
 /** The dialog and what was lifted out of it, for counts and negatives. */
 const DIALOG = lanPeerSurface(src => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "));
 const SETUP = code("../components/LanSetupModal.tsx");
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const CSS = sheetText();
 
 describe("what a deck says about the account it is on", () => {
   const mine = (key: string, active = false) => ({ key, email: key, alive: true, active });

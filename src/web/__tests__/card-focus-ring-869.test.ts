@@ -19,8 +19,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 const reactFlowCss = readFileSync(
   fileURLToPath(new URL("../../../node_modules/reactflow/dist/style.css", import.meta.url)), "utf8");

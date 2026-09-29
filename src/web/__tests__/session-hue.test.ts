@@ -25,9 +25,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gradientStops } from "./gradient-stops";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 const src = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const COMPONENTS: Record<string, string> = {
   "App.tsx": src("../App.tsx"),

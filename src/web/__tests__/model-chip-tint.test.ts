@@ -15,9 +15,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { modelFamily, shortModel } from "../model-label";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const css = read("../styles.css");
+const css = sheetText();
 
 describe("the family a chip is painted by", () => {
   it("comes from the model id and nothing else", () => {

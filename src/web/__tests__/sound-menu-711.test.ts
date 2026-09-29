@@ -61,6 +61,7 @@ import { KEY_HELP } from "../key-help";
 import { openTags, withoutComments } from "./tsx-scan";
 import { clientText, sourceOf } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
@@ -90,7 +91,7 @@ const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"))
 const voiceForm = withoutComments(read("components/SpokenVoiceForm.tsx"));
 const menuSurface = withoutComments(soundMenuSurface());
 const sheet = withoutComments(read("components/KeyboardHelp.tsx"));
-const css = read("styles.css");
+const css = sheetText();
 
 const pitches = (notes: readonly Note[]) => notes.map(n => n.hz);
 const ends = (notes: readonly Note[]) => Math.max(...notes.map(n => n.at * 1000 + n.ms));

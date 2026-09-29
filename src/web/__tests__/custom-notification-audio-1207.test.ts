@@ -14,6 +14,7 @@ import { DEFAULT_FIGURE_ID, DEFAULT_PREFS } from "../sound";
 import { withoutComments } from "./tsx-scan";
 import { clientText } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const audio = (size = 4, name = "voice.wav") =>
   Object.assign(new Blob([new Uint8Array(size)], { type: "audio/wav" }), { name });
@@ -352,7 +353,7 @@ describe("where focus goes when a sound is deleted (2.4.3)", () => {
 });
 
 describe("the custom section of the sound menu (#1207)", () => {
-  const css = source("styles.css");
+  const css = sheetText();
 
   it("says how full the library is where sounds are added, before any work is done", () => {
     expect(customSounds).toMatch(/\{customCount\} of \{MAX_CUSTOM_ASSETS\}/);

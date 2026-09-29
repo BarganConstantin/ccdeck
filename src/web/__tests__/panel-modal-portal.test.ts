@@ -16,6 +16,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const dir = fileURLToPath(new URL("../components", import.meta.url));
 const components = readdirSync(dir)
@@ -75,7 +76,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
     // If the fixed measure ever goes, the portals are still right — a modal is
     // not a panel's to lay out — but this comment trail would be pointing at a
     // rule that no longer exists, and that is worth knowing.
-    const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const css = sheetText();
     expect(css).toMatch(/\.accounts-panel > \* \{ width: 288px; \}/);
   });
 });

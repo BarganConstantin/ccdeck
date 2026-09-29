@@ -8,8 +8,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";

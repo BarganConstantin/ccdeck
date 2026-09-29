@@ -8,10 +8,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
-const css = read("styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const SOURCES = ["App.tsx", ...readdirSync(join(web, "components"))
   .filter(f => f.endsWith(".tsx")).map(f => `components/${f}`)]
   // Comments stripped: several of these files still explain the old classes by name.

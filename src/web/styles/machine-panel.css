@@ -1,0 +1,591 @@
+/* ---------------- machine detail ----------------
+   Docked in the right rail, in the same slot family as the usage panel, rather
+   than floating over the canvas. The two queue instead of overlapping: alone,
+   this takes the slot usage would have had; with usage open it steps one panel
+   further left. One rail, read right to left, nothing stacked on anything.
+
+   Everything inside is in bytes and cores rather than ratios — the percentage
+   is what the topbar already answered, and "how much of how much" is what you
+   opened this for. */
+.sysdetail {
+  position: fixed;
+  top: 60px;
+  right: var(--rail-r);  /* the usage panel's slot, when usage is not using it */
+  z-index: 20;
+  width: 280px;          /* the usage panel's width, so the rail reads as one system */
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
+  /* Named so the one thing inside that has to bleed PAST it can be derived
+     from it rather than from a 14 somebody retypes. See .sd-open. */
+  --pad-x: 14px;
+  padding: 12px var(--pad-x) 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  /* An inspector docked beside the canvas, not a card lifted off it: the edge
+     says where it stops, and the 24px drop shadow it had added a second,
+     softer edge that made it read as a dashboard widget. */
+  box-shadow: none;
+  font-size: 11px;
+  color: var(--text);
+  text-align: left;
+  cursor: default;
+  animation: rail-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Where the right rail actually starts, which is NOT a constant: it clears the
+   detail panel at 368px and drops to 8px when that panel is closed.
+   Pinning 368 in the machine panel is what made it sit 360px away from usage
+   whenever the detail panel was shut — the rail had moved and only one of the
+   two panels knew. A variable so the pair cannot drift apart again.
+
+   AND BOTH PANELS READ IT NOW. Until #1026 the usage panel still carried its
+   own literal 368 and its own `:not(:has(.detail))` override further down the
+   sheet, so the promise on this line held for the machine panel alone and the
+   pair could still drift — by 40px, in the direction the very next edit to the
+   detail panel's width would take it. The two rules that said the number twice
+   are gone; this is the only place it is written. */
+.app { --rail-r: 368px; }
+.app:not(:has(.detail)) { --rail-r: 8px; }
+
+/* One panel further left: the rail's own offset, plus usage's width, plus the
+   gap. Eight was too tight to read as two things; twenty separates them
+   without opening a corridor. */
+.sysdetail.shifted { right: calc(var(--rail-r) + 280px + 20px); }
+
+/* THE TWO RAIL PANELS STAY SIDE BY SIDE, over the canvas, as they were before
+   #847: the owner chose that on 2026-09-14 after seeing them stacked in one
+   column. On a phone the shifted machine panel would sit past the left edge
+   (#849), so below the sheet's 640px breakpoint each of them spans the window
+   instead. The desktop layout is untouched. */
+@media (max-width: 640px) {
+  .app .usage-panel,
+  .app .sysdetail { left: 8px; right: 8px; width: auto; }
+  /* AND THEY STACK, because spanning the window is only half an answer. Both
+     are `position: fixed; top: 60px; z-index: 20`, and this block used to
+     change the horizontal box alone — so with both panels open they occupied
+     the IDENTICAL rectangle and the later one in DOM order, the machine panel,
+     painted over the whole of the usage panel. Measured in Firefox at a 500px
+     viewport, both open:
+
+       .usage-panel  left 8  right 492  top 57  bottom 257
+       .sysdetail    left 8  right 492  top 57  bottom 257   — 96,800px² of overlap
+
+     against the desktop layout at 1200px, which is the design and is untouched:
+
+       .usage-panel  left 552  right 832
+       .sysdetail    left 252  right 532   — the 20px gap .shifted exists to open
+
+     Both panels persist their open state, so a user who leaves the pair open on
+     a desktop and then opens the deck on a phone saw one panel and a `U` key
+     that flipped `aria-expanded` with nothing on screen moving.
+
+     Usage keeps the top because it keeps it everywhere else; the machine panel
+     takes the bottom. The cap is half the viewport less the chrome each end, so
+     the two cannot grow into each other whatever they contain — 8px of daylight
+     between them at any height. This is not the stacking the owner turned down
+     for #847: that was one column on a DESKTOP, where the pair fits side by
+     side. Here nothing fits beside anything. */
+  .app .usage-panel { max-height: calc(50vh - 38px); }
+  .app .sysdetail {
+    top: auto;
+    bottom: 8px;
+    max-height: calc(50vh - 38px);
+  }
+}
+/* THE RAIL'S TWO PANELS ARRIVE AND LEAVE THE SAME WAY, because they are the
+   same object: both fixed at the same top, both 280px, both opened by a button
+   in the topbar directly above them. Before this one of them dropped 4px and
+   the other simply appeared, which is not two designs but one design and an
+   omission.
+
+   Eight pixels, and the number is the gap they actually cross: the toggles'
+   bottom edge measures at y=41 and the panels' top at y=60, so 19px is the
+   real distance from the button to the panel. Travelling all of it would be a
+   flight; four was a fifth of it and read as a twitch. Under half is enough to
+   say "it came from up there" and short enough to be over before it is
+   watched.
+
+   Out is faster and does not travel back up: an exit that retraces its
+   entrance asks to be followed, and nothing here needs following. It falls
+   away where it stood. */
+:root { --rail-exit: 130ms; }
+@keyframes rail-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes rail-out {
+  to { opacity: 0; }
+}
+.sysdetail.leaving,
+.usage-panel.leaving { animation: rail-out var(--rail-exit) linear both; }
+
+/* THE HEAD DOES NOT SCROLL AWAY. The panel is 280px wide and as tall as the
+   window allows; on a short viewport it scrolls, and the first thing to leave
+   was the title, the uptime and the ×. Sticky against the panel's own
+   scrollport, on the panel's own ground, with the top padding pulled into it so
+   it stops flush against the border rather than 12px down. z-index 2 puts it
+   over the full-bleed section buttons, which would otherwise slide across it.
+
+   The negative side margins are the panel's padding given back, the same
+   derivation `.sd-open` uses, so the ground under the title reaches both edges
+   and nothing shows through beside it. */
+.sd-top {
+  position: sticky;
+  /* -12, not 0, and it is the panel's own padding-top. A sticky box is held
+     against the scrollport's CONTENT edge, so `top: 0` pinned this 12px BELOW
+     where it sits at rest and its opaque ground covered the first section's
+     heading — measured, with the CPU label at 103.4 under a head ending at
+     115.4. Offsetting it by the padding lets it rest exactly where it is drawn
+     and stick where the border is. */
+  top: -12px;
+  z-index: 2;
+  margin: -12px calc(var(--pad-x) * -1) 0;
+  padding: 12px var(--pad-x) 12px;
+  background: var(--panel);
+}
+.sd-head { display: flex; align-items: baseline; gap: 8px; }
+/* The one condition worth saying at the top of the panel, and nothing when
+   there is none. A sentence in the warning colour — no dot, no pill, no badge:
+   the words are the state, so a reader who cannot see the colour loses
+   nothing, and a reader who can has already found it. */
+.sd-flag { margin: 6px 0 0; color: var(--warn); font-size: 11px; line-height: 1.4; }
+/* An <h2> since #879; the margin reset keeps the tag from moving the title. */
+.sd-title { margin: 0; font-size: 12px; font-weight: 600; }
+.sd-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The bare glyph the rest of the deck's header closes have come to — the whole
+   of its appearance is `.glyph-btn` now, and what is left here is the one thing
+   that is this header's rather than the control's: the × goes to the end of the
+   row. It was measured at 13.34 x 16 before, which is why `.glyph-btn` carries
+   a hit area at all; the exemplar was the smallest target of the lot. */
+.sd-close { margin-left: auto; }
+/* 16, not 13: the CPU section holds two readings 12px apart, and a section
+   boundary has to be wider than the gap inside one or the block does not read
+   as one block. It is also 8px of daylight between two full-bleed hover bands
+   where there were 5. */
+.sd-section + .sd-section { margin-top: 16px; }
+/* The strip and the load average are one reading of one thing, so they sit
+   closer to each other than to the section after them — and far enough apart
+   that their hover bands keep 4px of daylight. */
+.sd-cpu > .sd-open + .sd-open { margin-top: 12px; }
+.sd-h {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+/* The section's own figure, at the far end of its heading. One section has one:
+   CPU, whose reading is a strip of bars with no number in it. It opts out of
+   the heading's case and tracking because it is a reading and not a label — the
+   same 11px tabular the rows to its right are set in. */
+.sd-h-val {
+  margin-left: auto;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One column per core, so the shape of the load is visible — a saturated
+   machine and one hot single-threaded job read identically in the aggregate. */
+/* WRAPPED, WITH A FLOOR, because `repeat(var(--n), 1fr)` has no minimum and
+   --n is `os.cpus().length` with no cap anywhere in the chain. Measured in
+   Firefox against the real sheet, in this panel's 250px content box:
+
+     12 threads   19px per column
+     64 threads   1.93px per column
+     128 threads  0px — the 2px gaps consume the entire width and every core
+                  renders at zero, so the strip is blank
+
+   which is the distinction this section exists to draw — "a saturated machine
+   and one hot single-threaded job read identically" — failing exactly on the
+   machines big enough for it to matter. A 64-core workstation is squarely
+   inside this deck's audience.
+
+   `auto-fit`, not a wrapped flex row, and that is the second half of the same
+   fix. Flex wraps, but each LINE distributes its own leftover: 64 threads drew
+   a first row of fifty 3px columns and a second row of fourteen 14px ones —
+   one reading in two widths, where a wide bar means "this core is late in the
+   list" and nothing else. A grid's tracks are the same on every row, so a
+   column is one width whatever the count, and `minmax(3px, 1fr)` keeps the
+   floor that made the strip wrap in the first place. `auto-fit` rather than
+   `auto-fill` because the empty tracks of a 16-thread machine have to collapse
+   and give their width back — otherwise sixteen cores draw sixteen 3px slivers
+   against an empty right half. */
+.sd-cores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3px, 1fr));
+  align-content: start;
+  gap: 2px;
+}
+.sd-cores .sd-core { min-width: 3px; height: 26px; }
+.sd-core {
+  display: flex;
+  align-items: flex-end;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+/* scaleY, not height — the conversion `.sd-fill` two rules down already had and
+   this one was missed (#505).
+   `height` is a layout property: every change runs layout, paint and composite
+   on the main thread. This is the rule where that costs the most in the whole
+   sheet, and by a wide margin: `.sd-fill` is one element per memory row, this is
+   one element PER CORE — twelve on the machine it was written on, more on a
+   workstation — and the panel resamples every 3 seconds for as long as it is
+   open. So the rule that was converted runs a handful of times per tick and the
+   one that was not ran twelve or more.
+
+   The track is `align-items: flex-end` with `overflow: hidden`, which is what
+   made this less mechanical than the sibling: a scaleY is only the same picture
+   as a height if the box being scaled is the full height of the track to begin
+   with. So `height: 100%` is load-bearing rather than tidy — it is what turns
+   the flex-end alignment into a no-op and gives the transform a full column to
+   take a fraction of — and `transform-origin: bottom` is what keeps the fraction
+   anchored where flex-end used to put it. Verified against the current build
+   rather than reasoned, because the issue was right that this one wanted looking
+   at: all twelve columns land within 0.01px of where `height` put them, and a
+   1x capture of the whole strip differs by 160 pixels out of 6500 — one to three
+   rows of edge antialiasing at each column's own top edge, plus two pixels at
+   each bottom corner. It is a rasterisation difference and not a positional one:
+   it survives setting the radius to zero, so it is the blend along the free edge
+   rather than the corner rounding, and every other row of every column is
+   identical. The three sides that touch the track are clipped by the track's own
+   2px radius either way.
+   Nothing else reads this element's box: MachinePanel writes the value and the
+   sheet draws it, and no measurement anywhere depends on the fill's real height.
+
+   The reduced-motion answer at the foot of this section covers both rules with
+   one `transition: none`, so it neutralises `transform` here exactly as it
+   neutralised `height` — confirmed by rendering with the preference on, not
+   assumed from the fact that the selector is still listed. */
+.sysdetail .sd-core-fill {
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transform-origin: bottom;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sd-row + .sd-row { margin-top: 10px; }
+/* The THERMAL section is one control (#738): pressing anywhere in it opens the
+   chart of what the machine did with its heat. One button rather than one per
+   row, because both rows opened the same dialog showing both series — a second
+   control that repeated the first.
+
+   FULL BLEED, to the panel's padding box rather than its content box. Reported
+   from the panel: the hover read as a chip floating in the middle of a row with
+   the panel's own colour showing down both sides, because the fill stopped 14px
+   short at each edge. A highlight that does not reach the edges of the thing it
+   highlights is a highlight of something else.
+
+   The width is the section's own plus the panel's two paddings, and the margin
+   gives those paddings back — both read from `--pad-x` on `.sysdetail`, so the
+   bleed cannot drift out of step with the padding it is bleeding into. It is
+   NOT `width: auto`: that was tried first and a <button> ignores it, because a
+   form control shrinks to its content even at `display: block` — the box came
+   out 127px inside a 280px panel. And it is not a bare `100%` under a negative
+   margin either, which is the shape that made two panels scroll sideways
+   (#369); this one is measured to land exactly on the padding box, with
+   `scrollWidth === clientWidth` after it.
+
+   No radius, for the reason a list row has none: rounded corners at an edge the
+   box is flush against leave four notches of the colour behind it. And the
+   padding is answered by an equal negative margin on both axes, so the section
+   sits exactly where it sat before it became pressable. */
+.sysdetail .sd-open {
+  display: block;
+  width: calc(100% + var(--pad-x) * 2);
+  /* 4px of vertical bleed, not 6. Sections sit 13px apart, so a 6px bleed on
+     each side of that gap left ONE pixel between two large targets: a pointer
+     travelling down the panel would hand off from band to band with no gap at
+     all, which reads as a flicker rather than as four things, and a miss by a
+     pixel opens the wrong chart. 4px keeps 5px of daylight and still gives the
+     fill room to breathe around the text. */
+  padding: 4px var(--pad-x);
+  margin: -4px calc(var(--pad-x) * -1);
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+/* A share of the text colour, not `--line`. --line is a boundary token and it
+   is tuned for a hairline: at #1f2229 on a dark panel it is a whisper, at
+   #c8cdd6 on a white one it is a solid grey, and across 278x97px that reads as
+   SELECTED in the light theme and as a tint in the dark one — one hover state
+   meaning two different things. Six percent of --text is proportional to
+   whichever theme is on, which is what `.sa-row` already does for the same
+   reason. */
+/* THE ONE SECTION WITH NOTHING UNDER ITS HEADING, and the only one that has to
+   say "press me" without a reading to say it with. The four above open a chart
+   about numbers already on screen; this opens the process list, and the section
+   that used to hold eight rows of it now holds nothing at all.
+
+   A row, not a card. It sat on a tinted, rounded plate, a second card inside
+   the panel; it is the panel's last row now, set off by a hairline, named in
+   --text where the four headings above it are grey, with the chevron across
+   the width, and it takes the same full-bleed hover every other section here
+   takes (`.sd-open:hover`). No edge of its own to measure: the control is
+   identified by its label, which is what 1.4.11 accepts. */
+/* Keyed on the section's own class rather than on `:has(> .sd-door)`: the
+   hairline divides two sections, it is not the door's boundary, and a selector
+   that names the button would read to control-edges.test.ts as one. */
+.sysdetail .sd-door-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.sysdetail .sd-door .sd-door-plate { display: block; }
+/* The name, in the reading colour rather than the heading's, with the chevron
+   pushed to the far edge — the width IS the affordance here: a chevron beside
+   the word reads as a footnote, a chevron across the panel reads as a row you
+   go through. */
+.sd-door-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* The only line that says what the door opens, so it is read, not glanced at:
+   11px and the secondary tier. --muted on the plate's composite measured 4.34:1
+   in dark (#859) — the 4% tint lifts the ground under it, and the token pairs
+   the contrast tests check never saw that ground. */
+.sd-door-sub { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
+.sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sysdetail .sd-open:active { transform: scale(0.97); }
+/* The chevron that says the section opens something. --text-dim, the only dim
+   tier text may take (#262), so it reads as a hint rather than as a value, and
+   it brightens with the block on hover so the affordance and the target are
+   one thing. */
+.sd-row-more {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-dim);
+  transition: color 140ms ease;
+}
+.sysdetail .sd-open:hover .sd-h,
+.sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
+
+/* The headers need nothing here: `.sd-sort` already declares its own pointer
+   and its own press, and the section's handler steps aside for them. */
+.sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.sd-row-label { color: var(--muted); }
+.sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
+.sd-row-val b { color: var(--text); font-weight: 600; }
+/* `position: relative` for the one thing drawn INSIDE a track rather than
+   filling it: the mark at the temperature a thermal row turns amber. */
+.sd-track {
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.sysdetail .sd-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms ease;
+}
+.sd-fill.warn { background: var(--warn); }
+/* The third band, which only the thermal rows reach: past the temperature the
+   chip itself calls critical, or a third of the clock already taken away. */
+.sd-fill.hot { background: var(--err); }
+/* WHERE THE COLOUR CHANGES, cut into the track as a 1px gap in the panel's own
+   ground. The thermal rows are drawn against their own sensor's critical point
+   rather than a flat 100°C, so the bar is a scale — and a scale with no point
+   on it cannot be read, only compared with itself. It is the panel's ground and
+   not a colour of its own: a coloured pip would be a third meaning on a bar
+   whose two meanings are already the fill and its tone. */
+.sd-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--panel);
+}
+
+/* A ROW OF FIGURES: the number in the reading weight, what it is in the caption
+   under it. Load average and the network both draw one, which is why it is
+   named for the shape rather than for either of them.
+
+   THREE EQUAL COLUMNS, not a flex row, and the difference is what happens when
+   a reading changes width. A rate that crosses a unit — "245 KB/s down" to
+   "1.2 MB/s down" — is a different string of a different length, and in a flex
+   row every figure after it slides. Fixed thirds also put the network's three
+   columns on the load average's three, so the two rows read down the panel as
+   one grid rather than as two ragged rows. 77px a column in a 250px content
+   box, which is two characters more than the widest caption needs. */
+.sd-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sd-fig { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+.sd-fig b { font-size: 13px; font-weight: 600; }
+.sd-fig-cap { color: var(--muted); font-size: 10px; white-space: nowrap; }
+/* THE OTHER ORDER, where the three columns are three different measurements
+   rather than three samples of one: the name on top, and under it the number
+   with its unit beside it rather than below it. "112" over "KB/s down" made
+   the caption carry the unit AND the name, which is how "down" — the only word
+   in it that says what was measured — ended up last. 2px under the label
+   because a name and its reading are one object; 1px was the spacing of a
+   number over its own footnote. */
+.sd-figs-named .sd-fig { gap: 2px; }
+.sd-fig-read { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+/* Beside the number, not under it, and a tier down: a unit is part of the
+   reading, and at the number's own weight "112 KB/s" reads as five characters
+   of equal importance. */
+.sd-fig-unit { color: var(--muted); font-size: 10px; }
+
+/* 11px, the panel's reading size (#859): these are sentences — "reading this
+   machine…", why a reading is missing — not labels. */
+.sd-note { margin-top: 5px; color: var(--muted); font-size: 11px; }
+/* A reading that could not be taken says so in the warning colour, the one the
+   load figures turn when the queue outgrows the cores. */
+.sd-note.sd-note-warn { color: var(--warn); }
+
+/* THE WAY INTO THE PATH, where two lines of sentence used to sit. It is the
+   section's second control — the first opens the chart — so it takes the same
+   full bleed, the same 6% hover and the same press as every other control in
+   this panel, at a row's height rather than a section's. 11px of clearance
+   above it leaves 7px of daylight under the hover band of the button over it.
+
+   The state that costs something stays outside: `.sd-route-relay` is the one
+   word the panel keeps on the surface, in the colour the load figures no
+   longer use, because a relayed path is slower than the same exit node reached
+   directly and that is worth knowing without opening anything. */
+.sysdetail .sd-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  width: calc(100% + var(--pad-x) * 2);
+  margin: 11px calc(var(--pad-x) * -1) -3px;
+  padding: 3px var(--pad-x);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+.sd-detail .sd-row-more { margin-left: auto; }
+.sysdetail .sd-detail:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.sysdetail .sd-detail:hover .sd-row-more { color: var(--text); }
+.sysdetail .sd-detail:active { transform: scale(0.97); }
+.sd-route-relay { color: var(--warn); }
+
+/* THE PATH ITSELF, hung off that control. 228px — wider than the panel's own
+   column would allow for a sentence, narrower than a dialog, and the surface,
+   the placement and the dismissals are `.anchored-popover`'s, the same ones the
+   accounts panel's ⋯ opens onto.
+
+   A definition list, because that is what it is: four labels and what each one
+   measures. The term is the section heading's own type so the popover reads as
+   part of the panel rather than as a tooltip that arrived from somewhere else. */
+.sd-pop { width: 240px; padding: 10px 12px 12px; }
+.sd-pop-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--text); }
+.sd-pop-rows { display: grid; gap: 8px; margin: 0; }
+.sd-pop-row dt {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sd-pop-row dd { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text); }
+
+:is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+/* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
+   the six numeric columns, which is what tabular is for — digits that line up
+   so a column can be compared DOWN. It reached the two text columns as well,
+   and there it is the wrong feature doing visible harm: every digit in
+   `--metrics-client-id=6ff2549f-9feb-40ee` and in `--port 4319` is padded to
+   the width of a zero, inside a run of proportional letters, so the numbers in
+   a command line come out gappy and wider than the words around them. An
+   account name has the same problem for the same reason.
+
+   Stated on the cells rather than by narrowing the table's own rule, so the
+   default stays "a cell in this table is a number" and the exceptions name
+   themselves. */
+:is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user) {
+  font-variant-numeric: normal;
+}
+/* The header is the sort control now (#739), so the appearance moved onto the
+   button inside the cell and what is left on the cell is column geometry. 40px
+   is the widest label plus the arrow's reserved slot plus the 8px that `.sd-num`
+   already pushes the digits in by — which is also the fix for the header and
+   its own column having sat on two different right edges since this table
+   shipped. */
+
+:is(.sysdetail, .pl-body) .sd-procs th { padding: 0 0 3px; }
+:is(.sysdetail, .pl-body) .sd-procs th:first-child,
+:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) { width: 40px; }
+
+:is(.sysdetail, .pl-body) .sd-sort {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  /* SC 2.5.8. The ink is a 10px word and the target is not the ink; the short
+     side is the one that needed arguing, since the columns are 40px wide. */
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+/* Reversed, so the LABEL is the thing flush against the column's right edge and
+   the arrow's reserved slot sits inboard of it. In DOM order the glyph follows
+   the word, and leaving it there put the word 11px — a slot plus a gap — to the
+   left of the digits it heads, whether or not this was the sorted column.
+   Measured before assuming: 1493.3 against the column's 1504.3. */
+:is(.sysdetail, .pl-body) .sd-procs th:first-child .sd-sort,
+:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) .sd-sort {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  padding-right: 8px;
+}
+:is(.sysdetail, .pl-body) .sd-sort:hover { background: var(--line); color: var(--text); }
+:is(.sysdetail, .pl-body) .sd-sort:active { transform: scale(0.97); }
+/* The column doing the sorting reads at full strength and the other two stay
+   with the rest of the labels. Keyed on aria-sort rather than on a class of its
+   own, so the state cannot be true for the eye and absent for a screen reader. */
+:is(.sysdetail, .pl-body) .sd-procs th:not([aria-sort="none"]) .sd-sort { color: var(--text); }
+/* A slot the width of the glyph, held open whether or not this column is the
+   one sorting, so re-sorting moves the rows and never the headers. */
+.sd-sort-dir { display: inline-block; width: 8px; text-align: center; }
+:is(.sysdetail, .pl-body) .sd-procs td { padding: 2px 0; }
+.sd-num { text-align: right; padding-right: 8px !important; font-weight: 600; }
+.sd-dim { color: var(--muted); font-weight: 400; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sysdetail { animation: none; }
+  .sysdetail .sd-core-fill,
+  .sysdetail .sd-fill { transition: none; }
+  :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
+  .sysdetail .sd-open:active { transform: none; }
+  .sysdetail .sd-detail:active { transform: none; }
+}

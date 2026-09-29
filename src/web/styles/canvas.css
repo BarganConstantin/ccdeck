@@ -1,0 +1,260 @@
+/* ---------------- canvas ---------------- */
+
+/* Flat (#868). Two radial glows used to sit here, cyan from the top and
+   fuchsia from the bottom-left, carrying no state behind the one surface where
+   colour is meant to mean something: session hues, waiting, failure. */
+.canvas-wrap {
+  position: relative;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* The drop target for the gesture in #1264, on the canvas rather than the
+   viewport so it centres on the board whatever panels sit beside it, above
+   the auto-fit chip, which a drag always calls up and which is hidden for the
+   length of the drag. Raised clear of the 35px band where React Flow pans the
+   board under a dragged card, slop included (AUTO_PAN_EDGE_PX), so aiming at
+   it never scrolls the board away. Calm while the card is far away, leaning in
+   as the pointer approaches, and red only once a release would remove the
+   card. Pointer events stay with React Flow: App hit-tests the release against
+   this box, with some slop around it, so the target never interrupts the drag. */
+.drag-trash-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  z-index: 12;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  min-width: 240px;
+  min-height: 52px;
+  margin: 0 auto;
+  padding: 8px 16px 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed var(--chrome-edge);
+  border-radius: var(--r-panel);
+  background: var(--chrome-bg);
+  color: var(--muted);
+  box-shadow: var(--shadow-1);
+  font-size: 12px;
+  pointer-events: none;
+  animation: dragTrashIn 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+}
+.drag-trash-zone.near {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--err) 45%, var(--chrome-edge));
+  color: var(--text);
+  transform: translateY(-4px) scale(1.03);
+}
+.drag-trash-zone.over {
+  border-style: solid;
+  border-color: var(--err);
+  background: color-mix(in srgb, var(--chrome-bg) 82%, var(--err) 18%);
+  color: var(--err);
+  transform: translateY(-6px) scale(1.06);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 18%, transparent), var(--shadow-1);
+}
+.drag-trash-zone.leaving { animation: dragTrashOut 140ms ease both; }
+.drag-trash-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border-radius: 50%;
+  background: var(--ctl-fill);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+}
+.drag-trash-zone.over .drag-trash-icon {
+  background: color-mix(in srgb, var(--err) 20%, transparent);
+  transform: scale(1.12) rotate(-8deg);
+}
+.drag-trash-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.drag-trash-text { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drag-trash-name { display: inline-block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.drag-trash-hint { color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+.canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
+.react-flow__node.dragging .agent-node {
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease;
+}
+.canvas-wrap.trash-hover .react-flow__node.dragging .agent-node {
+  opacity: 0.55;
+  transform: scale(0.92);
+  border-color: var(--err);
+}
+@keyframes dragTrashIn {
+  from { opacity: 0; translate: 0 14px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes dragTrashOut {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-trash-zone,
+  .drag-trash-zone.leaving { animation: none; }
+  .drag-trash-zone,
+  .drag-trash-zone.near,
+  .drag-trash-zone.over,
+  .drag-trash-zone.over .drag-trash-icon { transform: none; }
+  .drag-trash-zone,
+  .drag-trash-icon,
+  .react-flow__node.dragging .agent-node { transition: none; }
+}
+
+/* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
+   filter bar above and the controls and minimap in the corners. A status and
+   an action in one small strip, on the surface and edge the canvas's other
+   instruments wear (the control stack, the minimap, the filter bar): the words
+   say the state in --muted and are not a control, and Resume is the only
+   thing that presses. It used to be one pill-shaped button with the action in
+   the accent, which read as a call to action floating over the sessions.
+   Centred by auto margins, not a translate. */
+.autofit-chip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 6;
+  width: max-content;
+  margin: 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 2px 10px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  background: var(--chrome-bg);
+  color: var(--muted);
+  font-size: 11px;
+}
+/* The action: the foreground at the weight the status is not, and the control
+   fill under the pointer. No accent and no box of its own; it is a word in the
+   strip, the way the toolbar's controls are words in the bar. */
+.autofit-resume {
+  min-height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.autofit-resume:hover { background: var(--ctl-fill); }
+/* The status stays one phrase, never broken across two lines of a strip this
+   small. */
+.autofit-state { white-space: nowrap; }
+.autofit-resume:active { transform: scale(0.97); }
+
+/* Filter chips above the canvas — small toolbar lets you toggle entire
+   tool categories on/off when the canvas gets busy. Only appears when
+   ≥2 categories are present, so a single-tool session stays uncluttered. */
+.cat-filter-bar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 6;
+  display: flex;
+  /* WRAPS, AND STAYS INSIDE THE CANVAS (#848). It was one row with no limit,
+     inside a canvas that clips: at 640px — a 1280 laptop at 200% zoom — "mcp"
+     and "other" sat past the edge, cut off, and a keyboard reader's focus went
+     to chips nobody could see. The limit keeps every chip inside the canvas.
+     The radius is a surface's, not a half-height capsule: a floating group of
+     controls is a small panel, and it still reads as one bar on two rows. */
+  flex-wrap: wrap;
+  max-width: calc(100% - 28px);
+  gap: 2px;
+  padding: 2px;
+  /* A solid slab (#882). It was a 78% fill with an 8px backdrop blur, and
+     under it the canvas runs marching dashes, spinners and bubbles without
+     pause, so the blur re-rasterised on every one of their frames. Solid reads
+     at least as well — the chips' own contrast is measured against it — and
+     costs a paint.
+     And canvas chrome, not a floating card: the edge and radius the control
+     stack and the minimap wear, and no drop shadow. It had a shadow in each
+     theme, which made the one strip of controls at the top of the canvas the
+     most raised thing on it. The surface stays --panel, unlike theirs, because
+     cards drift under this one and the chips' label contrast (#368, #622) is
+     measured on exactly this fill. */
+  background: var(--panel);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  box-shadow: none;
+}
+.cat-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  /* Concentric with the bar: its 6px less the 2px it is inset by. */
+  border-radius: var(--r-tag);
+  border: 1px solid transparent;
+  background: transparent;
+  /* The secondary tier at rest, so a bar of categories that are all showing
+     is quiet; the pointer lifts a chip to the foreground. */
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 120ms, color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* A drawn glyph in the label's own colour (App.tsx's CatGlyph), so it follows
+   every state the word does: quieter at rest, lit on hover, muted when off. */
+.cat-filter .cat-glyph { flex: none; }
+.cat-filter .cat-name { text-transform: lowercase; }
+/* --bg-soft was this hover's whole feedback and it is --panel's own value on
+   white, so on the light canvas hovering a category chip did nothing at all.
+   --ctl-fill is 7% of the foreground, which exists in both themes. The resting
+   border stays transparent: the chip is named by its glyph and its word, which
+   is the identification 1.4.11 accepts in place of a boundary. */
+.cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
+.cat-filter:active { transform: scale(0.97); }
+.cat-filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* "Off" is carried by the colour tier and the greyed emoji, never by opacity.
+   `opacity: 0.38` faded the whole chip, its label included, to 1.72:1 in dark
+   and 1.87:1 on white, and the hover that lifted it to 0.8 still only reached
+   3.51:1 in dark — so the one chip on this bar you could not read was the chip
+   you click to bring a category back, which is not the inactive control 1.4.3
+   excuses. No alpha rescues it either: --muted is 4.80:1 against this bar's own
+   translucent fill at FULL opacity in dark, so every fade lands under AA (0.8 is
+   3.51:1, 0.9 is 4.12:1). Dropping it leaves 4.80:1 dark / 7.67:1 light at rest,
+   and the pointer now lifts the label to --text (13.20:1 / 18.42:1) instead of
+   dimming it — a hover that takes contrast away is not a hover, which is the
+   same rule control-edges.test.ts holds the bordered controls to.
+   Whether "off" also wants a channel that survives colour blindness is #370's
+   question about toggle state, not this one's about contrast. */
+.cat-filter.off {
+  color: var(--muted);
+}
+.cat-filter.off:hover { color: var(--text); }
+/* The redundant channel #368 deferred to #370. What was left after it dropped
+   the opacity fade was a colour tier and a desaturated emoji, and both of those
+   are colour: --text against --muted is 2.75:1 in dark and 2.40:1 in light, so
+   a reader who cannot separate those two greys — or is looking at a screen in
+   sunlight — has a bar whose entire job is to say what the canvas is NOT
+   showing and no way to read it. A strike through the name is geometry, not
+   hue: it survives greyscale, every CVD and the emoji being switched for a
+   glyph. It is also the idiom already, "excluded" rather than "dimmed", which
+   is precisely what a hidden category is. The name only — a struck emoji reads
+   as damage rather than as exclusion. */
+.cat-filter.off .cat-name { text-decoration: line-through; }
+

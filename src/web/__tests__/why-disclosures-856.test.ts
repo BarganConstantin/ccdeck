@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const accounts = read("../components/AccountsPanel.tsx");
@@ -20,7 +21,7 @@ const quotaSections = read("../components/QuotaSections.tsx");
 // The pace note is the quota bar's, which was lifted out of the panel.
 const quotaBar = read("../components/QuotaBar.tsx");
 const node = read("../components/AgentNode.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Bodies of every rule whose selector list names exactly this selector. */
 function decl(selector: string, prop: string): string | null {

@@ -8,10 +8,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const panel = read("../components/MachinePanel.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("the machine panel has a heading (#879)", () => {
   it("draws its title as an h2", () => {

@@ -41,10 +41,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops } from "./gradient-stops";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 /** Comments quote declarations while explaining them; strip before reading. */
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 // The quota bar, lifted out of UsagePanel.tsx with the fill and the marker it colours.
 const quotaBar = readFileSync(join(web, "components", "QuotaBar.tsx"), "utf8");
 

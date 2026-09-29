@@ -10,10 +10,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { computePace } from "../components/QuotaBar";
+import { sheetText } from "./sheet-source";
 
 // The bar, its tick and its note are QuotaBar.tsx's, lifted out of the panel.
 const bar = readFileSync(fileURLToPath(new URL("../components/QuotaBar.tsx", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 function decl(selector: string, prop: string): string | null {

@@ -46,9 +46,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { classSetsIn, openTags } from "./tsx-scan";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────
 

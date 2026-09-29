@@ -35,8 +35,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 /** The same file with its comments gone. The comments here quote the copy they
  *  replaced — explaining WHY `rotation order` was wrong needs the old words on

@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -17,7 +18,7 @@ const app = read("../App.tsx");
 // gesture that turns it off stayed here. Where it is declared and whether it is
 // stored are asked of both files, the negatives included.
 const autofit = app + "\n" + read("../use-auto-fit-switch.ts");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("auto-fit off is a moment, not a setting (#820)", () => {
   it("starts every load fitting, whatever an older build stored", () => {

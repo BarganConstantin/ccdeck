@@ -1,0 +1,721 @@
+/* ---------------- usage panel ---------------- */
+
+.usage-panel {
+  /* The rail's own arrival — see @keyframes rail-in, beside the machine
+     panel's copy of this line. It had none at all. */
+  animation: rail-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: fixed;
+  top: 60px;
+  /* THE SAME VARIABLE THE MACHINE PANEL READS. This was a literal 368 with a
+     duplicate override further down the sheet — `.app:not(:has(.detail))
+     .usage-panel { right: 8px }` — which is the exact two-places-one-number
+     shape --rail-r was introduced to end, and it left the variable's promise
+     ("a variable so the pair cannot drift apart again", at its definition)
+     true of only one of the two panels it names. Widening the detail panel and
+     moving --rail-r with it, which its own comment invites, moved the machine
+     panel and left this one behind: the designed 20px between them opens to
+     60px and the usage panel's right edge slides under the detail panel. */
+  right: var(--rail-r);
+  width: 280px;
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  /* No drop shadow, for the reason .sysdetail gives: the two are one rail. */
+  box-shadow: none;
+  z-index: 20;
+  padding: 0 0 12px;
+}
+
+.up-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--panel-inset) 8px;
+  border-bottom: 1px solid var(--line-soft);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+/* Size and weight come from the shared panel-caption rule in the session
+   list block; this one only has to take the row it sits in. */
+.up-header h2 {
+  margin: 0;
+  flex: 1;
+}
+.up-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Neutral, not the running pink (#821): the colour every in-flight thing on
+   the canvas wears made a money figure read as a state, and it is a rate. The
+   figure is the primary tier — it is the panel's headline number, not prose
+   and not a caption — and the span beside it the metadata tier. */
+/* Inline beside the title, not a badge: a rate is a reading, and the pill it
+   sat in made it the one boxed thing in the header. */
+.up-rate {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.up-rate-span { color: var(--muted); }
+/* #380 deleted a 16px font-size here for the same reason it deleted `.sl-close`'s
+   15px: `class="btn icon-btn up-close"` put `button.btn.icon-btn` (0,2,1) over
+   this rule's (0,1,0). The class set is `glyph-btn up-close` now, so that fight
+   is over — and the colour below, which was losing to `button.btn`'s
+   `color: var(--text)` by the same arithmetic and had never rendered either, is
+   what the × is actually drawn in. It says --muted, `.glyph-btn` says --muted,
+   and the value the reader gets is the one this rule was always asking for.
+   The `line-height: 1` and `padding: 2px 6px` that used to sit here are gone:
+   both are `.glyph-btn`'s to decide now, and a second copy of the padding would
+   have quietly out-ranked the shared rule and pulled this one control off the
+   24px box every other header close stands in. */
+.up-close { color: var(--muted); }
+
+/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
+   Centred and intrinsic, it read as a control that had floated in and settled
+   there; at the panel's own inset and full width it reads as the head of the
+   figures under it, which is what it is.
+
+   `.uh-range.up-period`, not `.up-period`: the shared rule is declared further
+   down this sheet and both are one class, so a bare `.up-period` lost the
+   source-order tie and kept `inline-flex` — on which `margin: auto` computes to
+   zero and the strip stayed against the left edge.
+
+   AND THE STATE CHANGES SHAPE, because full width changes what the old one
+   costs. A solid --accent fill on a 52px chip was a small bright mark; on an
+   83.3px third of the column it is a slab, and the panel has one loud thing in
+   it already — the money. So the accent moves from the segment's face to a 2px
+   rule under it: the same colour at the same strength (10.85:1 off this panel,
+   where #583's rejected --accent-dim wash stood at 1.895), over a fraction of
+   the area. The label carries the other half of the state, stepping from
+   --muted to --text — neutral, not accent. Cyan appears once in this control
+   and it is the indicator, and usage-series-contrast.test.ts measures that
+   rather than trusting the sentence.
+
+   The baseline runs the whole width at 5% of --text and is the only container
+   there is — no box, no fill, no capsule.
+
+   IT SITS NEARER THE MONEY THAN THE LINE IT FOLLOWS, because it heads the one
+   and merely follows the other. Measured on the ink rather than on the boxes,
+   which lie: at 8/16 the gap above the words was 36.75px and the gap under the
+   rule 28.00px — 1.31:1, too shallow to group anything, and the void beneath
+   the hairline was the largest in the panel. At 14/10 it reads 42.75 / 24.00.
+   `.up-total` adds 14px of its own padding under this, which is why 10 here
+   arrives as 24 and why the two numbers cannot be read apart. */
+.uh-range.up-period {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin: 14px var(--panel-inset) 10px;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* THE SEGMENT IS THE HIT AREA; THE COLUMN INSIDE IT IS THE WORD.
+   Grid rather than flex, and the rule below is the whole reason. One
+   `max-content` column is exactly as wide as the label it holds — 30.1px for
+   `today` and `month`, 18.1px for `all` — so the ::after sharing that column
+   inherits the WORD's width instead of a percentage of the segment's. At
+   `width: 60%` all three drew the same 50px mark: 1.66x the word under `today`,
+   2.77x under `all`, where it stood 16px clear on either side and read as
+   underlining the column rather than the label. Nothing here measures the text;
+   the grid does, which is also why it survives a font fallback on Windows and
+   Linux that no hard-coded width would.
+   Two rows: `1fr` takes the height and centres the label in it, `auto` is the
+   2px the mark occupies. The segment stays 83.3 x 30 either way — the column
+   shrinks to the word, the button does not. */
+.up-period .uh-range-btn {
+  display: grid;
+  grid-template-columns: max-content;
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Drawn at rest as well, in nothing. The row has to exist in both states or the
+   label would step 1px as the period changed, and a mark that only exists when
+   pressed cannot fade — it would arrive at full strength while the label it
+   belongs to was still easing. Transparent to accent over the same 120ms the
+   label takes, so the two halves of one state move as one. Colour only: there
+   is no transform here for `prefers-reduced-motion` to switch off that the
+   shared `:active` does not already own.
+   `margin-inline: -3px` bleeds the mark 3px past the word on each side, and
+   `margin-bottom: -1px` drops it onto the hairline instead of stacking 2px of
+   accent on top of 1px of baseline. */
+.up-period .uh-range-btn::after {
+  content: "";
+  margin-inline: -3px;
+  margin-bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+/* Hover is a lift, not an impersonation. The shared `.uh-range-btn:hover`
+   repaints the label in --text, which is the SELECTED colour exactly — so with
+   the pointer still resting on the strip after a click, two of three segments
+   read full --text and a 2px rule was the only surviving difference. Mixed
+   halfway instead, and halfway in both themes on purpose: 1.66:1 up from rest
+   and 1.66:1 down from selected in dark, 1.57 / 1.53 in light. It cannot be
+   mistaken for either end. Type only — a box or a tint arriving under the
+   pointer would be the container this design refuses. */
+.up-period .uh-range-btn:hover {
+  color: color-mix(in srgb, var(--text) 45%, var(--muted));
+}
+
+.up-period .uh-range-btn[aria-pressed="true"] {
+  background: transparent;
+  color: var(--text);
+}
+/* AND IT HAS TO SURVIVE ITS OWN HOVER. `.uh-range-btn[aria-pressed="true"]:hover`
+   exists further down the sheet to keep a label legible on the accent FILL the
+   modal's chips take, and it paints that label in --bg. Both selectors are
+   (0,3,0), the shared one is declared later, and this strip has no fill — so
+   the selected word was drawn in --bg on --panel at 1.080:1 in dark and 1.132:1
+   in light. It vanished under the pointer that had just chosen it, which is the
+   one moment the pointer is guaranteed to be there. One more class here settles
+   the tie the right way. */
+.up-period .uh-range-btn[aria-pressed="true"]:hover {
+  color: var(--text);
+}
+.up-period .uh-range-btn[aria-pressed="true"]::after {
+  /* The foreground, not the accent: which range is showing is a selection,
+     not data, and the figures under it are where the colour belongs. */
+  background: var(--text);
+}
+
+/* THE MARK THAT SAYS WHICH PERIOD ALSO SAYS IT IS BEING FETCHED, and nothing
+   new appears to say it. The first read of any period is 2.4-2.8s — measured,
+   uniform across the three, because the cost is walking the transcript
+   directory rather than the range — and every read after that is 10ms from the
+   server's cache. For those two and a half seconds the panel only dimmed its
+   figures, which reads as broken rather than as busy.
+   So the indicator breathes: it is already the thing the eye is on, because it
+   is directly under the word the finger just pressed. `scaleX` from the centre
+   and a step of opacity, both of which are compositor-only and neither of which
+   moves a pixel of layout — the 2px rule is a grid item and a transform on it
+   cannot reflow the label above it.
+   Keyed on `[data-pending]` alone rather than on `[aria-pressed="true"]
+   [data-pending]`: only the pressed segment is ever given the attribute, and
+   naming aria-pressed here would enter this rule into the set of scoped state
+   rules usage-series-contrast.test.ts holds to exactly three. This is activity,
+   not a fourth way of being selected. The colour is untouched — the accent
+   arrives solid or not at all, which is that issue's whole finding.
+   1100ms, which is slow enough to read as breathing rather than as blinking and
+   fast enough that two cycles fit inside the wait. */
+@keyframes up-period-reading {
+  0%, 100% { transform: scaleX(1);    opacity: 1; }
+  50%      { transform: scaleX(0.28); opacity: 0.55; }
+}
+.up-period .uh-range-btn[data-pending]::after {
+  animation: up-period-reading 1100ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* The ring goes inside the segment, for the reason the control exists at all.
+   The shared `button:focus-visible` draws 2px of accent at `outline-offset:
+   1px` — an 87.3 x 34px rectangle around a control whose premise is no box —
+   and `border-radius: 0` above beat the global rule's 4px, so this was the one
+   hard-cornered focus ring in the deck. Worse: its bottom stroke landed on
+   412.27 -> 414.27, the indicator's exact pixels in the indicator's exact
+   colour, so the selected segment, focused, showed no indicator at all. Inset
+   it clears the hairline, cannot be clipped by `.usage-panel`'s own scroll box
+   on a short viewport, and reads as a hint rather than a resurrected chip.
+   `.canvas-wrap` and `.uh-bar-col` inset theirs for the same reason; the 4px
+   radius is the deck's own, taken back from the global rule this had shadowed. */
+.up-period .uh-range-btn:focus-visible {
+  outline-offset: -4px;
+  border-radius: 4px;
+}
+
+/* A session ccusage remembers and the canvas is not drawing. The dot keeps its
+   box so every label in the list starts at the same x — a ragged left edge
+   between "running now" and "ran last Tuesday" would read as two lists — and
+   draws nothing, because this deck never observed that session's end and a ✓
+   here would be a state it is inventing. */
+.up-dot-past { visibility: hidden; }
+
+/* ccusage's own name for a session is a uuid. When the board cannot supply a
+   better one the first segment is shown, and it is marked as the machine
+   string it is rather than dressed up as a project name. */
+.up-session-id {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.up-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px var(--panel-inset) 6px;
+}
+.up-total-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  color: var(--ok);
+  line-height: 1;
+}
+.up-total-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The margin has to come out of the width, not sit beside it. `.cost-bar`
+   declares `width: 100%`, which resolves against THIS panel's content box —
+   278px, the 280px fixed width less its two borders — and the 14px of margin on
+   each side is then laid outside that width, so the bar's margin box measured
+   306px inside a 278px box. `overflow-y: auto` on `.usage-panel` computes
+   `overflow-x` to `auto` as well (a box cannot scroll one axis and let the
+   other overflow visibly), so the panel became the one horizontally scrollable
+   container in the app: 28px of scrollable overflow on every render, with the
+   cache-write segment — the last one in the bar and the priciest token class —
+   running 14px past the panel's content edge and under the border.
+   `width: auto` on a block-level flex container resolves against the space
+   REMAINING after the margins, which is the 250px that `.qb-track` and
+   `.up-table` beside it already occupy, so the bar lines up with them instead
+   of overhanging. Scoped here rather than on `.cost-bar` itself because this is
+   the only placement that carries a margin; the detail hero and the session
+   summary use the bar flush against their own padding, where `100%` is right.
+   The arithmetic is also why the defect is platform-independent: the 28px is
+   pure margin, so a classic 15px scrollbar on Windows or Linux narrows the
+   content box and leaves exactly the same 28px hanging off it. */
+.usage-panel .cost-bar {
+  margin: 4px 14px 10px;
+  width: auto;
+  border-radius: 3px;
+}
+
+.up-tokens-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 6px var(--panel-inset) 10px;
+}
+.up-tok {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+/* 11px, the usage panel's floor for content (#858): this is a monitor read all
+   day, and --muted, not a smaller size, is what makes a key secondary. */
+.up-k {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+/* What the strip above is a strip OF, on the one deck that has no headline to
+   say it — every model unpriced, so the money block never renders (#687). It
+   rides in the same flex row as the token pairs and takes the same muted tone
+   as their keys, because it is a caption on them rather than a fifth figure:
+   `.up-tok` gives it the row's baseline and gap, this gives it the key's size
+   and colour. Both themes answer for it through --muted, which each declares. */
+.up-scope {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+/* One of the two insets that stay literal: panel-overflow.test.ts parses this
+   padding and the cost bar's margin above as NUMBERS to redo #369's overflow
+   arithmetic, and a var() reads as NaN there. panel-rhythm.test.ts asserts both
+   equal --panel-inset, so the literal cannot drift away from the token. */
+.up-section {
+  padding: 0 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line-soft);
+}
+.up-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  /* The machine panel's `.sd-h` spacing, so the two inspectors' section
+     labels are set the same way. */
+  letter-spacing: 0.06em;
+}
+/* Each quota carries its own age, because they are fetched separately and one
+   is usually much older than the other. Set back to normal case and weight —
+   it is a read-out sitting in a heading, not part of the heading. */
+/* The heading that opens, and it is the whole heading rather than the glyph.
+   A 9px chevron is a 9px hit area for a decision the size of a section.
+   `font: inherit` and `text-align: left` because a <button> arrives with the
+   platform's font and a centred label, and this one has to be indistinguishable
+   from the three headings beside it: same 11px, same 600, same --muted, same
+   uppercase, same left edge at the panel inset. No box, no fill, no edge.
+   The identification is the word, so control-edges.test.ts exempts it the way
+   it exempts the tool rows and the period segments.
+   THE PADDING IS THE HIT AREA AND THE MARGIN GIVES IT BACK. The heading's ink
+   is 15.9px tall — SC 2.5.8 asks 24 of the short side, and taking it by growing
+   the row would have pushed this section 10px off the rhythm the three headings
+   above it keep. `padding: 5px 0` with `margin: -5px 0` leaves the button's
+   MARGIN box exactly the height of the words, so the h3 measures what it always
+   did while the target measures 25.9. */
+.up-disclose {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: -5px 0;
+  padding: 5px 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+  transition: color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The whole heading brightens, chevron included, because the whole heading is
+   the control. --text is where the section titles' --muted has room to go and
+   is what every other hover in this panel steps to. */
+.up-disclose:hover { color: var(--text); }
+.up-disclose:active { transform: scale(0.97); }
+/* The ring on the words rather than on the section: `.up-section` has no
+   padding of its own at the top, so the shared 1px offset would have sat on the
+   hairline above. -2px keeps it inside the line it belongs to. */
+.up-disclose:focus-visible { outline-offset: -2px; }
+/* Turns rather than swaps. Pushed to the right edge by `.up-section-age`'s
+   `margin-left: auto` when there is an age, and by its own when there is not —
+   the board branch prints no age, and a chevron that jumped to the middle of
+   the heading on that path would be the same control in two places.
+   `align-self: center` because the row is baseline-aligned for its text and a
+   drawn glyph has no baseline worth sitting on. */
+.up-chev {
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), color 120ms ease;
+}
+.up-section-age + .up-chev { margin-left: 0; }
+.up-disclose:hover .up-chev { color: var(--text); }
+.up-disclose[aria-expanded="true"] .up-chev { transform: rotate(180deg); }
+
+.up-section-age {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.up-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.up-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11px;
+  padding: 0 0 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.up-table th:not(:first-child) { text-align: right; }
+.up-table td { padding: 4px 0; vertical-align: middle; }
+.up-model-name {
+  color: var(--text);
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.up-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  font-size: 11px;
+}
+.up-cost-val { color: var(--ok); }
+
+.up-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* `[hidden]` IS NOT ENOUGH ON ITS OWN, and the failure is silent in both
+   directions. The attribute hides an element through a UA rule — `[hidden] {
+   display: none }` — and any author declaration of `display` outranks the whole
+   UA sheet, so the rule above kept this list `flex` with `hidden` set on it.
+   Measured: the attribute was on, `el.hidden` reported true, and twelve rows
+   were on screen and in the accessibility tree. Restated here at (0,2,0), where
+   it wins. */
+.up-sessions[hidden] { display: none; }
+.up-session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+.up-session-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.up-session-tokens {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.up-session-cost {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ok);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* "not priced", in the slot a dollar figure would have taken. Not --ok: green
+   is this panel's colour for money, and a phrase painted in it reads as an
+   amount rather than as the absence of one. Italic for the same reason — the
+   cell holds a state where every other cell in its column holds a value.
+   Declared after .up-cost-val and .up-session-cost because it shares their
+   specificity and has to win the colour; the geometry of both is kept. */
+.up-unpriced {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.up-hint {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.up-empty {
+  padding: 20px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ── quota bars ── */
+.up-quota-section { padding-top: 10px; border-top: none; }
+/* The ↻ beside the × above, and it moves with it — a header with one bare glyph
+   and one 30px bordered box beside it is the split this change exists to end.
+   #380 deleted a 14px font-size here that `button.btn`'s 12px had always beaten;
+   the class set is `glyph-btn up-refresh-btn` now, so nothing outranks anything
+   and the padding below renders for the first time. It is kept because it is
+   still true — 1px 7px round a 16px glyph, inside the 24px floor `.glyph-btn`
+   holds, so the box does not move — while the `line-height: 1.4` that used to
+   sit beside it is gone. That one WAS live, and left alone it would have made
+   this button 24.4px tall against its neighbour's 24: a 0.4px step between two
+   controls in one header, which is the smaller cousin of the 1.4px step #380
+   removed from the topbar. `.glyph-btn`'s `line-height: 1` is the answer, once,
+   for both of them. The `color: var(--muted)` is gone for the same reason it
+   stays on `.up-close`: there it is what the sheet asks of the × by name, here
+   it was only a second spelling of the shared rule. */
+.up-refresh-btn { padding: 1px 8px; }
+.up-quota-bars { display: flex; flex-direction: column; gap: 10px; }
+.qb-row { display: flex; flex-direction: column; gap: 3px; }
+.qb-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+}
+.qb-label { color: var(--muted); }
+.qb-pct {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.qb-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+/* Full width and scaled from the left (#863), the way the machine panel's
+   `.sd-fill` already draws its bars: a changing reading is a transform on the
+   compositor, where a `width` transition re-laid the row out every frame. */
+.qb-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  transform-origin: left center;
+  transition: transform 400ms ease;
+}
+/* Pace "green line" — vertical marker at the expected-usage position.
+   Separated from the fill with the surface, not with black. Deficit means
+   actual > expected, so the marker always lands INSIDE the fill, and its --err
+   against the fill's own colour is 1.14:1 over --accent, 1.32:1 over --warn
+   and — once the limit is reached and the fill is --err too — exactly 1.00:1,
+   a marker painted on itself. The old `0 0 2px rgba(0,0,0,0.5)` halo did some
+   work against the pale dark fills and none at all on light, where black over
+   --err is 2.12:1. A 1px --panel ring is the one colour every fill on this bar
+   is far from: 10.85 / 12.55 / 9.54 in dark and 5.93 / 5.43 / 6.47 in light
+   against --accent / --warn / --err, and 9.54–12.89 against the marker itself
+   in both themes, so the boundary reads in every state while the hue goes on
+   carrying deficit-vs-surplus. .qb-track clips the ring top and bottom
+   (overflow: hidden), which leaves exactly the two vertical edges that matter.
+   "Where should I be by now" is the one number in this panel printed nowhere
+   on screen — it lives in a title — so the marker is all there is. */
+/* The rail the marker rides (#863). As wide as the track, so translateX's
+   percentage — which is of the element's own width — lands the marker exactly
+   where `left` used to, and the slide is a transform rather than a layout pass
+   every frame. It paints nothing and takes no pointer; the marker keeps its
+   own title. */
+.qb-pace-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition: transform 400ms ease;
+}
+.qb-pace-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px var(--panel);
+  pointer-events: auto;
+}
+.qb-reset-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 14px;
+}
+.qb-reset {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.qb-pace {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+  flex-shrink: 0;
+}
+/* The legend for the marker on the bar (#850): the same 2px line in the same
+   colour, in front of the words that say what it means and which side of it
+   the reader is on. The tick was explained only by a title before, which a
+   touch or keyboard reader never sees. */
+.qb-pace-key {
+  display: inline-block;
+  width: 2px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 1px;
+  vertical-align: -1px;
+}
+/* The note opens the one number it is measured against (#856): "stay near N%
+   by now" was a title on a 2px tick. No `font` shorthand — it would reset the
+   11px `.qb-pace` sets; a 24px target is drawn around the words. */
+button.qb-pace {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+button.qb-pace:active { transform: scale(0.97); }
+button.qb-pace::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+.qb-why { font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+.qb-limit-badge {
+  margin-left: 4px;
+  font-size: 11px;
+}
+/* Plan tier next to the section heading, as inline metadata rather than a
+   bordered tag: a plan is a fact about the account, not a state, and the box
+   made it the one outlined thing in the heading. The heading is uppercased, so
+   this undoes that to keep "Pro 20x" readable as a product name, and
+   --text-dim at normal weight keeps it a step under the words it annotates. */
+.up-plan-badge {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.up-quota-na {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.up-quota-hint { color: var(--text-dim); }
+/* A chip that paints --line under itself has to pay for it. This one inherits
+   --text-dim — a foreground budgeted against --panel — and then lifts the bed
+   to --line, which spends exactly the contrast the token was sized for:
+   4.14:1 dark / 3.62:1 light, under the 4.5:1 that 10.5px body copy needs, in
+   both themes. And this is the CLI command that makes the quota section work
+   at all, the text a user reads precisely when the panel is empty. --text on
+   --line is 11.39:1 / 11.86:1. The size and the lifted bed already say
+   "secondary"; the colour does not have to say it a third time — the same call
+   .ap-manage-btn made when its buttons rose to --text rather than its labels
+   sinking below it. .ver-cmd-hint has the identical defect and the same fix. */
+.up-quota-hint code {
+  background: var(--line);
+  color: var(--text);
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.up-quota-loading { font-size: 11px; color: var(--text-dim); }
+.up-quota-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+/* Both of these are .up-quota-sub lines, so they have to come after it to win
+   on source order — they read as dim grey otherwise. */
+.up-credits { color: var(--accent); }
+.up-reset-credits { color: var(--ok); font-variant-numeric: tabular-nums; }
+
+:root[data-theme="light"] .up-rate {
+  background: rgba(126,34,206,0.10);
+}
+

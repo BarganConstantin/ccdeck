@@ -1,0 +1,902 @@
+/* ---------------- local network sync ----------------
+   The last section of the Accounts panel, and the only one that is not about
+   this machine's accounts but about other machines' copies of them.
+
+   It reuses `.ap-auto`'s frame, heading and switch rather than inventing a
+   second look for a second section: a reader who has learned what Auto-switch
+   is has learned what this is, and a panel whose two bottom sections were drawn
+   differently would be claiming a difference that is not there.
+
+   Everything below is the inside of it. The ladder is the panel's — 11px for a
+   thing you read, 10px for a label beside it — and the gaps are 8 and 6 like
+   the section above. */
+/* Local network's view, under its header: the policy row, then whatever the
+   network has to say, then the machines. */
+.ap-lan { padding: 12px var(--panel-inset) 16px; }
+
+/* THE WAY IN, at the foot of the accounts. One row — the name, what state the
+   network is in, and a chevron that says the press goes somewhere — written as
+   a destination rather than a section: no switch, no list, no caption. It
+   takes the tone a door row takes, pulled out by 6px so the tone clears the
+   text and the text stays on the foot's inset. */
+.ap-nav {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 12px);
+  margin: 4px -6px 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.ap-nav:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.ap-nav:active { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.ap-nav-glyph { flex: none; color: var(--muted); }
+.ap-nav-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ap-nav-name { font-size: 12px; font-weight: 500; }
+.ap-nav-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+/* ON, IN THE COLOUR THE MACHINES THEMSELVES ARE ALREADY DRAWN IN. `--ok`, not
+   the accent: one press away, `.ap-lan-who .ap-pulse` paints every deck that is
+   on in exactly this green, and a summary that recoloured the same fact would
+   make a reader check whether the two were counting different things. Green is
+   this sheet's word for DONE elsewhere — a finished tool call, a landed
+   version — and that reading does not collide here, where the noun is a machine
+   and the only question asked of it is whether it is there.
+
+   The accent stays what it is in the column above: the LIVE ACCOUNT, which is a
+   choice this deck has made, not a machine reporting in.
+
+   STILL, WHERE THE ROWS INSIDE PING. `.ap-pulse` earns its ring on a list where
+   the reader is hunting one machine among many; this is a summary of all of
+   them, at the foot of a panel about something else, and a pulse there is
+   motion in the corner of the eye with nothing to find. */
+.ap-nav-live {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  vertical-align: 1px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.ap-nav-state[data-tone="bad"] { color: var(--warn); }
+.ap-nav-state[data-tone="wait"] { color: var(--accent); }
+.ap-nav-chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+/* A ROW THAT UNFOLDS RATHER THAN LEADS turns its chevron down, which is the one
+   thing that tells the two `.ap-nav` rows in this column apart before either is
+   pressed: Local network goes somewhere, the fold opens here. The turn wins
+   over the hover nudge — a chevron pointing down does not lean right, and
+   `translateX` on a rotated box would send it there anyway. */
+.ap-nav[aria-expanded="true"] .ap-nav-chev,
+.ap-nav[aria-expanded="true"]:hover .ap-nav-chev { transform: rotate(90deg); }
+
+/* THE FOLD, between the live account and the rest of the roster. `.ap-nav` is
+   written for the foot, where the inset comes from `.ap-foot`; this row stands
+   in the scroll, so the inset is its own.
+   IT CARRIES NO GLYPH, so its name starts on that inset — the same left edge as
+   the panel's title above it and Auto-switch's below. See OtherAccounts.tsx for
+   why the icon went, and .ap-nav-text for the gap that goes with it.
+   The 4px over it, against 2px under, is the whole of the rhythm in this block:
+   the account above is a different thing, the policy below is the same one. */
+.ap-rest { padding: 4px var(--panel-inset) 0; }
+/* No glyph, no gap to leave for one. The chevron keeps its own, from the
+   `auto` margin the text column already claims. */
+.ap-rest .ap-nav { gap: 0; }
+/* The list it opens hangs directly off it — the top padding belongs to the
+   fold's own bottom, and two of them would read as a gap the reader has to
+   cross to believe the rows are what the row was about.
+
+   AND IT IS THE ONE THING IN THIS COLUMN THAT SCROLLS INSIDE ITSELF. It takes
+   the room left between the fold row and the policy and stops there. A second
+   scrollbar is a cost, and it is only paid when a reader has opened a list too
+   long for the room — with three accounts in it there is nothing to scroll and
+   no bar to see, because `max-height` here is whatever the flex line gives it
+   rather than a number somebody picked.
+   `overscroll-behavior` so reaching the end of this list does not go on to
+   scroll the column behind it. */
+.ap-others {
+  padding-top: 2px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* AUTO-SWITCH, UNDER THE ACCOUNTS IT MOVES YOU BETWEEN. It was `.ap-foot` — a
+   pinned strip with a rule over it — and both of those were about standing
+   apart from a roster it could not fit beside. It sits with the roster now, so
+   it keeps the foot's spacing and drops the rule: SPACE SEPARATES, the way it
+   does between the account rows themselves. The controls in it are the only
+   ones in this column, which is all the separation a policy row needs.
+
+   AND IT SITS CLOSE. The gap over the fold row is wider than the gap under it,
+   so the two read as one group — available targets, then the policy that picks
+   between them — hanging off the live account rather than floating between it
+   and the foot. Proximity does that grouping; there is no container and no
+   rule, which is why the block can hold a list of any length without becoming
+   a card. */
+.ap-policy-block { padding: 2px var(--panel-inset) 14px; }
+/* WHAT THE FOLD OPENS: the accounts, and the policy over them. It is the flex
+   line that gives, so the list inside it can take the room that is left and
+   scroll; the policy under the list never does. */
+.ap-rest-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.ap-rest-panel > .ap-policy-block { flex: none; }
+/* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN. A region that scrolls inside
+   itself ends on a row cut in half, and at this width that reads as a glitch
+   rather than as a boundary — there is no container edge, no change of ground,
+   nothing to say the list stopped and a control began. The rule says it, and
+   it exists for exactly as long as there is a list to close: shut, the policy
+   sits 2px under the fold row with nothing between them. */
+.ap-others + .ap-policy-block {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* THE PEEK — who is on, beside the row, for a pointer that has not pressed
+   anything.
+
+   `1 of 8 online` answers how many and refuses to say which, and WHICH is the
+   whole question for somebody about to send an account to a colleague's
+   machine. The press that answers it costs a view change and a way back, for a
+   list of at most a handful of names.
+
+   BESIDE, NEVER UNDER: this row sits at the foot of a column, and a card
+   dropped under it would cover the rows the pointer is moving through. See
+   placeBeside.
+
+   THE POINTER MAY REST ON IT. It refused the pointer at first, and that was
+   one rule too many: a list of names appears and the reader's next move is onto
+   it — to read the fourth name, to follow one with the eye — and the card went
+   out from under them. It holds itself open while the pointer is on it and
+   shuts on the grace that also lets the pointer cross the 4px gap. Nothing in
+   it is a control, so there is still nothing here to press.
+
+   AND IT IS NOT HOVER-ONLY. The same card opens when the row takes focus, so
+   the keyboard is told what the pointer is told; a screen reader is handed the
+   same names through `aria-describedby` on the row. */
+.ap-peek {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  width: 208px;
+  padding: 10px 12px;
+  overflow: hidden auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  /* Opacity only. The card is unasked-for and arrives where the eye is not
+     looking; travel would make it a thing that happened rather than a thing
+     that is there — which is also why there is no reduced-motion rule to write:
+     a fade is what that rule leaves behind everywhere else in this sheet. */
+  animation: fadeIn 110ms ease-out;
+}
+/* The label over the names sits UNDER them in weight, not over. A card this
+   small cannot have two loud lines, and the names are what was asked for — the
+   label only says what list this is. */
+.ap-peek-title { font-size: 11px; color: var(--muted); }
+.ap-peek-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 7px;
+}
+/* The foreground tier, inherited: a machine's name is the content of this card
+   and the only thing in it worth reading at a glance. */
+.ap-peek-who {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 12px;
+}
+.ap-peek-who > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ap-peek-rest { margin-top: 7px; font-size: 11px; color: var(--muted); }
+
+/* THE FOLD'S PEEK is Local network's card carrying a number per name. Wider,
+   because `claude1@sapec.md` and `96% free` on one line is more than 208px of
+   text, and a name that ellipsised away would defeat the one thing the card is
+   for. The name takes the room; the state is measured off `not read yet`, the
+   longest thing it can say. */
+.ap-fold-peek { width: 244px; }
+/* THE CARD'S PEEK: the same hover card, carrying one agent card's facts at 1:1
+   beside a tile the canvas has drawn too small to say them (SessionPeek). Wider
+   than the fold's, because a session title is the widest thing it holds and
+   gets two lines to say it before it ellipsises. Nothing in it is a control, so
+   unlike the fold's it refuses the pointer — the tile under the pointer keeps
+   its hover, and a double-click on the tile still lands on the tile. */
+.node-peek {
+  width: 288px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.node-peek p { margin: 0; }
+.node-peek-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.node-peek-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.node-peek-time {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.node-peek-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.node-peek-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.node-peek-state[data-kind="live"] { color: var(--inflight); }
+.node-peek-state[data-kind="done"] { color: var(--ok); }
+.node-peek-state[data-kind="err"] { color: var(--err); }
+.node-peek-title {
+  font-size: 12px;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.node-peek-wait {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.node-peek-wait.warn { color: var(--warn); }
+.node-peek-wait > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.node-peek-wait b { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Counts and labels, which are what --muted is for; the title above is the
+   card's one piece of prose. */
+.node-peek-facts,
+.node-peek-branch {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.node-peek-failed { color: var(--err); }
+/* A recap note's peek: the note's own mark in its session's hue, and the
+   recap whole — prose, at the note's size and ink, with room for it. */
+.recap-peek {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  width: 320px;
+}
+.recap-peek-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.recap-peek-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.node-peek-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ap-fold-who { gap: 8px; justify-content: space-between; }
+.ap-fold-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* The number sits in the muted tier beside a foreground name: it is what the
+   name is being ranked by, not a second thing to read. Tabular, so a column of
+   them lines up on the decimal the way the bars above do. */
+.ap-fold-state {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+/* And an account that cannot be switched to says so in the ink its own row
+   uses, so the card cannot be the quiet version of a warning. */
+.ap-fold-state[data-tone="warn"] { color: var(--warn); }
+
+.ap-lan-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* Fixed, so `appear as` and `passphrase` put their fields on one left edge.
+   Measured off the longer of the two at 10px, rounded up to the panel's step. */
+.ap-lan-label {
+  flex: none;
+  width: 66px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.ap-lan-input { flex: 1 1 auto; min-width: 0; }
+
+/* 3px, and the one pixel is the whole reason. The row measures 21.9px tall, so
+   at a 2px gap two ticks sat 23.9px apart centre to centre — one tenth of a
+   pixel under what SC 2.5.8's spacing exception asks of a target below 24px.
+   The row is deliberately the target rather than the 13px box (see below), and
+   that argument only holds if the spacing does. */
+.ap-lan-picks { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+/* The whole row takes the press, not just the box — a 13px checkbox is under
+   the 24px SC 2.5.8 asks for, and a label wrapping its own input is the one
+   shape where the target is the sentence rather than the square. */
+.ap-lan-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  margin: 0 -4px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text);
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lan-pick:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.ap-lan-pick:active { transform: scale(0.97); }
+.ap-lan-pick input { accent-color: var(--accent); margin: 0; }
+.ap-lan-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Said on the row rather than left to be inferred from a missing tick: an
+   account that is dead HERE is exactly the one a peer will heal, so the word is
+   information rather than a warning. --muted, not --err. */
+/* SECONDARY TEXT ON A HOVERED ROW IS STILL TEXT. `--muted` clears 4.5:1
+   against --panel and only against --panel: the row's own 6% hover wash lifts
+   the ground under it and the same ink measured 4.14:1 in dark. Mixed toward
+   the foreground rather than left grey, which is the rule the reach block
+   already writes down. */
+/* No ring on the LABEL, deliberately, though the label is the click target and
+   the 13px box inside it is not. The ring belongs to the element that has
+   focus, and putting a second one on the row would mean taking the first one
+   away — `outline: none` is the one thing this sheet may not say, and two
+   nested rings for one focus is worse than a small one in the right place. The
+   row already answers the press it receives: `.ap-lan-pick:active` scales. */
+.ap-lan-pick:hover .ap-lan-dead { color: color-mix(in srgb, var(--muted) 65%, var(--text)); }
+.ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: 9px; }
+
+/* The machine a request is about, named in the sentence that asks about it. */
+.ap-lan-peer-name { color: var(--text); }
+
+/* Both empty states — no accounts yet, and no other deck yet. The second one
+   carries the two things worth checking, so it wraps rather than truncating. */
+.ap-lan-empty { color: var(--muted); font-size: 10px; line-height: 1.45; }
+
+/* Takes a typed address off the list. `margin-left: auto` puts it at the far
+   edge of its row, away from the name it removes — the same distance the panel
+   uses everywhere else to keep a destructive control off the thing it acts on. */
+/* THE ONE LINE IN THIS SECTION THAT IS NOT ROUTINE. A round that could not
+   reach a deck was drawn in --text-dim at 10px: the same colour, size and
+   weight as `nothing to do · checked now` on the row above it — 4.70:1 both,
+   measured. This list is the entire readout of whether the feature works, and
+   the one thing anybody scans a list like this for is which row is wrong. It
+   takes --warn, which is what .ap-err and .ap-stale already mean by wrong. The
+   tone is decided in roundLabel, where it can be tested. */
+.ap-lan-bad { color: var(--warn); }
+
+/* The invite card's own verbs. The 72px indent that used to be here aligned
+   them to a passphrase label — a control that has not existed since pairing
+   replaced the passphrase, and which never existed in the dialog this card
+   lives in now. They sat 72px inside a 520px box, aligned to nothing. */
+.ap-lan-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* WHAT IS HAPPENING, IN ONE LINE, directly under the head. Every state this
+   section has was legible only by reading the whole thing and working it out;
+   this is the panel's own answer, the one the freshness column has made on
+   every account row for a year. It carries the tone because a stylesheet cannot
+   tell "nobody yet" from "it broke", and those are the two a reader most needs
+   told apart. */
+/* The state and its freshness read together, so they sit together. Wrapping is
+   allowed and is the point: `this deck cannot reach any of its 3 decks` plus a
+   clock does not fit 250px, and a line that refuses to wrap would clip the half
+   that matters. */
+.ap-lan-status {
+  margin: 11px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+/* Nothing wrong, so nothing drawn — and the margin goes with the words. The
+   element is still there: it is a live region, and one that only exists once it
+   has something to say is one several screen readers never announce. */
+.ap-lan-status:empty { margin: 0; }
+.ap-lan-status.ok { color: var(--text); }
+.ap-lan-status.bad { color: var(--warn); }
+.ap-lan-status.wait { color: var(--accent); }
+
+/* WHO IS HERE, and only them. The section's own complaint was that it looked
+   unfinished — a stack of 10px labels with no rhythm and nothing that read as
+   important. This is one list of one kind of thing, at one size, with a live
+   dot: a roster, which is what a person opens this to see. */
+/* SPACING IS THE ONLY GROUPING THIS SECTION HAS, and every gap in it was
+   within a pixel or two of every other: 8 under the description, 10 under the
+   freshness, 9 between rows, 8 under the list, 10 above the foot. Five equal
+   distances say there are five things; there are three — what the network is,
+   who is on it, and the two errands at the bottom. So the gaps INSIDE the list
+   dropped and the ones at its edges grew, which is the whole of the rhythm.
+
+   5px between rows is what the rows can afford now that a healthy one is a
+   single line, and it still clears SC 2.5.8: the verbs are 24px tall, so their
+   centres stay 29px apart and no 24px circle around one reaches another. */
+.ap-lan-here {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+/* TWO LINES, BY STRUCTURE. One row used to be one line of three flex items —
+   a dot, the machine's name, and the sentence about it — and the sentence was
+   the item that grew while the name was the item that shrank. So in 190px of
+   usable width `could not reach it — handshake timed out` took both lines it
+   needed and `192.168.1.170:64521` collapsed to `192.168.1….`, which names no
+   machine at all. The thing a reader is looking for lost every argument to a
+   string that changes every minute.
+
+   A grid decides it once instead: the name owns the full column, the state sits
+   under the name it is about, and the verb spans both and never moves. No box,
+   no rule, no container — the second line is the whole of the device. */
+.ap-lan-who {
+  /* The box the overlay button and the hover tone are drawn on, and a
+     stacking context of its own so the tone's z-index: -1 stays inside the
+     row rather than slipping under the panel. */
+  position: relative;
+  isolation: isolate;
+  /* The whole row is the door to that machine's dialog, so the whole row
+     says so. */
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "dot  name  verb"
+    ".    state verb";
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: center;
+  min-width: 0;
+}
+/* A ROW WITH NOTHING TO REPORT IS ONE LINE, AND NOW ITS BOX IS ONE LINE. Its
+   sentence is out of flow (`.vis-hidden`), but the grid kept a second track,
+   and the 24px verb spanning both left an empty 9px under every healthy row:
+   a 27.4px box round a 14px name, the name at the top of it and `unpair`
+   five pixels below the name. One track puts the dot, the name and the verb
+   on one centre line, in the 24px the spacing rule below was written for —
+   its own comment has their centres 29px apart. */
+.ap-lan-who:has(> .vis-hidden) { grid-template-areas: "dot name verb"; }
+.ap-lan-who > .ap-pulse, .ap-lan-who > .ap-dot { grid-area: dot; }
+.ap-lan-who > .ap-manage-btn { grid-area: verb; align-self: center; }
+/* The name is the row. It takes --text at 12px against the panel's 10px
+   labels, because a machine somebody is talking to is a thing and the words
+   around it are about that thing. It still ellipsises — a 30-character
+   hostname has to end somewhere — but now it does so at the full width of the
+   column rather than at whatever a sentence left it, and the deck's own
+   dialog carries the whole of it. */
+.ap-lan-who-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+/* THE ROW IS THE DOOR. A row opens that machine's dialog, and a row is two
+   lines, a dot and sometimes a verb — so the button is laid over all of it, on
+   exactly the box the hover tone paints, and the verb sits above the button. A
+   press anywhere on the row opens the dialog; a press on the verb does the
+   verb.
+
+   THE BOX IS THE ROW'S, SO THE RING IS TOO, AND THE RING IS ALL FOCUS DRAWS.
+   The keyboard's ring goes round the row on the tone's own corners. Hover is a
+   tone and focus is a ring — they used to share the tone, so a reader could
+   not tell which of the two they were looking at.
+
+   A <button> and not a role on the <li>: the verb inside is a button too, and a
+   button inside a button is not a thing HTML allows. */
+.ap-lan-who-open {
+  appearance: none;
+  position: absolute;
+  inset: 0 -4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  /* The row says pointer; a <button> would put the arrow back. */
+  cursor: inherit;
+}
+.ap-lan-who > .ap-manage-btn { position: relative; z-index: 1; }
+/* THE HOVER IS A TONE, NOT A CARD. It was 6% of the text colour, 3px past the
+   row's top and bottom and 5px round — on a healthy row a 33px rounded block
+   round a 14px name, which reads as a card arriving rather than a row
+   answering. It is the row's own box now and no more: 4px past the column on
+   each side so the name is not flush to its edge, 4px corners, and 4% — the
+   same step as --panel to --bg-soft, there when you look at the row and gone
+   from across the room.
+
+   ON AT ONCE AND OFF AT ONCE. A fade out left a trail behind a pointer
+   sweeping down the list, three rows lit at three strengths, and what a
+   precise list owes the pointer is the row it is on and no other. Drawn
+   behind the row's content, never over it: the wash would sit on the name and
+   take from its contrast. */
+.ap-lan-who::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+  z-index: -1;
+  border-radius: 4px;
+  background: transparent;
+  pointer-events: none;
+}
+.ap-lan-who:hover::before { background: color-mix(in srgb, var(--text) 4%, transparent); }
+/* THE PRESS IS THE SAME TONE A STEP DEEPER, AND NOTHING MOVES. The row used to
+   scale to 0.98 and ease back under the dialog it had just opened — a name
+   sliding two pixels in a list whose job is to stand still. Not while the
+   verb is the thing pressed: that answers with its own 0.97. */
+.ap-lan-who:active:not(:has(.ap-manage-btn:active))::before {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+/* Secondary text on a lit row is still text — the tone lifts the ground under
+   it, and `--muted` clears 4.5:1 only against --panel. On a lit or
+   keyboard-focused row it is mixed toward the foreground, the rule
+   `.ap-lan-pick` writes down for the same reason: 6.2:1 there, and still a
+   step under the name. */
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):is(:hover, :has(:focus-visible)) .ap-lan-who-when {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+/* What it last did, under the name, in the panel's own freshness idiom.
+   THE TONE IS THE ROW'S, and until now it painted nothing: `.ap-lan-bad` and
+   this rule were both single-class selectors, so the later one won and every
+   failed round drew in the same grey as a clean one — the one signal a list
+   like this exists to give. It is read off the row's own data-tone now, which
+   is more specific than any base rule can be and cannot be undone by adding
+   another one below it. */
+.ap-lan-who-when {
+  grid-area: state;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
+.ap-lan-who[data-tone="warn"] .ap-lan-who-when { color: var(--warn); }
+/* The route, beside the name of a row reached over the tailnet: a fact about
+   the path rather than about the machine, so it is set in the quiet ink. */
+.ap-lan-via { color: var(--muted); }
+.ap-lan-who[data-tone="ok"] .ap-lan-who-when { color: var(--text-dim); }
+.ap-lan-who[data-tone="wait"] .ap-lan-who-when { color: var(--accent); }
+/* A TRAFFIC LIGHT, BECAUSE THAT IS THE QUESTION. The mark said one thing —
+   accent for "live" — and the reader's question is three-valued: is that
+   machine up, is it down, or is something wrong with it. Green for a deck that
+   answered, the warning colour for one that could not be reached, and the
+   still grey dot for one nothing has heard from. The sentence under the name
+   says the same thing in words; this is what makes it answerable at a glance.
+
+   Reported from a screenshot: a Windows deck that had been closed for an hour
+   drew the live emitter, because the row took "paired" for "here". What the
+   row knows now is in deckRows; this is only its colour. */
+.ap-lan-who .ap-pulse { color: var(--ok); opacity: 1; }
+.ap-lan-who[data-tone="bad"] .ap-pulse,
+.ap-lan-who[data-tone="bad"] .ap-dot { color: var(--warn); opacity: 1; }
+.ap-lan-who[data-tone="warn"] .ap-pulse,
+.ap-lan-who[data-tone="warn"] .ap-dot { color: var(--warn); opacity: 1; }
+.ap-lan-who[data-tone="wait"] .ap-pulse { color: var(--accent); }
+
+/* THE INVITE, WHICH IS THE WHOLE ACT WHILE NOBODY IS PAIRED. It gets a card
+   rather than a row: it is the one thing on this screen a person came here to
+   do, and a 10px label above a code block would have been the fourth
+   indistinguishable stripe in a section whose complaint was that it looked
+   unfinished. */
+.ap-lan-invite {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-soft);
+}
+.ap-lan-invite-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ap-lan-invite-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* The countdown is a number that changes while somebody reads the token out
+   loud, so it is set as one: tabular, so it does not shuffle its own width. */
+.ap-lan-invite-left {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* The token itself. It wraps rather than scrolling, because a token half of
+   which is off-screen is a token somebody copies half of — and `user-select:
+   all` makes one click take the whole thing. */
+.ap-lan-token {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+/* The sentence a reader needs and would otherwise have to guess: what holding
+   this token actually lets somebody do. */
+.ap-lan-fine {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* Which addresses were tried and what each one said. An invite carries several
+   because nobody knows which routes; when none did, this list is the only thing
+   the reader can act on. */
+.ap-lan-tried {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.ap-lan-tried-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 10px;
+}
+
+
+
+
+/* SOMEBODY IS WAITING, and this is the only thing in the panel that is a
+   question rather than a reading. It takes a bed and an accent edge — the one
+   place in this section that spends colour — because until it is answered
+   nothing at all moves between the two machines, and it arrives while the
+   reader is looking at a quota three sections up. */
+.ap-lan-asks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.ap-lan-ask { display: flex; flex-direction: column; gap: 6px; }
+.ap-lan-ask-what { font-size: 11px; color: var(--text); line-height: 1.45; }
+/* The value to compare against the other person's screen, at the size of a
+   reading rather than of the sentence above it. */
+.ap-lan-ask-fp { font-size: 10px; color: var(--text-dim); }
+.ap-lan-ask-acts { display: flex; gap: 6px; }
+
+.ap-lan-code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text);
+  user-select: all;
+  /* An IPv6 literal is 39 characters with no space and no hyphen in it, which
+     is ~234px of 10px monospace inside a box with 241px of content. There is no
+     break opportunity in it for the browser to find, so one is given. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+
+/* A ring leaving the dot on a slow interval. Emission reads as a process
+   still running, where a fading dot only reads as a styled dot — and unlike a
+   spinner it says "acting periodically", which is what a poll loop does. The
+   long pause between pings is the point: this runs about once a minute, and
+   continuous motion would claim more urgency than the thing deserves. */
+.ap-pulse {
+  position: relative;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.ap-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  /* Ease-out cubic, not expo. An exponential curve puts the whole expansion
+     in the first fifth of the cycle, so the ring hits full scale at zero
+     opacity almost immediately and the ping reads as a flicker. This keeps
+     the travel legible for about a second, then rests. */
+  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@keyframes ap-ping {
+  0%        { transform: scale(1);   opacity: 0.7; }
+  50%       { transform: scale(3.2); opacity: 0; }
+  100%      { transform: scale(3.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-pulse::after { animation: none; opacity: 0.35; transform: scale(2.2); }
+}
+
+/* Why the toggle is missing, in the panel rather than only in a tooltip. */
+/* Flowing text, not a flex row — a flex container makes each child its own
+   item, which split the inline <code> onto its own line mid-sentence. */
+.ap-auto-note {
+  margin: 9px 0 0;
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.ap-auto-note .ap-pulse {
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: 1px;
+  color: var(--accent);
+}
+.ap-auto-note code {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text);
+  white-space: nowrap;   /* "cswap auto" is one name; never break it in half */
+}
+
+/* Native select, restyled rather than replaced — it keeps keyboard, mobile and
+   screen-reader behaviour that a div-based menu would have to rebuild badly.
+   The wrapper draws the chevron so the control can size to its own text. */
+.ap-field {
+  position: relative;
+  display: inline-block;
+}
+.ap-field::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -3px;
+  border-right: 1.2px solid currentColor;
+  border-bottom: 1.2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* Both selects share this rule; under #325 only the one inside .ap-account got
+   the lifted fill and edge and the auto-switch threshold below kept the values
+   the report failed. With the tokens at :root there is one control surface and
+   both read it. */
+.ap-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--ctl-fill);
+  color: var(--text);
+  border: 1px solid var(--ctl-edge);
+  border-radius: 6px;
+  padding: 2px 20px 2px 8px;
+  /* The 24px target floor (#884): it measured 53x23. */
+  min-height: 24px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: right;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* --accent, not --accent-dim: #325 already had to override the dim edge inside
+   the manage block, where it dropped the slot select from 3.98:1 to 1.58:1 on
+   hover. The auto-switch select rests on the same edge now, so the override is
+   the rule and the local copy is gone. */
+.ap-field select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+/* The only native control in the convention. It is styled like everything else
+   here — appearance:none, the sheet's own fill, edge and chevron — so a press
+   that did nothing read as the one dead control in the panel. 0.97 rather than
+   0.94 because the popup that opens on the same press is anchored to this box
+   and the smaller step keeps the offset under a pixel. */
+.ap-field select:active:not(:disabled) { transform: scale(0.97); }
+.ap-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ap-field select:disabled { cursor: default; opacity: var(--dim-off); }
+.ap-field:has(select:hover:not(:disabled))::after { color: var(--text); opacity: 1; }
+
+/* The empty state's retry and a warning's words keep their look and get a 24px
+   target drawn around them (#857, #884): a transparent pseudo-element, so the
+   line they sit in does not grow four pixels to hold it. */
+.ap-fix::after,
+.ap-issue::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+
+

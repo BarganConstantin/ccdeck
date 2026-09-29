@@ -1,0 +1,681 @@
+/* ---------------- accounts panel (claude-swap) ---------------- */
+/* Sits left of the usage panel so both can be open — comparing accounts is
+   usually something you do while watching your current spend. */
+/* Left sidebar, in the same slot as the session list — the two are alternate
+   answers to "what should this column show", so they swap rather than stack. */
+/** How long the panel takes to leave. App.tsx holds it mounted for exactly
+    this — see panel-exit.ts — so the two must not drift apart. Out is faster
+    than in, as an exit should be: arriving is worth watching, leaving is not. */
+:root { --side-exit: 200ms; }
+
+.accounts-panel {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  width: 288px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  /* CONTENT ANCHORED TO THE RIGHT EDGE, which is the whole trick. The panel's
+     width is what animates, and a flex column stretches its children to
+     whatever that is — so a narrowing panel re-wraps every email and re-measures
+     every bar, and the close reads as the text being crushed rather than as a
+     panel leaving. Measured before this: at 140px the content reflowed and the
+     panel's own height changed by 10px mid-animation.
+
+     With a fixed measure on the children and the cross axis aligned to the end,
+     the content keeps its 288px and slides out past the START edge instead —
+     which in a left-to-right document is unreachable overflow, so it is clipped
+     with no scrollbar and nothing to scroll to. The panel wipes open and shut
+     from its own left edge, and the text inside never moves. */
+  align-items: flex-end;
+  min-height: 0;
+  overflow: hidden;
+  animation: side-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.accounts-panel > * { width: 288px; }
+/* The one child that prints its inset as a margin rather than a padding. A
+   fixed 288 plus 14 either side is a 316px box anchored to the right edge, so
+   the refusal the panel exists to show hung 14px off the left and lost the first
+   letters of every message. Its measure is what the margins leave. */
+.accounts-panel > .ap-failure { width: calc(288px - var(--panel-inset) - var(--panel-inset)); }
+.accounts-panel.leaving { animation: side-out var(--side-exit) cubic-bezier(0.16, 1, 0.3, 1) both; }
+/* A SLIDE, NOT A WIPE (#866). These animated `width`, and the canvas beside the
+   panel is the grid's 1fr column, so every frame of the 260ms re-laid the
+   canvas out and React Flow re-measured it. The panel keeps its 288px from the
+   first frame and slides in from its own left edge instead: the canvas takes
+   its new width once — at the start of an open, at the end of a close — and
+   the content inside the panel still never moves relative to it. */
+@keyframes side-in { from { transform: translateX(-100%); } }
+@keyframes side-out { to { transform: translateX(-100%); } }
+
+/* THE ROSTER SCROLLS; THE HEADER AND THE FOOT STAND. The column used to be one
+   scroll of three sections, so past a few accounts Auto-switch and Local network
+   went under the fold with nothing saying they were there. The list takes the
+   height that is left and the foot stays on the column's floor at every length.
+   The panel itself no longer scrolls — its inner scroll is the boundary the ⋯
+   and the warnings' popovers close against.
+
+   AND ONE CHILD OF IT GIVES. Auto-switch came back into this column, which put
+   it under a list that can be twenty accounts long — so the list, and only the
+   list, is what shrinks: it takes the room left over and scrolls inside it,
+   and the policy under it cannot be pushed off the bottom. Everything else
+   here keeps its natural height, which is why they are pinned to `flex: none`
+   rather than left on the flex default, where a tall list would squash the
+   live account's bars instead. */
+.ap-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+}
+.ap-scroll > * { flex: none; }
+.ap-foot {
+  flex-shrink: 0;
+  padding: 10px var(--panel-inset) 12px;
+  border-top: 1px solid var(--line-soft);
+}
+/* The way into Local network follows the policy row inside the same foot: one
+   rule over the two of them, not one each. */
+.ap-foot + .ap-foot { border-top: 0; padding-top: 0; }
+.ap-foot:has(+ .ap-foot) { padding-bottom: 4px; }
+/* Local network's view takes the column the way the accounts do: its header
+   stands and its own scroll takes the rest. */
+.ap-lan-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ap-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--panel-inset) 10px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+/* Size and weight come from the shared panel-caption rule up in the session
+   list. What is left here is the one thing this caption does differently. */
+.ap-header h2 {
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+.ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+/* Back, at the head of Local network's view. Pulled out by the glyph's own
+   side bearing so the chevron's ink, not its 24px box, sits on the inset the
+   accounts' title starts on. */
+.ap-back { margin-left: -6px; }
+/* THE PADDING WENT WITH THE GLYPH IT PLACED. `1px 6px` said where a text arrow
+   sat inside the 24px floor, and it did change a pixel of the box after all:
+   12px of content width around a 13px icon measured the button at 25x24 in a
+   row of 24x24 ones. An SVG is centred by the flex box, so there is nothing
+   left to nudge.
+
+   It turns while a reload it was asked for is in flight — the `spin` this sheet
+   already has, at the one speed that means "still going". Reduced motion is
+   answered further down, after this rule, which is the only place the answer
+   can win. */
+.ap-refresh[aria-busy="true"] { animation: spin 900ms linear infinite; }
+/* The one moment this button does nothing. A reload can ask claude-swap to
+   collect over the network, so it is not instant, and without a dimmed state a
+   click that landed looks exactly like a click that missed. */
+.ap-refresh:disabled { opacity: var(--dim-off); cursor: default; }
+
+/* The roster is a list and says so. The rows are inset 6px from the column and
+   pad 8px inside, so their text lands on the header's 14px while the tone a row
+   takes under the pointer keeps a margin from the column's edge.
+
+   SPACE SEPARATES THE ACCOUNTS, NOT RULES. Every row drew a hairline under
+   itself, which with the section rules and the header's made the column a stack
+   of stripes; a 2px gap between rows that each carry their own padding groups
+   them as well and draws nothing. */
+.ap-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ap-account {
+  /* The box the row's door is laid over, and a stacking context of its own so
+     the row's controls can sit above the door without climbing over the
+     popover layer. */
+  position: relative;
+  isolation: isolate;
+  padding: 6px 8px;
+  border-radius: var(--r-ctl);
+}
+/* A shut row is a door, and it answers the pointer with a tone rather than a
+   card: the row's own box, 4%, on at once and off at once — the same answer a
+   machine's row gives in Local network. */
+.ap-account:has(> .ap-row-open):hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.ap-account:has(> .ap-row-open):active:not(:has(:is(.ap-switch, .ap-more, .ap-issue):active)) {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+/* Secondary text on a lit row is still text. The tone lifts the ground under
+   it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
+   mixed toward the foreground — the rule the LAN rows already write down. */
+.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email) {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+/* THE ROW IS THE DOOR. A button laid over the whole row, under the row's own
+   controls: a press anywhere on it opens or shuts the detail, and the keyboard's
+   ring goes round the row, inset so it never draws over the next one. A button
+   and not a role on the <li>, because the row holds buttons of its own. */
+.ap-row-open {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ap-row-open:focus-visible { outline-offset: -2px; }
+/* The row's own controls, over the door: a press on one does what it says and
+   does not also open the row. */
+.ap-account :is(.ap-switch, .ap-more, .ap-issue, .ap-failure, .ap-switched) {
+  position: relative;
+  z-index: 1;
+}
+/* The small titled labels sit above the door so their own tooltips answer the
+   pointer — each one says what the age or the trade means (#1115). They are a
+   few words wide, so the door keeps the row.
+
+   The alias and the email are NOT raised. The email is `flex: 1` and spans
+   about 152px of the 272px head, so raising it took most of the row away from
+   the door while the hover tint still promised the row would open. The door
+   carries the whole identity itself instead, in its title and its
+   description, so a clipped name is recoverable from anywhere on the row. */
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+  position: relative;
+  z-index: 1;
+}
+/* The tint is not the state channel and never could have been. At the 6% it
+   shipped at it measured 1.118:1 against the panel in dark and 1.091:1 in light
+   — invisible as a signal — while lifting the bed enough that --muted on it
+   dropped to 4.208:1, under 1.4.3, taking `.ap-num`, `.ap-email`,
+   `.ap-lane-label`, `.ap-lane-reset`, `.ap-age` and the `.ap-more` glyph with
+   it (#519). There is no percentage that fixes both halves: 50% is where the
+   wash finally reaches 3:1 and its own text is at 1.307:1 by then.
+
+   So the word `active` in the head row carries the state, and what is left here
+   is a hint of warmth that says which row you are on once you already know. At
+   2% every one of those tiers is back at 4.547:1 in dark (7.652:1 and 5.615:1
+   in light), and the row still reads as a different row.
+
+   The `color-mix(in srgb, var(--accent) N%, transparent)` shape is load-bearing
+   beyond appearance: type-ladder.test.ts and control-edges.test.ts both parse
+   this declaration with a non-null assertion to build the bed they measure the
+   row against, and would throw rather than fail if it were written any other
+   way.
+
+   `.ap-account.disabled` used to sit here at `opacity: var(--dim-off)`, which
+   drew every tier on a held-out row at 2.495:1 — and that token means "this
+   control cannot be operated right now", which was untrue of the row. The row
+   is not a control: its `⋯` opens, its lanes are the numbers you are deciding
+   on, and the control that puts the account back into rotation lives on it. The
+   held-out state is a word in the head row now, beside where `active` puts its
+   own, and nothing on the row is dimmed that a reader could still use. */
+.ap-account.active { background: color-mix(in srgb, var(--accent) 2%, transparent); }
+
+.ap-account-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+.ap-num {
+  flex: none;
+  min-width: 14px;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* THE LIVE ACCOUNT, MARKED AND NOT SHOUTED. It was a filled accent pill saying
+   `active` — the loudest thing in the column, on the one row whose state never
+   needs a second look once the reader knows the column. A dot in the slot's own
+   column says it in the accent, which in this deck means live, and the row
+   saying more than any other row — it is the one that is open — says the rest.
+   The word is still there for a screen reader, and the row is aria-current. */
+.ap-live {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 10px;
+}
+.ap-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* Two text spans share this row and only one of them was told it may be cut.
+   `.ap-email` below carries the full `min-width: 0` + `overflow: hidden` +
+   ellipsis set; the alias — the one string here a person types — carried none
+   of it, so `min-width: auto` floored it at its min-content width and an
+   unbroken name simply pushed the row wider than the 288px column. Measured:
+   the panel starts scrolling sideways at a 16-character alias and reaches
+   22148px of scrollable width at 2000 characters, taking `⋯` and the active
+   badge out of the panel with it. The store's own writer already rejects
+   anything over 64 characters, but the deck only READS that store — `cswap
+   alias` on the command line writes it — so the rule, not the field, is what
+   has to hold at an absurd length.
+
+   Ellipsis rather than wrapping: this row is a single centred line holding a
+   number, two labels, a disclosure and a badge, and letting the alias wrap
+   would trade unbounded width for unbounded height — a 2000-character name
+   would be a forty-line row. The full text stays reachable through the `title`
+   the span now carries.
+
+   The `max-width` is the second half, and it is what a plain ellipsis does not
+   give. `.ap-email` is `flex: 1 1 0%`, so its flex base size is zero and the
+   shrink algorithm — which distributes shrinkage in proportion to base size —
+   hands it none: an alias free to grow takes the whole text area and leaves the
+   email rendering at 0px, present in the DOM and invisible on screen. Clamping
+   the alias freezes it at its max and the remaining free space goes to the
+   email, so both stay legible. 40% of this row's 259px content box is ~104px,
+   about seventeen characters at this size — well past any alias the field's
+   own `e.g. work` placeholder invites, so in the ordinary case the clamp never
+   binds and the row renders exactly as it did. */
+.ap-alias {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The identity is the first thing on the row and reads at the row's size. Under
+   an alias it steps down, because then the alias is the name. */
+.ap-email {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.ap-alias + .ap-email { font-size: 11px; color: var(--muted); }
+/* Held out is a state, said in a word where `Switch` would stand. It was a
+   pill — a second chip shape on a row that already had one — and a marker is
+   not a thing to press; putting the account back is in its ⋯. */
+.ap-held { flex: none; font-size: 11px; color: var(--muted); }
+/* THE ROW'S ONE VERB, QUIETER THAN THE ACCOUNT. It was an outlined pill with the
+   control edge at rest, the strongest boundary on a row whose name and numbers
+   are what a switch is decided on. A word on the control fill says "press me"
+   without a border, at the 24px floor (#884), and fills a step deeper under
+   the pointer. */
+.ap-switch {
+  flex: none;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.ap-switch:active:not(:disabled) { transform: scale(0.97); }
+.ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
+
+/* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The slot's column — wide
+   enough for two digits, so slot 10 does not push its name off the line the
+   others start on — and the head's gap are 20px, and the lines below are
+   indented by them, so the eye
+   reads down from the account rather than from the row's edge. */
+.ap-detail { margin: 6px 0 0 20px; }
+/* One lane is one line: its key, its bar, how full, and when it rolls over. The
+   reset used to sit on a second line under every bar, which made the live row
+   five lines tall for two facts. It is a column at the far end now, dim and
+   tabular, so three resets read as one column. */
+.ap-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ap-lane {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 32px 44px;
+  grid-template-areas: "label track pct reset";
+  align-items: center;
+  column-gap: 6px;
+}
+/* The key is the reading key for the row — "5h", "7d", the model name — at the
+   panel's 11px floor (#857), and the reset beside it a step under, because in
+   dark the two tiers are one colour and the size is what separates them. */
+.ap-lane-label {
+  grid-area: label;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-lane-track {
+  grid-area: track;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.ap-lane-fill { height: 100%; border-radius: 2px; }
+.ap-lane-pct { grid-area: pct; font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.ap-lane-reset {
+  grid-area: reset;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The open row's last line: when claude-swap last read the account and when it
+   plans to again. Right edge, under the numbers it dates. */
+.ap-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ap-stale { color: var(--warn); }
+.ap-age {
+  margin-left: auto;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* THE SHUT ROW'S LINE: the two numbers an account is chosen by, on the name's
+   left edge. Keys in the label tier, values in the secondary one — they only
+   take a colour once they are a reason not to switch, in the same inks the bars
+   use. Numbers that cannot move are drawn in one quiet ink, and the age that
+   says so takes the warning. */
+.ap-quota {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin: 1px 0 0 20px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ap-q { white-space: nowrap; }
+.ap-q-label { color: var(--muted); }
+.ap-q-pct[data-level="mid"] { color: var(--warn); }
+.ap-q-pct[data-level="hi"] { color: var(--err); }
+.ap-account[data-frozen] .ap-q-pct { color: var(--muted); }
+.ap-q-age { margin-left: auto; color: var(--warn); white-space: nowrap; }
+/* An account nobody has read yet is usually one added a minute ago: news, not
+   a warning. */
+.ap-q-age[data-never] { color: var(--muted); }
+
+/* A note about the row that is news rather than state — a move that traded two
+   accounts' slots. */
+.ap-note { margin: 2px 0 0 20px; font-size: 11px; }
+
+/* WHAT IS WRONG, AS A LINE ON THE ROW. A mark and a few words, never a banner
+   and never a pill, in the warning ink when it is the reader's to act on and in
+   the label tier when it clears or repairs on its own. The words are a button:
+   the why and the fix open from them (#856), with a 24px target drawn round
+   them so the line does not grow to hold it. The underline arrives with the
+   pointer — a dotted rule under every warning at rest was one more line of ink
+   on a row that is already saying the loudest thing in the column. */
+.ap-issue-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin: 2px 0 0 20px;
+  font-size: 11px;
+}
+.ap-issue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-issue[data-tone="warn"] { color: var(--warn); }
+.ap-issue-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-issue:hover .ap-issue-text,
+.ap-issue[aria-expanded="true"] .ap-issue-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.ap-issue:active { transform: scale(0.97); }
+.ap-warn-glyph { flex: none; }
+.ap-issue-age { margin-left: auto; color: var(--muted); white-space: nowrap; }
+
+/* THE LIVE ACCOUNT'S TROUBLE, over the list. Every session this deck starts
+   runs on that login, so it earns one line with a wash of its own ink — the
+   only colour spent on a surface in this column — and the one press that fixes
+   it. Compact on purpose: a line, not a dashboard banner. */
+.ap-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 6px 0;
+  padding: 3px 3px 3px 8px;
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  font-size: 11px;
+}
+.ap-notice .ap-issue { flex: 1 1 auto; font-weight: 500; }
+/* The sentence wraps rather than clipping: "needs att…" is the one word a
+   notice cannot lose, and a wider system font on Windows is all it takes. */
+.ap-notice .ap-issue-text { white-space: normal; text-align: left; }
+.ap-notice-fix {
+  flex: none;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-notice-fix:hover { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.ap-notice-fix:active { transform: scale(0.97); }
+
+.ap-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px var(--panel-inset);
+  font-size: 11px;
+  color: var(--muted);
+}
+.ap-hint { font-size: 10px; line-height: 1.5; color: var(--muted); }
+/* The command is the point of this state, so it is selectable and legible at a
+   glance rather than folded into the sentence explaining it. */
+.ap-empty .ap-cmd {
+  display: block;
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.ap-empty .ap-hint code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-size: 10px;
+}
+.ap-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px var(--panel-inset) 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+  color: var(--err);
+  font-size: 10px;
+  word-break: break-word;
+}
+.ap-failure-text {
+  flex: 1;
+  min-width: 0;
+}
+/* DRAWN like the message rather than like a button: it sits inside two lines
+   of 10px text in a 288px panel, where anything with a real hit area would be
+   the loudest thing in the box. That argument is about ink and it still holds
+   — what it never licensed is the target underneath it (#546). 12px of glyph
+   over a 1.2 line box is 14.4px tall, and the × plus 3px of padding a side is
+   about 13.5px wide: under 24 on BOTH axes, on a control that is the only way
+   to clear the red box (the rule below it says so out loud — nothing else
+   dismisses a stale refusal, the next action does). And it cannot borrow
+   2.5.8's spacing exception, which excuses an undersized target only when a
+   24px circle centred on it reaches no other one: this × sits 6px from the
+   message it captions, whose own title tooltip is a target of a kind, inside a
+   scroll container full of rows.
+   `position: relative` is the one declaration this rule gained, and it is here
+   for the pseudo-element below to anchor to. */
+.ap-failure-x {
+  position: relative;
+  flex: none;
+  margin: -2px -2px 0 0;
+  padding: 0 3px;
+  border: 0;
+  background: none;
+  color: inherit;
+  /* 0.8, not the 0.6 it rested at: over the note's 12% wash of its own red,
+     0.6 left the only way to clear the note at 2.81:1 in light (#872). 0.8 is
+     3.99:1 there and still lifts to 1 under the pointer. */
+  opacity: 0.8;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: opacity 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The target, drawn AROUND the glyph rather than under it — the same technique
+   `.selected-ribbon .selected-close::after` uses, for the same reason it gives:
+   a transparent pseudo-element is a box that exists only to be hit, a pointer
+   event landing on it is delivered to the element that owns it, and the glyph
+   keeps every pixel of its own geometry, so nothing about this control's paint
+   or this box's layout changes. The alternatives both cost something here:
+   padding on the button would be reset by no shorthand but WOULD widen a flex
+   item in a 288px row, taking 10px away from the message it dismisses, and a
+   `min-width`/`min-height` pair would do the same.
+   24 square, spelled as a size plus half of it back as a margin rather than as
+   `inset: -Npx`, because a negative inset is only as big as the box it grows —
+   and this box's width is a font's opinion about how wide × is, which is a
+   different number on every platform this deck runs on. A size states the
+   floor; the margins centre it on whatever the glyph turned out to be. It
+   overhangs the message by ~5px on the left, which is 5px more of the same
+   button and no other control's territory. */
+.ap-failure-x::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+}
+.ap-failure-x:hover { opacity: 1; }
+.ap-failure-x:active { transform: scale(0.94); }
+/* A switch's answer on its own row (#827). The refusal is the same box without
+   the side inset the panel-level one needs, since the row already carries it;
+   the confirmation is the quiet prose line a row's other notes are. */
+.ap-row-failure { margin: 6px 0 0; }
+.ap-switched {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+/* ── the policy rows ──
+   ONE POLICY, ONE ROW: its name, its setting, and its switch. Auto-switch was a
+   section — a caption, a line of controls under it, a readout repeating the
+   active row's percentage, a clock of its last check under a rule — for what is
+   one decision and one number. Local network's switch takes the same row in its
+   own view. The name pushes, so the setting and the switch sit together at the
+   far edge whatever else is on the row. */
+.ap-policy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+/* The one control that comes and goes, so it arrives rather than appears — from
+   a little smaller. Backwards only: a fill that outlived the entrance would hold
+   `transform` over the press scale. */
+.ap-policy > .ap-manage-btn {
+  animation: ap-commit-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+@keyframes ap-commit-in {
+  from { opacity: 0; transform: scale(0.94); }
+}
+/* A real <h3>, under the panel header's <h2>: a reader walking headings should
+   find it. A name now, in the row's own size and case — it was an uppercase
+   caption over a block of controls, and there is no block any more. `margin: 0`
+   undoes the UA sheet's 1em. THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL
+   PULLING: one rule on the thing that is always there survives every
+   combination of the controls after it. */
+.ap-auto-title {
+  margin: 0;
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+/* Where the accounts panel's and the LAN dialog's switches sit — the far edge
+   of the control line — and nothing about how they look, which is `.switch`'s
+   since #886. */
+.ap-auto-state { margin-left: auto; }
+/* In a policy row the switch keeps a deliberate gap from the setting before it
+   rather than an auto margin of its own: two autos split the free space and float the setting
+   into the middle of the row. */
+.ap-policy .ap-auto-state { margin-left: 4px; }
+
+.ap-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+

@@ -9,9 +9,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clustersSurface } from "./clusters-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const raw = read("../styles.css");
+const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
 /** The box's style, built in cluster-bounds.ts since it left the component. */
 const geometry = read("../cluster-bounds.ts");

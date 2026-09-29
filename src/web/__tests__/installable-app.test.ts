@@ -20,13 +20,14 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { offerManifest, MANIFEST_PATH } from "../../server/app-manifest.mjs";
 import { sourceOf } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const PUBLIC = (name: string) => fileURLToPath(new URL(`../public/${name}`, import.meta.url));
 
 const manifest = JSON.parse(read("../public/manifest.webmanifest"));
 const html = read("../index.html");
-const css = read("../styles.css");
+const css = sheetText();
 const app = read("../App.tsx");
 const server = read("../../server/index.mjs");
 const cache = read("../../server/static-cache.mjs");

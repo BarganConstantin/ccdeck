@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { usageSurface } from "./usage-surface";
 import { recordSpend, spendRate, SPEND_WINDOW_MS, NO_SPEND_HISTORY, type SpendHistory, type SpendBySession } from "../spend-rate";
+import { sheetText } from "./sheet-source";
 
 /** One session on the board, at this cost. The rate is per-session since #987;
  *  these #821 cases are about the window and the arithmetic over it, so one
@@ -122,7 +123,7 @@ describe("the usage header's pill (#821)", () => {
   /** Where the samples are taken and the rate is read, since the headline memo
    *  and its two refs left the panel. */
   const spend = read("../use-board-spend.ts");
-  const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("no longer divides live agents' cost by the longest one's age", () => {
     expect(usageSurface()).not.toMatch(/liveCost|liveSec/);

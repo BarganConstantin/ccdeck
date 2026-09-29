@@ -32,9 +32,10 @@ import { join } from "node:path";
 import {
   HELD_LABEL_CAP, heldEvents, heldShort, outageSentence, PAUSE_LABEL, pauseTitle, statusPill,
 } from "../status-pill";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const rawCss = readFileSync(join(web, "styles.css"), "utf8");
+const rawCss = sheetText();
 /** The comments in this sheet quote the declarations they replaced — including
  *  `transition: height` and the 18px box — so every read goes through the
  *  stripped copy or the assertions would pass on their own explanations. */

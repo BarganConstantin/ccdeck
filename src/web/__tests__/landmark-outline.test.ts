@@ -41,9 +41,10 @@ import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
 import { usageSurface } from "./usage-surface";
 import { usageHistorySurface } from "./usage-history-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {

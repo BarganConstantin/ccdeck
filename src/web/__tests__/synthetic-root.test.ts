@@ -43,6 +43,7 @@ import { join } from "node:path";
 import { applyEvent, initialState } from "../reducer";
 import type { GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
+import { sheetText } from "./sheet-source";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -247,7 +248,7 @@ describe("the four ways the deck ends up joining late", () => {
 // above keep passing and these do not.
 describe("the card draws it", () => {
   const node = read("src", "web", "components", "AgentNode.tsx");
-  const css = read("src", "web", "styles.css");
+  const css = sheetText();
 
   it("puts the synthetic class on the node", () => {
     expect(node).toMatch(/data\.synthetic \? "synthetic"/);

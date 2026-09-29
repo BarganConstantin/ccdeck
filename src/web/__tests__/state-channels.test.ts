@@ -53,9 +53,10 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { USAGE_FILES } from "./usage-surface";
 import { ACCOUNTS_FILES } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
+const cssRaw = sheetText();
 /** Comments quote the declarations they explain — including the ones this file
  *  asserts are gone — so every read of the sheet goes through the stripped copy. */
 const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, "");

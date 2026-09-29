@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { truncatePathStart } from "../components/ContextModal";
+import { sheetText } from "./sheet-source";
 
 const POSIX = "/Users/constantin/Desktop/agents-deck/src/web/components/CLAUDE.md";
 const WINDOWS = "C:\\Users\\constantin\\Desktop\\agents-deck\\src\\web\\CLAUDE.md";
@@ -75,7 +76,7 @@ describe("truncatePathStart", () => {
 
 describe(".ctx-md-path", () => {
   it("sets no direction, so the paragraph stays LTR and the path stays in order", () => {
-    const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const css = sheetText();
     const rule = /\.ctx-md-path\s*\{([^}]*)\}/.exec(css);
     expect(rule).not.toBeNull();
     expect(rule![1]).not.toMatch(/(^|[^-])direction\s*:/);

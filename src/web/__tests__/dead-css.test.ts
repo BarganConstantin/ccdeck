@@ -21,9 +21,10 @@ import { withoutComments } from "./tsx-scan";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 /** The sheet with its prose removed, for the same reason `literals` below keeps
  *  only quoted spans: a property NAMED in a comment — `repeat(var(--n), 1fr)`
  *  in the note explaining why the core strip stopped using one — is prose about

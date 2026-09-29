@@ -30,9 +30,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { machinePanelSurface } from "./machine-panel-surface";
+import { sheetText } from "./sheet-source";
 
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const raw = at("../styles.css");
+const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
 const soundMenu = at("../components/SoundMenu.tsx");
 const toneSection = at("../components/ToneSection.tsx");

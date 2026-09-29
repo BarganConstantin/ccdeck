@@ -9,9 +9,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 /** Comments quote the literals they replaced; strip before reading. */
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 const DARK_HEAD = /:root,\s*\n:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/;

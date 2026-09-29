@@ -56,6 +56,7 @@ import * as pricing from "../pricing";
 import { costBreakdownTooltip } from "../card-cost";
 import { applyEvent, initialState } from "../reducer";
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
+import { sheetText } from "./sheet-source";
 
 const usage = (u: Partial<TokenUsage> = {}): TokenUsage => ({
   inputTokens: 0,
@@ -83,7 +84,7 @@ const sections = strip(read("../components/QuotaSections.tsx"));
 const card = strip(read("../components/AgentNode.tsx"));
 /** What the card's cost slot holds, decided out of the card since it moved. */
 const cardCost = strip(read("../card-cost.ts"));
-const css = strip(read("../styles.css"));
+const css = strip(sheetText());
 
 // ── 1. the price table ──────────────────────────────────────────────────────
 

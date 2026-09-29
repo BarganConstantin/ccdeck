@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { addressFault, faultLine } from "../components/LanAddDeckModal";
 import { parseAddress } from "../lan-add-deck";
 import { writeFailure } from "../use-lan-section";
+import { sheetText } from "./sheet-source";
 
 /** The dialog, with its comments taken out, so no rule here can be satisfied by
  *  a paragraph that describes it. */
@@ -26,7 +27,7 @@ const ADD = readFileSync(
   "utf8",
 ).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const CSS = sheetText();
 
 /** The body of the first rule whose selector matches, comments stripped. */
 function rule(selector: string): string {

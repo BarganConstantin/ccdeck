@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 const strip = (src: string) => src
@@ -60,7 +61,7 @@ describe("the deck announces state that is already visible (#1016)", () => {
   });
 
   it("resets native list chrome without changing row width", () => {
-    const css = strip(read("../styles.css"));
+    const css = strip(sheetText());
     expect(css).toMatch(/\.session-list \.sl-rows\s*\{[\s\S]*?margin:\s*0;[\s\S]*?list-style:\s*none;/);
     expect(css).toMatch(/\.session-list \.sl-row-item > \.sl-row\s*\{[\s\S]*?width:\s*100%;/);
   });

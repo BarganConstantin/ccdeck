@@ -14,13 +14,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ownsKeystroke } from "../shortcuts";
+import { sheetText } from "./sheet-source";
 
 // Both banners moved out of App.tsx: the version banner to
 // components/VersionBanner.tsx, and the old-name notice that dismisses with the
 // same element to components/OldNameBanner.tsx.
 const banner = readFileSync(fileURLToPath(new URL("../components/VersionBanner.tsx", import.meta.url)), "utf8");
 const oldNameBanner = readFileSync(fileURLToPath(new URL("../components/OldNameBanner.tsx", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 
 const VER_CLOSE = /<(\w+)([^>]*)className="ver-close"([^>]*)>/;
 

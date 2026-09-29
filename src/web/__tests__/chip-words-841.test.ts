@@ -4,11 +4,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
 const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const taxonomy = read("../tool-taxonomy.ts");
 
 const chip = /<span\s+className=\{`cat-chip cat-[\s\S]*?<\/span>\s*\);/.exec(app)?.[0] ?? "";

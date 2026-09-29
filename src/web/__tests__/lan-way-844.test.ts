@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { entryLine, type DeckRow } from "../lan-roster";
 import { accountsSurface } from "./accounts-surface";
 import { lanSectionSurface } from "./lan-section-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
@@ -35,7 +36,7 @@ const entryRow = read("../components/LanEntryRow.tsx");
  *  own. */
 const viewHeader = read("../components/LanViewHeader.tsx");
 const guide = read("../components/guide-art.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 let n = 0;
 const row = (kind: DeckRow["kind"], tone: DeckRow["tone"] = "ok", here = tone === "ok"): DeckRow => ({

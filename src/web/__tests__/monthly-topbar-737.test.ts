@@ -10,6 +10,7 @@ import {
   MONTHLY_USAGE_CHECK_MS,
   MONTHLY_USAGE_POLL_MS,
 } from "../monthly-usage";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(join(web, "App.tsx"), "utf8");
@@ -19,7 +20,7 @@ const app = readFileSync(join(web, "App.tsx"), "utf8");
 // has three files to be true of — is asked of all of them.
 const phrase = readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8");
 const feature = app + "\n" + phrase + "\n" + readFileSync(join(web, "use-monthly-usage.ts"), "utf8");
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("month-to-date topbar usage (#737)", () => {
   it("starts at the first day of the local calendar month", () => {

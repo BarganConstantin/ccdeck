@@ -37,12 +37,13 @@ import { fileURLToPath } from "node:url";
 import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 /** The ⋯ popover's state and the requests pressed in it, lifted out of the
  *  panel with the two rescues a move and a remove make. */
 const accountMenu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const panelCode = panel
   .replace(/\/\*[\s\S]*?\*\//g, "")

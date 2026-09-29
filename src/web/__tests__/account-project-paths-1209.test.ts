@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
+import { sheetText } from "./sheet-source";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -76,7 +77,7 @@ describe("project path disclosure", () => {
   it("keeps an Other member to two rows on a narrow screen", () => {
     // Name, cost, tokens and Copy on the first row need four columns; with
     // three, Copy took the tokens' cell and the tokens fell to a third row.
-    const css = readFileSync(resolve(here, "../styles.css"), "utf8");
+    const css = sheetText();
     const phone = /@media \(max-width: 520px\) \{([\s\S]*?)\n\}/.exec(css.slice(css.indexOf(".ap-proj-foot")))?.[1] ?? "";
     expect(phone).toContain(".ap-proj-other-member { grid-template-columns: minmax(0, 1fr) max-content max-content max-content; }");
     expect(phone).toContain(".ap-proj-other-member .ap-proj-path { grid-column: 1 / -1; grid-row: 2; }");

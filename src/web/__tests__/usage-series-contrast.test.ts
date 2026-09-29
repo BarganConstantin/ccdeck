@@ -60,12 +60,13 @@ import { join } from "node:path";
 import { USAGE_HISTORY_FILES } from "./usage-history-surface";
 import { modelFamily } from "../model-label";
 import { modelColor } from "../usage-history";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
 /** Comments quote the very declarations this file asserts are gone, so every
  *  read of the sheet goes through a stripped copy. */
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Every module under src/web, tests excluded — the same walk session-hue and
  *  control-edges do, for the same reason: a hand-kept list of four files is a

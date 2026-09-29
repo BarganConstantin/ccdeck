@@ -19,9 +19,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {

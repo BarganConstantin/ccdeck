@@ -65,6 +65,7 @@ import {
 // bundle cannot import it. Held against this one below so the two cannot drift.
 import { isOlder } from "../../server/self-update.mjs";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -1027,7 +1028,7 @@ describe("how App.tsx wires it up", () => {
     // straight through a closing brace and would have found the margin on some
     // later rule entirely, which is a green test for a stylesheet that no
     // longer separates anything.
-    const rule = /\.release-notes \.rn-note-icon \{([^}]*)\}/.exec(src("../styles.css"));
+    const rule = /\.release-notes \.rn-note-icon \{([^}]*)\}/.exec(sheetText());
     expect(rule, ".rn-note-icon has no rule at all").not.toBeNull();
     expect(rule![1]).toMatch(/margin-right:\s*[^;]+;/);
     // Never a second space in the markup either — that is the same paper-over

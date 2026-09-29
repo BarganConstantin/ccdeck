@@ -14,11 +14,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { LAN_STEPS, WELCOME_STEPS } from "../components/guide-art";
+import { sheetText } from "./sheet-source";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(`${WEB}${rel}`, "utf8");
 const bare = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
-const css = read("styles.css");
+const css = sheetText();
 const art = bare(read("components/guide-art.tsx"));
 const modal = bare(read("components/GuideModal.tsx"));
 const lan = bare(read("components/LanSyncSection.tsx"));

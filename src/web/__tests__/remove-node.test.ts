@@ -8,6 +8,7 @@ import { applyEvent, initialState, pruneDoneSessions, STALE_SESSION_MS, sweepSta
 import { lastWorkedAt, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
 import { AUTO_PAN_EDGE_PX, clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
 import { clientPairs, clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -500,7 +501,7 @@ describe("drag-to-trash hit testing", () => {
   });
 
   it("keeps the whole target clear of the band where React Flow pans the board", () => {
-    const sheet = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const sheet = sheetText();
     const rule = /\.drag-trash-zone \{([^}]*)\}/.exec(sheet)?.[1] ?? "";
     const bottom = Number(/\bbottom:\s*(\d+)px/.exec(rule)?.[1]);
     expect(bottom - TRASH_HIT_SLOP_PX).toBeGreaterThan(AUTO_PAN_EDGE_PX);
@@ -520,7 +521,7 @@ describe("where Remove lives and what follows it", () => {
   // Clear is use-clear-flow.ts's, which App.tsx hands forgetRemovals.
   const clearFlow = readFileSync(fileURLToPath(new URL("../use-clear-flow.ts", import.meta.url)), "utf8");
   const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
-  const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+  const css = sheetText();
 
   it("is gone from the topbar and sits with the card's own verbs in the detail panel", () => {
     expect(app).not.toMatch(/>\s*Remove node\s*</);

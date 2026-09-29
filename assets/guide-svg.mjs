@@ -17,7 +17,12 @@ import { pathToFileURL } from "node:url";
 
 const ROOT = new URL("..", import.meta.url);
 const OUT = new URL("./guide/", import.meta.url);
-const CSS = readFileSync(new URL("./src/web/styles.css", ROOT), "utf8");
+// The sheet is a list of parts (src/web/styles.css). Read in the order it
+// imports them, they are the one file the two slices below were cut from.
+const WEB = new URL("./src/web/", ROOT);
+const CSS = [...readFileSync(new URL("styles.css", WEB), "utf8").matchAll(/^@import "\.\/(styles\/[a-z0-9-]+\.css)";/gm)]
+  .map(m => readFileSync(new URL(m[1], WEB), "utf8"))
+  .join("");
 
 // The dark palette, read out of the sheet rather than copied: the first
 // `:root` block is the dark theme, and every --token the drawings read is in

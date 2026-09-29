@@ -24,6 +24,7 @@ import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
 import { clientText } from "./client-source";
 import { browserWatchSurface } from "./browser-watch-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
@@ -36,7 +37,7 @@ const soundMenuAll = soundMenuSurface();
 // Browser Watch's reads and writes moved to use-browser-watch.ts; the dialog and
 // what was lifted out of it are read as one, so #803's negative still sees them.
 const watchModal = browserWatchSurface();
-const css = read("../styles.css");
+const css = sheetText();
 
 describe("#800 — the session list", () => {
   it("has a button in the top bar again, not only a key", () => {

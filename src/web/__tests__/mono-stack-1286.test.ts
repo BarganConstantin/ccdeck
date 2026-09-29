@@ -6,9 +6,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 /** Comments quote the stack while explaining it; strip before reading. */
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Every `font-family` and `font` value in the sheet, in source order. */

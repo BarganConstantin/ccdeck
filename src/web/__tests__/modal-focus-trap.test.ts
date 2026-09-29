@@ -39,6 +39,7 @@ import {
   CONFIRM_LAYER,
   TABBABLE_SELECTOR,
 } from "../modal-dismiss";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const dir = `${web}components`;
@@ -185,7 +186,7 @@ describe("isScrollStop", () => {
     // would have quietly taken it away.
     expect(isScrollStop(pane)).toBe(true);
     expect(isScrollStop({ ...pane, overflow: "scroll" })).toBe(true);
-    const css = readFileSync(`${web}styles.css`, "utf8");
+    const css = sheetText();
     expect(css).toMatch(/\.modal-body \{[^}]*overflow: auto;/);
   });
 

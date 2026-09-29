@@ -18,6 +18,7 @@ import {
 } from "../../server/system-metrics.mjs";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
 import { machinePanelSurface } from "./machine-panel-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -213,7 +214,7 @@ describe("the panel gives it a section of its own", () => {
   // The section and its popover, which moved out of MachinePanel.tsx into a
   // component of their own.
   const panel = read("../components/MachineNetwork.tsx");
-  const css = read("../styles.css");
+  const css = sheetText();
 
   // It shared a line with Load average for one release, two half-width columns
   // of three figures each. They are not one glance: a load average is a
