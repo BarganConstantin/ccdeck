@@ -60,21 +60,32 @@ export function createChimePlayer(opts: {
       : null);
 
   let ctx: AudioContext | null = null;
-  let unlocked = false;
 
+  // Read off the context itself, never latched (#1760). Not every press is
+  // activation — Escape is not, nor is a touch until it lifts — and a resume()
+  // asked outside it leaves the context suspended. A flag set on the first
+  // press said "unlocked" whatever the context did, and turned every later
+  // press away, so a tab whose first input was one of those stayed silent
+  // until it was reloaded.
   const state = (): ChimeState =>
-    !opts.enabled() ? "off" : unlocked && ctx?.state === "running" ? "ready" : "locked";
+    !opts.enabled() ? "off" : ctx?.state === "running" ? "ready" : "locked";
   const announce = () => opts.onState?.(state());
 
+  /** Ask the context to run. Every press that reaches here asks again until it
+   *  does, and one that is running is left alone. */
   function unlock() {
-    if (!Ctx || unlocked) return;
+    if (!Ctx || ctx?.state === "running") return;
     try {
-      ctx = ctx ?? new Ctx();
+      if (!ctx) {
+        ctx = new Ctx();
+        // A resume the browser honours later, or a context it starts on its
+        // own, is heard here as well as through the promise below.
+        ctx.addEventListener?.("statechange", announce);
+      }
       // `resume` returns a promise on every engine that needs it; a browser
       // that resolves it late still ends up running before the first event
       // worth playing, because a gesture precedes the work by a long way.
       void ctx.resume?.().then(announce, () => {});
-      unlocked = true;
       announce();
     } catch { /* no audio on this machine; the switch will say "locked" */ }
   }
@@ -179,8 +190,8 @@ export function createChimePlayer(opts: {
    * refusing it would leave the menu silent in exactly the state a user who
    * turned the sound OFF BECAUSE IT WAS TOO LOUD is in when they open it. So
    * the flag governs the deck's own tones and not the user's own press.
-   * `unlocked` is NOT waived with it — that one is the browser's rule, not the
-   * deck's, and nothing here can override it.
+   * A suspended context is NOT waived with it — that one is the browser's
+   * rule, not the deck's, and nothing here can override it.
    */
   function play(chime: Chime, audition = false) {
     if (!audition && !opts.enabled()) return false;

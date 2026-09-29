@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type NotifyPermission, blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
 import type { BlockedSession } from "./ambient-counts";
+import { useMirroredRef } from "./use-mirrored-ref";
 
 export interface OsNotificationsDeps {
   /** The sessions currently blocked on a human — the same set the sidebar draws. */
@@ -90,6 +91,8 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
    *  somebody else's decision the press cannot undo until the next launch. */
   const [notifyVetoed, setNotifyVetoed] = useState(false);
   const askNotifyRef = useRef<() => void>(() => {});
+  const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
+  const waitingSessionsRef = useMirroredRef(waitingSessions);
   const toggleNotify = useCallback(() => {
     // Optimistic, and corrected by the answer. The switch is the one control
     // whose whole point is that it responds now; waiting for a round trip to a
@@ -97,6 +100,12 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     // UI saying what the file says rather than what the press wanted.
     const want = !notifyOn;
     setNotifyOn(want);
+    // Switching on is the user saying "tell me from here", the same as
+    // granting the browser's permission, and what is standing at that moment
+    // is on their screen (#1761). While the switch was off nothing was written
+    // down as seen, so without this a block they were looking at when they
+    // pressed it was announced, hours late, with the next one to arrive.
+    if (want) notifyRaisedRef.current = seedRaised(waitingSessionsRef.current);
     // AND THE PRESS FINISHES THE JOB. Switching this on used to leave a switch
     // reading "on" above a line saying the browser had never been asked, which
     // is a control contradicting itself — the user's reasonable reply being
@@ -153,7 +162,6 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     });
   }, []);
   askNotifyRef.current = askForNotifications;
-  const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
   /** The permission the memo below was seeded against, so that a change of
    *  answer re-seeds exactly once. `null` until the first seed. */
   const notifySeededAtRef = useRef<NotifyPermission | null>(null);

@@ -15,6 +15,7 @@ import { agentLabel, usageSubtitle } from "../provider-copy";
 import { agentColor, agentTotals, sharePct } from "../usage-agents";
 import type { Providers } from "../providers";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { useFocusRescue } from "./use-focus-rescue";
 import { selfPressProps } from "../panel-press";
 import { byCost, historyTotals, legendOf, modelColor, percentOf } from "../usage-history";
 // The ccusage run behind the chart, and the rules for which answer it keeps.
@@ -52,6 +53,11 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   // Only a "chart" verdict means a non-empty response for the range on screen,
   // so nothing below can render another range's bars, totals or legend.
   const days = view.phase === "chart" ? landed!.resp.days ?? [] : [];
+  // A retry that works takes the error branch, and Try again with it, away
+  // under the press (#1762). Focus goes to ↻, the same re-run, which every
+  // phase keeps on screen.
+  const reloadRef = useRef<HTMLButtonElement>(null);
+  const rescueRetry = useFocusRescue(view.phase !== "error", reloadRef);
   const maxCost = useMemo(() => days.reduce((m, d) => Math.max(m, d.totalCost), 0), [days]);
 
   // #539 gave every day in the chart a 24px floor, which makes the chart a
@@ -136,6 +142,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
             ))}
           </div>
           <button
+            ref={reloadRef}
             className="glyph-btn uh-reload"
             onClick={reload}
             /* #620: `disabled={loading}` disabled the control the press came
@@ -184,7 +191,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                   failed run leaves `phase: "error"` with `stale: loading`, so
                   the button stays mounted and simply went disabled under its
                   own press. The word already says it is trying. */}
-              <button className="btn uh-retry" onClick={reload} {...selfPressProps(loading)}>
+              <button className="btn uh-retry" onClick={() => { rescueRetry(); reload(); }} {...selfPressProps(loading)}>
                 {loading ? "trying…" : "Try again"}
               </button>
             </div>

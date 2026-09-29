@@ -40,6 +40,11 @@ export function useClipRecorder({ full, setCustomError, runCustom, onImportCusto
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The section unmounted — the sound menu closed — while the microphone
+  // prompt was still open (#1759). An answer after that is for nobody: the
+  // stream is let go and no recorder is built, as a close mid-recording drops
+  // the clip.
+  const disposedRef = useRef(false);
 
   const stopRecording = () => {
     if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
@@ -56,8 +61,8 @@ export function useClipRecorder({ full, setCustomError, runCustom, onImportCusto
     }
     let stream: MediaStream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { setCustomError("Microphone access was denied or unavailable."); return; }
-    if (recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+    catch { if (!disposedRef.current) setCustomError("Microphone access was denied or unavailable."); return; }
+    if (disposedRef.current || recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
     try {
       const format = recordingFormat(type => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
@@ -87,11 +92,15 @@ export function useClipRecorder({ full, setCustomError, runCustom, onImportCusto
     }
   };
 
-  useEffect(() => () => {
-    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-    const recorder = recorderRef.current;
-    recorderRef.current = null;
-    if (recorder?.state === "recording") recorder.stop();
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+      if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+      const recorder = recorderRef.current;
+      recorderRef.current = null;
+      if (recorder?.state === "recording") recorder.stop();
+    };
   }, []);
 
   return { recording, startRecording, stopRecording };

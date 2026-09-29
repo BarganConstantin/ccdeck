@@ -204,7 +204,8 @@ describe("#801 — what the Notifications switch is saying", () => {
     // Its own class, not `.sm-hear`: same small button in the same slot, but
     // "hear" is what the other one does, and a shared name would make every
     // `.sm-hear` lookup return a button that plays nothing.
-    expect(soundMenu).toContain('<button type="button" className="btn sm-channel-action" onClick={onAskNotify}>');
+    // The press also arms the focus hand-off its answer needs (#1762).
+    expect(soundMenu).toContain('<button type="button" className="btn sm-channel-action" onClick={() => { rescueChannel(); onAskNotify(); }}>');
     expect(app).toContain("onAskNotify={askForNotifications}");
   });
 

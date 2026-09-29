@@ -90,6 +90,15 @@ export function clip(lines: Line[], open: boolean): { shown: Line[]; cut: boolea
   return { shown, cut: false };
 }
 
+/** The control under a block too long to show whole: "show all" while it is
+ *  held to the budget, "show less" once it is open, or null for a block that
+ *  fits. One disclosure rather than a button drawn on `cut` (#1762), which the
+ *  press that opened the block took away, dropping focus to the page. */
+export function moreControl(lines: Line[], open: boolean): { label: "show all" | "show less"; expanded: boolean } | null {
+  if (!clip(lines, false).cut) return null;
+  return open ? { label: "show less", expanded: true } : { label: "show all", expanded: false };
+}
+
 const text = (label: string | undefined, t: string, err = false): Block =>
   ({ ...(label ? { label } : {}), text: t, ...(err ? { err: true } : {}) });
 const inline = (label: string, t: string): Block => ({ label, text: t, inline: true });

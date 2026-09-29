@@ -37,10 +37,11 @@
 // use-outside-press.ts's, shared with AnchoredPopover, which says why it is
 // `pointerdown`, why it listens on window in the capture phase, and why the
 // opener is excluded from it.
-import { type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { CHIME_ORDER, type TonePrefs } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { useOutsidePress } from "./use-outside-press";
+import { useFocusRescue } from "./use-focus-rescue";
 import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 import { inDesktopApp } from "../in-app";
 import CustomSoundsSection, { type CustomSoundsProps } from "./CustomSoundsSection";
@@ -97,6 +98,7 @@ export default function SoundMenu({
   const showChannel = notifyOn && !notifyVetoed && !inApp;
   const sharedCustomId = sameCustomSelection(customSelections);
   const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
+  const sharedNote = sharedCustomId ? `Both tones use “${sharedCustomName}”. They may be harder to tell apart.` : "";
 
   // A popover, so the canvas letters stay live under it — V and M included,
   // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
@@ -105,6 +107,15 @@ export default function SoundMenu({
   // The one dismissal rule a popover owns that the hook above does not: a
   // press outside the menu and outside the button that opened it.
   useOutsidePress(dialogRef, () => openerRef.current, onClose);
+
+  // Enable is replaced by a status word once the browser's prompt is answered,
+  // so the press that asked took its own control away (#1762). Focus goes to
+  // the Notifications switch just above it: the switch this channel serves,
+  // and a real control with a name, so a screen reader says where focus went.
+  // Not the row's heading — a focusable heading is the invented stop
+  // canvas-keyboard.test.ts keeps out of the deck.
+  const notifySwitchRef = useRef<HTMLButtonElement>(null);
+  const rescueChannel = useFocusRescue(!channel.ask, notifySwitchRef);
 
   return (
     <div
@@ -169,6 +180,7 @@ export default function SoundMenu({
           <label className="sm-switch">
             <span className="sm-switch-label" id="sm-notify-label">Notifications while closed</span>
             <button
+              ref={notifySwitchRef}
               type="button"
               role="switch"
               aria-checked={notifyOn}
@@ -200,7 +212,7 @@ export default function SoundMenu({
                 what is only a capability report. */}
             <h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>
             {channel.ask ? (
-              <button type="button" className="btn sm-channel-action" onClick={onAskNotify}>
+              <button type="button" className="btn sm-channel-action" onClick={() => { rescueChannel(); onAskNotify(); }}>
                 Enable
               </button>
             ) : (
@@ -254,11 +266,12 @@ export default function SoundMenu({
       ))}
       </div>
 
-      {sharedCustomId && (
-        <p className="sm-note" role="status">
-          Both tones use “{sharedCustomName}”. They may be harder to tell apart.
-        </p>
-      )}
+      {/* The note is seen here while both tones share a custom sound, and
+          heard from the region under it, which is mounted always (#1763): a
+          status paragraph mounted together with its own text is routinely
+          never announced. */}
+      {sharedNote && <p className="sm-note" aria-hidden>{sharedNote}</p>}
+      <p className="vis-hidden" role="status">{sharedNote}</p>
 
       <CustomSoundsSection
         customAssets={customAssets}
