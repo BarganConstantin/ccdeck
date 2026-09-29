@@ -64,7 +64,7 @@
 // falls back to the file's mtime — "something navigated at 09:06, no URL" is a
 // weaker signal than a list of URLs and it is a great deal better than a blank
 // panel and a crash.
-import { chmod, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -345,6 +345,66 @@ export const stagingRoot = (home = claudeConfigDir()) =>
   join(home, "agent-dag", "browser-watch", "staging");
 
 /**
+ * How long a staging folder has to have sat untouched before a sweep may take
+ * it. A read holds its folder for the copy, the query and the delete — well
+ * under a second here, and the sqlite3 fallback is cut off at fifteen — so a
+ * folder a minute old belongs to a read that is not coming back. Sibling decks
+ * share the root, which is why a sweep goes by age rather than by whose it is.
+ */
+export const STAGING_STALE_MS = 60_000;
+
+/**
+ * The staging folders this process made and could not delete, retried at the
+ * start of its next read (#1753). Its own reads are over by then, so these need
+ * no age; the rest of the root waits for STAGING_STALE_MS.
+ */
+const _undeleted = new Set();
+
+/**
+ * Remove every staging folder under `dir` that no read is still using.
+ *
+ * WHAT WAS LEFT BEHIND (#1753). `discard` swallows a delete that fails, a deck
+ * that exits mid-read never reaches it, and every read makes a folder of its
+ * own and never looks at the others — so a copy that escaped once was there
+ * for good: a full, unencrypted browsing history, 21 MB here, per escape. The
+ * boot sweep in deck-home.mjs could not reach one either: it does not recurse,
+ * and these are neither `.tmp` nor `.migrating`.
+ *
+ * Run at the start of every read, on the folder it is about to copy into, and
+ * by bin/deck.js at boot, on the root. Only `history-*` names, which are what
+ * readVisitsSince makes — the root is the Browser Watch directory's own
+ * subfolder, so nothing else should be there, and nothing else is touched.
+ * Age is the newest mtime of the folder and what is in it, since a copy still
+ * being written moves its file's mtime and not the folder's.
+ */
+export async function sweepStaging(dir = stagingRoot(), { now = Date.now(), deps = {} } = {}) {
+  const list = deps.readdir ?? readdir;
+  const look = deps.stat ?? stat;
+  const remove = deps.rm ?? rm;
+  let names;
+  try { names = await list(dir); } catch { return 0; }
+  let removed = 0;
+  for (const name of names) {
+    if (!String(name).startsWith("history-")) continue;
+    const path = join(dir, name);
+    let newest;
+    try {
+      const st = await look(path);
+      newest = st.mtimeMs;
+      if (st.isDirectory()) {
+        for (const inner of await list(path)) newest = Math.max(newest, (await look(join(path, inner))).mtimeMs);
+      }
+    } catch {
+      // Gone already, or unreadable: either way not this sweep's to take.
+      continue;
+    }
+    if (now - newest < STAGING_STALE_MS) continue;
+    if (await discard(remove, path)) removed += 1;
+  }
+  return removed;
+}
+
+/**
  * Every navigation newer than `sinceChromeTime`.
  *
  * `{ rows, watermark, total, degraded, reason }`
@@ -389,6 +449,12 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     run: exec = run,
     importSqlite = loadSqlite,
   } = deps;
+
+  // What an earlier read left behind, before this one adds a copy (#1753): its
+  // own undeletable folders first, then anything in the root old enough to
+  // belong to a read that is not coming back.
+  for (const left of _undeleted) if (await discard(remove, left)) _undeleted.delete(left);
+  await sweepStaging(copyDir, { deps: { rm: remove, readdir: deps.readdir, stat: deps.stat } });
 
   const floor = chromeFloor(sinceChromeTime);
   // What comes back when there is nothing to advance to. The input verbatim
@@ -463,7 +529,7 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     // The browser is not installed, the profile moved, the disk is full. All of
     // them are "no rows this poll", none of them is a reason to stop polling.
     await discard(remove, copyPath);
-    await discard(remove, stage);
+    await discardStage(remove, stage);
     return { rows: [], watermark: unchanged, total: null, degraded: true, reason: `copy-failed: ${why(err)}` };
   }
 
@@ -482,7 +548,7 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     // makes one per call, so a poll that removed only the file would leave an
     // empty directory behind every ten seconds for as long as the deck is up.
     await discard(remove, copyPath);
-    await discard(remove, stage);
+    await discardStage(remove, stage);
   }
 
   const rows = [];
@@ -518,14 +584,25 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
  * `recursive` because this is handed BOTH the copy and the `mkdtemp` directory
  * it sits in, and `rm` refuses a directory without it (ERR_FS_EISDIR) even with
  * `force`. On a plain file it changes nothing.
+ *
+ * Says whether the path is gone, for the callers that keep track (#1753).
  */
 async function discard(remove, path) {
-  if (!path) return;
+  if (!path) return true;
   try {
     await remove(path, { force: true, recursive: true, maxRetries: 5, retryDelay: 20 });
+    return true;
   } catch {
     // The OS still has it. It is one file, or one directory holding one file.
+    return false;
   }
+}
+
+/** Delete a read's staging folder, and remember it for the next read if the
+ *  OS would not let go of it yet: a poll still does not fail over it, and the
+ *  copy inside no longer outlives the process that made it (#1753). */
+async function discardStage(remove, stage) {
+  if (!(await discard(remove, stage))) _undeleted.add(stage);
 }
 
 /**

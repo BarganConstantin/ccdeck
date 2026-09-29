@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { CLI_FILES } from "./cli-surface";
+import { linuxMachine } from "./linux-browser-fixture";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,12 +59,15 @@ describe("#794 — the Linux browser table", () => {
     // Linux before the branch that knows how to kill it was reached — while
     // `available("linux")` was offering the reaction the whole time.
     expect(available("linux")).toContain("quit-browser");
-    const calls: Array<{ cmd: string; args: string[] }> = [];
-    const run = (cmd: string, args: string[]) => { calls.push({ cmd, args }); return Promise.resolve({ ok: true }); };
-    const r = await quitBrowser("chromium-snap", "linux", { run });
+    // Since #1752 the Linux leg signals the process holding the profile's lock,
+    // so the snap's root is where the answer is read from. Held in memory, so no
+    // real lock or pid is read.
+    const m = linuxMachine();
+    m.started(777, ["/snap/chromium/3235/usr/lib/chromium-browser/chrome"]);
+    m.lock("snap/chromium/common/chromium", 777);
+    const r = await quitBrowser("chromium-snap", "linux", m.deps);
     expect(r.reason, `quit answered ${r.reason}`).toBe("quit");
-    expect(calls[0].cmd).toBe("pkill");
-    expect(calls[0].args).toEqual(["-x", "chromium"]);
+    expect(m.calls).toEqual([{ cmd: "kill", args: ["-TERM", "777"] }]);
   });
 
   it("still refuses a browser nothing knows, rather than killing something arbitrary", async () => {

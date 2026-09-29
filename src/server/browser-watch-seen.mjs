@@ -69,14 +69,48 @@ export function nothingSeen() {
     /** The gate the open verdicts were last judged under, so a changed one is
      *  applied on the next poll whether or not that poll read anything. */
     judgedUnder: null,
+    /**
+     * The moment every visit before which is known to have been read, or null
+     * before the first complete look.
+     *
+     * THE OTHER WAY A VERDICT SETTLES (#1751). `settledTo` moves only when the
+     * browser records something newer, and a browser nobody is using records
+     * nothing — so on the one machine this feature is for, a program page left
+     * alone stayed open until its owner came back, and was only final once they
+     * had. The clock settles it instead: a visit is written down when it
+     * happens, so once a complete look has been taken `quietMs` past a
+     * candidate, no visit still to be read can fall inside its window.
+     * `decided` reads this; `settledTo` and the lists above are untouched by
+     * it, so a gate changed afterwards re-judges the open verdicts as before.
+     */
+    readTo: null,
   };
+}
+
+/**
+ * The findings no later read can withdraw: every settled one, and every open
+ * one whose quiet window had closed by the last complete look.
+ *
+ * Only these are written down, logged and reacted to. An open verdict is still
+ * shown — it is what the browser holds right now — but a person's visit in the
+ * minutes after it cancels it, and a reaction that quit the browser in the
+ * middle of their own login cannot be taken back when the visit arrives.
+ */
+export function decided(seen) {
+  if (seen.readTo === null || seen.judgedUnder === null) return seen.settled.slice();
+  const line = seen.readTo - seen.judgedUnder;
+  return seen.settled.concat(seen.open.filter(f => f.timeMs <= line));
 }
 
 /** Fold one real read's rows into what the profile has contributed, and judge
  *  again whatever is still open. Mutates `seen`, which is the object `_lastRead`
  *  holds. Exported for tests, with `nothingSeen`: what is held between polls
  *  is the question #989 was about, and a snapshot cannot see it. */
-export function absorb(seen, rows, { quietMs, classifyOpts, browser }) {
+export function absorb(seen, rows, { quietMs, classifyOpts, browser, readTo = null }) {
+  // Before the early return, because a poll that read nothing still moves the
+  // clock: see `readTo` in `nothingSeen`. Null from a read that was not
+  // complete, which leaves the line where the last complete one put it.
+  if (readTo !== null && (seen.readTo === null || readTo > seen.readTo)) seen.readTo = readTo;
   // NOTHING NEW UNDER THE SAME GATE IS NOTHING TO DO. A gate that has changed
   // since the open verdicts were judged is applied with no new rows at all
   // (#1131): the settings route drops the cache, the read after it finds the

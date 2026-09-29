@@ -163,6 +163,14 @@ const { deckDataDir, deckLogDir, legacyDeckDir, migrateDeckFiles, sweepTempFiles
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
   );
   await sweepTempFiles({ dirs: [legacy, data, log, watchStoreDir()], fs: fsp }).catch(() => 0);
+  // AND THE COPIES OF THE BROWSER'S HISTORY a Browser Watch read left in its
+  // staging folder (#1753): a deck that exits mid-read never deletes its copy,
+  // and the sweep above neither recurses nor matches the names. Each is a full
+  // browsing history. Only folders a minute old — a sibling deck may be reading.
+  const { stagingRoot, sweepStaging } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-history.mjs")).href
+  );
+  await sweepStaging(stagingRoot()).catch(() => 0);
 }
 // CANONICALISED here rather than left as typed: the discovery file publishes
 // this path so the hook can tell which decks share one log and elect a single

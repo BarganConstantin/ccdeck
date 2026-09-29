@@ -297,14 +297,16 @@ describe("the floor the watch reads from", () => {
 
 describe("one machine, one store, usually more than one deck", () => {
   /** One program navigation in silence — enough that there IS something to
-   *  record, which is what makes the two cases below able to fail. */
+   *  record, which is what makes the two cases below able to fail. Twenty
+   *  minutes old in `armed`, so its quiet window has closed: a page seconds
+   *  old is still open, and nothing open is written down (#1751). */
   const FROM_API = 0x08000000;
   const finding = (atMs: number) => ({
     url: "https://gitlab.example.com/-/jobs", timeMs: atMs, transition: FROM_API,
   });
 
   const armed = (extra: Record<string, unknown>) => ({
-    ...harness({ rows: [finding(Date.now() - 5_000)] }).deps,
+    ...harness({ rows: [finding(Date.now() - 20 * 60_000)] }).deps,
     react: async () => ["notified"],
     ...extra,
   });
@@ -405,7 +407,7 @@ describe("a log a person can read", () => {
     expect(assign, "_checkedMs is never assigned").toBeGreaterThan(0);
     expect(assign, "the stamp is taken before the work it claims to have finished")
       .toBeLessThan(survey);
-    expect(server.slice(0, assign)).toContain("const episodes = undismissed(enabled ? kept : live, store.dismissed);");
+    expect(server.slice(0, assign)).toContain("const episodes = undismissed(enabled ? overProvisional(kept, live) : live, store.dismissed);");
   });
 });
 
@@ -502,7 +504,9 @@ describe("what the test suite is allowed to touch", () => {
 
     const FROM_API = 0x08000000;
     const h = harness({
-      rows: [{ url: "https://nowhere.invalid/x", timeMs: Date.now() - 5_000, transition: FROM_API }],
+      // Old enough that its quiet window has closed, or nothing would be
+      // written down to find (#1751).
+      rows: [{ url: "https://nowhere.invalid/x", timeMs: Date.now() - 20 * 60_000, transition: FROM_API }],
     });
     // Elected on purpose: the deck that IS recording is the one that would
     // write, so this is the case that could fail rather than the one that
