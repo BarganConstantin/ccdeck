@@ -91,6 +91,29 @@ export function detachEnv({ isTTY = false, profile = "none", columns = 0 } = {})
 }
 
 /**
+ * How the worker (and an upgrade's replacement) is started when this
+ * supervisor has no console of its own — detached from a terminal, or run by
+ * the desktop app.
+ *
+ * ON WINDOWS, A CONSOLE PROGRAM STARTED BY A PROCESS WITH NO CONSOLE IS GIVEN A
+ * NEW ONE, and with Windows Terminal as the default terminal that new console
+ * is a window. Measured on a Windows 10 box: `npx ccdeck` put a second
+ * Windows Terminal window on screen, hosting the deck's own node.exe, after the
+ * one the user typed into. `windowsHide` alone does not stop it: with stdio
+ * inherited, libuv only asks for a hidden window, which Windows Terminal's
+ * default-terminal handoff does not honour. DETACHED_PROCESS gives the child
+ * no console at all, so there is nothing to show.
+ *
+ * Only when detached: a supervisor in the user's own terminal shares that
+ * console with its worker, and Ctrl+C has to reach both.
+ */
+export function noConsoleOptions({ detached = false, platform = process.platform } = {}) {
+  return detached && platform === "win32"
+    ? { detached: true, windowsHide: true }
+    : {};
+}
+
+/**
  * The command that ends it, spelled the way this user would have to type it.
  *
  * An npx run has no `ccdeck` on PATH — that is the whole point of npx — so

@@ -82,7 +82,11 @@ describe("the child's output is a file, never a pipe", () => {
     // This is the whole mechanism. A closing terminal sends SIGHUP to its
     // FOREGROUND process group; a detached child is in its own, so the signal
     // never reaches it. Measured on a real start: ppid 1, pgid its own.
-    expect(SRC).toContain("detached: true");
+    // Read off the launcher's own spawn: detach.mjs also says `detached: true`
+    // for the Windows worker in noConsoleOptions, which is a different child.
+    const at = SRC.indexOf("const child = spawnFn(execPath, [file, ...argv], {");
+    expect(at, "detachAndWatch no longer spawns the child this way").toBeGreaterThan(-1);
+    expect(SRC.slice(at, SRC.indexOf("});", at))).toContain("detached: true");
   });
 });
 
