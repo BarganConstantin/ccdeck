@@ -196,7 +196,7 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
   let sum = 0;
   let count = 0;
   let included = 0;
-  let nextReset: WindowTotal["nextReset"] = null;
+  const resets: Array<{ at: number; name: string; pct: number }> = [];
   for (const r of rows) {
     const c = r.cells[id];
     // EVERY ACCOUNT WITH A NUMBER IS IN THE TOTAL (#1713). Inactive accounts
@@ -209,12 +209,18 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
     sum += pct;
     included++;
     if (c.counted) count++;
-    if (c.resetAt == null) continue;
-    // "The same minute": resets are stamped to the second, and two accounts
-    // coming back within one are one moment to a reader.
-    if (!nextReset || c.resetAt < nextReset.at - 59) nextReset = { at: c.resetAt, name: r.name, pct, more: 0 };
-    else if (c.resetAt - nextReset.at < 60) nextReset.more++;
+    if (c.resetAt != null) resets.push({ at: c.resetAt, name: r.name, pct });
   }
+  // The soonest reset, and every other account back within a minute of it,
+  // taken from the whole list (#1796): the rows come in the panel's order, the
+  // live account first, and one pass over them kept or forgot accounts by where
+  // they were listed. A tie names the one listed first. "The same minute":
+  // resets are stamped to the second, and two accounts coming back within one
+  // are one moment to a reader.
+  const first = resets.reduce<(typeof resets)[number] | null>((a, x) => (!a || x.at < a.at ? x : a), null);
+  const nextReset: WindowTotal["nextReset"] = first && {
+    ...first, more: resets.filter(x => x !== first && x.at - first.at < 60).length,
+  };
   return {
     id, label: w.label, long: w.long,
     reporting: count,
