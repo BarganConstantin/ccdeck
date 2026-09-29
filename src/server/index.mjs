@@ -136,7 +136,7 @@ import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
-import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
+import { historySnapshot, processesReply, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers, and the answer for one that threw
 // — see http-io.mjs. sendInternalError was exported from this file before it
 // moved, and still is.
@@ -310,7 +310,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // draws four columns and needs none of it, so on a deck where the modal
       // is never opened the argv is never read at all.
       const detail = url.searchParams.get("detail") === "1";
-      return guard(readProcesses(process.platform, detail).then(r => send(res, 200, { ok: true, ...r })), res);
+      return guard(readProcesses(process.platform, detail).then(r => send(res, 200, processesReply(r))), res);
     }
     // A day of minute buckets, which is far too much to ride along on
     // /api/system's three-second poll for a chart that is usually closed. Its

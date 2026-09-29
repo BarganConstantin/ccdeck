@@ -362,6 +362,13 @@ describe("what stays open, and why", () => {
     // caller too, so the other order would read the modal's answer twice.
     const plain = await getJson("/api/system/processes");
     expect(plain.status).toBe(200);
+    // A read that came back empty says so (#1770) rather than answering ok
+    // with no rows. That is only expected on Windows, where the one
+    // Get-Process call sits on its own six-second deadline; `ps` answers well
+    // inside its four.
+    const failed = (body: { ok?: boolean; reason?: string }) =>
+      process.platform === "win32" && body.ok === false && body.reason === "read_failed";
+    if (failed(plain.body)) return;
     expect(plain.body.ok).toBe(true);
     expect(typeof plain.body.total).toBe("number");
     expect(Array.isArray(plain.body.procs)).toBe(true);
@@ -372,6 +379,7 @@ describe("what stays open, and why", () => {
 
     const detailed = await getJson("/api/system/processes?detail=1");
     expect(detailed.status).toBe(200);
+    if (failed(detailed.body)) return;
     expect(detailed.body.ok).toBe(true);
     // On POSIX the plain rows carry no thread count and the detailed ones do,
     // which is the flag reaching readProcesses. Windows reads Threads on its one

@@ -4,10 +4,12 @@
 // Moved out of system-metrics.mjs unchanged, because it is the one reading there
 // that never rides the sampler's timers. It is read on demand only — while the
 // process dialog is open — keeps its own one-child-at-a-time guard and its own
-// Windows CPU baseline (#544), and shares nothing with the ambient readings but
-// the command runner. system-metrics.mjs re-exports readProcesses, which is where
-// index.mjs asks for it, and its stopSystemMetrics calls resetProcessList so a
-// reset still clears this list along with everything else.
+// CPU baseline (Windows since #544, Linux since #1769), and shares nothing with
+// the ambient readings but the command runner. system-metrics.mjs re-exports
+// readProcesses, which is where index.mjs asks for it, and its stopSystemMetrics
+// calls resetProcessList so a reset still clears this list along with everything
+// else.
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import { run } from "./metrics-run.mjs";
 // What of a command line may leave this module: see process-command.mjs.
@@ -69,7 +71,14 @@ export function pickCandidates(rows, limit = CANDIDATE_N) {
  * over time is normally caught in `S`. Nothing errored and nothing was empty,
  * which is why it survived two releases (#492).
  *
- * `--sort=-pcpu` is procps' own way to say what `-r` says on BSD. The column
+ * `--sort=-pcpu` is NOT procps' way to say what `-r` says on BSD, which is what
+ * this comment used to claim. procps defines `%cpu` as CPU time over the
+ * process's whole lifetime, so a process that idled for hours and is pinning a
+ * core now reads a few percent, and one that was busy at start-up keeps its
+ * figure long after it stopped (#1769). The sort stays because it costs `ps`
+ * nothing and orders the text sensibly for anyone reading it, but the Linux
+ * column is not this one any more: readProcessesNow replaces it with a rate
+ * taken from /proc/<pid>/stat between two readings (linuxCpuSec). The column
  * order is deliberately identical on both so one parser reads both, and `comm`
  * stays last so a name containing a space survives intact.
  *
@@ -203,7 +212,9 @@ export { CMD_MAX, commandTail, redactCommand };
  *
  * `pcpu` is a percentage of ONE core on both, so a multi-threaded process runs
  * past 100 and that is information rather than an error: 157 is one and a half
- * cores. cpuFromDeltas puts the Windows column on this same scale.
+ * cores. cpuFromDeltas puts the Windows and Linux columns on this same scale —
+ * on Linux the figure parsed here is a lifetime average and is replaced before
+ * it leaves this module (see psArgs).
  *
  * There is no row limit in the query because neither `ps` has one and `run`
  * deliberately never inherits a shell, so there is no `| head` to pipe into.
@@ -376,8 +387,60 @@ export function cpuFromDeltas(rows, prev, elapsedMs, limit = Infinity) {
   return out.slice(0, limit);
 }
 
-/** Previous Windows reading, so the next one can be a rate. Cleared with the
- *  rest of the sampler state — see resetProcessList. */
+/**
+ * Cumulative CPU seconds out of one `/proc/<pid>/stat` line, or null.
+ *
+ * utime and stime are fields 14 and 15, in USER_HZ ticks. The name in field 2
+ * is the one field that can hold anything — spaces, parentheses — so the count
+ * starts after the LAST `)` rather than at a split on spaces: `(tmux: server)`
+ * would otherwise shift every field after it.
+ *
+ * USER_HZ is the kernel's fixed unit for these files, not the scheduler's tick
+ * rate, and it is 100 on every architecture Node runs on; Node has no sysconf to
+ * ask, and a `getconf CLK_TCK` child per poll to confirm a constant would cost
+ * more than the reading it serves.
+ */
+const USER_HZ = 100;
+export function cpuSecFromProcStat(text) {
+  const s = String(text ?? "");
+  const close = s.lastIndexOf(")");
+  if (close < 0) return null;
+  // Field 3 (the state) is the first after the name, so field N is at N - 3.
+  const f = s.slice(close + 1).trim().split(/\s+/);
+  const utime = Number(f[11]), stime = Number(f[12]);
+  if (f.length < 13 || !Number.isFinite(utime) || !Number.isFinite(stime)) return null;
+  return (utime + stime) / USER_HZ;
+}
+
+/**
+ * The CPU seconds each Linux row has used so far, for cpuFromDeltas to turn
+ * into a rate the way it already does for Windows (#1769).
+ *
+ * One file read per process, and no child: this is the same file `ps` itself
+ * read a moment ago to print the lifetime figure, so the cost is a few hundred
+ * small reads of a pseudo-filesystem once every four seconds, only while the
+ * process dialog is open. Reads run together rather than one after another.
+ *
+ * A read that fails — the process exited between `ps` and here, or /proc hides
+ * other users' processes — leaves `cpuSec` null, which cpuFromDeltas reports as
+ * an unknown CPU rather than as an idle one. `deps.readFile` is the seam the
+ * suite uses, so no test depends on the machine's real process table.
+ */
+async function linuxCpuSec(rows, deps = {}) {
+  const file = deps.readFile ?? readFile;
+  const secs = await Promise.all(rows.map(r =>
+    Promise.resolve()
+      .then(() => file(`/proc/${r.pid}/stat`, "utf8"))
+      .then(cpuSecFromProcStat, () => null)));
+  return rows.map((r, i) => {
+    const { cpu: _lifetime, ...rest } = r;
+    return { ...rest, cpuSec: secs[i] };
+  });
+}
+
+/** The previous reading's CPU seconds per pid, on the two platforms whose
+ *  column is a rate derived here (Windows and Linux), so the next reading can
+ *  be one. Cleared with the rest of the sampler state — see resetProcessList. */
 let prevProcCpu = null;
 let prevProcAt = 0;
 
@@ -416,7 +479,7 @@ const PROC_MIN_GAP_MS = 1_500;
  * that arrive while a run is going share its promise; callers that arrive just
  * after one finished are served that reading.
  */
-export async function readProcesses(platform = process.platform, detail = false) {
+export async function readProcesses(platform = process.platform, detail = false, deps = {}) {
   const now = Date.now();
   // A cached reading serves a caller that wants LESS than it holds, never one
   // that wants more: the panel is happy with a detailed reading, and the modal
@@ -431,13 +494,29 @@ export async function readProcesses(platform = process.platform, detail = false)
   // instead. The in-flight share still applies, so a burst arriving during a
   // failing read is one failing child, not a burst of them.
   procInFlightDetail = detail;
-  procInFlight = readProcessesNow(platform, detail)
+  procInFlight = readProcessesNow(platform, detail, deps)
     .then(read => {
       if (read.procs.length) procLast = { at: Date.now(), read, detail };
       return read;
     })
     .finally(() => { procInFlight = null; procInFlightDetail = false; });
   return procInFlight;
+}
+
+/**
+ * What /api/system/processes answers for one reading.
+ *
+ * An empty reading is a failed one, by the rule readProcesses already keeps: no
+ * machine has nothing running on it, and every failure inside the reader — a
+ * spawn that never started, a non-zero exit, the deadline — resolves to an
+ * empty list. It went out as `{ ok: true, procs: [] }`, which is a claim that
+ * the machine was read and found empty, and the dialog believed it: one slow
+ * `ps` swapped a working table for a sentence blaming the platform (#1770).
+ * So a failure says it is one, and the dialog keeps what it was showing.
+ */
+export function processesReply(read) {
+  if (!read?.procs?.length) return { ok: false, reason: "read_failed" };
+  return { ok: true, ...read };
 }
 
 /**
@@ -465,7 +544,7 @@ export async function readProcesses(platform = process.platform, detail = false)
 export const WIN_PROCESS_PS =
   "Get-Process | Select-Object Id,ProcessName,CPU,@{n='Threads';e={$_.Threads.Count}},@{n='StartedAt';e={if($_.StartTime){[int]((Get-Date)-$_.StartTime).TotalSeconds}else{$null}}},@{n='WorkingSet';e={$_.WorkingSet64}},@{n='WorkingSetPrivate';e={$_.PrivateMemorySize64}} | ConvertTo-Json -Compress";
 
-async function readProcessesNow(platform, detail = false) {
+async function readProcessesNow(platform, detail = false, deps = {}) {
   if (platform === "win32") {
     const out = await run("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command", WIN_PROCESS_PS,
@@ -487,7 +566,18 @@ async function readProcessesNow(platform, detail = false) {
   }
   const out = await run("ps", psArgs(platform), 4_000);
   if (!out) return { procs: [], total: 0 };
-  const all = parsePsProcesses(out);
+  let all = parsePsProcesses(out);
+  if (platform === "linux") {
+    // procps' %cpu is a lifetime average (see psArgs), so the Linux column is
+    // derived here from two readings of the kernel's own counters, exactly as
+    // the Windows one is from two Get-Process readings: null on the first,
+    // then the share of one core used since the one before.
+    const rows = await linuxCpuSec(all, deps);
+    const now = Date.now();
+    all = cpuFromDeltas(rows, prevProcCpu, now - prevProcAt);
+    prevProcCpu = new Map(rows.filter(r => r.cpuSec != null).map(r => [r.pid, r.cpuSec]));
+    prevProcAt = now;
+  }
   const procs = pickCandidates(all);
   if (detail) await attachDetail(procs, platform);
   return { procs, total: all.length };
@@ -534,7 +624,7 @@ async function attachDetail(procs, platform) {
 }
 
 /**
- * Forget the Windows baseline and the last list, for stopSystemMetrics.
+ * Forget the CPU baseline and the last list, for stopSystemMetrics.
  *
  * The last list goes with the baseline it was computed against. A sampler that
  * stopped and started again must not answer the first caller with a reading

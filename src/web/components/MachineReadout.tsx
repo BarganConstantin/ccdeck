@@ -38,7 +38,7 @@ export function Fig({ value, unit, cap }: { value: string; unit?: string; cap: s
 }
 
 /**
- * A section of this panel that keeps a history, wrapped in the one control that
+ * A section of this panel that keeps a history, under the one control that
  * opens it.
  *
  * ONE control per reading, never one per row. It was one per row first, and
@@ -47,22 +47,31 @@ export function Fig({ value, unit, cap }: { value: string; unit?: string; cap: s
  * not. Two controls for one action made a section read as a list of separately
  * operable things when it is one reading of one machine.
  *
- * The heading goes inside the button so the whole block lights as one, and
- * keeps its `aria-hidden`: the group is already named, and the button carries
- * its own name, so the word a third time is noise. `value` is the exception the
- * CPU section needs — a strip of bars with no figure anywhere — and it is the
- * reading itself, so it is spoken by the button rather than hidden with the
- * heading.
+ * THE HEADING IS THE BUTTON, AND THE READINGS ARE NOT IN IT (#1771). The whole
+ * block was the button once, so that it lit as one, and that silenced it: a
+ * button's name is its label and everything inside it is presentational, so a
+ * screen reader said "Show memory history, button" and never one figure — not
+ * the bytes, not what was available, not a temperature, not "Can’t reach
+ * Claude". The rows follow the button now as ordinary content, and
+ * `.sd-reading` keeps the box the button had so nothing on screen moves.
+ *
+ * The name starts with the heading it shows — "Memory: show history" — so a
+ * voice-control user who says the word on screen reaches it (SC 2.5.3). The
+ * heading inside keeps its `aria-hidden` for that reason: the name already says
+ * it. `value` is the exception the CPU section needs — a strip of bars with no
+ * figure anywhere — and it is the reading itself, so the name says it too.
  */
 export function OpensHistory({ group, title, action, label, value, hint, children }: {
   group: "thermal" | "cores" | "memory" | "load" | "network";
   /** What the dialog calls itself. A name for a thing. */
   title: string;
-  /** What the BUTTON calls itself, which is not the same string: a control is
-   *  named for what pressing it does. "Core history" announces as a label and
-   *  reads as one; "Show core history" is the action. Spelled out per section
-   *  rather than derived, because deriving it produced "Show cores history". */
+  /** What pressing it does, on the tooltip: "Show core history" rather than
+   *  "Core history", which reads as a label. Spelled out per section rather
+   *  than derived, because deriving it produced "Show cores history". The
+   *  accessible name is built from `label` instead, so it starts with the word
+   *  on screen. */
   action: string;
+  /** The heading, and the first words of the button's name. */
   label: string;
   /** The section's own reading, beside its heading, where it has one. */
   value?: string | null;
@@ -78,20 +87,22 @@ export function OpensHistory({ group, title, action, label, value, hint, childre
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        className="sd-open"
-        onClick={() => setOpen(true)}
-        title={action}
-        aria-label={value == null ? action : `${action}, now ${value}`}
-        aria-describedby={hint ? `sd-hint-${group}` : undefined}
-      >
-        <div className="sd-h" aria-hidden>
-          {label} <i className="sd-row-more">›</i>
-          {value != null && <span className="sd-h-val">{value}</span>}
-        </div>
+      <div className="sd-reading">
+        <button
+          type="button"
+          className="sd-open"
+          onClick={() => setOpen(true)}
+          title={action}
+          aria-label={value == null ? `${label}: show history` : `${label}: show history, now ${value}`}
+          aria-describedby={hint ? `sd-hint-${group}` : undefined}
+        >
+          <span className="sd-h" aria-hidden>
+            {label} <i className="sd-row-more">›</i>
+            {value != null && <span className="sd-h-val">{value}</span>}
+          </span>
+        </button>
         {children}
-      </button>
+      </div>
       {hint && <span id={`sd-hint-${group}`} className="vis-hidden">{hint}</span>}
       {open && <SectionHistoryModal group={group} title={title} onClose={() => setOpen(false)} />}
     </>
