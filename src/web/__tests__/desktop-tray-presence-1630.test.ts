@@ -8,6 +8,13 @@
 // one of this process's bus names; after two checks that say no, it restarts
 // by itself at its next quiet spell, at most once in six hours.
 //
+// What loses the icon turned out to be the app STARTING while GNOME has the
+// watcher switched off for a locked screen — which is when a self-update gets
+// installed. Checked on a private session bus: a tray made before the watcher
+// came up never registered; one already registered came back by itself when
+// the watcher left and returned. So every restart the app makes by itself now
+// waits while a watcher it has seen is away.
+//
 // What is checked here is the reading of busctl's answers, the decisions, and
 // the wiring in main.mjs. The end-to-end run — a watcher that refuses the
 // first registration, on a private session bus, and the app coming back with
@@ -16,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 // @ts-expect-error — plain .mjs, no types
-import { itemBusName, trayRegistered, trayPresence, trayMissesNext, canRestartForTray, MISSES_BEFORE_RESTART, TRAY_RESTART_GAP_MS } from "../../../desktop/tray-presence.mjs";
+import { itemBusName, trayRegistered, trayCheck, watcherOnBusNow, selfRestartHeld, trayRestartOutcome, trayMissesNext, canRestartForTray, MISSES_BEFORE_RESTART, TRAY_RESTART_GAP_MS } from "../../../desktop/tray-presence.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { QUIET_MS } from "../../../desktop/auto-update.mjs";
 // @ts-expect-error — plain .mjs, no types
@@ -74,32 +81,62 @@ describe("reading the watcher's items", () => {
 });
 
 describe("asking the session bus", () => {
-  const answers = (items: unknown, names: unknown) => async (args: string[]) =>
-    JSON.stringify(args.includes("get-property") ? items : names);
+  const HAS = ["--user", "--json=short", "call", "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner", "s", "org.kde.StatusNotifierWatcher"];
+  const answers = (watcher: unknown, items: unknown, names: unknown) => async (args: string[]) =>
+    JSON.stringify(args.includes("NameHasOwner") ? watcher : args.includes("get-property") ? items : names);
+  const UP = { type: "b", data: [true] }, GONE = { type: "b", data: [false] };
 
-  it("asks the watcher for its items and busctl for every name's pid", async () => {
+  it("asks whether the watcher is there, then for its items and every name's pid", async () => {
     const asked: string[][] = [];
     const run = async (args: string[]) => {
       asked.push(args);
-      return answers({ type: "as", data: OTHERS }, NAMES)(args);
+      return answers(UP, { type: "as", data: OTHERS }, NAMES)(args);
     };
-    await expect(trayPresence({ pid: PID, run })).resolves.toBe(false);
+    await expect(trayCheck({ pid: PID, run })).resolves.toEqual({ watcher: true, registered: false });
     expect(asked).toEqual([
+      HAS,
       ["--user", "--json=short", "get-property", "org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher", "RegisteredStatusNotifierItems"],
       ["--user", "--json=short", "list"],
     ]);
   });
 
   it("finds the icon once it is back", async () => {
-    const run = answers({ type: "as", data: [...OTHERS, ":1.67051@/StatusNotifierItem"] }, NAMES);
-    await expect(trayPresence({ pid: PID, run })).resolves.toBe(true);
+    const run = answers(UP, { type: "as", data: [...OTHERS, ":1.67051@/StatusNotifierItem"] }, NAMES);
+    await expect(trayCheck({ pid: PID, run })).resolves.toEqual({ watcher: true, registered: true });
   });
 
-  it("cannot tell with no watcher on the bus, no busctl, or an answer it cannot read", async () => {
-    const noWatcher = async () => { throw new Error("Failed to get property: The name is not activatable"); };
-    await expect(trayPresence({ pid: PID, run: noWatcher })).resolves.toBeNull();
-    await expect(trayPresence({ pid: PID, run: async () => "not json" })).resolves.toBeNull();
-    await expect(trayPresence({ pid: PID, run: answers({ type: "as" }, NAMES) })).resolves.toBeNull();
+  it("says the watcher is gone — a locked GNOME screen — and asks nothing more", async () => {
+    const asked: string[][] = [];
+    const run = async (args: string[]) => { asked.push(args); return JSON.stringify(GONE); };
+    await expect(trayCheck({ pid: PID, run })).resolves.toEqual({ watcher: false, registered: null });
+    expect(asked).toEqual([HAS]);
+  });
+
+  it("cannot tell with no busctl, or an answer it cannot read", async () => {
+    const noBusctl = async () => { throw new Error("spawn busctl ENOENT"); };
+    await expect(trayCheck({ pid: PID, run: noBusctl })).resolves.toEqual({ watcher: null, registered: null });
+    await expect(trayCheck({ pid: PID, run: async () => "not json" })).resolves.toEqual({ watcher: null, registered: null });
+    await expect(trayCheck({ pid: PID, run: answers(UP, { type: "as" }, NAMES) })).resolves.toEqual({ watcher: true, registered: null });
+  });
+
+  it("asks the bus once more at the moment of a restart", () => {
+    expect(watcherOnBusNow({ runSync: (args: string[]) => { expect(args).toEqual(HAS); return JSON.stringify(GONE); } })).toBe(false);
+    expect(watcherOnBusNow({ runSync: () => JSON.stringify(UP) })).toBe(true);
+    expect(watcherOnBusNow({ runSync: () => { throw new Error("timed out"); } })).toBeNull();
+  });
+});
+
+describe("a restart the app makes by itself, under a locked screen", () => {
+  it("waits while a watcher it has seen is gone", () => {
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: false })).toBe(true);
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: true })).toBe(false);
+  });
+
+  it("does not wait when busctl cannot say, or on a desktop that never had a watcher", () => {
+    // GNOME without the AppIndicator extension: there is no icon to lose, and
+    // its updates must not wait for a panel that never comes.
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: null })).toBe(false);
+    expect(selfRestartHeld({ watcherSeen: false, watcherNow: false })).toBe(false);
   });
 });
 
@@ -107,7 +144,7 @@ describe("when the app restarts for its icon", () => {
   const NOW = 10_000_000;
   // Lost, and left alone for as long as a quiet update waits.
   const ripe = {
-    misses: MISSES_BEFORE_RESTART, lastRestartAt: null as number | null, backAfterRestart: undefined as boolean | undefined,
+    misses: MISSES_BEFORE_RESTART, lastRestartAt: null as number | null, lastOutcome: undefined as string | undefined,
     updateStatus: "idle", windowFocused: false, busy: false, quietSince: NOW - QUIET_MS as number | null, now: NOW,
   };
 
@@ -138,16 +175,34 @@ describe("when the app restarts for its icon", () => {
     for (const updateStatus of ["idle", "current", "error"]) expect(canRestartForTray({ ...ripe, updateStatus }), updateStatus).toBe(true);
   });
 
-  it("does it at most once in six hours after a restart that brought the icon back", () => {
-    expect(TRAY_RESTART_GAP_MS).toBe(6 * 60 * 60_000);
-    const back = { ...ripe, backAfterRestart: true };
-    expect(canRestartForTray({ ...back, lastRestartAt: NOW - TRAY_RESTART_GAP_MS + 1 })).toBe(false);
-    expect(canRestartForTray({ ...back, lastRestartAt: NOW - TRAY_RESTART_GAP_MS })).toBe(true);
+  it("reads what a restart came to at the new process's first check that can tell", () => {
+    expect(trayRestartOutcome({ startedWithWatcher: true, registered: true })).toBe("back");
+    expect(trayRestartOutcome({ startedWithWatcher: false, registered: true })).toBe("back");
+    // No icon with a watcher there to take it: the restart did not help.
+    expect(trayRestartOutcome({ startedWithWatcher: true, registered: false })).toBe("failed");
+    expect(trayRestartOutcome({ startedWithWatcher: null, registered: false })).toBe("failed");
+    // No icon, but the process started under a locked screen: that explains it.
+    expect(trayRestartOutcome({ startedWithWatcher: false, registered: false })).toBe("explained");
+    expect(trayRestartOutcome({ startedWithWatcher: true, registered: null })).toBeNull();
   });
 
-  it("never again after a restart that did not bring it back, so a panel it cannot read costs one restart", () => {
-    const notBack = { ...ripe, backAfterRestart: false };
-    expect(canRestartForTray({ ...notBack, lastRestartAt: NOW - TRAY_RESTART_GAP_MS * 10 })).toBe(false);
+  it("restarts at most once in six hours after one that brought the icon back", () => {
+    expect(TRAY_RESTART_GAP_MS).toBe(6 * 60 * 60_000);
+    for (const lastOutcome of ["back", undefined]) {
+      const after = { ...ripe, lastOutcome };
+      expect(canRestartForTray({ ...after, lastRestartAt: NOW - TRAY_RESTART_GAP_MS + 1 }), String(lastOutcome)).toBe(false);
+      expect(canRestartForTray({ ...after, lastRestartAt: NOW - TRAY_RESTART_GAP_MS }), String(lastOutcome)).toBe(true);
+    }
+  });
+
+  it("never again after one that failed with a watcher there, so a panel it cannot read costs one restart", () => {
+    expect(canRestartForTray({ ...ripe, lastOutcome: "failed", lastRestartAt: NOW - TRAY_RESTART_GAP_MS * 10 })).toBe(false);
+    // Nor while the one before has not been read yet.
+    expect(canRestartForTray({ ...ripe, lastOutcome: "pending", lastRestartAt: NOW - TRAY_RESTART_GAP_MS * 10 })).toBe(false);
+  });
+
+  it("again straight away after one the lock screen explains", () => {
+    expect(canRestartForTray({ ...ripe, lastOutcome: "explained", lastRestartAt: NOW - 60_000 })).toBe(true);
   });
 });
 
@@ -181,10 +236,13 @@ describe("the app", () => {
   it("watches on Linux only, every half minute, from right after the tray is made", () => {
     const body = fn("watchTray");
     expect(body).toContain('if (process.platform !== "linux") return;');
-    expect(body).toContain("trayMisses = trayMissesNext(trayMisses, present);");
-    expect(body).toContain("const present = await trayPresence();");
+    expect(body).toContain("const { watcher, registered } = await trayCheck();");
+    expect(body).toContain("trayMisses = trayMissesNext(trayMisses, registered);");
     expect(body).toContain("}, 30_000);");
-    expect(body).toContain("({ trayRestartAt = null, trayBackAfterRestart } = desktopState.read());");
+    expect(body).toContain("trayRestartAt = state.trayRestartAt ?? null;");
+    // Whether a watcher has been seen, at startup and at every check.
+    expect(body.match(/if \(watcher\) trayWatcherSeen = true;/g)).toHaveLength(2);
+    expect(body).toContain("trayStartedWithWatcher = watcher;");
     expect(main).toMatch(/tray\.on\("click", \(\) => openWindow\(\)\);\n\s+watchTray\(\);/);
   });
 
@@ -194,9 +252,28 @@ describe("the app", () => {
     expect(quiet.indexOf("restartForTrayWhenQuiet(where);")).toBeLessThan(quiet.indexOf("updater.restartNow();"));
   });
 
-  it("writes down that the icon is back once a check finds it after a restart", () => {
+  it("writes down what a restart came to, read against how this process started", () => {
     const body = fn("watchTray");
-    expect(body).toMatch(/if \(present === true && trayBackAfterRestart === false\) \{\n\s+trayBackAfterRestart = true;\n\s+try \{ desktopState\.merge\(\{ trayBackAfterRestart \}\);/);
+    expect(body).toContain('const outcome = trayRestartOutcomeSaid === "pending" ? trayRestartOutcome({ startedWithWatcher: trayStartedWithWatcher, registered }) : null;');
+    expect(body).toContain("desktopState.merge({ trayRestartOutcome: outcome, trayBackAfterRestart: undefined });");
+    // 3.32.1 wrote a boolean: true was an icon back, false a restart not read yet.
+    expect(body).toContain('?? (state.trayBackAfterRestart === true ? "back" : state.trayBackAfterRestart === false ? "pending" : undefined);');
+  });
+
+  it("holds every restart it makes by itself while the panel it has seen is away, asking the bus at that moment", () => {
+    expect(fn("panelAway")).toContain('return process.platform === "linux" && selfRestartHeld({ watcherSeen: trayWatcherSeen, watcherNow: watcherOnBusNow() });');
+    // The quiet self-update: after it is found installable, before anything is
+    // written or restarted — and the quiet starts again after the unlock.
+    const quiet = fn("updateWhenQuiet");
+    const held = quiet.indexOf("if (panelAway()) { quietSince = null; return; }");
+    expect(held).toBeGreaterThan(quiet.indexOf("if (!canInstallQuietly("));
+    expect(held).toBeLessThan(quiet.indexOf("windowOpenAtSelfRestart"));
+    expect(held).toBeLessThan(quiet.indexOf("updater.restartNow();"));
+    // The restart for the icon.
+    const tray = fn("restartForTrayWhenQuiet");
+    const trayHeld = tray.indexOf("if (panelAway()) { quietSince = null; return; }");
+    expect(trayHeld).toBeGreaterThan(tray.indexOf("canRestartForTray("));
+    expect(trayHeld).toBeLessThan(tray.indexOf("desktopState.merge("));
   });
 
   it("does not take a Quit being carried out for a quiet spell", () => {
@@ -217,8 +294,8 @@ describe("the app", () => {
 
   it("writes the restart down before going, and does not go when it cannot", () => {
     const body = fn("restartForTrayWhenQuiet");
-    expect(body).toContain("canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, backAfterRestart: trayBackAfterRestart, updateStatus, quietSince, ...where })");
-    const written = body.indexOf("desktopState.merge({ trayRestartAt, trayBackAfterRestart: false, windowOpenAtSelfRestart: windowOpen() });");
+    expect(body).toContain("canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, lastOutcome: trayRestartOutcomeSaid, updateStatus, quietSince, ...where })");
+    const written = body.indexOf('desktopState.merge({ trayRestartAt, trayRestartOutcome: "pending", trayBackAfterRestart: undefined, windowOpenAtSelfRestart: windowOpen() });');
     expect(written).toBeGreaterThan(-1);
     expect(body.indexOf("return;", written)).toBeLessThan(body.indexOf("restartApp(app);"));
     expect(body.indexOf("restartApp(app);")).toBeGreaterThan(written);

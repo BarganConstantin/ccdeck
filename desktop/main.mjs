@@ -26,7 +26,7 @@ import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
-import { canRestartForTray, MISSES_BEFORE_RESTART, trayMissesNext, trayPresence } from "./tray-presence.mjs";
+import { canRestartForTray, MISSES_BEFORE_RESTART, selfRestartHeld, trayCheck, trayMissesNext, trayRestartOutcome, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -142,26 +142,56 @@ function scheduleRedraw() {
  * icon (#1630). A registration that fails once leaves the app with an icon
  * only it can see for as long as it runs, and only a new process registers
  * again — so a lost icon is counted here, and updateWhenQuiet restarts the app
- * at its next quiet spell. See tray-presence.mjs.
+ * at its next quiet spell. The same checks note whether the panel's watcher
+ * has been seen on the bus, which is what holds every restart the app makes
+ * by itself while the screen is locked (panelAway). See tray-presence.mjs.
  */
 let trayMisses = 0;
 let trayRestartAt = null;         // the last restart for the icon's sake, from desktop-state.json
-let trayBackAfterRestart;         // whether the icon has been seen since then
+let trayRestartOutcomeSaid;       // what it came to: tray-presence.mjs trayRestartOutcome, or "pending"
+let trayWatcherSeen = false;      // the watcher has been on the bus in this run
+let trayStartedWithWatcher = null;
 function watchTray() {
   if (process.platform !== "linux") return;
-  ({ trayRestartAt = null, trayBackAfterRestart } = desktopState.read());
+  const state = desktopState.read();
+  trayRestartAt = state.trayRestartAt ?? null;
+  // 3.32.1 wrote whether the icon was back as a boolean; false was a restart
+  // not read yet.
+  trayRestartOutcomeSaid = state.trayRestartOutcome
+    ?? (state.trayBackAfterRestart === true ? "back" : state.trayBackAfterRestart === false ? "pending" : undefined);
+  // Asked as the tray is made: whether this process had a watcher to register
+  // with, which tells a restart that failed from one the lock screen explains.
+  trayCheck().then(({ watcher }) => {
+    trayStartedWithWatcher = watcher;
+    if (watcher) trayWatcherSeen = true;
+  });
   setInterval(async () => {
-    const present = await trayPresence();
+    const { watcher, registered } = await trayCheck();
+    if (watcher) trayWatcherSeen = true;
     const before = trayMisses;
-    trayMisses = trayMissesNext(trayMisses, present);
+    trayMisses = trayMissesNext(trayMisses, registered);
     if (before < MISSES_BEFORE_RESTART && trayMisses >= MISSES_BEFORE_RESTART) {
       trace("the panel holds no tray icon of this app's; restarting at the next quiet spell");
     }
-    if (present === true && trayBackAfterRestart === false) {
-      trayBackAfterRestart = true;
-      try { desktopState.merge({ trayBackAfterRestart }); } catch { /* asked again at the next check */ trayBackAfterRestart = false; }
+    const outcome = trayRestartOutcomeSaid === "pending" ? trayRestartOutcome({ startedWithWatcher: trayStartedWithWatcher, registered }) : null;
+    if (outcome) {
+      try {
+        desktopState.merge({ trayRestartOutcome: outcome, trayBackAfterRestart: undefined });
+        trayRestartOutcomeSaid = outcome;
+        trace(`the restart for the tray icon came to: ${outcome}`);
+      } catch { /* read again at the next check */ }
     }
   }, 30_000);
+}
+
+/**
+ * Linux: has the panel that shows tray icons gone from the bus since this app
+ * saw it? GNOME takes it away while the screen is locked, and a version
+ * started then never shows its icon — so no restart the app makes by itself
+ * goes ahead until it is back. Asked of the bus at the moment of restarting.
+ */
+function panelAway() {
+  return process.platform === "linux" && selfRestartHeld({ watcherSeen: trayWatcherSeen, watcherNow: watcherOnBusNow() });
 }
 
 // ── the deck ────────────────────────────────────────────────────────────────
@@ -771,6 +801,8 @@ function updateWhenQuiet() {
     restartForTrayWhenQuiet(where);
     return;
   }
+  // Under a locked screen, the quiet starts again once it is unlocked.
+  if (panelAway()) { quietSince = null; return; }
   trace(`installing ${updater.state.version} by itself after a quiet spell`);
   quietSince = null;
   try { desktopState.merge({ windowOpenAtSelfRestart: windowOpen() }); } catch { /* the window opens, as it always did */ }
@@ -788,13 +820,15 @@ function windowOpen() {
  *  is ready goes first, above, and brings the icon back on its own way. */
 function restartForTrayWhenQuiet(where) {
   const updateStatus = updater?.state.status ?? "idle";
-  if (!canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, backAfterRestart: trayBackAfterRestart, updateStatus, quietSince, ...where })) return;
+  if (!canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, lastOutcome: trayRestartOutcomeSaid, updateStatus, quietSince, ...where })) return;
+  if (panelAway()) { quietSince = null; return; }
   trayRestartAt = where.now;
+  trayRestartOutcomeSaid = "pending";
   // Written down before going, or the next process would not know about this
-  // restart: the six hours between two, and whether it brought the icon back,
-  // would not hold across them.
+  // restart: the six hours between two, and what it came to, would not hold
+  // across them.
   try {
-    desktopState.merge({ trayRestartAt, trayBackAfterRestart: false, windowOpenAtSelfRestart: windowOpen() });
+    desktopState.merge({ trayRestartAt, trayRestartOutcome: "pending", trayBackAfterRestart: undefined, windowOpenAtSelfRestart: windowOpen() });
   } catch (err) {
     trace(`not restarting for the tray icon: ${err?.message ?? err}`);
     return;
