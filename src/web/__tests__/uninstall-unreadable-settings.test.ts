@@ -100,10 +100,11 @@ const runUninstall = () =>
     timeout: 30_000,
   });
 
-/** One of ours, as installHooks writes it. */
+/** One of ours, as installHooks writes it: marked, and running the hook.js
+ *  in our directory — the command is ours by the file it runs (#1734). */
 const OUR_ENTRY = {
   "__agent-dag": true,
-  hooks: [{ type: "command", command: "node hook.js --provider claude", timeout: 2 }],
+  hooks: [{ type: "command", command: "node /home/u/.claude/agent-dag/hook.js --provider claude", timeout: 2 }],
 };
 /** One of theirs, which is never ours to remove. */
 const USER_ENTRY = { hooks: [{ type: "command", command: "audit.sh" }] };
