@@ -40,8 +40,8 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import {
-  addTrusted, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, stillListed, transferChallenge,
-  trustedPeer,
+  addTrusted, ANNOUNCE_MS, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, stillListed,
+  transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
@@ -514,11 +514,58 @@ export function createEngine({
     onChange?.();
   };
 
-  /** Another deck is using this one's key. Take a new key and keep it. Two
-   *  decks with one identity are invisible to each other forever otherwise,
-   *  and the second one to notice moving is enough — whichever notices
-   *  first, moves. */
-  const idClash = () => {
+  /** The identity a key check is running for, or has already moved away from,
+   *  and when the last one started — see idClash. */
+  let clashFor = null;
+  let clashAt = -Infinity;
+
+  /**
+   * Another deck may be using this one's key. When it is, take a new key and
+   * keep it. Two decks with one identity are invisible to each other forever
+   * otherwise, and the second one to notice moving is enough — whichever
+   * notices first, moves.
+   *
+   * THE BEACON SAYS WHERE TO LOOK, NOT THAT IT IS SO. This deck's fingerprint
+   * is in every beacon it sends, so a beacon wearing it is no evidence that
+   * anybody else holds the key — and a new key is a stranger to every deck
+   * paired with this one, which an invite-only pairing does not recover from
+   * without a new invite. What only another holder of the key can do is finish
+   * a handshake against this deck's own pin, so the deck dials the address the
+   * beacon named and moves only if that handshake completes. Saying it is not
+   * asking to pair, so a deck from before its listener answered this is simply
+   * not a copy here — and it moves on its own when it hears this deck.
+   *
+   * NOT ITS OWN LISTENER, which holds the key too and would answer the same
+   * way: the challenge on that connection says which one answered.
+   *
+   * ONE CHECK AT A TIME, AT MOST ONE PER BEACON INTERVAL, AND NONE ONCE IT HAS
+   * MOVED. What arrives decides how often this dials, never how much; a real
+   * copy announces every ANNOUNCE_MS, so it is looked at by its next beacon at
+   * the latest; and after the new key is handed over nothing more is checked
+   * until the deck restarts on it.
+   */
+  const idClash = async ({ addr, port } = {}) => {
+    const mine = identity;
+    if (!mine || !server || typeof addr !== "string" || !addr || !port) return;
+    if (clashFor === mine || now() - clashAt < ANNOUNCE_MS) return;
+    clashFor = mine;
+    clashAt = now();
+    const startedIn = generation;
+    let copy = false;
+    let conn = null;
+    try {
+      conn = await connectToPeer({
+        host: addr, port, fp: mine.fp, pub: mine.pub, secret: mine.secret, name: cfg.name,
+        myPort: server?.port() ?? null, expectPub: mine.pub, ask: false, sealFrames, ephemeral,
+      });
+      copy = conn.peerFp === mine.fp && startedIn === generation && !server?.issued(conn.peerChallenge);
+    } catch { /* nothing there holds this key */ } finally {
+      conn?.sock?.destroy();
+    }
+    if (!copy || startedIn !== generation || identity !== mine) {
+      if (clashFor === mine) clashFor = null;
+      return;
+    }
     const fresh = identityFrom("");
     onIdentity?.(fresh.secret);
     onError?.("id-clash", new Error("another deck was using this one's key; taking a new one"));
@@ -561,6 +608,13 @@ export function createEngine({
         sealFrames, ephemeral,
       });
       const ask = frame => askOver(conn, frame);
+
+      // THIS DECK'S OWN KEY, ANSWERING — its own listener at an address
+      // somebody typed, or another machine holding a copy of the key, which a
+      // listener now answers (see idClash). Neither is a deck to pin, ask or
+      // take anything from, and a pin of this deck's own key would be one
+      // every handler here then trusted.
+      if (conn.peerFp === identity.fp) throw new Error("that address answers with this deck's own key");
 
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
       // and nothing else until somebody answers it — and once one has, the deck

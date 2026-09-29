@@ -196,6 +196,10 @@ export function createSyncServer({
   let server = null;
   let cancelStart = null;
   const live = new Set();
+  /** The challenge each live connection was sent. A caller holding this deck's
+   *  own key is answered (see auth), and this is how the deck tells its own
+   *  listener answering it from another machine that holds the same key. */
+  const challenges = new Set();
 
   /** Which host a socket came from, in one spelling. Node reports an IPv4 peer
    *  on a dual-stack listener as `::ffff:127.0.0.1`, and two spellings of one
@@ -281,7 +285,8 @@ export function createSyncServer({
     const deadline = setTimeout(() => { if (!authed) sock.destroy(); }, handshakeMs);
     deadline.unref?.();
 
-    const done = () => { clearTimeout(deadline); live.delete(sock); };
+    challenges.add(myChallenge);
+    const done = () => { clearTimeout(deadline); live.delete(sock); challenges.delete(myChallenge); };
     sock.on("close", done);
     sock.on("error", err => { done(); onError?.("peer", err); });
 
@@ -422,6 +427,16 @@ export function createSyncServer({
       // A recording of a previous exchange fails here, because `myChallenge`
       // was made when this socket opened and has never been sent before.
       if (!proofOk(want, msg.proof)) return refuse("bad proof");
+
+      // A CALLER HOLDING THIS DECK'S OWN KEY, which the proof above just
+      // showed. A deck that hears its own fingerprint from another process
+      // dials the address the beacon named to find out whether another machine
+      // really holds its key (see idClash in lan-engine.mjs), and this is the
+      // answer: our proof back, which only a holder of the key can make, and
+      // nothing more. Never a request to accept — that would pin this deck's
+      // own key — and nothing is served, because every handler asks the
+      // trusted list and this deck's own fingerprint is never on it.
+      if (peerFp === fp) { welcome({}); return; }
 
       // WHO IS THIS, and it is the only question left. The handshake proves
       // they hold the key they claimed; the trusted list says whether anybody
@@ -683,10 +698,14 @@ export function createSyncServer({
       catch (err) { finish(reject, err); }
     }),
     port: () => server?.address()?.port ?? null,
+    /** Whether this listener made `challenge` for a connection still open —
+     *  true when the deck at the other end of a dial is this one. */
+    issued: challenge => typeof challenge === "string" && challenges.has(challenge),
     stop() {
       cancelStart?.();
       for (const s of live) s.destroy();
       live.clear();
+      challenges.clear();
       try { server?.close(); } catch { /* not listening */ }
       server = null;
     },

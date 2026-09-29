@@ -200,6 +200,10 @@ export function connectToPeer({
       resolve({
         sock, key, sealed: !!chan,
         peerFp: theirFp, peerPub: theirPub, peerName: cleanName(msg.name, ""),
+        // The challenge the far end made for this connection, so a deck that
+        // reached its own key can ask its own listener whether it made it —
+        // see `issued` in lan-socket.mjs.
+        peerChallenge: theirChallenge,
         send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
         /** What a frame from the other end says — or null on a sealed
          *  connection when it does not open, which ends the connection: every
