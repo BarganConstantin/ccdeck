@@ -373,7 +373,13 @@ export function installService({
   execPath = process.execPath,
   script,
   logPath,
-  args = ["--no-open"],
+  // `--at-login` because registering the job also STARTS it, on Linux and
+  // macOS — `enable --now`, and RunAtLoad under `launchctl load` — and a deck
+  // of the default shape that finds a `--workspace` or `--no-persist` deck
+  // running replaces it: the newest start wins. So the first start's own offer
+  // stopped the deck the user had just launched (#1778). The marker is what
+  // lets secondStart tell a start nobody typed from one somebody did.
+  args = ["--no-open", "--at-login"],
   // Extra variables for the JOB's environment, which is not this process's.
   //
   // A login item runs in the session the service manager builds, not in the

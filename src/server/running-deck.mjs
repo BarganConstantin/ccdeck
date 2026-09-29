@@ -157,12 +157,19 @@ export function serves(record, { want = {}, port = null, ours = "" } = {}) {
  * deck returning, so anything already running got there in the gap, was asked
  * for more recently, and keeps its place.
  *
+ * `atLogin` is the login item's job (`--at-login`). The newest start wins
+ * because it is the one somebody just asked for, and nobody asked for this
+ * one: registering the item starts it, beside whatever deck the user launched
+ * a second ago (#1778). So it attaches to what is running — the deck that
+ * serves if there is one, else the first — and stops nothing.
+ *
  * The deck kept on an attach is the first that serves, in the registry's port
  * order, so the answer is the same every time it is asked.
  */
-export function secondStart({ live = [], want = {}, port = null, ours = "", fresh = false, respawn = false } = {}) {
+export function secondStart({ live = [], want = {}, port = null, ours = "", fresh = false, respawn = false, atLogin = false } = {}) {
   if (!live.length) return { act: "start", stop: [] };
   if (respawn) return { act: "yield", deck: live[0], stop: [] };
+  if (atLogin) return { act: "attach", deck: live.find(d => serves(d, { want, port, ours })) ?? live[0], stop: [] };
   const keep = fresh ? null : live.find(d => serves(d, { want, port, ours })) ?? null;
   if (keep) return { act: "attach", deck: keep, stop: live.filter(d => d !== keep) };
   return { act: "replace", stop: [...live] };

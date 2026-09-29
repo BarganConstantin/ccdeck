@@ -231,6 +231,9 @@ export function parseArgs(args) {
     else if (a === "--install") out.install = true;
     else if (a === "--install-service") out.installService = true;
     else if (a === "--uninstall-service") out.uninstallService = true;
+    // What the login item's job starts the deck with, and nothing a person is
+    // expected to type: a start at login leaves a running deck alone (#1778).
+    else if (a === "--at-login") out.atLogin = true;
     else if (a === "--uninstall") out.uninstall = true;
     else if (a === "--purge") out.purge = true;
     else if (a === "--workspace") set("workspace", "a path");

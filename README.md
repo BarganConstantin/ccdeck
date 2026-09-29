@@ -286,6 +286,8 @@ ccdeck [options]
       --install-service    Start the deck when you log in. Set up on first run;
                            this is only for putting it back
       --uninstall-service  Stop starting at login (`--uninstall` does this too)
+      --at-login           What the login item starts the deck with: beside a
+                           deck that is already running, it leaves that one be
       --codex              Force Codex capture even if ~/.codex/ is missing
       --no-codex           Skip Codex capture (Claude only)
       --claude             Force Claude capture even if Claude Code wasn't found
