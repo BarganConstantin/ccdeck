@@ -145,15 +145,21 @@ function scheduleRedraw() {
  * at its next quiet spell. See tray-presence.mjs.
  */
 let trayMisses = 0;
-let trayRestartAt = null;     // the last restart for the icon's sake, from desktop-state.json
+let trayRestartAt = null;         // the last restart for the icon's sake, from desktop-state.json
+let trayBackAfterRestart;         // whether the icon has been seen since then
 function watchTray() {
   if (process.platform !== "linux") return;
-  trayRestartAt = desktopState.read().trayRestartAt ?? null;
+  ({ trayRestartAt = null, trayBackAfterRestart } = desktopState.read());
   setInterval(async () => {
+    const present = await trayPresence();
     const before = trayMisses;
-    trayMisses = trayMissesNext(trayMisses, await trayPresence());
+    trayMisses = trayMissesNext(trayMisses, present);
     if (before < MISSES_BEFORE_RESTART && trayMisses >= MISSES_BEFORE_RESTART) {
       trace("the panel holds no tray icon of this app's; restarting at the next quiet spell");
+    }
+    if (present === true && trayBackAfterRestart === false) {
+      trayBackAfterRestart = true;
+      try { desktopState.merge({ trayBackAfterRestart }); } catch { /* asked again at the next check */ trayBackAfterRestart = false; }
     }
   }, 30_000);
 }
@@ -731,8 +737,15 @@ app.whenReady().then(async () => {
   // The status pages, every five minutes while there is work going on — see
   // statusWorthAsking.
   setInterval(() => { if (statusWorthAsking(snapshot)) refreshProviderStatus(); }, 5 * 60_000);
-  // Nobody asked for this one — see openWindow's own doc on `steal`.
-  if (deck) openWindow(false);
+  // Nobody asked for this one — see openWindow's own doc on `steal`. After a
+  // restart the app made by itself, only if the window was open before it: an
+  // open window is a page, and the deck holds its notifications while a page
+  // is open, so one put back that nobody had open would silence them.
+  const { windowOpenAtSelfRestart } = desktopState.read();
+  if (windowOpenAtSelfRestart !== undefined) {
+    try { desktopState.merge({ windowOpenAtSelfRestart: undefined }); } catch { /* read once more at the next start */ }
+  }
+  if (deck && windowOpenAtSelfRestart !== false) openWindow(false);
   await firstRun();
   await offerToReplaceLoginItem().catch(err => trace(`login item check failed: ${err?.message ?? err}`));
 });
@@ -746,6 +759,8 @@ app.whenReady().then(async () => {
  * clock of its own.
  */
 function updateWhenQuiet() {
+  // A Quit being carried out, while its deck shuts down, is not a quiet spell.
+  if (quitting) return;
   const where = {
     windowFocused: !!win && !win.isDestroyed() && win.isFocused(),
     busy: !!starting || !!restarting,
@@ -758,19 +773,28 @@ function updateWhenQuiet() {
   }
   trace(`installing ${updater.state.version} by itself after a quiet spell`);
   quietSince = null;
+  try { desktopState.merge({ windowOpenAtSelfRestart: windowOpen() }); } catch { /* the window opens, as it always did */ }
   updater.restartNow();
+}
+
+/** Whether the window is up now, for a restart the app makes by itself to
+ *  put back as it was. */
+function windowOpen() {
+  return !!win && !win.isDestroyed() && win.isVisible();
 }
 
 /** The same quiet, spent on a tray icon the panel has lost (#1630): a restart
  *  is the one thing that registers it again — see watchTray. An update that
  *  is ready goes first, above, and brings the icon back on its own way. */
 function restartForTrayWhenQuiet(where) {
-  if (!canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, quietSince, ...where })) return;
+  const updateStatus = updater?.state.status ?? "idle";
+  if (!canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, backAfterRestart: trayBackAfterRestart, updateStatus, quietSince, ...where })) return;
   trayRestartAt = where.now;
   // Written down before going, or the next process would not know about this
-  // restart and the six hours between two would not hold across them.
+  // restart: the six hours between two, and whether it brought the icon back,
+  // would not hold across them.
   try {
-    desktopState.merge({ trayRestartAt });
+    desktopState.merge({ trayRestartAt, trayBackAfterRestart: false, windowOpenAtSelfRestart: windowOpen() });
   } catch (err) {
     trace(`not restarting for the tray icon: ${err?.message ?? err}`);
     return;

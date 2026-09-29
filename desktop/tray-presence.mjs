@@ -18,8 +18,9 @@
 // seconds later — nor does a second Tray after a first one that registered.
 // A new process does. So the app, once the icon is lost, restarts by itself —
 // under the same rule a quiet update does (auto-update.mjs: the window left
-// unfocused for a minute, nothing starting) and at most once in six hours, so
-// a panel that refuses every registration costs one restart and not a loop.
+// unfocused for a minute, nothing starting), at most once in six hours, and
+// not at all after a restart that did not bring the icon back — so a panel
+// that refuses every registration costs one restart and not a loop.
 //
 // Whether it is lost is asked from the outside, the way anybody could: busctl
 // reads the items the watcher holds and which process owns each bus name, and
@@ -32,11 +33,14 @@ import { quietLongEnough } from "./auto-update.mjs";
 
 const WATCHER = ["org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher"];
 
-/** The bus name in one of the watcher's entries: KDE-style items are a bare
- *  name, the rest are `name@/object/path`. */
+/** The bus name in one of the watcher's entries. Each panel spells them its
+ *  own way: GNOME's AppIndicator extension `name@/object/path`, KDE Plasma and
+ *  Waybar the name with the path straight after it, `name/object/path`, and
+ *  an item registered by name alone is the bare name. Neither `@` nor `/` can
+ *  be part of a bus name, so the name ends at the first of them. */
 export function itemBusName(item) {
-  const at = item.indexOf("@");
-  return at === -1 ? item : item.slice(0, at);
+  const end = item.search(/[@/]/);
+  return end === -1 ? item : item.slice(0, end);
 }
 
 /**
@@ -87,12 +91,26 @@ export function trayMissesNext(misses, present) {
 }
 
 /**
- * Restart the app now to bring its icon back? Only once it is lost, only when
- * the app has been quiet as long as an update waits, and not again within six
- * hours of the last time.
+ * Restart the app now to bring its icon back? Only once it is lost; only when
+ * the app has been quiet as long as an update waits; not while an update is
+ * being looked for or downloaded, which would be thrown away; not again within
+ * six hours of the last time; and never again after a restart that did not
+ * bring the icon back — a panel this cannot read, or one that refuses every
+ * icon, costs one restart and not four a day. An icon seen again, after a
+ * restart the person made, lifts that.
+ * @param {object} o
+ * @param {number} o.misses                checks in a row that found no icon
+ * @param {number|null} o.lastRestartAt    the last restart for the icon's sake
+ * @param {boolean|undefined} o.backAfterRestart whether the icon has been seen
+ *   since that restart; undefined before the first one
+ * @param {string} o.updateStatus          the updater's state
  */
-export function canRestartForTray({ misses, lastRestartAt, windowFocused, busy, quietSince, now }) {
+export function canRestartForTray({ misses, lastRestartAt, backAfterRestart, updateStatus, windowFocused, busy, quietSince, now }) {
   if (misses < MISSES_BEFORE_RESTART) return false;
-  if (typeof lastRestartAt === "number" && now - lastRestartAt < TRAY_RESTART_GAP_MS) return false;
+  if (updateStatus === "checking" || updateStatus === "downloading") return false;
+  if (typeof lastRestartAt === "number") {
+    if (backAfterRestart === false) return false;
+    if (now - lastRestartAt < TRAY_RESTART_GAP_MS) return false;
+  }
   return quietLongEnough({ windowFocused, busy, quietSince, now });
 }
