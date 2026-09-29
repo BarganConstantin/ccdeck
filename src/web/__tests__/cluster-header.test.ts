@@ -38,7 +38,9 @@ function rendered(h: ClusterHeader): string {
 }
 
 const NAME = "account-management-oauth-flow";
-const SID = "4efa1c2d-0000-4000-8000-000000000000";
+// The header shows the LAST four characters of an id (#1732), so these end in
+// the four the cases expect.
+const SID = "1c2d0000-0000-4000-8000-000000004efa";
 
 describe("the four shapes a cluster header draws", () => {
   it("workspace alone, when there is neither a name nor a collision", () => {
@@ -90,8 +92,8 @@ describe("the name never takes the short id over", () => {
     // The case the id exists for, with the name doing nothing about it: same
     // workspace, same name, two sessions. Without the id these two headers are
     // the same string.
-    const a = clusterHeader("vcrm-core", NAME, "4efa1111-0000-4000-8000-000000000000", true);
-    const b = clusterHeader("vcrm-core", NAME, "9bd70000-0000-4000-8000-000000000000", true);
+    const a = clusterHeader("vcrm-core", NAME, "11110000-0000-4000-8000-000000004efa", true);
+    const b = clusterHeader("vcrm-core", NAME, "22220000-0000-4000-8000-000000009bd7", true);
     expect(rendered(a)).not.toBe(rendered(b));
     expect([a.shortId, b.shortId]).toEqual(["4efa", "9bd7"]);
   });
@@ -189,8 +191,8 @@ describe("the header reads the name off the session root", () => {
 
   it("gives two same-named sessions in one workspace their ids and neither the other name", () => {
     const boxes = clusterBounds([
-      card("4efa1111-0000-4000-8000-000000000000", 0, { sessionName: NAME }),
-      card("9bd70000-0000-4000-8000-000000000000", 900, { sessionName: NAME }),
+      card("11110000-0000-4000-8000-000000004efa", 0, { sessionName: NAME }),
+      card("22220000-0000-4000-8000-000000009bd7", 900, { sessionName: NAME }),
     ]);
     expect(boxes.map(c => c.shortId)).toEqual(["4efa", "9bd7"]);
     expect(boxes.map(c => c.name)).toEqual([NAME, NAME]);

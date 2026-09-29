@@ -313,9 +313,10 @@ describe("the join to the canvas", () => {
 
   it("shows a uuid as a uuid when the board cannot name the session", () => {
     // ccusage remembers sessions this deck never drew — last week's, another
-    // machine's. Eight characters under the full id, marked as the machine
-    // string it is rather than dressed as a project name.
-    expect(sessions).toContain("{s.label ?? s.sessionId.slice(0, 8)}");
+    // machine's. Eight characters under the full id — its last eight, since a
+    // Codex id opens with a timestamp (#1732) — marked as the machine string it
+    // is rather than dressed as a project name.
+    expect(sessions).toContain("{s.label ?? idTail(s.sessionId, 8)}");
     expect(css).toContain(".up-session-id {");
   });
 
@@ -364,12 +365,13 @@ describe("the join to the canvas", () => {
     // Parallel agents in one folder, or a deck restarted: both sessions come
     // back under the same project name, and two identical labels carrying
     // different money read as a bug in the panel rather than as two sessions.
-    // Only a repeated label pays for the uuid fragment.
+    // Only a repeated label pays for the uuid fragment, which is the TAIL of the
+    // id: a Codex id opens with a timestamp (#1732).
     // Called rather than matched, now that it is a function of its own.
     const rows = distinctSessionLabels([
-      { sessionId: "07ac7b2b-0000-4000-8000-000000000001", label: "agents-deck" },
-      { sessionId: "91fe0c3d-0000-4000-8000-000000000002", label: "agents-deck" },
-      { sessionId: "5b1c2d3e-0000-4000-8000-000000000003", label: "vcrm-core" },
+      { sessionId: "7b2b0000-0000-4000-8000-0000000107ac", label: "agents-deck" },
+      { sessionId: "0c3d0000-0000-4000-8000-0000000291fe", label: "agents-deck" },
+      { sessionId: "2d3e0000-0000-4000-8000-000000035b1c", label: "vcrm-core" },
     ]);
     expect(rows.map(r => r.label)).toEqual(["agents-deck 07ac", "agents-deck 91fe", "vcrm-core"]);
     expect(panel).toContain("distinctSessionLabels(ccSessionRows(range, boardNames).slice(0, 12))");

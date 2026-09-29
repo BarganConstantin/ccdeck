@@ -192,8 +192,8 @@ describe("the cluster header falls back to the title too", () => {
     const alone = clusterBounds([card("s1", 0, { sessionTitle: TITLE })]);
     expect(alone[0].shortId).toBeUndefined();
     const colliding = clusterBounds([
-      card("4efa1111-0000-4000-8000-000000000000", 0, { sessionTitle: TITLE }),
-      card("9bd70000-0000-4000-8000-000000000000", 900, { sessionTitle: TITLE }),
+      card("11110000-0000-4000-8000-000000004efa", 0, { sessionTitle: TITLE }),
+      card("22220000-0000-4000-8000-000000009bd7", 900, { sessionTitle: TITLE }),
     ]);
     expect(colliding.map(c => c.shortId)).toEqual(["4efa", "9bd7"]);
   });
@@ -227,8 +227,8 @@ describe("a session with no naming at all is left exactly as it was", () => {
     expect(c.name).toBeUndefined();
     expect(c.fullLabel).toBe("vcrm-core");
     const two = clusterBounds([
-      card("4efa1111-0000-4000-8000-000000000000", 0, {}),
-      card("9bd70000-0000-4000-8000-000000000000", 900, {}),
+      card("11110000-0000-4000-8000-000000004efa", 0, {}),
+      card("22220000-0000-4000-8000-000000009bd7", 900, {}),
     ]);
     expect(two.map(c => c.fullLabel)).toEqual(["vcrm-core · 4efa", "vcrm-core · 9bd7"]);
   });

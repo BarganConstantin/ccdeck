@@ -20,9 +20,11 @@ const root = (sessionId: string, over: Partial<JoinableAgent> = {}): JoinableAge
 const sub = (sessionId: string, over: Partial<JoinableAgent> = {}): JoinableAgent =>
   ({ kind: "subagent", sessionId, label: "Explore", state: "done", ...over });
 
-const A = "aaaa1111-0000-4000-8000-000000000001";
-const B = "bbbb2222-0000-4000-8000-000000000002";
-const C = "cccc3333-0000-4000-8000-000000000003";
+// Each ends in the four characters a repeated name is told apart by — the TAIL
+// of the id, since a Codex id opens with a timestamp (#1732).
+const A = "11110000-0000-4000-8000-00000001aaaa";
+const B = "22220000-0000-4000-8000-00000002bbbb";
+const C = "33330000-0000-4000-8000-00000003cccc";
 
 describe("what the board calls a session", () => {
   it("uses the session's label, and the working directory when it has none", () => {
@@ -62,7 +64,7 @@ describe("what the board says a session is doing", () => {
 describe("two sessions under one name", () => {
   const row = (sessionId: string, label: string | null) => ({ sessionId, label, cost: 1 });
 
-  it("takes the head of the session id for a repeated name, on every row that repeats it", () => {
+  it("takes the tail of the session id for a repeated name, on every row that repeats it", () => {
     const out = distinctSessionLabels([row(A, "vcrm-core"), row(B, "vcrm-core"), row(C, "vcrm-core")]);
     expect(out.map(r => r.label)).toEqual(["vcrm-core aaaa", "vcrm-core bbbb", "vcrm-core cccc"]);
   });
