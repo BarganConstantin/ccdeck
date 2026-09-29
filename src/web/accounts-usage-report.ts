@@ -67,6 +67,37 @@ export interface ReportRow {
    *  Switch to it, so the row says so. */
   heldOut: boolean;
   cells: Record<WindowId, Cell>;
+  /** What the row can do now — see statusOf. */
+  status: Status;
+}
+
+/**
+ * What an account can do now, from its two readings (#1713).
+ *
+ * Two questions, kept apart: can the readings be trusted, and then how many
+ * windows are spent. A reading that is not current — none, too old, a window
+ * reset since, a login no switch gets past — makes the row `stale`, whatever
+ * its last numbers were: an account is never called ready on a reading the
+ * report would not count. Otherwise it is `ready` with room in both windows,
+ * `limited` with one at 100%, and `exhausted` with both. Near a limit is not a
+ * state of its own; the row's number wears the warning ink instead.
+ */
+export type Status = "ready" | "limited" | "exhausted" | "stale";
+
+export function statusOf(cells: Record<WindowId, Cell>): Status {
+  const f = cells.five_hour, s = cells.seven_day;
+  if (!f.counted || !s.counted) return "stale";
+  const spent = Number(f.pct >= 100) + Number(s.pct >= 100);
+  return spent === 0 ? "ready" : spent === 1 ? "limited" : "exhausted";
+}
+
+/** Why a stale row is stale, in the words its first unread reading gives. */
+export function staleReason(cells: Record<WindowId, Cell>): string | null {
+  for (const w of REPORT_WINDOWS) {
+    const c = cells[w.id];
+    if (!c.counted) return c.say;
+  }
+  return null;
 }
 
 /** How old a reading may be and still count — the server's own line. */
@@ -112,12 +143,12 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   if (last == null) return { counted: false, why: "none", say: `No ${label} reading`, last: null };
   const old = a.stale || a.fetchedAt == null || nowSec * 1000 - a.fetchedAt > REPORT_STALE_MS;
   if (old) {
-    return { counted: false, why: "stale", say: a.fetchedAt ? `Last read ${ago(a.fetchedAt, nowSec)}` : "Never read", last };
+    return { counted: false, why: "stale", say: a.fetchedAt ? `Updated ${ago(a.fetchedAt, nowSec)}` : "Never read", last };
   }
   if (lane!.resetAt != null && lane!.resetAt <= nowSec) {
     // Good news the numbers have not caught up with: the window has come back
     // since this was read, so the account is likely emptier than it says.
-    return { counted: false, why: "reset", say: `Reset ${ago(lane!.resetAt * 1000, nowSec)}, not read since`, last };
+    return { counted: false, why: "reset", say: `Reset ${ago(lane!.resetAt * 1000, nowSec)}, not updated`, last };
   }
   return { counted: true, pct: last, resetAt: lane!.resetAt };
 }
@@ -161,21 +192,24 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
  * are the rows the reader already knows.
  */
 export function usageReport(accounts: readonly Account[], nowSec: number): UsageReport {
-  const rows: ReportRow[] = accounts.map(a => ({
-    num: a.num,
-    key: laneKey(a),
-    name: accountName(a),
-    active: a.active,
-    heldOut: a.disabled === true,
-    cells: {
+  const rows: ReportRow[] = accounts.map(a => {
+    const cells = {
       five_hour: readingOf(a, "five_hour", nowSec),
       seven_day: readingOf(a, "seven_day", nowSec),
-    },
-  }));
-  const roomInBoth = rows.filter(r => {
-    const f = r.cells.five_hour, s = r.cells.seven_day;
-    return f.counted && s.counted && f.pct < 100 && s.pct < 100;
-  }).length;
+    };
+    return {
+      num: a.num,
+      key: laneKey(a),
+      name: accountName(a),
+      active: a.active,
+      heldOut: a.disabled === true,
+      cells,
+      status: statusOf(cells),
+    };
+  });
+  // Counted off the rows' own status, so the lead's "7 of 9 ready" and the
+  // rows that say Ready cannot disagree.
+  const roomInBoth = rows.filter(r => r.status === "ready").length;
   return { rows, windows: REPORT_WINDOWS.map(w => windowTotal(rows, w.id)), roomInBoth };
 }
 

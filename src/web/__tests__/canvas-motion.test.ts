@@ -437,6 +437,11 @@ const EXEMPT: string[] = [
   // report something the triangle has already turned to say. It discloses a
   // command and changes nothing else.
   ".ap-lan-reach-fix > summary",
+  // Account capacity's "How usage is calculated" (#1713) — a <summary> set as
+  // a line of 12px text beside its drawn mark, the same kind of control as the
+  // LAN dialog's above. It discloses two paragraphs and changes nothing else,
+  // and it answers the press by its text lifting to --text while it is open.
+  ".ap-report-how > summary",
   // A machine's row in the LAN list. The whole row is the door to that deck's
   // dialog, and a dense list of machines answers a press the way a desktop list
   // does: its tone deepens and nothing moves. A row that scaled slid the name

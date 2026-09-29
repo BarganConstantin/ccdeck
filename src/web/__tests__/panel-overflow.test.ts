@@ -272,10 +272,11 @@ describe("a percentage width under a horizontal margin", () => {
       // each filling the fixed-width day slot the flex plot hands them. Named
       // here so they enter the margin check below; no rule gives them a margin.
       "ap-proj-col", "ap-proj-colseg",
-      // The Usage report's table (#1707), which fills the dialog's body, and
-      // its account column's share of it under `table-layout: fixed`. Named
-      // so they enter the margin check below; no rule gives them a margin.
-      "ap-report-acct-h", "ap-report-table",
+      // The Account capacity table (#1707, #1713), which fills the dialog's
+      // body; its columns are sized in pixels now, and the account column takes
+      // the rest. Named so it enters the margin check below; no rule gives it a
+      // margin.
+      "ap-report-table",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The guides' drawings: an SVG with a viewBox and no width of its own,
       // which the browser would otherwise size to its 300x150 default. Named

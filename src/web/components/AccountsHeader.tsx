@@ -79,8 +79,8 @@ export default function AccountsHeader({
             would be the topbar's History glyph again, one button over. */}
         {canReport && (
           <button type="button" className="glyph-btn" onClick={() => onReport()}
-            aria-label="Usage report" aria-haspopup="dialog"
-            title="Usage report — the 5h and 7d quota added up across every account">
+            aria-label="Account capacity" aria-haspopup="dialog"
+            title="Account capacity — how many accounts are ready, and what the 5h and 7d windows have left">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" aria-hidden>
               <path d="M2.5 10.5a4.5 4.5 0 0 1 9 0" />
