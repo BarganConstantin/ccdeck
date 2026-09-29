@@ -305,10 +305,12 @@ export function createBeacon({
       announce(via === "tailscale" ? [rinfo.address] : []);
     }
     if (verdict !== "peer") {
-      // Another deck is using this one's key — see beaconVerdict. Reported
-      // rather than fixed here: this file carries packets, and choosing a new
-      // identity for the deck belongs to whoever stores it.
-      if (verdict === "id-clash") onIdClash?.();
+      // Another deck may be using this one's key — see beaconVerdict. Reported
+      // with where the beacon says that deck listens, rather than acted on
+      // here: this file carries packets, and finding out whether anything
+      // there holds the key, and choosing a new identity if it does, belong to
+      // whoever stores it.
+      if (verdict === "id-clash") onIdClash?.({ addr: rinfo.address, port: beacon.port });
       // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
       // dropped: it is a name and an address on the same network, which is a
       // row somebody can accept. Nothing is asked of it and nothing is

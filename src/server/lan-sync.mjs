@@ -317,8 +317,9 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
  * A reason rather than a boolean, because each answer asks for something
  * different: a packet that is not a beacon, this deck's own echo, or another
  * deck on this computer is nothing to act on; a deck wearing this one's key
- * (`id-clash`) is a key to replace; a paired deck is a peer to note; and a
- * stranger is a row somebody can accept.
+ * (`id-clash`) is a claim to check, and a key to replace if it holds (see
+ * idClash in lan-engine.mjs); a paired deck is a peer to note; and a stranger
+ * is a row somebody can accept.
  *
  * Self-recognition is by fingerprint, not by address: a deck hears its own
  * broadcast on every interface it owns, and filtering by address would need a

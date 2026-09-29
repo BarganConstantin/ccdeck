@@ -2589,14 +2589,17 @@ describe("what the engine hands its caller to keep", () => {
     // filing the other's beacons as its own, invisible to each other for good
     // unless one of them moves. The one that notices moves, and index.mjs
     // keeps the new key and restarts on it — which it can only do if told.
+    // Only once the copy has proved it holds the key, at the address and port
+    // its beacon named: a beacon alone proves nothing (lan-key-copy-check.test.ts).
     const d = await deck(store([]), "Deck-A", []);
     const was = d.e.status().fp as string;
+    const copy = await deck(store([]), "Deck-A", [], {}, { secret: d.id.secret });
     d.sock.deliver(Buffer.from(JSON.stringify({
-      m: "CCDK", v: PROTOCOL, n: "Deck-A", f: was, p: 40_000,
+      m: "CCDK", v: PROTOCOL, n: "Deck-A", f: was, p: copy.port,
       // Another process (its own instance) on another machine (its own host).
       i: "deadbeef", h: hostId({ hostname: "the-copy", home: "/home/somebody" }),
-    })), "192.168.1.50");
-    expect(d.identities).toHaveLength(1);
+    })), "127.0.0.1");
+    await vi.waitFor(() => expect(d.identities).toHaveLength(1), { timeout: 5_000 });
     expect(identityFrom(d.identities[0]).fp, "the key handed over is the old one").not.toBe(was);
     expect(d.errors).toContain("id-clash");
   });
