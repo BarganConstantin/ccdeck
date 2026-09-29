@@ -59,6 +59,12 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.32.2": [
+    {
+      "title": "🔒 Self-updates wait until your screen is unlocked",
+      "body": "On Linux with GNOME, the app installs an update by itself when you leave it alone, which is often while your screen is locked. GNOME switches the panel's tray off under the lock screen, and a version that started then never showed its icon. The app now waits until you are back before restarting by itself, so its icon comes back with it."
+    }
+  ],
   "3.32.1": [
     {
       "title": "🔔 The tray icon comes back on Linux",
