@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
-import { bundleOf, checkForUpdate, discard, installOnExit, stageUpdate, UPDATE_PUBLIC_KEY } from "./updater-mac.mjs";
+import { bundleOf, checkForUpdate, discard, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY } from "./updater-mac.mjs";
 import { relaunchOnExit } from "./relaunch-linux.mjs";
 
 /** Where releases are published. `releases/latest/download/<file>` is
@@ -102,6 +102,9 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
       lastInfo = info;
       const file = info.downloadedFile;
       try {
+        // Only ever forward: the version this app already is, or one it has
+        // passed, is not an update.
+        if (!isNewer(info.version, app.getVersion())) throw new Error(`${info.version} is not newer than the running ${app.getVersion()}`);
         const ok = verifyFileSignature(await readFile(file), signatureFor(info, file));
         if (!ok) throw new Error("the download is not signed by ccdeck's update key");
         set({ status: "ready", version: info.version });

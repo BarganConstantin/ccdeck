@@ -6,6 +6,7 @@
 //
 //   newer version → the manifest's size and SHA-256 → an Ed25519 signature by
 //   ccdeck's update key → (on a Mac) the running app's designated requirement
+//   → the version the unpacked app says it is
 //
 // The last one needs codesign and a real bundle, and was exercised end to end
 // on a Mac in the phase-0 spike: 3.25.3 updated itself to 3.25.4; a tampered
@@ -221,15 +222,17 @@ describe("staging a download", () => {
   const leftBehind = () => readdirSync(tmp).filter(n => n.startsWith("ccdeck-update-"));
   const served = (body: Buffer) => async () => ({ ok: true, arrayBuffer: async () => Uint8Array.from(body).buffer });
 
-  /** ditto and codesign as a Mac would answer them: `unpack` fills the folder
-   *  ditto was asked to unpack into, and `identity` answers the check. */
-  function tools({ unpack = (_dir: string) => {}, identity = () => {} } = {}) {
+  /** ditto, codesign and PlistBuddy as a Mac would answer them: `unpack`
+   *  fills the folder ditto was asked to unpack into, `identity` answers the
+   *  check, and the unpacked app says it is `version`. */
+  function tools({ unpack = (_dir: string) => {}, identity = () => {}, version = "3.25.4" } = {}) {
     const calls: string[][] = [];
     const execFileImpl = async (cmd: string, args: string[]) => {
       calls.push([cmd, ...args]);
       if (cmd === "ditto") { mkdirSync(args[3], { recursive: true }); unpack(args[3]); return { stdout: "", stderr: "" }; }
       if (cmd === "codesign" && args[0] === "-d") return { stdout: `designated => ${REQUIREMENT}\n`, stderr: `Executable=${RUNNING}/Contents/MacOS/ccdeck\n` };
       if (cmd === "codesign" && args[0] === "--verify") { identity(); return { stdout: "", stderr: "" }; }
+      if (cmd === "/usr/libexec/PlistBuddy") return { stdout: `${version}\n`, stderr: "" };
       throw new Error(`nothing here answers ${cmd}`);
     };
     return { calls, execFileImpl };
@@ -293,6 +296,9 @@ describe("staging a download", () => {
       // satisfy it — never the other way round.
       ["codesign", "-d", "-r-", RUNNING],
       ["codesign", "--verify", "--deep", "--strict", `-R=${REQUIREMENT}`, staged],
+      // And only after that, the version it says it is: the Info.plist it is
+      // read from is sealed by the signature just verified.
+      ["/usr/libexec/PlistBuddy", "-c", "Print :CFBundleShortVersionString", join(staged, "Contents", "Info.plist")],
     ]);
     await discard(dir);
     expect(leftBehind()).toEqual([]);
