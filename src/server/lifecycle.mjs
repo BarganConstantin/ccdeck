@@ -14,7 +14,7 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createActivity } from "./activity.mjs";
-import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
+import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep, turnsQuiet } from "./auto-update.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { logWritableNow } from "./event-log.mjs";
 import { readBody, send } from "./http-io.mjs";
@@ -165,6 +165,14 @@ async function handleUpgrade(_req, res) {
 // `npx -y <spec>@latest` instead of re-running the files already here. Granted
 // only where that is genuinely how this copy updates — the mode is decided from
 // the install on disk, never from the request.
+//
+// `{ whenIdle: true }` is the page's automatic restart, which is granted only
+// while no turn is running here (turnsQuiet). The page counts its idle stretch
+// from its own graph, and a paused canvas stops applying events, so a turn sent
+// from the terminal was invisible to it and the deck restarted under the agent
+// (#1764). This process hears every turn whatever a page is doing, and it is
+// asked at the moment the restart would happen. A person's press does not send
+// it: "Restart anyway" is theirs to make.
 async function handleRestart(req, res) {
   if (!_onRestart) return send(res, 501, { ok: false, reason: "unsupervised" });
   // Enforced here and not only in the UI. Under --no-persist a restart destroys
@@ -178,9 +186,14 @@ async function handleRestart(req, res) {
   if (!canRestartNow()) return send(res, 409, { ok: false, reason: "log_unwritable" });
 
   let wantUpgrade = false;
+  let whenIdle = false;
   if (req.method === "POST") {
     const body = await readBody(req, res).catch(() => null);
-    try { wantUpgrade = JSON.parse(body ?? "")?.upgrade === true; } catch { /* a plain restart */ }
+    try {
+      const ask = JSON.parse(body ?? "");
+      wantUpgrade = ask?.upgrade === true;
+      whenIdle = ask?.whenIdle === true;
+    } catch { /* a plain restart */ }
   }
   let mode = null;
   if (wantUpgrade) {
@@ -194,6 +207,12 @@ async function handleRestart(req, res) {
   }
 
   if (_restarting) return send(res, 202, { ok: true, already: true });
+  if (whenIdle) {
+    const now = Date.now();
+    if (!turnsQuiet({ busy: activity.busy(now), quietMs: activity.quietMs(now) })) {
+      return send(res, 409, { ok: false, reason: "busy" });
+    }
+  }
   _restarting = true;
   // Accepted either way — the ask is good and the launcher holds on to it — but
   // the two are not the same event and answering 200 to both would be this

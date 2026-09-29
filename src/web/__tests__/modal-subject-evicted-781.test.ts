@@ -107,7 +107,8 @@ describe("what App.tsx does about it", () => {
     expect(ctx).toBeLessThan(tickEnd);
     expect(sum).toBeLessThan(tickEnd);
     const selection = readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8");
-    expect(selection).toMatch(/const pruneSelectionToBoard = useCallback\(\(\) => \{\s*setSelectedIds\(prev => pruneSelection\(prev, stateRef\.current\.agents\)\);\s*setPrimarySelectedId\(prev => \(prev != null && !stateRef\.current\.agents\.has\(prev\) \? null : prev\)\);/);
+    // The set and its primary are one state since #1766, pruned by one updater.
+    expect(selection).toMatch(/const pruneSelectionToBoard = useCallback\(\(\) => \{\s*setSelection\(prev => \{\s*const ids = pruneSelection\(prev\.ids, stateRef\.current\.agents\);\s*const primary = prev\.primary != null && !stateRef\.current\.agents\.has\(prev\.primary\) \? null : prev\.primary;/);
   });
 
   it("still counts them as open while they can render, which is what the flag is for", () => {

@@ -264,7 +264,12 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
     <button
       type="button"
       className="ctx-donut"
-      onClick={onClick}
+      // The donut sits inside a card, and React Flow runs the node's click for
+      // a press on any button in it: the card was selected, a detail panel on
+      // another agent closed, the camera moved and auto-fit went off, all
+      // behind the modal this opens (#1765). The recap pin beside it stops the
+      // click for the same reason.
+      onClick={e => { e.stopPropagation(); onClick?.(); }}
       title={`context: ${currentContextTokens.toLocaleString()} / ${window.toLocaleString()} (${(pct * 100).toFixed(1)}%)`}
       /* THE NUMBER, not only the verb. `aria-label` on a button overrides its
          contents, so the <text> percentage inside the svg was never read, and
