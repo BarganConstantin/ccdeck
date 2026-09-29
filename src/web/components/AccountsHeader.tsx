@@ -1,5 +1,6 @@
-// The accounts panel's header: its title, and the four controls that act on
-// the panel as a whole — add an account, share several, reload, close.
+// The accounts panel's header: its title, and the five controls that act on
+// the panel as a whole — add an account, the usage report, share several,
+// reload, close.
 //
 // Lifted out of AccountsPanel.tsx unchanged. It is drawn while the accounts
 // have the column; Local network draws a header of its own, and the one close
@@ -16,7 +17,10 @@ type RequestSlot = ReturnType<typeof useRequestSlot>;
 interface Props {
   /** Whether the store holds any account to share. */
   canShare: boolean;
+  /** Whether there is any account to report on (#1707). */
+  canReport: boolean;
   onAdd: () => void;
+  onReport: () => void;
   onShareSet: () => void;
   onReload: () => void;
   pressProps: RequestSlot["pressProps"];
@@ -26,7 +30,7 @@ interface Props {
 }
 
 export default function AccountsHeader({
-  canShare, onAdd, onShareSet, onReload, pressProps, reloading, closeButton,
+  canShare, canReport, onAdd, onReport, onShareSet, onReload, pressProps, reloading, closeButton,
 }: Props) {
   return (
     <div className="ap-header">
@@ -67,6 +71,26 @@ export default function AccountsHeader({
             <path d="M7 2.2v9.6M2.2 7h9.6" />
           </svg>
         </button>
+        {/* ACCOUNT CAPACITY (#1707, #1713): how many accounts are ready, and
+            what the 5-hour and 7-day windows have left across them — the
+            question ten rows cannot answer at a glance. A panel-level read, so
+            it is up here with the panel's other acts, and drawn only when there
+            is an account to report on. A gauge, drawn to the small-icon spec:
+            three bars would be the topbar's History glyph again, one button
+            over. A dial open at the bottom, not a half-circle: the half-circle
+            it was sat in the lower half of the box with half its neighbours'
+            height of ink, and read as a stray arc on the baseline (#1713). */}
+        {canReport && (
+          <button type="button" className="glyph-btn" onClick={() => onReport()}
+            aria-label="Account capacity" aria-haspopup="dialog"
+            title="Account capacity — how many accounts are ready, and what the 5h and 7d windows have left">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+              <path d="M2.5 10.9A5.2 5.2 0 1 1 11.5 10.9" />
+              <path d="M7 8.3l2.1-2.1" />
+            </svg>
+          </button>
+        )}
         {/* #518: this used to be `disabled={reloading}`, which disabled the
             control the press came from and dropped focus to the document
             body on every reload. It is inert while somebody ELSE is working and busy while

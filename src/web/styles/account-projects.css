@@ -190,3 +190,251 @@
 }
 .ap-proj-day-detail-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-proj-day-detail-cost { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ACCOUNT CAPACITY (#1707, reworked in #1713) — components/AccountsUsageReport.tsx,
+   in the Projects report's dialog shell. Read top to bottom in the order a
+   glance needs it: the accounts ready, the two windows' capacity, the rows,
+   and how it is worked out, folded away. Groups are told apart by space and
+   one quiet surface rather than by rules, so the only line left is the one
+   under the column names. */
+.ap-report-modal {
+  width: min(600px, calc(100vw - 32px));
+  /* One step above --muted, for the labels a reader has to find — the column
+     names, a card's window, a stale reading's age — and still short of the
+     prose tier. Mixed from tokens, so both themes re-tune it with them. */
+  --report-meta: color-mix(in srgb, var(--muted) 78%, var(--text));
+}
+.ap-report-modal .ap-proj-head { padding: 18px 24px 0; border-bottom: 0; background: none; }
+.ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
+.ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; }
+/* The stuck names' own 8px above them is part of the gap in flow. */
+.ap-report-table { margin-top: -8px; }
+/* The body scrolls with enough accounts, and a scroller is a Tab stop in the
+   browsers that make it one: the ring goes inside, where the dialog's own
+   clipping cannot cut it off. */
+.ap-report-body:focus-visible { outline-offset: -2px; }
+.ap-report-held { margin: 0; font-size: 12px; color: var(--text-secondary); }
+
+/* The answer, and the one large number in the dialog: how many accounts can
+   be worked on now. The windows' averages under it are smaller on purpose —
+   an average can hide spent accounts behind fresh ones. */
+.ap-report-lead { margin: 0; font-size: 14px; color: var(--text); }
+.ap-report-lead b {
+  margin-right: 2px;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Each window's capacity, on a surface one step off the dialog rather than in
+   a box. In light the dialog is already the lightest surface there is, so the
+   card takes the canvas's tint instead. */
+.ap-report-sums { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ap-report-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-panel);
+  background: var(--bg-soft);
+}
+:root[data-theme="light"] .ap-report-sum { background: var(--bg); }
+.ap-report-win { margin: 0; font-size: 11px; font-weight: 600; color: var(--report-meta); }
+.ap-report-left { margin: 0; font-size: 12px; color: var(--report-meta); }
+.ap-report-left b {
+  margin-right: 2px;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+/* What remains, as one thin bar in the inks every quota bar in the deck uses —
+   the Usage panel's and the accounts panel's lanes: the accent while there is
+   room, then the warning and the error inks once the window has used 70% and
+   90%. */
+.ap-report-meter { height: 4px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.ap-report-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  /* Scaled, never resized — the Usage panel's `.qb-fill` does the same, for
+     the same reason: a new reading is a compositor move, not a relayout. */
+  transform: scaleX(var(--left, 1));
+  transform-origin: left center;
+  transition: transform 400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* Grown in from the left as the dialog opens, in the time its figures take to
+   count up (count-up.ts's COUNT_MS is 420ms), so the bar and the number above
+   it arrive together (#1713). */
+@starting-style {
+  .ap-report-meter i { transform: scaleX(0); }
+}
+.ap-report-meter[data-level="mid"] i { background: var(--warn); }
+.ap-report-meter[data-level="hi"] i { background: var(--err); }
+.ap-report-reset,
+.ap-report-none { margin: 0; font-size: 12px; color: var(--report-meta); }
+.ap-report-reset { display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; }
+.ap-report-reset > span { flex: none; }
+.ap-report-reset > .ap-report-who { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ap-report-more { color: var(--report-meta); }
+.ap-report-none { color: var(--text); }
+.ap-report-basis { margin: 0; font-size: 11px; color: var(--report-meta); }
+.ap-report-num { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* The rows: a name, each window's use with its own reset beside it, and the
+   state. Fixed layout so a long address is cut rather than widening the
+   dialog; the column names stay at the top while the rows scroll. */
+.ap-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.ap-report-col-win { width: 96px; }
+.ap-report-col-state { width: 88px; }
+.ap-report-col-upd { width: 88px; }
+.ap-report-table th,
+.ap-report-table td { padding: 6px 0 6px 12px; text-align: left; vertical-align: baseline; }
+.ap-report-table :is(th, td):first-child { padding-left: 0; }
+.ap-report-table thead th {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  /* Room above the names once they are stuck under the dialog's title, which
+     has no rule of its own to stand them off. */
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--panel);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--report-meta);
+}
+.ap-report-acct { overflow: hidden; font-weight: 400; color: var(--text); }
+/* The rows come in one after another as the dialog opens: a few pixels up and
+   into view, 30ms apart and never more than ten steps, so twenty-five accounts
+   still land inside the time the figures above take. Once, when a row is
+   first drawn — a poll re-renders a row, it does not re-insert it. */
+@keyframes ap-report-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
+.ap-report-table tbody tr {
+  animation: ap-report-row-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(min(var(--row, 0), 10) * 30ms);
+}
+.ap-report-acct-in { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.ap-report-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-report-current,
+.ap-report-tag { flex: none; padding: 0 5px; border-radius: var(--r-tag); font-size: 10px; line-height: 16px; }
+/* The account every new session starts on: named, in the accent the deck
+   keeps for what is live, rather than a dot a reader has to know. */
+.ap-report-current { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ap-report-tag { border: 1px solid var(--line); line-height: 14px; color: var(--report-meta); }
+.ap-report-cell { white-space: nowrap; }
+.ap-report-pct { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.ap-report-pct[data-level="mid"] { color: var(--warn); }
+.ap-report-pct[data-level="hi"] { color: var(--err); font-weight: 600; }
+.ap-report-in {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--report-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ap-report-cell[data-uncounted] .ap-report-pct { color: var(--muted); }
+/* A mark and a word for each state. Ready's mark is the settled green and its
+   word stays neutral, so a column of ready accounts is quiet; Limited and
+   Exhausted wear the warning and the error inks, mark and word; Stale is a
+   hollow mark in the muted one, the only grey here that means anything. The
+   marks are drawn as borders, which a Contrast theme repaints in CanvasText on
+   its own — a filled mark stays filled and a hollow one hollow. */
+.ap-report-state-word { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--report-meta); }
+.ap-report-state-word i {
+  flex: none;
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border: 3px solid currentColor;
+  border-radius: 50%;
+}
+.ap-report-state[data-status="ready"] .ap-report-state-word i { border-color: var(--ok); }
+.ap-report-state[data-status="limited"] .ap-report-state-word { color: var(--warn); }
+.ap-report-state[data-status="exhausted"] .ap-report-state-word { font-weight: 600; color: var(--err); }
+.ap-report-state[data-status="stale"] .ap-report-state-word { color: var(--muted); }
+.ap-report-state[data-status="stale"] .ap-report-state-word i { border-width: 1.5px; }
+/* How current each row's numbers are, in a column of its own so every row is
+   one line: "now" stays quiet, and an age or a reason is the one to notice. */
+.ap-report-upd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--report-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ap-report-upd[data-old] { color: var(--text); }
+
+/* How it is worked out, folded away: it matters once, not on every glance. */
+.ap-report-how { margin-top: -8px; font-size: 12px; }
+.ap-report-how > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  list-style: none;
+  cursor: pointer;
+  color: var(--report-meta);
+}
+.ap-report-how > summary::-webkit-details-marker { display: none; }
+.ap-report-how > summary:hover,
+.ap-report-how[open] > summary { color: var(--text); }
+.ap-report-how-mark { flex: none; }
+.ap-report-how-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 62ch;
+  margin-top: 6px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.ap-report-how-body p { margin: 0; }
+.ap-report-how-body b { font-weight: 600; color: var(--text); }
+/* Less motion, asked for: the figures appear (use-count-up.ts), the bars stand
+   at their reading — with no transition, the starting style above draws
+   nothing — and the rows only fade in: no movement, still an arrival. */
+@keyframes ap-report-row-fade {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-report-meter i { transition: none; }
+  .ap-report-table tbody tr { animation: ap-report-row-fade 160ms ease both; animation-delay: 0ms; }
+}
+/* One total a row at a phone's width, so each keeps its number whole. */
+@media (max-width: 480px) {
+  .ap-report-sums { grid-template-columns: 1fr; }
+}
+/* Narrow: a tighter frame, and each row's reset under its number rather than
+   beside it, so the names keep the room. */
+@media (max-width: 520px) {
+  .ap-report-modal .ap-proj-head { padding: 16px 16px 0; }
+  .ap-report-body { gap: 20px; padding: 16px; }
+  .ap-report-table thead th { top: -16px; }
+  .ap-report-col-win { width: 64px; }
+  .ap-report-col-state { width: 96px; }
+  /* No room for a fifth column: the age goes, and the rows keep their state. */
+  .ap-report-col-upd { width: 0; }
+  .ap-report-upd,
+  .ap-report-upd-h { display: none; }
+  .ap-report-in { display: block; margin-left: 0; }
+  .ap-report-acct-in { flex-wrap: wrap; row-gap: 2px; }
+}
+/* A phone's narrowest: the percent columns take only what "100%" needs and the
+   rows drop their own reset, which the cards above still give, so the names
+   keep a column wide enough to read. */
+@media (max-width: 360px) {
+  .ap-report-col-win { width: 48px; }
+  .ap-report-col-state { width: 88px; }
+  .ap-report-in { display: none; }
+}

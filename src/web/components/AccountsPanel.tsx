@@ -7,20 +7,26 @@
 // directly would rate-limit the user's actual account. That has a visible
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
+import AccountsUsageReport from "./AccountsUsageReport";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
-import { isAutoArmed, pastThreshold, peersOf } from "../account-fold";
+import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
 import { lanAccounts } from "../account-lan";
-import { knownLanes, laneKey, toggleLane } from "../lane-open";
+import { laneKey } from "../lane-open";
+import {
+  allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
+  type Openness,
+} from "../other-accounts-order";
+import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
 import { accountIssue } from "../account-issue";
@@ -62,6 +68,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
   const [addOpen, setAddOpen] = useState(false);
+  // The Usage report (#1707): every account's 5h and 7d added up, and the
+  // order the panel listed them in when it was opened — its rows keep that
+  // order through the polls, as the panel's own list does under a reader.
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportOrder, setReportOrder] = useState<string[]>([]);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
   // account to somebody else. Its own dialog, so the row keeps its one-click
@@ -85,7 +96,21 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // belonging to somebody else. laneKey names the account instead; see
   // lane-open.ts, which also says why a fifth ManageState field would not have
   // been enough.
-  const [openLanes, setOpenLanes] = useState<string[]>([]);
+  //
+  // KEPT BETWEEN RELOADS, AND AS A MODE (#1579). Comparing nine accounts meant
+  // opening nine rows, and every one of them shut again when the panel closed.
+  // "Expand all" is a mode rather than a list of whoever was there when it was
+  // pressed, so it holds for an account signed in later, and each row's own
+  // press still works after it — see other-accounts-order.ts. What is stored,
+  // and where, is accounts-prefs.ts's.
+  const [openness, setOpenness] = useState<Openness>(loadOpenness);
+  // The order the accounts behind the fold are listed in (#1579): slot, how
+  // full they are by one window, or how much room they have. Kept the same way.
+  const [order, setOrder] = useState<string>(loadOrder);
+  // The list's order at the moment the pointer or the keyboard came into it,
+  // or null while nobody is there: a poll that moves the numbers does not move
+  // the rows under a reader's hand. See holdOrder.
+  const [held, setHeld] = useState<string[] | null>(null);
   /** Whether the accounts behind the fold are drawn. Shut on open, every time:
    *  the column's first screen is the live account, and a fold that remembered
    *  being open would give a reader who unfolded it once a panel that never
@@ -103,7 +128,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // that knows an account has gone, so the roster is where the set is trimmed.
   // Unchanged in and unchanged out when nobody left, which is every poll but
   // one.
-  const trimLanes = useCallback((fresh: AccountsData) => setOpenLanes(open => knownLanes(open, fresh.accounts)), []);
+  const trimLanes = useCallback((fresh: AccountsData) => setOpenness(open => trimOpenness(open, fresh.accounts)), []);
   const { data, auto, reloading, failure, load, sayFailure, clearFailure } = useAccountRoster(trimLanes);
   // Focus through a roster the panel did not ask for: a switch made outside it
   // redraws the focused row in the other list — see use-roster-focus.ts.
@@ -156,6 +181,12 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // in that order. See use-panel-clock.ts.
   const nowSec = usePanelClock();
 
+  // What the fold remembers is written back as it changes (#1579) — after the
+  // clock, like every effect in this panel, so the roster's poll and the tick
+  // keep the order they have always started in.
+  useEffect(() => { saveOpenness(openness); }, [openness]);
+  useEffect(() => { saveOrder(order); }, [order]);
+
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec) : null;
 
@@ -170,7 +201,67 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // fold — so the roster is drawn as it always was, which is also what every
   // reader of a one-account store sees.
   const roster = data?.accounts ?? [];
-  const rest = activeAcct ? roster.filter(a => !a.active) : [];
+  const others = activeAcct ? roster.filter(a => !a.active) : [];
+  // In the reader's order (#1579), and held where it was while they are in the
+  // list. An order stored for a model no account has any more is slot order.
+  const choices = orderChoices(others);
+  const shownOrder = validOrder(order, others);
+  const rest = holdOrder(sortAccounts(others, shownOrder, a => reachable(a, nowSec)), held);
+  /**
+   * HELD WHILE A READER IS IN IT (#1579). A sorted list whose rows jumped on a
+   * poll would move the Switch the reader was reaching for, so the order is
+   * taken when they come in and let go when nothing holds it any more, and the
+   * fresh one lands then. Three things hold it, kept in a ref because they are
+   * facts about the pointer and the page rather than things to draw:
+   *
+   *   - the pointer, over the list;
+   *   - the KEYBOARD's focus in it, and not every focus: a row's door keeps
+   *     focus after a mouse press, and a hold kept by that outlasted the
+   *     pointer until something else was clicked;
+   *   - a row's ⋯ menu or warning, open. Both are portalled outside the list
+   *     and anchored to their row, so moving into one left the list — and a
+   *     poll then moved the row, and the menu with it, while Remove was being
+   *     armed.
+   */
+  const pointerIn = useRef(false);
+  const keysIn = useRef(false);
+  const popoverIn = useRef(false);
+  const letGo = useCallback(() => {
+    if (!pointerIn.current && !keysIn.current && !popoverIn.current) setHeld(null);
+  }, []);
+  const take = () => setHeld(h => h ?? rest.map(laneKey));
+  const listHold = {
+    onPointerEnter: () => { pointerIn.current = true; take(); },
+    onPointerLeave: () => { pointerIn.current = false; letGo(); },
+    onFocus: (e: FocusEvent<HTMLUListElement>) => {
+      if ((e.target as Element).matches(":focus-visible")) { keysIn.current = true; take(); }
+    },
+    onBlur: (e: FocusEvent<HTMLUListElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) { keysIn.current = false; letGo(); }
+    },
+  };
+  const popoverHolds = (menuFor != null && others.some(a => a.num === menuFor))
+    || (issueOpen != null && others.some(a => a.num === issueOpen.num));
+  useEffect(() => {
+    popoverIn.current = popoverHolds;
+    if (!popoverHolds) letGo();
+  }, [popoverHolds, letGo]);
+  // Nothing holds a list that is not on screen. One that unmounts under the
+  // pointer gets no pointerleave — the fold shut, or a roster between two
+  // switches with nobody live — and would come back frozen on the old order.
+  const listShown = restOpen && others.length > 0;
+  useEffect(() => {
+    if (listShown) return;
+    pointerIn.current = keysIn.current = popoverIn.current = false;
+    setHeld(null);
+  }, [listShown]);
+  // And the list's own controls leave with the last of the others. Focus on
+  // one of them would drop to the page; the panel's rescue puts it back.
+  const hadOthers = useRef(false);
+  useEffect(() => {
+    if (hadOthers.current && others.length === 0) rescueFocus(null);
+    hadOthers.current = others.length > 0;
+  }, [others.length, rescueFocus]);
   const head = rest.length ? roster.filter(a => a.active) : roster;
   // What the fold's row says about them — how many can be reached, whether
   // the live account is past the threshold, whether anything will switch
@@ -292,7 +383,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // on it left, whether a switch from the panel just landed on it, the note a
   // swap left on it and who that swap displaced, and whether its warning's
   // explanation is open.
-  const opened = openLanes.includes(laneKey(a));
+  const opened = isOpen(openness, a);
   const menuOpen = menuFor === a.num;
   const refusal = failure?.row === a.num ? failure : null;
   const switchedHere = switched?.num === a.num;
@@ -301,12 +392,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const issueExpanded = issueOpen?.anchor === `ap-issue-${a.num}`;
     return (
       <AccountRow key={a.num} a={a} nowSec={nowSec}
-        opened={opened} onToggleLanes={() => setOpenLanes(o => toggleLane(o, a))}
+        opened={opened} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
         refusal={refusal} onDismissRefusal={() => clearFailure()}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
-        issueExpanded={issueExpanded} onOpenIssue={openIssue} />
+        issueExpanded={issueExpanded} onOpenIssue={openIssue}
+        sortKey={a.active ? null : orderKey(shownOrder)} />
     );
   };
 
@@ -345,7 +437,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
-          onAdd={() => setAddOpen(true)} onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
+          // Two or more: one account's report is the row above it again. And
+          // kept while the report is open, so a poll that empties the roster
+          // does not take away the control focus goes back to.
+          canReport={(data?.accounts?.length ?? 0) > 1 || reportOpen}
+          onAdd={() => setAddOpen(true)}
+          onReport={() => { setReportOrder([...head, ...rest].map(laneKey)); setReportOpen(true); }}
+          onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
           pressProps={pressProps} reloading={reloading} closeButton={closeBtn} />
       )}
 
@@ -443,6 +541,12 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   threshold={auto?.ok ? threshold : null}
                   open={restOpen}
                   onToggle={() => setRestOpen(o => !o)}
+                  order={shownOrder}
+                  choices={choices}
+                  onOrder={setOrder}
+                  allOpen={allOpen(openness, rest)}
+                  onToggleAll={() => setOpenness(o => toggleAll(o, rest))}
+                  held={held != null}
                 />
               )}
               {/* WHAT THE ROW OPENS, in one box, because that is what it claims
@@ -452,7 +556,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   and a row's menu closes against it. */}
               {rest.length > 0 && restOpen && (
                 <div className="ap-rest-panel" id="ap-rest-panel">
-                  <ul className="ap-list ap-others" id="ap-rest-list">
+                  <ul className="ap-list ap-others" id="ap-rest-list" {...listHold}>
                   {rest.map(accountRow)}
                   </ul>
                   {policyBlock}
@@ -580,6 +684,16 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           />
         );
       })()}
+      {/* The Usage report (#1707) — components/AccountsUsageReport.tsx. The
+          panel's roster, handed in on every poll, in the order the panel had
+          when it opened, and read on the panel's clock: an open report moves
+          with the panel and starts no poll. A reload that failed is said
+          there too, because the report stands over the line that says it. */}
+      {reportOpen && (
+        <AccountsUsageReport accounts={data?.accounts ?? null} order={reportOrder}
+          failed={failure?.reload ? failure.text : null}
+          nowSec={nowSec} onClose={() => setReportOpen(false)} />
+      )}
     </aside>
   );
 }

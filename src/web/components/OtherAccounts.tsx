@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type Peer, foldPeek, restLine } from "../other-accounts";
+import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
 import { placeBeside } from "../popover-place";
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from "./LanSyncSection";
 
@@ -104,7 +105,9 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * list the reader owns and switches between, so the switch stays in this
  * column rather than behind a view and a way back.
  */
-export default function OtherAccounts({ peers, strained, armed, threshold, open, onToggle }: {
+export default function OtherAccounts({
+  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false,
+}: {
   peers: Peer[];
   /** Where auto-switch trips. This row says it because the control that sets
    *  it is behind this row now. */
@@ -118,6 +121,15 @@ export default function OtherAccounts({ peers, strained, armed, threshold, open,
   armed: boolean;
   open: boolean;
   onToggle: () => void;
+  /** The order the list is in, as one of `choices` (#1579). */
+  order: string;
+  choices: OrderChoice[];
+  onOrder: (order: string) => void;
+  /** Every row behind the fold is open, so the next press shuts them all. */
+  allOpen: boolean;
+  onToggleAll: () => void;
+  /** The list is holding the order the reader found it in — see holdOrder. */
+  held?: boolean;
 }) {
   const [peek, setPeek] = useState(false);
   const peekTimer = useRef(0);
@@ -192,6 +204,91 @@ export default function OtherAccounts({ peers, strained, armed, threshold, open,
       </button>
       {peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
+      {open && <RestTools order={order} choices={choices} onOrder={onOrder}
+        allOpen={allOpen} onToggleAll={onToggleAll} held={held} />}
+    </div>
+  );
+}
+
+/**
+ * THE LIST'S TWO CONTROLS, IN THE ROW THAT OPENS IT (#1579): the order, and
+ * every row open or shut at once.
+ *
+ * In the fold's own row, beside its chevron, rather than a row of buttons over
+ * the list: the fold row is already the thing that governs the list, and a bar
+ * of controls would be the one toolbar in a column that has none. Drawn only
+ * while the list is open, because there is nothing to order or open while it
+ * is shut, and siblings of the row's button rather than inside it — a control
+ * inside a button is not a control. Their box is the height of the row, so a
+ * press that misses one of them by a few pixels lands on nothing rather than
+ * on the row, which would fold the list shut under the reader's hand.
+ *
+ * QUIET AT REST — no edge, --muted — and clear under the pointer and the
+ * keyboard, with the neutral edge and fill every control in this column comes
+ * up to. The order is a native select: the keyboard, a screen reader and a
+ * touch screen all get the platform's own list, and what it shows closed is
+ * the order the list is in. It is drawn at --text once it is anything but
+ * slot, so a sorted list says so, and with a dashed edge while the list is
+ * holding the order the reader found — the deck's mark for "the last thing,
+ * not the latest" — with the reason in its title.
+ *
+ * ITS WIDTH IS MEASURED, not reserved. The row's words stop short of the
+ * controls, and a fixed reservation sized for the longest order cut "Auto-
+ * switch has nowhere to go" in half beside "Slot", with sixty pixels unused.
+ */
+function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
+  order: string;
+  choices: OrderChoice[];
+  onOrder: (order: string) => void;
+  allOpen: boolean;
+  onToggleAll: () => void;
+  held: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const row = el?.parentElement;
+    if (!el || !row) return;
+    const measure = () => row.style.setProperty("--rest-tools-w", `${Math.ceil(el.offsetWidth)}px`);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => { ro.disconnect(); row.style.removeProperty("--rest-tools-w"); };
+  }, []);
+  const label = choices.find(c => c.id === order)?.label ?? "Slot";
+  return (
+    <div className="ap-rest-tools" ref={ref}>
+      <span className="ap-rest-sort">
+        <select value={order} onChange={e => onOrder(e.target.value)}
+          aria-label="Order of the other accounts"
+          // The whole order, for a label the cap has cut; and while the list
+          // is held, why it does not match what the numbers now say.
+          title={held ? `${label} — held where it was while you are in the list` : label}
+          data-sorted={order === SLOT_ORDER ? undefined : ""}
+          data-held={held ? "" : undefined}>
+          {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M2.5 3.8 5 6.3l2.5-2.5" />
+        </svg>
+      </span>
+      {/* A toggle, named once and pressed or not: a name that changed under
+          the keyboard's focus is one most screen readers never announce.
+          The glyph is unfold and fold — arrows away from a rule and towards
+          it — because two chevrons stacked are the platform's sign for sort
+          and for a list box, and this sits beside one. */}
+      <button type="button" className="ap-rest-all" aria-label="Expand every account" aria-pressed={allOpen}
+        aria-controls="ap-rest-list" title={allOpen ? "Collapse every account" : "Expand every account"}
+        onClick={onToggleAll}>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d={allOpen
+            ? "M2 7h10M7 1.5V5M5.2 3.2 7 5l1.8-1.8M7 12.5V9M5.2 10.8 7 9l1.8 1.8"
+            : "M2 7h10M7 1.5V5M5.2 3.3 7 1.5l1.8 1.8M7 12.5V9M5.2 10.7 7 12.5l1.8-1.8"} />
+        </svg>
+      </button>
     </div>
   );
 }

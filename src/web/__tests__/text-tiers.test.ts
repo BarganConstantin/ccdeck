@@ -156,6 +156,12 @@ describe("what was migrated to the secondary tier", () => {
       // it on. Prose, in a card whose other line is a verb in the accent.
       ".ap-issue-hint",
       ".ap-lan-intro-text",
+      // Account capacity (#1713): the sentence that says these are the last
+      // readings, and the folded-away explanation of how the report is worked
+      // out. Both are sentences read once; every figure and label around them
+      // stays on the metadata tiers.
+      ".ap-report-held",
+      ".ap-report-how-body",
       ".bw-access dd",
       ".bw-empty-note",
       ".bw-key dd",

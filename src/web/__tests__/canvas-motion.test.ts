@@ -374,6 +374,9 @@ const PRESSES: Press[] = [
   // like `.up-disclose`. Both are labelled controls, so 0.97.
   [".sm-file:active", "0.97", "transform"],
   [".sm-voice summary:active", "0.97", "transform"],
+  // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
+  // labelled control by its name, like the header's icon buttons — 0.97.
+  [".ap-rest-all:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -434,6 +437,11 @@ const EXEMPT: string[] = [
   // report something the triangle has already turned to say. It discloses a
   // command and changes nothing else.
   ".ap-lan-reach-fix > summary",
+  // Account capacity's "How usage is calculated" (#1713) — a <summary> set as
+  // a line of 12px text beside its drawn mark, the same kind of control as the
+  // LAN dialog's above. It discloses two paragraphs and changes nothing else,
+  // and it answers the press by its text lifting to --text while it is open.
+  ".ap-report-how > summary",
   // A machine's row in the LAN list. The whole row is the door to that deck's
   // dialog, and a dense list of machines answers a press the way a desktop list
   // does: its tone deepens and nothing moves. A row that scaled slid the name
@@ -454,6 +462,10 @@ const EXEMPT: string[] = [
   // their own 0.97.
   ".ap-row-open",
   ".ap-nav",
+  // The Other accounts list's order (#1579), a native select. Its press is
+  // answered by the platform's own list opening over it; scaling the control
+  // in the same instant would shift the words the list is drawn against.
+  ".ap-rest-sort select",
   // The appearance menu's Claude FM row: a <label> round the switch, the same
   // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
   // answer the press, and a scaled row would slide the words out from under it.

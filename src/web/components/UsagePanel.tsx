@@ -17,6 +17,7 @@ import { loadPeriod, loadSessionsOpen, savePeriod, saveSessionsOpen } from "../u
 import type { GraphState } from "../reducer";
 import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
+import type { Incident } from "../provider-status";
 import CostBar from "./CostBar";
 import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
@@ -60,12 +61,15 @@ interface Props {
   now: number;
   /** Which CLIs this deck watches — see src/web/providers.ts. */
   providers: Providers;
+  /** What the providers' status pages report, incidents only (#1311). Each
+   *  quota section draws its own provider's, under its heading. */
+  incidents?: Incident[];
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
 }
 
-export default function UsagePanel({ state, now, providers, leaving, onClose, liveSince = null }: Props & {
+export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, liveSince = null }: Props & {
   /** When the stream's replay landed, or null while there is none — see App.tsx.
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
@@ -321,7 +325,8 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
 
       {/* ── Claude quota ── */}
       {providers.claude && (
-        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} />
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec}
+          incident={incidents.find(i => i.provider === "claude")} />
       )}
 
       {/* ── Codex quota ──
@@ -330,7 +335,8 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
           unavailable. / Run codex login to authenticate." permanently, for a
           CLI it has no reason to install. */}
       {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} codexUsage={codexUsage} nowSec={nowSec} />
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} codexUsage={codexUsage} nowSec={nowSec}
+          incident={incidents.find(i => i.provider === "codex")} />
       )}
 
       {/* ── Cost + tokens ──

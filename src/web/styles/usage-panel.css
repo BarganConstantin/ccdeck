@@ -708,6 +708,48 @@ button.qb-pace::after {
   border-radius: 3px;
   font-size: 11px;
 }
+/* A provider's incident, under its quota heading (#1311): a link to the status
+   page, in two rows. The first is the mark, the state in words at --text and
+   the ↗ that says it leaves the deck; the second is what the page calls it, at
+   --muted because it is a title glanced at rather than prose, wrapped to two
+   lines at most. One row was tried first and the 280px column cut the title
+   to four letters. Bordered like the topbar's chip, with the same --err edge
+   for an outage and the same dashed edge for an answer the page has stopped
+   giving. */
+.up-incident {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: border-color 120ms, background 120ms;
+}
+.up-incident[data-state$="outage"] { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+.up-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
+.up-incident-stale { border-style: dashed; }
+.up-incident-words {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.up-incident-go { color: var(--text-dim); }
+.up-incident-what {
+  grid-column: 2 / 4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
 .up-quota-loading { font-size: 11px; color: var(--text-dim); }
 .up-quota-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 /* Both of these are .up-quota-sub lines, so they have to come after it to win

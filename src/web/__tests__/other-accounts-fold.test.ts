@@ -243,13 +243,15 @@ describe("the row, in Local network's idiom and with its timings", () => {
     // The card is a shortcut past a press, never the only route to anything.
     expect(fold).toMatch(/\{peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers=\{peers\}/);
     expect(panel).toMatch(/\{rest\.length > 0 && restOpen && \(\s*<div className="ap-rest-panel" id="ap-rest-panel">/);
-    expect(panel).toMatch(/<ul className="ap-list ap-others" id="ap-rest-list">/);
+    expect(panel).toMatch(/<ul className="ap-list ap-others" id="ap-rest-list" \{\.\.\.listHold\}>/);
   });
 });
 
 describe("what the column folds, and when it does not", () => {
   it("keeps the live account whole above the fold and puts every other account behind it", () => {
-    expect(panel).toMatch(/const rest = activeAcct \? roster\.filter\(a => !a\.active\) : \[\];/);
+    expect(panel).toMatch(/const others = activeAcct \? roster\.filter\(a => !a\.active\) : \[\];/);
+    // In the reader's order since #1579, and held while they are in the list.
+    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\)\), held\);/);
     expect(panel).toMatch(/const head = rest\.length \? roster\.filter\(a => a\.active\) : roster;/);
     // The row stands between the two lists, which is the only place an
     // accordion's handle can be.
@@ -296,7 +298,9 @@ describe("what the column folds, and when it does not", () => {
   it("builds a peer from the same two refusals the row withholds its own Switch for", () => {
     // The count and the button cannot be allowed to disagree about who can be
     // reached: the row offers `Switch` when `!a.disabled && !issue?.blocksSwitch`.
-    expect(accountFold).toMatch(/ready: !a\.disabled && !issue\?\.blocksSwitch,/);
+    // One rule, named since #1579 so the list's order reads it too.
+    expect(accountFold).toMatch(/return !a\.disabled && !accountIssue\(a, nowSec\)\?\.blocksSwitch;/);
+    expect(accountFold).toMatch(/ready: reachable\(a, nowSec\),/);
     expect(panel).toMatch(/const peers = peersOf\(rest, nowSec\);/);
     expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to

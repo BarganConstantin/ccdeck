@@ -196,13 +196,16 @@ describe("the row renders the windows, and the panel reads the same function", (
   });
 
   it("opens every window as a bar, in the order the server sent them", () => {
-    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} frozen=\{frozen\} \/>\)/);
+    // `sortedBy` marks the bar the list behind the fold is ordered by (#1579).
+    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} frozen=\{frozen\} sortedBy=\{l\.id === keyLane\?\.id\} \/>\)/);
   });
 
   it("opens the live row, and every other row only when the reader opens it", () => {
-    expect(panelCode).toMatch(/useState<string\[\]>\(\[\]\)/);
+    // Shut until the reader opens it — one row, or all of them — and remembered
+    // since #1579, which is other-accounts-order.ts's and accounts-prefs.ts's.
+    expect(panelCode).toMatch(/useState<Openness>\(loadOpenness\)/);
     // Whether the reader opened it is read off the set by account, once.
-    expect(clientText()).toMatch(/const opened = openLanes\.includes\(laneKey\(a\)\);/);
+    expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
     expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
     // The live row has nothing folded, so it has no door.
     expect(clientText()).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);

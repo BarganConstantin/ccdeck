@@ -41,7 +41,12 @@
   .topbar .status .pill.dead::before,
   .conn-banner .conn-dot,
   .waiting-dot,
-  .ap-dot { forced-color-adjust: none; background: CanvasText; }
+  .ap-dot,
+  .pi-dot { forced-color-adjust: none; background: CanvasText; }
+  /* The incident mark keeps its shape: a ring for degraded, a grey square for
+     maintenance (#1311). */
+  [data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
+  [data-state="maintenance"] > .pi-dot { background: GrayText; }
 
   .sl-dot::before,
   .bw-dot,
@@ -56,6 +61,9 @@
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */
   .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* The order's caret takes the select's own system colour rather than the
+     --muted it rests in, which a contrast theme does not repaint (#1579). */
+  .ap-rest-sort svg { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
@@ -66,6 +74,7 @@
   .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
   .qb-fill,
   .ap-lane-fill,
+  .ap-report-meter i,
   .uh-bar-seg,
   .uh-agent-seg,
   .uh-model-bar-fill,
@@ -78,7 +87,8 @@
   .session-summary .ss-tt-bar,
   .uh-model-bar,
   .uh-agent-bar,
-  .cost-bar { outline: 1px solid CanvasText; outline-offset: -1px; }
+  .cost-bar,
+  .ap-report-meter { outline: 1px solid CanvasText; outline-offset: -1px; }
   /* The notch in a thermal track is the panel's ground showing through, and a
      Contrast theme repaints that ground: it takes Canvas so the gap stays a
      gap, against a fill that is now Highlight and a track that is outlined. */

@@ -134,7 +134,7 @@ import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 // The Local network panel's four routes — see lan-routes.mjs.
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
-import { handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
+import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers, and the answer for one that threw
@@ -150,7 +150,7 @@ import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettin
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
 import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl } from "./music-routes.mjs";
 // The usage panel's quota and history reads — see usage-routes.mjs.
-import { handleCcusage, handleCodexQuota, handleCodexUsage, handleQuota } from "./usage-routes.mjs";
+import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -293,6 +293,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
@@ -327,6 +328,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/provider-status") return guard(handleProviderStatus(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch/dismiss") return guard(handleBrowserWatchDismiss(req, res), res);

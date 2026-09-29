@@ -172,6 +172,8 @@ describe("the modals themselves", () => {
     expect(withBackdrop.map(([name]) => name).sort()).toEqual([
       // The account-projects report, opened from an account's ⋯ row.
       "AccountProjectsModal.tsx",
+      // The Usage report, opened from the accounts panel's header (#1707).
+      "AccountsUsageReport.tsx",
       "AddAccountDialog.tsx",
       // Browser Watch, named here for the same reason as the two below.
       "BrowserWatchModal.tsx",

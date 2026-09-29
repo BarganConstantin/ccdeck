@@ -61,7 +61,7 @@ const HOME_ENV = "CCDECK_HOME";
  *  live. Also the place a migration reads from. */
 export function legacyDeckDir(env = process.env, home = homedir(), platform = process.platform) {
   const { join } = platform === "win32" ? winPath : posixPath;
-  return join(claudeConfigDir(env, home), "agent-dag");
+  return join(claudeConfigDir(env, home, platform), "agent-dag");
 }
 
 /**

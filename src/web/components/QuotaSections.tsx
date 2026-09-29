@@ -11,7 +11,9 @@
 import { PRODUCT } from "../brand";
 import { resetCreditsLine } from "../reset-credits";
 import { fmtTokens } from "../token-format";
+import type { Incident } from "../provider-status";
 import type { CodexQuotaData, CodexUsageData, QuotaData } from "../use-quota";
+import { QuotaIncident } from "./ProviderIncidents";
 import QuotaBar from "./QuotaBar";
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched.
@@ -74,13 +76,15 @@ function codexHint(reason?: string): string {
   }
 }
 
-export function ClaudeQuotaSection({ quota, quotaLoading, nowSec }: {
+export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
   /** The last /api/quota answer, or null until the first one lands. */
   quota: QuotaData | null;
   /** A forced read is out, and the age is not shown while it is. */
   quotaLoading: boolean;
   /** The panel's clock in seconds, for the ages, countdowns and pace. */
   nowSec: number;
+  /** Anthropic's status page reports an incident (#1311). */
+  incident?: Incident;
 }) {
   const claudeAge = ageLabel(quota?.fetchedAt, nowSec);
   return (
@@ -96,6 +100,10 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec }: {
           <span className="up-section-age" title={quotaSourceHint(quota?.source)}>{claudeAge}</span>
         )}
       </h3>
+      {/* Above the bars rather than beside "Quota unavailable.": the quota can
+          read fine through an incident, and when it cannot, this is the line
+          that says why before the hint below guesses at a local cause. */}
+      <QuotaIncident incident={incident} />
       {quota?.ok ? (
         <div className="up-quota-bars">
           {quota.session5hPct != null && (
@@ -166,7 +174,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec }: {
   );
 }
 
-export function CodexQuotaSection({ codexQuota, codexLoading, codexUsage, nowSec }: {
+export function CodexQuotaSection({ codexQuota, codexLoading, codexUsage, nowSec, incident }: {
   /** The last /api/codex-quota answer, or null until the first one lands. */
   codexQuota: CodexQuotaData | null;
   /** A forced read is out, and the age is not shown while it is. */
@@ -175,6 +183,8 @@ export function CodexQuotaSection({ codexQuota, codexLoading, codexUsage, nowSec
   codexUsage: CodexUsageData | null;
   /** The panel's clock in seconds, for the ages, countdowns and pace. */
   nowSec: number;
+  /** OpenAI's status page reports an incident on a Codex component (#1311). */
+  incident?: Incident;
 }) {
   const codexAge  = ageLabel(codexQuota?.fetchedAt, nowSec);
   return (
@@ -188,6 +198,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, codexUsage, nowSec
           <span className="up-section-age" title="Fetched from the Codex usage endpoint">{codexAge}</span>
         )}
       </h3>
+      <QuotaIncident incident={incident} />
       {codexQuota?.ok ? (
         <div className="up-quota-bars">
           {codexQuota.windows?.map(w => (

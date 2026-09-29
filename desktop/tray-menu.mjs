@@ -29,6 +29,16 @@ export function statusLine({ restarting, starting, deck, snapshot }) {
 }
 
 /**
+ * Whether the tray should ask the deck what the status pages say (#1311): only
+ * while a session is running or waiting. An app left in the tray with nothing
+ * going on is idle, and an idle app asks nobody's server anything — the answer
+ * it already has stays in the menu until the page's own expiry drops it.
+ */
+export function statusWorthAsking(snapshot) {
+  return snapshot.running > 0 || snapshot.waiting > 0;
+}
+
+/**
  * The tray menu, top to bottom.
  *
  * @param {object} s
@@ -41,13 +51,21 @@ export function statusLine({ restarting, starting, deck, snapshot }) {
  * @param {boolean} s.openAtLogin
  * @param {string} s.appVersion
  * @param {{ status: string, version?: string }} s.update  the updater's state
+ * @param {Array<{ label: string, href: string }>} [s.incidents]  what the
+ *   providers' status pages report, incidents only — the page's own incidentsOf
  * @param {object} on  what each row does when it is clicked
  */
-export function trayMenuItems({ now, snapshot, deck, starting, restarting, notifyOn, openAtLogin, appVersion, update }, on) {
+export function trayMenuItems({ now, snapshot, deck, starting, restarting, notifyOn, openAtLogin, appVersion, update, incidents = [] }, on) {
   const items = [{ label: statusLine({ restarting, starting, deck, snapshot }), enabled: false }];
   for (const b of snapshot.blocked.slice(0, 6)) {
     const what = b.kind === "asked" ? "asking" : "needs permission";
     items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => on.openWindow() });
+  }
+  // A provider's own incident (#1311), under the sessions it may be the cause
+  // of, so an outage can be seen without opening the window. The row opens the
+  // provider's status page, the same link as the page's chip.
+  for (const i of incidents) {
+    items.push({ label: `${i.label} — status page`, click: () => on.openStatusPage(i.href) });
   }
   if (!deck && !starting) items.push({ label: "Start the deck", click: () => on.startDeck() });
   items.push(

@@ -15,7 +15,7 @@
 // The disk half is deck-prefs.mjs, unchanged: the queue, the merge and the
 // refusal to write over a file it could not read all live there. This holds
 // what they return and nothing else.
-import { DEFAULTS, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS, loadPrefs, loadPrefsInTurn, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 
 /**
  * The deck's own settings, in memory, refreshed whenever they are written.
@@ -29,6 +29,12 @@ import { DEFAULTS, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
  * same freshness every other cross-deck setting has.
  */
 let _prefs = { ...DEFAULTS };
+/** Whether the boot read failed on a file that is still there (#1711): the
+ *  copy here is the defaults, and the file holds settings — the LAN key, the
+ *  pairings — this process never saw. Only a re-read that finds the file clears
+ *  it. A write that lands first merges onto the file, but leaves the engine on
+ *  what it made up, so it does not count. */
+let _unread = false;
 
 // Read at import, so `consider` has its answer from the first event. LAN sync
 // used to start from this same read, and it must not: bin/deck.js imports the
@@ -37,7 +43,7 @@ let _prefs = { ...DEFAULTS };
 // in — which is the `lan sync (listen): EADDRINUSE` line a second `ccdeck`
 // printed above `deck already running`. The engine starts from the listen that
 // succeeds, in startServer, which is the only process that may hold a port.
-export const prefsRead = readPrefs().then(p => { _prefs = p; }).catch(() => {});
+export const prefsRead = loadPrefs().then(r => { _prefs = r.prefs; _unread = r.source === "unreadable"; }).catch(() => {});
 
 export const heldPrefs = Object.freeze({
   /** What the last read or write left here. Never a disk read — see above. */
@@ -48,4 +54,17 @@ export const heldPrefs = Object.freeze({
   /** `updatePrefs(mutate)`, and keep what it wrote: for a patch that has to be
    *  computed from the file rather than from `current()` — see updatePrefs. */
   update: async mutate => (_prefs = await updatePrefs(mutate)),
+  /** Read the file again, as a boot would, once something outside the deck has
+   *  made it readable (#1711) — and only for a deck whose boot read could not.
+   *  Any other deck is left alone and answers "held": re-reading it would race
+   *  the engine's own writes for nothing. Otherwise the read waits its turn
+   *  behind the writes, and is kept only when it really is the user's file; a
+   *  read that still fails leaves the copy this process was running on.
+   *  Answers "held", or the read's `source`. */
+  reload: async () => {
+    if (!_unread) return "held";
+    const { prefs, source } = await loadPrefsInTurn();
+    if (source === "file") { _prefs = prefs; _unread = false; }
+    return source;
+  },
 });

@@ -491,6 +491,12 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   step so a destructive action is never one click.
 - `.btn.warn` was removed on purpose. Do not bring it back.
 - `.icon-btn` is the square variant for a glyph alone.
+- **Edgeless at rest, in a dense column.** A few controls identified by their
+  own word or name draw no boundary until they are pointed at or focused, and
+  then take `--ctl-edge` and `--ctl-fill` — the verbs on a Local network row
+  (`.ap-lan-who .ap-manage-btn`) and the Other accounts list's order and
+  expand-all (`.ap-rest-sort select`, `.ap-rest-all`, #1579).
+  `control-edges.test.ts` measures the edge they draw when they draw one.
 
 ### Switch, fields, modal
 
@@ -578,6 +584,7 @@ rather than scattered through the sections above.
 | Switched off / disabled | `--dim-off` | the whole control dims | — | none |
 | Stale data | `--dim-stale` | marks and fills only | `running ccusage…`, the period's noun, `expired` — at full contrast | none |
 | Disconnected | `--warn` | `.conn-banner` row | — | none |
+| Provider incident | `--err` (outage and degraded), `--muted` (maintenance) | `.pi-dot`: a filled dot for an outage, an `--err` ring for degraded, a grey square for maintenance; a `--r-tag` chip, never the alarm's pill; dashed edge when stale | `Claude · partial outage`, `· as of 14:05` when stale | none |
 | Update ready | `--accent` | `.ver-banner` row | — | none |
 | Empty canvas | `--muted` | — | the tour offer | none |
 

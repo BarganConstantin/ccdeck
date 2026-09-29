@@ -1,5 +1,6 @@
 // What the deck says aloud for a screen reader: that a session is waiting on
-// you, and that Browser Watch has something unread.
+// you, that Browser Watch has something unread, and that a provider's status
+// page reports an incident (#1311).
 //
 // Lifted out of App.tsx's `Inner`. Its opening line used to point at "the two
 // lines above", the tab title and favicon effect, which did not come with it; it
@@ -10,14 +11,17 @@ import { useEffect, useState } from "react";
 
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import type { BlockedSession } from "./ambient-counts";
+import { incidentSentence, INCIDENTS_CLEAR, type Incident } from "./provider-status";
 
 export interface LiveAnnouncementsDeps {
   waitingSessions: BlockedSession[];
   /** Browser Watch findings nobody has looked at yet. */
   watchUnseen: number;
+  /** What the providers' status pages report, incidents only. */
+  incidents?: readonly Incident[];
 }
 
-export function useLiveAnnouncements({ waitingSessions, watchUnseen }: LiveAnnouncementsDeps) {
+export function useLiveAnnouncements({ waitingSessions, watchUnseen, incidents = [] }: LiveAnnouncementsDeps) {
   // The same fact the tab title, the favicon and the topbar chip carry, on the
   // one channel that had it from none of them: spoken.
   //
@@ -63,5 +67,16 @@ export function useLiveAnnouncements({ waitingSessions, watchUnseen }: LiveAnnou
     setWatchSaid(said => nextAnnouncement(said, watchNow, "Browser watch has no unread findings."));
   }, [watchNow]);
 
-  return { blockedSaid, watchSaid, setWatchSaid };
+  // An incident upstream, said once when it begins and once when it ends. The
+  // chip is a thing to look at, and an outage is exactly when a screen reader
+  // user would otherwise go looking for a local cause. Keyed on the sentence,
+  // which names the provider and the state and never the age, so an answer
+  // going stale is not news.
+  const [incidentSaid, setIncidentSaid] = useState("");
+  const incidentNow = incidentSentence(incidents);
+  useEffect(() => {
+    setIncidentSaid(said => nextAnnouncement(said, incidentNow, INCIDENTS_CLEAR));
+  }, [incidentNow]);
+
+  return { blockedSaid, watchSaid, setWatchSaid, incidentSaid };
 }
