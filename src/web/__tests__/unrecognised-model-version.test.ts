@@ -44,6 +44,7 @@ const OPUS_5_5         = A(4, 20, 0.2, 5, 8);
 const OPUS_TIER_OLD    = A(15, 75, 1.5, 18.75, 30);
 const SONNET_4         = A(3, 15, 0.3, 3.75, 6);
 const SONNET_5_INTRO   = A(2, 10, 0.2, 2.5, 4);   // NOW is inside the intro window
+const SONNET_5_5       = A(2, 10, 0.2, 2.5, 4);
 const HAIKU_4_5        = A(1, 5, 0.1, 1.25, 2);
 const HAIKU_3_5        = A(0.8, 4, 0.08, 1, 1.6);
 const FABLE_MYTHOS_5   = A(10, 50, 1, 12.5, 20);
@@ -91,6 +92,15 @@ const FAMILIES: Array<{
     family: "Opus 5",
     priced: [["claude-opus-5", OPUS_TIER_NEW]],
     unrecognised: ["claude-opus-5-1", "claude-opus-6", "claude-opus-5-2"],
+  },
+  {
+    // Opus 5.5's lifecycle again (#1700): Sonnet 5's guard refused
+    // `claude-sonnet-5-5` until its price was read. Its rates are Sonnet 5's,
+    // but it gets them from a row of its own, so the next Sonnet 5.x still
+    // reaches none.
+    family: "Sonnet 5.5",
+    priced: [["claude-sonnet-5-5", SONNET_5_5]],
+    unrecognised: ["claude-sonnet-5-6", "claude-sonnet-5-5-1", "claude-sonnet-5-55", "claude-sonnet-5-50"],
   },
   {
     family: "Sonnet 5 (introductory rate — the worst one to inherit by accident)",
@@ -211,6 +221,9 @@ const SPELLINGS_THAT_MUST_KEEP_PRICING: Array<[string, ModelRates]> = [
   ["claude_opus_5_5", OPUS_5_5],
   ["claude-opus-5.5", OPUS_5_5],
   ["claude-opus-5-5[1m]", OPUS_5_5],
+  ["claude_sonnet_5_5", SONNET_5_5],
+  ["claude-sonnet-5.5", SONNET_5_5],
+  ["claude-sonnet-5-5[1m]", SONNET_5_5],
   ["claude_haiku_4_5", HAIKU_4_5],
 ];
 
