@@ -83,6 +83,27 @@
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */
   .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
+     the theme paints every fill Canvas, so each looked like its neighbours:
+     they fill with the highlight, the way an on switch does, and keep it
+     under the pointer, where their own hover would outrank this. */
+  .uh-range-btn[aria-pressed="true"],
+  .uh-range-btn[aria-pressed="true"]:hover,
+  .react-flow__controls-button[aria-pressed="true"],
+  .react-flow__controls-button[aria-pressed="true"]:hover,
+  .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The usage panel's period strip is the same chip with no fill of its own:
+     it hands the adjustment back, so its word is the theme's text like its
+     neighbours', and the mark under the word takes the highlight. */
+  .up-period .uh-range-btn[aria-pressed="true"],
+  .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
+  .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
+  /* Every session row's edge is repainted in the text colour, the chosen
+     one's accent with them: it takes the highlight, twice as heavy. The edge
+     is a term in the row's side padding, so the words stay put, and what it
+     grows by above and below comes out of the row's 10px, so the row keeps
+     its height. */
+  .session-list .sl-row.selected { --sl-card-edge: 2px; padding-block: calc(10px - (var(--sl-card-edge) - 1px)); border-color: Highlight; }
   /* The order's caret takes the select's own system colour rather than the
      --muted it rests in, which a contrast theme does not repaint (#1579). */
   .ap-rest-sort svg { color: ButtonText; }
