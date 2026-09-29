@@ -20,7 +20,9 @@ const code = (src: string) => src
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
 const bursts = code(read("../components/ToolBursts.tsx"));
-const app = code(read("../App.tsx"));
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = code(read("../App.tsx")) + "\n" + code(read("../use-deck-shortcuts.ts")) + "\n" + code(read("../components/Detail.tsx"));
 const shortcuts = read("../shortcuts.ts");
 
 describe("the bubbles stay decoration, and the keyboard has its own way in (#854)", () => {
@@ -36,10 +38,12 @@ describe("the bubbles stay decoration, and the keyboard has its own way in (#854
   });
 
   it("opens that panel from the keyboard, because a selection opens it (#814)", () => {
-    expect(app).toMatch(/if \(!additive && inspect\) setDetailOpen\(true\);/);
+    // selectAgent lives in use-selection.ts now.
+    const selection = code(read("../use-selection.ts"));
+    expect(selection).toMatch(/if \(!additive && inspect\) setDetailOpen\(true\);/);
     // A keyboard selection keeps the panel: only the pointer's click on a card
     // passes `inspect: false`, and Enter takes the default.
-    expect(app).toMatch(/inspect: boolean = !additive/);
+    expect(selection).toMatch(/inspect: boolean = !additive/);
     expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\);/);
   });
 

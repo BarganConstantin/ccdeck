@@ -376,8 +376,9 @@ describe("a payload the deck cannot serialise, with a subscriber and no log", ()
 // ─── The log is reason enough on its own ─────────────────────────────────────
 
 describe("a payload the deck cannot serialise, with a log and no subscriber", () => {
-  // Second, not first: startServer only ever assigns persistPath, so a
-  // persisting server in this worker cannot be un-persisted for a later block.
+  // Second, not first: startServer (through openEventLog) only ever assigns
+  // persistPath, so a persisting server in this worker cannot be un-persisted
+  // for a later block.
   const LOG = join(DIR, "events.jsonl");
   /** The log as it stands, treating "not created yet" as empty. */
   const readLog = () => {

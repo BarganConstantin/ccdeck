@@ -13,7 +13,11 @@ import { fileURLToPath } from "node:url";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const MODAL = read("../components/ReleaseNotesModal.tsx");
 const APP = read("../App.tsx");
+/** The dialogs App.tsx mounts, the release notes among them. */
+const DIALOGS = read("../components/DeckDialogs.tsx");
 const TRAY = read("../../../desktop/main.mjs");
+/** The tray's rows, which main.mjs draws through trayMenuItems. */
+const TRAY_MENU = read("../../../desktop/tray-menu.mjs");
 
 describe("restart in the page", () => {
   it("is a door in the dialog the version chip opens, drawn only when it is offered", () => {
@@ -28,19 +32,28 @@ describe("restart in the page", () => {
     // Except while the desktop app has a verified update ready (#1187): the
     // dialog's Update and restart is then the restart it offers, the way the
     // tray's Restart ccdeck takes a staged update on its way through.
-    expect(APP).toMatch(/onRestart=\{!readyAppUpdate && version\?\.canRestart \? \(\) => \{ setReleaseNotes\(null\); void askRestart\(\); \} : undefined\}/);
+    // Two links: the door is written where the dialog is mounted, and App.tsx
+    // hands that the restart, the version and the desktop update whole.
+    expect(DIALOGS).toMatch(/onRestart=\{!readyAppUpdate && version\?\.canRestart \? \(\) => \{ closeReleaseNotes\(\); void askRestart\(\); \} : undefined\}/);
+    expect(APP).toMatch(/<DeckDialogs\b[^>]*\bdesktopUpdate=\{desktopUpdate\} versionCheck=\{versionCheck\} restart=\{restart\}/);
   });
 });
 
 describe("restart in the tray", () => {
-  const menu = TRAY.slice(TRAY.indexOf("function buildMenu()"), TRAY.indexOf("function updateItem()"));
+  // From trayMenuItems to the next function, or to the end of the file.
+  const from = TRAY_MENU.indexOf("export function trayMenuItems(");
+  const next = TRAY_MENU.indexOf("\nexport function ", from + 1);
+  const menu = TRAY_MENU.slice(from, next === -1 ? undefined : next);
 
   it("sits above Quit, and only while there is a deck to restart", () => {
+    expect(from, "trayMenuItems is gone or renamed").toBeGreaterThan(-1);
     const restart = menu.indexOf('label: "Restart ccdeck"');
     const quit = menu.indexOf('label: "Quit ccdeck"');
     expect(restart).toBeGreaterThan(-1);
     expect(restart).toBeLessThan(quit);
-    expect(menu).toMatch(/label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: \(\) => restartDeck\(\)/);
+    expect(menu).toMatch(/label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: \(\) => on\.restartDeck\(\)/);
+    // And the row's action is this app's restartDeck.
+    expect(TRAY).toMatch(/restartDeck: \(\) => restartDeck\(\),/);
   });
 
   it("asks the deck's own restart route, with the app's token, and says it is restarting", () => {
@@ -49,7 +62,7 @@ describe("restart in the tray", () => {
     // A deck this app started that cannot restart itself is stopped and
     // started again; one from a terminal is left alone.
     expect(fn).toMatch(/if \(!asked && ownDeck\) \{\s*await stopOwnDeck\(\);/);
-    expect(TRAY).toMatch(/if \(restarting\) return "Restarting the deck…";/);
+    expect(TRAY_MENU).toMatch(/if \(restarting\) return "Restarting the deck…";/);
     // And the new deck answering is what ends it.
     expect(TRAY).toMatch(/if \(found && restarting\) restarting = null;/);
   });

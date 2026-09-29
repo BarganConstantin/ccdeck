@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { FM_VOLUME_KEY, resolveFmVolume } from "../appearance";
 import { DEFAULT_LEVEL, LEVEL_MAX, LEVEL_MIN } from "../sound";
+import { clientText } from "./client-source";
+import { claudeFmSurface } from "./claude-fm-surface";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -42,9 +44,11 @@ describe("the Claude FM volume preference", () => {
   });
 
   it("is owned by App, persisted on change, and handed to both consumers", () => {
-    const app = read("App.tsx");
+    // Owned on App's side rather than by either consumer — in use-claude-fm.ts,
+    // which App calls — so this reads the client. All matches are positive.
+    const app = clientText();
     expect(app).toContain("useState(storedFmVolume)");
-    expect(app).toContain("localStorage.setItem(FM_VOLUME_KEY, String(fmVolume))");
+    expect(app).toContain("writeStored(FM_VOLUME_KEY, String(fmVolume))");
     expect(app).toContain("fmVolume={fmVolume}");
     expect(app).toContain("onFmVolume={setFmVolume}");
     expect(app).toContain("<ClaudeFm");
@@ -56,19 +60,27 @@ describe("the Claude FM volume preference", () => {
   });
 
   it("reuses the sound menu's slider row rather than inventing a second shape", () => {
+    // The row is VolumeRow.tsx now, which each tone's section draws too, so
+    // "the same shape" is the same component rather than a copy of its markup.
     const menu = read("components/AppearanceMenu.tsx");
+    const row = read("components/VolumeRow.tsx");
+    expect(menu).toContain("<VolumeRow");
     expect(menu).toContain('id="appearance-fm-volume"');
-    expect(menu).toContain('className="sm-row"');
-    expect(menu).toContain('className="sm-read"');
-    expect(menu).toContain('"--sm-level"');
-    expect(menu).toContain("onChange={e => onFmVolume(Number(e.target.value))}");
+    expect(menu).toContain("onLevel={onFmVolume}");
+    expect(read("components/ToneSection.tsx")).toContain("<VolumeRow");
+    expect(row).toContain('className="sm-row"');
+    expect(row).toContain('className="sm-read"');
+    expect(row).toContain('"--sm-level"');
+    expect(row).toContain("onChange={e => onLevel(Number(e.target.value))}");
     // Native, for the same reasons SoundMenu's is: the arrows, Home and End and
     // the announced percentage are the browser's to give.
-    expect(menu).toContain('type="range"');
+    expect(row).toContain('type="range"');
   });
 
   it("sends setVolume at the ready handshake and again whenever the level moves", () => {
-    const fm = read("components/ClaudeFm.tsx");
+    // The component and the player hook lifted out of it, read as one, so the
+    // count of senders still covers both.
+    const fm = claudeFmSurface();
     // Two senders: the "ready" branch (before playVideo, so there is no window
     // at the wrong loudness) and the [volume, armed, say] effect (the live
     // retune). setVolume is a plain command — nothing is read back.

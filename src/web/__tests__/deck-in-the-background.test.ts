@@ -20,15 +20,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
+import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
-const { DECK_LOG, DETACHED_ENV, detachAndWatch, detachEnv, logMode, stopCommand, tailFile } = detach as {
+const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMode, shouldDetach, stopCommand, tailFile } = detach as {
   DECK_LOG: string;
   DETACHED_ENV: string;
+  backgroundNote: (o: {
+    npx?: boolean; invokedAs?: string | null; product?: string; tone: Record<string, string>; g: Record<string, string>;
+  }) => string;
   detachAndWatch: (o: Record<string, unknown>) => Promise<{ ok: false; reason: string }>;
   detachEnv: (o?: { isTTY?: boolean; profile?: string; columns?: number }) => Record<string, string>;
   logMode: (n: number) => string;
+  shouldDetach: (o?: { detached?: boolean; leashed?: boolean; flags?: Record<string, unknown> }) => boolean;
   stopCommand: (o?: { npx?: boolean; invokedAs?: string | null; product?: string }) => string;
   tailFile: (p: string, out: { write: (b: Buffer) => void }, o?: { from?: number; everyMs?: number })
     => { pump: () => void; stop: () => void };
@@ -36,11 +41,12 @@ const { DECK_LOG, DETACHED_ENV, detachAndWatch, detachEnv, logMode, stopCommand,
 // @ts-expect-error — plain .mjs module, no types
 const { ONE_SHOT, isOneShot, parseArgs } = await import("../../server/args.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { termColumns } = await import("../../server/term.mjs");
+const { glyphs, palette, termColumns } = await import("../../server/term.mjs");
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const SUPERVISOR = read("../../../bin/agent-dag.js");
 const DECK = read("../../../bin/deck.js");
+const HELP = read("../../../bin/cli/help.js");
 const SRC = read("../../server/detach.mjs");
 
 describe("the child's output is a file, never a pipe", () => {
@@ -77,7 +83,11 @@ describe("the child's output is a file, never a pipe", () => {
     // This is the whole mechanism. A closing terminal sends SIGHUP to its
     // FOREGROUND process group; a detached child is in its own, so the signal
     // never reaches it. Measured on a real start: ppid 1, pgid its own.
-    expect(SRC).toContain("detached: true");
+    // Read off the launcher's own spawn: detach.mjs also says `detached: true`
+    // for the Windows worker in noConsoleOptions, which is a different child.
+    const at = SRC.indexOf("const child = spawnFn(execPath, [file, ...argv], {");
+    expect(at, "detachAndWatch no longer spawns the child this way").toBeGreaterThan(-1);
+    expect(SRC.slice(at, SRC.indexOf("});", at))).toContain("detached: true");
   });
 });
 
@@ -89,8 +99,8 @@ describe("the deck from before this version that is still running", () => {
     // ("2 decks from an older ccdeck are still running on 4317, 4363"). A start
     // keeps one deck now, so the older one is stopped and this one takes its
     // place — the line that says so names the version it replaced.
-    expect(DECK).not.toContain("too old to be recognised");
-    expect(DECK).toMatch(/olderVersion\(d\.version, PKG_VERSION\)[\s\S]{0,120}it was v\$\{d\.version\}/);
+    expect(cliSurface()).not.toContain("too old to be recognised");
+    expect(read("../../../bin/cli/second-start.js")).toMatch(/olderVersion\(d\.version, PKG_VERSION\)[\s\S]{0,120}it was v\$\{d\.version\}/);
   });
 });
 
@@ -139,7 +149,10 @@ describe("the leash, which must not be attached to the launcher", () => {
     expect(DETACHED_ENV).toBe("AGENTS_DECK_DETACHED");
     expect(detachEnv()[DETACHED_ENV]).toBe("1");
     expect(SUPERVISOR).toContain("const DETACHED = process.env[DETACHED_ENV] === \"1\";");
-    expect(SUPERVISOR).toContain("if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS))");
+    expect(SUPERVISOR).toContain("if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {");
+    // The marked copy never detaches, whatever else it was asked.
+    expect(shouldDetach({ detached: true, flags: parseArgs([]) })).toBe(false);
+    expect(shouldDetach({ detached: false, flags: parseArgs([]) })).toBe(true);
   });
 
   it("stays put when somebody is already holding its lifecycle", () => {
@@ -149,6 +162,7 @@ describe("the leash, which must not be attached to the launcher", () => {
     // answer to being supervised — and it is how the suite's own spawnSupervised
     // starts a deck it means to hold.
     expect(SUPERVISOR).toContain('const LEASHED = typeof process.send === "function";');
+    expect(shouldDetach({ leashed: true, flags: parseArgs([]) })).toBe(false);
   });
 });
 
@@ -176,12 +190,14 @@ describe("a command line that is not a start", () => {
     ] as [string[], string][]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ")).toBe(true);
       expect(parseArgs(argv)[key]).toBe(true);
+      expect(shouldDetach({ flags: parseArgs(argv) }), argv.join(" ")).toBe(false);
     }
   });
 
   it("treats an ordinary start as a start", () => {
     for (const argv of [[], ["--no-open"], ["--port", "4500"], ["--new"], ["--workspace", "/x"]]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ") || "(bare)").toBe(false);
+      expect(shouldDetach({ flags: parseArgs(argv) }), argv.join(" ") || "(bare)").toBe(true);
     }
   });
 
@@ -195,8 +211,9 @@ describe("a command line that is not a start", () => {
     expect(parseArgs(["--foreground"]).foreground).toBe(true);
     // A start, not a one-shot: it still boots a deck, it just does not leave.
     expect(isOneShot(parseArgs(["--foreground"]))).toBe(false);
-    expect(SUPERVISOR).toContain("FLAGS.foreground !== true");
-    expect(DECK).toContain("--foreground");
+    expect(shouldDetach({ flags: parseArgs(["--foreground"]) })).toBe(false);
+    expect(shouldDetach({ flags: parseArgs(["--foreground", "--no-open"]) })).toBe(false);
+    expect(HELP).toContain("--foreground");
   });
 });
 
@@ -248,8 +265,13 @@ describe("the command that ends it", () => {
   });
 
   it("is what the launcher actually prints", () => {
-    expect(SUPERVISOR).toContain("running in the background");
-    expect(SUPERVISOR).toContain("stopCommand({");
+    const plain = { tone: palette("none"), g: glyphs(true) };
+    expect(backgroundNote({ npx: true, invokedAs: "ccdeck", ...plain }))
+      .toContain("running in the background · `npx ccdeck --stop` ends it");
+    expect(backgroundNote({ npx: false, invokedAs: null, product: "ccdeck", ...plain }))
+      .toContain("`ccdeck --stop` ends it");
+    // Handed to the launcher as the line it prints once the deck has left.
+    expect(SUPERVISOR).toContain("backgroundLine: backgroundNote({");
   });
 });
 
@@ -283,23 +305,35 @@ describe("tailing a file that is still being written", () => {
 describe("what an npx run is told it is missing", () => {
   const SRC_SUP = SUPERVISOR;
 
+  const plain = { tone: palette("none"), g: glyphs(true) };
+
   it("offers the install rather than performing it", () => {
     // `npx` means "run without installing". A tool that installs itself anyway
     // is the tool people uninstall — and the global prefix is root-owned on
     // plenty of machines, so it would be a sudo prompt out of a command that
     // was only supposed to start a deck.
-    // The backtick is escaped in the source: the line lives inside a template
-    // literal and the flag is quoted for the shell in the message itself.
-    expect(SRC_SUP).toContain("--install\\` also starts it at login");
+    expect(backgroundNote({ npx: true, invokedAs: "ccdeck", ...plain }))
+      .toContain("\n     `ccdeck --install` also starts it at login\n");
+    // Named the way the user typed it, like the stop command above it.
+    expect(backgroundNote({ npx: true, invokedAs: "agents-deck", ...plain }))
+      .toContain("`agents-deck --install` also starts it at login");
+    // And the launcher asks the install where it was started from.
     expect(SRC_SUP).toContain('const npx = isNpxInstall(PKG_ROOT);');
-    // Offered only where it is true: a global install already starts at login
-    // on its first run, so the line would be noise there.
-    expect(SRC_SUP).toMatch(/const offer = npx\s*\n?\s*\?/);
+    expect(SRC_SUP).toMatch(/backgroundNote\(\{ npx, /);
   });
 
   it("says nothing extra when the deck was installed normally", () => {
-    const at = SRC_SUP.indexOf("const offer = npx");
-    expect(SRC_SUP.slice(at, at + 400)).toContain(': "";');
+    // Offered only where it is true: a global install already starts at login
+    // on its first run, so the line would be noise there.
+    expect(backgroundNote({ npx: false, invokedAs: "ccdeck", ...plain }))
+      .toBe("  —  running in the background · `ccdeck --stop` ends it\n\n");
+  });
+
+  it("spells the dash and the bullet the terminal can draw, and nothing else in a pipe", () => {
+    const said = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("none"), g: glyphs(false) });
+    expect(said).toBe("  -  running in the background - `npx ccdeck --stop` ends it\n     `ccdeck --install` also starts it at login\n\n");
+    const painted = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("ansi16"), g: glyphs(true) });
+    expect(painted).toContain("\x1b[");
   });
 });
 

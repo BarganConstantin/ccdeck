@@ -26,7 +26,7 @@
 //     satisfied by `@` as readily as by `-`.
 //
 // WHY A STRIP AND NOT A LOOSER PATTERN. Every model regex in this codebase is
-// `^`-anchored, and the anchors are load-bearing: pricing.ts holds `gpt-5`,
+// `^`-anchored, and the anchors are load-bearing: rate-table.ts holds `gpt-5`,
 // `gpt-5-mini` and `gpt-5.1` as separate rows that depend on anchoring plus
 // list order to pick the right one, and a 300x price step sits inside that
 // family. Unanchoring thirty patterns to admit a ten-character prefix would
@@ -44,7 +44,7 @@
 const BEDROCK_REGIONS = ["us-gov", "global", "apac", "us", "eu", "jp", "au"] as const;
 
 /** `<region>.anthropic.` or a bare `anthropic.`, and nothing else. Exported so
- *  the gates that only need to RECOGNISE a prefixed id — reducer.ts's
+ *  the gates that only need to RECOGNISE a prefixed id — payload-model.ts's
  *  `MODEL_PATTERN` — can build on the same list instead of a second one. */
 export const VENDOR_PREFIX_RE = new RegExp(
   `^(?:(?:${BEDROCK_REGIONS.join("|")})\\.)?anthropic\\.`,

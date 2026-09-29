@@ -12,12 +12,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
 
 /** Comments stripped, so a rule cannot be satisfied by a paragraph that
  *  describes it. */
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
-  .replace(/\/\*[\s\S]*?\*\//g, " ")
-  .replace(/^\s*\/\/.*$/gm, " ");
+// The machine and usage panels are decided in use-right-panels.ts and the
+// accounts panel in use-left-column.ts, both lifted out of App.tsx. The rule is
+// about the client, so it reads the client — comment-stripped, as this file
+// always read it. All matches are positive.
+const app = clientText();
 
 /** The one decision, spelled the one way, for each key that carries it. */
 const OPENS_ON_FIRST_RUN = /const stored = (?:window\.localStorage\.getItem|readStored)\(KEY\);\s*return stored === null \? true : stored === "1";/;
@@ -41,7 +44,9 @@ describe("a first run opens the panels that answer its questions", () => {
 
   it("writes the answer down, so it survives a reload", () => {
     for (const [name, key] of PANELS) {
-      expect(app, name).toMatch(new RegExp(`setItem\\(${key}, [^)]*\\? "1" : "0"\\)`));
+      // localStorage.setItem where a panel's state lived in App.tsx, storage.ts's
+      // writeStored in the hooks it moved out to: the same write either way.
+      expect(app, name).toMatch(new RegExp(`(?:setItem|writeStored)\\(${key}, [^)]*\\? "1" : "0"\\)`));
     }
   });
 

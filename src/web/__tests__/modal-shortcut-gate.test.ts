@@ -66,7 +66,9 @@ describe("the handler actually consults it", () => {
   // The rule is pure and tested above; this is the half that cannot be — that
   // App.tsx asks the question at all, and asks it BEFORE the key table rather
   // than after it.
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
   const handler = app.slice(
     app.indexOf("const onKey = (e: KeyboardEvent) => {"),
     app.indexOf('window.addEventListener("keydown", onKey);'),
@@ -157,7 +159,9 @@ describe("every dialog reaches the gate (#1175)", () => {
     .filter(({ code }) => /useModalDismiss(<[^>]*>)?\(/.test(code));
   const isDialog = (code: string) => /aria-modal="true"/.test(code);
   const isPopover = (code: string) => /useModalDismiss(<[^>]*>)?\([\s\S]*?\{[^}]*popover: true[^}]*\}\)/.test(code);
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
   const handler = app.slice(
     app.indexOf("const onKey = (e: KeyboardEvent) => {"),
     app.indexOf('window.addEventListener("keydown", onKey);'),

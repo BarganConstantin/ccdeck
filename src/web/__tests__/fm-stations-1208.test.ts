@@ -1,13 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
+import { claudeFmSurface } from "./claude-fm-surface";
 import {
   FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableNote, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
 } from "../fm-stations";
+import { sheetText } from "./sheet-source";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-const player = readFileSync(fileURLToPath(new URL("../components/ClaudeFm.tsx", import.meta.url)), "utf8");
+// Claude FM's state, storage and station operations moved to use-claude-fm.ts;
+// the props they are handed on are still App.tsx's. This reads the client:
+// every match on it is positive, and the slices taken by name stay inside the hook.
+const app = clientText();
+// The player's component and the files lifted out of it, read as one: the
+// probe, the pick counter and the direct stream live in use-fm-player.ts now.
+const player = claudeFmSurface();
 const menu = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
 const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../../package.json", import.meta.url)), "utf8"));
 
@@ -91,8 +99,8 @@ describe("custom FM stations (#1208)", () => {
   });
 
   it("persists FM mute independently from volume and notification sound", () => {
-    expect(app).toContain("localStorage.setItem(FM_MUTED_KEY, fmMuted ? \"1\" : \"0\")");
-    expect(app).toContain("localStorage.setItem(FM_VOLUME_KEY, String(fmVolume))");
+    expect(app).toContain("writeStored(FM_MUTED_KEY, fmMuted ? \"1\" : \"0\")");
+    expect(app).toContain("writeStored(FM_VOLUME_KEY, String(fmVolume))");
     expect(FM_MUTED_KEY).not.toBe("agent-dag.sound-muted");
   });
 
@@ -185,7 +193,7 @@ describe("the station form in the Appearance menu (#1208)", () => {
 const strip = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const menuCode = strip(menu);
 const appCode = strip(app);
-const css = strip(readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8"));
+const css = strip(sheetText());
 const between = (text: string, from: string, to: string) => text.slice(text.indexOf(from), text.indexOf(to));
 
 /** The value of `prop` in the rule written for exactly this selector. */
@@ -308,7 +316,7 @@ describe("the deck's music off switch, whatever link a station was given as", ()
 
 describe("a silent station says why (#1267)", () => {
   const menuSource = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
-  const playerSource = readFileSync(fileURLToPath(new URL("../components/ClaudeFm.tsx", import.meta.url)), "utf8");
+  const playerSource = claudeFmSurface();
 
   it("keeps a built-in station's availability under its own value and a custom one's under its id", () => {
     expect(fmAvailabilityKey("cafe-music-bgm")).toBe("cafe-music-bgm");

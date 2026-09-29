@@ -1,4 +1,5 @@
-import { CUSTOM_TARGET_PEAK, type CustomNotificationAsset, type CustomSelections } from "./notification-audio";
+import { CUSTOM_TARGET_PEAK } from "./notification-audio";
+import { ownRow } from "./own-row";
 
 // The two moments worth hearing, played by the deck itself.
 //
@@ -11,7 +12,7 @@ import { CUSTOM_TARGET_PEAK, type CustomNotificationAsset, type CustomSelections
 // The file is split so the suite can reach the half that matters. `chimeFor`,
 // the figures and — since #711 — the whole of the volume and figure-choice
 // arithmetic are data and functions and are tested directly; only
-// `createChimePlayer` touches an AudioContext, which no test in this repo has.
+// `createChimePlayer`, in chime-player.ts, touches an AudioContext.
 
 /** A tone the deck can play. Two, deliberately: more becomes noise. */
 export type Chime = "done" | "needs-input";
@@ -371,6 +372,45 @@ export function peakFor(level: number, figure: Pick<Figure, "trim">): number {
   return Math.round(gainForLevel(level) * trim * 10_000) / 10_000;
 }
 
+// ── the envelope ────────────────────────────────────────────────────────────
+//
+// Every note is played in one shape: an exponential attack from the floor to
+// the note's peak, then an exponential decay back to the floor at the note's
+// end. Stated once for the two things that build it — the player below, live,
+// and chime-wav.ts, which renders the desktop app's notification files offline
+// and has to sound like the page (#1160).
+
+/** How long a note takes to reach its peak, in seconds. Shaped rather than a
+ *  raw start, because an abruptly gated oscillator clicks. */
+export const ENVELOPE_ATTACK_S = 0.012;
+
+/** Where every note starts and ends, in gain. Not zero: an exponential ramp to
+ *  zero is undefined in the spec. */
+export const ENVELOPE_FLOOR = 0.0001;
+
+/**
+ * How loud a spoken custom voice is, for a level (#1207): SpeechSynthesis'
+ * 0–1 volume.
+ *
+ * The existing level owns custom voices too. Map the notification gain band to
+ * SpeechSynthesis' 0..1 volume without adding a second control.
+ */
+export function voiceVolume(level: number): number {
+  return Math.min(1, gainForLevel(level) / GAIN_CEILING);
+}
+
+/**
+ * The gain an imported custom clip plays at, for a level (#1207).
+ *
+ * Import measured the file's peak once. Applying that gain here makes every
+ * imported file land at the same target before the user's existing per-tone
+ * level is applied.
+ */
+export function clipGain(normalizationGain: number, level: number): number {
+  const normalized = normalizationGain * (gainForLevel(level) / CUSTOM_TARGET_PEAK);
+  return Math.max(0.0001, normalized);
+}
+
 /**
  * How long after the last change to a tone the deck plays it back.
  *
@@ -451,6 +491,12 @@ export function readPrefs(read: (key: string) => string | null): TonePrefs {
   return { done: one("done"), "needs-input": one("needs-input") };
 }
 
+/** One tone's settings out of whatever the player was handed: the default for
+ *  a player given none, and for a tone the settings leave out. */
+export function toneFor(prefs: TonePrefs | undefined, chime: Chime): ToneSettings {
+  return (prefs ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
+}
+
 /** The events that earn a tone. Everything else is silent on purpose.
  *
  *  Typed as its own literal rather than `Record<string, Chime>`: that annotation
@@ -479,211 +525,11 @@ export function chimeFor(
   if (isReplay) return null;
   const name = env?.payload?.hook_event_name;
   if (typeof name !== "string") return null;
-  // `Object.hasOwn`, the rule admin-failure.ts states for the same shape (#474).
+  // `ownRow`, the rule admin-failure.ts states for the same shape (#474).
   // `hook_event_name` is a string off the wire and `/api/event` is
   // credential-free and validates no field shapes, so `CHIMES["constructor"]`
   // answered with the Object function — not nullish, so `??` never fired — and
   // `play()` threw into the `catch { }` in App.tsx, costing a chime silently.
   // The last unguarded member of a set this codebase already swept once.
-  return Object.hasOwn(CHIMES, name) ? CHIMES[name as keyof typeof CHIMES] : null;
-}
-
-/** What the player can be doing, for the switch to describe honestly. */
-export type ChimeState =
-  | "off"      // the user turned it off
-  | "locked"   // on, but the page has not been interacted with yet
-  | "ready";   // on and able to make a sound
-
-type Ctor = typeof AudioContext;
-
-/**
- * A player that survives the autoplay rules.
- *
- * Browsers create an AudioContext `suspended` and only let it run after a
- * genuine user gesture. For a dashboard left open all day that is satisfied
- * long before the first chime, but a tab reloaded and never touched is silent
- * — so the state is reported rather than hidden, and any pointer or key press
- * anywhere in the page unlocks it. The context is built lazily, on that first
- * gesture, because constructing one before it is allowed is what leaves a
- * permanently suspended object behind.
- */
-export function createChimePlayer(opts: {
-  enabled: () => boolean;
-  /** Both tones' settings, read at play time rather than captured — the same
-   *  shape as `enabled`, and for the same reason: the player is built once, on
-   *  mount, and the settings move under it for the life of the tab. */
-  prefs?: () => TonePrefs;
-  /** A local custom asset chosen for either tone (#1207). The asset bytes
-   *  themselves live in IndexedDB in a browser and in the desktop app's
-   *  userData directory. */
-  customSelection?: () => CustomSelections;
-  loadCustom?: (id: string) => Promise<CustomNotificationAsset | null>;
-  /** The chosen asset is gone or no longer decodes. The tone falls back to its
-   *  default figure, and the owner persists that. Not called when storage or
-   *  speech merely failed to answer this once — that plays the default figure
-   *  for this one event and leaves the choice alone. */
-  onCustomFailure?: (chime: Chime, id: string) => void;
-  ctor?: Ctor | null;
-  onState?: (s: ChimeState) => void;
-} = { enabled: () => true }) {
-  const Ctx: Ctor | null = opts.ctor
-    ?? (typeof window !== "undefined"
-      ? ((window as unknown as { AudioContext?: Ctor; webkitAudioContext?: Ctor }).AudioContext
-        ?? (window as unknown as { webkitAudioContext?: Ctor }).webkitAudioContext
-        ?? null)
-      : null);
-
-  let ctx: AudioContext | null = null;
-  let unlocked = false;
-
-  const state = (): ChimeState =>
-    !opts.enabled() ? "off" : unlocked && ctx?.state === "running" ? "ready" : "locked";
-  const announce = () => opts.onState?.(state());
-
-  function unlock() {
-    if (!Ctx || unlocked) return;
-    try {
-      ctx = ctx ?? new Ctx();
-      // `resume` returns a promise on every engine that needs it; a browser
-      // that resolves it late still ends up running before the first event
-      // worth playing, because a gesture precedes the work by a long way.
-      void ctx.resume?.().then(announce, () => {});
-      unlocked = true;
-      announce();
-    } catch { /* no audio on this machine; the switch will say "locked" */ }
-  }
-
-  function playFigure(chime: Chime, tone: ToneSettings, figureId = tone.figure) {
-    if (!ctx || ctx.state !== "running") return false;
-    const figure = figureFor(chime, figureId);
-    const peak = peakFor(tone.level, figure);
-    const now = ctx.currentTime;
-    for (const note of figure.notes) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      // A shaped envelope rather than a raw start/stop: an abruptly gated
-      // oscillator clicks, and a click is the part people find unpleasant, not
-      // the tone. One gain node PER NOTE, which is what lets two of them start
-      // at the same instant and sound as a dyad (#711's `chord`).
-      //
-      // The waveform is the figure's, defaulting to the sine every figure used
-      // before timbre was a lever. Nothing else about the synthesis changes:
-      // articulation is `ms` and texture is `at`, both of which this loop
-      // already honoured.
-      osc.type = figure.type ?? "sine";
-      osc.frequency.value = note.hz;
-      const t0 = now + note.at;
-      const t1 = t0 + note.ms / 1000;
-      gain.gain.setValueAtTime(0.0001, t0);
-      // `peak`, not PEAK_GAIN: the user's level, trimmed for this waveform. The
-      // ramp is exponential and an exponential ramp to zero is undefined
-      // behaviour in the spec — which is the second reason GAIN_FLOOR is above
-      // zero rather than the first, and the reason peakFor clamps the trim
-      // rather than trusting it.
-      gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t1);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t0);
-      osc.stop(t1 + 0.02);
-    }
-    return true;
-  }
-
-  /**
-   * How a custom asset went. Only `missing` and `broken` say something about
-   * the asset itself — deleted, or bytes that no longer decode — and so only
-   * they are worth changing the user's setting over. `unavailable` is storage
-   * or speech failing to answer this once (a desktop IPC call during a reload,
-   * a browser with no speechSynthesis), and clearing the choice for that would
-   * throw away a working sound because of a moment's hiccup.
-   */
-  type CustomOutcome = "played" | "locked" | "missing" | "broken" | "unavailable";
-
-  async function playCustomAsset(id: string, tone: ToneSettings): Promise<CustomOutcome> {
-    if (!opts.loadCustom) return "unavailable";
-    let asset: CustomNotificationAsset | null;
-    try { asset = await opts.loadCustom(id); }
-    catch { return "unavailable"; }
-    if (!asset) return "missing";
-
-    if (asset.kind === "tts") {
-      if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return "unavailable";
-      const utterance = new SpeechSynthesisUtterance(asset.text);
-      const voices = window.speechSynthesis.getVoices();
-      utterance.voice = voices.find(v => v.voiceURI === asset.voiceURI) ?? null;
-      utterance.rate = asset.rate;
-      utterance.pitch = asset.pitch;
-      // The existing level owns custom voices too. Map the notification gain
-      // band to SpeechSynthesis' 0..1 volume without adding a second control.
-      utterance.volume = Math.min(1, gainForLevel(tone.level) / GAIN_CEILING);
-      try {
-        // Speech QUEUES where a chime overlaps. Five turns finishing together
-        // would otherwise be five sentences read out one after another, the
-        // last of them long after the moment it was about — so the newest
-        // replaces whatever is still being said.
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-        return "played";
-      } catch { return "unavailable"; }
-    }
-
-    if (!ctx || ctx.state !== "running") return "locked";
-    let decoded: AudioBuffer;
-    try { decoded = await ctx.decodeAudioData(asset.bytes.slice(0)); }
-    catch { return "broken"; }
-    try {
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      source.buffer = decoded;
-      // Import measured the file's peak once. Applying that gain here makes
-      // every imported file land at the same target before the user's existing
-      // per-tone level is applied.
-      const normalized = asset.normalizationGain * (gainForLevel(tone.level) / CUSTOM_TARGET_PEAK);
-      gain.gain.setValueAtTime(Math.max(0.0001, normalized), ctx.currentTime);
-      source.connect(gain).connect(ctx.destination);
-      source.start(ctx.currentTime);
-      return "played";
-    } catch {
-      return "unavailable";
-    }
-  }
-
-  /**
-   * `audition` is the one caller allowed past the switch, and it is the sound
-   * menu — its preview buttons, and the controls that change a tone.
-   *
-   * Every other sound this deck makes is a report about something that
-   * happened, and the switch is the user saying they do not want those.
-   * Pressing "hear it" is not that: it is a direct request for the tone, the
-   * only gesture in the app whose entire purpose is to make a sound, and
-   * refusing it would leave the menu silent in exactly the state a user who
-   * turned the sound OFF BECAUSE IT WAS TOO LOUD is in when they open it. So
-   * the flag governs the deck's own tones and not the user's own press.
-   * `unlocked` is NOT waived with it — that one is the browser's rule, not the
-   * deck's, and nothing here can override it.
-   */
-  function play(chime: Chime, audition = false) {
-    if (!audition && !opts.enabled()) return false;
-    const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
-    const customId = opts.customSelection?.()[chime] ?? null;
-    if (customId && opts.loadCustom) {
-      void playCustomAsset(customId, tone).then(outcome => {
-        if (outcome === "played" || outcome === "locked") return;
-        if (outcome === "missing" || outcome === "broken") opts.onCustomFailure?.(chime, customId);
-        // Something still sounds: a notification that fails silently is the
-        // one outcome worse than the wrong sound.
-        playFigure(chime, { ...tone, figure: DEFAULT_FIGURE_ID }, DEFAULT_FIGURE_ID);
-      });
-      return true;
-    }
-    if (!ctx || ctx.state !== "running") return false;
-    return playFigure(chime, tone);
-  }
-
-  function previewCustom(id: string, level = DEFAULT_LEVEL) {
-    void playCustomAsset(id, { level: clampLevel(level), figure: DEFAULT_FIGURE_ID });
-    return true;
-  }
-
-  return { unlock, play, previewCustom, state, get context() { return ctx; } };
+  return ownRow(CHIMES, name) ?? null;
 }

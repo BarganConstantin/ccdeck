@@ -13,6 +13,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
+import { usageHistorySurface } from "./usage-history-surface";
 import { fmtTokens } from "../token-format";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -151,7 +153,9 @@ describe("the panels that show abbreviated token counts", () => {
   });
 
   it("declare no second token formatter of their own", () => {
-    for (const file of [app, panel, modal]) {
+    // The usage panel as a whole: the component and every file lifted out of it.
+    // The usage panel and the history modal each with every file lifted out of it.
+    for (const file of [app, usageSurface(), usageHistorySurface()]) {
       expect(file).not.toMatch(/function fmtTokens\b/);
       expect(file).not.toMatch(/function fmtN\b/);
     }
@@ -162,7 +166,8 @@ describe("the two unrelated fmtN helpers", () => {
   it("keep formatting their own tooltip and context rows", () => {
     // Same name, different job: these group digits for a monospaced table and
     // have no tiers at all, so folding them in would have changed real output.
-    expect(src("../components/AgentNode.tsx")).toMatch(/const fmtN = \(n: number\) => n\.toLocaleString\(\);/);
+    // The card's is its cost tooltip's, which moved to card-cost.ts.
+    expect(src("../card-cost.ts")).toMatch(/const fmtN = \(n: number\) => n\.toLocaleString\(\);/);
     expect(src("../components/ContextModal.tsx")).toMatch(/function fmtN\(n: number\): string \{ return n\.toLocaleString\(\); \}/);
   });
 });

@@ -34,66 +34,25 @@
 //
 // Click-outside is the one rule a popover needs that a modal does not, because
 // a modal has a backdrop to catch the click and this has nothing. It is
-// `pointerdown` rather than `click`: a press that starts outside should dismiss
-// even if the pointer travels back in before release, and `click` on a control
-// elsewhere in the topbar would otherwise fire against a menu that is still up.
-// The opener is excluded from it — its own onClick already toggles, and letting
-// both run would close the menu and immediately reopen it.
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import {
-  CHIME_ORDER, FIGURE_SETS, LEVEL_MAX, LEVEL_MIN, LEVEL_STEP,
-  type Chime, type TonePrefs,
-} from "../sound";
+// use-outside-press.ts's, shared with AnchoredPopover, which says why it is
+// `pointerdown`, why it listens on window in the capture phase, and why the
+// opener is excluded from it.
+import { type RefObject } from "react";
+import { CHIME_ORDER, type TonePrefs } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { useOutsidePress } from "./use-outside-press";
 import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 import { inDesktopApp } from "../in-app";
-import { armedPress, focusDropped } from "../panel-press";
-import { CONFIRM_GAP_MS } from "./LanSyncSection";
-import {
-  MAX_CUSTOM_ASSETS,
-  deleteFocusTarget,
-  libraryFullReason,
-  sameCustomSelection,
-  type CustomAssetSummary,
-  type CustomSelections,
-} from "../notification-audio";
+import CustomSoundsSection, { type CustomSoundsProps } from "./CustomSoundsSection";
+import ToneSection, { type SharedToneProps } from "./ToneSection";
+import { sameCustomSelection } from "../notification-audio";
 
-/** What each tone is called where a user is choosing between the two. Not
- *  "done" and "needs-input" — those are event names. */
-const TONE_LABEL: Record<Chime, string> = {
-  done: "Turn finished",
-  "needs-input": "Claude is asking",
-};
-
-/** The one line that says what fires the tone, because "Turn finished" alone
- *  does not tell a Codex user which of their turns are covered. */
-const TONE_NOTE: Record<Chime, string> = {
-  done: "Plays when Claude or Codex finishes a turn.",
-  // "Codex has no such event" was the true reason and the wrong sentence: why
-  // the other CLI cannot do this is ours to know, and a user reading a settings
-  // menu needs the boundary, not the cause.
-  "needs-input": "Available in Claude Code only.",
-};
-
-interface Props {
+interface Props extends CustomSoundsProps, SharedToneProps {
   onClose: () => void;
   /** The switch this menu carries, and the same one M flips. */
   soundOn: boolean;
   onToggleSound: () => void;
   prefs: TonePrefs;
-  onLevel: (chime: Chime, level: number) => void;
-  onFigure: (chime: Chime, id: string) => void;
-  /** Play this tone now, at what it is currently set to. */
-  onPreview: (chime: Chime) => void;
-  customAssets: CustomAssetSummary[];
-  customSelections: CustomSelections;
-  onBuiltInSelected: (chime: Chime) => void;
-  onCustomSelected: (chime: Chime, id: string) => void;
-  onImportCustom: (file: File) => Promise<void>;
-  onCreateVoice: (input: { name: string; text: string; voiceURI: string; rate: number; pitch: number }) => Promise<void>;
-  onRenameCustom: (id: string, name: string) => Promise<void>;
-  onPreviewCustom: (id: string) => void;
-  onDeleteCustom: (id: string) => Promise<void>;
   /** The deck's OTHER way of interrupting you, and the reason it is in this
    *  menu rather than a settings panel of its own: this popover is already
    *  "how loudly does this deck interrupt me", and notifications were the only
@@ -136,164 +95,16 @@ export default function SoundMenu({
   // browser's permission that this section reports is never asked there.
   const inApp = inDesktopApp();
   const showChannel = notifyOn && !notifyVetoed && !inApp;
-  const [customError, setCustomError] = useState("");
-  const [voiceName, setVoiceName] = useState("Custom voice");
-  const [voiceText, setVoiceText] = useState("Your turn");
-  const [voiceURI, setVoiceURI] = useState("");
-  // Kept as the text in the field, not a number. A controlled number input
-  // bound to Number(value) turns a cleared field into 0 on the spot, so the
-  // person could never empty it to type a new value — and 0 would then have
-  // been saved as the slowest rate rather than read as "not set".
-  const [voiceRate, setVoiceRate] = useState("1");
-  const [voicePitch, setVoicePitch] = useState("1");
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [recording, setRecording] = useState(false);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sharedCustomId = sameCustomSelection(customSelections);
   const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
-  // The ceiling, said where sounds are added and before any work is done. It
-  // used to arrive as an error after the fact — after a 4.4-second recording,
-  // or a voice form filled in — which is the person doing the work for the
-  // refusal. The controls that add stay focusable and say aria-disabled rather
-  // than `disabled`: the import field and Stop & save both hold focus at the
-  // moment the 24th sound lands, and a control disabled under focus drops it to
-  // <body> (#518).
-  const customCount = customAssets.length;
-  const fullReason = libraryFullReason(customCount);
-  const full = fullReason !== null;
-  const fullProps = full ? { "aria-disabled": true, "aria-describedby": "sm-custom-full" } : {};
-  /** Which sound's Delete is armed, by id. Nothing brings a deleted sound back,
-   *  so it costs two presses — the LAN unpair's rule (#1175), one row at a time. */
-  const [armedDelete, setArmedDelete] = useState<string | null>(null);
-  /** When it was armed, so a double-click cannot be its own confirmation. */
-  const deleteArmedAt = useRef(0);
-  /** Each row's Delete, and the import field, for where focus goes once a row
-   *  is gone (deleteFocusTarget). */
-  const deleteRefs = useRef(new Map<string, HTMLButtonElement>());
-  const importRef = useRef<HTMLInputElement>(null);
-  // An armed delete stands down on its own, the way the unpairs do.
-  useEffect(() => {
-    if (!armedDelete) return;
-    const t = window.setTimeout(() => setArmedDelete(null), 4_000);
-    return () => window.clearTimeout(t);
-  }, [armedDelete]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const refresh = () => {
-      const next = window.speechSynthesis.getVoices();
-      setVoices(next);
-      setVoiceURI(current => current || next[0]?.voiceURI || "");
-    };
-    refresh();
-    window.speechSynthesis.addEventListener("voiceschanged", refresh);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", refresh);
-  }, []);
-
-  const runCustom = async (work: () => Promise<void>) => {
-    setCustomError("");
-    try { await work(); }
-    catch (error) { setCustomError(error instanceof Error ? error.message : "Custom audio could not be saved."); }
-  };
-
-  const pressDelete = (id: string, pressed: HTMLButtonElement) => {
-    const now = Date.now();
-    const press = armedPress({
-      armedFor: armedDelete, target: id, armedAt: deleteArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
-    });
-    if (press === "arm") { setArmedDelete(id); deleteArmedAt.current = now; return; }
-    // A double-click is one decision, not two.
-    if (press === "ignore") return;
-    setArmedDelete(null);
-    // Chosen before the row goes, from the list as it stands at the press.
-    const next = deleteFocusTarget(customAssets.map(asset => asset.id), id);
-    void runCustom(async () => {
-      await onDeleteCustom(id);
-      // Only when focus is still on the pressed Delete or has already fallen
-      // to <body>: somebody who tabbed on meanwhile is left where they went.
-      const active = document.activeElement;
-      if (active !== pressed && !focusDropped(active?.tagName ?? null)) return;
-      (next ? deleteRefs.current.get(next) : importRef.current)?.focus();
-    });
-  };
-
-  const stopRecording = () => {
-    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-    recordingTimerRef.current = null;
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-  };
-
-  const startRecording = async () => {
-    if (full) return;
-    setCustomError("");
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setCustomError("Microphone recording is unavailable in this browser.");
-      return;
-    }
-    let stream: MediaStream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { setCustomError("Microphone access was denied or unavailable."); return; }
-    if (recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
-    try {
-      const format = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"]
-        .find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
-      const chunks: Blob[] = [];
-      recorderRef.current = recorder;
-      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => setCustomError("Recording failed. Please try again.");
-      recorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-        if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-        const shouldSave = recorderRef.current === recorder;
-        if (shouldSave) recorderRef.current = null;
-        setRecording(false);
-        if (!shouldSave || !chunks.length) return;
-        const mime = recorder.mimeType.split(";")[0];
-        const extension = mime === "audio/mp4" ? "m4a" : mime === "audio/ogg" ? "ogg" : "webm";
-        const file = new File(chunks, `Recorded voice.${extension}`, { type: mime });
-        void runCustom(() => onImportCustom(file));
-      };
-      recorder.start(200);
-      setRecording(true);
-      // Stop just before the five-second limit to allow encoder/container overhead.
-      recordingTimerRef.current = setTimeout(stopRecording, 4400);
-    } catch {
-      recorderRef.current = null;
-      stream.getTracks().forEach(track => track.stop());
-      setCustomError("This browser cannot record a supported audio format.");
-    }
-  };
-
-  useEffect(() => () => {
-    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
-    const recorder = recorderRef.current;
-    recorderRef.current = null;
-    if (recorder?.state === "recording") recorder.stop();
-  }, []);
 
   // A popover, so the canvas letters stay live under it — V and M included,
   // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
 
-  // The one dismissal rule a popover owns that the hook does not. On window and
-  // in the capture phase, so a press on a control that stops propagation still
-  // closes the menu first.
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (dialogRef.current?.contains(target)) return;
-      if (openerRef.current?.contains(target)) return;
-      closeRef.current();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    return () => window.removeEventListener("pointerdown", onDown, true);
-  }, [dialogRef, openerRef]);
+  // The one dismissal rule a popover owns that the hook above does not: a
+  // press outside the menu and outside the button that opened it.
+  useOutsidePress(dialogRef, () => openerRef.current, onClose);
 
   return (
     <div
@@ -426,119 +237,21 @@ export default function SoundMenu({
       )}
 
       <div className="sm-tones">
-      {CHIME_ORDER.map(chime => {
-        const tone = prefs[chime];
-        const levelId = `sm-level-${chime}`;
-        const figureId = `sm-figure-${chime}`;
-        return (
-          <section className="sm-tone" key={chime} aria-labelledby={`sm-name-${chime}`}>
-            <div className="sm-tone-head">
-              <h3 className="sm-tone-name" id={`sm-name-${chime}`}>{TONE_LABEL[chime]}</h3>
-              {/* The point of the menu, not decoration: choosing a sound you
-                  cannot hear and setting a level in silence are both guessing.
-                  It plays THIS tone at what it is currently set to, and it
-                  plays whether the switch is on or off — the press is the
-                  request, and the person most likely to be here is somebody
-                  who turned the sound off because it was too loud. */}
-              <button
-                type="button"
-                className="btn sm-hear"
-                onClick={() => onPreview(chime)}
-                aria-label={`Hear the ${TONE_LABEL[chime].toLowerCase()} tone`}
-                /* Nothing below is dimmed or disabled while Sounds is off, and
-                   that is the decision rather than an oversight: the person
-                   most likely to open this menu is somebody who silenced the
-                   deck because it was too loud, and turning the volume down is
-                   the road they came for. Disabling it closes that road, and
-                   dimming without disabling is worse — a control that looks
-                   dead and works.
-                   What that costs is one surprise: a press that makes a noise
-                   from a deck the user believes is muted reads as a bug. So the
-                   press says so first, in a tooltip and — because a tooltip is
-                   not on the accessibility tree — in a description a reader
-                   gets too. Only while it can surprise: with the sound on, the
-                   sentence is noise.
-                   The two say different lengths on purpose. A tooltip appears
-                   over the thing it describes and is read in the half-second
-                   before a press, so it states the EXCEPTION and stops. The
-                   description is read in sequence by somebody who cannot see
-                   the switch above, and carries why the exception is useful. */
-                title={soundOn
-                  ? "Play this tone now, at what it is set to"
-                  : "Plays even when Sounds is off"}
-                aria-describedby={soundOn ? undefined : "sm-preview-note"}
-              >
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
-                  <path d="M3 1.6v8.8l7-4.4z" />
-                </svg>
-                Hear it
-              </button>
-            </div>
-
-            <div className="sm-row">
-              <label htmlFor={levelId}>Volume</label>
-              {/* Native, and left native on purpose. A custom track and thumb
-                  would have to re-earn the arrow keys, Home and End, the drag,
-                  the announced percentage and the focus ring — all of which the
-                  browser gives for nothing, and #620 is what this deck's record
-                  on dropped focus is worth. */}
-              <input
-                id={levelId}
-                type="range"
-                min={LEVEL_MIN}
-                max={LEVEL_MAX}
-                step={LEVEL_STEP}
-                value={tone.level}
-                onChange={e => onLevel(chime, Number(e.target.value))}
-                /* The filled half, as a number the sheet can read. Chrome 152
-                   has no `::slider-fill`, so a thinner track means painting one
-                   — and painting one means knowing where the value is. This is
-                   NOT a listener: `tone.level` already drives `value` on this
-                   element and React already re-renders on every change, so the
-                   property rides a render that was happening anyway. Nothing
-                   new runs on drag.
-                   The sheet only uses it inside `@supports`; where the custom
-                   track is not taken up, the native widget and `accent-color`
-                   still paint the fill and this attribute is inert. */
-                style={{ "--sm-level": `${((tone.level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
-              />
-              <span className="sm-read">{tone.level}%</span>
-            </div>
-
-            <div className="sm-row">
-              <label htmlFor={figureId}>Tone</label>
-              {/* A native select for the same reason the range is native: it
-                  arrives with the keyboard, the platform's own popup and a
-                  reader that already knows how to announce a list of options.
-                  Three of them, so the alternative — a radio group — would cost
-                  three tab stops per tone and six rows of markup to be worse. */}
-              <select
-                id={figureId}
-                className="sm-select"
-                value={customSelections[chime] ? `custom:${customSelections[chime]}` : tone.figure}
-                onChange={e => {
-                  const value = e.target.value;
-                  if (value.startsWith("custom:")) onCustomSelected(chime, value.slice(7));
-                  else { onBuiltInSelected(chime); onFigure(chime, value); }
-                }}
-              >
-                {FIGURE_SETS[chime].map(f => (
-                  <option key={f.id} value={f.id}>{f.label}</option>
-                ))}
-                {customAssets.length > 0 && (
-                  <optgroup label="Custom">
-                    {customAssets.map(asset => (
-                      <option key={asset.id} value={`custom:${asset.id}`}>{asset.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-
-            <p className="sm-note">{TONE_NOTE[chime]}</p>
-          </section>
-        );
-      })}
+      {CHIME_ORDER.map(chime => (
+        <ToneSection
+          key={chime}
+          chime={chime}
+          tone={prefs[chime]}
+          soundOn={soundOn}
+          customAssets={customAssets}
+          customSelections={customSelections}
+          onLevel={onLevel}
+          onFigure={onFigure}
+          onPreview={onPreview}
+          onBuiltInSelected={onBuiltInSelected}
+          onCustomSelected={onCustomSelected}
+        />
+      ))}
       </div>
 
       {sharedCustomId && (
@@ -547,146 +260,14 @@ export default function SoundMenu({
         </p>
       )}
 
-      <section className="sm-custom" aria-labelledby="sm-custom-title">
-        <div className="sm-custom-head">
-          <h3 className="sm-tone-name" id="sm-custom-title">Custom sounds</h3>
-          <span>{customCount} of {MAX_CUSTOM_ASSETS}, kept on this machine</span>
-        </div>
-        {full && <p className="sm-note" id="sm-custom-full">{fullReason}</p>}
-        <div className="sm-custom-actions">
-          <label className="sm-custom-card sm-file">
-            <span className="sm-custom-card-copy">
-              <strong>Import audio</strong>
-              <span>WAV, MP3 or OGG</span>
-            </span>
-            <span className="btn sm-custom-action" aria-hidden="true">Choose file</span>
-            <input
-              ref={importRef}
-              type="file"
-              accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
-              {...fullProps}
-              // A click that would open the picker, from the card or its
-              // caption, opens nothing while the library is full.
-              onClick={e => { if (full) e.preventDefault(); }}
-              onChange={e => {
-                const file = e.target.files?.[0];
-                e.currentTarget.value = "";
-                if (file && !full) void runCustom(() => onImportCustom(file));
-              }}
-            />
-          </label>
-
-          <div className="sm-custom-card">
-            <span className="sm-custom-card-copy">
-              <strong>Record a clip</strong>
-              <span>{recording ? "Recording…" : "Up to 5 seconds"}</span>
-            </span>
-            {recording ? (
-              <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
-            ) : (
-              <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record</button>
-            )}
-          </div>
-        </div>
-
-        <details className="sm-voice">
-          <summary
-            {...fullProps}
-            // Held shut while full, so nobody fills in a form that cannot be
-            // saved. One already open can still be closed.
-            onClick={e => {
-              const details = e.currentTarget.parentElement as HTMLDetailsElement | null;
-              if (full && details && !details.open) e.preventDefault();
-            }}
-          >
-            <span>Spoken voice</span>
-            <span>Create from text</span>
-          </summary>
-          <div className="sm-voice-fields">
-            {/* The deck's text field, as the appearance menu's station fields
-                are: `.sm-select` is a select's class, and these are not. */}
-            <label>
-              <span>Name</span>
-              <input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} />
-            </label>
-            <label>
-              <span>Text</span>
-              <input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} />
-            </label>
-            <label>
-              <span>Voice</span>
-              <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
-                <option value="">System default</option>
-                {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
-              </select>
-            </label>
-            <div className="sm-voice-pair">
-              <label><span>Rate</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
-              <label><span>Pitch</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
-            </div>
-            <button
-              type="button"
-              className="btn sm-custom-action"
-              {...fullProps}
-              onClick={() => {
-                if (full) return;
-                void runCustom(async () => {
-                  // parseFloat, so an empty field is NaN and createCustomVoice's
-                  // default rather than Number("")'s 0.
-                  await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
-                  setVoiceText("Your turn");
-                });
-              }}
-            >
-              Add spoken voice
-            </button>
-          </div>
-        </details>
-
-        {customAssets.length > 0 && (
-          <div className="sm-custom-list">
-            {customAssets.map(asset => (
-              <div className="sm-custom-item" key={asset.id}>
-                <input
-                  className="ap-manage-input"
-                  aria-label={`Rename ${asset.name}`}
-                  defaultValue={asset.name}
-                  maxLength={80}
-                  onBlur={e => {
-                    // A name cannot be blank, so a cleared field goes back to
-                    // the one it had rather than showing a name nothing saved.
-                    if (!e.target.value.trim()) { e.target.value = asset.name; return; }
-                    void runCustom(() => onRenameCustom(asset.id, e.target.value));
-                  }}
-                  onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                />
-                <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
-                {/* Named for the sound, not only the verb: a list of eight
-                    rows read aloud as "Play, Delete, Play, Delete" says
-                    nothing about which one a press would act on. */}
-                <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
-                {/* Two presses, because nothing brings a deleted sound back:
-                    the first arms, a second inside four seconds deletes. And
-                    it hands focus on, since the row it sat in goes with it. */}
-                <button
-                  type="button"
-                  ref={el => { if (el) deleteRefs.current.set(asset.id, el); else deleteRefs.current.delete(asset.id); }}
-                  className={`btn sm-custom-icon${armedDelete === asset.id ? " armed" : ""}`}
-                  // A held key repeats at about half a second, past the gap,
-                  // while the finger has never come up: one decision.
-                  onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
-                  onClick={e => pressDelete(asset.id, e.currentTarget)}
-                  aria-label={armedDelete === asset.id ? `Confirm deleting ${asset.name}` : `Delete ${asset.name}`}
-                  title={armedDelete === asset.id ? "Press again to delete this sound. It cannot be brought back." : "Delete this sound"}
-                >
-                  {armedDelete === asset.id ? "Confirm" : "Delete"}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {customError && <p className="sm-custom-error" role="alert">{customError}</p>}
-      </section>
+      <CustomSoundsSection
+        customAssets={customAssets}
+        onImportCustom={onImportCustom}
+        onCreateVoice={onCreateVoice}
+        onRenameCustom={onRenameCustom}
+        onPreviewCustom={onPreviewCustom}
+        onDeleteCustom={onDeleteCustom}
+      />
 
       {/* The key, drawn as a key. It was a sentence about a letter, which is
           the one shape a reader does not scan for when they are looking for a

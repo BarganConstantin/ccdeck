@@ -8,19 +8,24 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clustersSurface } from "./clusters-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const raw = read("../styles.css");
+const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
-const tsx = read("../components/SessionClusters.tsx");
+/** The box's style, built in cluster-bounds.ts since it left the component. */
+const geometry = read("../cluster-bounds.ts");
 
 const card = /(?:^|\n)\.cluster-card\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
 const transition = /transition:\s*([^;]+);/.exec(card)?.[1].replace(/\s+/g, " ") ?? "";
 
 describe("the session box moves by translate (#864)", () => {
   it("writes its position as a translate in layout space, from the origin", () => {
-    expect(tsx).toMatch(/left: 0,\s*top: 0,\s*transform: `translate\(\$\{c\.x\}px, \$\{c\.y\}px\)`,/);
-    expect(tsx).not.toMatch(/left: c\.x,|top: c\.y,/);
+    expect(geometry).toMatch(/left: 0,\s*top: 0,\s*transform: `translate\(\$\{c\.x\}px, \$\{c\.y\}px\)`,/);
+    // The component and every file lifted out of it, so the old spelling
+    // cannot come back in whichever of them builds the box next.
+    expect(clustersSurface()).not.toMatch(/left: c\.x,|top: c\.y,/);
   });
 
   it("eases that translate on the nodes' own curve, and no longer left or top", () => {

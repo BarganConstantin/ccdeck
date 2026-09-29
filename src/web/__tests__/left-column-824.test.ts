@@ -10,8 +10,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The left column moved to use-left-column.ts whole — both panels, the eviction
+// and the toggles — so this reads the client. Every match here is positive.
+const app = clientText();
 const between = (from: string, to: string) => app.slice(app.indexOf(from), app.indexOf(to, app.indexOf(from)));
 
 describe("the session list evicts the accounts panel, and gives it back (#824)", () => {
@@ -23,11 +26,15 @@ describe("the session list evicts the accounts panel, and gives it back (#824)",
   it("gives the panel back when the list closes, whichever way it closes", () => {
     expect(app).toMatch(/if \(!sessionListOpen && accountsEvictedRef\.current\) \{\s*accountsEvictedRef\.current = false;\s*setAccountsPanelOpen\(true\);\s*\}\s*\}, \[sessionListOpen\]\);/);
     // The list's own close and L both reach it, because it reacts to the state.
-    expect(app).toMatch(/onClose=\{\(\) => setSessionListOpen\(false\)\}/);
+    // The close is two links now — the button calls closeSessionList, which is
+    // setSessionListOpen(false) — so both are pinned, and the chain is proved
+    // rather than assumed.
+    expect(app).toMatch(/onClose=\{closeSessionList\}/);
+    expect(app).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
   });
 
   it("never stores an eviction as the reader closing the panel", () => {
-    expect(app).toMatch(/if \(!accountsPanelOpen && accountsEvictedRef\.current\) return;\s*try \{ window\.localStorage\.setItem\(ACCOUNTS_PANEL_OPEN_KEY/);
+    expect(app).toMatch(/if \(!accountsPanelOpen && accountsEvictedRef\.current\) return;\s*writeStored\(ACCOUNTS_PANEL_OPEN_KEY/);
   });
 
   it("keeps the panel waiting behind a list that is open on load", () => {

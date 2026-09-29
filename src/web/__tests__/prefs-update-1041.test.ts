@@ -64,7 +64,7 @@ interface Prefs { lan: { manual: string[]; aliases: Record<string, string>; trus
 // @ts-expect-error — plain .mjs server module, no types
 const { readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } = await import("../../server/deck-prefs.mjs");
 // @ts-expect-error — plain .mjs server module, no types
-const { lanApplyFields } = await import("../../server/index.mjs");
+const { lanApplyFields } = await import("../../server/lan-deck.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { createEngine } = await import("../../server/lan-engine.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -121,10 +121,16 @@ describe("the tick an account gets when it arrives", () => {
     // engine says an account arrived, and then hand the engine the new list —
     // a tick that reached the file and not the running engine would go
     // unoffered until the next restart.
-    const source = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+    const source = readFileSync(fileURLToPath(new URL("../../server/lan-deck.mjs", import.meta.url)), "utf8");
     const onShared = source.match(/onShared: async key => \{[\s\S]*?\n {2}\},/)?.[0] ?? "";
-    expect(onShared).toMatch(/updatePrefs\(withShared\(key\)\)/);
-    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: _prefs\.lan\.shared \}\)/);
+    expect(onShared, "onShared was not found in the server source").not.toBe("");
+    // Through the held prefs, which prefs-state.mjs keeps, and whose `update`
+    // is updatePrefs — so the tick is still computed inside the job — and the
+    // engine is handed the list that write returned.
+    expect(onShared).toMatch(/const after = await heldPrefs\.update\(withShared\(key\)\)/);
+    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: after\.lan\.shared \}\)/);
+    const held = readFileSync(fileURLToPath(new URL("../../server/prefs-state.mjs", import.meta.url)), "utf8");
+    expect(held).toMatch(/update: async mutate => \(_prefs = await updatePrefs\(mutate\)\)/);
   });
 
   it("writes nothing for an account with no key", async () => {

@@ -32,6 +32,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
+import { endStdin } from "./child-stdin";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const INSTALLER = pathToFileURL(join(REPO, "src", "server", "installer.mjs")).href;
@@ -109,7 +110,7 @@ async function runInstalledHook(hookPath: string, env: Record<string, string | u
   child.stdout.on("data", c => { stdout += c; });
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", c => { stderr += c; });
-  child.stdin.end(JSON.stringify({ cwd, hook_event_name: "SessionStart", session_id: "s1" }));
+  endStdin(child, JSON.stringify({ cwd, hook_event_name: "SessionStart", session_id: "s1" }));
   const code = await new Promise<number | null>((done, fail) => {
     child.on("error", fail);
     child.on("exit", c => done(c));

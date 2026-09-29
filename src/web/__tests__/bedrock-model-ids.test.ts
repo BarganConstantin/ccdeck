@@ -25,8 +25,8 @@
 // half is the whole risk of the fix: thirty-odd rate rows, several of them
 // prefixes of each other and separated only by anchoring plus list order, all
 // of which now match against a string that has been rewritten before they see
-// it. Every rate is pinned as a literal, and the RATES table is read out of the
-// source so a row nobody thought to pin fails the sweep rather than passing it.
+// it. Every rate is pinned as a literal, and every row of the RATES table is
+// swept, so a row nobody thought to pin fails the sweep rather than passing it.
 //
 // Plain node — no DOM, no rendering. Every function here is pure except the
 // server's transcript reader, which gets a temp file.
@@ -36,7 +36,9 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ratesForModel, contextWindowForModel, type ModelRates } from "../pricing";
+import { contextWindowForModel } from "../context-window";
+import { ratesForModel, type ModelRates } from "../pricing";
+import { RATES } from "../rate-table";
 import { bareModelId, VENDOR_PREFIX_RE } from "../model-id";
 import { shortModel } from "../model-label";
 import { applyEvent, initialState } from "../reducer";
@@ -147,7 +149,7 @@ describe("every rate the table already gave, unchanged", () => {
   }
 
   it("still refuses the ids it always refused", () => {
-    // The `not priced` answers pricing.ts argues for at length: an unrecognised
+    // The `not priced` answers rate-table.ts argues for at length: an unrecognised
     // member of a known family must NOT inherit a sibling's price.
     for (const id of ["gpt-5.7", "gpt-5.10", "gpt-4o", "claude-opus-9", "claude-3-opus", "o5", "llama-3"]) {
       expect(ratesForModel(id, NOW), id).toBeNull();
@@ -164,23 +166,13 @@ describe("every rate the table already gave, unchanged", () => {
   });
 });
 
-/** The RATES block, sliced out of the source, and every `match:` literal in it
- *  rebuilt as a RegExp. Reading the table rather than importing it (it is not
- *  exported, and exporting it to be tested would be the tail wagging the dog)
- *  is what makes the sweep above a COVERAGE claim: a row added tomorrow with no
- *  pinned id fails here instead of quietly going unproven. */
+/** Every row's pattern, off the table ratesForModel walks. Sweeping the table
+ *  itself rather than a list of ids is what makes the sweep above a COVERAGE
+ *  claim: a row added tomorrow with no pinned id fails here instead of quietly
+ *  going unproven. The table used to be read out of pricing.ts's source,
+ *  because it was not exported; it is exported now, for pricing.ts. */
 function ratesRowPatterns(): RegExp[] {
-  const text = src("../pricing.ts");
-  const start = text.indexOf("const RATES");
-  expect(start, "RATES declaration").toBeGreaterThan(-1);
-  const end = text.indexOf("\n];", start);
-  expect(end, "end of RATES").toBeGreaterThan(start);
-  const block = text.slice(start, end);
-  const out: RegExp[] = [];
-  for (const m of block.matchAll(/match:\s*\/((?:[^/\\\n]|\\.)+)\/([a-z]*)/g)) {
-    out.push(new RegExp(m[1], m[2]));
-  }
-  return out;
+  return RATES.map(r => r.match);
 }
 
 describe("the pinned table covers the whole rate table", () => {
@@ -380,12 +372,12 @@ describe("the server's transcript filter", () => {
   // step, so it cannot import model-id.ts. This reads it back out of the source
   // and holds it to the exact rule the shared helper states, which is the only
   // thing keeping the two copies from drifting.
-  const literal = /const MODEL_ID_RE = (\/(?:[^/\\\n]|\\.)+\/[a-z]*)/.exec(src("../../server/index.mjs"));
+  const literal = /const MODEL_ID_RE = (\/(?:[^/\\\n]|\\.)+\/[a-z]*)/.exec(src("../../server/transcript-scan.mjs"));
   const body = /^\/((?:[^/\\]|\\.)+)\/([a-z]*)$/.exec(literal?.[1] ?? "");
   const MODEL_ID_RE = new RegExp(body?.[1] ?? "$^", body?.[2] ?? "");
 
   it("is still a regex this test could find", () => {
-    expect(literal, "MODEL_ID_RE literal in src/server/index.mjs").not.toBeNull();
+    expect(literal, "MODEL_ID_RE literal in src/server/transcript-scan.mjs").not.toBeNull();
   });
 
   it("accepts exactly the ids whose bare form is a Claude id", () => {

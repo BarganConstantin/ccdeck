@@ -9,21 +9,35 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nextFailure, type Failure } from "../accounts-reload";
+import { ACCOUNTS_FILES } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+/** The row, which says both answers, from the file that draws it. */
+const row = read("../components/AccountRow.tsx");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
-const doSwitch = /const doSwitch = async \(num: number, name: string\) => \{[\s\S]*?\n  \};/.exec(panel)?.[0] ?? "";
+/** The switch, which lives in the switching hook with the confirmation it sets. */
+const switching = read("../use-account-switching.ts");
+const doSwitch = /const doSwitch = async \(num: number, name: string\) => \{[\s\S]*?\n  \};/.exec(switching)?.[0] ?? "";
+/** The failure line's owner, which doSwitch says its answers through. */
+const roster = read("../use-account-roster.ts");
 
 describe("a switch answers on the row it was about (#827)", () => {
   it("tags a refusal with the row that was pressed, both ways it can fail", () => {
-    expect(doSwitch).toMatch(/setFailure\(\{ text: explainCommandFailure\(body, "the switch failed"\), raw: commandOutput\(body\), row: num \}\)/);
-    expect(doSwitch).toMatch(/setFailure\(\{ text: "server unreachable", row: num \}\)/);
+    expect(doSwitch).toMatch(/sayFailure\(\{ text: explainCommandFailure\(body, "the switch failed"\), raw: commandOutput\(body\), row: num \}\)/);
+    expect(doSwitch).toMatch(/sayFailure\(\{ text: "server unreachable", row: num \}\)/);
+    // Said as it was written, row and all: the line takes a press's refusal
+    // whole, and only a reload's verdict goes through nextFailure.
+    expect(roster).toMatch(/const sayFailure = useCallback\(\(f: Failure \| null\) => setFailure\(f\), \[\]\);/);
   });
 
   it("draws the refusal on that row, and only other messages under the roster", () => {
-    expect(panel).toMatch(/\{failure\?\.row === a\.num && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
+    // The refusal is the row's when it is tagged with the row, read once.
+    expect(clientText()).toMatch(/const refusal = failure\?\.row === a\.num \? failure : null;/);
+    expect(clientText()).toMatch(/\{refusal && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
     // It stood below the scroll while Auto-switch did. Both moved into the
     // column together, because the refusal is said beside the control that
     // made it — and every branch around it already needs a roster, so the
@@ -44,19 +58,29 @@ describe("a switch answers on the row it was about (#827)", () => {
 
   it("names the account a switch took to, and clears it when the next one starts", () => {
     expect(doSwitch).toMatch(/else setSwitched\(\{ num, name \}\);/);
-    expect(doSwitch).toMatch(/setFailure\(null\);\s*setSwitched\(null\);/);
-    expect(panel).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
-    expect(panel).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, name\)\}/);
+    expect(doSwitch).toMatch(/clearFailure\(\);\s*setSwitched\(null\);/);
+    // One owner for the confirmation: the switch that sets it, the next one
+    // that takes it down and the roster that clears it are all in the
+    // switching hook, and nothing else in the accounts surface writes it.
+    const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(ACCOUNTS_FILES.filter(rel => /\bsetSwitched\(/.test(code(read(`../${rel}`)))))
+      .toEqual(["use-account-switching.ts"]);
+    expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
+    expect(clientText()).toMatch(/onClick=\{\(\) => onSwitch\(a\.num, name\)\}/);
+    // The row presses the panel's own doSwitch — the one above that says it —
+    // handed in as its onSwitch.
+    expect(panel).toMatch(/<AccountRow key=\{a\.num\}[\s\S]{0,400}?\bonSwitch=\{doSwitch\}/);
   });
 });
 
 describe("what a switch that took says (#827)", () => {
   it("says it on the row it took to, while that row is still the active one", () => {
-    expect(panel).toMatch(/\{a\.active && switched\?\.num === a\.num && \(\s*<p className="ap-switched">/);
+    expect(clientText()).toMatch(/const switchedHere = switched\?\.num === a\.num;/);
+    expect(clientText()).toMatch(/\{a\.active && switchedHere && \(\s*<p className="ap-switched">/);
   });
 
   it("says what happens to sessions already running, as claude-swap does", () => {
-    const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(panel)?.[1].replace(/\s+/g, " ").trim() ?? "";
+    const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(row)?.[1].replace(/\s+/g, " ").trim() ?? "";
     expect(said).toBe("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
   });
 

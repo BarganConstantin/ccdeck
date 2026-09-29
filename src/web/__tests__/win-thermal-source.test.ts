@@ -29,7 +29,7 @@ import { execFileSync } from "node:child_process";
 
 // @ts-expect-error — a plain .mjs module, no types
 const { parseWinThermal, tempFromPerfCounterJson, zoneLabel, WIN_THERMAL_PS } =
-  await import("../../server/system-metrics.mjs");
+  await import("../../server/thermal-metrics.mjs");
 
 /** 313.15 K = 40 °C, in the tenths of a Kelvin both sources report. */
 const K10 = (c: number) => Math.round((c + 273.15) * 10);

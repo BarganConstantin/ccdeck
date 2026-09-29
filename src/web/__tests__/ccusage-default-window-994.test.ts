@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { ccusageSurface } from "./ccusage-surface";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — .mjs server module, no types
 import { defaultCcusageSince } from "../../server/ccusage.mjs";
@@ -77,6 +78,8 @@ describe("the default usage window", () => {
     // And the UTC formatter it replaced is gone, rather than left for the next
     // default to reach for. (The old formula is still quoted in the comment
     // above defaultCcusageSince, so this checks for the function, not the text.)
-    expect(SRC).not.toMatch(/function toCliDate\b/);
+    // Across ccusage.mjs and the files lifted out of it, so a move cannot
+    // carry the formatter somewhere this line stops looking.
+    expect(ccusageSurface()).not.toMatch(/function toCliDate\b/);
   });
 });

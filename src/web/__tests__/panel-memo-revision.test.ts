@@ -48,7 +48,7 @@
 // same roll-up, keyed both ways, run across a real prune, one of them still
 // holding the evicted session's row.
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
@@ -57,6 +57,7 @@ import {
 import type { GraphState } from "../reducer";
 import { boardSessionTable } from "../board-usage";
 import type { HookEnvelope, HookPayload } from "../types";
+import { clientSources } from "./client-source";
 
 /** The shipped constants, from App.tsx — the point is the deck as it runs, not
  *  a prune tuned to make a test pass. */
@@ -212,13 +213,6 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 /** Every client source that ends up in the bundle. The suite's own files are
  *  excluded: this very file names `state.lastSeq` inside a dependency array on
  *  purpose, to show what it does. */
-function clientSources(dir: string): string[] {
-  return readdirSync(dir).flatMap(name => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : clientSources(path);
-    return path.endsWith(".ts") || path.endsWith(".tsx") ? [path] : [];
-  });
-}
 const sources: [string, string][] = clientSources(web)
   // Forward slashes on every platform, so a failure message reads the same on
   // Windows as it does in CI.
@@ -263,7 +257,9 @@ describe("no memo in the client watches lastSeq", () => {
     // state dependency said, and the strip stayed honest through a prune by
     // luck. Migrated anyway: the day this memo gets a cheaper refresh rule, the
     // luck goes with it and nothing in the diff would explain the bug arriving.
-    expect(watchedField("components/UsagePanel.tsx", "const { byModel, totalCost, totalTokens, burnRate } = useMemo("))
+    // The memo is use-board-spend.ts's since it left the panel with the refs
+    // it reads and extends.
+    expect(watchedField("use-board-spend.ts", "return useMemo("))
       .toBe("revision");
   });
 

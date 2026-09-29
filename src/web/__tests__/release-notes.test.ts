@@ -64,6 +64,8 @@ import {
 // self-update.mjs opens with node:fs and node:child_process, so the browser
 // bundle cannot import it. Held against this one below so the two cannot drift.
 import { isOlder } from "../../server/self-update.mjs";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -807,7 +809,17 @@ describe("splitting a note title at its leading emoji", () => {
 });
 
 describe("how App.tsx wires it up", () => {
-  const app = src("../App.tsx");
+  // The feature's surface: App.tsx, which renders the dialog and the tour, and
+  // use-welcome-and-notes.ts, which decides when each opens. Not the whole
+  // client — six cases here are negatives, and asking them of release-notes.ts
+  // (the pure rules) would be asking the wrong file. The slices taken by indexOf
+  // land in the hook's half, where the decision effect is.
+  // The empty-board heroes moved to components/EmptyHero.tsx; App.tsx and they are read as one.
+  // So are use-dialogs.ts, which hands the notes and the tour to the modal gate,
+  // and components/DeckDialogs.tsx, which mounts the dialog and the tour.
+  const app = src("../App.tsx") + "\n" + src("../use-welcome-and-notes.ts") + "\n" + src("../components/EmptyHero.tsx")
+    + "\n" + src("../components/VersionChip.tsx") + "\n" + src("../components/VersionBanner.tsx")
+    + "\n" + src("../use-dialogs.ts") + "\n" + src("../components/DeckDialogs.tsx");
   const modal = src("../components/ReleaseNotesModal.tsx");
 
   it("decides from the version the SERVER is running, not the bundle's", () => {
@@ -824,7 +836,7 @@ describe("how App.tsx wires it up", () => {
     // can do least about it.
     expect(app).toMatch(/remembers: remembersSeen\(store\) \}\);/);
     // From the same store the marker was read out of, not a second one.
-    expect(app).toMatch(/const store = seenStore\(\);/);
+    expect(app).toMatch(/const store = localStore\(\);/);
   });
 
   it("holds the decision open until /api/version has answered", () => {
@@ -853,8 +865,11 @@ describe("how App.tsx wires it up", () => {
 
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
-    // stray "c" would reach Clear behind it.
-    expect(app).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
+    // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's;
+    // use-dialogs.ts hands it the notes, which App.tsx hands use-dialogs.ts.
+    expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
+    expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\breleaseNotes\b/);
+    expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\breleaseNotes\b/);
   });
 
   it("opens the browse route with nothing marked seen, so it shows everything", () => {
@@ -904,7 +919,11 @@ describe("how App.tsx wires it up", () => {
     // open was a tour recorded as seen in a tab nobody was watching — the
     // defect reported the day 3.21.3 shipped. It is marked when closed.
     expect(effect).not.toMatch(/writeTourSeen/);
-    expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(seenStore\(\)\);/);
+    // Two links now, because the close moved out of the markup: the tour calls
+    // closeTour, and closeTour closes it and then marks it seen. Both are pinned,
+    // so "marked when closed" is proved end to end rather than assumed.
+    expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{closeTour\}/);
+    expect(app).toMatch(/const closeTour = useCallback\(\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(localStore\(\)\);/);
     expect([...app.matchAll(/writeTourSeen\(/g)]).toHaveLength(1);
     expect(effect).toMatch(/if \(plan\.notes === "now"\) setReleaseNotes\(notes\);\s*else if \(plan\.notes === "after"\) notesAfterTour\.current = notes;/);
     expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
@@ -912,8 +931,12 @@ describe("how App.tsx wires it up", () => {
     // first, so a tour opened by hand from the empty canvas never replays them.
     expect(app).toMatch(/const held = notesAfterTour\.current;\s*notesAfterTour\.current = null;\s*if \(held\) setReleaseNotes\(held\);/);
     // And the tour is a dialog like the rest: the canvas shortcuts are gated
-    // while it is up, and the empty canvas is the way back to it.
-    expect(app).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
+    // while it is up, and the empty canvas is the way back to it. The gate is
+    // use-modal-gate.ts's; use-dialogs.ts hands it the tour's flag, which
+    // App.tsx hands use-dialogs.ts.
+    expect(src("../use-modal-gate.ts")).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
+    expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\btourOpen\b/);
+    expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\btourOpen\b/);
     expect(app).toMatch(/<GuideModal title="What the deck shows you" steps=\{WELCOME_STEPS\}/);
     expect(app).toMatch(/className="btn empty-tour" onClick=\{onTour\}/);
   });
@@ -947,7 +970,9 @@ describe("how App.tsx wires it up", () => {
     // exists" from "no check has run", which on a machine that only ever runs
     // `npx ccdeck` is the whole point of the chip.
     expect(app).toMatch(/loadVersion\(true\)/);
-    expect(app).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
+    // The forced round trip moved with `loadVersion` into use-version-check.ts;
+    // `loadVersion(true)` above is still the chip's own click, in App.tsx.
+    expect(clientText()).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 
   it("is reachable from the drift branch too, which is the branch that persists", () => {
@@ -969,6 +994,9 @@ describe("how App.tsx wires it up", () => {
     // reader is on.
     expect(app).toMatch(/const chipVersion = version\?\.running \?\? __APP_VERSION__;/);
     expect(app).toMatch(/running=\{chipVersion\}/);
+    // The dialog is mounted in components/DeckDialogs.tsx, which App.tsx hands
+    // the welcome hook whole, chipVersion with it.
+    expect(src("../App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bwelcome=\{welcome\}/);
   });
 
   it("draws the dialog out of the shared modal parts and nothing else", () => {
@@ -1000,7 +1028,7 @@ describe("how App.tsx wires it up", () => {
     // straight through a closing brace and would have found the margin on some
     // later rule entirely, which is a green test for a stylesheet that no
     // longer separates anything.
-    const rule = /\.release-notes \.rn-note-icon \{([^}]*)\}/.exec(src("../styles.css"));
+    const rule = /\.release-notes \.rn-note-icon \{([^}]*)\}/.exec(sheetText());
     expect(rule, ".rn-note-icon has no rule at all").not.toBeNull();
     expect(rule![1]).toMatch(/margin-right:\s*[^;]+;/);
     // Never a second space in the markup either — that is the same paper-over

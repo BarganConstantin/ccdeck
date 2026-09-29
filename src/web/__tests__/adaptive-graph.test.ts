@@ -21,14 +21,20 @@ import { branchLong, branchShort, branchSummaries, faceSignal, stateMarkKind, ty
 import { focusViewport, unionBox } from "../focus-camera";
 import { hidePeek, peekedId, showPeek } from "../components/SessionPeek";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
+import { sheetText } from "./sheet-source";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// The canvas's click and hover handlers are use-canvas-clicks.ts's, and the
+// <main> they sit in is components/CanvasMain.tsx's, read with App.tsx and the
+// shortcuts as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../use-canvas-clicks.ts")
+  + "\n" + read("../components/CanvasMain.tsx");
 /** The node-and-edge half of the canvas, out of App.tsx since #1175. */
 const flow = read("../canvas-flow.ts");
 const node = read("../components/AgentNode.tsx");
 const clusters = read("../components/SessionClusters.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("which card is drawn is decided by what it measures on screen", () => {
   const detailEnter = DETAIL_ENTER_PX / CARD_BODY_PX;
@@ -124,7 +130,7 @@ describe("the fit keeps room for the bubbles only where they are drawn", () => {
   });
 
   it("is what fitLeft frames with", () => {
-    expect(app).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));");
+    expect(read("../use-camera.ts")).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));");
   });
 });
 
@@ -307,8 +313,14 @@ describe("the canvas wiring the pure halves depend on", () => {
     // The mode is an attribute on the canvas and the zoom a variable on it; a
     // card that re-rendered per pinch frame would cost every card every frame.
     expect(node).not.toMatch(/useViewport|useStore\(/);
-    expect(app).toMatch(/nextLod\(lodRef\.current, vp\.zoom, lodCard\(\)\)/);
-    expect(app).toMatch(/if \(mode !== lodRef\.current\) \{/);
+    // Worked out in use-zoom-lod.ts, fed by the canvas's viewport handler in
+    // use-canvas-viewport.ts, and written only when the band changes.
+    const lod = read("../use-zoom-lod.ts");
+    expect(read("../use-canvas-viewport.ts")).toMatch(/if \(applyZoom\(vp\.zoom\) === "detail"\) hidePeek\(\);/);
+    expect(lod).toMatch(/nextLod\(lodRef\.current, zoom, lodCard\(\)\)/);
+    expect(lod).toMatch(/if \(mode === lodRef\.current\) return null;/);
+    // App.tsx hands the canvas the zoom's answer, and the canvas wears it.
+    expect(app).toMatch(/<CanvasMain\b[^>]*\bzoom=\{zoom\}/);
     expect(app).toContain('data-lod={lod}');
   });
 
@@ -343,13 +355,15 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("lets no fit's late correction undo a newer camera move", () => {
-    expect(app).toMatch(/const epoch = \+\+cameraEpochRef\.current;\s*applyViewport\(want, duration\);/);
-    expect(app).toMatch(/if \(cameraEpochRef\.current !== epoch\) return;/);
+    // fitLeft, and its trailing correction, are use-camera.ts's.
+    const camera = read("../use-camera.ts");
+    expect(camera).toMatch(/const epoch = \+\+cameraEpochRef\.current;\s*applyViewport\(want, duration\);/);
+    expect(camera).toMatch(/if \(cameraEpochRef\.current !== epoch\) return;/);
   });
 
   it("opens the peek only where the card cannot say it itself", () => {
     expect(app).toMatch(/if \(lodRef\.current == null \|\| lodRef\.current === "detail"\) return;\s*showPeek\(n\.id, e\.currentTarget as Element\);/);
-    expect(app).toContain('if (mode === "detail") hidePeek();');
+    expect(read("../use-canvas-viewport.ts")).toContain('if (applyZoom(vp.zoom) === "detail") hidePeek();');
     // And for the keyboard, not only the pointer.
     expect(app).toMatch(/el\.matches\(":focus-visible"\)\) showPeek\(id, el, "focus"\)/);
   });
@@ -357,6 +371,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   it("peeks a recap note as well as a card", () => {
     // The note is the other node that is unreadable at a distance.
     expect(app).toMatch(/if \(\(n\.type !== "agent" && n\.type !== "recapNote"\) \|\| draggingRef\.current\) return;/);
+    expect(app).toMatch(/<CanvasMain\b[^>]*\bpeek=\{peek\}/);
     expect(app).toContain("recapFor={peekRecap}");
     const peek = read("../components/SessionPeek.tsx");
     expect(peek).toContain('if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;');

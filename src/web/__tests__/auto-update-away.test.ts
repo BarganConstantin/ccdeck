@@ -14,6 +14,7 @@ import { createPresence, PRESENCE_TTL_MS } from "../../server/presence.mjs";
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
 import { IDLE_BEFORE_RESTART_MS } from "../restart";
 import { PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "../presence";
+import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const MIN = 60_000;
@@ -224,7 +225,11 @@ describe("whether anybody is looking", () => {
 });
 
 describe("the switch", () => {
-  const app = src("../App.tsx");
+  // The switch, its storage migration and the press guard moved to
+  // use-auto-restart.ts, so this block reads the client. Its one negative — the
+  // switch is never written to localStorage — is stronger across the client,
+  // and true: the key now exists only in that hook, where it is read and removed.
+  const app = clientText();
 
   it("is on unless somebody turned it off, and only a real boolean turns it off", () => {
     expect(DEFAULTS.autoUpdate).toBe(true);
@@ -236,12 +241,11 @@ describe("the switch", () => {
   it("is read and written on the server, where a deck with no page open can see it", () => {
     expect(app).toMatch(/body: JSON\.stringify\(\{ autoUpdate: next \}\)/);
     expect(app).toMatch(/setAutoRestart\(d\.prefs\?\.autoUpdate !== false\);/);
-    expect(app).not.toMatch(/localStorage\.setItem\(AUTO_RESTART_KEY/);
+    expect(app).not.toMatch(/(?:localStorage\.setItem|writeStored)\(AUTO_RESTART_KEY/);
   });
 
   it("carries a switch turned off before the move over once, and drops the old key", () => {
-    expect(app).toMatch(/legacyOff = window\.localStorage\.getItem\(AUTO_RESTART_KEY\) === "0";/);
-    expect(app).toMatch(/window\.localStorage\.removeItem\(AUTO_RESTART_KEY\);/);
+    expect(app).toMatch(/const legacyOff = readStored\(AUTO_RESTART_KEY\) === "0";\s*removeStored\(AUTO_RESTART_KEY\);/);
     expect(app).toMatch(/body: JSON\.stringify\(\{ autoUpdate: false \}\)/);
   });
 
@@ -251,22 +255,31 @@ describe("the switch", () => {
     // that answer triggered. The press marks the page and drops the old key.
     const toggle = app.slice(app.indexOf("const toggleAutoRestart = useCallback("));
     expect(toggle.slice(0, 400)).toMatch(/autoTouchedRef\.current = true;/);
-    expect(toggle.slice(0, 400)).toMatch(/localStorage\.removeItem\(AUTO_RESTART_KEY\)/);
-    expect(app).toMatch(/if \(!autoTouchedRef\.current\) \{\s*let legacyOff = false;/);
+    expect(toggle.slice(0, 400)).toMatch(/removeStored\(AUTO_RESTART_KEY\)/);
+    expect(app).toMatch(/if \(!autoTouchedRef\.current\) \{\s*const legacyOff = readStored\(AUTO_RESTART_KEY\) === "0";/);
   });
 });
 
 describe("the wiring", () => {
+  // The route table and startServer are index.mjs's, pushEvent is
+  // event-pipeline.mjs's; the tick, its timer and the routes it shares a
+  // hand-off with are lifecycle.mjs's.
   const index = src("../../server/index.mjs");
+  const pipeline = src("../../server/event-pipeline.mjs");
+  const lifecycle = src("../../server/lifecycle.mjs");
   const app = src("../App.tsx");
 
   it("learns about turns from every live event and never from a replay", () => {
-    expect(index).toContain("if (!opts.replay) activity.note(raw, evt.receivedAt);");
+    expect(pipeline).toContain("if (!opts.replay) activity.note(raw, evt.receivedAt);");
   });
 
   it("takes presence on a route only the deck's own page can post to", () => {
     expect(index).toMatch(/url\.pathname === "\/api\/presence"\)\s+return guard\(handlePresence\(req, res\), res\);/);
-    const open = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(index)?.[1] ?? "";
+    // The set lives with the gates that read it, in request-gates.mjs, and it
+    // has to be found there: a pattern that matched nothing would make the
+    // refusal below pass on an empty string.
+    const open = /const OPEN_MUTATIONS = new Set\(\[([^\]]*)\]\)/.exec(src("../../server/request-gates.mjs"))?.[1];
+    expect(open, "OPEN_MUTATIONS is no longer a Set literal this can read").toBeDefined();
     expect(open).not.toMatch(/presence/);
   });
 
@@ -274,25 +287,32 @@ describe("the wiring", () => {
     // The report is not free: on Windows it proves the npm prefix writable by
     // creating a file in it, and a deck left alone overnight would do that once
     // a minute. The npm lookup behind it is hourly regardless.
-    expect(index).toContain("_awayNothingUntil = now + AWAY_RECHECK_MS;");
-    expect(index).toContain("if (now < _awayNothingUntil && _awayNothingUntil - now <= AWAY_RECHECK_MS) return null;");
+    expect(lifecycle).toContain("_awayNothingUntil = now + AWAY_RECHECK_MS;");
+    expect(lifecycle).toContain("if (now < _awayNothingUntil && _awayNothingUntil - now <= AWAY_RECHECK_MS) return null;");
   });
 
   it("arms the tick when the server starts, and asks again after the lookup", () => {
     const start = index.indexOf("export async function startServer(");
-    expect(index.indexOf("_awayTimer = setInterval(", start)).toBeGreaterThan(start);
-    expect(index).toContain("if (presence.looking(again) || activity.busy(again) || _restarting) return null;");
+    expect(start).toBeGreaterThan(-1);
+    expect(index.indexOf("startAwayUpdate();", start)).toBeGreaterThan(start);
+    // And that call is the timer, armed afresh on every boot.
+    expect(lifecycle).toMatch(/function startAwayUpdate\(\) \{[^}]*?clearInterval\(_awayTimer\);\s+_awayTimer = setInterval\(/);
+    expect(lifecycle).toContain("if (presence.looking(again) || activity.busy(again) || _restarting) return null;");
   });
 
   it("acts only through what a press would do", () => {
-    expect(index).toContain("su.startUpgrade({ pkgRoot: PKG_ROOT });");
-    expect(index).toContain('handOffRestart(step.act === "npx" ? "npx" : null);');
+    expect(lifecycle).toContain("su.startUpgrade({ pkgRoot: PKG_ROOT });");
+    expect(lifecycle).toContain('handOffRestart(step.act === "npx" ? "npx" : null);');
     // The press goes through the same hand-off.
-    const press = index.slice(index.indexOf("async function handleRestart("));
+    const press = lifecycle.slice(lifecycle.indexOf("async function handleRestart("));
     expect(press.slice(0, press.indexOf("\nfunction handOffRestart("))).toContain("handOffRestart(mode);");
   });
 
   it("has every tab report its focus, with a goodbye that outlives the page", () => {
+    // The beacon moved to use-presence-beacon.ts — one effect that reads nothing
+    // from the component — so this reads the client rather than App.tsx. What it
+    // pins is the wiring: the keepalive goodbye and the beat behind it.
+    const app = clientText();
     expect(app).toMatch(/fetch\("\/api\/presence", \{/);
     expect(app).toContain("keepalive: true,");
     expect(app).toContain('window.addEventListener("pagehide", bye);');

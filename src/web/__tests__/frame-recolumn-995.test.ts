@@ -47,6 +47,7 @@ import type { Node } from "reactflow";
 import { autoLayout, columnsWouldChange } from "../layout";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+const reframe = readFileSync(fileURLToPath(new URL("../use-reframe.ts", import.meta.url)), "utf8");
 
 const W = 240, H = 130;
 const agent = (id: string, sessionId: string): Node =>
@@ -61,7 +62,7 @@ const WIDE = { width: 963.2, height: 503.1 };
 const opts = (nodes: Node[]) => ({ direction: "LR" as const, measured: sizes(nodes) });
 
 /**
- * The body of the reframe effect in App.tsx.
+ * The body of the reframe effect, in use-reframe.ts since it left App.tsx.
  *
  * Read as text rather than run, because what it does is mutate four refs and
  * schedule a fit, and none of that is reachable without React and a canvas.
@@ -69,8 +70,10 @@ const opts = (nodes: Node[]) => ({ direction: "LR" as const, measured: sizes(nod
  * failing on a null match.
  */
 function reframeEffect(): string {
-  const m = /columnsWouldChange\(nodes, edges, opts, prev, frame\)[\s\S]*?\}, \[availableWidth/.exec(app);
-  expect(m, "App.tsx has no effect asking columnsWouldChange about the frame").not.toBeNull();
+  const m = /columnsWouldChange\(nodes, edges, opts, prev, frame\)[\s\S]*?\}, \[availableWidth/.exec(reframe);
+  expect(m, "use-reframe.ts has no effect asking columnsWouldChange about the frame").not.toBeNull();
+  // And App.tsx still runs it.
+  expect(app).toMatch(/\buseReframe\(\{/);
   return m![0];
 }
 
@@ -164,14 +167,22 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     // whatever window wrote them. Without a stored frame there is nothing for
     // the first measurement to be compared against, and the board comes back in
     // the old window's column count and stays there.
-    appHas('const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame"', "the frame the layout was packed for is not persisted");
-    appHas(/useRef<Frame \| null>\(restoredLayoutFrame\)/, "the restored frame does not seed the reframe comparison");
-    appHas(/const restoredLayoutFrame = useState\(loadLayoutFrame\)\[0\]/, "the stored frame is not read through a lazy initialiser (#612)");
+    // The keys and their reads and writes are layout-storage.ts's.
+    const storage = readFileSync(fileURLToPath(new URL("../layout-storage.ts", import.meta.url)), "utf8");
+    expect(storage.includes('const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame"'), "the frame the layout was packed for is not persisted").toBe(true);
+    // The layout's state is declared in use-board-layout.ts, which App.tsx calls.
+    const layoutState = readFileSync(fileURLToPath(new URL("../use-board-layout.ts", import.meta.url)), "utf8");
+    expect(/useRef<Frame \| null>\(restoredLayoutFrame\)/.test(layoutState), "the restored frame does not seed the reframe comparison").toBe(true);
+    expect(/const restoredLayoutFrame = useState\(loadLayoutFrame\)\[0\]/.test(layoutState), "the stored frame is not read through a lazy initialiser (#612)").toBe(true);
+    // Two links: App.tsx hands the reframe the layout useBoardLayout returned,
+    // and the reframe compares against that layout's frame.
+    appHas(/const layout = useBoardLayout\(/, "App.tsx no longer takes the layout from useBoardLayout");
+    expect(reframe, "the reframe no longer reads the frame from the layout it is handed").toMatch(/const \{[^}]*\blastLayoutFrameRef\b[^}]*\} = layout;/);
     // And it goes when the layout it describes goes, or Clear and R leave a
     // frame record pointing at a board that no longer exists.
-    const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(app);
-    expect(cleared, "clearStoredLayout is gone from App.tsx").not.toBeNull();
-    expect(cleared![0]).toMatch(/removeItem\(LAYOUT_FRAME_KEY\)/);
+    const cleared = /function clearStoredLayout\(\): void \{[\s\S]*?\n\}/.exec(storage);
+    expect(cleared, "clearStoredLayout is gone from layout-storage.ts").not.toBeNull();
+    expect(cleared![0]).toMatch(/removeStored\(LAYOUT_FRAME_KEY\)/);
   });
 
   it("stores the new board rather than the one it replaced", () => {
@@ -179,9 +190,12 @@ describe("the deck acts on that answer, and keeps what the user placed (#995)", 
     // move, and positionsRef holds nothing but the pins until the render the
     // reframe schedules has run — so the save has to be after that, not beside
     // the delete.
+    // The render is the one the layout epoch schedules — a bare rerender() was
+    // handed the cached board (#1331); relayout-stored-1331 pins the epoch.
     const effect = reframeEffect();
-    const afterRerender = effect.slice(effect.indexOf("rerender()"));
-    expect(afterRerender).toMatch(/saveLayout\(positionsRef\.current, pinnedRef\.current\)/);
-    expect(effect.slice(0, effect.indexOf("rerender()"))).not.toMatch(/saveLayout\(/);
+    const bump = effect.indexOf("setLayoutEpoch(e => e + 1);");
+    expect(bump).toBeGreaterThan(-1);
+    expect(effect.slice(bump)).toMatch(/saveLayout\(positionsRef\.current, pinnedRef\.current\)/);
+    expect(effect.slice(0, bump)).not.toMatch(/saveLayout\(/);
   });
 });

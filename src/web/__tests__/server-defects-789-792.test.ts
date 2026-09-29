@@ -9,6 +9,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { ccusageSurface } from "./ccusage-surface";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,7 +45,10 @@ describe("#789 — a memory poll that could not measure", () => {
     // idle 32 GB Mac, which is exactly the 99.5% reading the function's own
     // header says this readout exists to prevent. Substituting it turned a
     // failed measurement into the worst possible measurement.
-    const src = read("../../server/system-metrics.mjs");
+    //
+    // The sampler and the memory sources it moved out into, together: a
+    // substitute written back into either file is the same regression.
+    const src = read("../../server/system-metrics.mjs") + read("../../server/memory-metrics.mjs");
     expect(src, "darwin substitutes freemem again")
       .not.toMatch(/return parsed \?\? os\.freemem\(\);/);
     // Both real sources answer null when they could not be read; the last
@@ -77,10 +81,12 @@ describe("#790 — the one-repair budget", () => {
     // still holds a handle — so the flag was burned by a repair that never
     // happened, and every later poll for the life of the deck short-circuited
     // on it, including seconds later once the handle was released.
-    const src = read("../../server/ccusage.mjs");
+    // The repair moved to ccusage-install.mjs with the install it repairs.
+    const src = read("../../server/ccusage-install.mjs");
     expect(src).toContain("if (gone) _repairedThisRun = true;");
-    // And not before the attempt: the only assignment must be the guarded one.
-    expect((src.match(/_repairedThisRun = true/g) ?? []).length).toBe(1);
+    // And not before the attempt: the only assignment must be the guarded one —
+    // counted across ccusage.mjs and every file lifted out of it.
+    expect((ccusageSurface().match(/_repairedThisRun = true/g) ?? []).length).toBe(1);
     const guard = src.indexOf("if (_repairedThisRun || runner.kind");
     const set = src.indexOf("if (gone) _repairedThisRun = true;");
     const rm = src.indexOf("rmSync(PKG_DIR");
@@ -90,7 +96,7 @@ describe("#790 — the one-repair budget", () => {
 
   it("still refuses a second repair in one process once one has happened", () => {
     // The budget exists to stop a loop of installs, and must survive the fix.
-    const src = read("../../server/ccusage.mjs");
+    const src = read("../../server/ccusage-install.mjs");
     expect(src).toContain("if (_repairedThisRun || runner.kind !== \"node\" || installsDisabled()) return false;");
   });
 });
@@ -102,11 +108,13 @@ describe("#791 — a restart asked for while one is in flight", () => {
     // the interval in that window hit `if (_timer || _starting) return;` and
     // the boot's own start then installed the timer at the value it had read
     // BEFORE the write — the panel reading back the new number while the loop
-    // kept the old one for the life of the process.
-    const src = read("../../server/cswap-auto.mjs");
+    // kept the old one for the life of the process. The loop is
+    // cswap-auto-loop.mjs's; the negative reads cswap-auto.mjs too, where it
+    // used to live.
+    const src = read("../../server/cswap-auto-loop.mjs");
     expect(src).toContain("if (_starting) { _restartWanted = true; return; }");
     expect(src).toContain("if (_restartWanted) continue;   // the interval changed under this read");
-    expect(src, "the old swallow-and-forget guard is back")
+    expect(src + read("../../server/cswap-auto.mjs"), "the old swallow-and-forget guard is back")
       .not.toContain("if (_timer || _starting) return;");
   });
 
@@ -114,7 +122,7 @@ describe("#791 — a restart asked for while one is in flight", () => {
     // The flag is cleared at the top of each pass and checked after the await,
     // so the value that wins is the last one written rather than the first one
     // noticed.
-    const src = read("../../server/cswap-auto.mjs");
+    const src = read("../../server/cswap-auto-loop.mjs");
     expect(src).toMatch(/for \(;;\) \{[\s\S]{0,200}?_restartWanted = false;[\s\S]{0,200}?await tickInterval\(\)/);
   });
 });
@@ -124,16 +132,18 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // The rule OPEN_MUTATIONS states about this very route: the deck's memory
     // "cannot be a function of anything but the two constants named here".
     // 44.4 MB read whole was 185 MB resident and 95ms of synchronous parsing on
-    // the credential-free ingest path.
-    const src = read("../../server/index.mjs");
+    // the credential-free ingest path. The reader is codex-enrichment.mjs's;
+    // the negative reads codex-watch.mjs and index.mjs too, where it used to
+    // live.
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toContain("const CODEX_HEAD_BYTES = 256 * 1024;");
     expect(src).toContain("const CODEX_TAIL_BYTES = 2 * 1024 * 1024;");
-    expect(src, "the whole-file read is back")
+    expect(src + read("../../server/codex-watch.mjs") + read("../../server/index.mjs"), "the whole-file read is back")
       .not.toMatch(/const buf = Buffer\.alloc\(s\.size\);\s*\n\s*await fh\.read\(buf, 0, s\.size, 0\);/);
   });
 
   it("reads a small rollout in one piece, so nothing changes for the ordinary one", () => {
-    const src = read("../../server/index.mjs");
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toContain("if (s.size <= CODEX_HEAD_BYTES + CODEX_TAIL_BYTES) {");
     expect(src).toContain("text = await readByteRange(path, 0, s.size);");
   });
@@ -143,7 +153,7 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // while the last token_count, the last task_started and the newest
     // response_item model are all at the end. A pure tail read would silently
     // lose the working directory of every long session.
-    const src = read("../../server/index.mjs");
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toContain("const head = await readByteRange(path, 0, CODEX_HEAD_BYTES);");
     expect(src).toContain("const tail = await readByteRange(path, s.size - CODEX_TAIL_BYTES, s.size);");
   });
@@ -152,7 +162,7 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // Without it the head's last partial line and the tail's first partial line
     // would be concatenated into a line that never existed in the file, and
     // JSON.parse might well accept it.
-    const src = read("../../server/index.mjs");
+    const src = read("../../server/codex-enrichment.mjs");
     expect(src).toMatch(/text = `\$\{head\}\\n\$\{tail\}`;/);
   });
 

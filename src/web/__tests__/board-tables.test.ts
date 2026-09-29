@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   boardModelTable, boardSessionTable, boardTotals, BOARD_SESSION_ROWS, UNKNOWN_MODEL,
   type Billable, type SessionBillable,
@@ -260,26 +261,32 @@ describe("the panel draws its two board tables from these", () => {
   // how the replicas came to be testing code the panel had stopped running.
   const panel = readFileSync(
     fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+  /** The headline memo, lifted out of the panel with the By model rows it builds. */
+  const spend = readFileSync(
+    fileURLToPath(new URL("../use-board-spend.ts", import.meta.url)), "utf8");
 
   it("calls boardModelTable and boardSessionTable, and folds nothing itself", () => {
-    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    expect(spend).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
     expect(panel).toMatch(/\(\): BoardSessionRow\[\] => boardSessionTable\(state\.agents\.values\(\)\)/);
-    expect(panel).not.toMatch(/modelMap/);
-    expect(panel).not.toMatch(/agentCost\(/);
-    expect(panel).not.toMatch(/agentUnpricedTokens\(/);
+    // Nor does anything lifted out of it: the negatives and the count read
+    // the panel's whole surface.
+    const surface = usageSurface();
+    expect(surface).not.toMatch(/modelMap/);
+    expect(surface).not.toMatch(/agentCost\(/);
+    expect(surface).not.toMatch(/agentUnpricedTokens\(/);
     // The one `.slice(0, 12)` left in the panel is the ccusage path's own cut,
     // which is a different list from a different source.
-    expect([...panel.matchAll(/\.slice\(0, 12\)/g)]).toHaveLength(1);
+    expect([...surface.matchAll(/\.slice\(0, 12\)/g)]).toHaveLength(1);
     expect(panel).toMatch(/ccSessionRows\(range, boardNames\)\.slice\(0, 12\)/);
   });
 
   it("keeps the rows whose dollars are unknown but whose tokens are not", () => {
     // #400's rule, on the columns these tables now name: a row is selected on
     // tokens, so an unpriced model is listed with the floor marker rather than
-    // filtered out of a table that still counts it in the strip above.
-    expect(panel).toMatch(
-      /const boardModelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
-    expect(panel).toMatch(
-      /const boardSessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
+    // filtered out of a table that still counts it in the strip above. The
+    // rule is usage-panel-rules.ts's worthALine, which usage-panel-rules.test.ts
+    // calls with both row shapes; this is the wire from both tables to it.
+    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
+    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
   });
 });

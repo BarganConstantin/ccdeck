@@ -208,8 +208,9 @@ describe("the TOOL_CATEGORY rows that mapped a name to the default", () => {
     // schedule family somebody meant to give its own bucket. That record is in
     // TOOL_EMOJI, where the names have real values rather than the default, so
     // removing the category rows loses nothing a reader was relying on.
-    const toolBursts = src(WEB, "components/ToolBursts.tsx");
-    const block = /const TOOL_EMOJI[^=]*= \{([\s\S]*?)^\};/m.exec(toolBursts);
+    // TOOL_EMOJI left components/ToolBursts.tsx with the rest of the bubbles' skin.
+    const toolSkin = src(WEB, "tool-skin.ts");
+    const block = /const TOOL_EMOJI[^=]*= \{([\s\S]*?)^\};/m.exec(toolSkin);
     expect(block, "TOOL_EMOJI is no longer a literal").toBeTruthy();
     for (const name of NO_OP_ROWS) {
       expect(block![1], `${name} lost its emoji too`).toMatch(new RegExp(`\\b${name}:\\s*"`));
@@ -232,7 +233,9 @@ describe("the TOOL_CATEGORY rows that mapped a name to the default", () => {
 
 // ── what #383 deliberately did NOT remove ───────────────────────────────────
 
-describe("the identity map App.tsx keeps on purpose", () => {
+// The category vocabulary moved to detail-category.tsx with its comments, so
+// both cases read that file — raw, because the second one is about the comment.
+describe("the identity map detail-category.tsx keeps on purpose", () => {
   it("still maps every category to a label of its own", () => {
     // DETAIL_CAT_LABEL is `{ file: "file", shell: "shell", … }` today, so every
     // lookup through it answers its own key and it looks exactly like the eight
@@ -243,7 +246,7 @@ describe("the identity map App.tsx keeps on purpose", () => {
     // would mean inlining `{c}` at three call sites and putting it back. #383
     // flagged it and explicitly did not recommend removing it; this pins that
     // decision so the next sweep does not have to make it again.
-    const app = src(WEB, "App.tsx");
+    const app = src(WEB, "detail-category.tsx");
     const block = /const DETAIL_CAT_LABEL[^=]*= \{([\s\S]*?)\};/.exec(app);
     expect(block, "DETAIL_CAT_LABEL is gone — see the comment above").toBeTruthy();
     const keys = [...block![1].matchAll(/(\w+):/g)].map(m => m[1]);
@@ -261,8 +264,10 @@ describe("the identity map App.tsx keeps on purpose", () => {
     // the issue number and the shape (a block comment ending immediately above
     // the declaration) rather than on any sentence, so the prose stays free to
     // be rewritten.
-    const app = src(WEB, "App.tsx");
-    const at = app.indexOf("const DETAIL_CAT_LABEL");
+    const app = src(WEB, "detail-category.tsx");
+    // `export` is allowed between the comment and the declaration now that the map
+    // is shared from its own module; what must sit directly on it is still the comment.
+    const at = app.search(/(?:export )?const DETAIL_CAT_LABEL/);
     expect(at, "DETAIL_CAT_LABEL is gone — see the test above").toBeGreaterThan(-1);
     // \s covers the \r of a CRLF checkout.
     const preceding = app.slice(0, at);

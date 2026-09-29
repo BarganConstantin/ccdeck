@@ -17,6 +17,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
+import { steppedClock } from "./clock-step";
 
 // Every readdir the process makes under the rollout tree, and how many of the
 // ones under the old year are in flight at once. `slowUnder` holds those back
@@ -61,6 +62,10 @@ process.env.HOME = FAKE_HOME;
 process.env.USERPROFILE = FAKE_HOME;
 process.env.CLAUDE_CONFIG_DIR = join(FAKE_HOME, "claude");
 process.env.CODEX_HOME = FAKE_CODEX;
+
+// The per-id throttle is a wall-clock comparison, so the cases step `Date.now`
+// past it rather than sleeping 2.5s of real time each (#994) — see clock-step.ts.
+const step = steppedClock();
 
 // @ts-expect-error — .mjs server module, no types
 const { startServer, eventsSince, CODEX_SESSIONS_DIR } = await import("../../server/index.mjs");
@@ -160,7 +165,6 @@ async function waitFor(cond: () => boolean, ms = 8000) {
 describe("a Codex session id no rollout under this tree carries", () => {
   it("walks the whole tree once, not once per throttle window", async () => {
     const sid = "ffffffff-0000-4000-8000-00000000dead";
-    const startedAt = Date.now();
     let before = underOld();
     await post(sid);
     await settle();
@@ -168,7 +172,12 @@ describe("a Codex session id no rollout under this tree carries", () => {
     // makes the next number mean something rather than pass on an empty tree.
     expect(underOld() - before).toBe(OLD_DIRS);
 
-    await tick(Math.max(0, startedAt + THROTTLE_MS - Date.now()));
+    // Stepped after the answer, not timed from before the request. The server
+    // stamps the id's lookup before it replies, so a step taken now always
+    // clears it; a stamp taken before the request once left only THROTTLE_MS's
+    // 150ms margin for the request itself, and under load the second POST
+    // landed inside the window and no lookup happened at all.
+    step(THROTTLE_MS);
     const looked = lookups();
     before = underOld();
     await post(sid);
@@ -184,13 +193,12 @@ describe("a Codex session id no rollout under this tree carries", () => {
     // moment before its rollout is on disk, and a lookup that never looks again
     // would leave that session without usage for the rest of its life.
     const sid = "eeeeeeee-0000-4000-8000-00000000late";
-    const startedAt = Date.now();
     await post(sid);
     await settle();
     expect(usageFor(sid)).toBe(false);
 
     put(NEWEST_DAY, sid, "2026-09-15T11-00-00");
-    await tick(Math.max(0, startedAt + THROTTLE_MS - Date.now()));
+    step(THROTTLE_MS); // after the answer; see the case above
     const before = underOld();
     await post(sid);
     expect(await waitFor(() => usageFor(sid))).toBe(true);

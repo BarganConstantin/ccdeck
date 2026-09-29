@@ -24,7 +24,7 @@
 // Everything runs against a temp sandbox: HOME, USERPROFILE, CLAUDE_CONFIG_DIR,
 // CODEX_HOME and PATH all point inside it, so no assertion here can be satisfied
 // — or contaminated — by the developer's own machine, and nothing is installed.
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { get, type Server } from "node:http";
@@ -70,6 +70,8 @@ process.env.PATH = EMPTY_PATH;
 const { claudeConfigDir, hasClaudeInstalled, claudeCliCandidates } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { startServer } = await import("../../server/index.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { wantsCli } = await import("../../server/args.mjs");
 const { ASSUMED, readProviders } = await import("../providers");
 
 // Refuse to run at all if the sandbox did not take, rather than write into a
@@ -335,25 +337,38 @@ const deckSrc = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", impor
 // stopped meaning starting a deck. The two flags this file cares about are
 // recognised there now; everything else it asks about is still boot sequence.
 const argsSrc = readFileSync(fileURLToPath(new URL("../../server/args.mjs", import.meta.url)), "utf8");
+// And `--help` moved out of it into bin/cli/help.js, so the flag is documented there.
+const helpSrc = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
+// And the once-per-session work with its report moved to bin/cli/startup.js.
+const startupSrc = readFileSync(fileURLToPath(new URL("../../../bin/cli/startup.js", import.meta.url)), "utf8");
 
 describe("what a Codex-only boot does on the user's behalf", () => {
   /** The body of startupWork, which is where all three jobs are created. */
   function startupWorkBody(): string {
-    const from = deckSrc.indexOf("function startupWork()");
+    const from = startupSrc.indexOf("export function startupWork(");
     expect(from, "startupWork is gone or renamed").toBeGreaterThan(-1);
-    const to = deckSrc.indexOf("\n}", from);
-    return deckSrc.slice(from, to);
+    const to = startupSrc.indexOf("\n}", from);
+    return startupSrc.slice(from, to);
   }
 
   it("decides once, from hasClaudeInstalled, with flags able to override it", () => {
     expect(deckSrc).toContain("hasClaudeInstalled");
-    expect(deckSrc).toMatch(/wantClaude\s*=\s*flags\.noClaude/);
+    expect(deckSrc).toContain("const wantClaude = wantsCli({ off: flags.noClaude, on: flags.claude, installed: hasClaudeInstalled });");
+    // The rule itself: the opt-out first, then the opt-in, then the probe —
+    // which is not asked at all when a flag has answered.
+    const probe = vi.fn(() => false);
+    expect(wantsCli({ off: true, on: true, installed: probe })).toBe(false);
+    expect(wantsCli({ off: false, on: true, installed: probe })).toBe(true);
+    expect(probe).not.toHaveBeenCalled();
+    expect(wantsCli({ off: undefined, on: undefined, installed: probe })).toBe(false);
+    expect(wantsCli({ off: undefined, on: undefined, installed: () => true })).toBe(true);
+    expect(probe).toHaveBeenCalledTimes(1);
     // The escape hatches, which the Claude side did not have at all: --claude is
     // the recovery for a presence test that guessed wrong, and --no-claude is
     // the mirror of --no-codex.
     expect(argsSrc).toContain('a === "--claude"');
     expect(argsSrc).toContain('a === "--no-claude"');
-    expect(deckSrc).toContain("--no-claude          Skip Claude");
+    expect(helpSrc).toContain("--no-claude          Skip Claude");
   });
 
   for (const [what, needle] of [
@@ -384,13 +399,15 @@ describe("what a Codex-only boot does on the user's behalf", () => {
 
   it("hands the decision to the server so the browser can read it back", () => {
     expect(deckSrc).toMatch(/startServer\(\{[^}]*claude: wantClaude/s);
+    // And to the startup work, which is where every Claude-only job is guarded.
+    expect(deckSrc).toContain("startupWork({ wantClaude, installHooks, leftoverCodexHooks })");
   });
 
   it("says out loud which way it went, in both rows", () => {
     // The banner is the only place a wrong answer can be noticed, and the only
     // place the missing accounts panel is explained.
-    expect(deckSrc).toContain("no Claude Code found, or --no-claude");
-    expect(deckSrc).toContain("accounts are Claude-only");
+    expect(startupSrc).toContain("no Claude Code found, or --no-claude");
+    expect(startupSrc).toContain("accounts are Claude-only");
   });
 
   it("names the escape hatch on the one boot failure that is fatal", () => {
@@ -402,25 +419,32 @@ describe("what a Codex-only boot does on the user's behalf", () => {
     // a Codex-only machine is the whole deck. It is printed beside the failure
     // now, because a user with a root-owned settings.json cannot act on
     // "fix the file" and has nothing else to go on.
-    expect(deckSrc).toContain("Or start with --no-claude to run without Claude hooks.");
-    const fatal = deckSrc.indexOf('label: "Claude hooks", detail: "not installed"');
-    expect(fatal, "the fatal hook row is gone from deck.js").toBeGreaterThan(-1);
-    const exit = deckSrc.indexOf("process.exit(1)", fatal);
-    expect(deckSrc.slice(fatal, exit)).toContain("--no-claude");
+    expect(startupSrc).toContain("Or start with --no-claude to run without Claude hooks.");
+    const fatal = startupSrc.indexOf('label: "Claude hooks", detail: "not installed"');
+    expect(fatal, "the fatal hook row is gone from the startup report").toBeGreaterThan(-1);
+    const exit = startupSrc.indexOf("process.exit(1)", fatal);
+    expect(exit, "the fatal hook row no longer exits").toBeGreaterThan(fatal);
+    expect(startupSrc.slice(fatal, exit)).toContain("--no-claude");
   });
 
   it("never prints 'sign in to Claude Code' on a deck that skipped claude-swap", () => {
     // That line is reached only through swap?.seed, and the whole cswap job
     // resolves to null when wantClaude is false — so there is no seed to report.
-    expect(deckSrc).toContain("sign in to Claude Code");
+    expect(startupSrc).toContain("sign in to Claude Code");
     const body = startupWorkBody();
     expect(body).toMatch(/if\s*\(!wantClaude\)\s*return null;/);
   });
 });
 
 describe("which panels the UI draws for each machine", () => {
-  const appSrc   = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+  // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+  const appSrc   = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
   const usageSrc = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
+  // The two quota sections, lifted out of the panel; their gates stayed in it.
+  const sectionsSrc = readFileSync(fileURLToPath(new URL("../components/QuotaSections.tsx", import.meta.url)), "utf8");
 
   /** The source immediately before `needle`, which is where a JSX gate lives. */
   function leadUpTo(src: string, needle: string, chars = 400): string {
@@ -449,17 +473,18 @@ describe("which panels the UI draws for each machine", () => {
     //
     // Anchored on the two <section> tags rather than the headings, because
     // "Claude quota" and "Codex quota" both also appear in prose above them.
-    // There are exactly two, in render order, and each one's gate is the JSX
-    // immediately before it.
+    // There are exactly two, in render order, in QuotaSections.tsx; each one
+    // is mounted by the panel behind its own gate, the JSX immediately before
+    // it — one link per file.
     const SECTION = '<section className="up-section up-quota-section">';
-    const first  = usageSrc.indexOf(SECTION);
-    const second = usageSrc.indexOf(SECTION, first + 1);
+    const first  = sectionsSrc.indexOf(SECTION);
+    const second = sectionsSrc.indexOf(SECTION, first + 1);
     expect(first, "the quota sections are gone or renamed").toBeGreaterThan(-1);
     expect(second, "there is no longer a second quota section").toBeGreaterThan(first);
-    expect(usageSrc.slice(first + SECTION.length, second)).toContain("Claude quota");
-    expect(usageSrc.slice(second)).toContain("Codex quota");
-    expect(usageSrc.slice(Math.max(0, first - 400), first)).toContain("providers.claude");
-    expect(usageSrc.slice(second - 400, second)).toContain("providers.codex");
+    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("Claude quota");
+    expect(sectionsSrc.slice(second)).toContain("Codex quota");
+    expect(usageSrc).toMatch(/\{providers\.claude && \(\s*<ClaudeQuotaSection /);
+    expect(usageSrc).toMatch(/\{providers\.codex && \(\s*<CodexQuotaSection /);
   });
 
   it("stops polling the absent CLI rather than only hiding its output", () => {

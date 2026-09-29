@@ -72,20 +72,25 @@ async function startListener(prefer: number): Promise<{ child: ChildProcess; por
   return { child, port };
 }
 
-/** Write `payload` in one go, and collect whatever comes back until the socket closes. */
-function exchange(port: number, payload: string, ms = 1500): Promise<string> {
+/** Write `payload` in one go, and collect whatever comes back until the socket
+ *  closes — or, given `enough`, until what came back satisfies it. A listener
+ *  that answers and then waits for the caller's next frame never closes, and
+ *  the answer used to be read off the end of an 800ms wait for that (#994). */
+function exchange(port: number, payload: string, ms = 1500, enough?: (got: string) => boolean): Promise<string> {
   return new Promise(resolve => {
     let got = "";
     const s = net.connect({ port, host: "127.0.0.1" });
     let finished = false;
     const done = () => { if (finished) return; finished = true; s.destroy(); resolve(got); };
     s.on("connect", () => s.write(payload));
-    s.on("data", d => { got += d; });
+    s.on("data", d => { got += d; if (enough?.(got)) done(); });
     s.on("close", done);
     s.on("error", done);
     setTimeout(done, ms).unref();
   });
 }
+/** A whole challenge frame has come back. */
+const challenged = (got: string) => /"t":"challenge"[^\n]*\n/.test(got);
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const alive = (child: ChildProcess) => child.exitCode === null && child.signalCode === null;
@@ -136,7 +141,7 @@ describe("a refused hello with another frame behind it in the same write", () =>
     expect(await exchange(port, hello() + AUTH)).toContain("bad hello");
     await sleep(300);
     expect(alive(child), "the listener's process ended").toBe(true);
-    expect(await exchange(port, plainHello(), 800)).toContain('"t":"challenge"');
+    expect(await exchange(port, plainHello(), 800, challenged)).toContain('"t":"challenge"');
   }, 20_000);
 
   it("is refused, and the listener lives to answer the next caller (a low-order ephemeral key)", async () => {
@@ -144,6 +149,6 @@ describe("a refused hello with another frame behind it in the same write", () =>
     expect(await exchange(port, hello({ epk: LOW_ORDER_EPK }) + AUTH)).toContain("bad hello");
     await sleep(300);
     expect(alive(child), "the listener's process ended").toBe(true);
-    expect(await exchange(port, plainHello(), 800)).toContain('"t":"challenge"');
+    expect(await exchange(port, plainHello(), 800, challenged)).toContain('"t":"challenge"');
   }, 20_000);
 });

@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { LAN_STEPS, WELCOME_STEPS } from "../components/guide-art";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The topbar's settings run, where the sound button is since it left App.tsx's markup. */
+const run = readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8");
 const copy = [...WELCOME_STEPS, ...LAN_STEPS].flatMap(s => [s.line, s.tip ?? ""]).join("\n");
 
 describe("the tour names the sound control by what it looks like (#818)", () => {
@@ -18,8 +20,10 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
 
   it("points at the speaker, which is what the topbar draws", () => {
     expect(copy).toMatch(/speaker in the topbar/);
-    // The control the tip means, and the cone it is drawn with.
-    expect(app).toMatch(/aria-label=\{`Sound settings, /);
-    expect(app).toContain('d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z"');
+    // The control the tip means, and the cone it is drawn with — in the
+    // settings run App.tsx draws in the topbar.
+    expect(app).toMatch(/<SettingsRun\b/);
+    expect(run).toMatch(/aria-label=\{`Sound settings, /);
+    expect(run).toContain('d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z"');
   });
 });

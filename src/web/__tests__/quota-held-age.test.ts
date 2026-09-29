@@ -18,6 +18,7 @@ import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { withGapsSkipped } from "./skip-gaps";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-quota-held-"));
 const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME"] as const;
@@ -134,8 +135,9 @@ async function heldAfterEmptyCli() {
   expect(good.source).toBe("claude-swap");   // this is the reading that gets held
   swap.entry = null;
   // `force` skips the 60s result cache, and the self-poll floor has not been
-  // spent yet, so this call really does reach the CLI.
-  return { good, held: await mod.fetchClaudeQuota({ force: true }) };
+  // spent yet, so this call really does reach the CLI — three times, 1.2s
+  // apart, which is why its gaps are skipped (#994; see skip-gaps.ts).
+  return { good, held: await withGapsSkipped(() => mod.fetchClaudeQuota({ force: true })) };
 }
 
 describe("a quota reading held through an empty `claude --print /usage`", () => {
@@ -179,19 +181,11 @@ describe("a quota reading held through an empty `claude --print /usage`", () => 
 // started with. Broken, the button either hands back the old row every time or
 // never adopts the new one, and nothing about either looks like an error.
 //
-// The gaps are real `setTimeout`s, so they are faked here and only they are:
+// The gaps are real `setTimeout`s, so they are skipped here, and only they are:
 // Date.now keeps running, which is what the rows' ages are measured against.
+// See skip-gaps.ts, which this file's own jump of the clock became.
 describe("a refresh that asks claude-swap to collect", () => {
-  async function refresh(): Promise<Quota> {
-    vi.useFakeTimers({ toFake: ["setTimeout"] });
-    try {
-      const pending = mod.fetchClaudeQuota({ force: true });
-      await vi.advanceTimersByTimeAsync(10_000);
-      return await pending;
-    } finally {
-      vi.useRealTimers();
-    }
-  }
+  const refresh = (): Promise<Quota> => withGapsSkipped(() => mod.fetchClaudeQuota({ force: true }));
 
   it("adopts the row the collection wrote as soon as a re-read finds it", async () => {
     const old = row(STORE_AGE);

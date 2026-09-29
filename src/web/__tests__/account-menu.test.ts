@@ -1,5 +1,5 @@
 // An account row's ⋯ opens a menu over the column now, not a form inside the
-// row (AccountsPanel, AnchoredPopover). It used to open the row into a block —
+// row (AccountMenuPopover, AnchoredPopover). It used to open the row into a block —
 // name field, slot picker, share and remove at once — that pushed every
 // account under it down the panel.
 //
@@ -11,15 +11,22 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
 const strip = (src: string) => src
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
-const panel = strip(read("../components/AccountsPanel.tsx"));
+/** The menu and its forms, which AccountMenuPopover.tsx draws. */
+const menuPopover = strip(read("../components/AccountMenuPopover.tsx"));
+/** The panel and every file lifted out of it, for a count: one Remove, one
+ *  name field and one slot picker in the whole of it, wherever they live. */
+const surface = strip(accountsSurface());
 const popover = strip(read("../components/AnchoredPopover.tsx"));
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Top-level rules only: a reduced-motion override is not the resting look. */
 const topLevel = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
@@ -33,18 +40,19 @@ function decl(selector: string, prop: string): string | null {
   return all.length ? all[all.length - 1][1].trim() : null;
 }
 
-/** One account's row, from its <li> to its </li>. */
-const row = /<li key=\{a\.num\} className=\{`ap-account[\s\S]*?<\/li>/.exec(panel)![0];
+/** One account's row, from its <li> to its </li> — in AccountRow.tsx, which
+ *  draws it; the panel's `accountRow` only spells its props. */
+const row = /<li className=\{`ap-account[\s\S]*?<\/li>/.exec(strip(read("../components/AccountRow.tsx")))![0];
 
 /** One view of the popover, up to the next view or the popover's end. */
 function view(name: "menu" | "rename" | "move" | "share"): string {
-  const at = panel.indexOf(`menu.view === "${name}" &&`);
+  const at = menuPopover.indexOf(`menu.view === "${name}" &&`);
   expect(at, name).toBeGreaterThan(-1);
   const ends = ["menu", "rename", "move", "share"]
-    .map(n => panel.indexOf(`menu.view === "${n}" &&`, at + 1))
-    .concat(panel.indexOf("</AnchoredPopover>", at))
+    .map(n => menuPopover.indexOf(`menu.view === "${n}" &&`, at + 1))
+    .concat(menuPopover.indexOf("</AnchoredPopover>", at))
     .filter(i => i > at);
-  return panel.slice(at, Math.min(...ends));
+  return menuPopover.slice(at, Math.min(...ends));
 }
 
 describe("the row keeps its shape when its ⋯ is pressed", () => {
@@ -52,13 +60,16 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
     expect(row).not.toMatch(/<input|<select|<form/);
     expect(row).not.toMatch(/ap-manage-\$\{|role="group"/);
     expect(row).not.toMatch(/menuFor === a\.num && \(/);
+    expect(row).not.toMatch(/menuOpen && \(/);
   });
 
   it("opens from a trigger that says what it opens, and for which account", () => {
     const trigger = /<button type="button" id=\{`ap-more-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(row)![0];
     expect(trigger).toMatch(/aria-haspopup="menu"/);
-    expect(trigger).toMatch(/aria-expanded=\{menuFor === a\.num\}/);
-    expect(trigger).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    // Whether this row's ⋯ is the open one, read once off the panel's menu.
+    expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
+    expect(trigger).toMatch(/aria-expanded=\{menuOpen\}/);
+    expect(trigger).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
     expect(trigger).toMatch(/title="More actions"/);
     // The account in the name, from the account's own data.
     expect(trigger).toMatch(/aria-label=\{`More actions for \$\{a\.email \?\? a\.alias \?\? `account \$\{a\.num\}`\}`\}/);
@@ -83,7 +94,7 @@ describe("the menu", () => {
   });
 
   it("carries the error colour on Remove alone", () => {
-    expect([...panel.matchAll(/ap-menu-item danger/g)]).toHaveLength(1);
+    expect([...surface.matchAll(/ap-menu-item danger/g)]).toHaveLength(1);
     expect(view("menu")).toMatch(/className=\{`ap-menu-item danger\$\{confirmRemove === a\.num \? " armed" : ""\}`\}/);
   });
 
@@ -91,8 +102,8 @@ describe("the menu", () => {
     expect(view("menu")).not.toMatch(/<input|<select/);
     expect(view("rename")).toMatch(/id=\{`ap-alias-\$\{a\.num\}`\}/);
     expect(view("move")).toMatch(/id=\{`ap-slot-\$\{a\.num\}`\}/);
-    expect(panel.match(/id=\{`ap-alias-/g)).toHaveLength(1);
-    expect(panel.match(/id=\{`ap-slot-/g)).toHaveLength(1);
+    expect(surface.match(/id=\{`ap-alias-/g)).toHaveLength(1);
+    expect(surface.match(/id=\{`ap-slot-/g)).toHaveLength(1);
   });
 
   it("gives every form a way out that is a word, not a gesture to discover", () => {
@@ -133,7 +144,12 @@ describe("where the surface sits", () => {
   });
 
   it("keeps the black shadow off the white page", () => {
-    expect(decl(":root[data-theme=\"light\"] .anchored-popover", "box-shadow")).toMatch(/^0 1px 2px rgba\(15, 23, 42,/);
+    // Through tokens since #1287: the popover reads the contact line and
+    // --shadow-2, and the light block tunes both, so there is no light rule
+    // left to repeat them in slate.
+    expect(decl(".anchored-popover", "box-shadow")).toBe("var(--shadow-contact), var(--shadow-2)");
+    const light = /:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/.exec(css)![1];
+    expect(/--shadow-contact\s*:\s*([^;]+);/.exec(light)![1].trim()).toMatch(/^0 1px 2px rgba\(15,\s*23,\s*42,/);
   });
 });
 

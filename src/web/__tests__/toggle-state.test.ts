@@ -46,9 +46,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops } from "./gradient-stops";
+import { clientText } from "./client-source";
+import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
+const cssRaw = sheetText();
 /** Comments quote the declarations they explain — including the ones this file
  *  asserts are gone — so every read of the sheet goes through the stripped copy. */
 const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -56,11 +59,16 @@ const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, "");
 /** A component's markup with its commentary gone, for the same reason: the
  *  comments here argue about `primary` and `role="toolbar"` by name. */
 function markup(...path: string[]): string {
-  return readFileSync(join(web, ...path), "utf8")
+  return markupOf(readFileSync(join(web, ...path), "utf8"));
+}
+function markupOf(source: string): string {
+  return source
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
-const app = markup("App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
 const accountsPanel = markup("components", "AccountsPanel.tsx");
 const sessionList = markup("components", "SessionList.tsx");
@@ -481,10 +489,16 @@ describe("what each of the four toggles announces", () => {
     //     trap now that nothing else can shut it,
     //   and the panel's own ‹ still calls the close.
     expect(app).toMatch(/if \(e\.key === "l" \|\| e\.key === "L"\) toggleSessionList\(\);/);
-    const body = app.slice(app.indexOf("const toggleSessionList"), app.indexOf("const toggleAccountsPanel"));
+    // The toggles and the close moved to use-left-column.ts; the key binding and
+    // the panel's markup are still App.tsx's. The close is two links now, and
+    // both are pinned, because "cannot be closed" is exactly what a broken link
+    // between them would produce.
+    const client = clientText();
+    const body = client.slice(client.indexOf("const toggleSessionList"), client.indexOf("const toggleAccountsPanel"));
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
     expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
-    expect(app).toMatch(/onClose=\{\(\) => setSessionListOpen\(false\)\}/);
+    expect(app).toMatch(/onClose=\{closeSessionList\}/);
+    expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
     expect(sessionList).toMatch(/className="glyph-btn sl-close" onClick=\{onClose\}/);
     // Escape is not a third way out and never was: this is an <aside> beside
     // the canvas, not a modal, so it registers no dismisser with modalStack and
@@ -521,14 +535,16 @@ describe("what each of the four toggles announces", () => {
     // deck's other one already is (.bw-toggle in Browser Watch), so a reader
     // meets one shape rather than two spellings of it.
     const menu = markup("components", "SoundMenu.tsx");
+    // The menu and every file lifted out of it, for the negatives.
+    const menuSurface = markupOf(soundMenuSurface());
     expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
     expect(menu).toMatch(/aria-labelledby="sm-sound-label"/);
-    expect(menu).not.toMatch(/aria-pressed/);
+    expect(menuSurface).not.toMatch(/aria-pressed/);
     // Non-modal on purpose: nothing behind it is inert and there is no scrim,
     // so claiming aria-modal would be the lie #518 removed from the modals that
     // did have one.
     expect(menu).toMatch(/role="dialog"/);
-    expect(menu).not.toMatch(/aria-modal/);
+    expect(menuSurface).not.toMatch(/aria-modal/);
   });
 
   it("gives the usage-history button aria-haspopup and no state at all", () => {
@@ -551,31 +567,37 @@ describe("what each of the four toggles announces", () => {
     // `primary` was the whole of the visual state on all five. It is the
     // stylesheet's word for a primary ACTION and the add-account dialog still
     // uses it that way; what it must not do is stand in for "pressed".
-    expect(app).not.toMatch(/\bprimary\b/);
+    // The readout group moved out of App.tsx to components/TopbarReadouts.tsx,
+    // so the negative reads it too.
+    expect(app + "\n" + markup("components/TopbarReadouts.tsx")).not.toMatch(/\bprimary\b/);
     expect(markup("components", "AddAccountDialog.tsx")).toMatch(/className="btn primary"/);
   });
 });
 
 describe("the category filter chips, handed over from #368", () => {
+  // The chips are components/CategoryFilterBar.tsx's, which App.tsx mounts.
+  const bar = markup("components/CategoryFilterBar.tsx");
+
   it("reports pressed state, and pressed means the category is showing", () => {
     // The chip's own label is the category name — "edit", not "hide edit" — so
     // pressed has to mean the category is on. `off` is the hidden set.
-    expect(app).toMatch(/aria-pressed=\{!off\}/);
+    expect(bar).toMatch(/aria-pressed=\{!off\}/);
   });
 
   it("dropped role=\"toolbar\" rather than promising arrow keys it does not implement", () => {
     // A toolbar is one tab stop for the whole set with arrows between members.
     // Every chip here is its own tab stop. group keeps the naming, which is
     // what the role was really doing.
-    expect(app).not.toMatch(/role="toolbar"/);
-    expect(app).toMatch(/role="group"\s*\n\s*aria-label="Filter tools by category"/);
+    expect(app + "\n" + bar).not.toMatch(/role="toolbar"/);
+    expect(bar).toMatch(/role="group"\s*\n\s*aria-label="Filter tools by category"/);
   });
 
   it("carries `off` in a channel that is not colour", () => {
     expect(decl(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
     // The chip's glyph is drawn, monochrome, in currentColor, so it follows
     // the label into the off tier rather than needing a desaturation of its own.
-    expect(app).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
+    // CatGlyph moved to detail-category.tsx with the paths it draws.
+    expect(markup("detail-category.tsx")).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
   });
 
   it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {

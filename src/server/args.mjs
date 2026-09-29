@@ -57,6 +57,26 @@ export function isPortValue(raw) {
 }
 
 /**
+ * The port a start binds: `--port`, else AGENT_DAG_PORT, else 4317.
+ *
+ * An empty `AGENT_DAG_PORT` is an unset one — a variable that did not expand is
+ * not a request for port zero. `--port ""` never reaches this, because the
+ * parser records an empty value as `incomplete` and leaves the flag unset.
+ *
+ * Answers `{ port }`, or — for a value that is not a port — `refused`, naming
+ * which of the two it came from and what it said, so bin/deck.js can quote the
+ * user's own flag and value back at them.
+ */
+export function startPort({ flag, env } = {}) {
+  const envPort = env?.trim();
+  const rawPort = flag ?? (envPort ? envPort : null);
+  if (rawPort != null && !isPortValue(rawPort)) {
+    return { port: null, refused: { named: flag != null ? "--port" : "AGENT_DAG_PORT", raw: rawPort } };
+  }
+  return { port: rawPort == null ? 4317 : Number(rawPort), refused: null };
+}
+
+/**
  * Parse `process.argv.slice(2)`.
  *
  * Returns the flags that were set, plus two lists that are always present and
@@ -111,13 +131,25 @@ export function isPortValue(raw) {
  * one used to be dropped in silence (see launchNpx in bin/agent-dag.js).
  */
 /**
+ * Whether a start serves one of the two CLIs: never with its `--no-` flag,
+ * always with its plain one, and otherwise when it looks installed. The same
+ * rule for Claude Code and for Codex, with the opt-out first so `--no-codex
+ * --codex` is a no. `installed` is a function because it looks at the disk,
+ * and a flag that already answered the question should not.
+ */
+export function wantsCli({ off, on, installed }) {
+  return off ? false : (on === true || installed());
+}
+
+/**
  * The flags that do a thing and exit, rather than starting a deck.
  *
- * bin/agent-dag.js reads this before it decides whether to detach, and that is
- * the whole reason it exists as a list rather than as a condition written out
- * at the call site: a one-shot that detached would print its answer into a log
- * file and hand the terminal back empty. `ccdeck --version` detaching itself is
- * the shape of the bug this prevents.
+ * bin/agent-dag.js asks this, through shouldDetach in detach.mjs, before it
+ * decides whether to detach, and that is the whole reason it exists as a list
+ * rather than as a condition written out at the call site: a one-shot that
+ * detached would print its answer into a log file and hand the terminal back
+ * empty. `ccdeck --version` detaching itself is the shape of the bug this
+ * prevents.
  */
 export const ONE_SHOT = Object.freeze([
   "help", "version", "uninstall", "stop", "status", "logs",

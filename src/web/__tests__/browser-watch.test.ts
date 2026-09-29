@@ -14,8 +14,10 @@ import {
   invalidateBrowserWatchCache,
   mayForceRead,
 } from "../../server/browser-watch.mjs";
-import { unseenEpisodes, SEEN_KEY } from "../components/BrowserWatchModal";
+import { unseenEpisodes, SEEN_KEY } from "../browser-watch-seen";
 import { flooredReader } from "./floored-reader";
+import { clientText } from "./client-source";
+import { watchServerSurface } from "./browser-watch-server-surface";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");
@@ -204,19 +206,24 @@ describe("what the badge counts", () => {
 });
 
 describe("how App.tsx wires it up", () => {
-  const app = src("../App.tsx");
+  // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+  const app = src("../App.tsx") + "\n" + src("../components/TopbarRuns.tsx");
 
   it("feeds the badge from its own poll, not from opening the dialog", () => {
+    // The badge — its poll, its count and the seen stamp — moved to
+    // use-browser-watch-badge.ts; these matches are positive, so they read the client.
     // A badge that appears only once you have already looked is not a badge.
     // `live=0` on this one: it wants the number, not a look at the browsers.
     // The server honours that only while the watch is OFF — with it on, this
     // poll is what records, which is the whole feature.
-    expect(app).toMatch(/fetch\("\/api\/browser-watch\?live=0"\)/);
-    expect(app).toMatch(/setInterval\(pull, 5 \* 60_000\)/);
+    expect(clientText()).toMatch(/fetch\("\/api\/browser-watch\?live=0"\)/);
+    expect(clientText()).toMatch(/setInterval\(pull, 5 \* 60_000\)/);
   });
 
   it("marks the episodes read on the way out of the dialog", () => {
-    expect(app).toMatch(/localStorage\.setItem\(SEEN_KEY, String\(ms\)\)/);
+    // The badge — its poll, its count and the seen stamp — moved to
+    // use-browser-watch-badge.ts; these matches are positive, so they read the client.
+    expect(clientText()).toMatch(/writeStored\(SEEN_KEY, String\(ms\)\)/);
   });
 
   it("says whether the watch is armed, in the shape and not only the hue", () => {
@@ -233,15 +240,22 @@ describe("how App.tsx wires it up", () => {
   });
 
   it("learns the armed state from the poll it already runs", () => {
+    // The badge — its poll, its count and the seen stamp — moved to
+    // use-browser-watch-badge.ts; these matches are positive, so they read the client.
     // Not from opening the dialog: the whole point is that the topbar answers
     // the question before anything is opened.
-    expect(app).toMatch(/setWatchOn\(j\.settings\?\.enabled === true\)/);
+    expect(clientText()).toMatch(/setWatchOn\(j\.settings\?\.enabled === true\)/);
   });
 
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
-    // stray "c" would reach Clear behind it.
-    expect(app).toMatch(/\|\| browserWatchOpen \|\| keyHelpOpen/);
+    // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's,
+    // and use-dialogs.ts, which holds the flag and which App.tsx calls, hands
+    // it over.
+    expect(src("../use-modal-gate.ts")).toMatch(/\|\| browserWatchOpen \|\| keyHelpOpen/);
+    expect(src("../use-dialogs.ts")).toMatch(/const \[browserWatchOpen, setBrowserWatchOpen\] = useState\(false\);/);
+    expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\bbrowserWatchOpen\b/);
+    expect(src("../App.tsx")).toMatch(/useDialogs\(\{/);
   });
 });
 
@@ -340,7 +354,7 @@ describe("one machine, one store, usually more than one deck", () => {
     // A deck that cannot read the discovery directory must not fall silent —
     // for the common case of one deck, "alone" is the right answer anyway, and
     // the failure mode of the opposite choice is a watch that never reports.
-    const server = src("../../server/browser-watch.mjs");
+    const server = src("../../server/browser-watch-decks.mjs");
     expect(server).toMatch(/catch \{ return true; \}\s+\/\/ cannot look/);
   });
 
@@ -348,11 +362,11 @@ describe("one machine, one store, usually more than one deck", () => {
     // The shell tool this descends from lost its lock on SIGHUP and then
     // refused to watch anything ever again. This reads and compares; there is
     // no claim to strand.
-    const server = src("../../server/browser-watch.mjs");
+    const server = src("../../server/browser-watch-decks.mjs");
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const body = fn.slice(0, fn.indexOf("\n}"));
     expect(body).not.toMatch(/writeFile|mkdir|open\(|rename/);
-    expect(body).toMatch(/pidAlive\(d\.pid\)/);
+    expect(body).toMatch(/isProcessAlive\(d\.pid\)/);
   });
 });
 
@@ -363,7 +377,9 @@ describe("a log a person can read", () => {
     // one line saying a visit had been read. The view answering "is this
     // working" answered it by making its own answer unfindable.
     const server = src("../../server/browser-watch.mjs");
-    expect(server).not.toMatch(/unchanged, nothing to re-read/);
+    // The feed has a module of its own now; the old line must not come back in
+    // either place.
+    expect(watchServerSurface()).not.toMatch(/unchanged, nothing to re-read/);
     expect(server).toMatch(/else if \(read\.cached\) \{ \/\* silent \*\/ \}/);
   });
 
@@ -374,7 +390,7 @@ describe("a log a person can read", () => {
     // merely clutter it, it evicts the findings the panel exists to show.
     // A count and a timestamp say the same thing and cost no rows.
     const server = src("../../server/browser-watch.mjs");
-    expect(server, "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
+    expect(watchServerSurface(), "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
     expect(server).toMatch(/checkedMs: _checkedMs,/);
     expect(server).toMatch(/checks: _checks,/);
   });
@@ -477,7 +493,8 @@ describe("what the test suite is allowed to touch", () => {
     //
     // Asserted against the store module's own path rather than a guess, so a
     // future change to where the store lives cannot quietly re-open the hole.
-    const { storePath, logPath } = await import("../../server/browser-watch-store.mjs");
+    const { storePath } = await import("../../server/browser-watch-store.mjs");
+    const { logPath } = await import("../../server/browser-watch-log.mjs");
     const stamp = (p: string) => {
       try { return statSync(p).mtimeMs; } catch { return null; }
     };
@@ -498,7 +515,7 @@ describe("what the test suite is allowed to touch", () => {
 });
 
 describe("which deck is allowed to win the election", () => {
-  const server = src("../../server/browser-watch.mjs");
+  const server = src("../../server/browser-watch-decks.mjs");
 
   it("skips a deck that does not run the watch", () => {
     // THE BUG THIS CLOSES, measured on a real machine. The election ran on port
@@ -515,10 +532,10 @@ describe("which deck is allowed to win the election", () => {
     // whichever comes first in the file rather than the one in this function.
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const skip = fn.indexOf("if (d.watch !== true) continue;");
-    // `pidAlive`, not a bare `process.kill` any more: the probe accepts EPERM
-    // and the Windows spelling EACCES, because a deck this account cannot
+    // `isProcessAlive`, not a bare `process.kill` any more: the probe accepts
+    // EPERM and the Windows spelling EACCES, because a deck this account cannot
     // signal is alive and used to lose the election by being unreachable.
-    const kill = fn.indexOf("pidAlive(d.pid)");
+    const kill = fn.indexOf("isProcessAlive(d.pid)");
     expect(skip, "the skip is not inside isReactingDeck").toBeGreaterThan(0);
     expect(kill, "the liveness check is not inside isReactingDeck").toBeGreaterThan(0);
     expect(skip).toBeLessThan(kill);
@@ -529,10 +546,11 @@ describe("which deck is allowed to win the election", () => {
     // that is not doing the work must be left out of the election rather than
     // win it. An older deck has no such field and loses by construction, which
     // is why this is a capability flag and not a version comparison.
-    const installer = src("../../server/installer.mjs");
-    expect(installer).toMatch(/watch: true,/);
-    const codex = installer.indexOf("codex: codex !== false,");
-    const watch = installer.indexOf("watch: true,");
+    // The record is written in discovery.mjs, which moved out of installer.mjs.
+    const discovery = src("../../server/discovery.mjs");
+    expect(discovery).toMatch(/watch: true,/);
+    const codex = discovery.indexOf("codex: codex !== false,");
+    const watch = discovery.indexOf("watch: true,");
     expect(codex).toBeGreaterThan(0);
     expect(watch).toBeGreaterThan(codex);
   });
@@ -578,8 +596,9 @@ describe("a Refresh that lands while a poll is running", () => {
 // on the next ten-second poll.
 describe("two dismissals in one turn", () => {
   it("are both kept, because the list is built inside the job", () => {
+    // The route's own module, since the Browser Watch routes left index.mjs.
     const server = readFileSync(
-      fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+      fileURLToPath(new URL("../../server/browser-watch-routes.mjs", import.meta.url)), "utf8");
     expect(server).toContain("dismissed: [...new Set([...(cur.dismissed ?? []), key])],");
     expect(server, "the snapshot taken before the queue must not come back")
       .not.toContain("const dismissed = [...new Set([...(store.dismissed ?? []), key])];");

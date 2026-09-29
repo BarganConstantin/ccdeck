@@ -4,11 +4,11 @@
 // The account cards show account-wide rate-limit utilisation, which has no
 // project dimension and cannot be sliced. This is the other axis: for one
 // account, the tokens it spent per project, which the web side prices with the
-// board's own pricing table (pricing.ts). Cost is NOT computed here — the
-// server is plain .mjs with no build step and cannot import the .ts price
-// table, and keeping one source of prices beats a second copy that drifts. So
-// this file tallies TOKENS per (account, project, day, model) and the client
-// multiplies by the rates it already owns.
+// board's own rates (rate-table.ts, through pricing.ts's costForUsage). Cost is
+// NOT computed here — the server is plain .mjs with no build step and cannot
+// import the .ts rate table, and keeping one source of prices beats a second
+// copy that drifts. So this file tallies TOKENS per (account, project, day,
+// model) and the client multiplies by the rates it already owns.
 //
 // Attribution is per MESSAGE, not per session. A running session migrates to a
 // newly-activated account on its next message, so a whole session can span two
@@ -25,10 +25,14 @@ import { open, stat, readdir, readFile, writeFile, mkdir } from "node:fs/promise
 import { homedir } from "node:os";
 import { join, resolve, basename, dirname, relative } from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import { renameWithRetry } from "./installer.mjs";
+import { renameWithRetry } from "./atomic-write.mjs";
 import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
 import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";
+// The two rules the live transcript scan counts a line's usage by, so this
+// rollup and a session's card cannot disagree about which lines billed
+// anything — see transcript-scan.mjs.
+import { hasSpend, repeatsRequestUsage } from "./transcript-scan.mjs";
 
 /** The pseudo-account for messages the swap log cannot place — everything
  *  before tracking began, or a gap. Shown once, apart from any real account, so
@@ -77,6 +81,16 @@ export function countersFrom(usage) {
     cc: num(usage?.cache_creation_input_tokens),
     c1h: num(cc.ephemeral_1h_input_tokens),
     c5m: num(cc.ephemeral_5m_input_tokens),
+  };
+}
+
+/** The same counters under the names a usage block gives them, which is the
+ *  shape transcript-scan.mjs's hasSpend reads. */
+function asUsageTotals(c) {
+  return {
+    input_tokens: c.i, output_tokens: c.o,
+    cache_read_input_tokens: c.cr, cache_creation_input_tokens: c.cc,
+    ephemeral_1h_input_tokens: c.c1h, ephemeral_5m_input_tokens: c.c5m,
   };
 }
 
@@ -187,16 +201,16 @@ export function foldLine(tally, line, timeline, from) {
   if (!line || !line.includes('"usage"')) return;
   let obj = null;
   try { obj = JSON.parse(line); } catch { return; }
-  // Claude writes one assistant record for each content block in a request.
-  // Every block repeats the request's usage, so only block 0 is billable for
-  // this rollup. Older records without the field are kept compatible.
-  if (obj?.apiBlockIndex !== undefined && obj.apiBlockIndex !== 0) return;
+  // Claude writes one assistant record for each content block in a request,
+  // and every block repeats the request's usage, so only block 0 is billable
+  // — see repeatsRequestUsage.
+  if (repeatsRequestUsage(obj)) return;
   const usage = obj?.message?.usage;
   if (!usage || typeof usage !== "object") return;
   const ts = Date.parse(obj?.timestamp);
   if (!Number.isFinite(ts)) return;
   const c = countersFrom(usage);
-  if (!(c.i || c.o || c.cr || c.cc)) return;   // a usage block that billed nothing
+  if (!hasSpend(asUsageTotals(c))) return;   // a usage block that billed nothing
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
   const lineCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : "";
   const cwd = projectPath(folderOf(lineCwd, from));   // a worktree counts under the repo it checks out

@@ -16,7 +16,10 @@ import { fileURLToPath } from "node:url";
 import { subscribeNow, nowAt } from "../use-now";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// The nodes memo and the session handles built from it moved to
+// use-board-graph.ts; the negatives read both files, so a rebuild on the clock
+// written in either one fails them.
+const app = read("../App.tsx") + "\n" + read("../use-board-graph.ts");
 /** The node-building half of the canvas moved out of App.tsx for #1175, so the
  *  two rules below are read where they now live. */
 const flow = read("../canvas-flow.ts");

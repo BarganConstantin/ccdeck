@@ -14,7 +14,7 @@
 // rendered by React Flow from node data; threading a callback through every
 // node's data would re-render the whole graph each time one note closed.
 import { useSyncExternalStore } from "react";
-import { readStored } from "./storage";
+import { readStored, writeStored } from "./storage";
 
 const DISMISSED_KEY = "agent-dag.recapsDismissed";
 /** The bound the session-summary list keeps, for the same reason: this lives
@@ -45,14 +45,11 @@ function subscribe(listener: () => void): () => void {
 function commit(next: Set<string>): void {
   dismissed = next;
   version++;
-  if (typeof window !== "undefined") {
-    try {
-      // Insertion order is the order things were put away, so the slice keeps
-      // the newest — and a note brought back and closed again moves to the end.
-      const arr = Array.from(next);
-      window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(arr.length > DISMISSED_CAP ? arr.slice(-DISMISSED_CAP) : arr));
-    } catch { /* private mode: remembered for this page, not the next */ }
-  }
+  // Insertion order is the order things were put away, so the slice keeps the
+  // newest — and a note brought back and closed again moves to the end. A
+  // store that refuses remembers it for this page, not the next.
+  const arr = Array.from(next);
+  writeStored(DISMISSED_KEY, JSON.stringify(arr.length > DISMISSED_CAP ? arr.slice(-DISMISSED_CAP) : arr));
   for (const listener of listeners) listener();
 }
 

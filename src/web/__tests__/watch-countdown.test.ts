@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { armsIn, untilLabel } from "../components/BrowserWatchModal";
+import { armsIn, untilLabel } from "../browser-watch-model";
+import { browserWatchSurface } from "./browser-watch-surface";
 
 describe("when a program page would start counting", () => {
   it("counts down from the last visit a person made", () => {
@@ -36,7 +35,7 @@ describe("how long ago the deck last looked", () => {
     // "0 sec ago" is a machine speaking. Under five seconds a person says
     // "just now", and this line is read most often at exactly that moment —
     // the panel polls every ten seconds while it is open.
-    const { agoLabel } = await import("../components/BrowserWatchModal");
+    const { agoLabel } = await import("../browser-watch-model");
     const now = 1_000_000;
     expect(agoLabel(now, now)).toBe("just now");
     expect(agoLabel(now - 4_000, now)).toBe("just now");
@@ -44,7 +43,7 @@ describe("how long ago the deck last looked", () => {
   });
 
   it("climbs through seconds, minutes and hours", async () => {
-    const { agoLabel } = await import("../components/BrowserWatchModal");
+    const { agoLabel } = await import("../browser-watch-model");
     const now = 10_000_000;
     expect(agoLabel(now - 45_000, now)).toBe("45 sec ago");
     expect(agoLabel(now - 4 * 60_000, now)).toBe("4 min ago");
@@ -55,8 +54,9 @@ describe("how long ago the deck last looked", () => {
 });
 
 describe("one clock, everywhere in the panel", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../components/BrowserWatchModal.tsx", import.meta.url)), "utf8");
+  // Every file of the panel, not the dialog alone: "no clock reads the
+  // viewer's locale" asked of one file passes the day a clock moves out of it.
+  const source = browserWatchSurface();
 
   it("reads no time in the viewer's own locale", () => {
     // An en-US machine renders `01:28 PM` where the rest of the panel renders

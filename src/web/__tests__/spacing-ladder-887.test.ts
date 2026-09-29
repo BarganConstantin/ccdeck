@@ -24,9 +24,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const raw = read("../styles.css");
+const raw = sheetText();
 /** Blanked rather than cut, so a reported line points at its rule. */
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
 const lineOf = (at: number) => css.slice(0, at).split("\n").length;
@@ -82,7 +83,8 @@ describe("spacing is a closed ladder (#887)", () => {
   it("keeps the tool bubble's 5px, which the canvas measures by", () => {
     const bubble = DECLS.find(d => d.sel === ".tool-burst" && d.prop === "padding")!;
     expect(atoms(bubble.value)[0]).toBe("5px");
-    expect(read("../components/ToolBursts.tsx")).toMatch(/const BUBBLE_HALF_H = 16;/);
+    // The layout's constant, which left components/ToolBursts.tsx with the layout.
+    expect(read("../burst-layout.ts")).toMatch(/const BUBBLE_HALF_H = 16;/);
   });
 });
 

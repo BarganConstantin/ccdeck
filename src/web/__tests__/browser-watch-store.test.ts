@@ -8,8 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  DEFAULTS, REACTIONS, appendLog, logPath, mergeEpisodes, normalise, readStore, storePath, writeStore,
+  DEFAULTS, REACTIONS, mergeEpisodes, normalise, readStore, storePath, writeStore,
 } from "../../server/browser-watch-store.mjs";
+// watch.log has a module of its own beside the store.
+import { appendLog, logPath } from "../../server/browser-watch-log.mjs";
 
 const episode = (host: string, startMs: number, over = {}) => ({
   host, startMs, endMs: startMs + 60_000, count: 1,

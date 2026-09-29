@@ -37,6 +37,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
+import { machinePanelSurface } from "./machine-panel-surface";
 import {
   createDismissStack,
   escapeOutcome,
@@ -46,9 +48,14 @@ import {
 } from "../modal-dismiss";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const app = readFileSync(`${web}/App.tsx`, "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const app = readFileSync(`${web}/App.tsx`, "utf8") + "\n" + readFileSync(`${web}/use-deck-shortcuts.ts`, "utf8")
+  + "\n" + readFileSync(`${web}/components/TopbarRuns.tsx`, "utf8");
 const dismiss = readFileSync(`${web}/modal-dismiss.ts`, "utf8");
 const meter = readFileSync(`${web}/components/MachinePanel.tsx`, "utf8");
+/** The panel and every file lifted out of it, for what the panel never does. */
+const meterSurface = machinePanelSurface();
 const usagePanel = readFileSync(`${web}/components/UsagePanel.tsx`, "utf8");
 const sessionList = readFileSync(`${web}/components/SessionList.tsx`, "utf8");
 const accountsPanel = readFileSync(`${web}/components/AccountsPanel.tsx`, "utf8");
@@ -179,30 +186,31 @@ describe("the panel's label and the panel's behaviour agree", () => {
     // Asked of what the control SAYS, not of the file: the prose above quotes
     // the label this used to carry, and a rule that could not tell a comment
     // from a tooltip would forbid writing down why it changed.
-    expect(meter, "the machine panel advertises a key again").not.toMatch(/aria-label="[^"]*\(Esc\)/);
-    expect(meter).not.toMatch(/title="[^"]*\(Esc\)/);
+    expect(meterSurface, "the machine panel advertises a key again").not.toMatch(/aria-label="[^"]*\(Esc\)/);
+    expect(meterSurface).not.toMatch(/title="[^"]*\(Esc\)/);
   });
 
   it("registers nothing on the dismiss queue", () => {
     // The half that would take the canvas's key back. Asserted on the file
     // rather than on the effect that used to be here, so any new spelling of
     // the same registration fails too.
-    expect(meter).not.toMatch(/modalStack/);
-    expect(meter).not.toMatch(/PANEL_LAYER/);
+    expect(meterSurface).not.toMatch(/modalStack/);
+    expect(meterSurface).not.toMatch(/PANEL_LAYER/);
   });
 
   it("hand-rolls no Escape listener of its own", () => {
     // The rule modal-dismiss.test.ts already enforces across every component:
     // one place reads the key, and it is App.tsx.
-    expect(meter).not.toMatch(/["']Escape["']/);
-    expect(meter).not.toMatch(/addEventListener\(\s*["']keydown["']/);
+    expect(meterSurface).not.toMatch(/["']Escape["']/);
+    expect(meterSurface).not.toMatch(/addEventListener\(\s*["']keydown["']/);
   });
 
   it("keeps the two ways out that are the two ways in", () => {
     // The topbar button is a toggle, so the control that opened the panel
     // closes it — and the panel's × calls the same setter. Read from App.tsx
-    // because that is where the button and the open state live: the meter that
-    // used to own both is gone, and the panel is a controlled component now.
+    // and the run it draws, because that is where the button and the mount
+    // live (the open state is use-right-panels.ts's): the meter that used to
+    // own both is gone, and the panel is a controlled component now.
     expect(app, "the topbar button no longer toggles")
       .toMatch(/onClick=\{\(\) => setMachinePanelOpen\(o => !o\)\}/);
     expect(app, "the button does not say whether the panel is open")
@@ -228,10 +236,12 @@ describe("the four docked panels are one idiom again", () => {
   // The machine panel is the fourth now, which is the point: a reader who
   // learns how one of these closes has learned how all of them close.
   const panels = [
-    ["UsagePanel.tsx", usagePanel, "Close (U)"],
+    // The usage panel as a whole: the component and every file lifted out of it.
+    ["UsagePanel.tsx and the files lifted out of it", usageSurface(), "Close (U)"],
     ["SessionList.tsx", sessionList, "Hide sidebar (L)"],
     ["AccountsPanel.tsx", accountsPanel, "Close (A)"],
-    ["MachinePanel.tsx", meter, 'aria-label="Close" title="Close"'],
+    // The machine panel as a whole: the component and every file lifted out of it.
+    ["MachinePanel.tsx and the files lifted out of it", meterSurface, 'aria-label="Close" title="Close"'],
   ] as const;
 
   it("names on its close button only what that button really does", () => {

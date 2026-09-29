@@ -40,14 +40,33 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import {
   nounFor, panelFigures, rangeView, PERIODS, periodFocusMove, sinceFor,
   type Board, type Delta, type Landed, type UsageRange,
 } from "../usage-from-ccusage";
+import { distinctSessionLabels } from "../usage-session-join";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
-const css = read("../styles.css");
+/** The panel and every file lifted out of it: what the negatives read, so a
+ *  move cannot empty one. */
+const surface = usageSurface();
+/** The ccusage read, lifted out of the panel into a hook of its own. */
+const rangeHook = read("../use-usage-range.ts");
+/** The period strip and the sentence it speaks, lifted out of the panel. */
+const strip = read("../components/UsagePeriodStrip.tsx");
+/** The per-session breakdown, lifted out of the panel. */
+const sessions = read("../components/UsageSessionBreakdown.tsx");
+/** The By model table, lifted out of the panel. */
+const models = read("../components/UsageModelTable.tsx");
+/** The two preferences the panel keeps between reloads, lifted out of it. */
+const prefs = read("../usage-prefs.ts");
+/** The panel's small decisions — rows worth a line, the unpriced note, the ↻'s
+ *  name — lifted out of its render. */
+const rules = read("../usage-panel-rules.ts");
+const css = sheetText();
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
  *  `rangeTotals` reads first, and the numbers are the ones a reader would see. */
@@ -243,9 +262,9 @@ describe("what the panel asks the server for", () => {
     // `refreshKey > 0` was true for the rest of the panel's life once the ↻ had
     // been pressed, so every poll after it spawned a ccusage child to re-read
     // what the server had cached. Keyed on the value changing instead.
-    expect(panel).toContain("const force = refreshKey !== forcedRef.current;");
-    expect(panel).toContain("`/api/ccusage?since=${since}${force ? \"&refresh=1\" : \"\"}`");
-    expect(panel).not.toContain('refreshKey > 0 ? "&refresh=1"');
+    expect(rangeHook).toContain("const force = refreshKey !== forcedRef.current;");
+    expect(rangeHook).toContain("`/api/ccusage?since=${since}${force ? \"&refresh=1\" : \"\"}`");
+    expect(surface).not.toContain('refreshKey > 0 ? "&refresh=1"');
   });
 
   it("polls once a minute, against a cache that is not longer than the poll", () => {
@@ -258,15 +277,15 @@ describe("what the panel asks the server for", () => {
     const server = read("../../server/ccusage.mjs");
     const cacheMs = Number(/const CACHE_MS = ([\d_]+)/.exec(server)?.[1]?.replace(/_/g, ""));
     expect(cacheMs).toBe(60_000);
-    expect(panel).toContain("const POLL_MS = 60_000;");
-    expect(panel).toContain("window.setInterval(beat, POLL_MS)");
+    expect(rangeHook).toContain("const POLL_MS = 60_000;");
+    expect(rangeHook).toContain("window.setInterval(beat, POLL_MS)");
     // And returning to the tab is gated on the reading's AGE, not on the tab
     // merely coming forward: flicking between two tabs three times must not
     // spend three runs at 7.8 CPU-seconds each.
-    expect(panel).toContain("if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);");
-    expect(panel).toContain('const visible = () => document.visibilityState === "visible";');
-    expect(panel).toContain('document.addEventListener("visibilitychange", wake)');
-    expect(panel).toContain('document.removeEventListener("visibilitychange", wake)');
+    expect(rangeHook).toContain("if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);");
+    expect(rangeHook).toContain('const visible = () => document.visibilityState === "visible";');
+    expect(rangeHook).toContain('document.addEventListener("visibilitychange", wake)');
+    expect(rangeHook).toContain('document.removeEventListener("visibilitychange", wake)');
   });
 
   it("keeps a failed or absent ccusage silent rather than loud", () => {
@@ -274,7 +293,7 @@ describe("what the panel asks the server for", () => {
     // fails on the third poll still has the reading from the second. Neither is
     // an error banner over numbers the panel still holds. The consequence is
     // checked above, against `rangeView`; this is the catch that produces it.
-    expect(panel).toContain(".catch(() => {})");
+    expect(rangeHook).toContain(".catch(() => {})");
   });
 
   it("makes the header's ↻ mean the range too", () => {
@@ -286,23 +305,25 @@ describe("the join to the canvas", () => {
   it("names sessions from roots only", () => {
     // A subagent carries its parent's sessionId, so including one would file a
     // tool's label under the session's id and overwrite the project name.
-    expect(panel).toMatch(/const boardNames = useMemo[\s\S]{0,600}?if \(a\.kind !== "root" \|\| !a\.sessionId\) continue;/);
-    expect(panel).toMatch(/const boardStates = useMemo[\s\S]{0,400}?if \(a\.kind !== "root" \|\| !a\.sessionId\) continue;/);
+    // The folds are usage-session-join.ts's, and usage-session-join.test.ts
+    // drives them with a subagent in the way. What is left here is the wire.
+    expect(panel).toContain("boardSessionNames(state.agents.values())");
+    expect(panel).toContain("boardSessionStates(state.agents.values())");
   });
 
   it("shows a uuid as a uuid when the board cannot name the session", () => {
     // ccusage remembers sessions this deck never drew — last week's, another
     // machine's. Eight characters under the full id, marked as the machine
     // string it is rather than dressed as a project name.
-    expect(panel).toContain("{s.label ?? s.sessionId.slice(0, 8)}");
+    expect(sessions).toContain("{s.label ?? s.sessionId.slice(0, 8)}");
     expect(css).toContain(".up-session-id {");
   });
 
   it("draws a state dot only for a session the canvas is drawing", () => {
     // A ✓ on a session from three weeks ago is a state this deck never
     // observed. The placeholder keeps the labels aligned.
-    expect(panel).toContain("const live = boardStates.get(s.sessionId);");
-    expect(panel).toContain('<span className="sl-dot up-dot-past" aria-hidden />');
+    expect(sessions).toContain("const live = boardStates.get(s.sessionId);");
+    expect(sessions).toContain('<span className="sl-dot up-dot-past" aria-hidden />');
     expect(css).toContain(".up-dot-past { visibility: hidden; }");
   });
 
@@ -316,9 +337,9 @@ describe("the join to the canvas", () => {
     // What survives every version is the arithmetic on screen, so the panel
     // sums the rows and compares. `sessionListScale` is given the WHOLE range
     // rather than `rangeSessionRows`, which is cut at twelve.
-    expect(panel).toContain(">active {periodNoun}</span>");
+    expect(sessions).toContain(">active {periodNoun}</span>");
     expect(panel).toContain("sessionListScale(range, rangeSum.cost)");
-    expect(panel).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
+    expect(sessions).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
   });
 
   it("says why the session list is empty rather than dropping the section", () => {
@@ -344,8 +365,14 @@ describe("the join to the canvas", () => {
     // back under the same project name, and two identical labels carrying
     // different money read as a bug in the panel rather than as two sessions.
     // Only a repeated label pays for the uuid fragment.
-    expect(panel).toContain("`${r.label} ${r.sessionId.slice(0, 4)}`");
-    expect(panel).toContain("for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);");
+    // Called rather than matched, now that it is a function of its own.
+    const rows = distinctSessionLabels([
+      { sessionId: "07ac7b2b-0000-4000-8000-000000000001", label: "agents-deck" },
+      { sessionId: "91fe0c3d-0000-4000-8000-000000000002", label: "agents-deck" },
+      { sessionId: "5b1c2d3e-0000-4000-8000-000000000003", label: "vcrm-core" },
+    ]);
+    expect(rows.map(r => r.label)).toEqual(["agents-deck 07ac", "agents-deck 91fe", "vcrm-core"]);
+    expect(panel).toContain("distinctSessionLabels(ccSessionRows(range, boardNames).slice(0, 12))");
   });
 });
 
@@ -360,10 +387,14 @@ describe("markup, read as source", () => {
   it("renders both branches of both tables", () => {
     expect(panel).toContain("{(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (");
     expect(panel).toContain("{(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (");
-    expect(panel).toContain("? rangeModelRows.map(m => (");
-    expect(panel).toContain(": boardModelRows.map(m => (");
-    expect(panel).toContain("{fromRange && rangeSessionRows.map(s => {");
-    expect(panel).toContain("{!fromRange && boardSessionRows.map(s => (");
+    expect(panel).toMatch(/\{\(fromRange \? rangeModelRows\.length : boardModelRows\.length\) > 0 && \(\s*<UsageModelTable\b/);
+    expect(models).toContain("? rangeModelRows.map(m => (");
+    expect(models).toContain(": boardModelRows.map(m => (");
+    // The session table's two branches are UsageSessionBreakdown.tsx's, which
+    // the panel mounts behind the gate above: one link per file.
+    expect(panel).toMatch(/\{\(fromRange \? rangeSessionRows\.length : boardSessionRows\.length\) > 0 && \(\s*<UsageSessionBreakdown\b/);
+    expect(sessions).toContain("{fromRange && rangeSessionRows.map(s => {");
+    expect(sessions).toContain("{!fromRange && boardSessionRows.map(s => (");
   });
 
   it("totals every token class in a ccusage model row, not input plus output", () => {
@@ -371,43 +402,50 @@ describe("markup, read as source", () => {
     // ccusage sends four, and on an agentic session cache read is the largest
     // by orders of magnitude — a row that dropped it would report a fraction of
     // its own model's usage under a cost that included all of it.
-    expect(panel).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
+    expect(models).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
   });
 
   it("says unpriced by the source's own answer", () => {
     // A model ccusage priced at nothing is one IT does not know; a board row
     // carries its own `priced` flag. Same words, two different questions.
-    expect(panel).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
-    expect(panel).toContain(": boardModelRows.some(m => !m.priced);");
+    // The decision is usage-panel-rules.ts's anyUnpriced, which
+    // usage-panel-rules.test.ts drives from both sources; the panel asks it.
+    expect(rules).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
+    expect(rules).toContain(": boardModelRows.some(m => !m.priced);");
+    expect(panel).toContain("const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);");
   });
 
   it("offers the three spans from the shaping layer, never a fourth spelled here", () => {
     // PERIODS is the single list: `sinceFor` switches on the same keys, so a
     // period the component offered and the shaper did not know would silently
     // request the wrong range.
-    expect(panel).toContain("{PERIODS.map((p, i) => (");
-    expect(panel).toContain("aria-pressed={period === p.key}");
-    expect(panel).toContain("onClick={() => setPeriod(p.key)}");
+    expect(strip).toContain("{PERIODS.map((p, i) => (");
+    expect(strip).toContain("aria-pressed={period === p.key}");
+    expect(strip).toContain("onClick={() => setPeriod(p.key)}");
     // The hint is the shaper's too, for the same reason: `month` means what
     // `sinceFor` makes it mean, and a sentence written here could drift from it.
     // The tooltip is now a pair — what the span covers at rest, and what is
     // being read while it reads — so the assertion is that `p.hint` is still
     // the resting half rather than that it is the only half.
-    expect(panel).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
-    expect(panel).not.toMatch(/title="[^"]*month/i);
+    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
+    expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
   it("shows the selector only when there is a source with periods in it", () => {
     // The board has exactly one span — now — so three chips over a board-only
     // panel would be three words for the same figure.
-    expect(panel).toMatch(/\{fromRange && \([\s\S]{0,1600}?<div\s+className="uh-range up-period"/);
+    // Two links, one per file: the panel mounts the strip behind the gate, and
+    // the strip is the chips.
+    expect(panel).toMatch(/\{fromRange && <UsagePeriodStrip /);
+    expect(strip).toMatch(/<div\s+className="uh-range up-period"/);
   });
 
   it("puts the selector outside the token gate, so an empty period cannot strand the reader", () => {
     // A session started at 23:50 and still running at 00:05 makes "today"
     // empty, which used to remove the whole panel body — including the only
     // control that could have reached "month".
-    expect(panel.indexOf('className="uh-range up-period"')).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
     expect(panel).toContain("? <>No usage {periodNoun}.<br />Try a longer period.</>");
   });
 
@@ -415,7 +453,7 @@ describe("markup, read as source", () => {
     // #583's luminance inversion lives on this selector, and toggle-state
     // coverage is written against it. A private copy would ship a selected
     // state that fails contrast on the panel while passing in the modal.
-    expect(panel).toContain("uh-range up-period");
+    expect(strip).toContain("uh-range up-period");
     expect(css).toContain('.uh-range-btn[aria-pressed="true"] { background: var(--accent); color: var(--bg); }');
     expect(css).toContain(".up-period {");
   });
@@ -432,23 +470,39 @@ describe("markup, read as source", () => {
     // that disabled itself under any other identifier, and it failed the moment
     // the pending signal was drawn without disabling anything. What it was
     // reaching for is below.
-    expect(panel).not.toContain("up-period-busy");
-    const strip = panel.slice(panel.indexOf('className="uh-range up-period"'), panel.indexOf("</div>\n      )}"));
-    expect(strip).not.toMatch(/\bdisabled\b/);
-    expect(strip).not.toMatch(/pointer-events/);
+    expect(surface).not.toContain("up-period-busy");
+    // The toolbar, from its class to its own closing tag — the first `</div>`
+    // after it, since the segments are buttons.
+    const from = strip.indexOf('className="uh-range up-period"');
+    const to = strip.indexOf("</div>", from);
+    expect(from, "the strip is gone or renamed").toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    const toolbar = strip.slice(from, to);
+    expect(toolbar).not.toMatch(/\bdisabled\b/);
+    expect(toolbar).not.toMatch(/pointer-events/);
     // And the press still commits unconditionally — no guard in front of it.
-    expect(strip).toContain("onClick={() => setPeriod(p.key)}");
+    expect(toolbar).toContain("onClick={() => setPeriod(p.key)}");
   });
 
-  it("dims the figures, not the control, and with the token that means stale", () => {
-    // The sheet declares both: --dim-off is "this control cannot be operated",
-    // --dim-stale is "a newer reading is on its way and this one was true a
-    // moment ago". The second is the state, and it belongs to the numbers.
-    expect(panel).toContain('const staleCls = rangeStale ? " up-stale" : "";');
-    expect(panel).toContain("<div className={`up-total${staleCls}`}");
-    expect(panel).toContain("<div className={`up-tokens-row${staleCls}`}");
-    expect(panel).toContain("<section className={`up-section${staleCls}`}>");
-    expect(css).toMatch(/\.up-stale \{ opacity: var\(--dim-stale\)/);
+  it("dims neither the control nor the figures, and says the figures are stale in words (#1289)", () => {
+    // The sheet declares both dims: --dim-off is "this control cannot be
+    // operated", --dim-stale is "a newer reading is on its way and this one was
+    // true a moment ago". The strip stays pressable, so the first never applied;
+    // the second did, to the numbers, until #1289 measured what it cost them —
+    // 3.55:1 for --text and 1.95:1 for --muted on the dark panel. Every figure
+    // here is a word, so the panel says the state instead: the headline's noun
+    // names the period the figures are FROM.
+    expect(panel).not.toMatch(/staleCls|up-stale/);
+    expect(models).not.toMatch(/staleCls|up-stale/);
+    expect(sessions).not.toMatch(/staleCls|up-stale/);
+    expect(css).not.toMatch(/\.up-stale\b/);
+    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    expect(models).toContain('<section className="up-section">');
+    expect(sessions).toContain('<section className="up-section">');
+    // The words that carry it: the noun of the period SHOWN, not the one pressed.
+    expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
+    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
   });
 
   it("reads the seam through the functions rather than re-deciding it here", () => {
@@ -457,9 +511,9 @@ describe("markup, read as source", () => {
     // test can reach it, and every case above would still pass.
     expect(panel).toContain("const figures = panelFigures(range,");
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(panel).toContain("return { ...rangeView(landed, period), loading };");
+    expect(rangeHook).toContain("return { ...rangeView(landed, period), loading };");
     for (const gone of ["fromRange ? rangeSum.cost +", "fromRange ? rangeSum.tokens", "landed.period !== period,"]) {
-      expect(panel, `${gone} is decided in the component again`).not.toContain(gone);
+      expect(surface, `${gone} is decided in the component again`).not.toContain(gone);
     }
   });
 });
@@ -576,23 +630,23 @@ describe("the period strip's keyboard and memory", () => {
     // tablist-contract.test.ts's rule, applied to the neighbouring role: a
     // toolbar promises one tab stop and arrows across the members. Both are
     // here, or the role is a lie.
-    expect(panel).toContain('role="toolbar"');
-    expect(panel).toContain('aria-orientation="horizontal"');
-    expect(panel).toContain("tabIndex={period === p.key ? 0 : -1}");
+    expect(strip).toContain('role="toolbar"');
+    expect(strip).toContain('aria-orientation="horizontal"');
+    expect(strip).toContain("tabIndex={period === p.key ? 0 : -1}");
     // From the focused segment, never from the selected one. Reckoning off
     // `period` walks one step and then stops — Right three times from `today`
     // gives `month`, `month`, `month` — and it looked correct in the source.
-    expect(panel).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
-    expect(panel).toContain("periodFocusMove(e.key, from)");
-    expect(panel).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
+    expect(strip).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
+    expect(strip).toContain("periodFocusMove(e.key, from)");
+    expect(surface).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
     // The arrows have to stop being the page's arrows, or the panel scrolls
     // under the ring the moment it moves.
-    expect(panel).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
-    expect(panel).toContain("periodRefs.current[to]?.focus();");
+    expect(strip).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
+    expect(strip).toContain("periodRefs.current[to]?.focus();");
     // And it must not have become the thing #381 deleted. Read with the
     // comments stripped: the block above this markup names that role in order
     // to say why it is wrong, and a substring match cannot tell the two apart.
-    const code = panel.replace(/\/\*[\s\S]*?\*\//g, "");
+    const code = surface.replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toContain('role="tablist"');
     expect(code).not.toContain('role="tab"');
   });
@@ -601,24 +655,29 @@ describe("the period strip's keyboard and memory", () => {
     // Arrowing PAST `all` would otherwise start a read of every transcript on
     // disk on the way to something else. The arrows move the ring; the click
     // handler is the only place a period is chosen.
-    const handler = panel.slice(panel.indexOf("onKeyDown={e => {"), panel.indexOf("periodRefs.current[to]?.focus();"));
+    const handler = strip.slice(strip.indexOf("onKeyDown={e => {"), strip.indexOf("periodRefs.current[to]?.focus();"));
+    expect(handler, "the key handler is gone or renamed").toContain("periodFocusMove");
     expect(handler).not.toContain("setPeriod");
   });
 
   it("remembers the period, under a key of the deck's own shape", () => {
-    expect(panel).toContain('const PERIOD_KEY = "agent-dag.usagePeriod";');
+    // The key and the two functions are usage-prefs.ts's, and
+    // usage-prefs.test.ts calls them; the panel keeps the wire.
+    expect(prefs).toContain('const PERIOD_KEY = "agent-dag.usagePeriod";');
     expect(panel).toContain("useState<PeriodKey>(loadPeriod)");
     expect(panel).toContain("useEffect(() => { savePeriod(period); }, [period]);");
     // Through storage.ts, because the bare property read throws outright on a
     // browser that blocks site data — and this one runs in a useState
     // initialiser, so it would take the panel's first render with it.
-    expect(panel).toContain('import { readStored } from "../storage";');
-    expect(panel).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
+    expect(prefs).toContain('import { readStored, writeStored } from "./storage";');
+    expect(prefs).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
     // Validated, not cast. The store holds whatever was last written into it —
     // an older build's spelling, or a hand edit — and an unknown period would
     // ask /api/ccusage for a range it cannot spell.
-    expect(panel).toContain("PERIODS.some(p => p.key === stored)");
-    expect(panel).toMatch(/function savePeriod[\s\S]{0,200}catch \{/);
+    expect(prefs).toContain("PERIODS.some(p => p.key === stored)");
+    // And written through storage.ts's writeStored, whose guard over the same
+    // refusal storage-blocked.test.ts drives.
+    expect(prefs).toMatch(/function savePeriod\(period: PeriodKey\): void \{\s*writeStored\(PERIOD_KEY, period\);/);
   });
 
   it("says a read is running, where the finger just was", () => {
@@ -632,8 +691,8 @@ describe("the period strip's keyboard and memory", () => {
     // `stale` alone would keep saying "reading" for good after a fetch that
     // FAILED, because a failure leaves the figures stale and nothing coming.
     expect(panel).toContain("const rangePending = rangeLoading && rangeStale;");
-    expect(panel).toContain('data-pending={period === p.key && rangePending ? "" : undefined}');
-    expect(panel).toContain("aria-busy={rangePending || undefined}");
+    expect(strip).toContain('data-pending={period === p.key && rangePending ? "" : undefined}');
+    expect(strip).toContain("aria-busy={rangePending || undefined}");
     // The mark that already says WHICH period is the one that says it is being
     // fetched — nothing new appears. Keyed on the attribute alone so it stays
     // out of the set of scoped state rules usage-series-contrast holds to three.
@@ -667,12 +726,13 @@ describe("the period strip's keyboard and memory", () => {
     // region and its one sentence on screen together, and take it away again
     // before it could say the wait was over. App.tsx's blocked-session region
     // is the precedent and carries the whole argument.
-    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">/);
-    expect(panel).toContain('{rangePending ? `Reading ${nounFor(period, period)}…` : ""}');
+    expect(strip).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">/);
+    expect(strip).toContain('{rangePending ? `Reading ${nounFor(period, period)}…` : ""}');
     // Polite, not assertive: a figure two seconds late costs nothing and
     // talking over the reader costs a sentence.
-    const at = panel.indexOf('<div className="vis-hidden" role="status"');
-    expect(panel.slice(at, at + 200)).not.toContain('role="alert"');
+    const at = strip.indexOf('<div className="vis-hidden" role="status"');
+    expect(at).toBeGreaterThan(-1);
+    expect(strip.slice(at, at + 200)).not.toContain('role="alert"');
   });
 
   it("says what each span actually covers, from the shaper that decides it", () => {
@@ -709,12 +769,12 @@ describe("the session section's disclosure", () => {
     // The ARIA disclosure pattern, and the one spelling that keeps four
     // headings in the document outline while still giving the reader a real
     // control — landmark-outline.test.ts counts them and would have lost one.
-    expect(panel).toMatch(/<h3 className="up-section-title">\s*<button/);
-    expect(panel).toContain('className="up-disclose"');
-    expect(panel).toContain("aria-expanded={sessionsOpen}");
-    expect(panel).toContain('aria-controls="up-sessions"');
-    expect(panel).toContain('id="up-sessions"');
-    expect(panel).toContain("hidden={!sessionsOpen}");
+    expect(sessions).toMatch(/<h3 className="up-section-title">\s*<button/);
+    expect(sessions).toContain('className="up-disclose"');
+    expect(sessions).toContain("aria-expanded={sessionsOpen}");
+    expect(sessions).toContain('aria-controls="up-sessions"');
+    expect(sessions).toContain('id="up-sessions"');
+    expect(sessions).toContain("hidden={!sessionsOpen}");
   });
 
   it("hides the list in CSS as well as in the attribute", () => {
@@ -751,8 +811,8 @@ describe("the session section's disclosure", () => {
     // `.bw-chev` prints ▾ and ▸ and is at the mercy of whichever font answers
     // for them on Windows and Linux. A path is the same three strokes on every
     // OS, and it can rotate instead of being replaced.
-    expect(panel).toContain('<svg className="up-chev"');
-    expect(panel).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
+    expect(sessions).toContain('<svg className="up-chev"');
+    expect(surface).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
     expect(block('.up-disclose[aria-expanded="true"] .up-chev')).toMatch(/transform:\s*rotate\(180deg\)/);
     // Under reduced motion it still turns — it just stops travelling.
     // `transform: none` there would have frozen it pointing down over an open
@@ -763,24 +823,24 @@ describe("the session section's disclosure", () => {
   });
 
   it("remembers whether it is open, and starts shut", () => {
-    expect(panel).toContain('const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";');
+    expect(prefs).toContain('const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";');
     expect(panel).toContain("useState<boolean>(loadSessionsOpen)");
     expect(panel).toContain("useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);");
     // Shut is the default, which is the deliberate half. An absent key, a
     // blocked store and a junk value all have to land on the same answer, and
     // `=== "1"` is the spelling that gives it: anything that is not the string
     // written by `saveSessionsOpen` reads as shut.
-    expect(panel).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
-    expect(panel).toMatch(/function saveSessionsOpen[\s\S]{0,220}catch \{/);
+    expect(prefs).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
+    expect(prefs).toMatch(/function saveSessionsOpen\(open: boolean\): void \{\s*writeStored\(SESSIONS_OPEN_KEY, open \? "1" : "0"\);/);
   });
 
   it("says how much is behind it, on the title rather than in ink", () => {
     // Shut, the reader cannot see how many sessions there are, and that is the
     // one fact the collapse actually takes away. The heading already carries
     // two things; a third in ink would be the noise this panel is short of.
-    expect(panel).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
-    expect(panel).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
-    expect(panel).toContain('"Hide the per-session breakdown"');
+    expect(sessions).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
+    expect(sessions).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
+    expect(sessions).toContain('"Hide the per-session breakdown"');
   });
 });
 
@@ -793,7 +853,7 @@ describe("the scrollbar at rest", () => {
     // rest would reflow the panel under the pointer as it arrived, on the two
     // platforms this repo cannot render. Measured: clientWidth 267 in both
     // states.
-    const bar = css.slice(css.indexOf("*::-webkit-scrollbar {"), css.indexOf(":hover, :focus-within { scrollbar-color"));
+    const bar = css.slice(css.indexOf("*::-webkit-scrollbar {"), css.indexOf(":hover { scrollbar-color"));
     expect(bar).toMatch(/\*::-webkit-scrollbar \{ width: 10px; height: 10px; \}/);
     expect(bar).not.toMatch(/:hover[^{]*::-webkit-scrollbar \{/);
     const thumb = css.slice(css.indexOf("*::-webkit-scrollbar-thumb {"), css.indexOf("}", css.indexOf("*::-webkit-scrollbar-thumb {")));
@@ -808,12 +868,16 @@ describe("the scrollbar at rest", () => {
 
   it("comes back for a pointer and for a keyboard alike", () => {
     // A bar that only exists under a pointer does not exist for the reader
-    // arrowing through the thing it measures.
-    expect(css).toMatch(/:hover::-webkit-scrollbar-thumb,\s*\n:focus-within::-webkit-scrollbar-thumb \{ background-color: var\(--line\); \}/);
+    // arrowing through the thing it measures. Both still bring it back; since
+    // #1290 the keyboard's is the louder of the two, because a keyboard cannot
+    // hover the bar to get the loud one — contrast-floors.test.ts measures it.
+    expect(css).toContain(":hover::-webkit-scrollbar-thumb { background-color: var(--line); }");
+    expect(css).toContain(":focus-within::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }");
     // Firefox's half, in its own property, degrading to today's always-visible
     // bar if it declines a transparent thumb.
     expect(css).toContain("* { scrollbar-color: transparent transparent; scrollbar-width: thin; }");
-    expect(css).toContain(":hover, :focus-within { scrollbar-color: var(--line) transparent; }");
+    expect(css).toContain(":hover { scrollbar-color: var(--line) transparent; }");
+    expect(css).toContain(":focus-within { scrollbar-color: var(--ctl-edge) transparent; }");
     // The thumb's own hover has to stay the loudest of the three, so it is
     // declared last where source order settles the tie at equal specificity.
     expect(css.indexOf("*::-webkit-scrollbar-thumb:hover"))

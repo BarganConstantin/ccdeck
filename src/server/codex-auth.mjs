@@ -15,7 +15,7 @@
 import { readFile, chmod, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
-import { createTemp, renameWithRetry, resolveWriteTarget } from "./installer.mjs";
+import { createTemp, renameWithRetry, resolveWriteTarget } from "./atomic-write.mjs";
 import { PRODUCT } from "./brand.mjs";
 
 // This file used to resolve CODEX_HOME itself, as `process.env.CODEX_HOME ??
@@ -150,13 +150,13 @@ async function readAuthFile() {
  * Resolves symlinks first — `~/.codex/auth.json` is often a link into a
  * dotfiles repo or an encrypted volume, and renaming onto the link would
  * replace it with a regular file, quietly detaching the user's setup. That
- * resolution is the installer's resolveWriteTarget rather than a bare realpath
+ * resolution is atomic-write.mjs's resolveWriteTarget rather than a bare realpath
  * here, because settings.json needed the identical rule (#673) and a rule
  * written twice is a rule that drifts: the shared one also follows a DANGLING
  * link to the file it names, which a realpath cannot answer at all and which is
  * exactly the state a dotfiles repo is in before its first apply.
  *
- * The temp file comes from the installer's createTemp, which numbers every
+ * The temp file comes from atomic-write.mjs's createTemp, which numbers every
  * write and creates it with O_EXCL, rather than from a name built out of the
  * pid alone. A pid names a process, not a write, so that name was one file
  * shared by every write this process makes, and the open that filled it
@@ -171,7 +171,7 @@ async function readAuthFile() {
  * which is also what makes the 0600 binding from the very first byte rather
  * than whatever the file it inherited happened to allow.
  *
- * The rename is the installer's retrying one because Windows fails it outright
+ * The rename is atomic-write.mjs's retrying one because Windows fails it outright
  * with EPERM/EBUSY while another process holds auth.json open, and a virus
  * scanner, the search indexer or the Codex CLI itself does exactly that for a
  * few milliseconds at a time. Everywhere else that costs a re-download; here

@@ -125,7 +125,7 @@ describe("which rename each store reaches for", () => {
     const { readdirSync } = require("node:fs") as typeof import("node:fs");
     const offenders: string[] = [];
     for (const name of readdirSync(dir)) {
-      if (!name.endsWith(".mjs") || name === "installer.mjs") continue;
+      if (!name.endsWith(".mjs") || name === "atomic-write.mjs") continue;
       const text = readFileSync(join(dir, name), "utf8");
       if (!/\.tmp[`"']|\.tmp\$|\}\.tmp/.test(text)) continue;
       if (!/\brename\b/.test(text)) continue;

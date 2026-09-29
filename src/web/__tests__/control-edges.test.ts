@@ -32,9 +32,10 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
 import { gradientStops } from "./gradient-stops";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** WCAG 1.4.3 for the words, 1.4.11 for a control's own boundary. */
 const BODY = 4.5;
@@ -857,14 +858,20 @@ describe("the scan everything below is built on (#513)", () => {
     expect(bare.split("\n").filter(line => /^\s*\/\//.test(line))).toEqual([]);
     // Including the ones written after code on the same line, which is the case
     // every hand-rolled stripper in this suite drops a line-filter on and
-    // misses — and this file's own example of one carries an apostrophe.
-    expect(panel).toContain("// unix ms — claude-swap's next planned read");
-    expect(bare).not.toContain("next planned read");
+    // misses. The panel's own example of one carries an apostrophe, and went
+    // with the account types it annotates to claude-accounts.ts — so that is
+    // the file it is asked of.
+    const shapes = readFileSync(join(web, "claude-accounts.ts"), "utf8");
+    expect(shapes).toContain("// unix ms — claude-swap's next planned read");
+    expect(withoutComments(shapes)).not.toContain("next planned read");
     // Prose is dropped; the markup and the strings around it are not. An
     // apostrophe in JSX text is prose the browser renders, not a string
     // literal, and it has to survive without swallowing what follows it.
     expect(bare.split("\n").length).toBe(panel.split("\n").length);
-    expect(bare).toContain("Couldn't read the account store.");
+    // The panel's own example is its empty state's, which is a component of
+    // its own now, so the sentence is asked of the file that renders it.
+    const empty = COMPONENTS.find(([name]) => name === "components/AccountsEmptyState.tsx")![1];
+    expect(withoutComments(empty)).toContain("Couldn't read the account store.");
   });
 
   it("closes a quote at the end of a line, because a string cannot span one", () => {

@@ -4,7 +4,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentNodeData, ToolCall } from "../types";
-import { collectBursts, cutSubLabel, primaryBubbleWidth, primaryDisplayFor } from "../components/ToolBursts";
+import { collectBursts, primaryBubbleWidth } from "../burst-layout";
+import { cutSubLabel, primaryDisplayFor } from "../tool-skin";
+import { sheetText } from "./sheet-source";
 
 /** Same constants the layout uses: the fixed floor and the sub-bubble gap. */
 const ESTIMATED_BUBBLE_W = 96;
@@ -145,7 +147,7 @@ describe("a sub-bubble's word is cut to what its pill shows", () => {
   });
 
   it("counts against the same 140px the sheet caps the pill at, which the lane cannot grow", () => {
-    const css = read("../styles.css");
+    const css = sheetText();
     const sub = /\.tool-burst\.sub \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(sub).toMatch(/max-width: 140px;/);
     // The longest word the cut lets through, at 10px monospace (~6.1px each,

@@ -1,240 +1,24 @@
-// Which of the running decks writes an event to the log they share?
+// Appending to the events log that several decks may share: one whole line per
+// write(2), in the order pushEvent produced them, behind a queue that is
+// bounded and counts what it refused and what failed to land — and the drain,
+// the flush and the Clear that take their turn on that same queue.
 //
-// The hook already answers that for the events it delivers: it groups the decks
-// it is about to post to by the log file each one names in its discovery record,
-// elects one per file, and marks the request to every other one `?persist=0`.
-// See electWriters in hook/hook.js.
-//
-// The Codex rollout watcher never goes through the hook — it builds its events
-// inside the server by tailing ~/.codex/sessions/**/rollout-*.jsonl — so nothing
-// suppressed the copies on that path: every deck tailing the same rollout
-// appended its own line to the one events.jsonl they all default to, so each
-// Codex tool call, prompt and session start landed there once per running deck.
-// That is the duplication the hook election was added to end, still open on the
-// path that is the only Codex capture there is on Windows, where Codex hooks
-// never fire at all.
-//
-// So the server runs the same election, over the same discovery records, with
-// the same tie-break. The rule is repeated here rather than imported from
-// hook/hook.js because that file is copied out of the package and run standalone
-// by the host CLI, with no path back to the module it came from — the same
-// reason it re-derives the Claude config dir inline. The two copies are pinned
-// equal by a test, as challengeProof's pair already is.
+// Which deck writes a given line is decided before any of this, by the
+// election in log-election.mjs, which used to sit at the top of this file.
 import { open, truncate, unlink } from "node:fs/promises";
-import { realpathSync } from "node:fs";
-import { basename, dirname, join, resolve, win32, posix } from "node:path";
-import { PRODUCT } from "./brand.mjs";
-
-/**
- * Does this platform's filesystem treat two spellings that differ only in case
- * as the same file? The platform is a parameter so both answers can be checked
- * from either kind of machine.
- *
- * Windows always does, and macOS does by default (APFS and HFS+ are formatted
- * case-insensitive unless the user deliberately chose otherwise). Linux does
- * not, and folding case there would be a bug of its own: /srv/a/events.jsonl and
- * /srv/A/events.jsonl are two real files, each of which needs a writer.
- */
-/**
- * The one spelling of an events log, so two decks pointed at one file land in
- * one group (#793).
- *
- * `resolve` alone was what shipped, and it settles relative-vs-absolute and
- * nothing else. The election below then only case-folds — so two spellings of
- * one file read as two files, which is the exact thing `bin/deck.js`'s comment
- * over this value says must not happen. On Windows it needs no odd user action:
- * `claudeConfigDir()` derives from `homedir()`, and a shell whose `USERPROFILE`
- * is 8.3-shortened yields a different default string than one with the long
- * form. `subst` and mapped drives and junctions do it too, and on macOS so does
- * `/tmp` against `/private/tmp`.
- *
- * What it cost was not merely a duplicate group. BOTH decks were then elected,
- * so every hook event was appended twice — the duplicate-tools-after-restart
- * symptom the election exists to end — and `logSharing()` compares the same
- * string, so both answered `mine: true` and `POST /api/clear` truncated a file
- * this deck does not own. That is the #698 history loss the ownership gate was
- * added to prevent.
- *
- * THE DIRECTORY IS CANONICALISED EVEN WHEN THE FILE IS NOT THERE, which is the
- * half a plain realpath misses. On a first run, or against a `--history` naming
- * a file the deck will create, `realpath` throws ENOENT — and falling back to
- * the resolved string would leave the two spellings different for exactly the
- * run that creates the file. The parent exists (or is about to be created under
- * one canonical name), so it is canonicalised and the basename rejoined.
- *
- * `canonicalWorkspace` in index.mjs is the same rule for the other path this
- * deck publishes, with three comments naming 8.3 expansion as its reason. This
- * is that rule reaching the value two lines away from it.
- */
-export function canonicalLogPath(raw) {
-  if (typeof raw !== "string" || raw.trim() === "") return "";
-  const abs = resolve(raw);
-  try { return realpathSync.native(abs); } catch { /* not created yet */ }
-  try { return join(realpathSync.native(dirname(abs)), basename(abs)); } catch { return abs; }
-}
-
-export const foldsCase = (platform = process.platform) =>
-  platform === "win32" || platform === "darwin";
-
-/**
- * Of these decks, which ones write to disk? Returns the subset that should;
- * every other one is expected to draw the event and keep no record of it.
- *
- * Decks are grouped by the log file each one names in its discovery record and
- * one deck per group is elected. Grouping by the file rather than counting decks
- * is what keeps the overrides honest: a deck run with `--history` sits alone in
- * its own group and always writes, a deck run with `--no-persist` reports no
- * file and can never be elected to write for one that does, and a deck too old
- * to report either keeps the behaviour it had before this rule existed. Within a
- * group the lowest port wins — a fixed rule, so the same deck holds the file for
- * as long as it is up and the next one inherits it as soon as that deck is gone.
- *
- * Kept byte-for-byte equivalent to electWriters in hook/hook.js: the two decide
- * for the same decks over the same records, and a disagreement between them
- * means one log line written twice or none at all.
- */
-export function electWriters(decks, platform = process.platform) {
-  const byLog = new Map();
-  for (const d of decks) {
-    const log = typeof d.persist === "string" ? d.persist : "";
-    // Two namespaces, so a deck with no log to share — and a deck too old to
-    // report one — is alone in its group and cannot collide with a real path.
-    const key = log
-      ? `log:${foldsCase(platform) ? log.toLowerCase() : log}`
-      : `deck:${d.pid}:${d.port}`;
-    const held = byLog.get(key);
-    // Ports are unique among live decks; pid only breaks a tie a stale
-    // discovery file could invent, so the answer stays deterministic.
-    if (!held || d.port < held.port || (d.port === held.port && d.pid < held.pid)) {
-      byLog.set(key, d);
-    }
-  }
-  return new Set(byLog.values());
-}
-
-/**
- * Would a deck scoped to `workspace` capture a rollout running in `cwd`? An
- * empty workspace is unscoped and captures every session; a rollout that never
- * said where it runs is inside no workspace, so only an unscoped deck draws it.
- *
- * This answers two questions with one function — whether THIS deck tails a
- * rollout, and whether another deck tails it too — and that is only sound while
- * the rule below is the rule every deck actually runs. Model another deck's
- * capture with anything else and the election covers the wrong set: a deck that
- * writes without being elected, or an elected deck that never opened the file.
- *
- * It is also the rule hook/hook.js runs for the sessions it delivers, under the
- * name capturesSession — that script is copied out of the package and run
- * standalone, so the two are written twice and pinned equal by a test walking
- * one table of paths through both. They were not equal: case was folded here on
- * every platform, so on Linux a deck scoped to /srv/proj captured Codex sessions
- * from /srv/Proj and Claude sessions from neither. Those are two real
- * directories there, and the hook's own comment says what folding them together
- * costs — a deck handed the events of a tree it was not scoped to. So the fold
- * is per-platform on both sides now, and `--workspace` means one thing.
- *
- * (The narrow window that opens: two decks on Linux whose workspaces differ only
- * in case, one of them old enough to still fold, both containing one rollout's
- * cwd. Each models the other as tailing the file; one of them is wrong, and the
- * cost is a single log line written twice.)
- *
- * The platform is a parameter, following the hook's cwdInWorkspace and
- * spawnSpec in src/server/exec.mjs, so the Windows separator is testable from a
- * POSIX machine.
- */
-export function codexCwdInWorkspace(cwd, workspace, platform = process.platform) {
-  if (!workspace || typeof workspace !== "string") return true;
-  if (!cwd || typeof cwd !== "string") return false;
-  const p = platform === "win32" ? win32 : posix;
-  const fold = s => (foldsCase(platform) ? s.toLowerCase() : s);
-  const a = fold(p.resolve(cwd));
-  const b = fold(p.resolve(workspace));
-  if (a === b) return true;
-  // A root ("C:\", "/") already ends in the separator; appending a second one
-  // would match nothing.
-  return a.startsWith(b.endsWith(p.sep) ? b : b + p.sep);
-}
-
-/**
- * Do two discovery records name the same Codex tree? Each argument is a
- * record's `codexHome`: the canonical path of the CODEX_HOME that deck tails.
- *
- * Anything that is not a non-empty string answers yes. That is a record written
- * before the field existed — a machine halfway through an upgrade is the
- * ordinary way to meet one — and guessing "a different tree" there would elect
- * a second writer for one log on every machine with an older deck still up.
- * Guessing "the same tree" is what every deck did before the field existed,
- * which is the fail-safe writesCodexLog below already takes for a record too old
- * to carry `codex` at all.
- *
- * Case is folded where the filesystem folds it, exactly as electWriters folds
- * the log path: on Windows and macOS two spellings that differ only in case are
- * one directory with one reader, and on Linux they are two directories, each
- * read by its own deck. The other ways to spell one directory — a symlinked
- * ~/.codex, an 8.3-shortened USERPROFILE, /tmp against /private/tmp — are
- * settled before the value is published (writeDiscovery in installer.mjs runs
- * it through canonicalLogPath), so two records compared here already agree on
- * everything but case.
- */
-export function sameCodexTree(a, b, platform = process.platform) {
-  if (typeof a !== "string" || a === "" || typeof b !== "string" || b === "") return true;
-  return foldsCase(platform) ? a.toLowerCase() === b.toLowerCase() : a === b;
-}
-
-/**
- * Does this deck append a rollout's events to its log, or is another deck doing
- * it? `decks` is every deck registered right now, `pid` identifies this one
- * among them, and `cwd` is the workspace the rollout is running in.
- *
- * The group is every deck that tails this same rollout: each deck decides for
- * itself, so all of them whose workspace contains the cwd read the file and all
- * of them would write it. The hook builds the same group the same way for the
- * events it delivers — it used to narrow them to the longest workspace match
- * first, which is the asymmetry the predicate above describes the end of. A deck
- * started with `--no-codex` tails nothing and is left out; electing it would
- * mean the rollout's events reach no log at all. A deck too old to say either
- * way is assumed to be tailing, which is what it was doing before this field
- * existed.
- *
- * A deck reading a different Codex tree is left out for the same reason (#982).
- * CODEX_HOME moves the whole tree, so two decks on one machine can share one
- * events.jsonl while reading two different sets of rollouts — and for an
- * unscoped deck the workspace test above answers yes to every cwd, so it tells
- * them apart not at all. The record's `codex: true` said a deck tails rollouts
- * and never said whose. So the lower-port deck won the line for a rollout its
- * own tree does not hold and appended nothing, the deck that was reading it
- * stood down, and the shared log recorded none of the session while the canvas
- * drew all of it: #695's symptom, from a deck that is alive, answers its
- * challenge, and is simply looking somewhere else. The same deck launched with
- * a stale CODEX_HOME is the duller version of it.
- */
-export function writesCodexLog({ decks, pid, cwd, platform = process.platform }) {
-  const live = Array.isArray(decks) ? decks : [];
-  const self = live.find(d => d && d.pid === pid) ?? null;
-  // No record of our own on disk — the window before the first heartbeat writes
-  // it, or a deck that cannot write one at all. Nobody can elect us and we
-  // cannot see who else is here, so keep what this deck did before the election
-  // existed and write. A line written twice is recoverable; a deck that quietly
-  // stops recording anything is not.
-  if (!self || typeof self.persist !== "string" || self.persist === "") return true;
-
-  const group = [self];
-  for (const d of live) {
-    if (!d || d.pid === self.pid) continue;
-    if (d.codex === false) continue;
-    if (!sameCodexTree(self.codexHome, d.codexHome, platform)) continue;
-    if (!codexCwdInWorkspace(cwd, d.workspace ?? "", platform)) continue;
-    group.push(d);
-  }
-  return electWriters(group, platform).has(self);
-}
+// How much the queue may hold, and what it refused: see append-budget.mjs.
+import {
+  MAX_PENDING_APPEND_CHARS, appendQueueStats, noteRefused, queueIsFull, releaseCharge, takeCharge,
+} from "./append-budget.mjs";
+// What failed to land, and how much has: see append-failures.mjs.
+import { appendFailureStats, appendsLanded, noteAppendFailed, noteAppendLanded } from "./append-failures.mjs";
 
 // ─── Appending one whole line ─────────────────────────────────────────────
 //
-// The election above decides WHICH deck writes a line. This decides HOW, and
-// the two are answers to the same question: the log is one file that several
-// processes append to, so a line that arrives in pieces is a line another
-// writer can land inside.
+// The election in log-election.mjs decides WHICH deck writes a line. This
+// decides HOW, and the two are answers to the same question: the log is one
+// file that several processes append to, so a line that arrives in pieces is a
+// line another writer can land inside.
 //
 // What was wrong. events.jsonl was appended with `fsPromises.appendFile`, which
 // is not one write(2). Node's writeFileHandle loops over the payload in chunks
@@ -300,256 +84,34 @@ export function writesCodexLog({ decks, pid, cwd, platform = process.platform })
 // already paid — open, write, close — minus the extra writes.
 const appendTails = new Map();
 
-// ─── What the queue is allowed to weigh ───────────────────────────────────
-//
-// The chain above ORDERS appends. Nothing bounded them. Every line handed over
-// is retained by the closure that will eventually write it, and the only brake
-// on how many of those exist at once is how fast write(2) returns — while
-// pushEvent hands them over fire-and-forget and answers `{ok:true, seq}` on the
-// next statement, so `POST /api/event` admits lines as fast as a socket can
-// deliver them.
-//
-// MEASURED (Linux 7.0 / Node 24.21 / ext4 on NVMe), eight sockets posting 1 MB
-// `tool_response` bodies to a sandboxed deck for four seconds, sampled twice a
-// second:
-//
-//   t=1.0s  log_MB=19    rss_MB=881
-//   t=2.5s  log_MB=51    rss_MB=1741
-//   t=4.1s  log_MB=85    rss_MB=2260   <- ingest stops; 1540 MB acknowledged
-//   t=5.5s  log_MB=1135  rss_MB=935
-//   t=6.0s  log_MB=1540  rss_MB=546    <- queue finally drained
-//
-// 85 MB on disk against 1540 MB the deck had said it had: 1455 MB of serialized
-// lines held in the heap, and an RSS peak of 2260 MB — 17x MAX_BUFFER_CHARS,
-// the budget the ring beside this keeps exactly. The disk is not the amplifier;
-// the event loop is. Ingest and the writer share it, so the log grew at 21 MB/s
-// while the posting continued and at 800 MB/s the instant it stopped.
-//
-// The same burst under `--max-old-space-size=1024`:
-//
-//   FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
-//   [deck exited code=null sig=SIGABRT]   3.2s in, 50 MB written
-//
-// That abort is not catchable, so the SSE stream, the hook ingest and the log
-// stop together — and `/api/event` is a deliberate OPEN_MUTATION, so this is a
-// few hundred unauthenticated posts from any local process ending the deck.
-// It is the failure MAX_BUFFER_CHARS was added to close (#625), reached through
-// the door beside the one it guards (#1030).
-//
-// Who gets there without trying: `--history` accepts any path. The 40 events/s
-// of 1 MB that is trivial on NVMe is roughly 30 MB/s of pure accumulation on a
-// 5-10 MB/s network mount or a slow external drive, where the queue's only
-// brake is that much slower than the traffic filling it.
-
-/**
- * The ceiling on pending append bytes, and the ring's sibling on purpose.
- *
- * 128 MiB, the same number and the same three readings that pick
- * MAX_BUFFER_CHARS in index.mjs:
- *
- *   - It is 26 times the largest single line ingest can produce (5,000,000
- *     characters plus the deck's envelope), so a burst of maximum-size tool
- *     responses — eight subagents each returning a big Read — is queued whole
- *     rather than shed.
- *   - It is thirteen times a completely full 2000-event ring of ordinary
- *     traffic. The mean serialized event is about 5 KB, so the ~26,000 lines
- *     this holds are far more than any honest burst produces: ordinary traffic
- *     never meets this bound at all.
- *   - Its worst case is a bounded fraction of the heap, and a bounded ADDITION
- *     to the ring's. 128 MiB of charged characters is at most 256 MiB retained
- *     — a two-byte string costs twice what it is charged, the same 2x
- *     MAX_CLIENT_BUFFER_BYTES' note describes — so the ring's 320 MiB and this
- *     together are about 576 MiB of the 2 GB heap an 8 GB laptop picks, against
- *     the 2260 MB one four-second burst reached with no bound here at all.
- *
- * CHARGED IN CHARACTERS, not in UTF-8 bytes, and the unit is deliberate. These
- * lines are already serialized, so `line.length` is the size of the thing being
- * retained and costs nothing to read; `Buffer.byteLength` would be a second
- * full scan of a five-megabyte string on the hottest path in the process for a
- * number that is FURTHER from the retained heap, not closer — JSON.stringify
- * leaves non-ASCII unescaped, so a CJK line is two bytes of heap per character
- * and three bytes of UTF-8.
- *
- * Deliberately NOT summed into MAX_BUFFER_CHARS, which #1030 raises as an
- * option. The two hold different things — the ring holds parsed payloads
- * charged by payloadChars' walk, this holds their serialization — so one
- * counter would be adding two units; and eviction cannot free a queued line
- * anyway, so a shared budget would answer a slow disk by collapsing the replay
- * depth of the ring, which is the one part of this that was never broken.
- */
-export const MAX_PENDING_APPEND_CHARS = 128 * 1024 * 1024;
-
-// What has been accepted and not yet written, what has been refused because of
-// it, and whether we are inside an episode of refusing. These move with the
-// chain in appendLogLine and nowhere else — the same rule `bufferedChars` and
-// `events` keep in index.mjs, and for the same reason: a total that names lines
-// the queue no longer holds is a permanent debt against the budget.
-let pendingLines = 0;
-let pendingChars = 0;
-let droppedLines = 0;
-let droppedChars = 0;
-let dropEpisodes = 0;
-// Reset at the start of each episode, so the line printed when the queue
-// drains describes THAT burst rather than the life of the process.
-let episodeLines = 0;
-let episodeChars = 0;
-let shedding = false;
-
-/**
- * What the append queue holds right now, and what it has refused.
- *
- * Exported for exactly the reason eventBufferStats and MAX_BUFFER_CHARS are —
- * "a bound whose only observable failure is the process running out of memory
- * is a bound no test can assert". With this, the bound is observable without
- * watching a process die, and so is the loss it trades for.
- *
- * `droppedLines` / `droppedChars` are cumulative for the life of the process.
- * They count lines that were never ATTEMPTED; an append that was attempted and
- * failed is a different number, which #991 is open about and which belongs
- * beside these rather than tangled into them.
- */
-export function appendQueueStats() {
-  return { pendingLines, pendingChars, droppedLines, droppedChars, dropEpisodes };
-}
-
-const mb = chars => `${(chars / 1024 / 1024).toFixed(0)}MB`;
-// ─── What the queue failed to write ───────────────────────────────────────
-//
-// `.catch(() => {})` was the only handler anywhere on this path, and a failed
-// `open(filePath, "a")` was indistinguishable from a successful append from
-// every vantage point in the process. MEASURED, on a sandboxed deck whose
-// `--history` names a file inside a directory the user cannot write:
-//
-//   POST /api/event acknowledged: 10 of 10
-//   log file on disk?             false
-//   /api/health mentions the log? false
-//   /api/version canRestart:      true
-//
-// Ten events the deck told the hook it had recorded, nothing on disk, nothing
-// said on any console, and the Restart button still offering itself. That last
-// line is the one that costs: the button exists precisely BECAUSE a restart
-// without a log wipes the canvas irrecoverably, and it was gating on whether a
-// log had been CONFIGURED rather than on whether one was being written. The
-// press then lands on `replayLog`'s `if (!existsSync(filePath)) return 0` and
-// the whole session history is gone.
-//
-// Who gets there without trying: `--history` accepts any path — a read-only or
-// full volume, a removable drive unmounted while the deck runs, a directory
-// whose permissions changed under it. `startServer` even creates the parent
-// inside a bare `try {} catch {}`, so the failure is already swallowed once
-// before the first line is ever written.
-//
-// So the chain counts what it could not write, and says so once. The numbers
-// are what make the loss observable without watching a canvas come back empty,
-// for the same reason `eventBufferStats` exists one file over.
-let failedLines = 0;
-let failedChars = 0;
-/**
- * The paths currently inside an EPISODE of failing, and how many lines each
- * episode has lost so far: path -> { lines }.
- *
- * An episode rather than a one-shot flag, because the interesting failures are
- * transient — a volume that fills and is emptied, a drive that is unplugged and
- * returns — and a path complained about once and never again would report the
- * first outage of a long-lived deck and stay silent through every later one.
- * The episode closes on the next append to that path that LANDS, which is the
- * only evidence available that the condition is over.
- */
-const failingPaths = new Map();
-
-/**
- * How many lines have LANDED on each path in this process: path -> count.
- *
- * The other half of the evidence `failingPaths` holds, and the half the restart
- * gate was missing (#1130). An open episode says the newest append to a path
- * failed. Nothing said the opposite — that one has succeeded SINCE some moment
- * — because a path that never failed has no episode to close, and a log that
- * could not be opened at boot and could be a minute later never failed an
- * append at all: its first one simply landed. A count answers that by being
- * compared with itself. index.mjs reads it once, when its boot probe answers,
- * and again whenever it asks; any difference is a line that reached the disk
- * after the probe spoke.
- *
- * One number per path this process has ever appended to, which on a deck is
- * one. Never deleted, unlike the entries in appendTails, because a count that
- * went back to zero would read as "nothing has landed" to whoever took a
- * reading before it did.
- */
-const landedLines = new Map();
-
-/**
- * What the appender has failed to write, and whether it is failing now.
- *
- * Exported for the reason `eventBufferStats` and `MAX_BUFFER_CHARS` are: a loss
- * whose only observable effect is a canvas that comes back empty after a
- * restart is a loss no test can assert. `failing` is the number of paths inside
- * an open failure episode — this process appends to exactly one log, so on a
- * deck it is 0 or 1, and 1 means the log being drawn is not the log being kept.
- *
- * `failedLines` / `failedChars` are cumulative for the life of the process and
- * count lines that were ATTEMPTED and did not land. A line the queue refused
- * to accept in the first place is a different number and belongs beside this
- * one rather than tangled into it.
- *
- * `filePath` NARROWS `failing` to one log, and a caller deciding what to do
- * about its own log has to pass it. A process can outlive the log it was
- * started with — `startServer` may be called again with a different `--history`
- * on a restart, and the suite does exactly that — so an unscoped count would
- * let a path that failed and was abandoned veto a deck whose current log is
- * perfectly writable.
- *
- * @param {string|null} [filePath] the log to ask about; omit for every path
- */
-export function appendFailureStats(filePath = null) {
-  const failing = filePath == null ? failingPaths.size : (failingPaths.has(filePath) ? 1 : 0);
-  return { failedLines, failedChars, failing };
+/** The step the next one queued for this log starts behind: the last one
+ *  queued, or nothing when its queue is empty. */
+function tailOf(filePath) {
+  return appendTails.get(filePath) ?? Promise.resolve();
 }
 
 /**
- * How many lines have landed on one log in this process. See landedLines.
+ * Make `tail` the step the next one queued for this log starts behind, and
+ * drop it from the map once it settles.
  *
- * A separate export rather than a fourth field of appendFailureStats, because
- * that object is spread whole into `/api/health`, an open route that keeps to
- * the smallest set of facts answering its question, and a running count of
- * successful writes is not one of them.
- *
- * @param {string} filePath the log to ask about
- * @returns {number}
+ * Dropped so a process that writes to several logs over its life does not hold
+ * a promise per path it has finished with. Only the tail installed here is
+ * cleared: if another step chained on in the meantime the map already points
+ * at that one, and deleting it would let the next line race the one still in
+ * flight.
  */
-export function appendsLanded(filePath) {
-  return landedLines.get(filePath) ?? 0;
+function installTail(filePath, tail) {
+  appendTails.set(filePath, tail);
+  tail.then(() => { if (appendTails.get(filePath) === tail) appendTails.delete(filePath); });
 }
 
-/**
- * One append landed. Counted whatever came before it — see landedLines — and
- * if this path was failing, that is the end of the episode and the size of the
- * hole it left is worth one line.
- */
-function noteAppendLanded(filePath) {
-  landedLines.set(filePath, (landedLines.get(filePath) ?? 0) + 1);
-  const episode = failingPaths.get(filePath);
-  if (!episode) return;
-  failingPaths.delete(filePath);
-  console.error(`${PRODUCT}: writing ${filePath} works again — ${episode.lines} event(s) were dropped while it did not, and are not in the log`);
-}
+// What the queue is allowed to weigh (#1030) — the ceiling, the charge a line
+// carries until its write settles, and the refusals past it: append-budget.mjs.
+export { MAX_PENDING_APPEND_CHARS, appendQueueStats };
 
-/**
- * One append did not land. Count it, and open an episode if this is the first.
- *
- * ONE LINE PER EPISODE, not one per failure. A read-only log fails on every
- * event the deck draws, so per-failure this would be thousands of lines onto
- * the terminal the deck paints its own banner over — which is its own version
- * of the problem being fixed.
- */
-function noteAppendFailed(filePath, line, err) {
-  failedLines++;
-  failedChars += typeof line === "string" ? line.length : 0;
-  const episode = failingPaths.get(filePath);
-  if (episode) { episode.lines++; return; }
-  failingPaths.set(filePath, { lines: 1 });
-  const why = err && err.message ? err.message : String(err);
-  console.error(`${PRODUCT}: cannot write the event log ${filePath} (${why}) — events are being drawn but not recorded, and a restart will not bring them back`);
-}
+// What the queue failed to write (#991), and how many lines have landed on
+// each log (#1130): append-failures.mjs.
+export { appendFailureStats, appendsLanded };
 
 /**
  * Append one already-serialized line to the shared log, whole.
@@ -566,8 +128,8 @@ function noteAppendFailed(filePath, line, err) {
  * about anyway. The chain deliberately continues past a failure — one ENOSPC
  * must not stop every later event from being recorded once space is back.
  *
- * BOUNDED, by MAX_PENDING_APPEND_CHARS above. Past it the line is refused at
- * the door, counted, and reported once per episode.
+ * BOUNDED, by MAX_PENDING_APPEND_CHARS in append-budget.mjs. Past it the line
+ * is refused at the door, counted, and reported once per episode.
  *
  * Refused at the door, and not evicted from the middle of the queue, which is
  * the other shape #1030 offers. A line that has been accepted has been charged,
@@ -588,34 +150,14 @@ function noteAppendFailed(filePath, line, err) {
  */
 export function appendLogLine(filePath, line) {
   const charged = typeof line === "string" ? line.length : 0;
-  // The queue always accepts a line when it is EMPTY, whatever that line
-  // weighs. Ingest admits 5,000,000 characters and a Codex rollout line read
-  // off disk has no length bound at all, so refusing an oversized line outright
-  // would mean a deck that silently never records its largest events — and the
-  // ring one file over makes the same exception for the same reason ("a single
-  // event is allowed to be larger than the entire budget"). So the true ceiling
-  // is MAX_PENDING_APPEND_CHARS plus one line, stated here rather than
-  // pretended away.
-  if (pendingLines > 0 && pendingChars + charged > MAX_PENDING_APPEND_CHARS) {
-    droppedLines++;
-    droppedChars += charged;
-    episodeLines++;
-    episodeChars += charged;
-    if (!shedding) {
-      shedding = true;
-      dropEpisodes++;
-      // One line, at the start of the episode. Per refusal it would be
-      // thousands of lines onto the terminal the deck paints over, which is its
-      // own version of the problem being fixed.
-      console.error(`${PRODUCT}: the log append queue is full (${mb(pendingChars)} waiting for ${filePath}) — dropping events until it drains`);
-    }
+  if (queueIsFull(charged)) {
+    noteRefused(filePath, charged);
     // Resolved rather than rejected, and resolved rather than the tail: the
     // contract every caller has is "never rejects, never makes you wait".
     return Promise.resolve();
   }
-  pendingLines++;
-  pendingChars += charged;
-  const tail = (appendTails.get(filePath) ?? Promise.resolve())
+  takeCharge(charged);
+  const tail = tailOf(filePath)
     .then(() => writeWholeLine(filePath, line))
     // Counted, and reported once per episode — see noteAppendFailed. The order
     // of these four steps is the whole of the union between the append-queue
@@ -624,9 +166,10 @@ export function appendLogLine(filePath, line) {
     //
     //   * the failure handler comes BEFORE the `catch`, or the rejection has
     //     already been swallowed by the time anything could count it;
-    //   * the `catch` stays, because the map cleanup below chains a bare
-    //     `.then` on this tail and "never rejects" is the contract every caller
-    //     of this function has — neither handler above may be what breaks it;
+    //   * the `catch` stays, because the map cleanup in installTail chains a
+    //     bare `.then` on this tail and "never rejects" is the contract every
+    //     caller of this function has — neither handler above may be what
+    //     breaks it;
     //   * `finally` comes LAST, so the charge is given back whether the write
     //     landed, failed, or a handler here threw on its way past. It would run
     //     on a rejection anyway; what the ordering buys is that it cannot be
@@ -637,14 +180,23 @@ export function appendLogLine(filePath, line) {
     // which is the moment the closure holding it becomes collectable, and so
     // the moment the heap it was standing for is actually back.
     .finally(() => releaseCharge(charged));
-  appendTails.set(filePath, tail);
-  // Drop the chain once it drains, so a process that writes to several logs
-  // over its life does not hold a promise per path it has finished with. Only
-  // the tail we just installed is cleared: if another append chained on in the
-  // meantime the map already points at that one, and deleting it would let the
-  // next line race the one still in flight.
-  tail.then(() => { if (appendTails.get(filePath) === tail) appendTails.delete(filePath); });
+  installTail(filePath, tail);
   return tail;
+}
+
+/**
+ * `drained` — a promise that answers true once what it waits for has landed —
+ * or false at `ms`, whichever comes first: the bound drainAppends and
+ * flushAppends below both keep. The bell is unref'd, so a wait still running
+ * never holds the process open by itself, and it is cleared either way.
+ */
+function withinDeadline(drained, ms) {
+  let bell;
+  const deadline = new Promise(resolve => {
+    bell = setTimeout(() => resolve(false), ms);
+    bell.unref?.();
+  });
+  return Promise.race([drained, deadline]).finally(() => clearTimeout(bell));
 }
 
 /**
@@ -676,17 +228,12 @@ export function appendLogLine(filePath, line) {
 export function drainAppends(ms = 3000) {
   const pending = [...appendTails.values()];
   if (!pending.length) return Promise.resolve(true);
-  let bell;
-  const deadline = new Promise(resolve => {
-    bell = setTimeout(() => resolve(false), ms);
-    bell.unref?.();
-  });
   // `catch` on each: a failed append has already been swallowed by the chain,
   // and a rejection here would skip the rest of the drain.
-  return Promise.race([
+  return withinDeadline(
     Promise.all(pending.map(p => Promise.resolve(p).catch(() => {}))).then(() => true),
-    deadline,
-  ]).finally(() => clearTimeout(bell));
+    ms,
+  );
 }
 
 /**
@@ -740,18 +287,10 @@ export function drainAppends(ms = 3000) {
 export function flushAppends(filePath, ms = 3000) {
   const tail = appendTails.get(filePath);
   if (!tail) return Promise.resolve(true);
-  let bell;
-  const deadline = new Promise(resolve => {
-    bell = setTimeout(() => resolve(false), ms);
-    bell.unref?.();
-  });
-  return Promise.race([
-    // The tail never rejects — appendLogLine's own catch sees to that — but a
-    // rejection here would skip the clearTimeout and leave the caller hanging,
-    // so it is handled rather than assumed away.
-    Promise.resolve(tail).then(() => true, () => true),
-    deadline,
-  ]).finally(() => clearTimeout(bell));
+  // The tail never rejects — appendLogLine's own catch sees to that — but a
+  // rejection here would reach a caller that was promised a boolean, so it is
+  // handled rather than assumed away.
+  return withinDeadline(Promise.resolve(tail).then(() => true, () => true), ms);
 }
 
 /**
@@ -822,7 +361,7 @@ export function flushAppends(filePath, ms = 3000) {
  * @returns {Promise<boolean>} whether it was over before the deadline
  */
 export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
-  const turn = (appendTails.get(filePath) ?? Promise.resolve())
+  const turn = tailOf(filePath)
     .then(() => truncate(filePath, 0))
     .then(
       () => { outcome.error = null; },
@@ -837,32 +376,8 @@ export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
       outcome.archiveError = first;
     })
     .catch(() => {});
-  appendTails.set(filePath, turn);
-  // The same cleanup appendLogLine does, for the same reason: only the tail
-  // installed here, never one that has chained on since.
-  turn.then(() => { if (appendTails.get(filePath) === turn) appendTails.delete(filePath); });
+  installTail(filePath, turn);
   return flushAppends(filePath, ms);
-}
-
-/**
- * One line has left the queue. Give its charge back, and close the episode if
- * that was the last of them.
- *
- * The episode ends when the queue is EMPTY rather than the moment it dips back
- * under the bound, because it dips under the bound once per completed write:
- * keyed on the bound this would print a pair of lines per event for the length
- * of the burst. Empty is also the honest boundary for the number being
- * reported — while anything is still queued the next line can still be refused,
- * and the total would have to be retracted.
- */
-function releaseCharge(charged) {
-  pendingLines--;
-  pendingChars -= charged;
-  if (pendingLines > 0 || !shedding) return;
-  console.error(`${PRODUCT}: the log append queue drained — ${episodeLines} event(s) (${mb(episodeChars)}) were dropped and are not in the log`);
-  shedding = false;
-  episodeLines = 0;
-  episodeChars = 0;
 }
 
 /**

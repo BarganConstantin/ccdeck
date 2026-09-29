@@ -53,7 +53,7 @@ import { describe, it, expect } from "vitest";
 import { applyEvent, initialState, STALE_SESSION_MS, sweepStaleTools, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
 // @ts-expect-error — .mjs server module, no types
-import { codexObjToPayload } from "../../server/index.mjs";
+import { codexObjToPayload } from "../../server/codex-translate.mjs";
 
 const SESSION = "01a00e99-37b3-7781-90d7-aa76a7fca6fa";
 const CWD = "/repo";
@@ -157,7 +157,7 @@ const root = (state: GraphState) => state.agents.get(SESSION)!;
 const toolOf = (state: GraphState, callId: string) => root(state).tools.find(t => t.id === callId)!;
 
 /** The five surfaces that render an outcome all ask exactly this question
- *  (`ToolBursts.tsx`, `App.tsx` twice, `ToolModal.tsx`, `SessionSummary.tsx`),
+ *  (`burst-layout.ts`, `App.tsx` twice, `ToolModal.tsx`, `SessionSummary.tsx`),
  *  so counting it here is counting what the user sees. */
 const errCount = (state: GraphState) => root(state).tools.filter(t => t.ok === false).length;
 

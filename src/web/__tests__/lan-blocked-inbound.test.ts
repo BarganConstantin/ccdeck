@@ -17,7 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { silenceNote } from "../components/LanSyncSection";
+import { silenceNote } from "../lan-round";
 import { REACH_WAY_OUT } from "../components/LanReachNote";
 // @ts-expect-error — plain .mjs server module, no types
 import { MAC_FW, QUIET_MS, isActive, linuxFixSteps, linuxReach, macFixSteps, macReach, readMacProbe, readUfw, reachability, silentInbound } from "../../server/lan-reach.mjs";
@@ -403,15 +403,25 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
  *  paragraph that describes it. */
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const PANEL = strip(read("../components/LanSyncSection.tsx"));
+/** What the panel says under its switch about why nothing can turn up, which
+ *  moved out of the section into a component of its own. */
+const NOTES = strip(read("../components/LanDiscoveryNotes.tsx"));
+/** The panel's rows, drawn by a list of their own. */
+const LIST = strip(read("../components/LanDeckList.tsx"));
 const ADD = strip(read("../components/LanAddDeckModal.tsx"));
-const SERVER = strip(read("../../server/index.mjs"));
+/** The settings route, which moved out of index.mjs into prefs-routes.mjs. */
+const PREFS_ROUTE = strip(read("../../server/prefs-routes.mjs"));
+/** The engine, its callbacks and the reach probe, which moved out of index.mjs. */
+const LAN = strip(read("../../server/lan-deck.mjs"));
 
 describe("the finding is drawn where the switch is", () => {
   it("hangs under the switch, and only while the section is on", () => {
-    expect(PANEL).toMatch(/<LanReachNote reach=\{status\?\.reach\} where="panel" \/>/);
+    // The section draws the notes under its switch, and the verdict is one of them.
+    expect(PANEL).toMatch(/<LanDiscoveryNotes on=\{on\} status=\{status\} \/>/);
+    expect(NOTES).toMatch(/<LanReachNote reach=\{status\?\.reach\} where="panel" \/>/);
     // A deck with its sockets down is not a deck anything is failing to reach,
     // so the verdict is not an answer it owes anybody yet.
-    expect(PANEL).toMatch(/\{on && <LanReachNote/);
+    expect(NOTES).toMatch(/\{on && <LanReachNote/);
   });
 
   it("is one block in one file, drawn by both surfaces", () => {
@@ -419,7 +429,7 @@ describe("the finding is drawn where the switch is", () => {
     // The failure this guards is the ordinary one: a block that is four
     // elements, a fold, a shell frame and a copy verb, maintained in two
     // voices until the two disagree about what a blocked machine should do.
-    for (const [surface, src] of [["the panel", PANEL], ["the dialog", ADD]] as const) {
+    for (const [surface, src] of [["the panel", PANEL], ["the panel's notes", NOTES], ["the panel's list", LIST], ["the dialog", ADD]] as const) {
       expect(src, `${surface} builds the block itself`).not.toMatch(/className="ap-lan-reach"/);
       expect(src, `${surface} holds its own copy of the command frame`).not.toMatch(/ap-lan-cmd/);
     }
@@ -442,15 +452,15 @@ describe("the finding is drawn where the switch is", () => {
 
 describe("the press is answered by a measurement, not by a cache", () => {
   it("forgets the held verdict when somebody switches the section on", () => {
-    expect(SERVER).toMatch(/function forgetReach\(\) \{ reachAt = 0; \}/);
-    expect(SERVER).toMatch(/if \(body\.lan\?\.enabled === true\) forgetReach\(\);/);
+    expect(LAN).toMatch(/function forgetReach\(\) \{ reachAt = 0; \}/);
+    expect(PREFS_ROUTE).toMatch(/if \(body\.lan\?\.enabled === true\) forgetReach\(\);/);
   });
 
   it("forgets it again when the sync port lands, because the fix lines name it", () => {
     // linuxFixSteps offers the TCP line only when there is a port to name, so a
     // verdict taken before the listener had one is half an answer — and without
     // this it would be the pinned one for the next five minutes.
-    const onPort = /onPort: async port => \{([\s\S]*?)\n  \},/.exec(SERVER)?.[1] ?? "";
+    const onPort = /onPort: async port => \{([\s\S]*?)\n  \},/.exec(LAN)?.[1] ?? "";
     expect(onPort, "onPort was not found in the server source").not.toBe("");
     expect(onPort).toMatch(/forgetReach\(\)/);
   });

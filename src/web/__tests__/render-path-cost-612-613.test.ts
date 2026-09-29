@@ -40,12 +40,13 @@
 // still repainting the minimap, which is the one thing about #613 that must be
 // checked by eye; the palette contract below is as close as this gets.
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { restoreLayout, type StoredLayout } from "../stored-layout";
 import { CANVAS_TOKENS, paletteReader, readPalette, samePalette, type Palette } from "../palette";
 import { minimapNodeColor, SESSION_GROUP_TYPE } from "../minimap";
+import { clientSources } from "./client-source";
 
 // ---------------------------------------------------------------------------
 // #612, the half that is a fact about an algorithm.
@@ -225,13 +226,6 @@ describe("the canvas palette is read once per theme", () => {
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
-function clientSources(dir: string): string[] {
-  return readdirSync(dir).flatMap(name => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : clientSources(path);
-    return path.endsWith(".ts") || path.endsWith(".tsx") ? [path] : [];
-  });
-}
 /**
  * Comments out, code left in place.
  *
@@ -253,6 +247,12 @@ function stripComments(src: string): string {
 const sources: [string, string][] = clientSources(web)
   .map(p => [p.slice(web.length).replaceAll("\\", "/"), stripComments(readFileSync(p, "utf8"))]);
 const app = sources.find(([p]) => p === "App.tsx")![1];
+/** The <ReactFlow> element, the grid and the minimap, out of App.tsx's markup. */
+const boardFlow = sources.find(([p]) => p === "components/BoardFlow.tsx")![1];
+/** The theme, the palette and `cssVar` moved out of App.tsx into use-appearance.ts,
+ *  so the cases about them read that one file. Not the whole client: they count
+ *  mentions and compare positions, which only mean anything within one module. */
+const appearance = sources.find(([p]) => p === "use-appearance.ts")![1];
 
 /** The text between `useRef(` and its matching `)`, for every call in `src`,
  *  with an explicit type argument (`useRef<Foo>(…)`) allowed and skipped. */
@@ -322,16 +322,22 @@ describe("no useRef in the client is seeded with work", () => {
 
   it("restores the layout through a lazy initialiser, which is where the work went", () => {
     // The positive half: the seeds are cheap because the work moved somewhere
-    // that runs once. `restoredViewport` on the next lines has always been
-    // written this way; this is the form it is now matched to.
-    expect(app).toMatch(/const restoredLayout = useState\(\(\) => restoreLayout\(loadLayout\(\)\)\)\[0\];/);
+    // that runs once. `restoredViewport` in App.tsx has always been written
+    // this way; this is the form it is now matched to. The layout's state is
+    // declared in use-board-layout.ts.
+    const boardLayout = sources.find(([p]) => p === "use-board-layout.ts")![1];
+    expect(boardLayout).toMatch(/const restoredLayout = useState\(\(\) => restoreLayout\(loadLayout\(\)\)\)\[0\];/);
     // #676 handed the gate an options object — a `protect` predicate the
     // ceiling's eviction asks about each held envelope — so the argument list
     // is no longer empty. What this case is about is the `() =>` in front of
     // it, which is the whole of what keeps the construction off every render,
     // so that is what stays pinned; the options are allowed to be there or not
     // and are matched across lines, since they wrap.
-    expect(app).toMatch(
+    // Read across every client source rather than one named file: the gate's
+    // construction moved out of `Inner` once already, and what this pins is the
+    // `() =>` in front of it wherever it is written. The seed sweep above
+    // covers the new file on its own, because it walks the directory.
+    expect(sources.map(([, src]) => src).join("\n")).toMatch(
       /const pauseGate = useState\(\(\) => createPauseGate<HookEnvelope>\((?:\{[\s\S]{0,400}?\})?\)\)\[0\];/);
   });
 
@@ -347,7 +353,10 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // element's overflow when it locks scrolling, which happens on a modal
     // opening and not per frame.
     const callers = sources.filter(([, src]) => /getComputedStyle\s*\(/.test(src)).map(([p]) => p).sort();
-    expect(callers).toEqual(["App.tsx", "components/use-modal-dismiss.ts"]);
+    // App.tsx is off this list now: the one getComputedStyle it held was cssVar,
+    // which moved to use-appearance.ts. The render-heavy component no longer
+    // touches it at all, which is the confinement this case exists for.
+    expect(callers).toEqual(["components/use-modal-dismiss.ts", "use-appearance.ts"]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {
@@ -356,17 +365,20 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // `useState` initialiser, once in the effect that stamps `data-theme`. If
     // the mentions ever outnumber those, something is calling it again — and
     // the JSX is where it used to be called from.
-    const mentions = [...app.matchAll(/\bcssVar\b/g)].length;
-    const declared = [...app.matchAll(/function cssVar\s*\(/g)].length;
-    const handedOver = [...app.matchAll(/readPalette\(cssVar\)/g)].length;
+    const mentions = [...appearance.matchAll(/\bcssVar\b/g)].length;
+    const declared = [...appearance.matchAll(/function cssVar\s*\(/g)].length;
+    const handedOver = [...appearance.matchAll(/readPalette\(cssVar\)/g)].length;
     expect(declared).toBe(1);
     expect(handedOver).toBe(2);
     expect(mentions).toBe(declared + handedOver);
   });
 
   it("paints the grid and the minimap mask out of the palette", () => {
-    expect(app).toMatch(/<Background gap=\{28\} size=\{1\} color=\{palette\["--grid-line"\]\} \/>/);
-    expect(app).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
+    // App.tsx hands BoardFlow the appearance whole, and BoardFlow paints both.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bappearance=\{appearance\}/);
+    expect(boardFlow).toMatch(/const \{ palette, minimapNodeFill, characterEnabled \} = appearance;/);
+    expect(boardFlow).toMatch(/<Background gap=\{28\} size=\{1\} color=\{palette\["--grid-line"\]\} \/>/);
+    expect(boardFlow).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
   });
 
   it("hands MiniMap a memoised nodeColor and no style object at all", () => {
@@ -376,8 +388,8 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // that used to be the second such prop is gone: the minimap's surface,
     // edge and radius are the stylesheet's now (.react-flow__minimap), on the
     // same tokens as the control stack, so there is no object to memoise.
-    const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(app);
-    expect(minimap, "no <MiniMap> in App.tsx").not.toBeNull();
+    const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(boardFlow);
+    expect(minimap, "no <MiniMap> in components/BoardFlow.tsx").not.toBeNull();
     expect(minimap![0]).toMatch(/nodeColor=\{[A-Za-z_$][\w$]*\}/);
     expect(minimap![0]).not.toMatch(/\bstyle=/);
     expect(minimap![0]).not.toMatch(/=>/);
@@ -388,16 +400,16 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // Keyed on `palette`, which only a theme flip replaces. Keyed on `theme`
     // itself it would be rebuilt during the render that flips it — before the
     // effect writes `data-theme` — and would hold the OLD colours forever.
-    expect(app).toMatch(/const paletteToken = useMemo\(\(\) => paletteReader\(palette\), \[palette\]\);/);
-    expect(app).not.toMatch(/const minimapStyle\b/);
-    expect(app).toMatch(/\[paletteToken\],/);
+    expect(appearance).toMatch(/const paletteToken = useMemo\(\(\) => paletteReader\(palette\), \[palette\]\);/);
+    expect(app + "\n" + boardFlow).not.toMatch(/const minimapStyle\b/);
+    expect(appearance).toMatch(/\[paletteToken\],/);
   });
 
   it("re-reads the palette in the effect that stamps data-theme, after the write", () => {
     // The ordering that keeps a flip from going stale. Both statements must
     // live in the same effect, with the attribute first — a palette read before
     // `data-theme` is written answers with the theme being replaced.
-    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(app);
+    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
     expect(effect, "the data-theme effect is no longer recognisable").not.toBeNull();
     expect(effect![0]).toMatch(/setPalette\(/);
     expect(effect![0].indexOf("dataset.theme")).toBeLessThan(effect![0].indexOf("setPalette"));
@@ -411,12 +423,18 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // and then never run again, because `theme` does not change twice. The
     // minimap and the grid would keep the old theme's colours for the life of
     // the tab, which is worse than the cost this whole change removes.
-    expect(app).toMatch(/const \[palette, setPalette\] = useState<Palette>\(\(\) => readPalette\(cssVar\)\);/);
+    expect(appearance).toMatch(/const \[palette, setPalette\] = useState<Palette>\(\(\) => readPalette\(cssVar\)\);/);
     // Spelled with or without a type argument, a memo may not produce it.
-    expect(app).not.toMatch(/useMemo\s*(<[^;=]*?>)?\s*\([^;]*\breadPalette\b/);
-    // And there are exactly three mentions of `readPalette` in the file: the
-    // import, that initialiser, and the effect above. A fourth is a new reader
-    // on some path this test has not been told about.
-    expect([...app.matchAll(/\breadPalette\b/g)]).toHaveLength(3);
+    // Asked of both files: the palette lives in use-appearance.ts now, so that is
+    // where the trap could come back — asking App.tsx alone would pass forever.
+    for (const src of [app, boardFlow, appearance]) {
+      expect(src).not.toMatch(/useMemo\s*(<[^;=]*?>)?\s*\([^;]*\breadPalette\b/);
+    }
+    // And there are exactly three mentions of `readPalette` in the file that
+    // owns the palette: the import, that initialiser, and the effect above. A
+    // fourth is a new reader on some path this test has not been told about —
+    // and App.tsx, which draws with the palette but no longer reads it, has none.
+    expect([...appearance.matchAll(/\breadPalette\b/g)]).toHaveLength(3);
+    expect([...app.matchAll(/\breadPalette\b/g)]).toHaveLength(0);
   });
 });

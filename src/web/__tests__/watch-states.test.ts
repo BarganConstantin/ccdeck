@@ -4,9 +4,8 @@
 // could not read said so in a log line and nowhere else, and a machine with no
 // browser open looked exactly like a quiet one.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { watchTrouble, type WatchBrowser } from "../components/BrowserWatchModal";
+import { watchTrouble, type WatchBrowser } from "../browser-watch-model";
+import { browserWatchSurface } from "./browser-watch-surface";
 
 const browser = (over: Partial<WatchBrowser>): WatchBrowser => ({
   key: "brave", name: "Brave", installed: true, profiles: 1,
@@ -90,8 +89,7 @@ describe("what the panel says when it is not simply watching", () => {
 });
 
 describe("the switch announces what it switches", () => {
-  const source = readFileSync(
-    fileURLToPath(new URL("../components/BrowserWatchModal.tsx", import.meta.url)), "utf8");
+  const source = browserWatchSurface();
 
   it("names itself from the label beside it, not from a label element", () => {
     // `<label htmlFor>` forwards a CLICK to a button — which is why the whole

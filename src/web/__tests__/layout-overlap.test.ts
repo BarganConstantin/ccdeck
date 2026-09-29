@@ -187,6 +187,22 @@ describe("separateOverlaps — repairs only what is wrong", () => {
     expect(anyHit([{ id: "p", x: 0, y: 50, w: W, h: H }, { id: "q", ...pos.get("q")!, w: W, h: H }])).toBe(false);
   });
 
+  it("holds a restored node still, and moves what lies on it even from above (#1333)", () => {
+    // `r` came back from storage at y 60; `t` was laid out at y 50 by a render
+    // that ran before `r` had arrived. The walk reaches `t` first, so treated
+    // like a pin, `r` would be pushed onto the list after `t` had already been
+    // cleared and `t` would stay lying on it. Held nodes go down first.
+    const nodes = ["t", "r"].map(id => agent(id, "s"));
+    const pos = new Map([["t", { x: 0, y: 50 }], ["r", { x: 0, y: 60 }]]);
+    const moved = separateOverlaps(nodes, pos, new Map(), sizes(["t", "r"]), undefined, new Set(["r"]));
+    expect(moved).toEqual(["t"]);
+    expect(pos.get("r")).toEqual({ x: 0, y: 60 });
+    expect(anyHit(boxes(pos, ["t", "r"]))).toBe(false);
+    // Without the hold the same two are repaired the way they always were.
+    const free = new Map([["t", { x: 0, y: 50 }], ["r", { x: 0, y: 60 }]]);
+    expect(separateOverlaps(nodes, free, new Map(), sizes(["t", "r"]))).toEqual(["r"]);
+  });
+
   it("is idempotent — a second pass changes nothing", () => {
     const nodes = ["a", "b", "c"].map(id => agent(id, "s"));
     const pos = new Map([["a", { x: 0, y: 0 }], ["b", { x: 0, y: 5 }], ["c", { x: 0, y: 9 }]]);

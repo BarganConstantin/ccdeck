@@ -1,5 +1,6 @@
 // Where OpenAI Codex lives on this machine: its home directory, its rollout
-// tree, and the walk over that tree — the Codex-side mirror of claude-dir.mjs.
+// tree, the walk over that tree and the session id a rollout's file name
+// carries — the Codex-side mirror of claude-dir.mjs.
 //
 // CODEX_HOME relocates ~/.codex wholesale, exactly as CLAUDE_CONFIG_DIR does on
 // the Claude side, and five modules used to answer the question for themselves
@@ -36,7 +37,7 @@
 // right way round rather than merely the majority.
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, posix as posixPath, win32 as winPath } from "node:path";
+import { basename, join, posix as posixPath, win32 as winPath } from "node:path";
 
 /**
  * Absolute path of the Codex home directory: $CODEX_HOME or ~/.codex.
@@ -125,12 +126,13 @@ export const STOP = Symbol("stop-rollout-walk");
  * and the names inside it to `onDay(dir, files)`.
  *
  * Three callers walked this tree with the same four nested readdir-and-continue
- * blocks and differed only in the last few lines: find the file carrying a given
- * session id (index.mjs), collect everything in the newest two day directories
- * (index.mjs again, for the watcher), and collect everything whose filename
- * timestamp falls inside a rolling window (codex-usage.mjs). The walk is the
- * part that has to agree — a deck that tails one set of files and reports usage
- * from another is reporting on a session it is not showing.
+ * blocks and differed only in the last few lines: find the file carrying a
+ * given session id (now codex-enrichment.mjs), collect everything in the newest
+ * two day directories (codex-watch.mjs, for the watcher), and collect
+ * everything whose filename timestamp falls inside a rolling window
+ * (codex-usage.mjs). The walk is the part that has to agree — a deck that tails
+ * one set of files and reports usage from another is reporting on a session it
+ * is not showing.
  *
  * EVERY LEVEL SWALLOWS ITS OWN ERROR, which is deliberate rather than lazy. The
  * tree is written by another process while this one reads it: a day directory
@@ -168,4 +170,46 @@ export async function walkRolloutDays(onDay, { sessionsDir = CODEX_SESSIONS_DIR,
       }
     }
   }
+}
+
+// This lived in codex-watch.mjs, beside the header read it is the fallback for.
+// It is the rule for the names of the files in the tree above, which the
+// rollout lookup in codex-enrichment.mjs matches session ids against too, so it
+// lives here, where either can import it without importing the watcher.
+/**
+ * The session id a rollout's own file name carries, or null.
+ *
+ * Codex names every rollout `rollout-<YYYY-MM-DDTHH-MM-SS>-<uuid>.jsonl` —
+ * codex-usage.mjs reads the timestamp half as parseRolloutTime — and the uuid
+ * is the id `session_meta.payload.id` states. findCodexRolloutPath already leans
+ * on that, matching a session id against file names, so the name is the
+ * fallback when the header stops saying it (#996). A compressed `.jsonl.zst`
+ * is not matched: this reader never opens one.
+ */
+export function sidFromRolloutName(path) {
+  const m = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(basename(String(path ?? "")));
+  return m ? m[1] : null;
+}
+
+/**
+ * The id segment of a rollout's file name, or null for a name not built the way
+ * Codex builds one.
+ *
+ * Codex writes `rollout-<YYYY-MM-DDTHH-MM-SS>-<id>.jsonl`: a fixed-width
+ * timestamp, then the session's id, then the extension. So the id is exactly
+ * what lies between the timestamp's trailing `-` and `.jsonl`, and a session's
+ * rollout is the file whose segment EQUALS its id — the test findCodexRolloutPath
+ * in codex-enrichment.mjs finds a rollout by (#1653). It used to ask whether the
+ * name contained the id anywhere, which a prefix of another session's id, its
+ * last group or a piece of the timestamp all pass.
+ *
+ * Deliberately not sidFromRolloutName above, which answers a different
+ * question: what uuid a name ends in, for a watcher that has no other id to go
+ * on. This one is handed the id and asks only whether the name is built around
+ * it, so it asks nothing of the id's shape — the lookup never has — and for
+ * every name Codex writes the two agree.
+ */
+export function rolloutNameId(name) {
+  const m = /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$/.exec(String(name ?? ""));
+  return m ? m[1] : null;
 }

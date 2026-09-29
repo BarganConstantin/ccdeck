@@ -36,11 +36,18 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { knownLanes, laneKey, toggleLane, type LaneOwner } from "../lane-open";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 
 /** The panel with its comments gone, so the prose above cannot satisfy a match. */
 const panelCode = panel
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The same over the panel and every file lifted out of it, for the negatives:
+ *  the row that opens its lanes is AccountRow.tsx now. */
+const surfaceCode = accountsSurface()
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
@@ -194,11 +201,13 @@ describe("what counts as the same account", () => {
 
 describe("the panel holds the set the way this module says", () => {
   it("names rows by account and never by slot number", () => {
-    expect(panelCode).toMatch(/const open = a\.active \|\| openLanes\.includes\(laneKey\(a\)\);/);
+    // Whether the reader opened it is read off the set by account, once.
+    expect(clientText()).toMatch(/const opened = openLanes\.includes\(laneKey\(a\)\);/);
+    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
     expect(panelCode).toMatch(/setOpenLanes\((\w+) => toggleLane\(\1, a\)\)/);
     // The two shapes the bug was made of.
-    expect(panelCode).not.toMatch(/openLanes\.includes\(a\.num\)/);
-    expect(panelCode).not.toMatch(/\[\.\.\.open, a\.num\]/);
+    expect(surfaceCode).not.toMatch(/openLanes\.includes\(a\.num\)/);
+    expect(surfaceCode).not.toMatch(/\[\.\.\.open, a\.num\]/);
   });
 
   it("trims the set against every roster it loads", () => {

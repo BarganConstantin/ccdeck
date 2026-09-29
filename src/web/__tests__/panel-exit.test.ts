@@ -109,6 +109,7 @@ const hooks = vi.hoisted(() => {
 vi.mock("react", () => hooks.react);
 
 import { isMounted, nextPhase, usePanelPresence, type PanelPhase } from "../panel-exit";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -207,7 +208,7 @@ describe("usePanelPresence — the hook, rendered", () => {
 
 describe("each panel is held for as long as its exit animation runs", () => {
   const app = read("../App.tsx");
-  const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
   /** The `exitMs` App.tsx passes for one open flag. */
   const held = (flag: string) => {

@@ -12,6 +12,7 @@ import {
   restartSafety, shouldReloadBundle, IDLE_BEFORE_RESTART_MS,
 } from "../restart";
 import { noticeIsOpen, noticeKeyFor } from "../version-chip";
+import { clientText } from "./client-source";
 
 const NOW = 1_800_000_000_000;
 const ok = {
@@ -310,9 +311,11 @@ describe("which update a dismissal was about", () => {
   it("has App derive noticeOpen through the helper rather than inline", () => {
     // The half a DOM-less suite cannot drive. Both lines matter: the × stores
     // `noticeKey`, and the banner and the restart gate read `noticeOpen`.
-    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    // The derivation and the × moved into use-version-check.ts with the rest of
+    // the notice, so this reads the client; all three matches are positive.
+    const app = clientText();
     expect(app).toMatch(/const noticeKey = noticeKeyFor\(notice\);/);
     expect(app).toMatch(/const noticeOpen = noticeIsOpen\(notice, versionDismissed\);/);
-    expect(app).toMatch(/setVersionDismissed\(noticeKey\);[\s\S]{0,200}?setItem\(VERSION_DISMISSED_KEY, noticeKey\)/);
+    expect(app).toMatch(/setVersionDismissed\(noticeKey\);[\s\S]{0,200}?writeStored\(VERSION_DISMISSED_KEY, noticeKey\)/);
   });
 });

@@ -28,6 +28,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "ccdeck-env-paths-"));
 const FAKE_HOME   = join(SANDBOX, "home");
@@ -62,7 +63,11 @@ process.env.CLAUDE_SWAP_BACKUP = join(SANDBOX, "claude-swap-store");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
-const { credentialsPath, fetchClaudeQuota } = await import("../../server/quota.mjs");
+const { fetchClaudeQuota } = await import("../../server/quota.mjs");
+// Where the token is read from moved to quota-oauth.mjs with the token's other
+// readers.
+// @ts-expect-error — .mjs server module, no types
+const { credentialsPath } = await import("../../server/quota-oauth.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { CODEX_SESSIONS_DIR } = await import("../../server/index.mjs");
 
@@ -133,7 +138,9 @@ describe("which quota source a readable token buys", () => {
     const seen: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: unknown, init: { headers?: Record<string, string> } = {}) => {
       seen.push(String(init.headers?.Authorization ?? ""));
-      expect(String(url)).toBe("https://api.anthropic.com/api/oauth/usage");
+      // With the flag that asks for Claude's saved limit resets in the same
+      // response, rather than in a second request (#1308).
+      expect(String(url)).toBe("https://api.anthropic.com/api/oauth/usage?cedar_ember=1");
       return {
         ok: true,
         status: 200,
@@ -183,17 +190,21 @@ describe("the Codex sessions directory the boot banner names", () => {
     // cannot be run from here; what is checkable — and what the bug actually was
     // — is whether the banner row names the watcher's directory or computes a
     // second one of its own.
+    // The row is in the startup report, bin/cli/startup.js; deck.js hands it
+    // the binding.
     const deck = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
-    const watching = deck.split("\n").find(l => l.includes("Codex sessions") && l.includes("watching"));
+    expect(deck).toMatch(/reportStartup\(jobs, \{[^}]*\bCODEX_SESSIONS_DIR\b[^}]*\}\)/);
+    const report = readFileSync(fileURLToPath(new URL("../../../bin/cli/startup.js", import.meta.url)), "utf8");
+    const watching = report.split("\n").find(l => l.includes("Codex sessions") && l.includes("watching"));
     expect(watching, "the banner no longer has a row for the sessions directory").toBeDefined();
     expect(watching).toContain("CODEX_SESSIONS_DIR");
   });
 
   it("is nowhere rebuilt from the home directory in bin/deck.js", () => {
     // The exact expression that shipped. Spelled loosely enough that reordering
-    // the join's arguments or switching quote style cannot smuggle it back.
-    const deck = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
-    const rebuilt = deck
+    // the join's arguments or switching quote style cannot smuggle it back. Read
+    // with everything lifted out of deck.js, which is where a rebuild would go.
+    const rebuilt = cliSurface()
       .split("\n")
       .filter(l => !l.trimStart().startsWith("//"))
       .filter(l => /homedir\(\)/.test(l) && /\.codex/.test(l));

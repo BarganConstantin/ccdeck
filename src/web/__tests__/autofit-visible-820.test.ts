@@ -10,25 +10,31 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+// The flag moved to use-auto-fit-switch.ts; the chip, the resume button and the
+// gesture that turns it off stayed here. Where it is declared and whether it is
+// stored are asked of both files, the negatives included.
+const autofit = app + "\n" + read("../use-auto-fit-switch.ts");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("auto-fit off is a moment, not a setting (#820)", () => {
   it("starts every load fitting, whatever an older build stored", () => {
-    expect(app).toMatch(/const autoFitDisabledRef = useRef\(false\);/);
-    expect(app).toMatch(/const \[autoFitDisabled, setAutoFitDisabled\] = useState\(false\);/);
-    expect(app).not.toMatch(/getItem\(AUTOFIT_KEY\)/);
+    expect(autofit).toMatch(/const autoFitDisabledRef = useRef\(false\);/);
+    expect(autofit).toMatch(/const \[autoFitDisabled, setAutoFitDisabled\] = useState\(false\);/);
+    expect(autofit).not.toMatch(/(?:getItem|readStored)\(AUTOFIT_KEY\)/);
   });
 
   it("does not store a pan, and clears the key older builds wrote", () => {
-    expect(app).not.toMatch(/setItem\(AUTOFIT_KEY/);
-    expect(app).toMatch(/useEffect\(\(\) => \{ try \{ window\.localStorage\.removeItem\(AUTOFIT_KEY\); \} catch \{\} \}, \[\]\);/);
+    expect(autofit).not.toMatch(/(?:setItem|writeStored)\(AUTOFIT_KEY/);
+    expect(autofit).toMatch(/useEffect\(\(\) => \{ removeStored\(AUTOFIT_KEY\); \}, \[\]\);/);
   });
 
   it("still turns off on the reader's own pan or zoom", () => {
-    expect(app).toMatch(/if \(isUserViewportGesture\(viewportMove\(e\)\)\) disableAutoFit\(\);/);
+    // The move handlers are use-canvas-viewport.ts's.
+    expect(read("../use-canvas-viewport.ts")).toMatch(/if \(isUserViewportGesture\(viewportMove\(e\)\)\) disableAutoFit\(\);/);
   });
 });
 
@@ -36,10 +42,16 @@ describe("the canvas says when auto-fit is off (#820)", () => {
   it("shows a status and an action while it is off, and resumes from the action", () => {
     // Not one big button any more: the words say the state and are not a
     // control, and Resume does what the whole chip used to.
-    expect(app).toMatch(/\{autoFitDisabled && \(\s*<div className="autofit-chip">/);
-    expect(app).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
-    expect(app).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
-    expect(app).toMatch(/aria-label="Resume auto-fit"/);
+    // Three links: App.tsx hands BoardFlow the switch, BoardFlow mounts the
+    // chip only while auto-fit is off, and the chip is components/AutoFitChip.tsx.
+    const chip = read("../components/AutoFitChip.tsx");
+    const board = read("../components/BoardFlow.tsx");
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bautoFit=\{autoFit\}/);
+    expect(board).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
+    expect(chip).toMatch(/return \(\s*<div className="autofit-chip">/);
+    expect(chip).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
+    expect(chip).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
+    expect(chip).toMatch(/aria-label="Resume auto-fit"/);
   });
 
   it("draws it on the canvas, clear of the corners, on the canvas chrome's surface", () => {

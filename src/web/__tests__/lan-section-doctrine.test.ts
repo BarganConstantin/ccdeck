@@ -12,21 +12,39 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PRODUCT } from "../brand";
-import {
-  askedLabel, checkedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel,
-  nextShared, rosterSplit, sameKeys, sectionState, settlePending, writeFailure, ONLINE_MS,
-} from "../components/LanSyncSection";
+import { clientText, WEB_DIR } from "./client-source";
+import { LAN_SECTION_FILES } from "./lan-section-surface";
+import { leftLabel, parseAddress } from "../lan-add-deck";
+import { nextShared, sameKeys, settlePending } from "../lan-share";
+import { faultText, roundLabel } from "../lan-round";
+import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
+import { writeFailure } from "../use-lan-section";
+import { sheetText } from "./sheet-source";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
   "utf8",
 );
-const SERVER = readFileSync(
-  fileURLToPath(new URL("../../server/index.mjs", import.meta.url)),
-  "utf8",
-);
+/** The server's side of the section: the route table in index.mjs, the engine
+ *  wiring and the rule about what prefs may tell it, which moved to
+ *  lan-deck.mjs, and the panel's routes, which moved to lan-routes.mjs. */
+const SERVER = ["index.mjs", "lan-deck.mjs", "lan-routes.mjs"]
+  .map(f => readFileSync(fileURLToPath(new URL(`../../server/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 const SERVER_ENGINE = readFileSync(
   fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)),
+  "utf8",
+);
+/** The requests the engine keeps — who asked, who was heard, who was told no,
+ *  and when a switch answers one — which moved out of it into their own file. */
+const SERVER_REQUESTS = readFileSync(
+  fileURLToPath(new URL("../../server/lan-requests.mjs", import.meta.url)),
+  "utf8",
+);
+/** What the engine's last round did with each deck and when it finished,
+ *  which moved out of it into their own file. */
+const SERVER_ROUND_RECORD = readFileSync(
+  fileURLToPath(new URL("../../server/lan-round-record.mjs", import.meta.url)),
   "utf8",
 );
 const MODAL = readFileSync(
@@ -43,6 +61,32 @@ const ADD = readFileSync(
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The view's header — Back, the title, the section's three acts and the
+ *  panel's close — which moved out of the component into its own. */
+/** The requests still waiting for an answer, which moved out of the component
+ *  into their own. */
+const ASKS = readFileSync(fileURLToPath(new URL("../components/LanAsks.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+const HEADER = readFileSync(fileURLToPath(new URL("../components/LanViewHeader.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The section's conversation with its deck — the poll, the request slot and
+ *  every write — which moved out of the component into its own hook. The rules
+ *  about the writes and the poll are asked of it, where they now live. */
+const HOOK_SRC = readFileSync(fileURLToPath(new URL("../use-lan-section.ts", import.meta.url)), "utf8");
+const HOOK = HOOK_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The list of machines, which the section draws through a component of its
+ *  own. The rules about how a row is drawn are asked of it. */
+const LIST = readFileSync(fileURLToPath(new URL("../components/LanDeckList.tsx", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The section's whole surface: the component and the files lifted out of it,
+ *  comments gone the same way. Every rule below that says what the section
+ *  never does reads all of it, so that moving a piece into a file of its own
+ *  cannot move it out from under the rule. The list is lan-section-surface.ts,
+ *  so a file lifted out of the section joins every such sweep at once; each
+ *  file is stripped on its own, as each always was. */
+const SURFACE = LAN_SECTION_FILES
+  .map(rel => readFileSync(`${WEB_DIR}${rel}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "))
+  .join("\n");
 
 const NOW = 1_700_000_000_000;
 
@@ -359,7 +403,7 @@ describe("the three rules the panel above it already keeps", () => {
     // no value written, nothing parsed and nothing thrown away. The rule is
     // about a blur that DECIDES something the user did not aim at; a card that
     // stops being drawn is the opposite of a decision.
-    expect(CODE.replace(/onBlur=\{shutPeek\}/g, "")).not.toMatch(/onBlur/);
+    expect(SURFACE.replace(/onBlur=\{shutPeek\}/g, "")).not.toMatch(/onBlur/);
   });
 
   it("has a failure box, announced and dismissible, like the panel's own", () => {
@@ -371,13 +415,13 @@ describe("the three rules the panel above it already keeps", () => {
   it("reports every write that did not land, in both ways it can fail", () => {
     // The `else` that was missing, and the `catch` that was missing. Counted
     // rather than merely present: a single setFailure would satisfy a `toMatch`
-    // and leave the other path silent.
-    expect([...CODE.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
+    // and leave the other path silent. The section's writes are its hook's.
+    expect([...HOOK.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
     // Two in the dialog, and that is every path it has left: one `write`, its
     // `else` and its `catch`. The dialog shrank to two fields when the pairing
     // moved into the panel — the rule is unchanged, the surface is smaller.
     expect([...MODAL.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(2);
-    expect(CODE).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
+    expect(HOOK).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
   });
 
   it("gives every write the verb its failure will be reported with", () => {
@@ -405,7 +449,7 @@ describe("the three rules the panel above it already keeps", () => {
       `aria-label="This deck's name on the network"`,
       'type="checkbox"',
     ]) {
-      expect(CODE, field).not.toContain(field);
+      expect(SURFACE, field).not.toContain(field);
       expect(MODAL, field).toContain(field);
     }
     // And the other way round for everything that names another machine. The
@@ -419,14 +463,14 @@ describe("the three rules the panel above it already keeps", () => {
       `aria-label="An invite you were sent"`,
     ]) {
       expect(MODAL, field).not.toContain(field);
-      expect(CODE, field).not.toContain(field);
+      expect(SURFACE, field).not.toContain(field);
       expect(ADD, field).toContain(field);
     }
     // The word became the glyph the accounts header two sections up has always
     // used for the same act; what is pinned is that the section still OWNS it.
-    expect(CODE).toMatch(/aria-label="Add a deck"/);
+    expect(SURFACE).toMatch(/aria-label="Add a deck"/);
     expect(CODE).toMatch(/role="switch"/);
-    expect(CODE).toMatch(/wants to pair/);
+    expect(SURFACE).toMatch(/wants to pair/);
   });
 
   it("builds the next share list from what it last sent, not from the last render", () => {
@@ -451,7 +495,7 @@ describe("the three rules the panel above it already keeps", () => {
     // in with a WORD rather than only with `aria-busy`, which paints nothing.
     // The round is a glyph beside the switch now, so its word is in the
     // accessible name and in the line under the title.
-    expect(CODE).toMatch(/aria-label=\{busy === "check" \? "Checking every paired deck"/);
+    expect(HEADER).toMatch(/aria-label=\{busy === "check" \? "Checking every paired deck"/);
     // The word moved into `checkedLabel`, which is the same slot: the line
     // under the title says `checking…` while the round is out and what it found
     // when it lands.
@@ -471,7 +515,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     expect(MODAL).toMatch(/aria-label="Say yes to every deck that asks"/);
     expect(MODAL).toMatch(/autoAsk: !asks/);
     expect(MODAL).toMatch(/autoAccept: !says/);
-    expect(CODE).not.toContain("autoAccept: !");
+    expect(SURFACE).not.toContain("autoAccept: !");
     // Last, after the list it is a permission over, so the warning under it
     // points at rows the reader has just looked at.
     expect(MODAL.indexOf('type="checkbox"')).toBeLessThan(MODAL.indexOf("Pairing"));
@@ -507,9 +551,9 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     // A refusal is a decision about a machine. lan-socket refuses a declined
     // deck before the engine is told anything, so the automatic yes is never
     // reached for one — and the automatic ask skips it too.
-    expect(SERVER_ENGINE).toMatch(/mayAsk && !had && !declined\.has\(entry\.fp\)/);
+    expect(SERVER_REQUESTS).toMatch(/mayAsk && !had && !declined\.has\(entry\.fp\)/);
     // And `mayAsk` is the switch for the route the deck was heard on.
-    expect(SERVER_ENGINE).toMatch(/const mayAsk = asksOn\(entry\.via\)/);
+    expect(SERVER_REQUESTS).toMatch(/const mayAsk = asksOn\(cfg, entry\.via\)/);
     expect(readFileSync(
       fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8",
     )).toMatch(/if \(declined\(peerFp\)\) return refuse\("declined"\)/);
@@ -517,7 +561,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
 });
 
 describe("the list is quiet until it is not", () => {
-  const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+  const CSS = sheetText();
   /** The body of the first rule with this exact selector, comments stripped. */
   function rule(selector: string): string {
     const at = CSS.indexOf(selector + " {");
@@ -587,7 +631,7 @@ describe("the list is quiet until it is not", () => {
     // word the dot beside it cannot say, kept for anybody being read the list.
     // Dropping the node instead would have made the colour of a 5px dot the
     // only evidence that a deck is fine.
-    expect(CODE).toMatch(/p\.quiet \? "vis-hidden" : "ap-lan-who-when"/);
+    expect(LIST).toMatch(/p\.quiet \? "vis-hidden" : "ap-lan-who-when"/);
     expect(CSS).toContain(".vis-hidden");
   });
 
@@ -614,7 +658,7 @@ describe("the list is quiet until it is not", () => {
     // And the three verbs that are the REASON their row is on the list stay
     // where they are: a deck nearby exists to be asked.
     for (const verb of ["ask", "allow", "stop"]) {
-      expect(CODE, verb).toMatch(new RegExp(`>\\s*${verb}\\s*</button>`));
+      expect(LIST, verb).toMatch(new RegExp(`>\\s*${verb}\\s*</button>`));
     }
     expect(CSS).not.toMatch(/\.ap-lan-who \.ap-lan-do \{[^}]*opacity:\s*0/);
   });
@@ -641,7 +685,9 @@ describe("the list is quiet until it is not", () => {
     // now, beside the round, which is where the accounts header two sections up
     // has kept the same glyph for the same act since it was written.
     // The section's header is its view's header now, beside Back and the title.
-    const head = /<h2 id="ap-lan-title">Local network<\/h2>([\s\S]*?)<div className="ap-scroll"/.exec(CODE)?.[1] ?? "";
+    // To the end of the header's own file, which is where the header ends now.
+    const head = /<h2 id="ap-lan-title">Local network<\/h2>([\s\S]*)$/.exec(HEADER)?.[1] ?? "";
+    expect(head).not.toBe("");
     expect(head).toMatch(/ap-lan-plus/);
     expect(head).toMatch(/aria-label="Add a deck"/);
     expect(head).toMatch(/ap-lan-check/);
@@ -675,11 +721,11 @@ describe("the list is quiet until it is not", () => {
     // the one thing that was never a control — when the last round ran — shares
     // the list's last line with the fold, because both are facts about the list
     // rather than about any deck on it.
-    expect(CODE).not.toContain("ap-lan-foot");
+    expect(SURFACE).not.toContain("ap-lan-foot");
     const tail = /<div className="ap-lan-tail">([\s\S]*?)\n {16}<\/div>/.exec(CODE)?.[1] ?? "";
     expect(tail).toMatch(/ap-lan-more/);
     expect(tail).toMatch(/ap-lan-checked/);
-    expect(CODE).not.toContain("name &amp; sharing");
+    expect(SURFACE).not.toContain("name &amp; sharing");
     // And the title is what pushes the header's controls right, so the row
     // survives every combination of the three that can be missing. It is the
     // shared title rule now, since Auto-switch's head is the same row.
@@ -689,8 +735,11 @@ describe("the list is quiet until it is not", () => {
 
 describe("switching on says what switching on does", () => {
   /** The one callback this rule is about, with the file's comments already
-   *  gone: a paragraph promising to open the dialog is not the dialog. */
-  const TOGGLE = /const toggle = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/.exec(CODE)?.[1] ?? "";
+   *  gone: a paragraph promising to open the dialog is not the dialog. It is
+   *  the section's hook's, and the dialog is the section's, so the press
+   *  reaches it through `onSwitchedOn` — which the section wires to the one
+   *  setter, below. */
+  const TOGGLE = /const toggle = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/.exec(HOOK)?.[1] ?? "";
 
   it("opens the setup dialog on the press that put this deck on the network", () => {
     // THE DEFECT: a deck could start beaconing its name to every machine on the
@@ -702,20 +751,22 @@ describe("switching on says what switching on does", () => {
     // On EVERY enable, not on the first: what is shared changes between one
     // switch-on and the next, so a dialog shown once is a dialog about a list
     // that has since moved. Nothing here remembers having shown it.
-    expect(TOGGLE).toMatch(/if \(!on\) setSetupOpen\(true\)/);
+    expect(TOGGLE).toMatch(/if \(!on\) onSwitchedOn\(\)/);
+    expect(CODE).toMatch(/useLanSection\(onChanged, \(\) => setSetupOpen\(true\)\)/);
     expect(TOGGLE).not.toMatch(/setupShown|seenSetup|firstTime|once/);
     // And only where the write landed: after the `ok`, before the `else` that
     // reports a refusal. A dialog over a switch that did not move would be the
     // panel telling somebody about a network they are not on.
     const ok = TOGGLE.indexOf("if (out?.ok)");
     const failed = TOGGLE.indexOf("setFailure(writeFailure(");
-    const opens = TOGGLE.indexOf("setSetupOpen(true)");
+    const opens = TOGGLE.indexOf("onSwitchedOn()");
     expect(ok).toBeGreaterThan(-1);
     expect(opens).toBeGreaterThan(ok);
     expect(opens).toBeLessThan(failed);
     // Once, so the `catch` — the deck did not answer at all — opens nothing
-    // either.
-    expect([...TOGGLE.matchAll(/setSetupOpen\(/g)]).toHaveLength(1);
+    // either; and nothing else in the hook says it.
+    expect([...TOGGLE.matchAll(/onSwitchedOn\(/g)]).toHaveLength(1);
+    expect([...HOOK.matchAll(/onSwitchedOn\(\)/g)]).toHaveLength(1);
   });
 
   it("opens it from the press and never from the flag", () => {
@@ -725,15 +776,22 @@ describe("switching on says what switching on does", () => {
     // An effect watching it would therefore put a dialog in front of a reader
     // who is three sections up looking at a quota — which is the same defect
     // the fold and the live regions were written around.
-    for (const [effect] of CODE.matchAll(/useEffect\([\s\S]*?\n  \}, \[[^\]]*\]\);/g)) {
+    // Each effect exactly: a one-line one to the end of its line, and a block
+    // to its own closing line — so the scan never runs past one effect into
+    // the code that follows it. The poll's is among them, or the scan is
+    // passing on nothing.
+    const effects = [...SURFACE.matchAll(/useEffect\((?:[^\n]*\]\);$|[\s\S]*?\n  \}, \[[^\]]*\]\);)/gm)].map(m => m[0]);
+    expect(effects.some(e => /setTimeout\(tick, every\.current\)/.test(e))).toBe(true);
+    for (const effect of effects) {
       expect(effect).not.toMatch(/setSetupOpen/);
       expect(effect).not.toMatch(/enabled/);
     }
-    // Three presses open it and nothing else does: the switch on its way on,
-    // the control that has always opened it, and the line in a deck's own
-    // dialog that goes from "you offer" to where that list is changed.
-    expect([...CODE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
-    expect(CODE).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
+    // Three presses open it and nothing else does: the switch on its way on —
+    // through the hook's onSwitchedOn — the control that has always opened it,
+    // and the line in a deck's own dialog that goes from "you offer" to where
+    // that list is changed.
+    expect([...SURFACE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
+    expect(HEADER).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
     expect(CODE).toMatch(/onSettings=\{\(\) => \{ setPeerOpen\(null\); setSetupOpen\(true\); \}\}/);
   });
 });
@@ -744,31 +802,37 @@ describe("the pairing that replaced the passphrase", () => {
     // character produced a closed socket and no other symptom on both machines,
     // and a secret is the one value a panel must never print — so neither
     // person could check theirs against the other's.
-    expect(CODE).toMatch(/wants to pair/);
-    expect(CODE).toMatch(/accept/);
-    expect(CODE).toMatch(/dismiss/);
+    expect(ASKS).toMatch(/wants to pair/);
+    expect(ASKS).toMatch(/accept/);
+    expect(ASKS).toMatch(/dismiss/);
     // And what the reader is asked to compare is on the request itself —
     // PRINTED, not only in a `title`. A mouse-only, screen-reader-silent place
     // is not where the feature's one security decision can live.
-    expect(CODE).toMatch(/fingerprint is \$\{p\.fp\}/);
-    expect(CODE).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}<\/code>/);
+    expect(ASKS).toMatch(/fingerprint is \$\{p\.fp\}/);
+    expect(ASKS).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}<\/code>/);
   });
 
   it("has no passphrase left anywhere in the surface", () => {
-    for (const src of [CODE, MODAL]) {
+    for (const src of [SURFACE, MODAL]) {
       expect(src).not.toMatch(/passphrase/i);
       expect(src).not.toMatch(/type="password"/);
     }
   });
 
   it("puts the request above everything else, because nothing moves until it is answered", () => {
-    const ask = CODE.indexOf('className="ap-lan-asks"');
+    // The requests are drawn by a component of their own, which the section
+    // places first.
+    const ask = CODE.indexOf("<LanAsks ");
     expect(ask).toBeGreaterThan(-1);
-    // Above the roster, which is the only other thing in the section.
-    expect(ask).toBeLessThan(CODE.indexOf('className="ap-lan-here"'));
+    // Above the roster, which is the only other thing in the section — the
+    // list the section places after it, which draws the roster's <ul>.
+    const roster = CODE.indexOf("<LanDeckList");
+    expect(roster).toBeGreaterThan(-1);
+    expect(ask).toBeLessThan(roster);
+    expect(LIST).toMatch(/<ul className="ap-lan-here">/);
     // Announced, because it arrives while the reader is three sections up
     // looking at a quota.
-    expect(CODE).toMatch(/className="ap-lan-asks" role="alert"/);
+    expect(ASKS).toMatch(/className="ap-lan-asks" role="alert"/);
   });
 
   it("says how long a request has been waiting, coarsely, because the answer is a press", () => {
@@ -1083,8 +1147,10 @@ describe("who is here, which is what the panel is for now", () => {
     expect(checkedLabel(NOW2 - 5_000, NOW2, false)).toBe("checked just now");
     // And it comes from the engine's own clock rather than from a render, so a
     // panel opened an hour later reads the round rather than the visit.
-    expect(SERVER_ENGINE).toMatch(/roundAt = now\(\)/);
-    expect(SERVER_ENGINE).toMatch(/checkedAt: roundAt/);
+    expect(SERVER_ROUND_RECORD).toMatch(/finished\(\) \{ roundAt = now\(\); \}/);
+    expect(SERVER_ROUND_RECORD).toMatch(/checkedAt: \(\) => roundAt/);
+    expect(SERVER_ENGINE).toMatch(/lastRound\.finished\(\);/);
+    expect(SERVER_ENGINE).toMatch(/checkedAt: lastRound\.checkedAt\(\)/);
   });
 
   it("counts an invite down in minutes and seconds, which is how it is read out", () => {
@@ -1097,7 +1163,7 @@ describe("who is here, which is what the panel is for now", () => {
 
 describe("the invite, which is one piece of text and every address", () => {
   it("carries all of them, because nobody knows which one routes", async () => {
-    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
     const made = mintInvite({ addrs: ["100.67.32.58:49336", "192.168.1.82:49336"], name: "Constantins-iMac" });
     const read = readInvite(made.token);
     expect(read.addrs).toEqual([
@@ -1111,7 +1177,7 @@ describe("the invite, which is one piece of text and every address", () => {
   it("tells an expired one apart from a thing that is not an invite", async () => {
     // Two different instructions for the reader: ask for a new one, or paste
     // the whole thing. A reader who cannot tell them apart retypes the same.
-    const { mintInvite, readInvite, INVITE_MS } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_MS } = await import("../../server/lan-invite.mjs");
     const made = mintInvite({ addrs: ["1.2.3.4:5"], name: "x", now: 1_000 });
     expect(readInvite(made.token, 1_000).expired).toBe(false);
     expect(readInvite(made.token, 1_000 + INVITE_MS + 1).expired).toBe(true);
@@ -1120,22 +1186,38 @@ describe("the invite, which is one piece of text and every address", () => {
     }
   });
 
-  it("has a code that is six digits and evenly drawn", async () => {
-    // A modulo over a byte would make 0-5 likelier than 6-9, in the one number
-    // that decides whether a stranger can pair.
-    const { inviteCode } = await import("../../server/lan-sync.mjs");
-    const seen = new Map<string, number>();
+  it("has a code of 128 random bits, every one of them the random source's (#1137)", async () => {
+    // Six digits was about twenty bits: a number a laptop counts through in a
+    // second, in the one value that decides whether a stranger can pair. The
+    // proofs are made over it and a transcript that crosses the wire, so the
+    // code has to be one nobody can count through — and nobody types it, so
+    // it can be.
+    const { inviteCode, INVITE_CODE_BYTES } = await import("../../server/lan-invite.mjs");
+    expect(INVITE_CODE_BYTES * 8).toBeGreaterThanOrEqual(128);
+
+    // Spelled in base64url: 22 characters for 16 bytes, no padding, nothing a
+    // token or a chat window would mangle.
+    const seen = new Set<string>();
     for (let i = 0; i < 400; i++) {
       const c = inviteCode();
-      expect(c).toMatch(/^[0-9]{6}$/);
-      for (const d of c) seen.set(d, (seen.get(d) ?? 0) + 1);
+      expect(c).toMatch(/^[A-Za-z0-9_-]{22}$/);
+      expect(Buffer.from(c, "base64url")).toHaveLength(INVITE_CODE_BYTES);
+      seen.add(c);
     }
-    const counts = [...Array(10).keys()].map(d => seen.get(String(d)) ?? 0);
-    expect(Math.min(...counts)).toBeGreaterThan(Math.max(...counts) * 0.6);
+    expect(seen.size, "two codes out of 400 were the same").toBe(400);
+
+    // AND NOTHING REDUCED ON THE WAY. The bytes asked for are the bytes the
+    // code decodes to, so no sampling or modulo sits between the random source
+    // and the secret — the entropy is the source's, all of it.
+    const asked: number[] = [];
+    const bytes = Buffer.from("000102030405060708090a0b0c0d0e0f", "hex");
+    const c = inviteCode((n: number) => { asked.push(n); return bytes.subarray(0, n); });
+    expect(asked).toEqual([INVITE_CODE_BYTES]);
+    expect(Buffer.from(c, "base64url").equals(bytes)).toBe(true);
   });
 
   it("proves the holder without ever sending the code", async () => {
-    const { inviteProof } = await import("../../server/lan-sync.mjs");
+    const { inviteProof } = await import("../../server/lan-invite.mjs");
     const a = inviteProof("482100", "fpA|fpB|c1|c2");
     expect(a).not.toContain("482100");
     // Bound to the transcript, so a recording of one exchange is worth nothing.
@@ -1144,7 +1226,7 @@ describe("the invite, which is one piece of text and every address", () => {
   });
 
   it("refuses a token built to make this deck dial a list", async () => {
-    const { mintInvite, MAX_INVITE_ADDRS, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, MAX_INVITE_ADDRS, readInvite } = await import("../../server/lan-invite.mjs");
     const many = Array.from({ length: 50 }, (_, i) => `10.0.0.${i}:5000`);
     const made = mintInvite({ addrs: many, name: "x" });
     expect(readInvite(made.token).addrs).toHaveLength(MAX_INVITE_ADDRS);
@@ -1162,7 +1244,7 @@ describe("the invite, which is one piece of text and every address", () => {
     // So a second key string rather than a direction field inside one. Checked
     // here rather than inferred from the source, because "these two HMACs
     // differ" is the entire security content of the choice.
-    const { inviteProof, inviteProofBack } = await import("../../server/lan-sync.mjs");
+    const { inviteProof, inviteProofBack } = await import("../../server/lan-invite.mjs");
     const transcript = "fpA|fpB|c1|c2";
     const back = inviteProofBack("482100", transcript);
     expect(back).not.toBe(inviteProof("482100", transcript));
@@ -1183,15 +1265,19 @@ describe("the invite, which is one piece of text and every address", () => {
     // It is not a decision the far end gets to make. The token is text the
     // minter handed over out of band in the same breath as the code; anybody
     // who can rewrite it already holds the code.
-    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
     const made = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
     expect(readInvite(made.token).provesBack).toBe(true);
 
+    // A token as a deck from before the flag wrote it: six digits, no `pb`.
+    // Only such a deck can have minted one, so only for one does the missing
+    // flag mean anything.
     const body = JSON.parse(Buffer.from(made.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
-    delete body.pb;
-    const old = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    const token = (o: unknown) => INVITE_PREFIX + Buffer.from(JSON.stringify(o), "utf8").toString("base64url");
+    const old = token({ ...body, c: "482100", pb: undefined });
     expect(readInvite(old), "a token from before the flag is still an invite").not.toBeNull();
     expect(readInvite(old).provesBack).toBe(false);
+    expect(readInvite(token({ ...body, c: "482100" })).provesBack).toBe(true);
   });
 
   // WHAT A PASTED TOKEN IS ALLOWED TO BE (#1171). The case above pastes junk
@@ -1201,7 +1287,8 @@ describe("the invite, which is one piece of text and every address", () => {
   // it and pins whatever answers. Anything that gets past this reader is a
   // machine somebody else chose.
   it("refuses a token that decodes into something this deck must not act on", async () => {
-    const { mintInvite, readInvite, INVITE_PREFIX, PROTOCOL } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
+    const { PROTOCOL } = await import("../../server/lan-sync.mjs");
     const good = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
     const body = JSON.parse(Buffer.from(good.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
     const token = (o: unknown) => INVITE_PREFIX + Buffer.from(JSON.stringify(o), "utf8").toString("base64url");
@@ -1214,10 +1301,14 @@ describe("the invite, which is one piece of text and every address", () => {
       // itself. The version check is the coarse one; `pb` above is the fine one.
       ["another PROTOCOL", { ...body, v: PROTOCOL + 1 }],
       ["no version at all", { ...body, v: undefined }],
-      // The code is what a person reads out loud to the other machine. A token
-      // without one, or with one that is not six digits, pairs on nothing.
+      // The code is the secret the two proofs are made over. A token without
+      // one, or with one of neither kind — this version's 22 characters of
+      // base64url, or an older deck's six digits — pairs on nothing.
       ["no code", { ...body, c: undefined }],
-      ["a code that is not six digits", { ...body, c: "12345" }],
+      ["a code of neither kind", { ...body, c: "12345" }],
+      ["a code a character short", { ...body, c: body.c.slice(1) }],
+      ["a code a character long", { ...body, c: `${body.c}A` }],
+      ["a code outside base64url", { ...body, c: `${body.c.slice(1)}+` }],
       ["a code that is not a string", { ...body, c: 482100 }],
       // No expiry is an invite that never runs out, which is the one thing an
       // invite may not be.
@@ -1349,7 +1440,7 @@ describe("what did not change", () => {
     // AND THE FINGERPRINT IS STILL PRINTED WHERE IT IS ACTED ON. It is not a
     // decoration anywhere it appears: it is the one value whoever is asking
     // cannot choose, so it belongs on both surfaces that answer a request.
-    expect(CODE).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}/);
+    expect(ASKS).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}/);
     expect(readFileSync(
       fileURLToPath(new URL("../components/LanPairRequestModal.tsx", import.meta.url)), "utf8",
     )).toMatch(/fingerprint/);
@@ -1366,15 +1457,20 @@ describe("what an off network is allowed to cost", () => {
   // `pending` cannot become anything and the peer list cannot change. Three
   // requests every five seconds is fifty-two thousand a day for a section
   // reading "off — this deck is not on the network".
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The deck-side poller moved out of App.tsx into use-lan-pair-requests.ts, so
+  // this reads the whole client. Every whole-text match here is positive; the
+  // one negative is on the LAN block sliced out by name, which stays in the hook.
+  const app = clientText();
 
   it("asks slowly while the switch is off, and quickly while it is on", () => {
-    expect(SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
-    expect(SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
+    // The section's own poller is its hook's now, and the pair is declared
+    // there; the pair-request hook imports them from it, below.
+    expect(HOOK_SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
+    expect(HOOK_SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
     // One pair of numbers, used by both pollers, rather than one each.
     // Other names may ride the same import; the two constants must be on it.
-    expect(app).toMatch(/import \{ LAN_POLL_OFF_MS, LAN_POLL_ON_MS(, \w+)* \} from "\.\/components\/LanSyncSection";/);
-    for (const src of [SRC, app]) {
+    expect(app).toMatch(/import \{ LAN_POLL_OFF_MS, LAN_POLL_ON_MS(, \w+)* \} from "\.\/use-lan-section";/);
+    for (const src of [HOOK_SRC, app]) {
       expect(src).toMatch(/enabled === true \? LAN_POLL_ON_MS : LAN_POLL_OFF_MS/);
     }
   });
@@ -1386,8 +1482,8 @@ describe("what an off network is allowed to cost", () => {
     // The section decides the next delay when the answer lands and the chain
     // reads it back; App decides it in the chain itself. Both are timeout
     // chains, and neither drives this poll from an interval.
-    expect(SRC).toMatch(/timer = window\.setTimeout\(tick, every\.current\)/);
-    expect(SRC).not.toMatch(/setInterval\(\(\) => \{ setNow/);
+    expect(HOOK_SRC).toMatch(/timer = window\.setTimeout\(tick, every\.current\)/);
+    for (const src of [SRC, HOOK_SRC]) expect(src).not.toMatch(/setInterval\(\(\) => \{ setNow/);
     // Scoped to the LAN poller: App has another `pull` on a five-minute
     // interval — the version check — and this rule is not about that one.
     const at = app.indexOf("const [lanPending, setLanPending]");
@@ -1400,6 +1496,6 @@ describe("what an off network is allowed to cost", () => {
     // A request arriving is the point of the section AND of the dialog in App,
     // so when the network IS on both still ask every five seconds. The saving
     // is meant to be invisible to anybody using the feature.
-    expect(SRC).toMatch(/A pairing request arriving is the point of this section/);
+    expect(HOOK_SRC).toMatch(/A pairing request arriving is the point of this section/);
   });
 });

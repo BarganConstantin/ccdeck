@@ -59,6 +59,28 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.30.0": [
+    {
+      "title": "🧮 Token counts and costs are no longer doubled",
+      "body": "Claude Code writes a reply that has thinking, text and tool calls as several transcript lines, each carrying the whole request's usage. The deck added up every line, so a session's tokens and cost on its card came out close to twice what it was billed, and the context panel counted each part of a reply as its own message. Each request is now counted once. Expect the totals on your cards to come down."
+    },
+    {
+      "title": "⏳ Claude's saved limit resets on the Usage panel",
+      "body": "When your Claude account has free limit resets to spend (\"Reset for free\" in Claude's Settings → Usage), the Claude card now says how many there are and when the first one expires, the way the Codex card already did. The deck only reports them; you spend them in Claude's own settings."
+    },
+    {
+      "title": "🔑 LAN invites need the other deck updated",
+      "body": "An invite's code is now a long random secret instead of six digits, so nobody else on the network can work it out and pair in your place, and a wrong code is refused by name. An invite made on this version can only be joined from a deck on this version or later: an older deck answers \"That is not an invite\". Update that deck, or make the invite on the older one and join it here."
+    },
+    {
+      "title": "🔕 AGENTS_DECK_NO_NOTIFY keeps Browser Watch quiet too",
+      "body": "A deck started with AGENTS_DECK_NO_NOTIFY=1 still raised a desktop notification for every new Browser Watch finding. It no longer does. The finding is still in the Browser Watch panel and its log, which says why no notification came."
+    },
+    {
+      "title": "🛠️ Smaller fixes",
+      "body": "Delete removes the card you just clicked. A LAN address you typed stays in the list when a round cannot reach it, and the status line under the LAN switch now agrees with the rows below it. In the desktop app, a dismissed \"update is ready\" notice stays dismissed after you answer the first-launch question. Sizes read the same in every panel (\"1.1 KB\"). Faded text stays readable, a keyboard can see the scrollbar, and numbers use a monospaced font on Windows and Linux as well."
+    }
+  ],
   "3.29.11": [
     {
       "title": "💲 Claude Sonnet 5.5 has a price",

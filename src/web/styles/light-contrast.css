@@ -1,0 +1,80 @@
+/* ---------------- light-mode contrast tuning ----------------
+   Hardcoded rgba() tints elsewhere in this file were picked for dark
+   surfaces; on white they vanish. Re-tint with deeper, more saturated
+   versions only when the light theme is active. */
+/* Opaque tints, for the reason the node rings below are opaque: a 10% wash is
+   whatever it is painted over, and these three sit on the topbar GRADIENT,
+   which runs from #ffffff to #eef1f6 across the 52px they are centred in. The
+   pill's own word therefore had a different ratio at the top of the bar than
+   at the bottom — 4.39:1 and 3.90:1 for `live`, so the state of the connection
+   was under AA at the darker end. Composited against white once, here, the
+   number is the same wherever the pill lands. */
+:root[data-theme="light"] .topbar .status .pill.live {
+  border-color: rgba(21,128,61,0.45);
+  background: #e8f2eb;
+}
+:root[data-theme="light"] .topbar .status .pill.paused {
+  border-color: rgba(180,83,9,0.50);
+  background: #f8eee6;
+}
+:root[data-theme="light"] .topbar .status .pill.dead {
+  border-color: rgba(185,28,28,0.50);
+  background: #f8e8e8;
+}
+:root[data-theme="light"] .agent-node.state-active {
+  border-color: rgba(126,34,206,0.65);
+  /* The dark rule's reasoning, in the other theme — including its silence
+     about box-shadow. This twin is (0,4,0), so it outranked the hover whatever
+     the order, and light was broken the same way: hovered, the running card
+     measured `rgba(15,23,42,0.1) 0 4px 14px` (--shadow-1) against a finished
+     card's `rgba(15,23,42,0.16) 0 10px 28px` (--shadow-2). */
+}
+/* Opaque, not a wash. The alphas these two carried were transplanted from the
+   dark rules, where 0.5 over #14161b still reads; over a white node they landed
+   at 2.26:1 and 3.12:1 against the node interior — under the 3:1 that 1.4.11
+   asks of a boundary. The tokens themselves are 5.02:1 and 6.47:1. */
+:root[data-theme="light"] .agent-node.state-done { border-color: var(--ok); }
+:root[data-theme="light"] .agent-node.state-err  { border-color: var(--err); }
+
+:root[data-theme="light"] .state-pill.state-active {
+  border-color: rgba(126,34,206,0.45);
+  background: rgba(126,34,206,0.10);
+}
+:root[data-theme="light"] .state-pill.state-active::before { box-shadow: 0 0 5px rgba(126,34,206,0.55); }
+/* --ok on its own 10% wash is 4.39:1 — the one pill that misses AA, because
+   green is the lightest of the three state hues. Deepened on the pill itself
+   rather than by moving --ok, which would drag every cost figure and status
+   dot in the light theme with it. */
+:root[data-theme="light"] .state-pill.state-done {
+  border-color: rgba(21,128,61,0.45);
+  background: rgba(21,128,61,0.10);
+  color: #166534;
+}
+:root[data-theme="light"] .state-pill.state-err {
+  border-color: rgba(185,28,28,0.50);
+  background: rgba(185,28,28,0.10);
+}
+
+:root[data-theme="light"] .modal-section .err-tag {
+  background: rgba(185,28,28,0.10);
+  border-color: rgba(185,28,28,0.45);
+}
+
+:root[data-theme="light"] .empty-hero .orbit { border-color: rgba(3,105,161,0.30); }
+:root[data-theme="light"] .empty-hero .orbit.r2 { border-color: rgba(76,29,149,0.30); }
+:root[data-theme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
+:root[data-theme="light"] .empty-hero .core {
+  box-shadow: 0 0 28px rgba(76,29,149,0.40), 0 0 64px rgba(3,105,161,0.25);
+}
+
+:root[data-theme="light"] .conn-banner {
+  border-bottom-color: rgba(185,28,28,0.45);
+}
+
+
+/* react-flow edge dashflow uses --inflight which is now deep purple → fine */
+:root[data-theme="light"] .react-flow__edge-path { stroke: rgba(3,105,161,0.40); }
+
+/* mini-map node strokes more visible */
+:root[data-theme="light"] .react-flow__minimap-node { stroke: rgba(15,23,42,0.25); }
+

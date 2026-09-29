@@ -75,7 +75,7 @@
 // file, and both home variables are redirected before the module loads, so no
 // case here can reach the real ~/.codex of whoever is running the suite.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -364,16 +364,17 @@ describe("the unforced background poll, which the guard must not break", () => {
 // window that lives in a FILE shared between processes, with a retry window and
 // a pending-version window on top of it and a version string rather than a
 // reading as its answer; claude-accounts.mjs a generation guard of its own, for
-// the nine call sites that invalidate it. A helper covering the common part would
+// the sixteen call sites that invalidate it. A helper covering the common part would
 // fit two of the six cleanly and would have to be escaped from by the other four,
 // and it would not have prevented a single one of the omissions — every one of
 // them was a route nobody had counted.
 //
 // So this block enumerates instead of asserting about the endpoints somebody
-// happened to name. It reads index.mjs, finds every handler that turns
-// `?refresh=1` into a `force` argument, resolves the module and the exported
-// function each one forces, and then reads those modules and records what each
-// keeps between a forced caller and the work.
+// happened to name. It reads the router in index.mjs and every server module
+// that declares a route handler, finds every handler that turns `?refresh=1`
+// into a `force` argument, resolves the module and the exported function each
+// one forces, and then reads those modules and records what each keeps between
+// a forced caller and the work.
 //
 // The table below is a census of what IS, not a list of what is permitted — with
 // one rule on top of it, which is the part that stands in for the helper: a
@@ -412,25 +413,43 @@ function guardsSurvivingForce(source: string): string[] {
   return found.sort();
 }
 
-/** Every route that lets its caller say `?refresh=1`, read out of the router. */
-function forcedReadRoutes(indexSource: string) {
-  const code = withoutComments(indexSource);
-  // Handler bodies, sliced between one `async function handleX(` and the next.
-  const marks = [...code.matchAll(/\basync function (handle[A-Za-z0-9_]*)\s*\(/g)]
-    .map(m => ({ name: m[1], at: m.index! }));
-  const rows = [];
-  for (let i = 0; i < marks.length; i++) {
-    const body = code.slice(marks[i].at, i + 1 < marks.length ? marks[i + 1].at : code.length);
-    if (!/searchParams\.get\("refresh"\)\s*===\s*"1"/.test(body)) continue;
+/**
+ * Every server module that declares a route handler, index.mjs among them.
+ *
+ * Read off the directory rather than listed, because route handlers move out of
+ * index.mjs into modules of their own, and a list kept here would be one more
+ * place a moved route could quietly drop out of the census below.
+ */
+function handlerModules(): string[] {
+  return readdirSync(new URL("../../server/", import.meta.url))
+    .filter(name => name.endsWith(".mjs"))
+    .filter(name => /\basync function handle[A-Za-z0-9_]*\s*\(/.test(withoutComments(serverSource(name))))
+    .sort();
+}
 
-    const modules = [...body.matchAll(/src\/server\/([A-Za-z0-9-]+\.mjs)/g)].map(m => m[1]);
-    // The function the handler hands `force` to, whether that is written as its
-    // own statement or inline inside a `send(…)`.
-    const forced = [...body.matchAll(/\b([A-Za-z0-9_]+)\(\s*\{[^}]*\bforce\b/g)].map(m => m[1]);
-    const route = [...code.matchAll(
-      new RegExp(`req\\.method === "(\\w+)"\\s*&& url\\.pathname === "([^"]+)"[^\\n]*\\b${marks[i].name}\\(`, "g"),
-    )].map(m => ({ method: m[1], path: m[2] }));
-    rows.push({ handler: marks[i].name, modules, forced, route });
+/** Every route that lets its caller say `?refresh=1`: routed in index.mjs, and
+ *  handled wherever its handler is declared. */
+function forcedReadRoutes(routerSource: string, handlerSources: string[]) {
+  const router = withoutComments(routerSource);
+  const rows = [];
+  for (const source of handlerSources) {
+    const code = withoutComments(source);
+    // Handler bodies, sliced between one `async function handleX(` and the next.
+    const marks = [...code.matchAll(/\basync function (handle[A-Za-z0-9_]*)\s*\(/g)]
+      .map(m => ({ name: m[1], at: m.index! }));
+    for (let i = 0; i < marks.length; i++) {
+      const body = code.slice(marks[i].at, i + 1 < marks.length ? marks[i + 1].at : code.length);
+      if (!/searchParams\.get\("refresh"\)\s*===\s*"1"/.test(body)) continue;
+
+      const modules = [...body.matchAll(/src\/server\/([A-Za-z0-9-]+\.mjs)/g)].map(m => m[1]);
+      // The function the handler hands `force` to, whether that is written as its
+      // own statement or inline inside a `send(…)`.
+      const forced = [...body.matchAll(/\b([A-Za-z0-9_]+)\(\s*\{[^}]*\bforce\b/g)].map(m => m[1]);
+      const route = [...router.matchAll(
+        new RegExp(`req\\.method === "(\\w+)"\\s*&& url\\.pathname === "([^"]+)"[^\\n]*\\b${marks[i].name}\\(`, "g"),
+      )].map(m => ({ method: m[1], path: m[2] }));
+      rows.push({ handler: marks[i].name, modules, forced, route });
+    }
   }
   return rows;
 }
@@ -441,15 +460,18 @@ function forcedReadRoutes(indexSource: string) {
  * `predicate` is the exported rule that applies the floor — the one name per
  * module a test can point at, and the one place FORCE_POLL_MS is turned into a
  * yes or a no. `insteadOfFloor` is the only way a row is allowed to have no
- * floor at all, and it has to say what bounds the cost instead.
+ * floor at all, and it has to say what bounds the cost instead. `guardedIn` is
+ * the module that keeps the guards and the predicate when `module` hands the
+ * read on to one it imports — self-update.mjs's registry check moved to
+ * npm-latest.mjs, and versionReport stayed where the route reaches it.
  */
 const CENSUS: Record<string, {
   module: string; fn: string; guards: string[]; note: string;
-  predicate?: string; insteadOfFloor?: string;
+  predicate?: string; insteadOfFloor?: string; guardedIn?: string;
 }> = {
   "/api/version": {
     module: "self-update.mjs", fn: "versionReport", guards: ["floor", "inflight"],
-    predicate: "mayAskNpm",
+    predicate: "mayAskNpm", guardedIn: "npm-latest.mjs",
     note: "#604. Joined a check already running, but `checkDue` returns true on "
         + "`force` before anything else is asked, so a sequential ?refresh=1 loop "
         + "was one npm registry GET per request — #580's shape with the cost "
@@ -514,14 +536,17 @@ const CENSUS: Record<string, {
         + "reads plus a throttled collector nudge, so it is the cheapest of the "
         + "six by a wide margin and was fixed for the shape rather than the cost "
         + "— except for one part that is not shape at all: it is the only one of "
-        + "the six whose cache is invalidated from outside, from nine call sites "
-        + "in four modules, so the in-flight slot arrived with #582's generation "
-        + "guard rather than without it.",
+        + "the six whose cache is invalidated from outside, from sixteen call "
+        + "sites in six modules — cswap-admin.mjs, cswap-auto.mjs, "
+        + "cswap-auto-loop.mjs, account-routes.mjs, lan-deck.mjs and its own "
+        + "first `cswap add` — so "
+        + "the in-flight slot arrived with #582's generation guard rather than "
+        + "without it.",
   },
 };
 
 describe("every route that lets a caller force a read", () => {
-  const discovered = forcedReadRoutes(serverSource("index.mjs"));
+  const discovered = forcedReadRoutes(serverSource("index.mjs"), handlerModules().map(serverSource));
 
   it("is one of exactly eight, and a ninth has to be named here before it ships", () => {
     // The assertion #600 is really about. Nobody was counting: `?refresh=1` was
@@ -560,7 +585,13 @@ describe("every route that lets a caller force a read", () => {
         // does; it is asserted on nowhere, and it is the reason the row is
         // trustworthy.
         expect(expected.note.length, `${path} needs a reason on record`).toBeGreaterThan(0);
-        expect(guardsSurvivingForce(serverSource(expected.module))).toEqual(expected.guards);
+        expect(guardsSurvivingForce(serverSource(expected.guardedIn ?? expected.module))).toEqual(expected.guards);
+        // A module that hands the read on has to be the one importing the guards,
+        // or the row describes a module the route never reaches.
+        if (expected.guardedIn) {
+          expect(withoutComments(serverSource(expected.module)), `${expected.module} reads through ${expected.guardedIn}`)
+            .toContain(`from "./${expected.guardedIn}";`);
+        }
       });
     });
   }
@@ -594,12 +625,12 @@ describe("every route that lets a caller force a read", () => {
     // invented the same floor separately; they at least agree on its name and its
     // number now, and a sixth that needs one has a name to reuse.
     const withFloor = Object.values(CENSUS).filter(r => r.guards.includes("floor"));
-    expect(withFloor.map(r => r.module).sort()).toEqual([
+    expect(withFloor.map(r => r.guardedIn ?? r.module).sort()).toEqual([
       "browser-watch.mjs", "claude-accounts.mjs", "claude-fm.mjs", "codex-quota.mjs",
-      "codex-usage.mjs", "quota.mjs", "self-update.mjs",
+      "codex-usage.mjs", "npm-latest.mjs", "quota.mjs",
     ]);
     for (const row of withFloor) {
-      expect(withoutComments(serverSource(row.module)), row.module)
+      expect(withoutComments(serverSource(row.guardedIn ?? row.module)), row.guardedIn ?? row.module)
         .toMatch(/const FORCE_POLL_MS = 60_000;/);
     }
   });
@@ -615,7 +646,7 @@ describe("every route that lets a caller force a read", () => {
     // the entry point instead would fail this line.
     for (const row of Object.values(CENSUS)) {
       if (!row.guards.includes("floor")) continue;
-      const code = withoutComments(serverSource(row.module));
+      const code = withoutComments(serverSource(row.guardedIn ?? row.module));
       const at = code.indexOf(`export function ${row.predicate}(`);
       expect(at, `${row.module} exports ${row.predicate}`).toBeGreaterThan(-1);
       const end = code.indexOf("\n}", at);

@@ -15,9 +15,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { modelFamily, shortModel } from "../model-label";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const css = read("../styles.css");
+const css = sheetText();
 
 describe("the family a chip is painted by", () => {
   it("comes from the model id and nothing else", () => {
@@ -66,9 +67,13 @@ describe("the sheet", () => {
   });
 
   it("keeps both themes on the same key", () => {
-    // Light overrides matched the tooltip too, so the defect was in both.
-    for (const family of ["opus", "sonnet", "haiku", "fable"]) {
-      expect(css, family).toContain(`:root[data-theme="light"] .model-chip[data-family="${family}"]`);
+    // Light overrides matched the tooltip too, so the defect was in both. Since
+    // #1285 the family rule names the hue for both themes and the light rule
+    // only says how a chip draws it — keyed on the same attribute values.
+    const light = /:root\[data-theme="light"\] \.model-chip:is\(([^)]*)\)/.exec(css);
+    expect(light, "the light chip rule is gone").not.toBeNull();
+    for (const family of ["opus", "sonnet", "haiku", "fable", "mythos"]) {
+      expect(light![1], family).toContain(`[data-family="${family}"]`);
     }
   });
 });
@@ -76,7 +81,7 @@ describe("the sheet", () => {
 describe("every surface that draws a chip stamps the family on it", () => {
   const surfaces: Array<[string, string]> = [
     ["AgentNode", "../components/AgentNode.tsx"],
-    ["App detail hero", "../App.tsx"],
+    ["Detail hero", "../components/Detail.tsx"],
     ["SessionList", "../components/SessionList.tsx"],
     ["SessionSummary", "../components/SessionSummary.tsx"],
   ];

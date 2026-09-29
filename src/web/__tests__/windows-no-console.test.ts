@@ -17,7 +17,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { nativeCcusage } from "../../server/ccusage.mjs";
+import { nativeCcusage } from "../../server/ccusage-runner.mjs";
+import { noConsoleOptions } from "../../server/detach.mjs";
 
 const supervisor = readFileSync(fileURLToPath(new URL("../../../bin/agent-dag.js", import.meta.url)), "utf8");
 
@@ -25,7 +26,18 @@ describe("the deck's own process", () => {
   it("gets no console at all when the supervisor is detached on Windows", () => {
     // DETACHED_PROCESS, not windowsHide alone: with inherited stdio libuv only
     // asks for a hidden window, which the default-terminal handoff ignores.
-    expect(supervisor).toMatch(/const NO_CONSOLE = DETACHED && process\.platform === "win32"\s*\?\s*\{ detached: true, windowsHide: true \}\s*:\s*\{\};/);
+    expect(noConsoleOptions({ detached: true, platform: "win32" })).toEqual({ detached: true, windowsHide: true });
+    expect(supervisor).toContain("const NO_CONSOLE = noConsoleOptions({ detached: DETACHED, platform: process.platform });");
+  });
+
+  it("shares the terminal's console when it is not detached, and changes nothing off Windows", () => {
+    // A supervisor in the user's own terminal shares that console with its
+    // worker, and Ctrl+C has to reach both.
+    expect(noConsoleOptions({ detached: false, platform: "win32" })).toEqual({});
+    for (const platform of ["linux", "darwin"]) {
+      expect(noConsoleOptions({ detached: true, platform })).toEqual({});
+      expect(noConsoleOptions({ detached: false, platform })).toEqual({});
+    }
   });
 
   it("is started with it, and so is an upgrade's replacement", () => {

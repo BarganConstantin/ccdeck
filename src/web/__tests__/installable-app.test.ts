@@ -19,13 +19,15 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { offerManifest, MANIFEST_PATH } from "../../server/app-manifest.mjs";
+import { sourceOf } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const PUBLIC = (name: string) => fileURLToPath(new URL(`../public/${name}`, import.meta.url));
 
 const manifest = JSON.parse(read("../public/manifest.webmanifest"));
 const html = read("../index.html");
-const css = read("../styles.css");
+const css = sheetText();
 const app = read("../App.tsx");
 const server = read("../../server/index.mjs");
 const cache = read("../../server/static-cache.mjs");
@@ -116,6 +118,9 @@ describe("the document that points at it", () => {
   });
 
   it("re-writes that meta whenever the theme flips", () => {
+    // The meta effect moved to use-appearance.ts with the palette it reads. A slice
+    // taken by indexOf, so it reads that one file rather than the client.
+    const app = sourceOf("use-appearance.ts");
     // A media-queried pair in the head would follow the OS past a stored
     // choice, which is wrong for exactly the people who pressed T.
     const at = app.indexOf('meta[name="theme-color"]');
@@ -131,7 +136,8 @@ describe("the document that points at it", () => {
 
 describe("the server that serves it", () => {
   it("knows the type, without which a browser fetches it and parses nothing", () => {
-    expect(server).toMatch(/"\.webmanifest":\s*"application\/manifest\+json/);
+    // The type table is the static handler's, in static-serve.mjs.
+    expect(read("../../server/static-serve.mjs")).toMatch(/"\.webmanifest":\s*"application\/manifest\+json/);
   });
 
   it("compresses it like the other text it serves", () => {

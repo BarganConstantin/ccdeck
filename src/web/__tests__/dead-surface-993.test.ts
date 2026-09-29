@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { applyEvent, initialState, toolKey, type GraphState } from "../reducer";
 import type { HookPayload } from "../types";
+import { reducerSurface } from "./reducer-surface";
 
 const SERVER = fileURLToPath(new URL("../../server/", import.meta.url));
 const WEB = fileURLToPath(new URL("../", import.meta.url));
@@ -39,7 +40,7 @@ const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegEx
   [SERVER, "stop-deck.mjs",         "STOP_ASK_MS",         /^const STOP_ASK_MS = 2000;$/m,           /timeoutMs = STOP_ASK_MS/],
   [SERVER, "stop-deck.mjs",         "STOP_GONE_MS",        /^const STOP_GONE_MS = 3000;$/m,          /goneMs = STOP_GONE_MS/],
   [SERVER, "supervisor.mjs",        "CRASH_BACKOFF_MS",    /^const CRASH_BACKOFF_MS = 1000;$/m,      /backoffMs = CRASH_BACKOFF_MS/],
-  [SERVER, "index.mjs",             "awayUpdateTick",      /^async function awayUpdateTick\(\) \{$/m, /setInterval\(\(\) => \{ awayUpdateTick\(\)/],
+  [SERVER, "lifecycle.mjs",         "awayUpdateTick",      /^async function awayUpdateTick\(\) \{$/m, /setInterval\(\(\) => \{ awayUpdateTick\(\)/],
   [WEB,    "spend-rate.ts",         "SPEND_MIN_SPAN_MS",   /^const SPEND_MIN_SPAN_MS = 60_000;$/m,   /spanMs < SPEND_MIN_SPAN_MS/],
   [WEB,    "usage-from-ccusage.ts", "sessionIdFromPeriod", /^function sessionIdFromPeriod\(period: string\): string \{$/m, /= sessionIdFromPeriod\(period\)/],
 ];
@@ -68,7 +69,7 @@ describe("the in-file-only exports #993 took off their modules' public surface",
 describe("toolOwner — a map the reducer wrote and nothing read", () => {
   it("is gone from the state and from the reducer", () => {
     expect(Object.keys(initialState())).not.toContain("toolOwner");
-    expect(src(WEB, "reducer.ts")).not.toMatch(/\btoolOwner\b/);
+    expect(reducerSurface()).not.toMatch(/\btoolOwner\b/);
   });
 
   it("and the attribution it claimed to carry is on the call itself", () => {
@@ -91,7 +92,7 @@ describe("HookEnvelope.replay — documented as read by the one module that neve
     // Someone taking the old sentence at its word would add a `replay` branch
     // to applyEvent and bring back the flash-then-vanish that keying on event
     // time fixed.
-    expect(src(WEB, "reducer.ts")).not.toMatch(/\.replay\b/);
+    expect(reducerSurface()).not.toMatch(/\.replay\b/);
     expect(src(WEB, "types.ts")).not.toContain("The reducer uses this to suppress turn-cleanup logic");
   });
 });

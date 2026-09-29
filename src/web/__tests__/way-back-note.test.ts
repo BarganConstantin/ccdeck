@@ -17,6 +17,9 @@ import { fileURLToPath } from "node:url";
 import { wayBackNote } from "../../server/way-back.mjs";
 
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
+const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
+// The end of the startup report, where the note is printed.
+const STARTUP = readFileSync(fileURLToPath(new URL("../../../bin/cli/startup.js", import.meta.url)), "utf8");
 
 describe("the way back", () => {
   it("names no port and no address", () => {
@@ -89,14 +92,21 @@ describe("the way back", () => {
   });
 });
 
-describe("where bin/deck.js prints it", () => {
+describe("where the deck prints it", () => {
   it("prints it on a start", () => {
-    expect(DECK).toContain("wayBackNote({");
+    expect(STARTUP).toContain("wayBackNote({");
+    // In the rows a start ends with, which deck.js prints on every start that
+    // is not a respawn.
+    expect(DECK).toContain("else reportReady({ url, persist, openBrowser, flags });");
   });
 
   it("prints it after the flag warnings, which must stay the last thing said", () => {
-    const warn = DECK.indexOf("reportIncompleteFlags(flags.incomplete)");
-    const note = DECK.indexOf("wayBackNote({");
+    // The start's own warnings, after the server row: the attach and respawn
+    // paths print them too, and neither prints the note at all.
+    const ready = STARTUP.indexOf("export function reportReady(");
+    const warn = STARTUP.indexOf("reportIncompleteFlags(flags.incomplete)", STARTUP.indexOf('label: "server ready"', ready));
+    const note = STARTUP.indexOf("wayBackNote({");
+    expect(ready).toBeGreaterThan(-1);
     expect(warn).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(warn);
   });
@@ -106,11 +116,13 @@ describe("where bin/deck.js prints it", () => {
     // it open — they have just performed the lesson. The attach branch runs
     // from `plan.act === "attach"` to the end of its own block; the note must
     // not be inside it.
-    const attach = DECK.indexOf('plan.act === "attach"');
-    const noSecond = DECK.indexOf("no second deck was started");
+    //
+    // The attach branch is bin/cli/second-start.js's now, so the whole file is
+    // held to it rather than one slice of it.
+    const attach = SECOND_START.indexOf('plan.act === "attach"');
+    const noSecond = SECOND_START.indexOf("no second deck was started");
     expect(attach).toBeGreaterThan(-1);
     expect(noSecond).toBeGreaterThan(attach);
-    const inAttach = DECK.slice(attach, noSecond);
-    expect(inAttach).not.toContain("wayBackNote");
+    expect(SECOND_START).not.toContain("wayBackNote");
   });
 });

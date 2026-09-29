@@ -19,17 +19,34 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
+import { lanSocketSurface } from "./lan-socket-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const types = read("../types.ts");
-const server = read("../../server/index.mjs");
-const quota = read("../../server/quota.mjs");
+// What the server emits: pushEvent's own events, in event-pipeline.mjs, and
+// the synthetic ones sent back through it — the transcript enrichment's, and
+// the output watch's in session-tracking.mjs.
+const server = read("../../server/index.mjs") + "\n" + read("../../server/event-pipeline.mjs")
+  + "\n" + read("../../server/session-enrichment.mjs")
+  + "\n" + read("../../server/session-tracking.mjs");
+// The OAuth body is mapped to the route's shape in quota-shape.mjs, lifted out
+// of quota.mjs with the other pure mappings.
+const quota = read("../../server/quota-shape.mjs");
 const selfUpdate = read("../../server/self-update.mjs");
-const app = read("../App.tsx");
-const panel = read("../components/UsagePanel.tsx");
+// The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.
+const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx");
+// The Claude quota section, which draws the top-up, was lifted out of UsagePanel.tsx.
+const quotaSections = read("../components/QuotaSections.tsx");
+// The quota reads, and the shapes their routes answer in, moved to use-quota.ts.
+const quotaReads = read("../use-quota.ts");
 const chip = read("../version-chip.ts");
 const sound = read("../sound.ts");
-const lanSocket = read("../../server/lan-socket.mjs");
+// The refusal map moved with the calling half to lan-call.mjs. The negative
+// reads lan-socket.mjs with every file lifted out of it — see
+// lan-socket-surface.ts.
+const lanCall = read("../../server/lan-call.mjs");
+const lanSocket = lanSocketSurface();
 
 /** The body of an interface or type alias, comments stripped. */
 function decl(source: string, name: string): string {
@@ -104,14 +121,14 @@ describe("the two lookup tables a caller can choose the key of (#1046)", () => {
     // handshake"` never fired for one — and `new Error(Object).message` is
     // "function Object() { [native code] }", which lan-engine files as
     // lastRound.error and the LAN panel prints verbatim.
-    expect(lanSocket).toMatch(/Object\.hasOwn\(REFUSALS, msg\.why\)/);
+    expect(lanCall).toMatch(/Object\.hasOwn\(REFUSALS, msg\.why\)/);
     expect(lanSocket).not.toMatch(/\}\[msg\.why\]/);
   });
 
   it("asks the same of CHIMES, whose key is hook_event_name off /api/event", () => {
     // `Record<string, Chime>` typed the read as Chime and never undefined,
     // which is what made the missing guard invisible to tsc.
-    expect(sound).toMatch(/Object\.hasOwn\(CHIMES, name\)/);
+    expect(sound).toMatch(/ownRow\(CHIMES, name\)/);
     expect(sound).not.toMatch(/const CHIMES: Record<string, Chime>/);
   });
 });
@@ -124,7 +141,9 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // cached `npm has vX` and offered no update, with the one fact that
     // explained it unread in the response.
     expect(selfUpdate).toMatch(/checkFailedAt: marker\?\.failedAt \?\? null,/);
-    expect(declares(decl(app, "VersionInfo"), "checkFailedAt")).toBe(true);
+    // VersionInfo is declared in use-version-check.ts since the check was
+    // lifted out of Inner; what matters is that the client declares the field.
+    expect(declares(decl(clientText(), "VersionInfo"), "checkFailedAt")).toBe(true);
     expect(declares(decl(chip, "VersionChipCopy"), "checkFailedAgo")).toBe(true);
     expect(chip).toMatch(/could not reach npm/);
     // And the accessible name too: the chip looks identical either way, so a
@@ -143,7 +162,7 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // this panel with a hard financial edge.
     for (const f of ["extraEnabled", "extraUsedCredits", "extraMonthlyLimit", "extraCurrency"]) {
       expect(quota, `the server no longer sends ${f}`).toContain(`result.${f}`);
-      expect(declares(decl(panel, "QuotaData"), f), `${f} is still dropped`).toBe(true);
+      expect(declares(decl(quotaReads, "QuotaData"), f), `${f} is still dropped`).toBe(true);
     }
   });
 
@@ -152,9 +171,9 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // and this deck cannot confirm whether that is currency or cents. A
     // percentage is true in any unit; a "$3.40" off an unverified scale is the
     // confidently wrong money figure this panel is careful not to produce.
-    expect(panel).toMatch(/quota\.extraUsedCredits \/ quota\.extraMonthlyLimit/);
-    expect(panel).toMatch(/Extra credits \(month/);
+    expect(quotaSections).toMatch(/quota\.extraUsedCredits \/ quota\.extraMonthlyLimit/);
+    expect(quotaSections).toMatch(/Extra credits \(month/);
     // And no bar at all when there is no denominator to measure against.
-    expect(panel).toMatch(/extra usage credits: on/);
+    expect(quotaSections).toMatch(/extra usage credits: on/);
   });
 });

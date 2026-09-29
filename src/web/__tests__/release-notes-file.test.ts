@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { compareVersions, isVersion, readNotes, RELEASE_NOTES, splitNoteTitle } from "../release-notes";
+import { sheetText } from "./sheet-source";
 
 /** A title that OPENS with an emoji, whatever comes after it — deliberately
  *  looser than splitNoteTitle's own pattern, which additionally demands the one
@@ -181,7 +182,7 @@ describe("the blank lines in a body, which are load-bearing", () => {
     // three releases shipped as one wall of text. The data and the rule that
     // makes it mean something live in different files, and nothing but this
     // connects them.
-    const css = readFileSync(at("../styles.css"), "utf8");
+    const css = sheetText();
     const rule = css.slice(css.indexOf(".release-notes .rn-note-body {"));
     expect(rule.slice(0, 1), "styles.css no longer has a .release-notes .rn-note-body rule").toBe(".");
     const body = rule.slice(0, rule.indexOf("}"));

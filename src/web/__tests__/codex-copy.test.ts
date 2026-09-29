@@ -37,12 +37,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { cliSurface } from "./cli-surface";
 import { ASSUMED, type Providers } from "../providers";
 import { captureHints } from "../provider-copy";
 import { emptyScope } from "../scope";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 // @ts-expect-error — .mjs server module, no types
-const { pulseText, unregisteredDetail } = await import("../../server/term.mjs");
+const { pulseText, unregisteredDetail } = await import("../../server/pulse-line.mjs");
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -58,7 +60,11 @@ function codeOf(text: string): string {
     .join("\n");
 }
 
-const appCode = codeOf(read("src", "web", "App.tsx"));
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx and its readouts to
+// components/TopbarReadouts.tsx; App.tsx and they are read as one.
+const readoutsCode = codeOf(read("src", "web", "components", "TopbarReadouts.tsx"));
+const appCode = codeOf(read("src", "web", "App.tsx")) + "\n" + codeOf(read("src", "web", "components", "TopbarRuns.tsx"))
+  + "\n" + readoutsCode;
 const nodeCode = codeOf(read("src", "web", "components", "AgentNode.tsx"));
 const deckCode = codeOf(read("bin", "deck.js"));
 const readme = read("README.md");
@@ -143,16 +149,18 @@ describe("the topbar readouts", () => {
   // — a button in the run to the right opens the panel — and still the kind of
   // text #404 was about: a product name in "load 6.38 · 8.03" would be exactly
   // as wrong there as it was in the counters.
-  const strip = appCode.slice(
-    appCode.indexOf(`<span className="status">`),
-    appCode.indexOf(`<div className="vis-hidden"`),
-  );
+  // The strip is components/TopbarReadouts.tsx's; it ends where the next
+  // component there starts.
+  const stripAt = readoutsCode.indexOf(`<span className="status">`);
+  const stripEnd = readoutsCode.indexOf("export function", stripAt);
+  const strip = stripAt === -1 ? "" : readoutsCode.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
   const readouts = strip
     + codeOf(read("src", "web", "status-pill.ts"))
-    + codeOf(read("src", "web", "components", "MachinePanel.tsx"));
+    // The machine panel as a whole: the component and every file lifted out of it.
+    + codeOf(machinePanelSurface());
 
   it("still has a strip with tooltipped readouts in it, so this block is not vacuous", () => {
-    expect(strip, "the .status strip is gone from App.tsx entirely").toBeTruthy();
+    expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
     expect(strip, "the pill left the strip").toContain("title={pill.title}");
     expect(appCode, "nothing in the bar opens the machine panel any more")
       .toContain('aria-label="Toggle machine detail"');
@@ -220,7 +228,7 @@ describe("the one-time report that a deck could not register", () => {
     // The dash travels with it now, so this console can render it (#797).
     expect(deckCode).toContain("unregisteredDetail({ file, claude: wantClaude, dash: G.dash })");
     expect(deckCode).toContain("claude: wantClaude");
-    expect(deckCode).not.toContain("hooks find this deck through");
+    expect(codeOf(cliSurface())).not.toContain("hooks find this deck through");
   });
 });
 
@@ -238,7 +246,8 @@ describe("the README tagline, which is the npm page", () => {
     // codexObjToPayload emits six event kinds and neither SubagentStart nor
     // SubagentStop, so a Codex session is a root and its tools — never a tree.
     expect(readme).not.toContain("OpenAI Codex fork subagents");
-    const server = read("src", "server", "index.mjs");
+    // The translation's own module, which is where the function is declared.
+    const server = read("src", "server", "codex-translate.mjs");
     // Both lookups are the assertion, not preparation for it (#652). `slice()`
     // on a -1 answers the LAST CHARACTER rather than nothing, and the inner
     // indexOf on that one character is -1 again, so `slice(0, -1)` is the empty
@@ -247,7 +256,7 @@ describe("the README tagline, which is the npm page", () => {
     // this line will ever see — left all 18 cases in this file green while the
     // sentence they are here to keep honest was being read from "".
     const start = server.indexOf("export function codexObjToPayload");
-    expect(start, "src/server/index.mjs no longer declares `export function codexObjToPayload` — the check below would be reading the empty string")
+    expect(start, "src/server/codex-translate.mjs no longer declares `export function codexObjToPayload` — the check below would be reading the empty string")
       .toBeGreaterThan(-1);
     const payload = server.slice(start);
     const end = payload.indexOf("\n}\n");

@@ -8,6 +8,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { clientText, sourceOf } from "./client-source";
+import { claudeFmSurface } from "./claude-fm-surface";
 import {
   CLAUDE_FM_CHANNEL, CACHE_MS, MISS_CACHE_MS, READ_LIMIT,
   fetchClaudeFm, forgetClaudeFm, FORCE_POLL_MS, isChannelId, liveUrl,
@@ -15,17 +17,26 @@ import {
 } from "../../server/claude-fm.mjs";
 import {
   command, embedSrc, FATAL_ERRORS, STOPPED_STATES,
-  listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
-  SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  listenCommand, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
+} from "../claude-fm-player";
+import {
+  HAT, HAT_X, HAT_Y, LEG_TOP_ROW, PROP_ART, SPRITE, SPRITE_H, SPRITE_W, spriteRects,
+} from "../claude-fm-sprite";
+import {
+  nextIdleMs, nextWalk,
+  ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps, fishSteps, skipSteps, SKIP_BEAT_MS, ballRollTo,
   STOOP_MS, TOSS_MS,
-  tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
-  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
-  facingFor, isFocused, LEG_TOP_ROW, MOVING_ACTS, nextDance, nextDanceMs,
+  tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps,
+  FOCUS_ACTS,
+  facingFor, isFocused, MOVING_ACTS,
   type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
+import {
+  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
+} from "../claude-fm-dance";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -36,15 +47,26 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
  *  The comment that names a thing to rule it out would otherwise fail the test
  *  that rules it out — the trap card-focus-ring-869 already strips the sheet
  *  for, here for TypeScript as well. */
-const code = (rel: string) => read(rel)
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  .replace(/^\s*\/\/.*$/gm, "");
+const code = (rel: string) => withoutProse(read(rel));
+function withoutProse(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
 
-const css = code("../styles.css");
-const component = code("../components/ClaudeFm.tsx");
+const css = withoutProse(sheetText());
+// The component and the files lifted out of it (the player is use-fm-player.ts,
+// the character's errands use-fm-scene.ts, its drawing components/FmSprite.tsx),
+// read as one, so a negative asked of "the component" still sees all of it.
+const component = withoutProse(claudeFmSurface());
 const probeSrc = code("../../server/claude-fm.mjs");
 const server = code("../../server/index.mjs");
+// The route's own module, since the music routes left index.mjs. The route
+// table stays in index.mjs, so a count of callers reads both.
+const routes = code("../../server/music-routes.mjs");
 const app = code("../App.tsx");
+// Where the player is mounted, inside <ReactFlow>, since that left App.tsx's markup.
+const board = code("../components/BoardFlow.tsx");
 
 /** A page shaped like the one YouTube serves for `/channel/<id>/live`. */
 const livePage = (video = "tRsQsTMvPNg", pad = 0) =>
@@ -232,7 +254,7 @@ describe("the embed", () => {
   });
 
   it("loads no third-party script to do it", () => {
-    for (const src2 of [component, code("../claude-fm.ts")]) {
+    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-dance.ts"), code("../claude-fm-player.ts"), code("../claude-fm-sprite.ts")]) {
       expect(src2).not.toContain("iframe_api");
       expect(src2).not.toContain("<script");
     }
@@ -354,13 +376,20 @@ describe("the deck's own sound plays over the music", () => {
   });
 
   it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
-    expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
-    expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
-    expect(app).toContain("<ClaudeFm");
-    expect(app).toContain("volume={fmVolume}");
-    expect(app).toContain("muted={fmMuted}");
-    expect(app).toContain("source={fmSource}");
-    expect(app).not.toMatch(/duck/i);
+    // Played by the stream, in use-event-stream.ts, which moved out of App.tsx.
+    expect(code("../use-event-stream.ts")).toContain("if (chime) chimesRef.current?.play(chime);");
+    // The audition moved with the tone settings into use-tone-prefs.ts.
+    expect(clientText()).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
+    // App.tsx hands BoardFlow the settings whole, and BoardFlow mounts the player.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bfm=\{fm\}/);
+    expect(board).toContain("<ClaudeFm");
+    expect(board).toContain("volume={fmVolume}");
+    expect(board).toContain("muted={fmMuted}");
+    expect(board).toContain("source={fmSource}");
+    expect(app + "\n" + board).not.toMatch(/duck/i);
+    // …and not in the hook that now plays the audition either. Named rather than
+    // widened to the whole client, because claude-fm.ts may say "duck" legitimately.
+    expect(sourceOf("use-tone-prefs.ts")).not.toMatch(/duck/i);
   });
 });
 
@@ -390,12 +419,22 @@ describe("absent, not broken", () => {
     expect(component).toMatch(/if \(!next\) setArmed\(false\);/);
   });
 
-  it("caches pixel geometry outside the memoized component", () => {
-    const start = component.indexOf('export default memo(');
-    expect(start).toBeGreaterThan(0);
-    expect(component.indexOf('const TORSO_RECTS')).toBeLessThan(start);
-    expect(component.indexOf('const PROP_PIXELS')).toBeLessThan(start);
-    expect(component.slice(start)).not.toContain('spriteRects(');
+  it("caches pixel geometry outside the memoized components", () => {
+    // Per file, because the geometry lives beside what draws it: the
+    // character's rects in FmSprite.tsx, the props' pixels in ClaudeFm.tsx. Each
+    // is worked out at module scope, ahead of the memoized component, and no
+    // component body walks a grid.
+    for (const [file, cached] of [
+      ["../components/ClaudeFm.tsx", "const PROP_PIXELS"],
+      ["../components/FmSprite.tsx", "const TORSO_RECTS"],
+    ] as const) {
+      const src = code(file);
+      const start = src.indexOf('export default memo(');
+      expect(start, file).toBeGreaterThan(0);
+      expect(src.indexOf(cached), `${file} has no ${cached}`).toBeGreaterThan(-1);
+      expect(src.indexOf(cached), `${file}: ${cached} is inside the component`).toBeLessThan(start);
+      expect(src.slice(start), file).not.toContain('spriteRects(');
+    }
   });
 
   it("pauses scene timers and visual animations without stopping music", () => {
@@ -408,20 +447,20 @@ describe("absent, not broken", () => {
   });
 
   it("lets a deck refuse to contact YouTube at all", () => {
-    expect(server).toContain('process.env.AGENTS_DECK_NO_MUSIC === "1"');
+    expect(routes).toContain('process.env.AGENTS_DECK_NO_MUSIC === "1"');
     // The off switch answers the same shape an off-air channel does, so it
     // needs no second code path on the canvas.
-    expect(server).toContain("{ ok: true, live: false, off: true }");
+    expect(routes).toContain("{ ok: true, live: false, off: true }");
   });
 
   it("can be pointed at another channel without a release", () => {
-    expect(server).toContain("process.env.AGENTS_DECK_FM_CHANNEL");
+    expect(routes).toContain("process.env.AGENTS_DECK_FM_CHANNEL");
   });
 
   it("makes no request of its own accord", () => {
     // No boot probe and no timer: a deck nobody has opened calls youtube.com
     // zero times. The route is the only caller.
-    expect(server.match(/fetchClaudeFm\(/g) ?? []).toHaveLength(1);
+    expect((server + routes).match(/fetchClaudeFm\(/g) ?? []).toHaveLength(1);
     expect(probeSrc).not.toMatch(/setInterval|setTimeout\(/);
   });
 
@@ -758,7 +797,7 @@ describe("the character", () => {
     // The player is a cross-origin iframe: the page cannot reach its audio
     // element, and a tainted source hands an analyser silence. Anything here
     // claiming to react to sound would be a lie told with a timer.
-    for (const src2 of [component, code("../claude-fm.ts")]) {
+    for (const src2 of [component, code("../claude-fm.ts"), code("../claude-fm-dance.ts"), code("../claude-fm-player.ts"), code("../claude-fm-sprite.ts")]) {
       expect(src2).not.toMatch(/AnalyserNode|createMediaElementSource|getByteFrequency|getDisplayMedia/);
     }
   });

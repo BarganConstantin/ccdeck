@@ -21,9 +21,10 @@ import { withoutComments } from "./tsx-scan";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 /** The sheet with its prose removed, for the same reason `literals` below keeps
  *  only quoted spans: a property NAMED in a comment — `repeat(var(--n), 1fr)`
  *  in the note explaining why the core strip stopped using one — is prose about
@@ -58,8 +59,8 @@ const declared = new Set([...rules.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
 const namedInJs = new Set([...tsx.matchAll(/"(--[\w-]+)"/g)].map(m => m[1]));
 const readInCss = new Set([...rules.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 /** Off the CODE, not the prose. usage-agents.ts explains its palette as "five
- *  `var(--usage-…)` names", and read raw that sentence is a component reading a
- *  property called `--usage-`. The same rule the stylesheet is held to above:
+ *  `var(--model-…)` names", and read raw that sentence is a component reading a
+ *  property called `--model-`. The same rule the stylesheet is held to above:
  *  a comment about a rule is not a rule. */
 const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 

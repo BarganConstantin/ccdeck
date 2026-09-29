@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, exportFailure, checkImports, checkImportResults, markUnreadable, importOutcomes, landed, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
-import { createVerdictQueue } from "../../server/claude-accounts.mjs";
+import { createVerdictQueue } from "../../server/claude-verdicts.mjs";
 
 describe("fresh import verdicts", () => {
   it("starts idle collection synchronously and recovers after a start error", async () => {
@@ -63,11 +63,11 @@ describe("sender readiness mapping", () => {
   });
 });
 // @ts-expect-error — plain JS module, no types
-import { createVerdictQueue } from "../../server/claude-accounts.mjs";
+import { createVerdictQueue } from "../../server/claude-verdicts.mjs";
 // @ts-expect-error — plain JS module, no types
-import { looksMissing } from "../../server/exec.mjs";
+import { lineFeed, looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
-import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
+import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-layout.mjs";
 
 describe("post-write verdicts", () => {
   it("starts idle collection synchronously and recovers after a start error", async () => {
@@ -245,7 +245,9 @@ const fakeLogin = vi.hoisted(() => {
   function spawn() {
     let settle!: (r: any) => void;
     const subs: Sub[] = [];
-    let pending = "";
+    // The real runInteractive's own cutter, not a copy of its rule — see
+    // exec-line-feed.test.ts.
+    const lines = lineFeed(subs);
     const child = {
       done: new Promise((r) => { settle = r; }),
       killed: false,
@@ -254,21 +256,12 @@ const fakeLogin = vi.hoisted(() => {
       write(text: string) { child.written.push(text); },
       kill() { child.killed = true; },
       /**
-       * Bytes out of the CLI, cut into lines exactly the way exec.mjs cuts
-       * them — complete lines once, then the still-unterminated tail on every
-       * chunk, which is what makes a prompt without a newline arrive again and
-       * again as it grows.
+       * Bytes out of the CLI, cut into lines by exec.mjs's lineFeed — complete
+       * lines once, then the still-unterminated tail on every chunk, which is
+       * what makes a prompt without a newline arrive again and again as it
+       * grows.
        */
-      out(text: string) {
-        pending += text;
-        let nl;
-        while ((nl = pending.indexOf("\n")) !== -1) {
-          const line = pending.slice(0, nl).replace(/\r$/, "");
-          pending = pending.slice(nl + 1);
-          for (const cb of subs) cb(line, false);
-        }
-        if (pending) for (const cb of subs) cb(pending, true);
-      },
+      out(text: string) { lines.push(text); },
       /** What the CLI writes, as a finished line. */
       say(line: string) { child.out(line + "\n"); },
       /** How the CLI ends. */

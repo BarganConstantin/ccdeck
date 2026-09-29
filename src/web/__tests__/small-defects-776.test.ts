@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 // @ts-expect-error — .mjs server module, no types
-const { cooldownFromHeader } = await import("../../server/quota.mjs");
+const { cooldownFromHeader } = await import("../../server/quota-oauth.mjs");
 
 describe("a retry-after the deck can live with", () => {
   it("refuses to be told to stop backing off", () => {
@@ -45,7 +45,7 @@ describe("reading a child's output", () => {
     // falls wherever the pipe broke — measured on `ps` as 8192/8192/5718 — so a
     // multi-byte character split across two of them became two replacement
     // characters: `Яндекс Музыка` rendered as `Ян��екс Музыка`.
-    const metrics = read("../../server/system-metrics.mjs");
+    const metrics = read("../../server/metrics-run.mjs");
     expect(metrics).toContain('child.stdout?.setEncoding?.("utf8");');
     const exec = read("../../server/exec.mjs");
     // The optional CALL, not just the optional chain: a test double's stream
@@ -57,9 +57,9 @@ describe("reading a child's output", () => {
 
   it("does not open a stderr pipe nobody drains", () => {
     // A pipe nobody reads fills at 64 KB and the writer blocks there until the
-    // deadline kills it. system-metrics' `run` resolves on stdout or null and
-    // has never looked at stderr.
-    const metrics = read("../../server/system-metrics.mjs");
+    // deadline kills it. The Machine panel's `run` (metrics-run.mjs) resolves
+    // on stdout or null and has never looked at stderr.
+    const metrics = read("../../server/metrics-run.mjs");
     expect(metrics).toContain('stdio: ["ignore", "pipe", "ignore"],');
   });
 
@@ -79,7 +79,7 @@ describe("what an upgrade failure says", () => {
     // code, and the close handler replaced "spawn npm ENOENT" with
     // "npm exited -2" — the one message that says what is wrong, overwritten by
     // the one that does not.
-    expect(read("../../server/self-update.mjs")).toContain('} else if (!timedOut && _upgrade?.state !== "failed") {');
+    expect(read("../../server/npm-upgrade.mjs")).toContain('} else if (!timedOut && _upgrade?.state !== "failed") {');
   });
 });
 
@@ -88,9 +88,20 @@ describe("the once-a-day version check", () => {
     // Stamped first, a boot with no network — a laptop opened on a train —
     // burned the whole shared 24-hour window on a check that never reached
     // PyPI, and the next real chance was the day after.
+    //
+    // Both anchors are required to be there. #1061 renamed latestOnPypi to
+    // newestAcceptableOnPypi, and this line went on asking for the old name:
+    // indexOf answered -1, which is less than any position, so it passed
+    // whatever order the two calls were in.
     const src = read("../../server/cswap-install.mjs");
-    const check = src.slice(src.indexOf("if (!updateCheckDue()) return { state: \"present\""));
-    expect(check.indexOf("await latestOnPypi()")).toBeLessThan(check.indexOf("touchMarker()"));
+    const at = src.indexOf("if (!updateCheckDue()) return { state: \"present\"");
+    expect(at, "the daily check's guard is gone or renamed").toBeGreaterThan(-1);
+    const check = src.slice(at);
+    const asked = check.indexOf("await newestAcceptableOnPypi()");
+    const stamped = check.indexOf("touchMarker()");
+    expect(asked, "the daily check no longer asks PyPI").toBeGreaterThan(-1);
+    expect(stamped, "the daily check no longer stamps its marker").toBeGreaterThan(-1);
+    expect(asked).toBeLessThan(stamped);
   });
 });
 
@@ -99,15 +110,18 @@ describe("the tool sparkline's tooltip", () => {
     // `max` is floored at 1 so an empty spark can be drawn; the peak is a
     // measurement, and the floor made an idle card read
     // "0 tool calls in last 60s · peak 0.4/s".
+    // The counting is tool-spark.ts's, lifted out of the card; the negative
+    // below holds the card and it together.
     const node = read("../components/AgentNode.tsx");
-    expect(node).toContain("const observedPeak = Math.max(0, ...counts);");
-    expect(node).toContain("const peakRate = observedPeak / (BUCKET_MS / 1000);");
+    const spark = read("../tool-spark.ts");
+    expect(spark).toContain("const observedPeak = Math.max(0, ...counts);");
+    expect(spark).toContain("const peakRate = observedPeak / (BUCKET_MS / 1000);");
     // The wording moved off "tool calls" when the chart stopped counting only
     // those: it marks a completed block of the model's own output too, so a
     // minute of thinking is no longer drawn as a flat line. What this test is
     // about is unchanged — an empty window still reports no peak, because a
     // floor talking is worse than a chart saying nothing.
-    expect(node).toContain('? "nothing in the last 60s"');
-    expect(node).not.toMatch(/peak[^"]*"\s*:\s*`?\$\{?0/);
+    expect(spark).toContain('? "nothing in the last 60s"');
+    expect(node + "\n" + spark).not.toMatch(/peak[^"]*"\s*:\s*`?\$\{?0/);
   });
 });

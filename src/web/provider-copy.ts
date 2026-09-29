@@ -24,6 +24,7 @@
 // that matters most is the one nobody exercises by hand — a Codex-only machine.
 import type { Providers } from "./providers";
 import { clampLevel, DEFAULT_PREFS, type TonePrefs } from "./sound";
+import { ownRow } from "./own-row";
 
 /**
  * The CLIs this deck watches, named for the middle of a sentence.
@@ -72,12 +73,13 @@ const AGENT_NAMES: Record<string, string> = {
  *  rather than passed through raw, so a CLI added to ccusage after this build
  *  still reads as a product name; an empty id comes back empty.
  *
- *  `hasOwn` rather than truthiness (#474). The id is whatever ccusage put in its
+ *  An own row (ownRow) rather than truthiness (#474). The id is whatever ccusage put in its
  *  JSON, and an inherited member is truthy: `AGENT_NAMES["constructor"]` is a
  *  function, which would be printed beside a dollar figure instead of a name. */
 export function agentLabel(id: string): string {
   const key = id.toLowerCase();
-  if (Object.hasOwn(AGENT_NAMES, key)) return AGENT_NAMES[key];
+  const own = ownRow(AGENT_NAMES, key);
+  if (own !== undefined) return own;
   return key ? key[0].toUpperCase() + key.slice(1) : "";
 }
 

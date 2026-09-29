@@ -1,9 +1,11 @@
 // The network section's readings, as pure functions of what the platform prints.
 //
 // Everything here is text in, numbers out, so a Linux answer can be checked from
-// a Mac and a Windows one from either — the same reason every parser in
-// system-metrics.mjs is exported and pure. The sampler that runs the commands,
-// times the connection and keeps the history lives there; this file only reads.
+// a Mac and a Windows one from either — the same reason every parser the
+// Machine panel reads with (process-list.mjs, thermal-metrics.mjs,
+// memory-metrics.mjs) is exported and pure. The sampler that runs the commands
+// and times the connection lives in network-sampler.mjs, and the history it
+// records into in metrics-history.mjs; this file only reads.
 //
 // THREE READINGS, AND WHY THESE THREE (#network). The first build of this idea
 // was a speed test, and a speed test is the wrong instrument twice over: it

@@ -19,8 +19,9 @@
 import { describe, it, expect } from "vitest";
 
 // @ts-expect-error — a plain .mjs module, no types
-const { pulseMoves, pulseDot, pulseText, elapsedSuffix, SPINNER_ELAPSED_AFTER_MS } =
-  await import("../../server/term.mjs");
+const { pulseMoves, pulseDot, pulseText } = await import("../../server/pulse-line.mjs");
+// @ts-expect-error — a plain .mjs module, no types
+const { elapsedSuffix, SPINNER_ELAPSED_AFTER_MS } = await import("../../server/term.mjs");
 
 describe("when the pulse is allowed to move", () => {
   it("does not, on a deck that is up and has nothing outstanding", () => {

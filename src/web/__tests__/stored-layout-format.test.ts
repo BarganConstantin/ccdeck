@@ -36,6 +36,9 @@ describe("parseStoredLayout", () => {
     const restored = restoreLayout(out);
     expect([...restored.positions.keys()]).toEqual(["a", "b"]);
     expect([...restored.pinned]).toEqual([["b", { x: 3, y: 4 }]]);
+    // Every card that came back with a place, pinned or not, is held to it until
+    // the board it was saved on is back (#1333).
+    expect([...restored.restored]).toEqual(["a", "b"]);
   });
 
   it("drops the v2 entries that are not points", () => {
@@ -96,16 +99,18 @@ describe("parseLayoutFrame", () => {
 });
 
 describe("App.tsx", () => {
+  // The storage half moved to layout-storage.ts, which App.tsx imports.
+  const storage = readFileSync(fileURLToPath(new URL("../layout-storage.ts", import.meta.url)), "utf8");
   const body = (name: string) => {
-    const start = app.indexOf(`function ${name}(`);
-    expect(start, `${name} is gone from App.tsx`).toBeGreaterThan(-1);
-    return app.slice(start, app.indexOf("\n}\n", start));
+    const start = storage.indexOf(`function ${name}(`);
+    expect(start, `${name} is gone from layout-storage.ts`).toBeGreaterThan(-1);
+    return storage.slice(start, storage.indexOf("\n}\n", start));
   };
 
   it("reads and writes the layout key through the format above", () => {
-    expect(body("loadLayout")).toContain("parseStoredLayout(window.localStorage.getItem(LAYOUT_STORAGE_KEY))");
+    expect(body("loadLayout")).toContain("parseStoredLayout(readStored(LAYOUT_STORAGE_KEY))");
     expect(body("saveLayout")).toContain("serializeLayout(positions, pinned)");
-    expect(body("loadLayoutFrame")).toContain("parseLayoutFrame(window.localStorage.getItem(LAYOUT_FRAME_KEY))");
+    expect(body("loadLayoutFrame")).toContain("parseLayoutFrame(readStored(LAYOUT_FRAME_KEY))");
     // And does not parse or build either value a second way beside it.
     for (const name of ["loadLayout", "saveLayout", "loadLayoutFrame"]) {
       expect(body(name), name).not.toMatch(/JSON\.(parse|stringify)/);

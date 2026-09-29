@@ -65,6 +65,24 @@ const codeOf = (text: string) =>
 
 const app = read("../App.tsx");
 const appCode = codeOf(app);
+/** The topbar's readout group — the strip, the region, the waiting chip and the
+ *  notification acknowledgement — which App.tsx mounts from
+ *  components/TopbarReadouts.tsx; the topbar is the two read as one. */
+const readoutsCode = codeOf(read("../components/TopbarReadouts.tsx"));
+const topbarCode = appCode + "\n" + readoutsCode;
+/** The announcement's surface: App.tsx, the readout group that mounts the region,
+ *  and the hook that decides what it says. Not the whole client —
+ *  block-announce.ts builds the sentence on purpose, so a negative asked of it
+ *  would fail for the right code. */
+const surfaceCode = codeOf(app + "\n" + read("../use-live-announcements.ts")) + "\n" + readoutsCode;
+/** The readout group alone: from its declaration to the next function, or to
+ *  the end of the file, where it is now. */
+const groupCode = (() => {
+  const opens = readoutsCode.indexOf("export function ReadoutGroup(");
+  if (opens === -1) return "";
+  const next = readoutsCode.indexOf("export function", opens + 1);
+  return readoutsCode.slice(opens, next === -1 ? undefined : next);
+})();
 
 /** A blocked session as far as the wording is concerned. */
 const at = (label: string) => ({ label });
@@ -202,10 +220,12 @@ describe("the quietness", () => {
 
 describe("the stat strip is not a live region any more", () => {
   /** The opening tag of the element carrying `className="status"`. */
-  const stripTag = /<span className="status"[^>]*>/.exec(appCode)?.[0];
+  const stripTag = /<span className="status"[^>]*>/.exec(readoutsCode)?.[0];
 
   it("still renders the strip, so this file is not asserting over a deletion", () => {
-    expect(stripTag, "the .status strip is gone from App.tsx entirely").toBeTruthy();
+    expect(stripTag, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
+    expect(groupCode, "the readout group stopped mounting the strip").toContain("<StatusStrip");
+    expect(appCode, "App.tsx stopped mounting the readout group").toContain("<ReadoutGroup");
   });
 
   it("carries no role and no aria-live at all", () => {
@@ -214,7 +234,7 @@ describe("the stat strip is not a live region any more", () => {
     // it stops doing is reading itself out, unasked, once per hook event.
     expect(stripTag).not.toMatch(/\brole=/);
     expect(stripTag).not.toMatch(/\baria-live=/);
-    expect(appCode).not.toContain(`<span className="status" role="status">`);
+    expect(topbarCode).not.toContain(`<span className="status" role="status">`);
   });
 
   it("still holds a readout that changes on its own, so the rule above is not vacuous", () => {
@@ -243,23 +263,25 @@ describe("the stat strip is not a live region any more", () => {
     // goes. A live region around the strip would read that flap out loud, every
     // time, over whatever the user was actually doing — the same defect the
     // counters caused, from content nobody would call a stream of digits.
-    const stripSrc = appCode.slice(
-      appCode.indexOf(`<span className="status">`),
-      appCode.indexOf(`<div className="vis-hidden"`),
-    );
+    const opens = readoutsCode.indexOf(`<span className="status">`);
+    expect(opens, "the strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
+    const next = readoutsCode.indexOf("export function", opens);
+    const stripSrc = readoutsCode.slice(opens, next === -1 ? undefined : next);
     expect(stripSrc, "the strip lost the readout that changes").toContain("title={pill.title}");
     expect(stripSrc, "the pill stopped carrying the tone that makes it appear")
       .toMatch(/className=\{`pill \$\{pill\.tone\}`\}/);
-    expect(appCode, "the pill stopped being built from the connection state")
+    expect(readoutsCode, "the pill stopped being built from the connection state")
       .toMatch(/statusPill\(\{\s*connected: live, paused,/);
   });
 });
 
 describe("the block is announced, and the region is always there to announce it", () => {
   it("renders a visually hidden polite region carrying the sentence", () => {
-    expect(appCode).toContain(
+    // In the readout group, which App.tsx mounts and hands the announcements whole.
+    expect(groupCode).toContain(
       `<div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>`,
     );
+    expect(appCode).toMatch(/<ReadoutGroup\b[^>]*\bannouncements=\{announcements\}/);
   });
 
   it("mounts it unconditionally, ahead of the chip that comes and goes", () => {
@@ -270,8 +292,10 @@ describe("the block is announced, and the region is always there to announce it"
     // put the region and its first words on screen together, on the one
     // announcement that matters. It would also take the region away with the
     // chip, leaving nothing mounted to say the block had cleared.
-    const region = appCode.indexOf(`<div className="vis-hidden" role="status"`);
-    const guard = appCode.indexOf("{waitingSessions.length > 0 && (");
+    // Both are in the readout group now (components/TopbarReadouts.tsx).
+    expect(groupCode, "the readout group is gone from components/TopbarReadouts.tsx").not.toBe("");
+    const region = groupCode.indexOf(`<div className="vis-hidden" role="status"`);
+    const guard = groupCode.indexOf("{waitingSessions.length > 0 && (");
     expect(region).toBeGreaterThan(-1);
     expect(guard).toBeGreaterThan(-1);
     expect(region, "the live region is inside the chip's conditional").toBeLessThan(guard);
@@ -281,9 +305,9 @@ describe("the block is announced, and the region is always there to announce it"
     // The whole element, not just its opening tag: an arrow function in an
     // `onClick` carries a `>` of its own, so a regex ending at the first one
     // reads about a quarter of the attributes and passes for the rest.
-    const opens = appCode.indexOf(`className="waiting-stat"`);
-    expect(opens, "the waiting chip is gone from App.tsx").toBeGreaterThan(-1);
-    const chip = appCode.slice(opens, appCode.indexOf("</button>", opens));
+    const opens = readoutsCode.indexOf(`className="waiting-stat"`);
+    expect(opens, "the waiting chip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
+    const chip = readoutsCode.slice(opens, readoutsCode.indexOf("</button>", opens));
     expect(chip).not.toMatch(/\brole=/);
     expect(chip).not.toMatch(/\baria-live=/);
     // The name it already had is the one thing here that was right, and it stays.
@@ -298,9 +322,18 @@ describe("the block is announced, and the region is always there to announce it"
     // arriving one utterance later costs nothing, and assertive would talk over
     // the screen reader's own announcement of a page that replays an existing
     // block during mount.
-    expect(appCode).toContain(`<div className="conn-banner" role="alert">`);
-    expect(appCode).not.toMatch(/waiting[^\n]*role="alert"/);
-    expect(appCode).not.toMatch(/role="alert"[^\n]*waiting/);
+    // The banner's markup lives in components/ConnectionBanner.tsx, which
+    // components/DeckBanner.tsx mounts and App.tsx mounts in turn, and the
+    // waiting chip and its region are in components/TopbarReadouts.tsx, so the
+    // negatives read all four.
+    const banner = codeOf(read("../components/ConnectionBanner.tsx"));
+    const strip = codeOf(read("../components/DeckBanner.tsx"));
+    expect(banner).toContain(`<div className="conn-banner" role="alert">`);
+    expect(appCode).toContain("<DeckBanner");
+    expect(strip).toContain("<ConnectionBanner ");
+    const topbar = appCode + "\n" + strip + "\n" + banner + "\n" + readoutsCode;
+    expect(topbar).not.toMatch(/waiting[^\n]*role="alert"/);
+    expect(topbar).not.toMatch(/role="alert"[^\n]*waiting/);
   });
 
   it("computes both halves through the shared module, not inline", () => {
@@ -308,11 +341,11 @@ describe("the block is announced, and the region is always there to announce it"
     // a rule this suite cannot call, and what cannot be called gets copied and
     // then drifts. Every case in group 1 above exercises the definition, so the
     // definition has to be the thing App.tsx runs.
-    expect(appCode).toContain("blockedAnnouncement(waitingSessions)");
-    expect(appCode).toContain("nextAnnouncement(said, blockedNow)");
+    expect(surfaceCode).toContain("blockedAnnouncement(waitingSessions)");
+    expect(surfaceCode).toContain("nextAnnouncement(said, blockedNow)");
     // And no second copy of the wording anywhere in the component.
-    expect(appCode).not.toContain("waiting for your permission");
-    expect(appCode).not.toContain("No sessions are waiting");
+    expect(surfaceCode).not.toContain("waiting for your permission");
+    expect(surfaceCode).not.toContain("No sessions are waiting");
   });
 
   it("keys the effect on the sentence rather than on the session list", () => {
@@ -320,7 +353,7 @@ describe("the block is announced, and the region is always there to announce it"
     // list-shaped dependency re-runs this through every tool storm to discover
     // each time that nothing changed. A string dependency runs it only when the
     // words move.
-    expect(appCode).toMatch(/setBlockedSaid\(said => nextAnnouncement\(said, blockedNow\)\);\s*\n\s*\}, \[blockedNow\]\);/);
+    expect(surfaceCode).toMatch(/setBlockedSaid\(said => nextAnnouncement\(said, blockedNow\)\);\s*\n\s*\}, \[blockedNow\]\);/);
   });
 });
 

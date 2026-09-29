@@ -1,8 +1,8 @@
-import { type CSSProperties, type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
-import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
+import VolumeRow from "./VolumeRow";
 import { FM_SOURCE_OPTIONS } from "../appearance";
 import {
   STATION_NAME_MAX, STATION_URL_MAX, customFmId, customFmSelection, fmUnavailableNote, newCustomFmStation,
@@ -522,29 +522,18 @@ export default function AppearanceMenu({
               Shows the animated minimap character and enables music playback.
             </span>
           </label>
-        {/* The sound menu's own slider row, borrowed rather than respelled:
-            .sm-row and .sm-read are already the sheet's shape for "a level
-            with a reading", and the range stays native for the reasons
-            SoundMenu.tsx argues. It lives OUTSIDE the theme radiogroup on
-            purpose — the arrow keys that walk the themes are handled on that
-            group's own onKeyDown, and a slider's arrows belong to the slider. */}
-          <div className="sm-row">
-            <label htmlFor="appearance-fm-volume">Volume</label>
-            <input
-              id="appearance-fm-volume"
-              type="range"
-              min={LEVEL_MIN}
-              max={LEVEL_MAX}
-              step={LEVEL_STEP}
-              value={fmVolume}
-              aria-describedby="appearance-fm-volume-note"
-              onChange={e => onFmVolume(Number(e.target.value))}
-              /* The filled half, read off the same render that sets `value` —
-                 the pattern SoundMenu.tsx's slider comments spell out. */
-              style={{ "--sm-level": `${((fmVolume - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
-            />
-            <span className="sm-read">{fmVolume}%</span>
-          </div>
+        {/* The sound menu's own volume row, borrowed rather than respelled:
+            VolumeRow is what each tone's section draws, and the range in it
+            stays native for the reasons that file argues. It lives OUTSIDE the
+            theme radiogroup on purpose — the arrow keys that walk the themes
+            are handled on that group's own onKeyDown, and a slider's arrows
+            belong to the slider. */}
+          <VolumeRow
+            id="appearance-fm-volume"
+            value={fmVolume}
+            aria-describedby="appearance-fm-volume-note"
+            onLevel={onFmVolume}
+          />
           <label className="appearance-row">
             <span className="appearance-row-label" id="appearance-fm-mute-label">Mute music</span>
             <button

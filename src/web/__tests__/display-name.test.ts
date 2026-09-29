@@ -29,7 +29,8 @@ import { PRODUCT } from "../brand";
 import { ambientSignal } from "../ambient";
 import { SCHEMA_KEY, SHAPE_KEYS } from "../storage";
 import { PRODUCT as SERVER_PRODUCT } from "../../server/brand.mjs";
-import { wordmark } from "../../server/term.mjs";
+import { wordmark } from "../../server/wordmark.mjs";
+import { cliSurface } from "./cli-surface";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
@@ -140,7 +141,9 @@ describe("the boundary the rename must not cross", () => {
     // being appended to a file nothing reads.
     expect(read("hook", "hook.js")).toContain(`path.join(CLAUDE_DIR, "agent-dag")`);
     expect(read("src", "server", "installer.mjs")).toContain(`join(CLAUDE_DIR, "agent-dag")`);
-    expect(read("src", "server", "index.mjs")).toContain(`join(claudeConfigDir(), "agent-dag")`);
+    expect(read("src", "server", "discovery.mjs")).toContain(`join(CLAUDE_DIR, "agent-dag")`);
+    // The deck's own read of that directory is the boot sweep, in stale-discovery.mjs.
+    expect(read("src", "server", "stale-discovery.mjs")).toContain(`join(claudeConfigDir(), "agent-dag")`);
     // THE LOG IS THE ONE THING THAT LEFT, and the discovery directory above is
     // why it could. The hook does not write events.jsonl — it POSTs to a deck
     // and the deck writes — so what it needs from that directory is the
@@ -154,10 +157,10 @@ describe("the boundary the rename must not cross", () => {
     // ~/.agents-deck holds the update markers, the ccusage install and the
     // cswap state. A new root re-triggers every install and re-arms every
     // once-an-hour check on the first run after the upgrade.
-    for (const file of ["self-update.mjs", "cswap-install.mjs", "cswap-auto.mjs", "retire-sound-hook.mjs"]) {
+    for (const file of ["npm-latest.mjs", "cswap-install.mjs", "cswap-auto-loop.mjs", "retire-sound-hook.mjs"]) {
       expect(read("src", "server", file)).toContain(`homedir(), ".agents-deck"`);
     }
-    expect(read("src", "server", "ccusage.mjs")).toContain(`os.homedir(), ".agents-deck"`);
+    expect(read("src", "server", "ccusage-install.mjs")).toContain(`os.homedir(), ".agents-deck"`);
     expect(read("src", "server", "uv-bootstrap.mjs")).toContain(`homedir(), ".agents-deck"`);
   });
 
@@ -173,7 +176,7 @@ describe("the boundary the rename must not cross", () => {
     const text = readdirSync(serverDir)
       .filter(n => n.endsWith(".mjs"))
       .map(n => readFileSync(join(serverDir, n), "utf8"))
-      .concat(read("bin", "deck.js"), read("bin", "agent-dag.js"), read("hook", "hook.js"))
+      .concat(cliSurface(), read("bin", "agent-dag.js"), read("hook", "hook.js"))
       .join("\n");
     // `process.env.` OR a bare `env.`, because the second spelling is now the
     // common one: every resolver this repo makes testable takes `env` as a
@@ -198,7 +201,9 @@ describe("the boundary the rename must not cross", () => {
     // The upgrade path is where the package name is the truth. Since the old
     // names stopped being published it is the same word as the product, and
     // the default parameter is what says which package the update installs.
-    const selfUpdate = read("src", "server", "self-update.mjs");
+    // install-layout.mjs is where self-update.mjs's naming half moved to, and
+    // self-update.mjs re-exports it; the defaults are written there.
+    const selfUpdate = read("src", "server", "install-layout.mjs");
     // The default is the fact; the line breaks are not (#378). Both of these
     // were exact signatures, so reformatting the parameter list failed them
     // while the package the upgrade installs stayed exactly the same.

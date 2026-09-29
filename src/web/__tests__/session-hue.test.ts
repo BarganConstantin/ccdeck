@@ -25,16 +25,22 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gradientStops } from "./gradient-stops";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 const src = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const COMPONENTS: Record<string, string> = {
   "App.tsx": src("../App.tsx"),
+  // The detail panel, out of App.tsx — its MCP category chip hands a hue across.
+  "Detail.tsx": src("../components/Detail.tsx"),
   // The canvas's nodes and edges, out of App.tsx since #1175 — the two sites
   // that hand a session's hue across the boundary moved with them.
   "canvas-flow.ts": src("../canvas-flow.ts"),
   "SessionClusters.tsx": src("../components/SessionClusters.tsx"),
+  // The cluster box's and label's inline styles, out of SessionClusters.tsx's
+  // render — the hue crosses the boundary where they are built.
+  "cluster-bounds.ts": src("../cluster-bounds.ts"),
   "AgentNode.tsx": src("../components/AgentNode.tsx"),
   "ToolBursts.tsx": src("../components/ToolBursts.tsx"),
 };
@@ -49,6 +55,17 @@ function modulesUnder(dir: string): string[] {
     return /\.tsx?$/.test(path) ? [path] : [];
   });
 }
+
+/** A path from the walk, relative to src/web and with forward slashes. join()
+ *  spells `components/Detail.tsx` with a backslash on Windows, so every name
+ *  this file compares a path against goes through here first. */
+const rel = (path: string) => path.slice(web.length).replace(/\\/g, "/");
+
+/** Whether the walk reached the module `name` — by its name or by its path
+ *  under src/web, matched on whole path segments the way landmark-outline.test.ts
+ *  matches them (#1556), so `Detail.tsx` is not also `ToolDetail.tsx`. */
+const walked = (files: string[], name: string) =>
+  files.some(p => rel(p) === name || rel(p).endsWith(`/${name}`));
 
 /** WCAG 1.4.3 for the words, 1.4.11 for a graphic that carries meaning. */
 const BODY = 4.5;
@@ -530,24 +547,24 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     const files = modulesUnder(web);
     expect(files.length, "the walk found nothing — src/web moved").toBeGreaterThan(12);
     for (const path of files) {
-      expect(readFileSync(path, "utf8"), `${path.slice(web.length)} composes a colour`)
+      expect(readFileSync(path, "utf8"), `${rel(path)} composes a colour`)
         .not.toMatch(/hsl\(/);
     }
     // The four the audit named are still among them, so the walk cannot quietly
     // stop reaching the files this rule was written about.
     for (const name of Object.keys(COMPONENTS)) {
-      expect(files.some(p => p.endsWith(name)), `${name} is no longer in the walk`).toBe(true);
+      expect(walked(files, name), `${name} is no longer in the walk`).toBe(true);
     }
   });
 
   it("hands each site its hue as a custom property and nothing else", () => {
-    expect(COMPONENTS["SessionClusters.tsx"]).toMatch(/"--session-hue": hue/);
+    expect(COMPONENTS["cluster-bounds.ts"]).toMatch(/"--session-hue": hue/);
     expect(COMPONENTS["AgentNode.tsx"]).toMatch(/"--session-hue": hue/);
     expect(COMPONENTS["canvas-flow.ts"]).toMatch(/"--session-hue": hue/);
     // App's --mcp-hue was the topbar legend's dot until that row was removed;
     // the MCP category chip hands its hue across the same boundary the same
     // way, so the rule this line states is unchanged and still has a subject.
-    expect(COMPONENTS["App.tsx"]).toMatch(/"--mcp-hue": hue/);
+    expect(COMPONENTS["Detail.tsx"]).toMatch(/"--mcp-hue": hue/);
     expect(COMPONENTS["ToolBursts.tsx"]).toMatch(/"--mcp-hue": b\.mcpHue/);
   });
 

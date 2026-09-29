@@ -1,0 +1,75 @@
+/* ---------------- shared utilities ---------------- */
+
+/* Named for the reader that cannot see it. It arrived as `.ap-vh` with the
+   accounts panel's manage block, whose two fields lost their visible labels and
+   not their labelling: `for`/`id` is what a screen reader follows and what
+   voice control names the field by, and 2.5.3 has nothing left to contradict
+   once no label is on screen.
+   #373 gave it three more callers — the session list, the usage panel and the
+   tool list each carry a state word here that the dot beside it cannot say — so
+   the `ap-` prefix is gone and the rule moved out of that panel's section. A
+   prefix is a claim about where a name may be used, and four surfaces reading
+   the accounts panel's private one would have been the same drift
+   unstyled-class.test.ts exists to catch, one direction over. Two words rather
+   than one for the reason that file gives: a bare `.vh` is exactly the kind of
+   generic name a later rule claims globally.
+   Every declaration here is load-bearing. `display: none` and
+   `visibility: hidden` would take the element out of the accessibility tree as
+   well as off the screen, which is the one failure the class exists to avoid. */
+.vis-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The keyboard's way past the topbar, and the deck's only link (#381).
+   Not .vis-hidden, which is a class for text that is never meant to come back:
+   this one has to become a real, readable control the moment it takes focus,
+   and a 1px clipped box cannot grow into one. `position: fixed` is doing two
+   jobs — it lifts the link over the topbar when it is shown, and it takes the
+   element out of grid layout, which matters more: .app auto-places its
+   children, so a skip link that stayed in flow would claim row 1 column 1 and
+   push the topbar down a row.
+   Off screen by transform rather than by `display: none` or `visibility:
+   hidden`, both of which would take it out of the accessibility tree and the
+   tab order together — a skip link nothing can focus is the one thing it must
+   never be. No transition on the way in: this is a control appearing under a
+   keyboard user who cannot see it yet, and animating that only delays the
+   moment they can read where they are. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus { transform: none; }
+/* The canvas is the skip link's target and takes focus programmatically, so it
+   does get a ring — landing somewhere with no sign you landed is the failure
+   this link exists to fix, one step later. Inset, because .canvas-wrap fills
+   its grid cell to the window edge and the shared 2px outward offset would
+   draw the ring off screen on two sides.
+   "Programmatically" is now the whole of it, and that is enforced next door
+   rather than here: a mouse could also focus the canvas, and the browser
+   re-decides :focus-visible for an element that is ALREADY focused the moment a
+   key is pressed, so this rule fired for every click on empty canvas one
+   keystroke later (#434). No selector can tell those two arrivals apart — the
+   question is asked after focus has landed — so App.tsx's releasePointerFocus
+   takes the pointer's arrival away instead, and this declaration is left saying
+   exactly what it said before. */
+.canvas-wrap:focus-visible { outline-offset: -3px; }
+

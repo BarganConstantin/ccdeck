@@ -67,8 +67,10 @@ process.env.CODEX_HOME = join(FAKE_HOME, ".codex");
 const installer = await import("../../server/installer.mjs");
 // @ts-expect-error — .mjs server module, no types
 const sound = await import("../../server/retire-sound-hook.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { writeFileAtomic, resolveWriteTarget } = await import("../../server/atomic-write.mjs");
 
-const { installHooks, uninstallHooks, writeFileAtomic, resolveWriteTarget, CLAUDE_DIR } = installer;
+const { installHooks, uninstallHooks, CLAUDE_DIR } = installer;
 const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } = sound;
 
 for (const p of [CLAUDE_DIR, SETTINGS_PATH, PARKED_PATH]) {
@@ -344,7 +346,7 @@ describe("resolveWriteTarget answers with the file the name really means", () =>
         .split("\n").filter(l => !/^\s*(?:\/\/|\*|\/\*)/.test(l)).join("\n");
     };
 
-    const write = body(src("../../server/installer.mjs"), "async function writeFileAtomic(");
+    const write = body(src("../../server/atomic-write.mjs"), "async function writeFileAtomic(");
     expect(write, "writeFileAtomic does not resolve its target").toContain("resolveWriteTarget(");
     expect(write.indexOf("resolveWriteTarget("), "writeFileAtomic stages before it resolves")
       .toBeLessThan(write.indexOf("createTemp("));

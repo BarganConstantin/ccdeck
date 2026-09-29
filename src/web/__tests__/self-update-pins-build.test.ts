@@ -13,8 +13,8 @@
 // was not there at all.
 //
 // The fix pins the build: every module reached only through `import()` is
-// loaded after the boot and before any install can start, and index.mjs keeps
-// the list. This file checks the list against the sources, then does the swap
+// loaded after the boot and before any install can start, and pinned-build.mjs
+// keeps the list. This file checks the list against the sources, then does the swap
 // for real, in a temp copy of the package, and asks the routes that would have
 // crossed it.
 //
@@ -38,9 +38,9 @@ const source = (name: string) => readFileSync(join(REAL_SERVER, name), "utf8");
 
 // ── the list, against the sources ────────────────────────────────────────────
 
-/** The names in index.mjs's PINNED_MODULES, read the way a reviewer would. */
+/** The names in pinned-build.mjs's PINNED_MODULES, read the way a reviewer would. */
 function pinnedList(): string[] {
-  const body = /const PINNED_MODULES = \[([\s\S]*?)\];/.exec(source("index.mjs"))?.[1] ?? "";
+  const body = /const PINNED_MODULES = \[([\s\S]*?)\];/.exec(source("pinned-build.mjs"))?.[1] ?? "";
   return [...body.matchAll(/"([\w.-]+\.mjs)"/g)].map(m => m[1]);
 }
 
@@ -118,8 +118,9 @@ function sandbox(name: string): Box {
   }
   const server = join(box.pkg, "src", "server");
   for (const d of [server, box.home]) mkdirSync(d, { recursive: true });
-  // A real copy rather than export-star shims onto the repo: index.mjs computes
-  // PKG_ROOT from its own location, and it is PKG_ROOT that has to be swapped.
+  // A real copy rather than export-star shims onto the repo: every server
+  // module that imports by URL computes PKG_ROOT from its own location, and it
+  // is PKG_ROOT that has to be swapped.
   for (const f of readdirSync(REAL_SERVER).filter(n => n.endsWith(".mjs"))) {
     copyFileSync(join(REAL_SERVER, f), join(server, f));
   }

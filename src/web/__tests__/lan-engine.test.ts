@@ -25,10 +25,11 @@ import { readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, offered, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
-import { faultText, parseAddress } from "../components/LanSyncSection";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
+import { parseAddress } from "../lan-add-deck";
+import { faultText } from "../lan-round";
 // @ts-expect-error — plain .mjs server module, no types
-import { accountKey, hostId, identityFrom, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
+import { accountKey, hostId, identityFrom, offered, PROTOCOL, seal, transferChallenge } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { connectToPeer, createSyncServer, MAX_FRAME_BYTES } from "../../server/lan-socket.mjs";
 
@@ -1058,11 +1059,20 @@ describe("the gap between rounds", () => {
     // the one lan-socket.mjs sends for "a real deck, not yet accepted" — the
     // same string WIRE_ANSWERS keys on in the panel, so the two files cannot
     // drift apart silently.
+    //
+    // The check reads the round's record — see lan-round-record.mjs, and
+    // lan-round-record.test.ts for what counts as still deciding.
+    const record = readFileSync(fileURLToPath(new URL("../../server/lan-round-record.mjs", import.meta.url)), "utf8");
+    expect(record).toContain('"waiting for the other deck to accept this one"');
+    // The engine hands that check to the clock, which picks the gap by it —
+    // see lan-round-timer.mjs, and lan-round-timer.test.ts for the gaps run.
     const src = readFileSync(fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
-    expect(src).toContain('"waiting for the other deck to accept this one"');
-    expect(src).toMatch(/waitingOnSomebody\(\) \? ASKING_MS : SYNC_MS/);
-    const socket = readFileSync(fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
-    expect(socket).toContain("waiting for the other deck to accept this one");
+    expect(src).toMatch(/createRoundTimer\(\{ round, waiting: lastRound\.waitingOnSomebody \}\)/);
+    const timer = readFileSync(fileURLToPath(new URL("../../server/lan-round-timer.mjs", import.meta.url)), "utf8");
+    expect(timer).toMatch(/waiting\(\) \? ASKING_MS : SYNC_MS/);
+    // The sentence a dialler reads "pending" as — see REFUSALS in lan-call.mjs.
+    const call = readFileSync(fileURLToPath(new URL("../../server/lan-call.mjs", import.meta.url)), "utf8");
+    expect(call).toContain("waiting for the other deck to accept this one");
   });
 });
 
@@ -1595,9 +1605,11 @@ describe("a heal that healed nothing", () => {
   // refresh-token-dead, and is "never triggered by the live store's
   // `no credentials` state". So `login expired` heals over the network and
   // `no stored login` does not.
-  const src = readFileSync(
-    fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8",
-  );
+  // The engine's callbacks moved from index.mjs to lan-deck.mjs. Both are read,
+  // so the negatives below still cover the file the route used to live in.
+  const src = ["index.mjs", "lan-deck.mjs"]
+    .map(f => readFileSync(fileURLToPath(new URL(`../../server/${f}`, import.meta.url)), "utf8"))
+    .join("\n");
   const admin = readFileSync(
     fileURLToPath(new URL("../../server/cswap-admin.mjs", import.meta.url)), "utf8",
   );
@@ -1929,6 +1941,28 @@ describe("which account a paired deck is on", () => {
     a.e.stop();                 // the address B learned no longer answers
     await b.e.round();          // B dials back, fails → the trial row is removed
     expect(peerRow(b, a.id.fp)?.waiting).toBe(true);
+  }, 20_000);
+
+  it("keeps the caller's address once somebody here types it, and says it failed (#1674)", async () => {
+    // The dial-back's trial outlived the settings write that put the typed
+    // row in its place, and the first round that could not reach the caller
+    // took the typed row away with it: the deck went back to "calls in", and
+    // the error that round met was never drawn.
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await point(b, a, a.port);
+    b.e.setPeers([]);           // B loses A; A only calls in
+    await a.e.round();          // A calls B → B learns A's address (on trial)
+    // The owner types that address in: a settings write, which replaces the
+    // list with what prefs hold.
+    b.e.setPeers([`127.0.0.1:${a.port}`]);
+    a.e.stop();                 // and A goes to sleep
+    await b.e.round();
+    const row = peerRow(b, a.id.fp);
+    expect(row?.waiting).not.toBe(true);
+    expect(row).toMatchObject({ addr: "127.0.0.1", port: a.port });
+    expect(row?.last?.error).toBeTruthy();
   }, 20_000);
 });
 
@@ -2409,7 +2443,7 @@ describe("the invite, and the half of it that was never checked", () => {
     // Minted through the real function and re-addressed, so the code and the
     // expiry are the real ones rather than a hand-built token readInvite would
     // refuse before any of this ran.
-    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
     const real = readInvite(offered.token);
     const token = mintInvite({
       addrs: [`127.0.0.1:${wrong.port}`, `127.0.0.1:${a.port}`],
@@ -2434,24 +2468,40 @@ describe("the invite, and the half of it that was never checked", () => {
     // joiner that demanded the proof from every listener would break the
     // feature exactly then. The token says which kind of deck minted it, so
     // this degrades to the behaviour that shipped rather than refusing.
-    const a = await deck(store([]), "Minter", []);
+    //
+    // THE OLDER DECK IS PLAYED BY THE LISTENER ITSELF, handed six digits. Only
+    // a deck from before #1137 holds a code like that, and this version never
+    // mints one, so no engine here can stand in for it — the socket layer is
+    // the same wire every deck since the invite speaks, and it proves back only
+    // what the joiner asks it to check.
     const b = await deck(store([]), "Joiner", []);
-    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-sync.mjs");
-    const real = readInvite(a.e.invite().token);
-    const fresh = mintInvite({
-      addrs: real.addrs.map((x: { addr: string; port: number }) => `${x.addr}:${x.port}`),
-      name: "Minter", code: real.code,
+    const { readInvite, INVITE_PREFIX } = await import("../../server/lan-invite.mjs");
+    const older = identityFrom("");
+    const minter = createSyncServer({
+      fp: older.fp, pub: older.pub, secret: older.secret, name: "Minter", host: "127.0.0.1",
+      invite: () => ({ code: "482100", expiresAt: Date.now() + 60_000 }),
     });
-    // The same token as a previous release wrote it: no `pb`.
-    const body = JSON.parse(Buffer.from(
-      fresh.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
-    delete body.pb;
-    const old = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    running.push(minter);
+    const port = await minter.start();
+    // The token as a previous release wrote it: six digits and no `pb`.
+    const old = INVITE_PREFIX + Buffer.from(JSON.stringify({
+      v: PROTOCOL, a: [`127.0.0.1:${port}`], n: "Minter", c: "482100", x: Date.now() + 60_000,
+    }), "utf8").toString("base64url");
     expect(readInvite(old).provesBack).toBe(false);
 
     const res = await b.e.join(old);
     expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
-    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    expect(b.e.status().trusted).toMatchObject([{ fp: older.fp }]);
+
+    // AND ONLY AN OLDER DECK'S TOKEN READS THAT WAY. A token of this version,
+    // with the flag taken out on the way, still asks for the proof back: the
+    // code itself says which kind of deck minted it.
+    const a = await deck(store([]), "New minter", []);
+    const body = JSON.parse(Buffer.from(
+      a.e.invite().token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
+    delete body.pb;
+    const stripped = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    expect(readInvite(stripped).provesBack).toBe(true);
   }, 20_000);
 });
 
@@ -2472,7 +2522,7 @@ describe("what the engine hands its caller to keep", () => {
     const b = await deck(store([]), "Joiner", []);
     // Re-addressed to loopback, as the case above does, so the address each end
     // writes down is one this suite can name.
-    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
     const code = readInvite(a.e.invite().token).code;
     const token = mintInvite({ addrs: [`127.0.0.1:${a.port}`], name: "Minter", code }).token;
     expect((await b.e.join(token)).ok).toBe(true);
@@ -2483,6 +2533,22 @@ describe("what the engine hands its caller to keep", () => {
     // one row rather than an address beside a fingerprint until the next round.
     expect(a.e.status().peers).toHaveLength(1);
     expect(peerRow(a, b.id.fp)).toMatchObject({ addr: "127.0.0.1", port: b.port, paired: true });
+  }, 20_000);
+
+  it("writes the caller's address down when somebody here accepts it (#1643)", async () => {
+    // Accepting a deck that called in dials it back, and the address used to
+    // stay in memory: the next settings write — setPeers replaces the dial list
+    // from prefs — or the next restart dropped it, and the pairing was one-way
+    // until the caller called in again. An invite's is kept; this one is now.
+    const a = await deck(store([]), "Caller", []);
+    const b = await deck(store([]), "Acceptor", []);
+    await point(a, b, b.port);
+
+    expect(b.dials, "the acceptor kept no way back to the caller").toEqual([`127.0.0.1:${a.port}`]);
+    // The caller's own row is the address somebody typed, which the settings
+    // route keeps; the engine has nothing to hand it.
+    expect(a.dials).toEqual([]);
+    expect(peerRow(b, a.id.fp)).toMatchObject({ addr: "127.0.0.1", port: a.port, paired: true });
   }, 20_000);
 
   it("writes down a port that moved, and only one that moved", async () => {

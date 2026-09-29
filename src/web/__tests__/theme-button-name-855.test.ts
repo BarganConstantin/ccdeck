@@ -11,6 +11,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The topbar's settings run, where the button is since it left App.tsx's markup. */
+const run = readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8");
 const menu = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
 
 const APPEARANCE_BUTTON =
@@ -18,11 +20,13 @@ const APPEARANCE_BUTTON =
 
 describe("the appearance button names the settings it opens (#855)", () => {
   it("is no longer named for toggling", () => {
-    expect(app).not.toMatch(/aria-label="Toggle theme"/);
+    expect(app + "\n" + run).not.toMatch(/aria-label="Toggle theme"/);
   });
 
   it("reports the current appearance and opens explicit theme choices", () => {
-    const m = APPEARANCE_BUTTON.exec(app);
+    // App.tsx hands the run the appearance whole, and the run names the button.
+    expect(app).toMatch(/<SettingsRun\b[^>]*\bappearance=\{appearance\}/);
+    const m = APPEARANCE_BUTTON.exec(run);
     expect(m).not.toBeNull();
     expect(m![1]).toBe('Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}');
     expect(menu).toMatch(/role="radiogroup"/);

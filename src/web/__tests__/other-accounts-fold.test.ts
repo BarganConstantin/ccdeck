@@ -14,11 +14,18 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { FOLD_NAMES, foldPeek, restLine, type Peer } from "../other-accounts";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
+/** What the fold is drawn from — the peers, the strain, whether anything is
+ *  armed — lifted out of the panel into pure functions; account-fold.test.ts
+ *  runs them. */
+const accountFold = read("../account-fold.ts");
 const fold = read("../components/OtherAccounts.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 const peer = (name: string, headroom: number | null, over: Partial<Peer> = {}): Peer =>
   ({ key: name, name, ready: true, why: null, warn: false, headroom, ...over });
@@ -106,7 +113,7 @@ describe("what the row says once something else is doing the switching", () => {
 
   it("never names which one is next, because this side of the wire does not know", () => {
     // A tick shells out to `cswap auto --once` and claude-swap picks the
-    // target; the deck only learns what happened afterwards. See cswap-auto.mjs.
+    // target; the deck only learns what happened afterwards. See cswap-auto-loop.mjs.
     expect(restLine([peer("a", 40), peer("b", 96)], { ...ARMED, strained: true }).text)
       .not.toMatch(/next|will|→/);
   });
@@ -135,7 +142,8 @@ describe("what the row says once something else is doing the switching", () => {
   it("is armed by a terminal loop too, not only by the deck's own toggle", () => {
     // `cswap auto` in a terminal does the switching while the deck stands down,
     // so the toggle can read off while something is very much switching.
-    expect(panel).toMatch(/const autoArmed = auto\?\.ok === true && \(auto\.enabled \|\| auto\.external\);/);
+    expect(accountFold).toMatch(/return auto\?\.ok === true && \(auto\.enabled \|\| auto\.external\);/);
+    expect(panel).toMatch(/const autoArmed = isAutoArmed\(auto\);/);
     expect(panel).toMatch(/armed=\{autoArmed\}/);
   });
 
@@ -258,10 +266,22 @@ describe("what the column folds, and when it does not", () => {
   });
 
   it("draws one row from one function, whichever side of the fold it is on", () => {
-    // Written twice, the live row and the folded ones would drift apart.
-    expect(panel).toMatch(/const accountRow = \(a: Account\) => \{/);
+    // Written twice, the live row and the folded ones would drift apart. The
+    // row is a component of its own now, and `accountRow` is the one place its
+    // props are spelled — so it is the one `<AccountRow` in the panel.
+    // It reads what the panel's state says about the account first, then
+    // draws the row with it.
+    expect(panel).toMatch(/const accountRow = \(a: Account\) => \{[\s\S]{0,1500}?return \(\s*<AccountRow key=\{a\.num\}/);
+    expect(panel.match(/<AccountRow\b/g)).toHaveLength(1);
     expect(panel.match(/\bmap\(accountRow\)/g)).toHaveLength(2);
-    expect(panel).not.toMatch(/data\.accounts\?\.map\(a => \{/);
+    expect(accountsSurface()).not.toMatch(/data\.accounts\?\.map\(a => \{/);
+    // What it hands the row is what the panel's state says about THAT account,
+    // never the state itself: no row can read another account's open menu,
+    // refusal, switch, swap, warning or disclosure.
+    const rowCode = read("../components/AccountRow.tsx")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // (`ap-failure` and `ap-switched` are class names, and stay.)
+    expect(rowCode).not.toMatch(/\b(menuFor|openLanes|issueOpen|swapNote|roster)\b|(?<![-\w])(failure|switched)(?![-\w])/);
   });
 
   it("opens shut, every time, and stays open across a switch", () => {
@@ -270,21 +290,23 @@ describe("what the column folds, and when it does not", () => {
     // not close it: the account just left is in that list, and it moved there
     // under the reader's own press.
     expect(panel).toMatch(/const \[restOpen, setRestOpen\] = useState\(false\);/);
-    expect(panel).not.toMatch(/setRestOpen\(false\)/);
+    expect(accountsSurface()).not.toMatch(/setRestOpen\(false\)/);
   });
 
   it("builds a peer from the same two refusals the row withholds its own Switch for", () => {
     // The count and the button cannot be allowed to disagree about who can be
     // reached: the row offers `Switch` when `!a.disabled && !issue?.blocksSwitch`.
-    expect(panel).toMatch(/ready: !a\.disabled && !issue\?\.blocksSwitch,/);
-    expect(panel).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
+    expect(accountFold).toMatch(/ready: !a\.disabled && !issue\?\.blocksSwitch,/);
+    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec\);/);
+    expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to
     // another. lane-open.ts holds that rule for the rows; this reuses it.
-    expect(panel).toMatch(/key: laneKey\(a\),/);
+    expect(accountFold).toMatch(/key: laneKey\(a\),/);
   });
 
   it("reads the live account's strain off the field the peers already carry", () => {
-    expect(panel).toMatch(/const strained = activeAcct\?\.headroom != null && Number\.isFinite\(trip\)\s*\n\s*&& 100 - activeAcct\.headroom >= trip;/);
+    expect(accountFold).toMatch(/return activeAcct\?\.headroom != null && Number\.isFinite\(trip\)\s*\n\s*&& 100 - activeAcct\.headroom >= trip;/);
+    expect(panel).toMatch(/const strained = pastThreshold\(activeAcct, threshold\);/);
   });
 
   it("carries the panel's inset itself, because it stands in the scroll and not in the foot", () => {
@@ -299,7 +321,7 @@ describe("what the column folds, and when it does not", () => {
     expect(fold).not.toMatch(/ap-nav-glyph/);
     expect(css).toMatch(/\.ap-rest \.ap-nav \{ gap: 0; \}/);
     // Local network keeps its own: it is the row that goes somewhere.
-    expect(read("../components/LanSyncSection.tsx")).toMatch(/className="ap-nav-glyph"/);
+    expect(read("../components/LanEntryRow.tsx")).toMatch(/className="ap-nav-glyph"/);
   });
 
   it("puts a wider gap over the fold than under it, so the two rows read as one group", () => {
@@ -338,7 +360,7 @@ describe("what the column folds, and when it does not", () => {
     expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
     // Drawn in the column, never back in the pinned foot.
     expect(panel.indexOf("{policyBlock}")).toBeLessThan(panel.indexOf("<LanSyncSection"));
-    expect(panel).not.toMatch(/<div className="ap-foot">/);
+    expect(accountsSurface()).not.toMatch(/<div className="ap-foot">/);
   });
 
   it("gives the list the only room that flexes, so the policy under it cannot be pushed off", () => {

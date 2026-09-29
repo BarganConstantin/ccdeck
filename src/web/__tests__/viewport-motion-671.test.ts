@@ -87,7 +87,13 @@ describe("whether a viewport change the deck asks for should animate", () => {
 
 // ── the wiring the rule is useless without ──────────────────────────────────
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The door, the fit and the landing handler moved to use-camera.ts; the
+// focus and the reader's gestures stayed in App.tsx, and the <ReactFlow>
+// element with its opening fit is components/BoardFlow.tsx. Read as one, so a
+// body is found wherever it lives and every negative below holds for all three.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
 
 /** The same text with its comments gone — the prose in this repo quotes the
  *  shapes it rejected, so an "appears nowhere" assertion has to read code. */
@@ -107,7 +113,7 @@ const appCode = app
  */
 function body(opening: string): string {
   const at = appCode.indexOf(opening);
-  if (at < 0) throw new Error(`viewport-motion-671: no "${opening}" in App.tsx`);
+  if (at < 0) throw new Error(`viewport-motion-671: no "${opening}" in App.tsx or use-camera.ts`);
   // From the arrow, not from the declaration: the first brace after
   // `const applyViewport = useCallback(` belongs to a parameter's type literal,
   // and counting from there would balance after three fields and call that the
@@ -128,6 +134,7 @@ function body(opening: string): string {
 
 const applyViewport = body("const applyViewport = useCallback");
 const fitLeft = body("const fitLeft = useCallback");
+const moveCamera = body("const moveCamera = useCallback");
 
 describe("the one door every viewport the deck asks for goes through", () => {
   it("asks the rule, and animates only when it says so", () => {
@@ -161,8 +168,12 @@ describe("the two fits the issue was reported for", () => {
     // fitLeft is both of them: the button calls it through
     // enableAutoFitAndRefit, the drift watchdog calls it on recovery. One
     // landing to fix, and one to keep fixed.
-    expect(fitLeft).toMatch(/applyViewport\(want, duration\)/);
+    // Through moveCamera, which is every deliberate move's one spelling of the
+    // door, the stamp and the pending target.
+    expect(fitLeft).toMatch(/const epoch = moveCamera\(want, duration\);/);
+    expect(moveCamera).toMatch(/applyViewport\(want, duration\)/);
     expect(fitLeft).not.toMatch(/\brf\.setViewport\(/);
+    expect(moveCamera).not.toMatch(/\brf\.setViewport\(/);
   });
 
   it("corrects a fit that never arrived through the door as well", () => {
@@ -178,7 +189,7 @@ describe("the two fits the issue was reported for", () => {
     // One matcher for the whole ternary, rather than three that each hold a
     // fragment: `: null` on its own would pass on any `null` anywhere in the
     // function, which is an assertion about the file rather than about this.
-    expect(fitLeft).toMatch(
+    expect(moveCamera).toMatch(
       /pendingFitRef\.current = shouldAnimateViewport\(\{ durationMs: duration, documentHidden: document\.hidden \}\)\s*\?\s*\{ target: want, until: Date\.now\(\) \+ duration \+ 60 \}\s*:\s*null;/,
     );
   });
@@ -212,7 +223,8 @@ describe("React Flow's own opening fit, which the deck does not perform itself",
     // for nobody: the deck opens its own browser tab, which lands behind
     // whatever the user was already reading. Left animated, that tab showed a
     // graph at the identity transform until it was brought forward.
-    const props = appCode.slice(appCode.indexOf("fitViewOptions={"), appCode.indexOf("minZoom={"));
+    const at = appCode.indexOf("fitViewOptions={");
+    const props = at < 0 ? "" : appCode.slice(at, appCode.indexOf("minZoom={", at));
     expect(props).toMatch(/shouldAnimateViewport\(\{ durationMs: OPENING_FIT_MS, documentHidden: document\.hidden \}\)/);
     expect(props).toMatch(/\?\s*OPENING_FIT_MS\s*:\s*0/);
   });

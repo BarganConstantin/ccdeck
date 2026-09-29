@@ -18,10 +18,11 @@
 // The budget is passed in here rather than reached for: 128 MiB of fixture
 // would be a slow test that measures the same rule.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-replay-bytes-"));
 process.env.HOME = DIR;
@@ -94,7 +95,15 @@ describe("what a boot replay is allowed to stage", () => {
   it("carries the production ceilings when nothing is passed", () => {
     // The parameters exist for this suite; a boot must get the ring's own
     // numbers, and the call site must pass neither.
-    const src = mod.replayLog.toString();
+    //
+    // Read off the file rather than off `replayLog.toString()`: the two bounds
+    // are imported now (ring-bounds.mjs), and the test runner's transform
+    // renames an imported binding inside a function's own text. replayLog is
+    // log-replay.mjs's.
+    const file = readFileSync(fileURLToPath(new URL("../../server/log-replay.mjs", import.meta.url)), "utf8");
+    const from = file.indexOf("export async function replayLog(");
+    expect(from, "replayLog is no longer declared where this test reads it").toBeGreaterThan(-1);
+    const src = file.slice(from, file.indexOf("\n}\n", from));
     expect(src).toContain("maxEvents = MAX_BUFFER");
     expect(src).toContain("maxChars = MAX_BUFFER_CHARS");
     expect(MAX_BUFFER).toBe(2000);

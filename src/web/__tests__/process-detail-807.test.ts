@@ -36,14 +36,17 @@ import { fileURLToPath } from "node:url";
 import {
   redactCommand, commandTail, elapsedSeconds,
   parsePsThreadsBsd, parsePsThreadsProcps, psDetailArgs, CMD_MAX,
-} from "../../server/system-metrics.mjs";
+} from "../../server/process-list.mjs";
 import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/ProcessListModal";
-import { fmtBytes, fmtUptime } from "../components/ProcessListModal";
+import { fmtUptime } from "../components/ProcessListModal";
+import { fmtBytes } from "../byte-format";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const server = read("../../server/system-metrics.mjs");
+const server = read("../../server/process-list.mjs");
+// The command column's rules, lifted out of process-list.mjs.
+const command = read("../../server/process-command.mjs");
 const route = read("../../server/index.mjs");
-const meter = read("../components/MachinePanel.tsx");
 const modal = read("../components/ProcessListModal.tsx");
 
 describe("what the command column may carry", () => {
@@ -100,7 +103,7 @@ describe("what the command column may carry", () => {
     // secret usually takes and cannot catch one that looks like a word, so the
     // footer says "a filter and not a guarantee" and this pins that it does.
     expect(modal).toMatch(/which is a filter and not a guarantee/);
-    expect(server).toMatch(/THIS IS A BLOCKLIST AND A BLOCKLIST LEAKS/);
+    expect(command).toMatch(/THIS IS A BLOCKLIST AND A BLOCKLIST LEAKS/);
   });
 
   it("runs on the server, so a leaked value never reaches the wire at all", () => {
@@ -183,11 +186,16 @@ describe("how long it has been up", () => {
 });
 
 describe("memory, printed as the quantity it is", () => {
-  it("carries three significant figures and a binary unit", () => {
-    expect(fmtBytes(512)).toBe("512 B");
+  it("carries one decimal and a binary unit, the deck's one byte format (#1128)", () => {
+    // Three significant figures until #1128, so these two read "512 B" and
+    // "725 MB"; the machine panel and the context modal each printed the same
+    // counts a third and a fourth way.
+    expect(fmtBytes(512)).toBe("512.0 B");
     expect(fmtBytes(2517368 * 1024)).toBe("2.4 GB");
-    expect(fmtBytes(725 * 1024 * 1024)).toBe("725 MB");
+    expect(fmtBytes(725 * 1024 * 1024)).toBe("725.0 MB");
     expect(fmtBytes(1536)).toBe("1.5 KB");
+    expect(modal).toMatch(/import \{ fmtBytes \} from "\.\.\/byte-format";/);
+    expect(modal).not.toMatch(/function fmtBytes\b/);
   });
 
   it("prints a dash for a reading that did not come back", () => {
@@ -256,7 +264,7 @@ describe("the second child is the modal's, not the panel's", () => {
     // sitting with the panel open reads no process list at all, which is
     // cheaper than the reading #807 made cheaper.
     expect(modal).toMatch(/fetch\("\/api\/system\/processes\?detail=1"\)/);
-    expect(meter, "the panel is reading the process list again").not.toMatch(/system\/processes/);
+    expect(machinePanelSurface(), "the panel is reading the process list again").not.toMatch(/system\/processes/);
   });
 
   it("does not serve a detailed request from a plain cached reading", () => {
@@ -269,7 +277,9 @@ describe("the second child is the modal's, not the panel's", () => {
   it("keeps the list standing when only the second call fails", () => {
     // `ps -M` can lose a race with an exit or be refused outright, and neither
     // is a reason to blank a table whose CPU and memory columns are correct.
-    const block = server.slice(server.indexOf("async function attachDetail"));
+    const at = server.indexOf("async function attachDetail");
+    expect(at, "attachDetail is not in process-list.mjs").toBeGreaterThan(-1);
+    const block = server.slice(at);
     expect(block.slice(0, block.indexOf("\n}"))).toMatch(/catch \{ return; \}/);
   });
 });

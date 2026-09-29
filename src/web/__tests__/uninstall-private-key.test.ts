@@ -172,6 +172,16 @@ describe("where the deck's private key is, resolved rather than described", () =
     expect(found.find(f => f.path === legacyPrefs)?.holds).toBe("no-key");
   });
 
+  it("strips the BOM with the rule every settings reader shares, not a copy of it", () => {
+    // purge-key.mjs spelled the rule out while stripBom was private, with a note
+    // asking for the import once it was exported. The case above is what the
+    // rule decides; this is that there is one of it.
+    const src = readFileSync(fileURLToPath(new URL("../../server/purge-key.mjs", import.meta.url)), "utf8");
+    expect(src).toContain('import { stripBom } from "./atomic-write.mjs";');
+    expect(src).toContain("JSON.parse(stripBom(String(raw)))");
+    expect(src).not.toMatch(/charCodeAt\(0\) === 0xfeff/);
+  });
+
   it("does not list a file that is not there at all", async () => {
     // ENOENT is the ordinary answer on a machine where the deck never ran, and
     // an uninstall that announces the absence of a file is noise at the moment

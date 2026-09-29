@@ -7,7 +7,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { deckRows, exchangeLanes, offerLine, rowSource, versionOrder, withAliases } from "../components/LanSyncSection";
+import { exchangeLanes, offerLine, versionOrder } from "../lan-exchange";
+import { deckRows, rowSource, withAliases } from "../lan-roster";
+import { peerView } from "../lan-peer";
+import { lanPeerSurface } from "./lan-peer-surface";
+import { sheetText } from "./sheet-source";
 
 const NOW = 1_700_000_000_000;
 /** A file with its comments taken out, so a rule cannot be satisfied by a
@@ -15,8 +19,23 @@ const NOW = 1_700_000_000_000;
 const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const SECTION = code("../components/LanSyncSection.tsx");
+/** The rows, which the section draws through a list of their own. */
+const LIST = code("../components/LanDeckList.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+/** What the dialog says about the machine behind the row, which moved out of
+ *  the component into a module of its own. */
+const PEER = code("../lan-peer.ts");
+/** The picture in the dialog, which moved out of the component into its own. */
+const MAP = code("../components/LanPeerMap.tsx");
+/** The dialog and what was lifted out of it, for what it must never say. */
+const DIALOG = lanPeerSurface(src => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "));
+const PRESS = code("../panel-press.ts");
+const ROW_UNPAIR = code("../use-row-unpair.ts");
+const PEER_UNPAIR = code("../use-peer-unpair.ts");
+/** The dialog's foot — the row's one verb and the check — which moved out of
+ *  the dialog into its own. */
+const FOOT = code("../components/LanPeerFoot.tsx");
+const CSS = sheetText();
 
 describe("LAN warning visibility", () => {
   it("shows the warning without marking a healthy peer link as failed", () => {
@@ -24,15 +43,28 @@ describe("LAN warning visibility", () => {
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }');
     expect(CSS).toContain('.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }');
     expect(CSS).toContain('.lan-round[data-tone="warn"] { color: var(--warn); }');
-    expect(MODAL).toMatch(/row\.tone === "bad" \? "bad"/);
+    // The network is drawn broken only when the link itself failed: a round
+    // that brought a login with a problem on the way is warned about, and the
+    // line it came along stays lit.
+    const status = (peer: Record<string, unknown>) => ({ peers: [peer], shared: [] }) as never;
+    const view = (peer: Record<string, unknown>) => {
+      const [row] = deckRows(status(peer), NOW);
+      return peerView({ row, source: rowSource(status(peer), row), status: status(peer), accounts: [], now: NOW });
+    };
+    const warned = paired({ last: { at: NOW, done: [{ email: "a@x.com", action: "heal", ok: true, why: "keychain_unavailable" }] } });
+    expect(deckRows(status(warned), NOW)[0].tone).toBe("warn");
+    expect(view(warned).link).toBe("up");
+    const refused = paired({ last: { at: NOW, error: "connect ECONNREFUSED 192.168.1.44:52011" } });
+    expect(deckRows(status(refused), NOW)[0].tone).toBe("bad");
+    expect(view(refused).link).toBe("bad");
   });
 });
 
 describe("peer dialog connection hints", () => {
   it("keeps the one-way pairing explanation beside a Keychain round remedy", () => {
-    expect(MODAL).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
-    expect(MODAL).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
-    expect(MODAL).not.toContain("line?.hint ?? row.hint");
+    expect(MAP).toContain('peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>');
+    expect(MAP).toContain('line?.hint && <p className="lan-note lan-link-note">{line.hint}</p>');
+    expect(DIALOG).not.toContain("line?.hint ?? row.hint");
   });
 });
 
@@ -290,38 +322,40 @@ describe("the dialog is as quiet as the row it opens from", () => {
   // left, that deck's on the right — so `here` and `there` stop being printed
   // on every row, and the two lists become one.
   it("draws each login once, as a lane with a mark at each machine's end", () => {
-    expect(MODAL).toMatch(/className="lan-lanes" role="list"/);
-    expect(MODAL).toMatch(/role="listitem"/);
-    expect(MODAL).toMatch(/data-end="here" data-state=\{l\.here\}/);
-    expect(MODAL).toMatch(/data-end="there" data-state=\{l\.there\}/);
-    expect(MODAL).not.toContain("lan-offer");
+    expect(MAP).toMatch(/className="lan-lanes" role="list"/);
+    expect(MAP).toMatch(/role="listitem"/);
+    expect(MAP).toMatch(/data-end="here" data-state=\{l\.here\}/);
+    expect(MAP).toMatch(/data-end="there" data-state=\{l\.there\}/);
+    expect(DIALOG).not.toContain("lan-offer");
   });
 
   // The marks are for the eye. Whatever they say is said in words as well.
   it("says what each mark means to a reader who cannot see it", () => {
-    expect(MODAL).toMatch(/<span className="vis-hidden">\{laneSaid\(l\)\}<\/span>/);
+    expect(MAP).toMatch(/<span className="vis-hidden">\{laneSaid\(l\)\}<\/span>/);
   });
 
   // A held key clears the 400ms bar while the finger has never come up, so
   // the clock alone cannot be the whole rule.
   it("does not let a held key be its own second press", () => {
-    expect(MODAL).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
+    expect(FOOT).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
   });
 
   // A nearby deck can send its request while its dialog is open, and that kind
   // has no verb here — the bar used to draw itself empty.
   it("says something in the footer for a row that changed kind under it", () => {
-    expect(MODAL).toMatch(/row\.kind === "asks"/);
+    expect(FOOT).toMatch(/row\.kind === "asks"/);
   });
 });
 
 describe("the row is the door", () => {
   it("opens the deck's dialog from a button that is the name, and carries no tooltip", () => {
-    expect(SECTION).toMatch(/className="ap-lan-who-open"/);
+    expect(LIST).toMatch(/className="ap-lan-who-open"/);
+    expect(LIST).toMatch(/onClick=\{\(\) => onOpenPeer\(p\.fp\)\}/);
+    expect(SECTION).toMatch(/onOpenPeer=\{setPeerOpen\}/);
     expect(SECTION).toMatch(/<LanPeerModal/);
     // The sentence the tooltip carried is in the dialog now. On the row it was
     // the same words a second late, over the rows below it.
-    expect(SECTION).not.toMatch(/className="ap-lan-who"[^>]*title=/);
+    for (const src of [SECTION, LIST]) expect(src).not.toMatch(/className="ap-lan-who"[^>]*title=/);
   });
 
   it("keeps the verb a verb: it sits above the row's hit area", () => {
@@ -331,7 +365,7 @@ describe("the row is the door", () => {
     expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: 4px;/);
     // The name, and beside it the route when that is the tailnet — both hidden
     // from a screen reader, which the button tells once.
-    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
+    expect(LIST).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
   });
 
   it("answers the pointer with a tone the size of the row, and nothing more", () => {
@@ -361,13 +395,13 @@ describe("the row is the door", () => {
   });
 
   it("tells a keyboard reader what is happening to the machine, not only its name", () => {
-    expect(SECTION).toMatch(/aria-describedby=\{`lan-who-state-\$\{i\}`\}/);
-    expect(SECTION).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className=\{p\.quiet \? "vis-hidden" : "ap-lan-who-when"\}>/);
+    expect(LIST).toMatch(/aria-describedby=\{`lan-who-state-\$\{i\}`\}/);
+    expect(LIST).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className=\{p\.quiet \? "vis-hidden" : "ap-lan-who-when"\}>/);
   });
 
   it("does in the dialog exactly what the row's verb does, under the same busy tag", () => {
     for (const tag of ["unpair:", "accept:", "drop:", "allow:", "check:", "alias:"]) {
-      expect(MODAL, tag).toContain(`press(\`${tag}`);
+      expect(DIALOG, tag).toContain(`press(\`${tag}`);
     }
   });
 
@@ -376,12 +410,16 @@ describe("the row is the door", () => {
     // before anybody could have read `sure?`, so it confirms nothing — on the
     // row, and in the dialog.
     // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
-    expect(MODAL).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
-    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); armedAt\.current = now; return; \}/);
-    for (const src of [MODAL, SECTION]) {
+    // Each press lives in a hook of its own: the dialog's in use-peer-unpair.ts,
+    // the row's in the section's use-row-unpair.ts.
+    expect(FOOT).toMatch(/onClick=\{\(\) => pressOwn\(\)\}/);
+    expect(PEER_UNPAIR).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(PEER_UNPAIR).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); setArmedTwin\(null\); armedAt\.current = now; return; \}/);
+    for (const src of [PEER_UNPAIR, ROW_UNPAIR]) {
       expect(src).toMatch(/if \(press === "ignore"\) return;/);
     }
-    expect(SECTION).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
+    // The gap is armedPress's own constant, beside it in panel-press.ts.
+    expect(PRESS).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
   });
 });
 
@@ -392,18 +430,26 @@ describe("the dialog says each thing once", () => {
   // offers — eight lines in warning ink. When everything is an alarm, nothing
   // on the surface is.
   it("draws no row whose answer is that there is no answer", () => {
-    expect(MODAL).not.toContain("before this deck kept the date");
-    expect(MODAL).not.toContain("same as this deck");
-    expect(MODAL).not.toMatch(/label: "(Reached|System|Deck|Version, OS)"/);
+    expect(DIALOG).not.toContain("before this deck kept the date");
+    expect(DIALOG).not.toContain("same as this deck");
+    expect(DIALOG).not.toMatch(/label: "(Reached|System|Deck|Version, OS)"/);
   });
 
   it("lets the header carry the verdict and the row carry the reason", () => {
-    expect(MODAL).toMatch(/const echoed = /);
+    // A deck that did not answer says so under its name; the line under the
+    // network carries the machine's own words for why, rather than the verdict
+    // a second time.
+    const s = { peers: [paired({ lastSeen: NOW - 3_600_000, last: { at: NOW, error: "connect ECONNREFUSED 192.168.1.44:52011" } })], shared: [] } as never;
+    const [row] = deckRows(s, NOW);
+    const said = peerView({ row, source: rowSource(s, row), status: s, accounts: [], now: NOW });
+    expect(row.state.startsWith(said.line!.text)).toBe(true);
+    expect(said.raw).toBe("connect ECONNREFUSED 192.168.1.44:52011");
+    expect(said.echoed).toBe(true);
   });
 
   it("says the fix for this deck's expired logins once, under them", () => {
-    expect(MODAL).not.toContain("gives them nothing");
-    expect(MODAL).toContain('className="lan-spent"');
+    expect(DIALOG).not.toContain("gives them nothing");
+    expect(MAP).toContain('className="lan-spent"');
   });
 
   it("dates an old list in muted ink, under a header that already warns", () => {

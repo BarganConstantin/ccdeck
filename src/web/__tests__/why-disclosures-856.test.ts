@@ -10,12 +10,18 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const accounts = read("../components/AccountsPanel.tsx");
-const usage = read("../components/UsagePanel.tsx");
+// Where a quota reading came from is the quota sections', lifted out of the panel.
+const quotaSections = read("../components/QuotaSections.tsx");
+// The pace note is the quota bar's, which was lifted out of the panel.
+const quotaBar = read("../components/QuotaBar.tsx");
 const node = read("../components/AgentNode.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Bodies of every rule whose selector list names exactly this selector. */
 function decl(selector: string, prop: string): string | null {
@@ -31,21 +37,24 @@ function decl(selector: string, prop: string): string | null {
 // that pushes the row down, but as a popover over the column hung from the
 // warning — the ⋯ menu's surface — with the fix as its one button.
 describe("why a login failed is a button, not a title (#856)", () => {
-  const warning = /<button type="button" id=\{`ap-issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(accounts)?.[0] ?? null;
+  // The row's own warning, from the file that draws the row.
+  const warning = /<button type="button" id=\{`ap-issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(read("../components/AccountRow.tsx"))?.[0] ?? null;
 
   it("is a button that says whether its reason is open", () => {
     expect(warning, "the warning is not a button").not.toBeNull();
     expect(warning).toMatch(/aria-haspopup="dialog"/);
-    expect(warning).toMatch(/aria-expanded=\{issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}`\}/);
+    // Whether it is this row's warning that is open, read once off the panel's.
+    expect(clientText()).toMatch(/const issueExpanded = issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}`;/);
+    expect(warning).toMatch(/aria-expanded=\{issueExpanded\}/);
     // Conditional, because the target only exists while it is open — the same
     // rule the ⋯ menu follows.
-    expect(warning).toMatch(/aria-controls=\{issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}` \? "ap-issue-pop" : undefined\}/);
+    expect(warning).toMatch(/aria-controls=\{issueExpanded \? "ap-issue-pop" : undefined\}/);
   });
 
   it("opens the reason as text over the column, and never as a title", () => {
-    expect(accounts).not.toMatch(/className="ap-issue"[^>]*\stitle=/);
-    expect(accounts).toMatch(/<p className="ap-pop-note ap-issue-hint">\{issue\.hint\}<\/p>/);
-    expect(accounts).toMatch(/role="dialog"\s*labelledBy="ap-issue-title"/);
+    expect(accountsSurface()).not.toMatch(/className="ap-issue"[^>]*\stitle=/);
+    expect(clientText()).toMatch(/<p className="ap-pop-note ap-issue-hint">\{issue\.hint\}<\/p>/);
+    expect(clientText()).toMatch(/role="dialog"\s*labelledBy="ap-issue-title"/);
   });
 
   it("draws the failure as a mark and a word in the warning ink, with a 24px target", () => {
@@ -56,7 +65,7 @@ describe("why a login failed is a button, not a title (#856)", () => {
 });
 
 describe("the pace note opens the number it is measured against (#856)", () => {
-  const note = /<button[\s\S]*?className="qb-pace"[\s\S]*?<\/button>/.exec(usage)?.[0] ?? null;
+  const note = /<button[\s\S]*?className="qb-pace"[\s\S]*?<\/button>/.exec(quotaBar)?.[0] ?? null;
 
   it("is a button that says whether its explanation is open", () => {
     expect(note, "the pace note is not a button").not.toBeNull();
@@ -65,7 +74,7 @@ describe("the pace note opens the number it is measured against (#856)", () => {
   });
 
   it("says the number on screen when open, which was a title on a 2px tick", () => {
-    expect(usage).toMatch(/<div id=\{whyId\} className="qb-why">\s*To last until reset, stay near \{Math\.round\(pace\.expectedPct\)\}% by now\.\s*<\/div>/);
+    expect(quotaBar).toMatch(/<div id=\{whyId\} className="qb-why">\s*To last until reset, stay near \{Math\.round\(pace\.expectedPct\)\}% by now\.\s*<\/div>/);
   });
 
   it("keeps the 11px the note set, and a 24px target", () => {
@@ -77,10 +86,10 @@ describe("the pace note opens the number it is measured against (#856)", () => {
 
 describe("what stays a title, because it decides nothing (#856)", () => {
   it("keeps the card's cost breakdown a title", () => {
-    expect(node).toMatch(/<span className="cost-meta" title=\{tt\}>/);
+    expect(node).toMatch(/<span className="cost-meta" title=\{cost\.tt\}>/);
   });
 
   it("keeps where a quota reading came from a title", () => {
-    expect(usage).toMatch(/className="up-section-age" title=\{quotaSourceHint\(quota\?\.source\)\}/);
+    expect(quotaSections).toMatch(/className="up-section-age" title=\{quotaSourceHint\(quota\?\.source\)\}/);
   });
 });

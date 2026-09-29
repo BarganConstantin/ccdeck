@@ -23,9 +23,9 @@ const CLOSES = new Set(["Stop", "SessionEnd"]);
 
 /** More turns open at once than any machine runs — the same figure as the
  *  deck's own working limit for the sessions it tracks (MAX_TRACKED_SESSIONS in
- *  index.mjs). A bound because the ids arrive from outside: this is fed from
- *  pushEvent for every live event, and `/api/event` takes them without a
- *  credential. presence.mjs caps its map of tab ids for the same reason.
+ *  session-tracking.mjs). A bound because the ids arrive from outside: this is
+ *  fed from pushEvent for every live event, and `/api/event` takes them without
+ *  a credential. presence.mjs caps its map of tab ids for the same reason.
  *
  *  Past it the turn heard from least recently goes, and that costs `busy` no
  *  accuracy at all: the map is kept in the order turns were last heard from

@@ -5,7 +5,8 @@
 // unrecognised-model-version.test.ts with every other model; this pins what
 // the rest of the deck shows for the new id.
 import { describe, it, expect } from "vitest";
-import { contextWindowForModel, costForUsage, ratesForModel } from "../pricing";
+import { costForUsage, ratesForModel } from "../pricing";
+import { contextWindowForModel } from "../context-window";
 import { shortModel } from "../model-label";
 
 describe("Claude Sonnet 5.5", () => {

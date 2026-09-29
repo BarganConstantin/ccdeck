@@ -237,8 +237,9 @@ describe("a flat install of a retired name will not reinstall itself", () => {
     // prefix as well and so explains none of them. Read out of the source
     // because the map is a module-level constant in a file this suite does not
     // mount, the way prototype-keys-474.test.ts reads the lookup beside it.
-    const app = readFileSync(join(repo, "src", "web", "App.tsx"), "utf8");
-    expect(app).toMatch(/^\s*retired_name: "[^"]+",$/m);
+    // The map moved out of App.tsx with the version banner that reads it.
+    const banner = readFileSync(join(repo, "src", "web", "components", "VersionBanner.tsx"), "utf8");
+    expect(banner).toMatch(/^\s*retired_name: "[^"]+",$/m);
   });
 
   it("keeps the unattended path away from it too", () => {

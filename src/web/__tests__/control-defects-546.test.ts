@@ -46,6 +46,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(name, import.meta.url)), "utf8");
@@ -57,8 +59,10 @@ const read = (name: string) =>
 const strip = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n");
 
-const css = strip(read("../styles.css"));
+const css = strip(sheetText());
 const accounts = strip(read("../components/AccountsPanel.tsx"));
+/** The policy row, which holds the switch and the title it is named by. */
+const policy = strip(read("../components/AutoSwitchPolicy.tsx"));
 const clusters = strip(read("../components/SessionClusters.tsx"));
 
 /** WCAG 2.2 SC 2.5.8, in CSS pixels. The only hand-written number in the file. */
@@ -164,7 +168,7 @@ function tagCarrying(src: string, marker: string): string {
 }
 
 describe("the auto-switch toggle says what it switches, not what it is set to", () => {
-  const toggle = tagCarrying(accounts, 'role="switch"');
+  const toggle = tagCarrying(policy, 'role="switch"');
   /** What every assertion here is really reporting, said once. */
   const NAMELESS =
     "the auto-switch has no aria-label, so its accessible name is whatever its "
@@ -193,7 +197,7 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
     // Its one child is the shared switch's knob (#886): a span with no text,
     // so the contents still spell nothing and the aria-label stays the whole
     // name. What this guards is words coming back inside it.
-    expect(accounts, "the switch has contents again").toMatch(
+    expect(policy, "the switch has contents again").toMatch(
       /: "Switch accounts automatically when the active one nears its limit"\}\s*>\s*<span className="switch-knob" \/>\s*<\/button>/);
     expect(/aria-label="[^"]+"/.test(toggle), NAMELESS).toBe(true);
   });
@@ -201,7 +205,7 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
   it("names itself with the words already on the screen above it", () => {
     // SC 2.5.3: what a voice-control user has to pronounce is what they can
     // read. The section's visible title is the h3 this switch sits under.
-    const heading = /<h3 className="ap-auto-title">([^<]+)<\/h3>/.exec(accounts);
+    const heading = /<h3 className="ap-auto-title">([^<]+)<\/h3>/.exec(policy);
     expect(heading, "the auto-switch section lost its visible title").not.toBeNull();
     const name = /aria-label="([^"]+)"/.exec(toggle);
     expect(name, NAMELESS).not.toBeNull();
@@ -232,7 +236,7 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
       'aria-label="Reload accounts"',
       'aria-label="Switch threshold"',
       'aria-label="Dismiss this message"',
-    ]) expect(accounts).toContain(named);
+    ]) expect(strip(accountsSurface())).toContain(named);
   });
 });
 

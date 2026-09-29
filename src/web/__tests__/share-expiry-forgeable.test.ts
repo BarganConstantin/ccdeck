@@ -23,6 +23,8 @@ import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { wrapShare, unwrapShare, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const PREFIX = "ccdeck2:";
 
@@ -82,9 +84,10 @@ describe("the share envelope's expiry", () => {
 });
 
 // The strings are the fix for this item, so they are the thing under test. Read
-// out of the source rather than rendered, because this suite has no DOM.
+// out of the source rather than rendered, because this suite has no DOM — out
+// of the ⋯ popover, which is where a row's Share and its answer are drawn.
 const panel = readFileSync(
-  fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
+  fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8");
 
 describe("what the accounts panel says a share is", () => {
   it("tells the reader the text IS the password", () => {
@@ -96,14 +99,14 @@ describe("what the accounts panel says a share is", () => {
     // The old title: "The share carries a live login and expires in 10
     // minutes." — true clause, true clause, and together a claim that the
     // second one contains the first.
-    expect(panel).not.toMatch(/carries a live login and expires in 10 minutes/);
+    expect(accountsSurface()).not.toMatch(/carries a live login and expires in 10 minutes/);
     // Whatever the sentence becomes, the ten minutes has to be attributed to
     // the receiving deck rather than left standing on its own.
     expect(panel).toMatch(/other deck stops accepting it/i);
   });
 
   it("puts the warning colour on the warning rather than on the timer", () => {
-    const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const css = sheetText();
     expect(panel).toMatch(/className="ap-share-warn"/);
     expect(css).toMatch(/\.ap-share-warn\s*\{[^}]*color:\s*var\(--warn\)/);
   });

@@ -32,9 +32,10 @@ import { join } from "node:path";
 import {
   HELD_LABEL_CAP, heldEvents, heldShort, outageSentence, PAUSE_LABEL, pauseTitle, statusPill,
 } from "../status-pill";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const rawCss = readFileSync(join(web, "styles.css"), "utf8");
+const rawCss = sheetText();
 /** The comments in this sheet quote the declarations they replaced — including
  *  `transition: height` and the 18px box — so every read goes through the
  *  stripped copy or the assertions would pass on their own explanations. */
@@ -45,8 +46,17 @@ function markup(...path: string[]): string {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
-const app = markup("App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx, its readouts to
+// components/TopbarReadouts.tsx, the connection banner to
+// components/ConnectionBanner.tsx, and the canvas stack the pause control went
+// down to (#527) to components/CanvasControls.tsx; App.tsx and they are read as one.
+const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx")
+  + "\n" + markup("components/TopbarReadouts.tsx") + "\n" + markup("components/ConnectionBanner.tsx")
+  + "\n" + markup("components/CanvasControls.tsx");
 const systemMeter = markup("components", "MachinePanel.tsx");
+/** The panel's bar, which moved out of it with the other drawing primitives. */
+const systemReadout = markup("components", "MachineReadout.tsx");
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────
 
@@ -447,7 +457,7 @@ describe("the machine panel's core fills are composited, not laid out (#505)", (
       expect(transitioned(declIn(bodyOf(sel), "transition")), sel).toContain("transform");
       expect(declIn(bodyOf(sel), "height"), sel).toBe("100%");
     }
-    expect(systemMeter).toMatch(/transform: `scaleX\(/);
+    expect(systemReadout).toMatch(/transform: `scaleX\(/);
   });
 
   it("keeps the reduced-motion answer that covered the property it replaced", () => {
@@ -526,7 +536,8 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     expect(end, "the conn-banner element has no closing </div> after it — the check below would be reading the empty string")
       .toBeGreaterThan(-1);
     expect(banner.slice(0, end)).not.toMatch(/<button|onClick|ver-close/);
-    expect(app).toMatch(/className="ver-close"/);
+    // The version banner, the dismissible one, lives in components/VersionBanner.tsx.
+    expect(markup("components", "VersionBanner.tsx")).toMatch(/className="ver-close"/);
   });
 
   it("costs the bar no new tab stop, which was the price of the other direction", () => {

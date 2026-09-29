@@ -18,9 +18,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {
@@ -100,16 +102,18 @@ describe("every class the markup hard-codes", () => {
     // It composed `ap-auto-state${…" live"}` and the banner `ver-auto${…" on"}`:
     // a class restating an ARIA state the sheet can read for itself. Both are
     // the one `.switch` now, and `ap-auto-state` is left saying where it sits.
-    const panel = readFileSync(join(web, "components/AccountsPanel.tsx"), "utf8");
-    expect(panel).toContain('className="switch ap-auto-state"');
-    expect(panel).not.toMatch(/ap-auto-state\$\{/);
-    expect(readFileSync(join(web, "App.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
+    // The switch is the policy row's, which is its own component now.
+    const policy = readFileSync(join(web, "components/AutoSwitchPolicy.tsx"), "utf8");
+    expect(policy).toContain('className="switch ap-auto-state"');
+    expect(accountsSurface()).not.toMatch(/ap-auto-state\$\{/);
+    // The version banner, out of App.tsx, carries the auto-restart switch.
+    expect(readFileSync(join(web, "components/VersionBanner.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
   });
 
   it("is read from enough files, and enough of them, for the sweep to mean something", () => {
     expect(files.length).toBeGreaterThan(10);
-    expect(tokens.get("components/AccountsPanel.tsx")).toContain("ap-auto-state");
-    expect(tokens.get("components/AccountsPanel.tsx")).toContain("ap-refresh");
+    expect(tokens.get("components/AutoSwitchPolicy.tsx")).toContain("ap-auto-state");
+    expect(tokens.get("components/AccountsHeader.tsx")).toContain("ap-refresh");
     expect(tokens.get("App.tsx")).toContain("topbar");
   });
 

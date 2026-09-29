@@ -35,18 +35,27 @@
 // land focus on the canvas itself no longer does, so the ring keeps its one
 // caller, the programmatic focus it was written for.
 //
-// Plain node, no DOM and no renderer — a handler that runs on a real mousedown
-// cannot be exercised here — so this reads App.tsx and styles.css as text, the
-// way manage-block.test.ts and landmark-outline.test.ts do. Comments are
-// stripped before any "appears nowhere" assertion, because the prose above the
-// code in this repo quotes the shapes it rejected and a search for a rejected
-// shape would otherwise find the sentence rejecting it.
-import { describe, it, expect } from "vitest";
+// Plain node, no DOM and no renderer — a real mousedown cannot be dispatched
+// here — so the wiring is read as text from components/CanvasMain.tsx (the
+// <main> element, since it left App.tsx's markup), canvas-pointer-focus.ts
+// (the handler and its list, since they left App.tsx) and styles.css, the way
+// manage-block.test.ts and landmark-outline.test.ts do. The handler itself is
+// also called, on a stand-in for the event. Comments are stripped before any
+// "appears nowhere" assertion, because the prose above the code in this repo
+// quotes the shapes it rejected and a search for a rejected shape would
+// otherwise find the sentence rejecting it.
+import { describe, it, expect, vi, afterEach } from "vitest";
+import type React from "react";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { releasePointerFocus } from "../canvas-pointer-focus";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const main = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8");
+const focus = readFileSync(fileURLToPath(new URL("../canvas-pointer-focus.ts", import.meta.url)), "utf8");
+const css = sheetText();
 
 /** The same text with its comments gone — the only form an "appears nowhere"
  *  assertion may read. */
@@ -57,16 +66,18 @@ function code(src: string): string {
 }
 
 const appCode = code(app);
+const mainCode = code(main);
+const focusCode = code(focus);
 const bareCss = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The opening tag of the canvas, attributes and all. */
-const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(appCode)?.[0] ?? "";
+const mainTag = /<main\b[\s\S]*?\n\s*>/.exec(mainCode)?.[0] ?? "";
 
 /** The body of the handler this issue added, without its own comments. */
-const handler = /const releasePointerFocus = useCallback\(([\s\S]*?)\n  \}, \[\]\);/.exec(appCode)?.[1] ?? "";
+const handler = /export function releasePointerFocus\(e: React\.MouseEvent<HTMLElement>\): void \{([\s\S]*?)\n\}/.exec(focusCode)?.[1] ?? "";
 
 /** The entries of the FOCUS_CANDIDATES list, as written. */
-const candidates = [...(/const FOCUS_CANDIDATES = \[([\s\S]*?)\]\.join/.exec(appCode)?.[1] ?? "")
+const candidates = [...(/const FOCUS_CANDIDATES = \[([\s\S]*?)\]\.join/.exec(focusCode)?.[1] ?? "")
   .matchAll(/"([^"]+)"/g)].map(m => m[1]);
 
 /** The declarations of the first rule whose selector starts a line verbatim. */
@@ -123,8 +134,49 @@ describe("a mouse press does not put focus on the canvas (#434)", () => {
   it("is the canvas's alone, and not a habit the panels pick up", () => {
     // Everywhere else on this deck, a click SHOULD focus what was clicked.
     // One canvas, one handler; a second copy of this is a control somewhere
-    // losing its focus for no reason.
-    expect([...appCode.matchAll(/onMouseDownCapture=/g)]).toHaveLength(1);
+    // losing its focus for no reason. Counted across the whole client, since
+    // <main> left App.tsx and a copy could now be written anywhere.
+    expect(appCode).toMatch(/<CanvasMain\b/);
+    expect([...clientText().matchAll(/onMouseDownCapture=/g)]).toHaveLength(1);
+  });
+});
+
+// ── the handler, called ─────────────────────────────────────────────────────
+
+describe("what the handler does with a press (#434)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  /** A press on `target` inside the canvas `main`, and what it did. */
+  function press(target: object | null, main: object) {
+    const blur = vi.fn();
+    vi.stubGlobal("document", { activeElement: { blur } });
+    const preventDefault = vi.fn();
+    releasePointerFocus({ target, currentTarget: main, preventDefault } as unknown as React.MouseEvent<HTMLElement>);
+    return { prevented: preventDefault.mock.calls.length > 0, blurred: blur.mock.calls.length > 0 };
+  }
+
+  it("cancels the focus and puts it down when the canvas is what would take it", () => {
+    const main = {};
+    const asked: string[] = [];
+    const empty = { closest: (selector: string) => { asked.push(selector); return main; } };
+    expect(press(empty, main)).toEqual({ prevented: true, blurred: true });
+    // Asked against the list, whose `[tabindex]` is what finds <main>.
+    expect(asked).toHaveLength(1);
+    expect(asked[0].split(",")).toContain("[tabindex]");
+  });
+
+  it("leaves a real control inside the canvas its click-to-focus", () => {
+    const main = {};
+    const chip = {};
+    expect(press({ closest: () => chip }, main)).toEqual({ prevented: false, blurred: false });
+  });
+
+  it("leaves a press it cannot ask alone", () => {
+    // A target without closest() — nothing the browser would walk from — and
+    // no target at all.
+    const main = {};
+    expect(press({}, main)).toEqual({ prevented: false, blurred: false });
+    expect(press(null, main)).toEqual({ prevented: false, blurred: false });
   });
 });
 
@@ -137,7 +189,7 @@ describe("the list the gate is asked against (#434)", () => {
     // recognise "the browser is about to focus the canvas". Drop `[tabindex]`
     // and the handler silently never fires.
     expect(candidates).toContain("[tabindex]");
-    expect(appCode).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
+    expect(mainCode).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
   });
 
   it("lists what the browser focuses on a click, and nothing invented", () => {
@@ -196,6 +248,6 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
     // .canvas-wrap whatever attribute it is wearing. The marker would have
     // needed the outline-remover above as well.
     expect(bareCss).not.toMatch(/\.canvas-wrap[^{,]*\[[^\]]*\][^{,]*:focus/);
-    expect(appCode).not.toMatch(/data-focus/);
+    expect(appCode + "\n" + mainCode + "\n" + focusCode).not.toMatch(/data-focus/);
   });
 });

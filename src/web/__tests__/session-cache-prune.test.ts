@@ -30,7 +30,7 @@ process.env.CODEX_HOME = join(DIR, "codex");
 // @ts-expect-error — .mjs server module, no types
 const { startServer, hookToken } = await import("../../server/index.mjs");
 
-// Matches MAX_TRACKED_SESSIONS in src/server/index.mjs.
+// Matches MAX_TRACKED_SESSIONS in src/server/session-tracking.mjs.
 const CAP = 256;
 const MODEL = "claude-opus-4-7";
 // Where Claude Code actually writes a transcript, and since #674 the only

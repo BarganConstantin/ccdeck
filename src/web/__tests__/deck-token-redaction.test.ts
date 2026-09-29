@@ -45,7 +45,7 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 mkdirSync(CODEX_HOME, { recursive: true });
 
 // @ts-expect-error — plain .mjs module, no types
-const { startServer, startCodexWatcher, hookToken } = await import("../../server/index.mjs");
+const { startServer, startCodexWatcher, scanCodexNow, hookToken } = await import("../../server/index.mjs");
 
 const TOKEN: string = hookToken();
 const MARKER = "[redacted: ccdeck token]";
@@ -218,12 +218,17 @@ describe("the Codex entry point, which never touches an HTTP handler", () => {
     // into a prompt (or pasting them) lands here.
     const dayDir = join(SESSIONS, "2026", "08", "14");
     mkdirSync(dayDir, { recursive: true });
+    // After the watcher's startup catalogue, which scanCodexNow waits out, so
+    // the rollout is a new one read from its first byte; and then a scan begun
+    // after the write, rather than a wait on the 1500ms poll (#994).
+    await scanCodexNow();
     writeFileSync(
       join(dayDir, `rollout-2026-08-14T10-00-00-${CODEX_SID}.jsonl`),
       `${JSON.stringify({ type: "session_meta", payload: { id: CODEX_SID, cwd: join(DIR, "workspace") } })}\n` +
         `${JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: `codex-probe token=${TOKEN} end` } })}\n`,
       "utf8",
     );
+    await scanCodexNow();
 
     const text = await waitForServed("codex-probe");
 

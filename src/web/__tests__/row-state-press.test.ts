@@ -35,11 +35,30 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+/** The ⋯ popover's state and the requests pressed in it, lifted out of the
+ *  panel with the two rescues a move and a remove make. */
+const accountMenu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
+const css = sheetText();
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const panelCode = panel
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+const accountMenuCode = accountMenu
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The switch and the auto-switch POST, lifted out of the panel into a hook of
+ *  their own with the guard each keeps and the switch's focus rescue. */
+const switchingCode = readFileSync(fileURLToPath(new URL("../use-account-switching.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The same, for every file the panel has been split into — what a count or a
+ *  negative reads, so code that moved out of the component is still counted. */
+const surfaceCode = accountsSurface()
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
@@ -158,7 +177,7 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
     // 0.6 over the row drew every tier at 2.495:1 dark, on a row carrying three
     // working controls. The rule is gone and the class with it.
     expect(bare).not.toMatch(/\.ap-account\.disabled/);
-    expect(panelCode).not.toMatch(/a\.disabled \? " disabled" : ""/);
+    expect(surfaceCode).not.toMatch(/a\.disabled \? " disabled" : ""/);
     // The arithmetic that made it a defect, kept so the number is not folklore.
     const bed = resolve("var(--panel)", "dark");
     const muted = resolve("var(--muted)", "dark");
@@ -173,8 +192,8 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
 // The verb stayed under the account; it lost its edge rather than gaining one.
 describe("three tiers, one per kind of thing a row says", () => {
   it("marks the live account with a dot in the accent, and says it in words to a screen reader", () => {
-    expect(panelCode).toMatch(/<span className="ap-live" title=\{`Active account · slot \$\{a\.num\}`\}>\s*<span className="vis-hidden">Active account, slot \{a\.num\}:<\/span>/);
-    expect(panelCode).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
+    expect(clientText()).toMatch(/<span className="ap-live" title=\{`Active account · slot \$\{a\.num\}`\}>\s*<span className="vis-hidden">Active account, slot \{a\.num\}:<\/span>/);
+    expect(clientText()).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
     expect(declOf(".ap-live::before", "background")).toBe("var(--accent)");
     // A mark with no word beside it on screen is non-text contrast (1.4.11).
     for (const theme of themes) {
@@ -188,8 +207,8 @@ describe("three tiers, one per kind of thing a row says", () => {
   it("drops the verb to a word on the control fill, with no edge of its own", () => {
     // It was `.ap-manage-btn ap-switch`: an outlined pill, the strongest
     // boundary on a row whose name and numbers are what a switch is decided on.
-    expect(panelCode).toMatch(/className="ap-switch"/);
-    expect(panelCode).not.toMatch(/className="btn ap-switch"|className="ap-manage-btn ap-switch"/);
+    expect(clientText()).toMatch(/className="ap-switch"/);
+    expect(surfaceCode).not.toMatch(/className="btn ap-switch"|className="ap-manage-btn ap-switch"/);
     expect(declOf(".ap-switch", "flex")).toBe("none");
     expect(declOf(".ap-switch", "border")).toBe("0");
     expect(declOf(".ap-switch", "background")).toBe("var(--ctl-fill)");
@@ -205,14 +224,21 @@ describe("three tiers, one per kind of thing a row says", () => {
     // control that would undo it was not rendered at all — a 1.4.1 failure and a
     // trap in the same rule. The word stays on the row; the undo is in the ⋯,
     // offered whenever the account is out.
-    expect(panelCode).toMatch(/\{a\.disabled && <span className="ap-held">held out<\/span>\}/);
-    expect(panelCode).toMatch(/\(\(\(auto\?\.enabled \|\| auto\?\.external\) && !a\.active\) \|\| a\.disabled\) && \(/);
-    expect(panelCode).toMatch(/\{a\.disabled \? "Put back in rotation" : "Hold out of rotation"\}/);
+    expect(clientText()).toMatch(/\{a\.disabled && <span className="ap-held">held out<\/span>\}/);
+    // Two links since the menu became its own component: the panel says
+    // whether anything is rotating, and the popover offers the item on that or
+    // on the account being out.
+    expect(panelCode).toMatch(/rotating=\{!!\(auto\?\.enabled \|\| auto\?\.external\)\}/);
+    const popoverCode = readFileSync(fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+    expect(popoverCode).toMatch(/\(\(rotating && !a\.active\) \|\| a\.disabled\) && \(/);
+    expect(popoverCode).toMatch(/\{a\.disabled \? "Put back in rotation" : "Hold out of rotation"\}/);
     // The marker takes the slot `Switch` would have had, because a switch to a
     // held-out account is refused and a control that can never act is worse
     // than no control.
-    expect(panelCode).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
-    expect(panelCode).not.toMatch(/disabled=\{[^}]*a\.disabled/);
+    expect(clientText()).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
+    expect(surfaceCode).not.toMatch(/disabled=\{[^}]*a\.disabled/);
     for (const theme of themes) {
       expect(contrastRatio(resolve(declOf(".ap-held", "color")!, theme), beds(theme).panel), `${theme} held out`)
         .toBeGreaterThanOrEqual(BODY);
@@ -252,25 +278,25 @@ describe("a press never disables the control it came from (#518)", () => {
     // `switch` during one in-flight request sent exactly one POST.
     expect(pressAccepted(null)).toBe(true);
     expect(pressAccepted("share-2")).toBe(false);
-    expect(panelCode).toMatch(/if \(!claim\(tag\)\) return null;/);
-    expect(panelCode).toMatch(/if \(!claim\(`switch-\$\{num\}`\)\) return;/);
-    expect(panelCode).toMatch(/if \(!pressAccepted\(busyRef\.current\)\) return false;/);
+    expect(switchingCode).toMatch(/if \(!claim\(tag\)\) return null;/);
+    expect(switchingCode).toMatch(/if \(!claim\(`switch-\$\{num\}`\)\) return;/);
+    expect(clientText()).toMatch(/if \(!pressAccepted\(busyRef\.current\)\) return false;/);
     // A ref, not the state, because the state a handler closes over is a render
     // old and the second press happens before the next one.
-    expect(panelCode).toMatch(/const busyRef = useRef<string \| null>\(null\);/);
+    expect(clientText()).toMatch(/const busyRef = useRef<string \| null>\(null\);/);
   });
 
   it("is spelled once, and every control in the panel reads it", () => {
-    expect(panelCode).toMatch(/const pressProps = \(tag: string, working = false\) => \{/);
-    // Nothing goes inert any other way. `.ap-fix` in the empty state is the one
-    // control still on `disabled={reloading}` and is deliberately untouched:
-    // #518 names it as out of scope, and it is the only control on screen in
-    // that branch, so there is nothing for a busy lock to protect it from.
-    const disabled = [...panelCode.matchAll(/disabled=\{([^}]*)\}/g)].map(m => m[1]);
-    expect(disabled).toEqual(["reloading"]);
-    expect(panelCode).toMatch(/className="ap-fix" disabled=\{reloading\}/);
+    expect(clientText()).toMatch(/const pressProps = \(tag: string, working = false\) => \{/);
+    // Nothing goes inert any other way. `.ap-fix` in the empty state was the
+    // one control left on `disabled={reloading}` — #518 named it out of scope,
+    // as the only control on screen in that branch — until #1411 found it
+    // dropping focus the same way, and it takes the ↻'s two attributes now.
+    const disabled = [...surfaceCode.matchAll(/disabled=\{([^}]*)\}/g)].map(m => m[1]);
+    expect(disabled).toEqual([]);
+    expect(panelCode).toMatch(/className="ap-fix" \{\.\.\.pressProps\("reload", reloading\)\}/);
     // Every request-bearing control takes the same two attributes.
-    const spread = [...panelCode.matchAll(/\{\.\.\.pressProps\(([^)]*)\)\}/g)].map(m => m[1]);
+    const spread = [...surfaceCode.matchAll(/\{\.\.\.pressProps\(([^)]*)\)\}/g)].map(m => m[1]);
     expect(spread.length).toBeGreaterThanOrEqual(9);
     expect(spread).toContain('"threshold"');
     expect(spread).toContain('"enable"');
@@ -278,15 +304,19 @@ describe("a press never disables the control it came from (#518)", () => {
   });
 
   it("hands focus on only where the press takes its own control away", () => {
-    // Three of the four sites unmount rather than disable, and no busy
-    // mechanism can help with that: `switch` becomes the `active` marker,
-    // `remove` takes the row, and a slot move re-mounts the block a row over.
+    // Four sites unmount rather than disable, and no busy mechanism can help
+    // with that: `switch` becomes the `active` marker, `remove` takes the row,
+    // a slot move re-mounts the block a row over, and the empty state's retry
+    // is replaced by the roster it brought in (#1411). A fifth is no press at
+    // all: a Projects report whose account left the store closes over a row
+    // that went with it (#1412).
     expect(rescueSelectors(3)).toEqual(["#ap-more-3", ".accounts-panel .ap-refresh"]);
     expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
     // Both targets are real, named controls in the panel rather than a
     // container nobody can hear.
-    expect(panelCode).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
-    expect(panelCode).toMatch(/className="glyph-btn ap-refresh"/);
+    expect(clientText()).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
+    expect(readFileSync(fileURLToPath(new URL("../components/AccountsHeader.tsx", import.meta.url)), "utf8"))
+      .toMatch(/className="glyph-btn ap-refresh"/);
     // And only when focus was really dropped — a reader who tabbed elsewhere
     // during the request keeps where they put themselves.
     expect(focusDropped(null)).toBe(true);
@@ -295,11 +325,16 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(focusDropped("BUTTON")).toBe(false);
     expect(focusDropped("INPUT")).toBe(false);
     expect(panelCode).toMatch(/if \(!focusDropped\(document\.activeElement\?\.tagName \?\? null\)\) return;/);
-    // Exactly the three sites that unmount, and no others: a rescue on a press
+    // Exactly the five sites that unmount, and no others: a rescue on a press
     // that kept its control would take focus off it for no reason.
-    expect([...panelCode.matchAll(/rescueFocus\(/g)].length).toBe(3);
-    expect(panelCode).toMatch(/rescueFocus\(num\);/);
-    expect(panelCode).toMatch(/rescueFocus\(next\.menuFor\);/);
-    expect(panelCode).toMatch(/rescueFocus\(null\);/);
+    expect([...surfaceCode.matchAll(/rescueFocus\(/g)].length).toBe(5);
+    expect(panelCode).toMatch(/setProjectsFor\(null\);\s*rescueFocus\(null\);/);
+    // The retry's is the panel's; the switch's went to the switching hook and
+    // the move's and the remove's to the menu's, with the requests that make
+    // them.
+    expect(switchingCode).toMatch(/rescueFocus\(num\);/);
+    expect(panelCode).toMatch(/onClick=\{\(\) => load\(true\)\.then\(\(\) => rescueFocus\(null\)\)\}/);
+    expect(accountMenuCode).toMatch(/rescueFocus\(next\.menuFor\);/);
+    expect(accountMenuCode).toMatch(/rescueFocus\(null\);/);
   });
 });

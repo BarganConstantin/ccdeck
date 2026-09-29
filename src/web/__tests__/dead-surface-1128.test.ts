@@ -17,11 +17,20 @@
 // reducer skips turn cleanup for replayed events. It has never read the flag
 // since that cleanup keyed on event time.
 //
+// Then `readStored` / `seenStore`, one of the three #1128 left for a decision:
+// storage.ts's guarded read, bypassed by hand-rolled copies, a sixth copy of
+// the accessor guard in release-notes.ts, and no writer at all. The accessor
+// is storage.ts's `localStore()` now, `seenStore` is gone, `writeStored` and
+// `removeStored` are the writer, and the copies left are the files named
+// below, each for a stated reason.
+//
 // Plain node: source text and module namespaces.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+
+import { clientPairs } from "./client-source";
 
 const SERVER = fileURLToPath(new URL("../../server/", import.meta.url));
 const WEB = fileURLToPath(new URL("../", import.meta.url));
@@ -32,9 +41,12 @@ const src = (root: string, file: string) => readFileSync(join(root, file), "utf8
 const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegExp, reader: RegExp][] = [
   [SERVER, "deck-probe.mjs", "DECK_CHALLENGE_TIMEOUT_MS", /^const DECK_CHALLENGE_TIMEOUT_MS = 400;$/m, /timeout: DECK_CHALLENGE_TIMEOUT_MS,/],
   [SERVER, "lan-engine.mjs", "ROUND_MS",                  /^const ROUND_MS = 10_000;$/m,               /timeoutMs: ROUND_MS/],
-  [SERVER, "lan-socket.mjs", "REPLY_COOLDOWN_MS",         /^const REPLY_COOLDOWN_MS = 2_000;$/m,       /now\(\) - repliedAt > REPLY_COOLDOWN_MS/],
-  [SERVER, "lan-sync.mjs",   "newKeypair",                /^function newKeypair\(\) \{$/m,             /const made = newKeypair\(\);/],
-  [WEB, "components/LanSyncSection.tsx", "presenceLabel",
+  [SERVER, "lan-beacon.mjs", "REPLY_COOLDOWN_MS",         /^const REPLY_COOLDOWN_MS = 2_000;$/m,       /now\(\) - repliedAt > REPLY_COOLDOWN_MS/],
+  // Moved to lan-wire.mjs with the rest of the channel; lan-sync.mjs re-exports
+  // that file, and the case after this loop holds it to the same negative.
+  [SERVER, "lan-wire.mjs",   "newKeypair",                /^function newKeypair\(\) \{$/m,             /const made = newKeypair\(\);/],
+  // Moved out of LanSyncSection.tsx with deckRows, its one reader.
+  [WEB, "lan-roster.ts", "presenceLabel",
     /^function presenceLabel\(p: Peer, here: boolean, now: number\): string \{$/m, /presenceLabel\(p, present, now\)/],
 ];
 
@@ -52,27 +64,77 @@ describe("the in-file-only exports #1128 took off their modules' public surface"
       expect(Object.keys(await import(/* @vite-ignore */ join(dir, file)))).not.toContain(symbol);
     });
   }
+
+  it("lan-sync.mjs, which re-exports lan-wire.mjs, does not hand newKeypair out either", async () => {
+    const text = src(SERVER, "lan-sync.mjs");
+    expect(text).not.toMatch(/^export (?:const|let|var|function|async function|class) newKeypair\b/m);
+    for (const list of text.matchAll(/^export \{([^}]*)\}/gm)) {
+      expect(list[1].split(",").map(s => s.trim()), "lan-sync.mjs re-exports newKeypair").not.toContain("newKeypair");
+    }
+    expect(Object.keys(await import(/* @vite-ignore */ join(SERVER, "lan-sync.mjs")))).not.toContain("newKeypair");
+  });
 });
 
 describe("dismissedSummaries — a Set App.tsx wrote on every recap close and nothing read", () => {
   const app = src(WEB, "App.tsx");
 
   it("is gone, with its helpers and its storage key", () => {
-    expect(app).not.toMatch(/\bdismissedSummaries\b|DismissedSummaries|SUMMARY_DISMISSED_KEY|agent-dag\.summariesDismissed/);
+    // The recap's open state is use-dialogs.ts's now, which App.tsx calls, and
+    // the recap is mounted in components/DeckDialogs.tsx, which App.tsx mounts;
+    // the negative reads all three.
+    expect(app + "\n" + src(WEB, "use-dialogs.ts") + "\n" + src(WEB, "components/DeckDialogs.tsx"))
+      .not.toMatch(/\bdismissedSummaries\b|DismissedSummaries|SUMMARY_DISMISSED_KEY|agent-dag\.summariesDismissed/);
   });
 
   it("and the recap still opens from the detail panel and still closes", () => {
-    expect(app).toContain("onShowSummary={setSummaryFor}");
-    expect(app).toMatch(/<SessionSummary[\s\S]{0,200}?onClose=\{\(\) => setSummaryFor\(null\)\}/);
+    // The panel's frame is components/DetailAside.tsx, which App.tsx hands the setter.
+    expect(app).toMatch(/<DetailAside\b[^>]*\bsetSummaryFor=\{setSummaryFor\}/);
+    expect(src(WEB, "components/DetailAside.tsx")).toContain("onShowSummary={setSummaryFor}");
+    // The recap is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
+    expect(app).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
+    expect(src(WEB, "components/DeckDialogs.tsx")).toMatch(/<SessionSummary[\s\S]{0,200}?onClose=\{\(\) => setSummaryFor\(null\)\}/);
   });
 });
 
 describe("HookEnvelope.replay — App.tsx's half of #993's finding", () => {
   it("no longer says the reducer reads the flag, and names the two readers that do", () => {
+    // The handler and the comment about it moved to use-event-stream.ts, so
+    // the negative is asked of both files and the readers of the new one.
     const app = src(WEB, "App.tsx");
+    const stream = src(WEB, "use-event-stream.ts");
     expect(app).not.toContain("the reducer sees the flag");
+    expect(stream).not.toContain("the reducer sees the flag");
     // The two the comment now names are the handler's.
-    expect(app).toMatch(/if \(isReplay\) coalescer\.replay\(\);/);
-    expect(app).toContain("chimeFor(env, isReplay)");
+    expect(stream).toMatch(/if \(isReplay\) coalescer\.replay\(\);/);
+    expect(stream).toContain("chimeFor(env, isReplay)");
+  });
+});
+
+describe("readStored / seenStore — one guard for the store, not one per hook", () => {
+  it("has one accessor guard, in storage.ts, and release-notes.ts no longer carries its own", async () => {
+    const notes = src(WEB, "release-notes.ts");
+    expect(notes, "seenStore came back").not.toMatch(/\bfunction seenStore\b/);
+    expect(Object.keys(await import("../release-notes"))).not.toContain("seenStore");
+    const storage = await import("../storage");
+    for (const name of ["readStored", "writeStored", "removeStored", "localStore"]) {
+      expect(typeof (storage as Record<string, unknown>)[name], `storage.ts no longer exports ${name}`).toBe("function");
+    }
+    // What the seen markers are handed is the shared accessor.
+    expect(src(WEB, "use-welcome-and-notes.ts")).toContain("const store = localStore();");
+  });
+
+  // The files that touch `localStorage` themselves, with the reason each one
+  // does. Code only — comments are stripped. A new hand-rolled guard fails
+  // here. Seven more were listed until #1128's last pass moved them onto
+  // storage.ts's helpers: App.tsx and the appearance, browser-watch badge,
+  // Claude FM, custom-tone, sound-switch and tone-settings hooks.
+  const DIRECT: Record<string, string> = {
+    "storage.ts": "the helpers themselves",
+    "main.tsx": "the boot prune, handed the store inside its own try before App exists",
+  };
+
+  it("is touched directly only by the files that say why", () => {
+    const direct = clientPairs().filter(([, text]) => /\blocalStorage\b/.test(text)).map(([file]) => file).sort();
+    expect(direct).toEqual(Object.keys(DIRECT).sort());
   });
 });

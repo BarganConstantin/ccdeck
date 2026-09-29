@@ -250,8 +250,9 @@ describe("filling an empty slot from a peer", () => {
 });
 
 describe("the wiring that reaches it", () => {
-  const indexSrc = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
-  const step = indexSrc.slice(indexSrc.indexOf("  importAccount: async (blob, step) =>"));
+  // The engine's callbacks moved out of index.mjs into lan-deck.mjs.
+  const lanSrc = readFileSync(fileURLToPath(new URL("../../server/lan-deck.mjs", import.meta.url)), "utf8");
+  const step = lanSrc.slice(lanSrc.indexOf("  importAccount: async (blob, step) =>"));
   const fn = step.slice(0, step.indexOf("\n  },"));
 
   it("hands the whole decision over rather than making it out here", () => {

@@ -56,8 +56,9 @@ const PROVIDER = parseProvider(process.argv.slice(2));
  * arrived short — `%TEMP%` under a shortened profile directory, which is what
  * every GitHub Windows runner has — the two canonicalisers that exist to agree
  * disagreed by a whole path: C:\Users\RUNNER~1\… against C:\Users\runneradmin\….
- * canonicalWorkspace in src/server/index.mjs says the rest of it, including why
- * the long form is the canonical one; all three sites name `.native` out loud.
+ * canonicalWorkspace in src/server/canonical-path.mjs says the rest of it,
+ * including why the long form is the canonical one; all three sites name
+ * `.native` out loud.
  *
  * Exported for that test: it is half of what `--workspace` means, and a
  * predicate handed an already-canonical path cannot show that the caller
@@ -179,7 +180,7 @@ function cwdInWorkspace(cwd, workspace, platform = process.platform) {
  * payload with no cwd — it is here because the rule has to be stated the same
  * way on both sides to be pinned against the other one.
  *
- * src/server/log-writer.mjs answers this same question, for the sessions the
+ * src/server/log-election.mjs answers this same question, for the sessions the
  * server builds itself out of Codex's rollout files, under the name
  * codexCwdInWorkspace — this script is copied out of the package and run
  * standalone, so it cannot import that copy. A test walks one table of paths
@@ -233,11 +234,11 @@ function isAlive(pid) {
  * The platform is a parameter, like cwdInWorkspace's, so the case-folding half
  * is testable from any machine.
  *
- * src/server/log-writer.mjs repeats this rule for the events no hook delivers —
- * the ones the server builds itself from Codex's rollout files — because this
- * script is copied out of the package and cannot import it. A test compares the
- * two directly: they decide for the same decks, and a disagreement is a line
- * written twice or not at all.
+ * src/server/log-election.mjs repeats this rule for the events no hook
+ * delivers — the ones the server builds itself from Codex's rollout files —
+ * because this script is copied out of the package and cannot import it. A test
+ * compares the two directly: they decide for the same decks, and a disagreement
+ * is a line written twice or not at all.
  */
 function electWriters(decks, platform = process.platform) {
   const byLog = new Map();
@@ -527,7 +528,7 @@ function prove(d, cb, attempt = 0) {
  * The election has to be decided over the decks that are actually going to be
  * handed the payload, and the only thing that establishes that is the handshake.
  * So: prove, then elect, then post. It costs no extra round trip, only this
- * ordering, and it is the same reordering src/server/index.mjs makes in
+ * ordering, and it is the same reordering src/server/live-decks.mjs makes in
  * readLiveDecks for the Codex rollouts no hook ever sees.
  *
  * A FAILED CHALLENGE ON ITS OWN IS STILL NOT PROOF THE DECK IS GONE. A dead pid
@@ -793,10 +794,10 @@ function readRecord(file, resolvedCwd, found, done) {
     // every tool call, and nothing removes the record: pid 1 is init, so
     // isAlive is true forever and the unlink below never fires.
     //
-    // index.mjs:2156 reads these same files and always refused them. Two
-    // readers of one directory disagreeing is the bug; this is the stronger
-    // half, which is the one that belongs in the process that cannot afford
-    // to throw.
+    // sweepStaleDiscovery, in src/server/stale-discovery.mjs, reads these same
+    // files and always refused them. Two readers of one directory disagreeing
+    // is the bug; this is the stronger half, which is the one that belongs in
+    // the process that cannot afford to throw.
     //
     // IT IS INSIDE THE fs CALLBACK NOW, and that is where it has to be rather
     // than merely where it ended up. The reads are asynchronous (#1018), so the
@@ -1040,7 +1041,7 @@ function main() {
       // /private/tmp/proj) and then comes back empty after a restart. Silently —
       // replayLog does not count or warn about an out-of-scope line.
       //
-      // The Codex watcher already stores the canonical form (index.mjs:2203,
+      // The Codex watcher already stores the canonical form (codex-watch.mjs,
       // `cwd: await canonicalCwd(...)`, the same resolve+realpath this is), which
       // is why the two providers disagreed on one board. One spelling in the log
       // is the whole fix.

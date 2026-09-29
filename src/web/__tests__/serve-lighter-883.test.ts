@@ -11,9 +11,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { cacheControlFor, encodedBody, pickEncoding } from "../../server/static-cache.mjs";
+import { clientText, sourceOf } from "./client-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const server = read("../../server/index.mjs");
+// The static handler, which serves the page and its assets.
+const server = read("../../server/static-serve.mjs");
 const app = read("../App.tsx");
 
 describe("the deck's own files are cached by what they are (#883)", () => {
@@ -71,21 +73,31 @@ describe("the static handler sends them (#883)", () => {
 });
 
 describe("the rarely opened dialogs load when they open (#883)", () => {
+  // Both are mounted in components/DeckDialogs.tsx, which App.tsx imports
+  // eagerly, so the lazy imports are there and the negatives read both files.
+  const dialogs = read("../components/DeckDialogs.tsx");
+
   it("lazy-loads Browser Watch and the usage history", () => {
-    expect(app).toMatch(/const BrowserWatchModal = lazy\(\(\) => import\("\.\/components\/BrowserWatchModal"\)\);/);
-    expect(app).toMatch(/const UsageHistoryModal = lazy\(\(\) => import\("\.\/components\/UsageHistoryModal"\)\);/);
-    expect(app).not.toMatch(/^import BrowserWatchModal\b/m);
-    expect(app).not.toMatch(/^import UsageHistoryModal\b/m);
+    expect(dialogs).toMatch(/const BrowserWatchModal = lazy\(\(\) => import\("\.\/BrowserWatchModal"\)\);/);
+    expect(dialogs).toMatch(/const UsageHistoryModal = lazy\(\(\) => import\("\.\/UsageHistoryModal"\)\);/);
+    expect(app).toMatch(/^import DeckDialogs from "\.\/components\/DeckDialogs";$/m);
+    expect(app + "\n" + dialogs).not.toMatch(/^import BrowserWatchModal\b/m);
+    expect(app + "\n" + dialogs).not.toMatch(/^import UsageHistoryModal\b/m);
   });
 
   it("takes the topbar's unseen count from a module that does not carry the dialog", () => {
-    expect(app).toMatch(/import \{ SEEN_KEY, unseenEpisodes \} from "\.\/browser-watch-seen";/);
-    // A type import is erased, so it does not pull the dialog back in.
-    expect(app).toMatch(/import type \{ WatchEpisode \} from "\.\/components\/BrowserWatchModal";/);
+    // The badge's imports moved verbatim into use-browser-watch-badge.ts, which
+    // App.tsx loads eagerly: the count still comes from the light module, and the
+    // episode's shape is only a type import there, erased at compile time.
+    expect(clientText()).toMatch(/import \{ SEEN_KEY, unseenEpisodes \} from "\.\/browser-watch-seen";/);
+    // A type import is erased, so it pulls nothing in. The shape left the dialog
+    // for browser-watch-model.ts, so the badge no longer names the dialog at all.
+    expect(clientText()).toMatch(/import type \{ WatchEpisode \} from "\.\/browser-watch-model";/);
+    expect(sourceOf("use-browser-watch-badge.ts")).not.toContain("components/BrowserWatchModal");
   });
 
   it("gives each a Suspense boundary, drawing nothing while the chunk arrives", () => {
-    expect(app).toMatch(/<Suspense fallback=\{null\}>\s*<UsageHistoryModal /);
-    expect(app).toMatch(/<Suspense fallback=\{null\}>\s*<BrowserWatchModal/);
+    expect(dialogs).toMatch(/<Suspense fallback=\{null\}>\s*<UsageHistoryModal /);
+    expect(dialogs).toMatch(/<Suspense fallback=\{null\}>\s*<BrowserWatchModal/);
   });
 });

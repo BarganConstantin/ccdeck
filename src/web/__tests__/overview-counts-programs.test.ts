@@ -9,7 +9,7 @@
 // findings count beside it: a finding also has to clear the quiet gate. This is
 // "what programs did"; the findings are "what they did while you were away".
 import { describe, it, expect } from "vitest";
-import { visitTotals, type WatchBrowser } from "../components/BrowserWatchModal";
+import { visitTotals, type WatchBrowser } from "../browser-watch-model";
 
 const browser = (over: Partial<WatchBrowser>): WatchBrowser => ({
   key: "brave", name: "Brave", installed: true, profiles: 1,
@@ -81,7 +81,10 @@ describe("the server counts it separately from the total", () => {
     // keep a copy of. Every poll reads the figure out of the accumulator, and
     // only a real read adds to it.
     expect(server).toMatch(/const seen = _lastRead\.get\(key\) \?\? nothingSeen\(\);/);
-    expect(server).toMatch(/if \(isProgramNavigation\(row\.transition\)\) seen\.byProgram \+= 1;/);
+    // The fold that adds a read to the accumulator has a module of its own.
+    const fold = readFileSync(
+      fileURLToPath(new URL("../../server/browser-watch-seen.mjs", import.meta.url)), "utf8");
+    expect(fold).toMatch(/if \(isProgramNavigation\(row\.transition\)\) seen\.byProgram \+= 1;/);
     expect(server).toMatch(/const \{ oldest, human, byProgram \} = seen;/);
   });
 

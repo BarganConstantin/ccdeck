@@ -38,7 +38,9 @@ const metricsMod = await import("../../server/system-metrics.mjs");
 
 describe("blockedToolLabel — the wording function with two callers and neither of them real", () => {
   it("is gone from AgentNode", () => {
-    const text = src(WEB, "components/AgentNode.tsx");
+    // The card's words left AgentNode.tsx for agent-copy.ts, so the absence is
+    // asserted of both: the declaration must not come back in either.
+    const text = src(WEB, "components/AgentNode.tsx") + "\n" + src(WEB, "agent-copy.ts");
     expect(text).not.toContain("export function blockedToolLabel");
     expect(text, "the declaration survived the un-export").not.toContain("function blockedToolLabel");
   });
@@ -46,7 +48,7 @@ describe("blockedToolLabel — the wording function with two callers and neither
   it("left the two surfaces on the one function that always served them", () => {
     // notify.ts's own header: "ONE FUNCTION BECAUSE THERE ARE TWO SURFACES."
     // The tooltip goes through `guessLine`, and so does the notification body.
-    expect(src(WEB, "components/AgentNode.tsx")).toContain("const label = guessLine(waiting, said);");
+    expect(src(WEB, "agent-copy.ts")).toContain("const label = guessLine(waiting, said);");
     expect(src(WEB, "notify.ts")).toContain("const tool = guessLine(block, said);");
   });
 
@@ -97,7 +99,7 @@ describe("readSessionNaming — a whole-text loop the scan never runs", () => {
     ]) indexMod.foldSessionNamingLine(out, line);
     expect(out).toEqual({ aiTitle: "Newer title", agentName: "a-name" });
     // The scan really does fold through it, rather than through some other copy.
-    expect(src(SERVER, "index.mjs")).toContain("foldSessionNamingLine(state, line);");
+    expect(src(SERVER, "transcript-scan.mjs")).toContain("foldSessionNamingLine(state, line);");
   });
 });
 
@@ -111,7 +113,10 @@ describe("stopSystemMetrics — the one the audit named that stays", () => {
     // three above, there is no shipped counterpart for it to drift away from.
     expect(Object.keys(metricsMod)).toContain("stopSystemMetrics");
     const text = src(SERVER, "system-metrics.mjs");
-    expect(text).toContain("history.length = 0;");
+    // The ring lives in metrics-history.mjs, and the stop empties it through
+    // the one operation that file offers for it.
+    expect(text).toContain("resetHistory();");
+    expect(src(SERVER, "metrics-history.mjs")).toContain("history.length = 0;");
     expect(text, "the reason it stays is not written down").toContain("THE SUITE'S, AND SAID PLAINLY (#798)");
   });
 });
@@ -143,7 +148,9 @@ describe("the extension id", () => {
 
 describe("the comment at readSessionNamingFromTranscript", () => {
   it("no longer claims an export the function does not have", () => {
-    const text = src(SERVER, "index.mjs");
+    // Declared with the rest of the enrichment, which is the only file it can
+    // be exported from.
+    const text = src(SERVER, "session-enrichment.mjs");
     expect(text).toContain("async function readSessionNamingFromTranscript(path) {");
     expect(text).not.toContain("export async function readSessionNamingFromTranscript");
     expect(text, "the comment states a test contract that does not exist")

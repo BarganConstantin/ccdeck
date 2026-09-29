@@ -10,10 +10,10 @@
 // of the same message.
 //
 // THE RULE THAT MAKES THAT SAFE: a saved boolean always wins. Every normaliser
-// below tests `typeof x === "boolean"` and falls back only when the file has no
-// answer, so an upgrade never flips a switch somebody set.
+// below falls back only when the file holds no real boolean (deck-prefs says it
+// once, in `flagOr`), so an upgrade never flips a switch somebody set.
 import { describe, it, expect } from "vitest";
-import { DEFAULTS, lanEnabled, normalise } from "../../server/deck-prefs.mjs";
+import { DEFAULTS, flagOr, lanEnabled, normalise } from "../../server/deck-prefs.mjs";
 import {
   DEFAULTS as WATCH_DEFAULTS, normalise as watchNormalise,
 } from "../../server/browser-watch-store.mjs";
@@ -62,5 +62,33 @@ describe("the switches a deck starts with", () => {
     expect(lanEnabled({ lan: { enabled: false } }, {})).toBe(false);
     // Nothing saved at all reads as the default, which is on.
     expect(lanEnabled(null, {})).toBe(true);
+  });
+});
+
+describe("what counts as an answer in the prefs file", () => {
+  it("is a real boolean and nothing else", () => {
+    expect(flagOr(false, true)).toBe(false);
+    expect(flagOr(true, false)).toBe(true);
+    for (const notAnAnswer of ["true", "false", 1, 0, null, undefined, {}, []]) {
+      expect(flagOr(notAnAnswer, true)).toBe(true);
+      expect(flagOr(notAnAnswer, false)).toBe(false);
+    }
+  });
+
+  it("leaves every switch on its default when a hand edit wrote strings", () => {
+    // Each switch the file holds, set to the string of the opposite of its
+    // default: none of them may move.
+    const top = ["notifications", "tourSeen", "autoUpdate"] as const;
+    const lan = ["enabled", "autoAsk", "autoAccept", "shareActive", "tailscale", "tailscaleAsk", "tailscaleAccept"] as const;
+    const raw = {
+      ...Object.fromEntries(top.map(k => [k, String(!DEFAULTS[k])])),
+      lan: Object.fromEntries(lan.map(k => [k, String(!DEFAULTS.lan[k])])),
+    };
+    const read = normalise(raw);
+    // A key missing from DEFAULTS would pass the loops below as undefined twice.
+    for (const k of top) expect(typeof DEFAULTS[k], k).toBe("boolean");
+    for (const k of lan) expect(typeof DEFAULTS.lan[k], `lan.${k}`).toBe("boolean");
+    for (const k of top) expect(read[k], k).toBe(DEFAULTS[k]);
+    for (const k of lan) expect(read.lan[k], `lan.${k}`).toBe(DEFAULTS.lan[k]);
   });
 });

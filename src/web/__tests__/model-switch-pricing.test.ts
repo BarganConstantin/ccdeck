@@ -41,6 +41,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { USAGE_FILES } from "./usage-surface";
 import { costForUsage } from "../pricing";
 import { boardModelTable } from "../board-usage";
 import { applyEvent, initialState } from "../reducer";
@@ -639,9 +640,9 @@ describe("no cost surface multiplies a whole session by its last model", () => {
     // one included the moment it is renamed to something that is not an entry,
     // trips the check.
     const files = [
-      "App.tsx", "components/UsagePanel.tsx", "components/SessionList.tsx",
+      "App.tsx", ...USAGE_FILES, "components/SessionList.tsx",
       "components/SessionSummary.tsx", "components/ContextModal.tsx",
-      "components/AgentNode.tsx", "board-usage.ts",
+      "components/AgentNode.tsx", "card-cost.ts", "board-usage.ts",
     ];
     const lastWins = /costForUsage\(\s*(?!e\.)(\w+)\.usage\s*,\s*\1\.model\s*\)/;
     for (const f of files) expect(lastWins.test(srcOf(f)), f).toBe(false);
@@ -656,14 +657,19 @@ describe("no cost surface multiplies a whole session by its last model", () => {
     expect(table).not.toMatch(/const key = a\.model \?\? UNKNOWN_MODEL/);
     expect(table).toMatch(/for \(const e of usageByModelEntries\(a\)\)/);
     expect(table).toMatch(/const key = e\.model \?\? UNKNOWN_MODEL/);
-    // And the panel has no fold of its own left to disagree with it.
-    const panel = srcOf("components/UsagePanel.tsx");
-    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
-    expect(panel).not.toMatch(/usageByModelEntries/);
+    // And the panel has no fold of its own left to disagree with it: its
+    // By model rows come from use-board-spend.ts, which calls the table.
+    expect(srcOf("use-board-spend.ts")).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    // Nor anything lifted out of it.
+    expect(USAGE_FILES.map(srcOf).join("\n")).not.toMatch(/usageByModelEntries/);
   });
 
   it("carries the split from the scanner to the client on the usage event", () => {
-    const server = srcOf("../server/index.mjs");
+    // The scanner's state is transcript-scan.mjs's; the readers and the event
+    // that carries the split are session-enrichment.mjs's, and index.mjs is the
+    // pipeline the event leaves by. The chain is the three together.
+    const server = srcOf("../server/index.mjs") + srcOf("../server/transcript-scan.mjs")
+      + srcOf("../server/session-enrichment.mjs");
     expect(server).toMatch(/usageByModel: \{\}/);
     expect(server).toMatch(/readUsageByModelFromTranscript/);
     // And from BOTH places the total is read from — the main transcript and the

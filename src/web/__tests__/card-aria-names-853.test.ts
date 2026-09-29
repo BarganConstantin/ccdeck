@@ -13,8 +13,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { agentAriaLabel } from "../components/AgentNode";
+import { agentAriaLabel } from "../agent-copy";
 import type { AgentNodeData } from "../types";
+import { sheetText } from "./sheet-source";
 
 const card = (over: Partial<AgentNodeData> = {}): AgentNodeData => ({
   id: "s1", sessionId: "s1", label: "agents-deck", kind: "root", state: "active",
@@ -58,6 +59,8 @@ const stripped = (src: string) => src
 const appCode = stripped(app);
 /** The node-building half of the canvas, out of App.tsx since #1175. */
 const flowCode = stripped(readFileSync(fileURLToPath(new URL("../canvas-flow.ts", import.meta.url)), "utf8"));
+/** The <ReactFlow> element and the props it is given, out of App.tsx's markup. */
+const boardCode = stripped(readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8"));
 
 describe("the canvas wiring (#853)", () => {
   it("gives every agent node its composed name", () => {
@@ -67,15 +70,17 @@ describe("the canvas wiring (#853)", () => {
   });
 
   it("drops React Flow's false keyboard instructions and its delete key", () => {
-    expect(appCode).toMatch(/\n\s*disableKeyboardA11y\n/);
-    expect(appCode).toMatch(/deleteKeyCode=\{null\}/);
+    // Two links: App.tsx mounts BoardFlow, and BoardFlow gives <ReactFlow> both.
+    expect(appCode).toMatch(/<BoardFlow\b/);
+    expect(boardCode).toMatch(/\n\s*disableKeyboardA11y\n/);
+    expect(boardCode).toMatch(/deleteKeyCode=\{null\}/);
   });
 
   it("takes the unreferenced instruction text out of the page as well", () => {
     // disableKeyboardA11y stops nodes pointing at React Flow's description,
     // but the text itself is still rendered, and a screen reader browsing the
     // page would read "Press delete to remove it" out of nowhere.
-    const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+    const css = sheetText()
       .replace(/\/\*[\s\S]*?\*\//g, "");
     expect(css).toMatch(/\[id\^="react-flow__node-desc"\],\s*\[id\^="react-flow__edge-desc"\]\s*\{\s*display:\s*none;\s*\}/);
   });

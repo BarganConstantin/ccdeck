@@ -15,8 +15,8 @@ import { describe, it, expect } from "vitest";
 import { createHash, randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
 import {
-  accountKey, addTrusted, beaconPayload, beaconVerdict, cleanName, dropTrusted, fingerprint,
-  isPresent, manifestFor, notePeer, open, peerRows, plan, proof, proofOk, readBeacon,
+  accountKey, addTrusted, beaconPayload, beaconVerdict, cleanName, credentialAad, dropTrusted, fingerprint,
+  manifestFor, notePeer, open, plan, proof, proofOk, readBeacon,
   handshakeTranscript, hostId, identityFrom, pairable, readPub, seal, sessionKey, stillListed, syncAction,
   transferChallenge, trustedPeer,
   ANNOUNCE_MS, FORGET_MS, MAGIC, MAX_BEACON_BYTES, MAX_NAME, PRESENT_MS, PROTOCOL,
@@ -336,7 +336,14 @@ describe("proving membership without spending it", () => {
 });
 
 describe("the credential on the wire", () => {
-  const aad = `${FP}->${OTHER}|claude@example.com@@org1`;
+  const aad = credentialAad(FP, OTHER, "claude@example.com@@org1");
+
+  it("is sealed under the string every deck already on the network builds", () => {
+    // Pinned by hand, because this is the one string two machines of different
+    // versions have to agree on: a deck that spelled it differently would seal
+    // logins nobody else could open, and report nothing but "could not open".
+    expect(aad).toBe(`${FP}->${OTHER}|claude@example.com@@org1`);
+  });
 
   it("comes back only to somebody holding the same passphrase", () => {
     const sealed = seal(KEY, "ccdeck2:pretend-blob", aad);
@@ -356,8 +363,9 @@ describe("the credential on the wire", () => {
 
   it("cannot be replayed as if it were about a different account", () => {
     const sealed = seal(KEY, "ccdeck2:pretend-blob", aad);
-    expect(open(KEY, sealed, `${FP}->${OTHER}|other@example.com@@org1`)).toBeNull();
-    expect(open(KEY, sealed, `${OTHER}->${FP}|claude@example.com@@org1`)).toBeNull();
+    expect(open(KEY, sealed, credentialAad(FP, OTHER, "other@example.com@@org1"))).toBeNull();
+    // Nor sent back at the deck that sealed it, as though it came the other way.
+    expect(open(KEY, sealed, credentialAad(OTHER, FP, "claude@example.com@@org1"))).toBeNull();
   });
 
   it("refuses a tampered body the same way it refuses a wrong key", () => {
@@ -565,14 +573,13 @@ describe("the list of decks, which outlives their being on", () => {
     notePeer(peers, b, "192.168.1.5", now);
     const later = now + PRESENT_MS + 1;
     expect(peers.size).toBe(1);
-    expect(isPresent(peers.get(OTHER), later)).toBe(false);
-    expect(peerRows(peers, later)[0].name).toBe("MacBook");
+    expect(stillListed(peers.get(OTHER), later)).toBe(true);
+    expect(peers.get(OTHER).name).toBe("MacBook");
   });
 
   it("survives two lost packets without flickering out of the list", () => {
-    const peers = new Map();
-    notePeer(peers, b, "192.168.1.5", now);
-    expect(isPresent(peers.get(OTHER), now + ANNOUNCE_MS * 2)).toBe(true);
+    // The window every reader of presence here is built on: pairable's, and
+    // the local-route preference in notePeer.
     expect(PRESENT_MS).toBeGreaterThan(ANNOUNCE_MS * 2);
   });
 
@@ -593,20 +600,6 @@ describe("the list of decks, which outlives their being on", () => {
     expect(notePeer(peers, { ...b, name: "Desktop" }, "192.168.1.9", now).changed).toBe(true);
     const r = notePeer(peers, { ...b, name: "Desktop", instance: "feedface" }, "192.168.1.9", now);
     expect(r.restarted, "a restarted deck kept its session state").toBe(true);
-  });
-
-  it("holds still, so a row can be pointed at", () => {
-    // Present decks first, then by name — NOT by last-seen, which would
-    // reorder the list every thirty seconds as packets land in whatever order
-    // the network delivers them.
-    const peers = new Map();
-    notePeer(peers, { ...b, fp: "aaa-aaa-aaa-aaa", name: "Zed" }, "1.1.1.1", now);
-    notePeer(peers, { ...b, fp: "bbb-bbb-bbb-bbb", name: "Alpha" }, "1.1.1.2", now);
-    notePeer(peers, { ...b, fp: "ccc-ccc-ccc-ccc", name: "Beta" }, "1.1.1.3", now - PRESENT_MS - 1);
-    expect(peerRows(peers, now).map((p: { name: string }) => p.name)).toEqual(["Alpha", "Zed", "Beta"]);
-    // And again with the map built in the other order.
-    const flipped = new Map([...peers.entries()].reverse());
-    expect(peerRows(flipped, now).map((p: { name: string }) => p.name)).toEqual(["Alpha", "Zed", "Beta"]);
   });
 
   it("forgets a deck nobody has heard from since yesterday", () => {

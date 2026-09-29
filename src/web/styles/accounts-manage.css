@@ -1,0 +1,354 @@
+/* ---------------- accounts: add, manage, share ---------------- */
+/* The panel gained the ability to change the store, not just read it. These
+   controls stay inside the existing `ap-` vocabulary rather than starting a
+   new one: same 9–11.5px sizes, same tokens, same 120ms transitions. */
+
+/* No hover rule of its own: `button.btn:hover` outranks `.ap-add:hover` on
+   specificity anyway, and now that the shared rule draws the accent rather than
+   --accent-dim, the local one only restated a line it could never win. */
+/* The 16px here was dead too — `class="btn ap-add"`, and `button.btn` (0,1,1)
+   beats (0,1,0), exactly the specificity the comment above already conceded for
+   the hover rule. It is also the one of the seven that should stay dead on its
+   own merits: 16px would make "+" the loudest glyph in a 288px panel, which is
+   the argument `.ap-failure-x` makes against sizing a control like a control
+   when it lives inside 10px text.
+   It was the one control in an `ap-`, `up-`, `uh-` or `modal-` header kept as a
+   `.btn` box when the rest went bare, on the argument that it is the panel's one
+   affirmative action and that the sheet already spent a colour saying so. Both
+   halves were false as shipped. `.ap-add { color: var(--accent) }` is (0,1,0)
+   against `button.btn { color: var(--text) }` at (0,1,1), so the accent never
+   painted; the same arithmetic killed the padding below it, which is why the
+   button measured 33.56 x 30 — `button.btn`'s 24px of padding round a 12px
+   glyph — while its bare neighbours measured 24 x 24 round a 16px one. The box
+   was the largest in the run and the ink the smallest, which is the opposite of
+   the intent, and its 30px `min-height` set the header's height where the other
+   two contribute 16px: the step `--ctl-h` exists to remove, in a panel header.
+   Bare now, and the same ink as its neighbours — one header, one control
+   language. What tells the affirmative action apart is distance, not a box. */
+.ap-add {
+  line-height: 1;
+  margin-right: 6px;
+}
+
+/* The row's own disclosure, and the only door to share, rename, move and
+   remove. It used to be `opacity: 0` until the row was hovered — on a touch
+   device, a door with no handle — and it measured 25x16, under 2.5.8's 24x24
+   floor on the short side. Now a real 24x24 target, legible before it is
+   touched: 4.70:1 dark and 5.78:1 light against --panel, and 4.547:1 / 5.615:1
+   on the ACTIVE row, which is the bed one of these is always on and the number
+   this comment used to leave out — at the 6% the row was tinted at, it was
+   4.208:1 there (#519). It lifts to --text under the pointer. Quiet is carried
+   by size and colour, not by absence —
+   fading it to 0.35 instead would leave the glyph at 1.63:1, which is the same
+   defect the pills above have just been lifted out of. */
+.ap-more {
+  margin-left: 4px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text-dim);
+  line-height: 1;
+  cursor: pointer;
+}
+.ap-account:hover .ap-more, .ap-more:hover, .ap-more:focus-visible, .ap-more[aria-expanded="true"] {
+  color: var(--text);
+}
+/* SECONDARY TO `switch`, AND IT LOOKS IT. It drew a --ctl-edge outline under
+   the pointer and while open, which is the exact boundary the `switch` pill
+   beside it wears at rest — so the moment somebody aimed at the management
+   entry it had the same weight as the row's one real verb. It answers with a
+   fill now, the neutral --ctl-fill every control here sits in, a step
+   stronger while its menu is open so the popover has something visible to
+   hang from. The glyph is the identification; the fill is only the answer. */
+.ap-more:hover { background: var(--ctl-fill); }
+.ap-more[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 12%, transparent); }
+
+/* ── the ⋯ popover ──────────────────────────────────────────────────────────
+   What the ⋯ opens, now that it opens nothing on the row. It was a block drawn
+   into the row itself — the name field, the slot picker and three verbs at
+   once under a dashed rule — which pushed every account under it down the
+   column and put five controls in front of somebody who had come for one of
+   them. A menu of four words replaces it, laid over the panel and anchored to
+   the button, and each word that needs more than a press turns the same
+   surface into the one small form it needs. AnchoredPopover owns the placement
+   and the dismissals.
+
+   The surface is the sound menu's, the deck's other popover: the panel's own
+   ground, its hairline, a tight line for sitting ON something under a soft one
+   for its height, and the same z-index 40 — above the canvas and its controls,
+   below every dialog and its scrim. Both layers are theme tokens —
+   --shadow-contact under --shadow-2 — so each theme block tunes them for its
+   own ground and no light rule repeats them (#1287). */
+.anchored-popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  animation: pop-from-anchor 120ms cubic-bezier(0.23, 1, 0.32, 1);
+  text-align: left;
+}
+/* Out of the anchor, not up from nowhere: 3px away from the button over
+   120ms, with the opacity, and no scale. A menu that grows reads as something
+   arriving; this should read as having been there. Opened upward near the foot
+   of the window, it moves up. */
+.anchored-popover[data-side="above"] { --pop-rise: 3px; }
+@keyframes pop-from-anchor {
+  from { opacity: 0; transform: translateY(var(--pop-rise, -3px)); }
+}
+
+/* One width for every view, so choosing Rename changes only how tall the
+   surface is and the edge under the ⋯ never moves. 200, because end-aligned
+   under the ⋯ of a row with `switch` beside it that puts the popover's left
+   edge on the row's own 14px inset — measured — so the menu's words start on
+   the line the account's number and address start on. */
+.ap-pop { width: 200px; }
+/* A column, so each row stretches to the menu's width without being told a
+   percentage. */
+.ap-pop[role="menu"] {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+
+/* ROWS, NOT PILLS. The block's verbs were three outlined pills and a fourth
+   in red; in a menu the list is the container, so an item draws nothing at
+   rest and answers the pointer and the keyboard with the neutral fill every
+   control here sits in — the way a native menu highlights a row without
+   restyling its word. --ctl-h is the one height a control stands at in this
+   deck, and a menu row is one. */
+.ap-menu-item {
+  display: flex;
+  align-items: center;
+  min-height: var(--ctl-h);
+  padding: 0 10px;
+  border: 0;
+  /* Concentric with the surface: its --r-panel less the 4px it is inset by. */
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-menu-item:hover:not(:disabled),
+.ap-menu-item:focus-visible { background: var(--ctl-fill); }
+/* Inset, because the global ring's 1px offset would draw over the rows on
+   either side of this one. */
+.ap-menu-item:focus-visible { outline-offset: -2px; }
+.ap-menu-item:active:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.ap-menu-item:disabled { opacity: var(--dim-off); cursor: default; }
+/* The rule is what separates the one act that cannot be undone. It used to be
+   distance — `remove` pushed 102px along its own row — and in a list the
+   equivalent is a hairline, inset so it reads as a pause in the list rather
+   than an edge of the surface. */
+.ap-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+/* The only item that carries the error colour, and at rest it carries it in
+   the word alone. Pointed at, it takes the same 12% --err wash `.btn.danger`
+   takes under the pointer. */
+.ap-menu-item.danger { color: var(--err); }
+.ap-menu-item.danger:hover:not(:disabled),
+.ap-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); }
+/* Armed is a different item, not a hover state: the next press deletes stored
+   credentials, and it disarms itself after four seconds. The fill-and-invert
+   `.ap-manage-btn.danger.armed` uses for the same moment, and the same bar
+   draining for exactly as long as the window stays open — linear, because
+   nothing about a countdown should ease. Spelled out for the pointed-at states
+   too, which would otherwise outrank it and paint the wash over the fill. */
+.ap-menu-item.danger.armed,
+.ap-menu-item.danger.armed:hover:not(:disabled),
+.ap-menu-item.danger.armed:focus-visible {
+  position: relative;
+  overflow: hidden;
+  background: var(--err);
+  color: var(--bg);
+  font-weight: 600;
+}
+.ap-menu-item.danger.armed::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  transform-origin: left center;
+  animation: ap-disarm 4000ms linear forwards;
+}
+
+/* A form view: a title that is also the field's label, the field, and the two
+   answers. 6px binds the title to its field; the answers sit 12px below —
+   one group, then the decision about it. */
+.ap-pop-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+.ap-pop-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.ap-pop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+/* One width for both answers, so `Save` becoming `…` while the store is
+   written does not move `Cancel` out from under the pointer beside it. */
+.ap-pop-actions button.btn { min-width: 64px; }
+/* The field's own box at the control height the two buttons under it stand
+   at, and the width of the form. Read from its left edge: the options are
+   labels (`slot 3 · swap`), and the shared right alignment suits only the
+   auto-switch threshold's numbers. */
+.ap-pop .ap-field { display: block; }
+.ap-pop .ap-field select {
+  width: 100%;
+  min-height: var(--ctl-h);
+  font-size: 12px;
+  text-align: left;
+}
+.ap-pop-note { margin: 0; font-size: 11px; line-height: 1.4; color: var(--text-dim); }
+/* A countdown broken after `expires in` leaves its number alone on the next
+   line. It moves as one piece or not at all. */
+.ap-pop-note .ap-share-expiry { white-space: nowrap; }
+.ap-pop-error {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--err);
+  overflow-wrap: anywhere;
+}
+.ap-pop[role="menu"] .ap-pop-error { padding: 6px 10px 4px; }
+.ap-pop [aria-busy="true"] { cursor: progress; }
+
+/* A warning's explanation. Wider than the menu, because what it holds is a
+   paragraph rather than four words; the title carries the mark in the warning
+   ink and the words in the foreground, and the paragraph reads in the
+   secondary tier — it is the thing somebody opened this to read. */
+.ap-issue-pop { width: 252px; }
+.ap-issue-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.ap-issue-title[data-tone="warn"] .ap-warn-glyph { color: var(--warn); }
+.ap-issue-hint { color: var(--text-secondary); line-height: 1.5; }
+.ap-issue-when { color: var(--muted); }
+.ap-issue-who { color: var(--text); overflow-wrap: anywhere; }
+
+/* The one thing a move ever has to announce rather than show: that it
+   relocated a SECOND account. It stands in the moved row's own freshness line
+   for eight seconds, where it adds no line of its own, in the accent — dim is
+   right for a standing fact and wrong for news. */
+.ap-swap-note { color: var(--accent); }
+/* The one control in the block that declared no transition and no hover, while
+   four siblings eased their border over 120ms. Focusing the field snapped and
+   pressing a button eased, which is felt long before it is noticed. */
+.ap-manage-input {
+  min-width: 0;
+  /* The height of the two buttons under it in the rename form, rather than the
+     24px it shared with the pills on the row it used to sit in. */
+  min-height: var(--ctl-h);
+  padding: 0 8px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  transition: border-color 120ms, background 120ms;
+}
+.ap-manage-input:hover { border-color: var(--text); }
+.ap-manage-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* --muted here was the labels' own colour — identical to --text-dim in dark, to
+   a rounding error — so nothing in the block told a clickable pill from a
+   decorative word. The buttons rise to --text rather than the labels sinking
+   below it: the dark ramp has no readable tier under --muted's 4.70:1 to sink
+   into (styles.css:11), and a label that dim would trade one 1.4.3 failure for
+   another. */
+.ap-manage-btn {
+  padding: 3px 10px;
+  /* The 24px target floor (#884): the pill measured 51x23, a pixel under it,
+     on the `switch` verb every inactive account row carries. */
+  min-height: 24px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-manage-btn:hover:not(:disabled) {
+  border-color: var(--text);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+.ap-manage-btn:active:not(:disabled) { transform: scale(0.97); }
+/* The same dimming the ↻ and the two selects use for the moment a request is
+   out. At 0.45 this was the panel's only long-lived disabled control and it sat
+   at 1.98:1; nothing here is disabled at rest any more, so the value can match
+   the idiom instead of hedging against a resting state. This comment is where
+   #379 found that idiom stated and nowhere declared, which is how --dim-off came
+   to exist — the number it argued for now lives at :root and this rule reads it
+   along with the thirteen others that were meant to agree with it. */
+.ap-manage-btn:disabled { opacity: var(--dim-off); cursor: default; }
+/* 30% put the destructive control's boundary at 1.96:1 dark / 1.71:1 light —
+   the report called this the only control in the block that met 3:1, and it
+   did not: only its LABEL did, at 9.54:1, which is exactly why it out-drew
+   everything around it. */
+.ap-manage-btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+.ap-manage-btn.danger:hover:not(:disabled) { border-color: var(--err); }
+/* Armed is a different button, not a hover state: it is one click from
+   deleting stored credentials, and it disarms itself after four seconds. */
+.ap-manage-btn.danger.armed {
+  color: var(--bg);
+  background: var(--err);
+  border-color: var(--err);
+  font-weight: 600;
+}
+
+.ap-share-blob {
+  display: block;
+  max-height: 66px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.4;
+  user-select: all;
+}
+/* The share-accounts dialog's foot: its copy button and the warning beside it.
+   The row's own share used to wear these too, before it moved into the ⋯
+   popover and took the popover's buttons. */
+.ap-share-foot { display: flex; align-items: center; gap: 8px; }
+.ap-manage-hint { color: var(--text-dim); font-size: 10px; min-width: 0; }
+/* Copy is the point of that foot, so it looks like it. The border is the
+   accent itself rather than --accent-dim: at 1.91:1 dark / 1.39:1 light the dim
+   edge was an invisible boundary. */
+.ap-share-foot .ap-manage-btn {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.ap-share-foot .ap-manage-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+

@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import { countTo, frameValue, worthCounting, COUNT_MS } from "../count-up";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
@@ -159,8 +160,12 @@ describe("what the panel counts, and what it leaves alone", () => {
   it("leaves the tables alone", () => {
     // Twelve rows counting at once is a slot machine. The rows still render
     // their true value directly.
-    expect(panel).toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
-    expect(panel).toMatch(/<span className="up-session-tokens">\{fmtTokens\(s\.tokens\)\}<\/span>/);
+    // Both tables are lifted out of the panel into components of their own.
+    expect(readFileSync(fileURLToPath(new URL("../components/UsageModelTable.tsx", import.meta.url)), "utf8"))
+      .toContain("<td className=\"up-num\">{fmtTokens(m.tokens)}</td>");
+    // The session rows are UsageSessionBreakdown.tsx's, lifted out of the panel.
+    expect(readFileSync(fileURLToPath(new URL("../components/UsageSessionBreakdown.tsx", import.meta.url)), "utf8"))
+      .toMatch(/<span className="up-session-tokens">\{fmtTokens\(s\.tokens\)\}<\/span>/);
   });
 
   it("counts on a period switch too, and snaps only on the first paint", () => {
@@ -169,9 +174,11 @@ describe("what the panel counts, and what it leaves alone", () => {
     // and is watching the figure they asked for, so riding up to twelve
     // thousand or back down to three hundred is the one place the SIZE of the
     // difference is worth feeling.
-    expect(panel).toContain("if (firstRef.current) {");
-    expect(panel).not.toContain("meaningChanged");
-    expect(panel).not.toContain("countKey");
+    // The hook is use-count-up.ts, lifted out of the panel.
+    expect(readFileSync(fileURLToPath(new URL("../use-count-up.ts", import.meta.url)), "utf8"))
+      .toContain("if (firstRef.current) {");
+    expect(usageSurface()).not.toContain("meaningChanged");
+    expect(usageSurface()).not.toContain("countKey");
   });
 
   it("adds what the canvas has gained since the reading, so it moves between polls", () => {
@@ -198,8 +205,10 @@ describe("what the panel counts, and what it leaves alone", () => {
     // commit, so the memo held the PREVIOUS baseline on the render a reading
     // arrived and the headline overshot by a minute (#784). Committing both in
     // one `setLanded` removes the ordering rather than getting it right.
-    expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
-    expect(panel, "the baseline is back in an effect of its own")
+    // The reading is stored by the range hook, lifted out of the panel.
+    expect(readFileSync(fileURLToPath(new URL("../use-usage-range.ts", import.meta.url)), "utf8"))
+      .toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
+    expect(usageSurface(), "the baseline is back in an effect of its own")
       .not.toContain("baselineRef.current =");
   });
 

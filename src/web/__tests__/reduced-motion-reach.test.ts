@@ -40,9 +40,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const rawCss = readFileSync(join(web, "styles.css"), "utf8");
+const rawCss = sheetText();
 /** Comments in this sheet quote the declarations they explain, so they are
  *  blanked before anything is parsed — but blanked to spaces rather than cut,
  *  so a rule's reported line number still points at the rule. */

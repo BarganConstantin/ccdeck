@@ -28,18 +28,21 @@ const at = (marker: string) => {
 };
 
 describe("tab order follows the page, left to right (#880)", () => {
+  // The canvas's <main> is components/CanvasMain.tsx's; where App.tsx places
+  // <CanvasMain> is where it lands in the document.
   it("renders the left column before the canvas", () => {
-    expect(at("<AccountsPanel")).toBeLessThan(at("<main"));
-    expect(at("<SessionList")).toBeLessThan(at("<main"));
+    expect(at("<AccountsPanel")).toBeLessThan(at("<CanvasMain"));
+    expect(at("<SessionList")).toBeLessThan(at("<CanvasMain"));
   });
 
   it("renders the two fixed right-hand rails after the canvas", () => {
-    expect(at("<UsagePanel")).toBeGreaterThan(at("</main>"));
-    expect(at("<MachinePanel")).toBeGreaterThan(at("</main>"));
+    expect(at("<UsagePanel")).toBeGreaterThan(at("</CanvasMain>"));
+    expect(at("<MachinePanel")).toBeGreaterThan(at("</CanvasMain>"));
   });
 
   it("keeps usage before machine, and both before the detail panel at the far right", () => {
     expect(at("<UsagePanel")).toBeLessThan(at("<MachinePanel"));
-    expect(at("<MachinePanel")).toBeLessThan(at('<aside className="detail"'));
+    // The panel's <aside> is components/DetailAside.tsx's; App.tsx places it.
+    expect(at("<MachinePanel")).toBeLessThan(at("<DetailAside"));
   });
 });

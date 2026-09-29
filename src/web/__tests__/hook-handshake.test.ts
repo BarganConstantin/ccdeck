@@ -23,6 +23,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { endStdin } from "./child-stdin";
 
 // hook.js is CommonJS inside a "type": "module" package, so it only loads as
 // itself once outside that tree — which is also the only way it ever runs, the
@@ -104,7 +105,7 @@ async function runHook(discovery: Record<string, unknown>, event: Record<string,
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
     stdio: ["pipe", "ignore", "ignore"],
   });
-  child.stdin.end(JSON.stringify(event));
+  endStdin(child, JSON.stringify(event));
   await new Promise<void>((done, fail) => {
     child.on("error", fail);
     child.on("exit", () => done());
@@ -165,7 +166,7 @@ async function fire(home: string, { preload }: { preload?: string } = {}) {
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
     stdio: ["pipe", "ignore", "ignore"],
   });
-  child.stdin.end(JSON.stringify(EVENT));
+  endStdin(child, JSON.stringify(EVENT));
   const code = await new Promise<number | null>((done, fail) => {
     child.on("error", fail);
     child.on("exit", c => done(c));

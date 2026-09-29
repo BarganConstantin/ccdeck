@@ -7,7 +7,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fmtTokens } from "../token-format";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
 const grid = /<div className="tokens-grid">([\s\S]*?)<\/div>\s*<\/section>/.exec(app)?.[1] ?? "";
 
 const FIELDS = ["inputTokens", "outputTokens", "cacheReadTokens", "cacheCreateTokens"];
@@ -29,7 +31,9 @@ describe("the details rail counts tokens the way the usage panel does (#835)", (
   });
 
   it("reads the format from the module every other token surface imports", () => {
-    expect(app).toMatch(/import \{ fmtTokens \} from "\.\/token-format";/);
+    // The rail is components/Detail.tsx, one directory down from the module.
+    const rail = readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
+    expect(rail).toMatch(/import \{ fmtTokens \} from "\.\.\/token-format";/);
     expect(app).not.toMatch(/function fmtTokens\(/);
   });
 

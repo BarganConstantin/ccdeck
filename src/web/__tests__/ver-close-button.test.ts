@@ -14,12 +14,19 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ownsKeystroke } from "../shortcuts";
+import { sheetText } from "./sheet-source";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+// Both banners moved out of App.tsx: the version banner to
+// components/VersionBanner.tsx, and the old-name notice that dismisses with the
+// same element to components/OldNameBanner.tsx.
+const banner = readFileSync(fileURLToPath(new URL("../components/VersionBanner.tsx", import.meta.url)), "utf8");
+const oldNameBanner = readFileSync(fileURLToPath(new URL("../components/OldNameBanner.tsx", import.meta.url)), "utf8");
+const css = sheetText();
+
+const VER_CLOSE = /<(\w+)([^>]*)className="ver-close"([^>]*)>/;
 
 /** The `.ver-close` element as it is written in the banner. */
-const control = /<(\w+)([^>]*)className="ver-close"([^>]*)>/.exec(app);
+const control = VER_CLOSE.exec(banner);
 
 /** The declarations of the one rule that styles it. */
 const rule = /\.ver-banner \.ver-close \{([^}]*)\}/.exec(css);
@@ -45,6 +52,15 @@ describe("the version banner's dismiss control", () => {
 
   it("keeps the name a screen reader reads out, since the glyph is only an x", () => {
     expect(control![0]).toContain('aria-label="Dismiss"');
+  });
+
+  it("is the same element in the old-name notice, which the one rule also styles", () => {
+    const other = VER_CLOSE.exec(oldNameBanner);
+    expect(other).not.toBeNull();
+    expect(other![1]).toBe("button");
+    expect(other![0]).toContain('type="button"');
+    expect(other![0]).toContain('aria-label="Dismiss"');
+    expect(other![2] + other![3]).not.toMatch(/onKeyDown|tabIndex|role="button"/);
   });
 
   it("hands Space to the button rather than to the deck's pause shortcut", () => {

@@ -4,40 +4,42 @@
 // exits with RESTART_CODE. On a respawn (AGENTS_DECK_RESPAWN=1) everything that
 // was already done once this session is skipped — that is what makes a restart
 // take about a second instead of the better part of ten.
-import { resolve, dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { existsSync, readFileSync } from "node:fs";
-import { dieOfSignal, dieWithParent } from "../src/server/supervisor.mjs";
-import { isPortValue, parseArgs } from "../src/server/args.mjs";
-import {
-  CURSOR_HIDE, CURSOR_SHOW, colorProfile, fit, glyphs, labelColumn, link, motionOK, oneLine,
-  palette, pulseDot, pulseText, spinnerFrames, statusLine, supportsHyperlinks, termColumns,
-  elapsedSuffix, sinceLabel, unicodeOK, unregisteredDetail, visibleWidth, wordmark,
-} from "../src/server/term.mjs";
+//
+// This file is the order things happen in; what each step does lives in
+// bin/cli/ — the one-shot commands, the terminal, the startup report, the
+// second-start rule, the restart latch and the pulse line. Its top-level
+// `await`s run in source order, so where a line sits here is part of what it
+// means, and most of the comments below are about exactly that.
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
+import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
+import { parseArgs, startPort, wantsCli } from "../src/server/args.mjs";
+import { unregisteredDetail } from "../src/server/pulse-line.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
-import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
-import { wayBackNote } from "../src/server/way-back.mjs";
-import { budget, bootDeadlineMs } from "../src/server/boot-deadline.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
 // with the rest rather than fetched later. Deliberately NOT the other way
 // round: it takes the handshake as a parameter precisely so that it never has
 // to import the server. See the note at the top of that file.
-import { deckRegistryDir, liveDecks, olderVersion, secondStart, versionNote } from "../src/server/running-deck.mjs";
+import { deckRegistryDir } from "../src/server/running-deck.mjs";
 // The same kind of leaf — fs, path, crypto and deck-probe.mjs — for the same
 // reason: it is taken before anything else in the boot has run.
 import { takeBootLock } from "../src/server/boot-lock.mjs";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PKG_ROOT = resolve(__dirname, "..");
-const PKG_VERSION = (() => {
-  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? "0.0.0"; }
-  catch { return "0.0.0"; }
-})();
-
-// The command the user typed, handed down by the supervisor — our own argv[1]
-// is this file under every one of the three names. Null when it cannot be
-// proven, and null is the answer that prints nothing.
-const INVOKED_AS = invokedName({ pkgRoot: PKG_ROOT });
+// The package this worker belongs to — see there.
+import { PKG_ROOT, PKG_VERSION } from "./cli/package.js";
+import { printHelp } from "./cli/help.js";
+import { uninstall } from "./cli/uninstall.js";
+import { offerLoginItem } from "./cli/login-item.js";
+import { oneShot } from "./cli/one-shot.js";
+// The terminal the boot draws in: palette, glyphs, rows, the wordmark and the spinner.
+import {
+  G, P, fileLink, printBanner, showCursor, step, takeCursor, tty, write,
+} from "./cli/screen.js";
+// The once-per-session work and the rows that report it.
+import { reportReady, reportRestarted, reportStartup, startupWork } from "./cli/startup.js";
+import { restartLatch } from "./cli/restart.js";
+import { startPulse } from "./cli/pulse.js";
+import { settleSecondStart } from "./cli/second-start.js";
 
 const argv = process.argv.slice(2);
 const flags = parseArgs(argv);
@@ -45,9 +47,8 @@ const flags = parseArgs(argv);
 // Exit codes the supervisor reads as "bring me back": 75 from the files on
 // disk, 76 through npx — which is the only way an npx run reaches a newer
 // version, since its directory is never upgraded in place. Anything else it
-// forwards.
-const RESTART_CODE = 75;
-const UPGRADE_CODE = 76;
+// forwards. Both are the supervisor's own constants, so the two ends of the
+// agreement cannot drift apart.
 const RESPAWN = process.env.AGENTS_DECK_RESPAWN === "1";
 const SUPERVISED = typeof process.send === "function";
 
@@ -76,475 +77,19 @@ if (flags.version) {
 // own key, and a `--purge` that started a server instead would be a flag whose
 // entire effect was silence.
 if (flags.uninstall || flags.purge) {
-  const { uninstallHooks, hasCodexInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
-  // Anything that could not be taken out. An uninstall that removed nothing
-  // because it could not read the file has not uninstalled anything, and both
-  // the wording and the exit code have to say so: a user who is told it worked
-  // and still has our hooks firing on every event is worse off than one who is
-  // told it failed, because they have stopped looking.
-  let refused = false;
-  // Files already reported as unparseable. The Claude hooks and the sound hook
-  // live in the SAME settings.json, so a stray comma refuses both, and printing
-  // the whole path-plus-parser-error twice buries the one line that differs —
-  // which of our two installations is still in there.
-  const named = new Set();
-  // Its own glyphs for the same reason the bad-port line has them: this block
-  // runs at module top level, well before `G` is declared (#797).
-  const { dash: gDash } = glyphs(unicodeOK());
-  /** Report one provider's outcome. `ok` first — see uninstallHooks. */
-  const report = (res, label) => {
-    if (res.ok === false) {
-      refused = true;
-      named.add(res.settingsPath);
-      console.error(`${PRODUCT}: ${label} hooks NOT removed ${gDash} ${res.settingsPath} could not be read as JSON (${res.why}).`);
-      console.error(`${PRODUCT}: the __agent-dag hook entries are still in that file and keep firing on every ${label} event.`);
-      return;
-    }
-    console.log(res.changed
-      ? `${PRODUCT}: hooks removed from ${res.settingsPath}`
-      : `${PRODUCT}: no ${label} hooks to remove`);
-  };
-  report(await uninstallHooks({ provider: "claude" }), "Claude");
-  // The old finish sound was a second entry in the same file, marked
-  // __agent-dag-sound rather than __agent-dag, and uninstallHooks does not know
-  // that mark — so it used to be left behind, playing on every turn after the
-  // deck was supposedly gone. #704 retired the mechanism outright, but the entry
-  // is still on every machine that had it, so removing it is still this
-  // command's job. So is the other half: turning the sound on parked the user's
-  // own afplay/PowerShell Stop hooks, and once the deck is uninstalled nothing
-  // else on the machine knows where they went.
-  // The login item goes too, and this is the one place the uninstall's
-  // documented narrowness has to bend. "Hook entries only" is right for the
-  // event log and the port registry, which are data somebody may still want —
-  // but a login item left behind after an uninstall is not data, it is a
-  // machine that keeps starting a deck whose hooks were just removed.
-  {
-    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { deckDataDir: dataDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
-    if (svc.readServiceRecord(dataDir()) !== null) {
-      const gone = svc.uninstallService();
-      svc.writeServiceRecord(dataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
-      // Silent when there was nothing on the machine: an uninstall that reports
-      // removing a login item this deck never had is the same lie the explicit
-      // command used to tell, in the place a reader is least able to check it.
-      if (!gone.ok) {
-        // `gDash`, not an em dash: this block runs at module top level, on a
-        // console that may be the legacy Windows one, and #797 is the rule that
-        // a printed string never carries punctuation the terminal may not have.
-        console.error(`${PRODUCT}: could NOT remove the login item ${gDash} ${gone.reason} (${gone.path})`);
-      } else if (gone.existed) {
-        console.log(`${PRODUCT}: no longer starts at login`);
-      }
-      if (!gone.ok) refused = true;
-    }
-  }
-
-  const { retireSoundHook } = await import(pathToFileURL(join(PKG_ROOT, "src/server/retire-sound-hook.mjs")).href);
-  const sound = await retireSoundHook();
-  if (sound.removed) console.log(`${PRODUCT}: sound hook removed`);
-  if (sound.restored) console.log(`${PRODUCT}: restored ${sound.restored} of your own sound hook(s)`);
-  if (sound.ok === false) {
-    refused = true;
-    // Two different refusals, and saying the wrong one sends the user to the
-    // wrong file. `settings_unreadable` means nothing was touched at all — and
-    // when the forwarders already named that same file, the whole path and
-    // parser error would only bury the one line that differs. `parked_unreadable`
-    // is the other file: our entry IS out (the lines above said so), and what is
-    // still owed is the user's own hooks, which stay parked until they repair it.
-    if (sound.reason === "settings_unreadable") {
-      console.error(named.has(sound.settingsPath)
-        ? `${PRODUCT}: the sound hook is still in that file too.`
-        : `${PRODUCT}: sound hook left in place — ${sound.message}`);
-      named.add(sound.settingsPath);
-    } else {
-      console.error(`${PRODUCT}: your own sound hooks were NOT restored ${gDash} ${sound.message}`);
-    }
-  }
-  if (hasCodexInstalled()) {
-    report(await uninstallHooks({ provider: "codex" }), "Codex");
-  }
-  // ── THE PRIVATE KEY ────────────────────────────────────────────────────────
-  //
-  // The one thing left on the disk that is a CREDENTIAL rather than data. Every
-  // deck paired with this one has pinned the key in prefs.json, and until #959
-  // nothing in this command — or in the `--help` text, or in the README's
-  // uninstall paragraph — named the file, so somebody who followed the
-  // instructions to the letter believed the machine was clean and it was not.
-  //
-  // NAMED, NOT REMOVED, unless somebody asked. prefs.json also holds the
-  // pairings, the aliases and which accounts this deck offers, and deleting a
-  // user's settings out from under a command documented as "hook entries only"
-  // is a different complaint of the same size. So the default is to say exactly
-  // where the key is — resolved for THIS machine, both copies, because
-  // `migrateDeckFiles` copies rather than moves and the old one is in a
-  // directory nothing calls the deck's state — and `--purge` is the sentence
-  // somebody types when they mean it.
-  {
-    const { keyDirs, findKeyFiles, purgeKeyFiles } =
-      await import(pathToFileURL(join(PKG_ROOT, "src/server/purge-key.mjs")).href);
-    const found = await findKeyFiles(keyDirs());
-    if (flags.purge) {
-      const { removed, failed } = await purgeKeyFiles(found);
-      for (const path of removed) console.log(`${PRODUCT}: removed ${path}`);
-      for (const f of failed) {
-        refused = true;
-        // `gDash`, not an em dash: top-level block, possibly the legacy Windows
-        // console (#797).
-        console.error(`${PRODUCT}: could NOT remove ${f.path} ${gDash} ${f.why}`);
-        console.error(`${PRODUCT}: this deck's LAN private key is still in that file.`);
-      }
-      if (removed.length === 0 && failed.length === 0) {
-        console.log(`${PRODUCT}: no ${PRODUCT} state to purge`);
-      }
-    } else {
-      // "no-key" files are not mentioned. Telling somebody their private key is
-      // on the machine when the file has none is the same defect as the silence,
-      // pointing the other way. "unknown" IS mentioned: an unparseable file is
-      // the one nobody can rule a key out of.
-      const holding = found.filter(f => f.holds !== "no-key");
-      if (holding.length > 0) {
-        console.log(`${PRODUCT}: this deck's LAN private key is still on this machine:`);
-        for (const f of holding) {
-          console.log(`${PRODUCT}:   ${f.path}${f.holds === "unknown" ? `  (unreadable ${gDash} ${f.why})` : ""}`);
-        }
-        console.log(`${PRODUCT}: every deck you paired with has pinned that key. \`${INVOKED_AS ?? PRODUCT} --uninstall --purge\` removes the file(s) above.`);
-      }
-    }
-  }
-
-  // The remedy last and once, after every symptom above it, rather than once
-  // per refusal in the middle of the list.
-  if (named.size > 0) {
-    console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${PRODUCT} --uninstall\` again.`);
-  }
-  // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
-  // CI step that runs this stops on the failure instead of continuing past it.
-  process.exit(refused ? 1 : 0);
+  process.exit(await uninstall(flags));
 }
 
-// ── the two questions that are about another deck, not this one ──────────────
+// ── the one-shot commands ─────────────────────────────────────────────────────
 //
-// One-shot commands in the shape `--uninstall` already established: do the
-// thing, print, exit, and never start a server. They sit ABOVE the migration
+// `--status`, `--logs`, `--stop` and the three login-item commands, answered in
+// bin/cli/one-shot.js in the shape `--uninstall` already established: do the
+// thing, print, exit, and never start a server. Asked HERE, above the migration
 // and well above the heavy imports, because a command that ends a deck has no
 // business moving that deck's files on the way past, and because asking a
 // server to stop should not require starting one.
-//
-// Their own glyphs and palette rather than `G`/`P`, for the reason the bad-port
-// block below gives (#797): those are declared two hundred lines further down
-// and this runs at module top level.
-//
-// WHICH DECK. Every one, unless `--port <n>` names one. A start keeps at most
-// one deck now, so a second is a leftover from before that rule, and an off
-// switch that ended one of two would leave the machine running. (`--all` is the
-// legacy capture flag, a no-op since it became the default; beside `--stop` it
-// always meant "every deck", and that is what the bare command means now.)
 if (flags.stop || flags.status || flags.logs || flags.install || flags.installService || flags.uninstallService) {
-  const { dash, ok: gOk, warn: gWarn, bullet, arrow, ellipsis: gEllipsis } = glyphs(unicodeOK());
-  const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
-  const say = (line) => process.stdout.write(`${line}\n`);
-
-  // WHAT THE ONE-SHOTS USED TO SWALLOW.
-  //
-  // reportUnknownFlags and reportIncompleteFlags live below this block and
-  // cannot be called from it — they reach for `G`, `P` and `write`, all
-  // declared a thousand lines down, so a call here is a temporal dead zone
-  // (the same reason the `--port` guard builds its own glyphs, #797). So the
-  // rows are written here, with this block's own tone.
-  //
-  // Without them `--help`'s closing promise — "Anything else on the command
-  // line is reported as an unknown option and then ignored" — held for a boot
-  // and for none of the nine one-shots: `ccdeck --status --prot 4317` printed
-  // the status and never mentioned the flag.
-  for (const token of flags.unknown ?? []) {
-    process.stderr.write(`  ${tone.warn}${gWarn}  unknown option${tone.reset}  ${token} ${dash} see \`${INVOKED_AS ?? PRODUCT} --help\`\n`);
-  }
-  for (const { flag, expects } of flags.incomplete ?? []) {
-    process.stderr.write(`  ${tone.warn}${gWarn}  missing value${tone.reset}   ${flag} ${dash} expected ${expects}\n`);
-  }
-
-  // AND `--stop` FAILS CLOSED ON A PORT IT CANNOT USE.
-  //
-  // The selector below reads "no usable port" and "no port asked for" as the
-  // same thing, and the second means every deck — so `ccdeck --stop --port
-  // 431x`, or `--port $UNSET`, ended every deck on the machine and exited 0.
-  // The guard that refuses a bad port sits ~270 lines below this block, which
-  // always exits before reaching it.
-  //
-  // A narrowing flag that fails open to "everything" is the wrong default for
-  // an off switch: failing closed costs a retype, failing open costs a deck
-  // somebody else was watching.
-  if (flags.stop) {
-    const askedPort = (flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p");
-    const badPort = flags.port != null && !isPortValue(flags.port);
-    if (badPort || askedPort) {
-      const shown = badPort ? ` ${flags.port}` : "";
-      console.error(`${INVOKED_AS ?? PRODUCT}: --port${shown}: not a port number ${dash} expected 0-65535.`);
-      console.error(`${INVOKED_AS ?? PRODUCT}: refusing to stop every deck when you asked for one.`);
-      process.exit(1);
-    }
-  }
-
-  const { deckDataDir, deckLogDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
-
-  // ── --install ─────────────────────────────────────────────────────────────
-  //
-  // The one command that turns an npx run into a deck that comes back after a
-  // reboot. `npx ccdeck` cannot start at login — a login item must name a path
-  // that will still be there tomorrow, and npx runs out of a cache npm deletes
-  // whenever it likes — so this puts the package on PATH and points the service
-  // at THAT.
-  //
-  // BEHIND A FLAG, because `npx` means "run without installing" and a tool that
-  // installs itself anyway is the tool people uninstall. Somebody typed this.
-  if (flags.install) {
-    const gi = await import(pathToFileURL(join(PKG_ROOT, "src/server/global-install.mjs")).href);
-    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { installedName } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
-    const { run } = await import(pathToFileURL(join(PKG_ROOT, "src/server/exec.mjs")).href);
-    // The name they typed, not ours. Three packages publish this deck, and
-    // installing `ccdeck` for somebody who ran `npx agent-dag` hands them a
-    // command they did not ask for.
-    const pkg = installedName(PKG_ROOT, PRODUCT);
-
-    say(`\n  ${tone.muted}${dash}  installing ${pkg} globally${gEllipsis}${tone.reset}`);
-    const got = await run("npm", ["i", "-g", pkg], { timeout: gi.INSTALL_TIMEOUT_MS });
-    if (!got?.ok) {
-      say(`  ${tone.err}${gWarn}  ${gi.installFailure(got, { pkg })}${tone.reset}\n`);
-      process.exit(1);
-    }
-    say(`  ${tone.ok}${gOk}${tone.reset}  ${pkg} is on your PATH${tone.muted}  ${bullet}  type \`${pkg}\` to start it${tone.reset}`);
-
-    // WHERE npm PUT IT, asked rather than assumed: a prefix the user set
-    // themselves is common and nothing here can guess it.
-    const root = gi.readGlobalRoot(await run("npm", ["root", "-g"], { timeout: 30_000 }));
-    const script = gi.globalScript(root, pkg);
-    if (!script) {
-      say(`  ${tone.warn}${gWarn}  installed, but npm did not say where ${dash} run \`${pkg} --install-service\` to start it at login${tone.reset}\n`);
-      process.exit(0);
-    }
-    const out = svc.installService({ script, logPath: join(deckLogDir(), "deck.log"), product: PRODUCT });
-    if (!out.ok) {
-      say(`  ${tone.warn}${gWarn}  installed, but it will not start at login ${dash} ${out.reason}${tone.reset}\n`);
-      process.exit(0);
-    }
-    svc.writeServiceRecord(deckDataDir(), { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path });
-    say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
-    if (svc.lingerState() === "off") {
-      say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
-      say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
-    }
-    say(`     ${tone.muted}\`${pkg} --uninstall-service\` undoes the login part${tone.reset}\n`);
-    process.exit(0);
-  }
-
-  // ── --install-service / --uninstall-service ───────────────────────────────
-  // Answered before the registry is read: neither one is about a deck that is
-  // running, and both are as meaningful on a machine with no deck up as on one
-  // with three.
-  if (flags.installService || flags.uninstallService) {
-    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
-    if (flags.uninstallService) {
-      const out = svc.uninstallService();
-      // Recorded either way. The record is what stops the next ordinary start
-      // putting back what was just taken away, and a tool that argues with its
-      // user about a login item is a tool that gets uninstalled entirely.
-      svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
-      // `existed` rather than the record: the record says what THIS tool last
-      // did, and the machine is what actually has a login item on it. Somebody
-      // who removed the plist by hand should be told the truth about the
-      // machine, not about our bookkeeping.
-      say(!out.ok
-        ? `\n  ${tone.err}${gWarn}  could not remove it ${dash} ${out.reason}${tone.reset}\n`
-        : out.existed
-          ? `\n  ${tone.ok}${gOk}${tone.reset}  no longer starts at login${tone.muted}  ${bullet}  ${out.path}${tone.reset}\n`
-          : `\n  ${tone.muted}${dash}  it was not starting at login${tone.reset}\n`);
-      process.exit(out.ok ? 0 : 1);
-    }
-    if (isGitCheckout(PKG_ROOT)) {
-      // Not refused outright — somebody running from a checkout may genuinely
-      // want this — but not done silently either: the item would name a working
-      // tree, and that is worth knowing before it is written.
-      say(`\n  ${tone.warn}${gWarn}  this is a checkout, so the login item would name ${PKG_ROOT}${tone.reset}`);
-      say(`     ${tone.muted}a renamed, moved or deleted working tree leaves a login item pointing at nothing${tone.reset}\n`);
-    }
-    if (isNpxInstall(PKG_ROOT)) {
-      // The item would name a path inside ~/.npm/_npx/<hash>/, which npm deletes
-      // whenever it feels like it — a login item pointing at nothing, forever,
-      // on a machine where nothing was ever installed.
-      say(`\n  ${tone.warn}${gWarn}  an npx run cannot start at login ${dash} its files live in npm's cache and are deleted without warning.${tone.reset}`);
-      say(`     ${tone.muted}install it first: \`npm i -g ${INVOKED_AS ?? PRODUCT}\`${tone.reset}\n`);
-      process.exit(1);
-    }
-    const out = svc.installService({
-      script: join(PKG_ROOT, "bin", "agent-dag.js"),
-      logPath: join(deckLogDir(), "deck.log"),
-      product: PRODUCT,
-    });
-    if (!out.ok) {
-      say(`\n  ${tone.err}${gWarn}  could not set it up ${dash} ${out.reason}${tone.reset}\n`);
-      process.exit(1);
-    }
-    svc.writeServiceRecord(deckDataDir(), { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path });
-    say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
-    if (out.how === "file-only") {
-      // The file is on disk and both launchd and systemd read their directories
-      // at the next login, so this works from then on. Said rather than hidden:
-      // "it will work tomorrow" is a different promise from "it works now".
-      say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
-    }
-    // The one place the three platforms genuinely differ in what this buys you.
-    if (svc.lingerState() === "off") {
-      say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
-      say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
-    }
-    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${tone.reset}\n`);
-    process.exit(0);
-  }
-  const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
-  const { hasCodexInstalled, codexHomeField } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
-  const { hasClaudeInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
-  const { liveDecks, sameShape } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
-
-  // The default shape, spelled the same way the boot below spells it. NOT the
-  // shape of the flags on THIS command line: `--stop --no-codex` is not a
-  // request to stop a Codex-less deck, it is a flag that means nothing here,
-  // and reading it as a selector would make `--stop` miss the deck it was
-  // pointed at and say "nothing is running".
-  const mine = {
-    workspace: "",
-    persist: canonicalLogPath(join(deckLogDir(), "events.jsonl")),
-    codex: hasCodexInstalled(),
-    claude: hasClaudeInstalled(),
-  };
-  // And the Codex tree, the one field of a start's shape that is not a flag. A
-  // bare start has passed it since #1123 and replaces a deck on another tree, so
-  // without it here every tree matched, and `--status` could mark as "opens this
-  // one" exactly the deck the next `ccdeck` stops (#1134). Worked out by the
-  // function the start and the discovery record use, so all three agree.
-  mine.codexHome = codexHomeField(mine.codex);
-
-  // ── --logs ────────────────────────────────────────────────────────────────
-  // What the deck wrote where a terminal would have shown it. Printed RAW,
-  // escapes and all: the launcher passes its own colour tier down to a detached
-  // deck, so this file is a mirror of the terminal the deck was started from
-  // and re-rendering it is the whole point. The path goes last, because that is
-  // the line somebody copies into `tail -f`.
-  if (flags.logs) {
-    const { readFileSync: readLog, statSync: statLog } = await import("node:fs");
-    const logPath = join(deckLogDir(), "deck.log");
-    let text = null;
-    try { text = readLog(logPath, "utf8"); } catch { /* never started, or swept */ }
-    if (text === null) {
-      say(`\n  ${tone.muted}${dash}  nothing logged yet ${dash} ${logPath}${tone.reset}\n`);
-      process.exit(0);
-    }
-    // The tail, not the file. It is truncated at the first start on an idle
-    // machine, so it is normally small — but an attach appends to a running
-    // deck's log every time, and a long-lived deck's log is somebody's week.
-    const lines = text.split("\n");
-    const shown = lines.slice(Math.max(0, lines.length - 200));
-    if (shown.length < lines.length) {
-      say(`  ${tone.muted}${dash}  showing the last ${shown.length} of ${lines.length} lines${tone.reset}`);
-    }
-    process.stdout.write(shown.join("\n"));
-    if (!text.endsWith("\n")) say("");
-    const size = (() => { try { return statLog(logPath).size; } catch { return 0; } })();
-    say(`  ${tone.muted}${dash}  ${logPath} ${bullet} ${size} bytes${tone.reset}\n`);
-    process.exit(0);
-  }
-
-  const decks = await liveDecks().catch(() => []);
-  const age = (d) => sinceLabel(Date.now() - Date.parse(d.startedAt ?? ""));
-  const where = (d) => (d.workspace ? d.workspace : "(all)");
-  const url = (d) => `http://127.0.0.1:${d.port}`;
-
-  if (flags.status) {
-    if (!decks.length) {
-      say(`\n  ${tone.muted}${dash}  no deck is running ${dash} \`${INVOKED_AS ?? PRODUCT}\` starts one${tone.reset}\n`);
-      process.exit(0);
-    }
-    // The one a bare `ccdeck` would open is marked, because with two decks up
-    // that is the only question this command is really being asked.
-    const opens = decks.find(d => sameShape(d, mine)) ?? null;
-    say("");
-    for (const d of decks) {
-      // The version chunk is dropped rather than printed as "v?" for a deck too
-      // old to publish one — same rule as the attach line, and for the same
-      // reason: a question mark beside two real facts reads as a fault.
-      const head = [d.version ? `v${d.version}` : "", `pid ${d.pid}`, `up ${age(d)}`]
-        .filter(Boolean).join(`  ${bullet}  `);
-      const mark = d === opens ? `${tone.ok}${gOk}${tone.reset}` : `${tone.muted}${bullet}${tone.reset}`;
-      const tail = d === opens ? `${tone.muted}   ${arrow} \`${INVOKED_AS ?? PRODUCT}\` opens this one${tone.reset}` : "";
-      say(`  ${mark}  ${tone.muted}${head}${tone.reset}${tail}`);
-      say(`     ${tone.accent}${tone.bold}${url(d)}${tone.reset}`);
-      say(`     ${tone.muted}${where(d)} ${bullet} ${d.persist ?? "no log (--no-persist)"}${tone.reset}`);
-    }
-    say("");
-    process.exit(0);
-  }
-
-  // ── --stop ────────────────────────────────────────────────────────────────
-  const { stopDeck } = await import(pathToFileURL(join(PKG_ROOT, "src/server/stop-deck.mjs")).href);
-  // `flags.port`, not the `rawPort` computed below: that folds in
-  // AGENT_DAG_PORT, which is how somebody RUNS a deck rather than which deck
-  // they mean to stop — and a deck started on a custom port still has the
-  // default SHAPE, so the matcher finds it without help. It is also declared
-  // below this block, which would make reading it here a ReferenceError (#797).
-  const named = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
-  // EVERY DECK, unless one is named. There is meant to be one — a start keeps
-  // at most one now — so a second here is a leftover from before that rule, and
-  // an off switch that ended one of two would leave the machine running. `--all`
-  // is still accepted, and now means what the bare command means.
-  const wanted = named !== null ? decks.filter(d => d.port === named) : decks;
-
-  if (!wanted.length) {
-    // Two different silences, and saying the wrong one sends the reader looking
-    // in the wrong place.
-    const why = named !== null && decks.length
-      ? `no deck is listening on ${named} ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists them`
-      : `no deck is running`;
-    say(`\n  ${tone.muted}${dash}  ${why}${tone.reset}\n`);
-    process.exit(0);
-  }
-
-  say("");
-  let refused = false;
-  for (const d of wanted) {
-    const was = age(d);
-    const out = await stopDeck(d);
-    if (!out.ok) {
-      refused = true;
-      say(`  ${tone.err}${gWarn}  could not stop pid ${d.pid} on ${d.port} ${dash} ${out.reason}${tone.reset}`);
-      continue;
-    }
-    // HOW it went out, not just that it did. "asked" means the deck closed its
-    // listener, unlinked its registration and left the LAN cleanly; anything
-    // else means none of that happened and the next boot has litter to sweep.
-    const how = out.how === "asked"
-      ? ""
-      : out.old
-        ? `  ${tone.muted}(${out.how} ${dash} that deck predates \`--stop\`)${tone.reset}`
-        : `  ${tone.muted}(${out.how} ${dash} it did not answer)${tone.reset}`;
-    say(`  ${tone.ok}${gOk}${tone.reset}  stopped${tone.muted}  ${bullet}  pid ${d.pid}  ${bullet}  port ${d.port}  ${bullet}  was up ${was}${tone.reset}${how}`);
-  }
-
-  // What is still up, named. A command that ends one of three decks and says
-  // only "stopped" leaves the reader believing the machine is clear.
-  const left = decks.filter(d => !wanted.includes(d));
-  if (left.length) {
-    say("");
-    say(`  ${tone.muted}${dash}  ${left.length} other deck${left.length === 1 ? "" : "s"} still running:${tone.reset}`);
-    for (const d of left) say(`       ${tone.muted}pid ${d.pid} ${bullet} ${d.port} ${bullet} ${where(d)}${tone.reset}`);
-    // `--stop --all` used to be named here as the way to reach every deck. It
-    // is not: `--all` is a parsed no-op, and a bare `--stop` already ends every
-    // deck — which is why this line is only reachable after `--stop --port <n>`
-    // narrowed one. Naming the narrowing form is the half that is true.
-    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --stop\` ends every deck ${bullet} \`--stop --port <n>\` ends one${tone.reset}`);
-  }
-  say("");
-  process.exit(refused ? 1 : 0);
+  process.exit(await oneShot(flags));
 }
 
 // The port, and the one piece of argv the deck really does refuse to boot over.
@@ -555,25 +100,18 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
 // `listen` with Node's own wording: "options.port should be >= 0 and < 65536.
 // Received type number (NaN)." That names neither the flag nor the value the
 // user typed, and arrives after a page of green ticks. Same outcome, said here:
-// early, in the deck's own voice, quoting the flag and the value back.
-//
-// An empty `AGENT_DAG_PORT` is an unset one — a variable that did not expand is
-// not a request for port zero. `--port ""` never reaches this, because the
-// parser records an empty value as `incomplete` and leaves the flag unset.
-const envPort = process.env.AGENT_DAG_PORT?.trim();
-const rawPort = flags.port ?? (envPort ? envPort : null);
-if (rawPort != null && !isPortValue(rawPort)) {
-  const named = flags.port != null ? "--port" : "AGENT_DAG_PORT";
-  // Its own glyphs, not `G` — that is declared a hundred lines below and this
-  // runs at module top level, so reaching for it here would be a temporal dead
-  // zone and a ReferenceError on the one path that reports a bad port. Both
-  // helpers read the environment and nothing this file has parsed yet, so
-  // asking twice on a path that exits immediately costs nothing (#797).
-  const { dash } = glyphs(unicodeOK());
-  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${dash} expected 0-65535.`);
+// early, in the deck's own voice, quoting the flag and the value back. Which
+// value counts, and which name it goes by, is startPort's.
+const asked = startPort({ flag: flags.port, env: process.env.AGENT_DAG_PORT });
+if (asked.refused) {
+  const { named, raw } = asked.refused;
+  // `G.dash`, not an em dash: the console may be the legacy Windows one (#797).
+  // `G` is bin/cli/screen.js's, answered when that module loads, so it is there
+  // on this path too, long before the boot draws anything with it.
+  console.error(`${PRODUCT}: ${named} ${raw}: not a port number ${G.dash} expected 0-65535.`);
   process.exit(1);
 }
-const port = rawPort == null ? 4317 : Number(rawPort);
+const port = asked.port;
 // Default = machine-wide (capture every CC session on this box). Pass
 // `--workspace <path>` (or `--scope`) to restrict to a single tree. Canonicalized
 // just below, once the module that owns that rule is loaded.
@@ -634,7 +172,7 @@ const { deckDataDir, deckLogDir, legacyDeckDir, migrateDeckFiles, sweepTempFiles
 // `resolve` alone was not enough and #793 is what that cost — see
 // canonicalLogPath, which owns the rule and explains it beside the election it
 // serves.
-const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
+const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-election.mjs")).href);
 const persist = flags.noPersist
   ? null
   // The log follows the deck rather than Claude Code now — a hundred megabytes
@@ -646,10 +184,11 @@ const persist = flags.noPersist
 
 const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftoverCodexHooks, codexHomeField } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
-// CODEX_SESSIONS_DIR comes along because the banner below names the directory
+// CODEX_SESSIONS_DIR comes along because the startup report names the directory
 // the watcher tails, and the watcher lives in that module. Recomputing the path
 // here is how the banner came to print ~/.codex/sessions on machines whose
-// sessions are somewhere else entirely — see the row further down.
+// sessions are somewhere else entirely — see the Codex sessions row in
+// bin/cli/startup.js.
 const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 
@@ -666,9 +205,7 @@ const workspace = canonicalWorkspace(rawWorkspace);
 // and no directory is created either way — Codex hooks are not used any more,
 // so `--codex` only means "watch even though ~/.codex/ is not there yet",
 // which is the right answer for a machine where Codex arrives later.
-const wantCodex = flags.noCodex
-  ? false
-  : (flags.codex === true || hasCodexInstalled());
+const wantCodex = wantsCli({ off: flags.noCodex, on: flags.codex, installed: hasCodexInstalled });
 
 // The same question for the other CLI, and the one nobody was asking. README
 // offers "Claude Code CLI or OpenAI Codex CLI (or both)"; a Codex-only machine
@@ -685,9 +222,7 @@ const wantCodex = flags.noCodex
 // never had — the mirror of --no-codex — and it is also what a Codex-only user
 // with a settings.json the installer refuses to rewrite needs, since that
 // refusal is fatal at boot on a component they do not use.
-const wantClaude = flags.noClaude
-  ? false
-  : (flags.claude === true || hasClaudeInstalled());
+const wantClaude = wantsCli({ off: flags.noClaude, on: flags.claude, installed: hasClaudeInstalled });
 // The Codex tree this deck would tail, spelled the way its discovery record will
 // spell it — the one field of a start's shape that is not a flag. Resolved here,
 // with the other three, because the second-start question below is asked of
@@ -700,648 +235,16 @@ if (!existsSync(WEB_DIST)) {
   process.exit(1);
 }
 
-// ── the terminal we are printing into ─────────────────────────────────────────
-// Asked once, degraded from there — see src/server/term.mjs, which is where all
-// of this is decided and asserted. Below this point the deck writes no escape of
-// its own: colour comes from `P`, glyphs from `G`, layout from statusLine. That
-// is what makes NO_COLOR, a pipe, a CI log and a legacy Windows console one
-// question rather than thirty separate ones nobody remembers to ask.
-const tty = Boolean(process.stdout.isTTY);
-const PROFILE = colorProfile({ isTTY: tty });
-const P = palette(PROFILE);
-const UNICODE = unicodeOK();
-const G = glyphs(UNICODE);
-const LINKS = supportsHyperlinks({ profile: PROFILE });
-// The terminal's prefers-reduced-motion: nothing sleeps, spins or repaints in a
-// pipe, under CI, or with NO_COLOR set.
-const MOTION = motionOK({ isTTY: tty, profile: PROFILE });
-const write = (s) => process.stdout.write(s);
-// Read per line, never cached: a terminal can be resized while the deck runs,
-// and the pulse below is still on screen hours later.
-const cols = () => termColumns(process.stdout);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const fileLink = (path) => link(path, pathToFileURL(path).href, LINKS);
-
-/**
- * What is still happening after the report ended, in three words or so.
- *
- * #742 left one job able to outlive the boot — an install of claude-swap that
- * the report stopped waiting for — and the terminal said nothing about it once
- * the rows were done. That is the wrong way round: the row that had finished
- * was the one blinking, and the thing that really was working sat still. Now
- * the pulse line carries the label while the job runs and drops it when the job
- * settles, which is also what decides whether the line moves at all. Declared
- * here rather than beside `registered` below, because reportStartup sets it and
- * runs long before that line does.
- */
-let pulseBusy = null;
-
 // ── the cursor ────────────────────────────────────────────────────────────────
-// Hidden for as long as anything of ours is moving — the reveal, the spinner,
-// the pulse — and put back on every way out of this process: the ordinary exit,
-// all three signals, and an uncaught throw, which reaches 'exit' after Node has
-// printed it. Half of this is worse than none: a deck that dies with the cursor
-// hidden leaves the user's shell with no cursor and nothing to do about it but
-// `reset`.
-let cursorHidden = false;
-const showCursor = () => {
-  if (!cursorHidden) return;
-  cursorHidden = false;
-  try { write(CURSOR_SHOW); } catch { /* stdout is gone; nothing left to restore */ }
-};
-if (MOTION) { cursorHidden = true; write(CURSOR_HIDE); }
-process.on("exit", showCursor);
-// SIGHUP is the one signal this process does not otherwise handle, so its
-// default action would end us before 'exit' could run. Handled only to put the
-// cursor back and then die of it exactly as before — the supervisor reads the
-// signal, not an exit code.
-process.on("SIGHUP", () => { showCursor(); dieOfSignal("SIGHUP"); });
+// Hidden from here for as long as anything of ours is moving, and put back on
+// every way out — see takeCursor in bin/cli/screen.js, which draws the rest of
+// the boot's terminal too.
+takeCursor();
 
-// ── rows ──────────────────────────────────────────────────────────────────────
-// The status column is computed from the longest label. It used to be counted
-// into each string as trailing spaces, so any new row, or any label a character
-// longer, silently broke the alignment of every other one.
-const LABELS = [
-  "workspace", "Claude hooks", "Codex sessions", "Codex hooks", "claude-swap", "accounts",
-  "ccusage", "update", "name", "server ready", "log", "unknown option",
-  "missing value",
-];
-const LABEL_W = labelColumn(LABELS);
-
-function row({ mark = " ", tone = P.ok, label = "", detail = "", detailTone = P.muted, keep = false }) {
-  return statusLine({
-    mark, label, detail, keep, labelWidth: LABEL_W, columns: cols(), ellipsis: G.ellipsis,
-    paint: {
-      mark: (s) => `${tone}${s}${P.reset}`,
-      detail: (s) => `${detailTone}${s}${P.reset}`,
-    },
-  }) + "\n";
-}
-
-// ── the wordmark ──────────────────────────────────────────────────────────────
-
-/**
- * Hold anything else that wants to speak until the art is finished.
- *
- * #742, found while watching a first run through a pty: the startup jobs run
- * UNDER the reveal on purpose, and one of them failing writes to console.error
- * the moment it fails — which put
- *
- *     ccdeck ccusage: install failed: npm install ccusage failed: spawn npm ENOENT
- *
- * between the second and third rows of the logo. A wordmark with a stack of
- * someone else's bad news through the middle of it is the first thing a new
- * user sees, and it reads as a crash rather than as a note.
- *
- * The window is the reveal and nothing else — about 180ms — so at worst a
- * message arrives a fifth of a second later than it would have, on the one
- * stretch of the boot where there is nowhere for it to go. Restored in a
- * `finally`, so a throw inside the reveal cannot leave the process mute.
- */
-function holdConsole() {
-  const held = [];
-  const real = { warn: console.warn, error: console.error, log: console.log };
-  for (const k of Object.keys(real)) console[k] = (...args) => { held.push([k, args]); };
-  return () => {
-    Object.assign(console, real);
-    for (const [k, args] of held) real[k](...args);
-  };
-}
-
-async function printBanner() {
-  const { lines } = wordmark({ columns: cols(), version: PKG_VERSION, profile: PROFILE, unicode: UNICODE, pal: P });
-  const release = holdConsole();
-  try {
-    for (const line of lines) {
-      write(line + "\n");
-      // A reveal, not a wait. The once-per-session work is already running under
-      // it (see startupWork), so the art costs the boot nothing and the deck is
-      // ready about when the last row lands. What used to be here — 560ms of
-      // spinner at "loading…" before a single art line — was dead time in a tool
-      // whose documented entry point is `npx ccdeck`.
-      if (MOTION && line) await sleep(45);
-    }
-  } finally {
-    release();
-  }
-}
-
-// ── a step, with a spinner only if it is slow enough to need one ──────────────
-// The interval's first frame is 80ms away, so anything already settled when we
-// get here paints nothing at all and the row below is the only trace of it.
-
-async function step(label, work) {
-  if (!MOTION) return work;
-  const frames = spinnerFrames(UNICODE);
-  // Kept inside the terminal: a label that wraps is a label the \r below can
-  // only half erase, and what is left of it stays under the row that follows.
-  // Six columns for the indent and the spinner, four more so the elapsed
-  // seconds have somewhere to go without pushing the label off the edge.
-  const text = fit(label, cols() - 10, G.ellipsis);
-  const started = Date.now();
-  let i = 0;
-  let widest = 0;
-  const iv = setInterval(() => {
-    const line = `  ${P.accent}${frames[i++ % frames.length]}${P.reset}  ${P.muted}${text}${elapsedSuffix(Date.now() - started)}${P.reset}`;
-    widest = Math.max(widest, visibleWidth(line));
-    write(`\r${line}`);
-  }, 80);
-  try {
-    return await work;
-  } finally {
-    clearInterval(iv);
-    // Cleared rather than overwritten: the row that follows is a different
-    // length, and relying on it to be the longer of the two is how a spinner
-    // leaves its own tail on screen. Measured rather than computed, because the
-    // line grows when the elapsed seconds appear and again when they reach two
-    // digits. Nothing to clear if it never painted.
-    if (i) write("\r" + " ".repeat(widest) + "\r");
-  }
-}
-
-/**
- * The once-per-session work, all of it started at once and none of it awaited.
- *
- * Hook install, the claude-swap probe and the registry lookup have nothing to
- * do with each other and nothing to do with the wordmark, so they run underneath
- * the reveal instead of queueing behind it — the animation then costs the boot
- * nothing and the deck is ready about when the last art row lands. Every one of
- * them is given its rejection handler here, at the moment it is created, since a
- * promise that settles before anything awaits it is otherwise an unhandled
- * rejection.
- */
-function startupWork() {
-  // Every job below this line serves Claude Code and only Claude Code: the
-  // hooks go in Claude Code's settings.json, claude-swap switches Claude
-  // accounts, and ccusage reads Claude Code's own session logs. On a machine
-  // without Claude Code all three are work done for a CLI that is not there —
-  // two of them installs the user did not ask for — so they are not started at
-  // all rather than started and then reported as failures. `null` is how each
-  // one says "not attempted", which reportStartup tells apart from "tried and
-  // could not".
-
-  // Settings the installer cannot parse are settings it cannot rewrite without
-  // losing them, so it refuses — and that refusal is reported rather than
-  // thrown, because it is the only thing the user can act on.
-  const hooks = wantClaude
-    ? installHooks({ provider: "claude" }).then(v => ({ ok: true, v }), err => ({ ok: false, err }))
-    : Promise.resolve(null);
-
-  // claude-swap backs the multi-account panel, and an empty store leaves that
-  // panel useless even when the tool is there — so the account already signed
-  // in is registered once. Bounded inside seedFirstAccount: empty store only,
-  // once ever, never with NO_INSTALL set.
-  //
-  // `cswapInstalling` is the other half, and it is what keeps a first run from
-  // spending the boot's whole deadline on a question that has already been
-  // answered: ensureCswap resolves it the moment it commits to an install, so
-  // the report can stop waiting then rather than eight seconds later. It never
-  // settles on the machines where there is nothing to install, which is every
-  // machine after the first run.
-  let sayInstalling;
-  const cswapInstalling = new Promise(r => { sayInstalling = r; });
-
-  const cswap = (async () => {
-    if (!wantClaude) return null;
-    const { ensureCswap } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-install.mjs")).href);
-    const cs = await ensureCswap({ onInstalling: () => sayInstalling() });
-    const usable = cs.state === "present" || cs.state === "installed" || cs.state === "upgrading";
-    if (!usable) return { cs, seed: null };
-    const { seedFirstAccount } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
-    return { cs, seed: await seedFirstAccount().catch(() => ({ state: "failed" })) };
-  })().catch(() => null);
-
-  // WHEN THE TOOL IS QUIET, which is not the same as when the job above settles
-  // (#1043). The auto-switch drives this same claude-swap — every tick is
-  // `cswap auto --once`, which moves the user's live Claude credentials — and
-  // the server arms it the moment the port binds, while this job is still in
-  // ensureCswap. So the server holds every tick until this resolves, and it has
-  // two halves because the job covers only the first: ensureCswap answers
-  // "upgrading" as soon as it has FIRED an upgrade it deliberately does not
-  // await, and that upgrade is a uv or pipx environment being rewritten for
-  // tens of seconds after this job has returned. upgradeSettled() is the handle
-  // on it, and null when nothing was started.
-  //
-  // Not markDeckReady, the other place "the boot is over" gets said:
-  // reportStartup stops waiting for claude-swap the moment the install
-  // announces itself, so the deck is marked ready with the install still
-  // running. Never rejects — a job that failed has nothing left running.
-  const cswapQuiet = cswap.then(async () => {
-    if (!wantClaude) return;
-    const { upgradeSettled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-install.mjs")).href);
-    await upgradeSettled();
-  }).catch(() => {});
-
-  // ccusage backs the usage-history modal. Primed at boot rather than on first
-  // open so a cold machine pays the install while the deck is still starting.
-  // Nothing is lost by skipping the prime: runCcusage falls back to npx, so the
-  // modal still answers if it is ever opened — it just pays the wait itself.
-  const ccusage = (async () => {
-    if (!wantClaude) return null;
-    if (process.env.AGENTS_DECK_NO_INSTALL === "1") return null;
-    const { primeCcusage } = await import(pathToFileURL(join(PKG_ROOT, "src/server/ccusage.mjs")).href);
-    return primeCcusage();
-  })().catch(() => null);
-
-  // A newer release on npm, said once, in the place the upgrade gets typed.
-  // Hard-capped so a slow registry cannot delay the server — the answer is
-  // usually already cached in ~/.agents-deck/.self-update-check anyway. It has
-  // to resolve BEFORE the pulse indicator starts writing over the last line.
-  const update = Promise.race([
-    import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href)
-      .then(m => m.versionReport({ running: PKG_VERSION, pkgRoot: PKG_ROOT }))
-      .then(r => (r?.notice?.kind === "upgrade" ? r : null))
-      .catch(() => null),
-    new Promise(r => setTimeout(() => r(null), 1200)),
-  ]);
-
-  // An older deck's Codex forwarders, looked for and never touched — see
-  // leftoverCodexHooks for why a boot names them rather than removing them.
-  // Asked with --no-codex too: the entries fire whether or not this deck is
-  // watching the rollouts, and one file read is the whole cost.
-  const codexHooks = leftoverCodexHooks().catch(() => null);
-
-  return { hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks };
-}
-
-/** The same work, said out loud, in a fixed order — a boot whose rows arrive in
- *  whatever order the network settled is a boot nobody can scan twice. */
-async function reportStartup(jobs) {
-  // What the whole report may spend waiting, shared by every job under it
-  // rather than granted to each — four jobs at eight seconds each is a
-  // thirty-two second boot that no individual deadline would object to.
-  const left = budget(bootDeadlineMs());
-
-  write(row({
-    mark: G.ok, label: "workspace",
-    detail: workspace === "" ? "(all)" : workspace,
-    detailTone: workspace === "" ? P.warn : P.muted,
-  }));
-
-  const hooks = await step(`installing Claude hooks${G.ellipsis}`, jobs.hooks);
-  if (hooks === null) {
-    // Said in the same shape as the Codex row below, because it is the same
-    // sentence: this deck is not watching that CLI, and here is why. It also
-    // retires the one boot failure a Codex-only machine could hit — an
-    // unparseable or unwritable settings.json used to exit(1) below, killing a
-    // deck over a file belonging to a CLI the user does not run.
-    write(row({ label: "Claude hooks", detail: `skipped ${G.dash} no Claude Code found, or --no-claude` }));
-  } else if (!hooks.ok) {
-    // The file it names is one only the user can repair, and every Claude Code
-    // session on this machine is reading it too.
-    write(row({ mark: G.fail, tone: P.err, label: "Claude hooks", detail: "not installed" }));
-    // THE WAY OUT, printed where the wall is. The installer's message is good —
-    // the path, the reason, "fix the file or move it aside" — and it is a file
-    // the user may not be able to edit: root-owned, on read-only media, or
-    // simply not theirs. This deck knows the remedy and used to keep it in a
-    // comment: --no-claude runs everything else, which on a Codex-only machine
-    // is the whole deck, over a settings.json belonging to a CLI they do not
-    // use.
-    console.error(`\n  ${PRODUCT}: ${hooks.err.message}`);
-    console.error(`  Or start with --no-claude to run without Claude hooks.\n`);
-    process.exit(1);
-  } else {
-    write(row({ mark: G.ok, label: "Claude hooks", detail: fileLink(hooks.v.hookPath) }));
-  }
-
-  // Codex CLI hooks never fire on Windows (sandbox refuses to spawn the hook
-  // command). Instead the server tails Codex's rollout JSONL files directly, so
-  // there's nothing to install and no /hooks trust step. We just confirm Codex
-  // is present and let the watcher pick up sessions.
-  if (wantCodex) {
-    // The directory the watcher actually tails, imported from the module that
-    // owns it rather than rebuilt from homedir() here. CODEX_HOME relocates the
-    // whole tree, and this row is the only diagnostic the deck prints about
-    // Codex — so when sessions do not show up, a path computed a second way
-    // sends the user to inspect a directory the deck never opened.
-    write(row({ mark: G.ok, label: "Codex sessions", detail: `watching ${fileLink(CODEX_SESSIONS_DIR)}` }));
-  } else {
-    write(row({ label: "Codex sessions", detail: `skipped ${G.dash} no ~/.codex/, or --no-codex` }));
-  }
-
-  // #983. A machine that ran a deck from before #253 still has that deck's
-  // forwarders in Codex's hooks.json, and nothing but `--uninstall` ever looked.
-  // Where Codex honours the file, each one posts the session to /api/event while
-  // the watcher above reads the same session off disk, so it arrives twice. Both
-  // copies go into the ring and events.jsonl; the reducer's two-second
-  // redelivery windows fold some of them on the card and not others, and a
-  // duplicate that shows only sometimes reads as a reducer bug, which is where
-  // it would otherwise be chased. Saying nothing was the one answer the issue
-  // ruled out. So: one row, in the place the deck already talks about Codex,
-  // naming the file and the command. `keep`, because a remedy cut off by an
-  // ellipsis is no remedy. The clause about arriving twice is said only while
-  // the watcher runs, since without it the forwarders are the only copy.
-  const leftover = await jobs.codexHooks;
-  if (leftover) {
-    const twice = wantCodex ? ", so Codex sessions can arrive twice" : "";
-    write(row({
-      mark: G.warn, tone: P.warn, label: "Codex hooks", keep: true,
-      detail: `left by an older deck in ${fileLink(leftover.settingsPath)}${twice} ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall\` takes them out`,
-    }));
-  }
-
-  // Bounded, because this is the job that made a first boot look hung: on a
-  // machine with neither claude-swap nor a Python toolchain it fetches a uv
-  // binary and then builds an environment with it, and the report used to wait
-  // out both. See src/server/boot-deadline.mjs. Nothing is cancelled — the
-  // install carries on and says how it went when it knows.
-  const swapWait = await step(`checking claude-swap${G.ellipsis}`, Promise.race([
-    left.within(jobs.cswap),
-    // The install announcing itself. Not a timeout — a decision, arriving in
-    // about a second on the boot that would otherwise have paid the full
-    // deadline for news it already had.
-    jobs.cswapInstalling.then(() => ({ done: false, installing: true })),
-  ]));
-  if (swapWait.done) writeSwapRows(swapWait.value);
-  else {
-    write(row({
-      label: "claude-swap",
-      // Both halves earn their place, and both have to survive an 80-column
-      // terminal: what the job is doing, and that waiting for it is not the
-      // user's problem. The row that only said the first is the row this
-      // replaces — a spinner at "checking claude-swap…" says that much.
-      detail: swapWait.installing
-        ? `installing in the background ${G.dash} the deck is ready`
-        : `still setting up ${G.dash} the deck is ready`,
-    }));
-    // Handed to the pulse line, which is the only thing still on screen once
-    // the rows are done — and taken back the moment the job settles, whichever
-    // way it settled.
-    pulseBusy = swapWait.installing ? "installing claude-swap" : "setting up claude-swap";
-    jobs.cswap.then(
-      late => { pulseBusy = null; writeSwapRows(late, { late: true }); },
-      () => { pulseBusy = null; },
-    );
-  }
-
-  const cu = await left.within(jobs.ccusage);
-  writeCcusageRow(cu.done ? cu.value : null);
-
-  const upgrade = await jobs.update;
-  if (upgrade) {
-    write(row({
-      mark: G.up, tone: P.warn, label: "update",
-      detail: `v${upgrade.notice.to} available ${G.dash} ${upgrade.command}`,
-    }));
-  }
-
-  // Which name this deck was started under, when that is knowable — a notice,
-  // never a refusal. 95% of installs are on the two old names and the update
-  // path runs through this very process, so a build that declined to boot under
-  // one of them would kill the deck on the machine where the deck is what would
-  // have explained why. Nothing at all is printed wherever the typed name
-  // cannot be proven (a Windows global install, a git checkout): telling
-  // somebody who already types `ccdeck` to type `ccdeck` is the one failure
-  // that would make this row worth ignoring. See src/server/invoked-as.mjs.
-  const rename = renameNotice({ invoked: INVOKED_AS, pkgRoot: PKG_ROOT, dash: G.dash });
-  if (rename) {
-    write(row({ mark: G.warn, tone: P.warn, label: "name", detail: rename.said }));
-    // The line that carries the value: for a global install there is nothing to
-    // install and nothing to download, only six different characters to type.
-    write(row({ label: "", detail: rename.fix }));
-  }
-}
-
-/**
- * The claude-swap rows, wherever in the boot they end up being printed.
- *
- * `late` is the one difference, and it is not cosmetic: by the time a late row
- * arrives the pulse indicator owns the last line and repaints it with `\r`, so
- * a row written without a newline first would be drawn over on the next beat.
- * Every other thing that speaks after boot — reportUnregistered,
- * reportReregistered — opens with the same newline for the same reason.
- */
-function writeSwapRows(swap, { late = false } = {}) {
-  const cs = swap?.cs;
-  // Collected rather than written one at a time, because a late report opens
-  // with a newline and there is exactly one of those however many rows follow.
-  let out = "";
-  if (!wantClaude) {
-    // claude-swap is a Python tool that switches Claude Code accounts, and the
-    // deck used to fetch a uv binary to install it on machines with no Claude
-    // Code at all. Saying so is the point of the row: it is the one place a
-    // user can learn that the accounts panel is missing on purpose.
-    out += row({ label: "claude-swap", detail: `skipped ${G.dash} accounts are Claude-only` });
-  } else if (cs?.state === "present") {
-    out += row({ mark: G.ok, label: "claude-swap", detail: `v${cs.version} (accounts panel enabled)` });
-  } else if (cs?.state === "installed") {
-    out += row({ mark: G.ok, label: "claude-swap", detail: `installed v${cs.version} via ${cs.via}` });
-  } else if (cs?.state === "upgrading") {
-    out += row({ mark: G.ok, label: "claude-swap", detail: `v${cs.version}, upgrading to v${cs.latest} in background` });
-  } else if (cs?.state === "skipped") {
-    out += row({ mark: G.ok, label: "claude-swap", detail: "not installed (AGENTS_DECK_NO_INSTALL=1)" });
-  } else {
-    const how = cs?.reason === "no_installer"
-      ? `not installed ${G.dash} the accounts panel needs it`
-      : cs?.reason === "not_on_path"
-        ? `installed via ${cs.via} but not on PATH ${G.dash} add ${
-            process.platform === "win32" ? "%USERPROFILE%\\.local\\bin" : "~/.local/bin"
-          }`
-        // The deck asked for one version and a different one answered, so it
-        // declines to drive it. Naming both is the whole content of the row:
-        // "install failed" would be a lie about an install that succeeded, and
-        // the number that arrived is the thing a person needs to see.
-        : cs?.reason === "unexpected_version"
-          ? `refused v${cs.version} ${G.dash} asked for ${cs.want}, not driving it`
-          : `install failed${cs?.via ? ` via ${cs.via}` : ""}`;
-    out += row({ mark: G.fail, tone: P.warn, label: "claude-swap", detail: how });
-    // A URL is not an answer when someone just wants the panel to work. Print
-    // the command for THIS machine, picked from what is already on it.
-    if (cs?.hint) out += row({ label: "", detail: cs.hint });
-  }
-
-  if (swap?.seed?.state === "added") {
-    out += row({ mark: G.ok, label: "accounts", detail: "registered the signed-in account (cswap add)" });
-  } else if (swap?.seed?.state === "failed" || swap?.seed?.state === "nothing-to-add") {
-    out += row({ label: "accounts", detail: `panel empty ${G.dash} sign in to Claude Code, then run cswap add` });
-  }
-
-  write(late ? "\n" + out : out);
-}
-
-/**
- * The ccusage row.
- *
- * `null` covers both of the ways there is nothing to say — the job was not
- * attempted, and the job had not answered by the time the boot's deadline ran
- * out. Neither deserves a row: unlike claude-swap there is no install to wait
- * for here, because primeCcusage starts one and returns without it, so a
- * ccusage that is slow to answer is slow at resolving a path and will be
- * resolved again the first time the usage modal is opened.
- */
-function writeCcusageRow(cu) {
-  if (cu?.state === "present") write(row({ mark: G.ok, label: "ccusage", detail: `v${cu.version}` }));
-  else if (cu?.state === "updating") write(row({ mark: G.ok, label: "ccusage", detail: `v${cu.version}, checking for update` }));
-  // A ccusage the user provided, named rather than versioned — reading a
-  // version out of it means running it, and a status row is not worth a spawn.
-  // Naming the file is the more useful half anyway: it is the answer to "which
-  // ccusage is this deck actually going to run", which is a question a machine
-  // with a managed install AND a PATH copy could not answer before #433.
-  else if (cu?.state === "user") write(row({ mark: G.ok, label: "ccusage", detail: `your own copy ${G.dash} ${cu.bin}` }));
-  else if (cu?.state === "installing") write(row({ mark: G.ok, label: "ccusage", detail: "installing in background" }));
-}
-
-// Asking the supervisor to bring us back. It is the only party that can, and
-// only after this process is gone — which is precisely what keeps the
-// replacement from racing this listener onto a random fallback port.
-let restarting = false;
-// Outer bound on the supervisor's answer below. It cannot be reached today —
-// the fetch has a deadline of its own and every path through it replies — but
-// `restarting` is a latch, and a latch with no way out is how a deck ends up
-// silently refusing every restart for the rest of its life.
-const UPGRADE_ANSWER_MS = 150_000;
-let upgradeTimer = null;
-
-// Whether the rest of this file has finished running.
-//
-// The server below starts accepting connections from inside startServer, before
-// that call has returned — so /api/restart is reachable for the whole of the
-// boot that follows it: the startup report, the port report to the supervisor,
-// the discovery file and its first fsynced write, and on a cold start the
-// browser spawn. A restart landing in that window used to reach `shutdown`
-// before the binding holding it was initialised and die of a ReferenceError,
-// having already set the latch above, with nothing left to clear it — after
-// which every restart from every tab was answered "ok" and did nothing, for the
-// life of the process (#448).
-//
-// So an ask that arrives too early is held rather than run: the user asked for
-// something this deck can genuinely give a moment later, and refusing outright
-// would put back the same silence in a politer form. BOOT_RESTART_MS is the
-// outer bound, for the reason UPGRADE_ANSWER_MS above is one. It used to be a
-// bound that got used — before #742 the report waited out a real `uv tool
-// install`, so the window it covers was minutes wide. It is now the boot
-// deadline plus the browser spawn, comfortably inside ten seconds, and this
-// stays as the thing that makes that a fact rather than a belief. Ten seconds
-// in, the ask is run; the respawn skips the report entirely and is up in about
-// a second.
-let booted = false;
-let heldRestart = null;
-let bootTimer = null;
-const BOOT_RESTART_MS = 10_000;
-
-const requestRestart = (mode) => {
-  if (restarting) return;
-  restarting = true;
-  if (!booted) {
-    heldRestart = { mode };
-    bootTimer = setTimeout(() => { bootTimer = null; runHeldRestart(); }, BOOT_RESTART_MS);
-    bootTimer.unref?.();
-    // Said out loud for the same reason abandonUpgrade below is: the tab has
-    // already been told its restart was accepted, and a second of nothing
-    // happening on this terminal is otherwise indistinguishable from the bug
-    // this replaces.
-    write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}restart queued ${G.dash} still starting up${P.reset}\n`);
-    return;
-  }
-  beginRestart(mode);
-};
-
-// The restart itself, once there is a booted deck to end. Split out of
-// requestRestart so the held ask above can re-enter it without tripping the
-// latch it is already holding.
-//
-// Everything here runs inside one try: the whole point of #448 is that a throw
-// on this path is not merely a failed restart but a permanent one, because the
-// latch it leaves behind outlives it. There is no line in here worth dying for.
-function beginRestart(mode) {
-  try {
-    // "npx" means the newer code is not on this disk at all, so it has to be
-    // fetched — and this process keeps serving while that happens. Exiting first
-    // is what made every failed upgrade an outage: the SSE stream dropped, hook
-    // events fired into the gap were lost outright (hook/hook.js is
-    // fire-and-forget with a 1s timeout and no retry), and the canvas came back
-    // with whatever was in flight stuck until the stale sweeper reaped it — all
-    // of it paid before anyone knew whether npm could even resolve the version.
-    // Nothing is torn down here now; the supervisor answers when it knows.
-    if (mode === "npx") {
-      upgradeTimer = setTimeout(() => abandonUpgrade("no answer from the supervisor"), UPGRADE_ANSWER_MS);
-      upgradeTimer.unref?.();
-      // Armed before the ask, not after: a send that throws is a supervisor that
-      // can no longer answer, and the deck has to come back out of the latch on
-      // its own rather than wait out an answer that cannot arrive.
-      try { process.send({ type: "upgrade" }); }
-      catch (err) { abandonUpgrade(err?.message ?? "the supervisor is no longer listening"); }
-      return;
-    }
-    const to = restartTarget();
-    write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}restarting${to ? ` ${G.arrow} v${to}` : ""}${G.ellipsis}${P.reset}\n`);
-    shutdown(RESTART_CODE);
-  } catch (err) {
-    abandonRestart(err);
-  }
-}
-
-// The ask that was waiting for the boot to finish, now that it has. Safe to
-// call when nothing is waiting, which is every ordinary boot.
-function runHeldRestart() {
-  if (!heldRestart) return;
-  const { mode } = heldRestart;
-  heldRestart = null;
-  clearTimeout(bootTimer);
-  bootTimer = null;
-  beginRestart(mode);
-}
-
-// A restart that could not be started, said out loud and then let go of.
-//
-// Both halves of the latch have to come down — this file's and the server's —
-// because a latch nothing clears is precisely how one failed request turned
-// into a deck that refused every restart afterwards while answering "ok" to
-// each one (#448). The reason is folded onto one line by oneLine: the terminal
-// under this is repainted every 800ms by the pulse, and a stack written into
-// that is a stack nobody can read (#432).
-//
-// A declaration rather than a const, like `shutdown` below and for the same
-// reason: this is the handler for a binding that was not there yet, and it must
-// not be capable of becoming the next one.
-function abandonRestart(err) {
-  clearTimeout(bootTimer);
-  bootTimer = null;
-  heldRestart = null;
-  restarting = false;
-  releaseRestart();
-  write(
-    `\n  ${P.err}${G.fail}${P.reset}  ${P.muted}restart failed ${G.dash} still on ${P.reset}v${PKG_VERSION}\n` +
-    `     ${P.muted}${oneLine(err?.stack ?? err, Math.max(20, cols() - 6), G.ellipsis)}${P.reset}\n`,
-  );
-}
-
-// The upgrade did not happen and this deck is still the deck. Said out loud
-// because the terminal has just printed that a fetch was starting, and left
-// unsaid it reads as a restart that hung.
-const abandonUpgrade = (why) => {
-  clearTimeout(upgradeTimer);
-  restarting = false;
-  // The server's own latch, which no longer has an exiting process to clear it.
-  releaseRestart();
-  write(
-    `\n  ${P.warn}${G.cancel}${P.reset}  ${P.muted}update not applied ${G.dash} still on ${P.reset}v${PKG_VERSION}\n` +
-    (why ? `     ${P.muted}${why}${P.reset}\n` : ""),
-  );
-};
-
-// The supervisor's verdict on the fetch it was asked for. Only it can answer:
-// the fetch is its child, and it is the process that will still be here when
-// this one exits.
-process.on("message", (m) => {
-  if (!restarting || !m || typeof m !== "object") return;
-  if (m.type === "upgrade-ready") {
-    clearTimeout(upgradeTimer);
-    // The replacement is on the machine now, so this is the last moment the
-    // port is worth holding: exiting hands it straight over.
-    write(`\n  ${P.warn}${G.restart}${P.reset}  ${P.muted}updating via npx${G.ellipsis}${P.reset}\n`);
-    shutdown(UPGRADE_CODE);
-  } else if (m.type === "upgrade-refused") {
-    abandonUpgrade(m.error);
-  }
-});
-
-// What a restart would land on. Read from disk now rather than remembered from
-// boot, because the whole point is that the two differ.
-function restartTarget() {
-  try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version ?? null; }
-  catch { return null; }
-}
+// The restart latch, armed before the server can take a request — see
+// bin/cli/restart.js. `shutdown` is a declaration further down, hoisted, so it
+// is a function here already (#448).
+const { requestRestart, markBooted, runHeldRestart } = restartLatch({ shutdown, releaseRestart });
 
 // The three things `shutdown` has to tear down, named before the boot that
 // fills them in rather than by it. From the line below onwards this process is
@@ -1362,11 +265,12 @@ let bootLock = null;
 //
 // This file is an ES module with top-level `await`, so its statements run in
 // source order and a handler registered at the bottom does not exist until the
-// boot has got there. Three `process.exit()` calls sit between the gate below
-// and that point — the yield when another deck came up first, the ATTACH that
-// every `ccdeck` typed beside a running deck takes, and the exit of a boot
-// whose server could not bind — and the explicit release further down is on the
-// one path none of them take. So the handler that was written to cover "every
+// boot has got there. Three ways out sit between the gate below and that point
+// — the yield when another deck came up first, the ATTACH that every `ccdeck`
+// typed beside a running deck takes, both of which leave through the one
+// `process.exit()` after settleSecondStart, and the exit of a boot whose server
+// could not bind — and the explicit release further down is on the one path
+// none of them take. So the handler that was written to cover "every
 // way out" covered only the ways out it was already past.
 //
 // What the leftover file costs is a start that has to wait the lock out: the
@@ -1395,6 +299,36 @@ process.on("exit", () => { bootLock?.release(); });
 // point is only that discovery is unregistered and the port let go of on the
 // way out, rather than left for the next boot's stale sweep.
 dieWithParent(() => shutdown(0));
+
+// ── is one of ours already up? ────────────────────────────────────────────────
+// A second start, settled before anything else in the boot — see
+// settleSecondStart in bin/cli/second-start.js, which carries the argument.
+//
+// ASKED EXACTLY HERE, and the position is the point. Everything the answer
+// depends on is resolved above — the workspace, the canonical log path, which
+// of the two CLIs this deck would serve — and nothing below has run yet: no
+// port bound, no hooks installed, no tool probed, no banner painted, no
+// discovery file written. An attach therefore leaves the machine precisely as
+// it found it, which is what makes it safe to do without asking.
+//
+// UNDER THE BOOT LOCK, held until this deck's own record is on disk — see the
+// release beside discovery.check below, and boot-lock.mjs for why a registry
+// read alone could not close the window two starts at login fell through.
+bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
+{
+  const ended = await settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, openBrowser, RESPAWN });
+  // A yield or an attach: this start ends here, having said why.
+  if (ended !== null) process.exit(ended);
+}
+
+// The one fact the auto-switch has to wait for and the server cannot see for
+// itself: that the claude-swap it drives is not being installed or upgraded
+// underneath it (#1043). startupWork is what knows, and it has not run yet — it
+// runs beside the server rather than before it (#483) — so the server is handed
+// a promise here and startupWork settles it below. A respawn runs no startup
+// work and installs nothing, so there it settles at once. See cswapQuiet.
+let settleCswap;
+const cswapQuiet = new Promise(r => { settleCswap = r; });
 
 // The listen, begun HERE and awaited below the startup report rather than after
 // it. The report is a narration; the port is the product, and it was queued
@@ -1431,126 +365,6 @@ dieWithParent(() => shutdown(0));
 // whole report, and a bind that fails in there with nothing attached to it is an
 // unhandledRejection — which Node answers by killing the process over a port it
 // could have named.
-// ── is one of ours already up? ────────────────────────────────────────────────
-// A bare `ccdeck` typed beside a deck that is already running used to build a
-// second everything on a random port, and neither half mentioned the other.
-// Then it attached only to a deck of exactly its own shape and built a second
-// one beside anything else — a different flag, an older version, or a login
-// item whose environment decided `codex` or the log path differently from the
-// shell's. src/server/running-deck.mjs carries the whole argument, the registry
-// read, the handshake and the rule; this is only where it is asked and acted on.
-//
-// ASKED EXACTLY HERE, and the position is the point. Everything the answer
-// depends on is resolved above — the workspace, the canonical log path, which
-// of the two CLIs this deck would serve — and nothing below has run yet: no
-// port bound, no hooks installed, no tool probed, no banner painted, no
-// discovery file written. An attach therefore leaves the machine precisely as
-// it found it, which is what makes it safe to do without asking.
-//
-// UNDER THE BOOT LOCK, held until this deck's own record is on disk — see the
-// release beside discovery.check below, and boot-lock.mjs for why a registry
-// read alone could not close the window two starts at login fell through.
-//
-// A RESPAWN IS ASKED TOO, and answers differently. A restart is THIS deck
-// coming back, so there is nothing to attach to — but in the gap a crash
-// leaves, a `ccdeck` typed by hand finds no deck and starts one, and the
-// respawn that followed used to take a random port beside it. Now it finds
-// that deck and exits 0, and the supervisor, reading a clean exit, ends too.
-bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
-{
-  // `--port` alone, not AGENT_DAG_PORT: the variable is how somebody RUNS a
-  // deck rather than which one they mean — the line `--stop` draws above.
-  const askedPort = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
-  const plan = secondStart({
-    live: await liveDecks().catch(() => []),
-    want: { workspace, persist, codex: wantCodex, claude: wantClaude, codexHome },
-    port: askedPort,
-    ours: PKG_VERSION,
-    fresh: flags.new === true,
-    respawn: RESPAWN,
-  });
-  if (plan.act === "yield") {
-    console.error(`${PRODUCT}: a deck started on ${plan.deck.port} while this one was coming back ${G.dash} leaving it to that one.`);
-    process.exit(0);
-  }
-  // THE NEWEST START WINS. What is stopped here is either the deck this start
-  // replaces or, on an attach, a second deck left over from before this rule —
-  // the duplicate the rule exists to end. Each one is said, with why, because a
-  // deck that vanishes without a word is a mystery of its own.
-  if (plan.stop.length) {
-    const { stopDeck } = await import(pathToFileURL(join(PKG_ROOT, "src/server/stop-deck.mjs")).href);
-    for (const d of plan.stop) {
-      const why = plan.act === "replace" && flags.new === true
-        ? "you asked for a fresh one"
-        : olderVersion(d.version, PKG_VERSION)
-          ? (d.version ? `it was v${d.version}` : "it was an older version")
-          : plan.act === "attach" ? "it was a second deck" : "it was started with different settings";
-      const out = await stopDeck(d).catch(() => ({ ok: false, reason: "unreachable" }));
-      write(out.ok
-        ? `\n  ${P.ok}${G.ok}${P.reset}  stopped the deck on ${d.port}${P.muted}  ${G.bullet}  pid ${d.pid}  ${G.bullet}  ${why}${P.reset}\n`
-        : `\n  ${P.warn}${G.warn}  could not stop the deck on ${d.port} (pid ${d.pid}) ${G.dash} ${out.reason ?? out.how}${P.reset}\n`);
-    }
-  }
-  if (plan.act === "attach") {
-    const live = plan.deck;
-    const liveUrl = `http://127.0.0.1:${live.port}`;
-    const note = versionNote(live.version, PKG_VERSION);
-    // Not the startup report's rows. That report has a label column because it
-    // has twelve lines to align; this has two, and borrowing the column would
-    // indent a three-line message behind a gutter sized for "Codex sessions".
-    //
-    // The version chunk is dropped rather than printed as "v?" when the running
-    // deck is too old to report one — see versionNote, which says nothing in the
-    // same case for the same reason.
-    const ident = [live.version ? `v${live.version}` : "", `pid ${live.pid}`]
-      .filter(Boolean).join(`  ${G.bullet}  `);
-    write(`\n  ${P.ok}${G.ok}${P.reset}  deck already running${P.muted}  ${G.bullet}  ${ident}${P.reset}\n`);
-    // Its own line, always. The URL is the one detail an ellipsis would destroy
-    // — half an address is not a shorter address — and this message has no
-    // report to hand it to. Same rule as statusLine's `keep`.
-    write(`     ${P.accent}${P.bold}${link(liveUrl, liveUrl, LINKS)}${P.reset}\n`);
-    if (note) write(`  ${P.warn}${G.warn}  ${note}${P.reset}\n`);
-    // THE TYPO'S WARNING, on the path that has no startup report to carry it.
-    //
-    // The gate used to answer `true` for these two so the report would
-    // run and print them, and that is how `ccdeck --stpo` — a misspelling of
-    // the flag that STOPS a deck — came to build a second one. The warning was
-    // the requirement; the extra process never was. Printed here, in the same
-    // rows the report uses, so nothing is lost and nothing is started.
-    reportUnknownFlags(flags.unknown);
-    reportIncompleteFlags(flags.incomplete);
-    // The line that says a second deck was NOT started. Without it the command
-    // looks like it did nothing at all, which is the other way to be confusing
-    // about this — and it names the flag for the person who wanted a fresh one.
-    write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${INVOKED_AS ?? PRODUCT} --new\` replaces it with a fresh one${P.reset}\n`);
-    if (openBrowser) {
-      write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
-      try {
-        const { openUrl, LAUNCH_GRACE_MS } = await import(pathToFileURL(join(PKG_ROOT, "src/server/open-url.mjs")).href);
-        openUrl(liveUrl);
-        // Held for exactly as long as openUrl needs to fall through to its next
-        // launcher. Every child it spawns is unref'd, so an immediate exit ends
-        // this process before a missing xdg-open has been answered by gio — and
-        // then no browser opens and nothing says why. The boot path never had
-        // to think about this because it stays alive forever.
-        await sleep(LAUNCH_GRACE_MS);
-      } catch { /* the URL is on screen; it can be clicked or pasted */ }
-    } else {
-      write("\n");
-    }
-    process.exit(0);
-  }
-}
-
-// The one fact the auto-switch has to wait for and the server cannot see for
-// itself: that the claude-swap it drives is not being installed or upgraded
-// underneath it (#1043). startupWork is what knows, and it has not run yet — it
-// runs beside the server rather than before it (#483) — so the server is handed
-// a promise here and startupWork settles it below. A respawn runs no startup
-// work and installs nothing, so there it settles at once. See cswapQuiet.
-let settleCswap;
-const cswapQuiet = new Promise(r => { settleCswap = r; });
-
 const starting = startServer({
   port, persist, workspace, codex: wantCodex, claude: wantClaude,
   // Withheld when nothing is supervising us: without a parent, exiting is just
@@ -1571,10 +385,10 @@ const starting = startServer({
 // skips the lot and prints one line instead. This is the difference between a
 // restart that feels instant and one that makes you wonder whether it worked.
 if (!RESPAWN) {
-  const jobs = startupWork();
+  const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
   jobs.cswapQuiet.then(settleCswap);
   await printBanner();
-  await reportStartup(jobs);
+  await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
 } else {
   settleCswap();
 }
@@ -1600,39 +414,8 @@ const url = `http://127.0.0.1:${realPort}`;
 // the deck out from under every open tab.
 try { process.send?.({ type: "listening", port: realPort }); } catch { /* not supervised */ }
 
-if (RESPAWN) {
-  write(`  ${P.ok}${G.restart}${P.reset}  ${P.muted}restarted ${G.arrow} ${P.reset}v${PKG_VERSION}${P.muted} ${G.bullet} ${link(url, url, LINKS)}${P.reset}\n`);
-  // A respawn skips the whole startup report, but not this: the argv is the
-  // same argv, the typo in it is still there, and a deck that mentioned it once
-  // and then went quiet for every restart afterwards is back to hiding it from
-  // anyone who was not watching the first boot.
-  reportUnknownFlags(flags.unknown);
-  reportIncompleteFlags(flags.incomplete);
-} else {
-  // The URL is the one detail an ellipsis would destroy — half an address is
-  // not a shorter address — so it keeps its own line when the terminal is too
-  // narrow to hold it beside the label. See statusLine's `keep`.
-  write(row({
-    mark: G.ok, label: "server ready",
-    detail: link(url, url, LINKS), detailTone: `${P.accent}${P.bold}`, keep: true,
-  }));
-  if (persist) write(row({ label: "log", detail: fileLink(persist) }));
-  // Last of the rows, on purpose — see reportUnknownFlags.
-  reportUnknownFlags(flags.unknown);
-  reportIncompleteFlags(flags.incomplete);
-  // AFTER the warnings and outside the rows, because it is neither. It is the
-  // one thing on this screen that is about next week rather than about this
-  // boot — see way-back.mjs — and putting it above a typo warning would be
-  // spending the reader's last line of attention on the calmer of the two.
-  write(`\n  ${P.muted}${G.dash}  ${wayBackNote({
-    command: INVOKED_AS ?? PRODUCT, dash: G.dash, columns: cols(),
-  })}${P.reset}\n`);
-  // Only when one is actually being opened. Under --no-open — which is how an
-  // npx update relaunches, with a tab already waiting — this was announcing
-  // something that never happened.
-  if (openBrowser) write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
-  else write("\n");
-}
+if (RESPAWN) reportRestarted({ url, flags });
+else reportReady({ url, persist, openBrowser, flags });
 
 // The discovery file is the whole of how a hook finds this deck: hook.js
 // enumerates that directory and nothing else. Writing it once at boot meant
@@ -1648,7 +431,7 @@ if (RESPAWN) {
 // log and elect a single writer for it. See electWriters in hook/hook.js. The
 // Codex setting goes in for the half of that election no hook is part of: the
 // rollout files this deck tails itself, which a --no-codex deck must never be
-// elected to record. See writesCodexLog in src/server/log-writer.mjs.
+// elected to record. See writesCodexLog in src/server/log-election.mjs.
 let registered = null;
 discovery = keepDiscovery({
   port: realPort,
@@ -1699,136 +482,23 @@ if (openBrowser && !RESPAWN) {
 
 // ── starting at login ─────────────────────────────────────────────────────────
 //
-// ONCE PER MACHINE, EVER. The record in the deck's own data directory is what
-// makes that true: without it, `--uninstall-service` would be undone by the next
-// start, which is not an uninstall — it is a tool arguing with its user.
-//
 // After the boot rather than during it, and deliberately: a deck that could not
 // come up has no business teaching the machine to start it at every login. By
 // here the port is bound, the hooks are registered and the browser is open.
-//
-// npx is excluded and AGENTS_DECK_NO_INSTALL is honoured — see
-// shouldOfferService, which owns both rules and says why. A failure is one line
-// and nothing else: the deck is already running, and the worst case is the
-// behaviour every version before this one had.
-if (!RESPAWN) {
-  try {
-    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
-    if (svc.shouldOfferService({
-      record: svc.readServiceRecord(deckDataDir()),
-      npx: isNpxInstall(PKG_ROOT),
-      checkout: isGitCheckout(PKG_ROOT),
-    })) {
-      const out = svc.installService({
-        script: join(PKG_ROOT, "bin", "agent-dag.js"),
-        logPath: join(deckLogDir(), "deck.log"),
-        product: PRODUCT,
-      });
-      svc.writeServiceRecord(deckDataDir(), out.ok
-        ? { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path }
-        : { failed: out.reason ?? "unknown", at: new Date().toISOString(), version: PKG_VERSION });
-      // Said once, on the one run that does it, and never again. A tool that
-      // adds itself to your login items and does not mention it is a tool you
-      // find later, in a settings pane, and stop trusting.
-      write(out.ok
-        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${P.reset}\n\n`
-        : `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`);
-    }
-  } catch (err) {
-    // Never fatal. The deck is up; this is a convenience that did not happen.
-    console.error(`${PRODUCT}: could not check the login item:`, err?.message ?? err);
-  }
-}
+// Never on a respawn, which is the same session continuing. See offerLoginItem.
+if (!RESPAWN) await offerLoginItem({ deckDataDir, deckLogDir });
 
 // ── Pulse indicator ───────────────────────────────────────────────────────────
-// The whole line is rewritten each beat rather than just the dot: anything else
-// on this deck that has something to say writes a newline first, and after that
-// the line under the cursor is no longer the one we drew — a partial repaint
-// would leave the message behind and pulse into empty space. Sized to the real
-// terminal, because at 40 columns the old fixed 61-character line wrapped, and
-// from then on \r only ever reached its second row.
-//
-// AND IT STOPS MOVING (#742). The dot alternated green and grey every 800ms for
-// as long as the deck ran, and a blinking indicator beside a status line is the
-// vocabulary of "working on it" — so a boot that finished in a second read as
-// one that never finished, which is what people reported. Motion is now spent
-// on the two states where something really is outstanding, and the frame is
-// compared against what is already on screen so a deck at rest paints once and
-// then leaves the terminal alone. See pulseMoves.
-if (MOTION) {
-  let pi = 0;
-  let painted = null;
-  // The line is on screen and is the last thing written to this terminal.
-  let ours = false;
-  // We are the one writing right now, so the guard below leaves us alone.
-  let writing = false;
-
-  // The pulse line's tenancy, enforced rather than agreed.
-  //
-  // The convention was that anything with something to say writes a newline
-  // first, so the pulse's `\r` never lands on somebody else's text. bin/deck.js
-  // keeps it everywhere. src/server/quota.mjs does not — it calls console.error
-  // directly — and a Windows user with no Claude Code sent a screenshot of the
-  // result: `listening — Ctrl+C to stop        ccdeck quota: claude CLI failed`
-  // on one row, three times over, the pulse and the complaint interleaved.
-  //
-  // An invariant every writer has to remember is one a writer will forget, and
-  // the writers here are server modules that know nothing about a terminal. So
-  // it is enforced at the stream instead: while our line is the last thing on
-  // screen, anything else that speaks gets a newline first, and the memo is
-  // dropped so the next beat repaints the line under whatever was said.
-  //
-  // Both streams, because console.error goes to stderr and lands on the same
-  // screen. Only when MOTION is on — with no pulse there is no line to defend,
-  // and a piped deck must not have its output rewritten.
-  for (const stream of [process.stdout, process.stderr]) {
-    const real = stream.write.bind(stream);
-    stream.write = (chunk, ...rest) => {
-      if (!writing && ours) {
-        ours = false;
-        // Dropped, not kept: the line is no longer where we left it, so the
-        // next beat has to draw it again even though the frame is unchanged.
-        painted = null;
-        // Unless the speaker already did it. Every late message in this file
-        // opens with one, and two blank lines is its own kind of mess.
-        if (!String(chunk).startsWith("\n")) real("\n");
-      }
-      return real(chunk, ...rest);
-    };
-  }
-
-  setInterval(() => {
-    // The colour follows the words. A Codex-only deck keeps saying "listening"
-    // when it is unregistered — see pulseText — and painting that sentence in
-    // the warning tone would restore the alarm the sentence just retired.
-    const alarm = !registered && wantClaude;
-    const state = { registered, claude: wantClaude, busy: pulseBusy };
-    const text = pulseText({ ...state, columns: cols(), unicode: UNICODE });
-    // At rest every beat is lit, which is what makes the line still: the frame
-    // is then identical to the one already on screen and the write below is
-    // skipped. See pulseDot.
-    const dot = pulseDot(pi++, state) === "on" ? (alarm ? P.warn : P.ok) : P.muted;
-    const tone = alarm ? P.warn : P.muted;
-    const frame = `\r  ${dot}${G.pulse}${P.reset}  ${tone}${text}${P.reset}`;
-    // Unchanged frames are not written at all. That is what makes "at rest"
-    // visible: one paint, and then a still line for as long as nothing happens.
-    // `painted` is dropped by the guard above whenever somebody else writes, so
-    // this can only skip a beat while the line is genuinely still where we left
-    // it.
-    if (frame === painted) return;
-    painted = frame;
-    writing = true;
-    try { write(frame); } finally { writing = false; }
-    ours = true;
-  }, 800).unref();
-}
+// The last line on screen, still only while something is outstanding, and the
+// guard that keeps every other writer off it — see startPulse in
+// bin/cli/pulse.js. It asks for `registered` on each beat.
+startPulse({ registered: () => registered, wantClaude });
 
 // Boot is over. Everything `shutdown` tears down exists, so a restart can be
 // run rather than held — and the server is told, so /api/restart stops
 // describing a deck that is still assembling itself. This line is exactly where
 // the window opened at the top of this file closes; see requestRestart.
-booted = true;
+markBooted();
 markDeckReady();
 // And said out loud, one link up. A launcher that put this deck in the
 // background has been tailing its log into the user's terminal since the spawn
@@ -1942,9 +612,9 @@ process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
 // The boot lock's `exit` handler is NOT here with its siblings. It is armed up
-// beside `let bootLock = null;`, above the start gate, because the three exits
-// this file takes before reaching this line are the ones it exists for — see
-// the note there (#980).
+// beside `let bootLock = null;`, above the start gate, because the three ways
+// out this file takes before reaching this line are the ones it exists for —
+// see the note there (#980).
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -1953,7 +623,7 @@ process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDis
 // ordinary-looking deck that simply never shows a session.
 //
 // What that costs depends on which CLI this deck watches, so the sentence comes
-// from term.mjs, where both answers are written down and tested.
+// from pulse-line.mjs, where both answers are written down and tested.
 function reportUnregistered({ file, error }) {
   const why = error?.message ? ` ${G.dash} ${error.message}` : "";
   write(
@@ -1964,121 +634,4 @@ function reportUnregistered({ file, error }) {
 
 function reportReregistered({ file }) {
   write(`\n  ${P.ok}${G.ok}${P.reset}  ${P.muted}registered again ${G.arrow} ${fileLink(file)}${P.reset}\n`);
-}
-
-/**
- * Every token the parser did not recognise, named, one row each.
- *
- * Said rather than acted on: the deck goes on booting and still exits 0. It is
- * not a one-shot command that can afford the usual contract. `bin/agent-dag.js`
- * hands its own argv to every worker it spawns — including the npx relaunch,
- * which starts a NEWER version of the package on the argv the user typed
- * against an older one — and the README recommends running it from a wrapper.
- * Refusing to boot over one token would turn a typo into a dark dashboard, and
- * an argument the newer build no longer knows into a failed upgrade that costs
- * the port and the session. The file already holds that position once, in the
- * `--all` branch: a flag the deck stopped needing is still accepted rather than
- * made fatal.
- *
- * So it goes where the deck puts everything else it decided on your behalf —
- * the startup report — and it goes at the END of it. reportStartup writes its
- * rows in a fixed order and three more land underneath them (the server, the
- * log, the browser), so a warning printed among those rows is a warning the
- * rows scroll over. Here it is the last line before the pulse indicator takes
- * the bottom of the screen and stops repainting anything above it.
- */
-function reportUnknownFlags(unknown) {
-  for (const token of unknown) {
-    write(row({
-      mark: G.warn, tone: P.warn, label: "unknown option",
-      detail: `${token} ${G.dash} see \`${PRODUCT} --help\``,
-    }));
-  }
-}
-
-/**
- * Every value-taking flag that was given no value it could use, named, one row
- * each — and printed beside the unknown ones because it is the same failure
- * wearing a different hat.
- *
- * #697: `--workspace`, `--history` and `--port` used to consume the following
- * token whatever it was, so `ccdeck --workspace $PROJ --no-persist` with `PROJ`
- * unset scoped the deck to a directory called `--no-persist`, kept persisting to
- * the shared log, and reported neither. Nothing landed in `unknown`, because the
- * token that belonged there had been eaten. The parser refuses that value now
- * and lists the flag here instead.
- *
- * Said rather than acted on, under exactly the argument reportUnknownFlags makes
- * above: the flag falls back to its documented default and the deck still boots.
- * The row is what makes the fallback a decision the user can see, and the rows
- * around it show its consequence — `workspace (all)` and the `log` line are
- * printed by the same report.
- */
-function reportIncompleteFlags(incomplete) {
-  for (const { flag, expects } of incomplete ?? []) {
-    write(row({
-      mark: G.warn, tone: P.warn, label: "missing value",
-      detail: `${flag} ${G.dash} expected ${expects}; using the default`,
-    }));
-  }
-}
-
-function printHelp() {
-  process.stdout.write(`${PRODUCT} — live deck of Claude Code + Codex agents
-
-Usage:
-  ${PRODUCT} [options]
-
-Options:
-  -p, --port <number>      Preferred port (default: 4317; falls back to random 4318–4400)
-      --no-open            Don't open the browser automatically
-      --foreground         Hold the terminal, the way every version before 3.20
-                           did. Ctrl+C stops the deck again
-      --new                Replace the running deck with a fresh one.
-                           Without it, a bare \`${PRODUCT}\` beside a deck that is
-                           already up opens that deck's tab instead of building
-                           a rival on another port
-      --stop               Stop the running deck.
-                           With --port <n>, stop that one; with --all, stop every
-                           deck on this machine
-      --status             What is running on this machine, and on which ports
-      --logs               What the deck wrote where a terminal would have shown
-                           it, and where that file is
-      --install            Put the deck on your PATH and start it at login.
-                           What an \`npx\` run needs to survive a reboot
-      --install-service    Start the deck when you log in. Set up on first run;
-                           this is only for putting it back
-      --uninstall-service  Stop starting at login. \`--uninstall\` does this too
-      --workspace <path>   Only capture sessions whose cwd is inside <path>
-      --scope              Restrict to current working directory
-      --all                Capture every session (default). Accepted and
-                           ignored — it is what a bare run already does, and
-                           \`--stop --port <n>\` is the only way to narrow a stop
-      --history <path>     Override events log file (default: this platform's log directory)
-      --no-persist         Don't write or replay events log (RAM-only)
-      --codex              Force-enable Codex capture even if ~/.codex/ missing
-      --no-codex           Skip Codex capture (Claude only)
-      --claude             Force-enable Claude capture even if Claude Code wasn't found
-      --no-claude          Skip Claude entirely: no hooks, no claude-swap, no accounts panel
-      --uninstall          Remove ${PRODUCT}'s hooks from ~/.claude/settings.json and
-                           ~/.codex/hooks.json, and restore any sound hooks of yours it parked.
-                           Hook entries only: the forwarder script under
-                           ~/.claude/agent-dag/, the deck's own state and log
-                           directories (\`--status\` names them), ~/.agents-deck/
-                           and claude-swap all stay. It NAMES the prefs.json
-                           files that still hold this deck's LAN private key
-      --purge              With --uninstall: delete those prefs.json files too, so the
-                           private key every deck you paired with has pinned does not
-                           outlive the uninstall. Your ${PRODUCT} settings go with them
-  -h, --help               Show this help
-  -v, --version            Print the version and exit
-
-Anything else on the command line is reported as an unknown option and then
-ignored: the deck still starts.
-
-A flag that takes a value never swallows the next flag. If the value is missing,
-empty, or itself looks like a flag — \`${PRODUCT} --workspace \$UNSET --no-persist\`
-after the shell has dropped an unset variable — the flag is reported, left on its
-default, and the token it would have eaten is parsed as the flag it is.
-`);
 }

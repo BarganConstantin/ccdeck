@@ -137,7 +137,10 @@ delete process.env.AGENTS_DECK_NO_INSTALL;
 delete process.env.AGENTS_DECK_CCUSAGE;
 
 // @ts-expect-error — .mjs server module, no types
-const { installSpec, primeCcusage } = await import("../../server/ccusage.mjs");
+const { primeCcusage } = await import("../../server/ccusage.mjs");
+// The npm command line moved to ccusage-install.mjs with the install it runs.
+// @ts-expect-error — .mjs server module, no types
+const { installSpec } = await import("../../server/ccusage-install.mjs");
 
 const CCUSAGE_DIR = join(FAKE_HOME, ".agents-deck", "ccusage");
 const PKG_DIR = join(CCUSAGE_DIR, "node_modules", "ccusage");

@@ -1,502 +1,59 @@
 // UsagePanel — floating panel showing aggregated token usage and cost
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { fmtCost, fmtCostRate, UNPRICED_LABEL } from "../pricing";
-import { countTo } from "../count-up";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
-import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
 import {
-  boardModelTable, boardSessionTable, boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
-  UNKNOWN_MODEL, type BoardSessionRow,
+  boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
+  type BoardSessionRow,
 } from "../board-usage";
 import {
-  PERIODS, periodFocusMove, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
-  rangeTotals, sessionListScale, sessionListNote, nounFor, panelFigures, rangeView, type Landed,
-  type PeriodKey, type UsageRange,
+  modelRows as ccModelRows, sessionRows as ccSessionRows,
+  rangeTotals, sessionListScale, nounFor, panelFigures,
+  type PeriodKey,
 } from "../usage-from-ccusage";
-import { readStored } from "../storage";
-import { PRODUCT } from "../brand";
+import { loadPeriod, loadSessionsOpen, savePeriod, saveSessionsOpen } from "../usage-prefs";
 import type { GraphState } from "../reducer";
-import type { AgentState } from "../types";
 import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
-import { shortModel } from "../model-label";
-import { resetCountdown } from "../relative-time";
 import CostBar from "./CostBar";
-import { stateLabel } from "./AgentNode";
-import { selfPressAccepted, selfPressProps } from "../panel-press";
-
-// ── Quota types ────────────────────────────────────────────────────────────
-interface QuotaData {
-  ok: boolean;
-  session5hPct?: number;
-  session5hReset?: string;
-  session5hResetAt?: number;   // unix seconds
-  session5hWindowSec?: number;
-  week7dPct?: number;
-  week7dReset?: string;
-  week7dResetAt?: number;      // unix seconds
-  week7dWindowSec?: number;
-  weekSonnetPct?: number;
-  weekOpusPct?: number;
-  source?: string;
-  /** Why there is nothing to show, when `ok` is false. The server has always
-   *  sent this and the panel used to drop it, so every failure printed the one
-   *  sentence about running /usage — including on machines where that cannot
-   *  help, because they have no subscription window to report. */
-  reason?: string;
-  fetchedAt?: number;
-
-  // ─── Pay-as-you-go top-up, which the server has always sent ───────────────
-  //
-  // quota.mjs has computed and spread these four since the block was written,
-  // and nothing on this side declared them, so `setQuota(await res.json())` —
-  // `any` into a typed slot — dropped every one (#1046). A user on a plan with
-  // extra usage credits enabled saw the 5h and 7d bars and no sign at all that
-  // they were spending against a monthly top-up limit: the one number on this
-  // panel with a hard financial edge.
-  //
-  // Shown as a proportion rather than an amount, deliberately. `used_credits`
-  // and `monthly_limit` arrive in whatever unit the upstream API uses and this
-  // deck has no way to confirm whether that is currency or cents; printing
-  // "$3.40" off an unverified scale would be exactly the kind of confidently
-  // wrong money figure the rest of this panel is careful not to produce. A
-  // percentage of the limit is true in any unit; the currency code goes in the
-  // label, so a reader who knows the scale knows which one they are reading.
-  /** The plan has pay-as-you-go credits switched on. */
-  extraEnabled?: boolean;
-  /** Spent against the top-up this month, in the upstream's own unit. */
-  extraUsedCredits?: number;
-  /** The ceiling for the month, same unit. Absent means no ceiling was given. */
-  extraMonthlyLimit?: number;
-  /** ISO currency code, for the title. */
-  extraCurrency?: string;
-}
-
-/** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched. */
-/** Where the chosen period lives between reloads.
- *
- *  It was the one preference in this panel that did not survive one. The deck
- *  remembers whether the panel is open and which theme it is in, and a reader
- *  who works in `month` re-selected it on every reload — which is also the
- *  slowest of the three to answer, so the cost of forgetting was paid twice.
- *
- *  Read through storage.ts rather than off `window.localStorage`: this runs
- *  inside a useState initialiser and the property access itself throws on a
- *  browser that blocks site data, which would take the panel's first render
- *  with it. And validated against PERIODS rather than cast, because the stored
- *  string is whatever was in the store — an older build's key, or a hand edit —
- *  and an unknown period would ask /api/ccusage for a range it cannot spell.
- */
-const PERIOD_KEY = "agent-dag.usagePeriod";
-
-function loadPeriod(): PeriodKey {
-  const stored = readStored(PERIOD_KEY);
-  return PERIODS.some(p => p.key === stored) ? (stored as PeriodKey) : "today";
-}
-
-function savePeriod(period: PeriodKey): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(PERIOD_KEY, period); } catch { /* private mode */ }
-}
-
-/** Whether the session list is open, and it is shut until asked for.
- *
- *  It is the one unbounded block in this panel — every other section is a
- *  fixed two or three rows, or a model table that cannot exceed the models
- *  that exist — and it is the reason the panel scrolls at all. Shut, the whole
- *  panel is one screen: quota, period, money, models. The reader who wants the
- *  per-session breakdown asks for it and gets it, and their answer is
- *  remembered, so this costs them one press once rather than one press a day.
- *
- *  Defaults SHUT rather than open, which is the deliberate half of this. The
- *  section is the panel's deepest detail and its least glanceable; the figure
- *  most readers open this panel for is the one at the top.
- */
-const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";
-
-function loadSessionsOpen(): boolean {
-  return readStored(SESSIONS_OPEN_KEY) === "1";
-}
-
-function saveSessionsOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(SESSIONS_OPEN_KEY, open ? "1" : "0"); } catch { /* private mode */ }
-}
-
-function ageLabel(ms: number | undefined, nowSec: number): string | null {
-  if (!ms) return null;
-  const s = nowSec - Math.floor(ms / 1000);
-  if (s < 10)   return "just now";
-  if (s < 60)   return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
-}
-
-/** Which of the three sources answered, in words. */
-function quotaSourceHint(source?: string): string {
-  if (source === "claude-swap") return "Read from claude-swap's last collection — costs no request against your usage-endpoint budget";
-  if (source === "api")         return "Fetched from Anthropic's usage endpoint, at most once every 5 minutes";
-  if (source === "cli")         return "Parsed from `claude /usage`, at most once every 5 minutes";
-  return "Last update";
-}
+import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
+import UsageModelTable from "./UsageModelTable";
+import UsagePeriodStrip from "./UsagePeriodStrip";
+import UsageSessionBreakdown from "./UsageSessionBreakdown";
+import { selfPressProps } from "../panel-press";
+import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
+import { useUsageRange } from "../use-usage-range";
+import { useCountUp } from "../use-count-up";
+import { useBoardSpend } from "../use-board-spend";
+import { usePanelClock } from "../use-panel-clock";
+import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
+import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
-// with the folds that build them (#1175).
+// with the folds that build them (#1175). The tables that draw them, and
+// ccusage's rows beside them, are components/UsageModelTable.tsx and
+// components/UsageSessionBreakdown.tsx.
 
 // The stacked cost bar this panel drew is components/CostBar.tsx now — it was
 // written out here, in App.tsx and in SessionSummary.tsx, and #381's role fix
 // had to be made three times because of it (#374). The reasoning behind the
 // role, which was written in this file, moved to the component with it.
 //
-// Its countdown went to relative-time.ts for the same reason: the accounts
-// panel had one too, and the two render the same quota reset.
-
-// ── Pace helpers ───────────────────────────────────────────────────────────
-
-interface PaceInfo {
-  label: string;
-  color: string;
-  expectedPct: number;  // where usage "should" be now — the green-line marker position
-  isDeficit: boolean;   // true when burning faster than sustainable
-  runsOutIn?: string;   // set when deficit and ETA < window remaining
-}
-
-export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number): PaceInfo | null {
-  const remainSec  = Math.max(0, resetAtSec - nowSec);
-  const elapsedSec = Math.max(0, windowSec - remainSec);
-  if (elapsedSec < 120) return null; // too early to judge
-  const expectedPct = Math.min(100, (elapsedSec / windowSec) * 100);
-  const delta = pct - expectedPct;
-
-  if (Math.abs(delta) < 3) {
-    return { label: "on pace", color: "var(--ok)", expectedPct, isDeficit: false };
-  }
-
-  if (delta > 0) {
-    // using more than expected → deficit (burning too fast)
-    const remainPct = 100 - pct;
-    const ratePerSec = elapsedSec > 0 ? pct / elapsedSec : 0;
-    const runsOutSec = ratePerSec > 0 ? remainPct / ratePerSec : Infinity;
-    const info: PaceInfo = {
-      // "over pace", not "ahead" (#823): ahead reads as winning, and this is
-      // the warning — the amber line was taken for good news.
-      label: `${Math.round(delta)}% over pace`, color: "var(--warn)",
-      expectedPct, isDeficit: true,
-    };
-    if (runsOutSec < remainSec && runsOutSec < 86400) {
-      const h = Math.floor(runsOutSec / 3600);
-      const m = Math.floor((runsOutSec % 3600) / 60);
-      info.runsOutIn = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    }
-    return info;
-  }
-  // under-using → reserve (safe, will last until reset)
-  return { label: `${Math.round(-delta)}% under pace`, color: "var(--ok)", expectedPct, isDeficit: false };
-}
-
-// ── Quota bar ──────────────────────────────────────────────────────────────
-interface QuotaBarProps {
-  pct: number;
-  label: string;
-  reset?: string;
-  resetAt?: number;    // unix seconds — enables live countdown
-  windowSec?: number;  // enables pace calculation
-  limitReached?: boolean;
-  nowSec: number;      // current time in seconds (for countdown + pace)
-}
-function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec }: QuotaBarProps) {
-  const capped   = Math.min(100, Math.max(0, pct));
-  const isErr    = limitReached || capped >= 90;
-  const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
-  const pctLabel = capped === 0 ? "< 1%" : `${capped}%`;
-  // minimum 2% visual fill so a 0% bar is still visible as a thin sliver
-  const fillW    = capped === 0 ? 2 : capped;
-
-  const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
-  const pace = (resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
-  // The note opens the number it is measured against (#856).
-  const [why, setWhy] = useState(false);
-  const whyId = useId();
-
-  return (
-    <div className="qb-row">
-      <div className="qb-meta">
-        <span className="qb-label">
-          {label}
-          {limitReached && <span className="qb-limit-badge" title="Rate limit reached">⛔</span>}
-        </span>
-        <span className="qb-pct" style={{ color }}>{pctLabel}</span>
-      </div>
-      <div className="qb-track">
-        <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />
-        {/* Pace marker ("green line"): where usage should be now to last until
-            reset. Green when under or on pace, red when over it. Its legend is
-            the note under the bar (#850), so the tick itself is not announced. */}
-        {pace && (
-          // A rail as wide as the track slides, carrying the marker at its
-          // left edge (#863): translateX's percentage is of the rail's own
-          // width, so this lands where `left` did, without a layout pass.
-          <div className="qb-pace-rail" style={{ transform: `translateX(${pace.expectedPct}%)` }}>
-            <div
-              aria-hidden
-              className="qb-pace-marker"
-              style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }}
-              title={`To last until reset, stay near ${Math.round(pace.expectedPct)}% by now`}
-            />
-          </div>
-        )}
-      </div>
-      <div className="qb-reset-row">
-        {countdown
-          ? <span className="qb-reset">resets in {countdown}</span>
-          : reset
-            ? <span className="qb-reset">resets {reset}</span>
-            : null}
-        {pace && (
-          <button
-            type="button"
-            className="qb-pace"
-            style={{ color: pace.color }}
-            aria-expanded={why}
-            aria-controls={why ? whyId : undefined}
-            onClick={() => setWhy(w => !w)}
-          >
-            {/* The marker's own line, in the marker's own colour: a legend
-                that says the tick on the bar is the pace these words are
-                measured against (#850). */}
-            <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? `runs out in ${pace.runsOutIn}` : pace.label}
-          </button>
-        )}
-      </div>
-      {why && pace && <div id={whyId} className="qb-why">To last until reset, stay near {Math.round(pace.expectedPct)}% by now.</div>}
-    </div>
-  );
-}
-
-// ── Quota fetch hook ───────────────────────────────────────────────────────
-const QUOTA_POLL_MS = 60_000;
-
-/**
- * How long this side holds a /api/quota request open.
- *
- * The server now answers within a budget of its own (#1011), so on a deck this
- * page is talking to, this never fires. It is here for the deck this page is
- * talking to on a bad day: a bare `fetch(url)` has no deadline at all, and a
- * request nobody will ever answer is held until the tab is closed. What that
- * cost, measured before the server side was bounded, was a panel reading
- * "Checking…" for 47 seconds and one fewer socket in the browser's per-origin
- * pool for the whole of it — the pool is six, and the board's event stream
- * already holds one.
- *
- * Comfortably above the server's five seconds rather than near it: a deadline
- * that raced the answer would turn a slow-but-successful read into a failure,
- * which is the opposite of the point. This is the outer net, not the budget.
- */
-const QUOTA_REQUEST_MS = 20_000;
-
-/**
- * @param enabled whether this deck watches Claude Code at all. False stops the
- *   poll rather than only hiding its output: /api/quota is not a cheap read —
- *   it can spawn `claude --print /usage` — and a machine with no Claude Code
- *   would pay for that once a minute forever to render nothing.
- */
-function useQuota(enabled: boolean) {
-  const [quota, setQuota] = useState<QuotaData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const timerRef = useRef<number | null>(null);
-
-  // The same fact as `loading`, readable without waiting for a render. The ↻
-  // stays enabled while its own request is out (#620), so the second press
-  // reaches here and this is what refuses it. Only forced reads take the lock:
-  // the poll is not a press and must never be blocked by one.
-  const busyRef = useRef(false);
-
-  const fetch_ = async (forceRefresh = false) => {
-    if (forceRefresh && !selfPressAccepted(busyRef.current)) return;
-    if (forceRefresh) { busyRef.current = true; setLoading(true); }
-    try {
-      const url = forceRefresh ? "/api/quota?refresh=1" : "/api/quota";
-      const res = await fetch(url, { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) });
-      if (res.ok) setQuota(await res.json());
-    } catch { /* server unreachable, or a request that outlived its usefulness */ }
-    finally { if (forceRefresh) { busyRef.current = false; setLoading(false); } }
-  };
-
-  useEffect(() => {
-    if (!enabled) return;
-    fetch_(true); // force on mount — avoids stale ok:false cache from prior run
-    timerRef.current = window.setInterval(() => fetch_(false), QUOTA_POLL_MS);
-    return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
-  }, [enabled]);
-
-  const refresh = () => { if (enabled) fetch_(true); };
-  return { quota, loading, refresh };
-}
-
-// ── Codex quota types + hook ───────────────────────────────────────────────
-// Lanes arrive as a list rather than fixed 5h/7d slots: which windows an
-// account has depends on its plan (free plans get weekly only, some get a
-// 30-day cap), and the server labels each one from the duration the API
-// reported instead of from its position in the payload.
-interface CodexLane {
-  id: string;
-  key: "session" | "weekly" | "monthly" | "unknown";
-  label: string;
-  pct: number;
-  windowSec: number | null;
-  resetAt: number | null;
-  reset: string | null;
-}
-
-interface CodexCreditLimit {
-  limit: number;
-  used: number;
-  usedPct: number;
-  remaining: number;
-  source: string | null;
-  resetAt: number | null;
-  reset: string | null;
-}
-
-interface CodexQuotaData {
-  ok: boolean;
-  limitReached?: boolean;
-  windows?: CodexLane[];
-  extraWindows?: CodexLane[];
-  plan?: string | null;
-  planLabel?: string | null;
-  creditsBalance?: string | null;
-  creditsUnlimited?: boolean;
-  overageReached?: boolean;
-  creditLimit?: CodexCreditLimit | null;
-  spendControlReached?: boolean;
-  reachedType?: string | null;
-  promo?: string | null;
-  partial?: boolean;
-  resetCredits?: { availableCount: number; nextExpiryAt: number | null } | null;
-  reason?: string;
-  fetchedAt?: number;
-}
-
-/** Why the Codex section is empty, in words that say what to do about it. */
-/**
- * Why the Claude quota section is empty, in the reader's terms.
- *
- * One sentence used to cover every failure — "Run /usage in a claude session,
- * then click ↻" — and on an API-key, Bedrock or Vertex install that is advice
- * which cannot work: those are billed per token and have no five-hour window to
- * report. Worse, that machine did not even get this far. The CLI ran, printed
- * no quota lines, and the server read that as a genuine "<1%", so the panel drew
- * two empty bars for a measurement nobody had taken.
- *
- * Same shape as codexHint below, which has answered this properly all along.
- */
-function claudeQuotaHint(reason?: string): string {
-  switch (reason) {
-    case "no_subscription":
-      return "This install signs in with an API key (or Bedrock/Vertex), which is billed per token and has no session window.";
-    case "rate_limited":  return "Anthropic asked the deck to wait — it will retry on its own.";
-    case "waiting":       return "Waiting for the next allowed read — or click ↻.";
-    default:              return "Run /usage in a claude session, then click ↻";
-  }
-}
-
-function codexHint(reason?: string): string {
-  switch (reason) {
-    case "no_token":         return "Run codex login to authenticate.";
-    case "api_key_mode":     return "API-key login — ChatGPT quota is only available for codex login.";
-    case "refresh_rejected": return "Codex session expired — run codex login.";
-    case "refresh_failed":   return "Couldn't refresh the Codex token — click ↻ to retry.";
-    // The deck will not put a live ChatGPT token on the wire to somewhere it
-    // read out of a config file it does not own, so it says which file.
-    case "untrusted_base_url": return "chatgpt_base_url in ~/.codex/config.toml is not an https OpenAI host, so the token was not sent.";
-    default:                 return "ChatGPT API unreachable — click ↻ to retry.";
-  }
-}
-
-// ── Codex usage types + hook (token aggregation fallback) ─────────────────
-interface CodexWindow {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  totalTokens: number;
-  sessionCount: number;
-}
-interface CodexUsageData {
-  ok: boolean;
-  window5h?: CodexWindow;
-  window7d?: CodexWindow;
-  fetchedAt?: number;
-}
-
-const CODEX_POLL_MS = 60_000;
-
-/** How often the panel asks ccusage for a fresh reading, and how stale a
- *  reading has to be before returning to the tab is worth one.
- *
- *  A minute, measured rather than picked: a run costs 7.8 CPU-seconds on a
- *  machine with 3,615 transcripts — 13% of a core at this cadence, and 78% at
- *  ten seconds, which is why the number between readings comes from the canvas
- *  instead (see live-delta.ts) rather than from asking oftener. */
-const POLL_MS = 60_000;
-
-/** @param enabled whether this deck watches Codex — see useQuota above, which
- *   states the same rule for the other side. A Codex poll refreshes an OAuth
- *   token against OpenAI, which is not work to do on a machine with no Codex. */
-function useCodexQuota(enabled: boolean) {
-  const [data, setData] = useState<CodexQuotaData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const timerRef = useRef<number | null>(null);
-
-  // See useQuota above: the ↻ presses both hooks, so both hold a lock of their
-  // own against the second press (#620).
-  const busyRef = useRef(false);
-
-  const fetch_ = async (forceRefresh = false) => {
-    if (forceRefresh && !selfPressAccepted(busyRef.current)) return;
-    if (forceRefresh) { busyRef.current = true; setLoading(true); }
-    try {
-      const url = forceRefresh ? "/api/codex-quota?refresh=1" : "/api/codex-quota";
-      const res = await fetch(url);
-      if (res.ok) setData(await res.json());
-    } catch { /* server unreachable */ }
-    finally { if (forceRefresh) { busyRef.current = false; setLoading(false); } }
-  };
-
-  useEffect(() => {
-    if (!enabled) return;
-    fetch_(true); // force on mount — get fresh data immediately
-    timerRef.current = window.setInterval(() => fetch_(false), CODEX_POLL_MS);
-    return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
-  }, [enabled]);
-
-  const refresh = () => { if (enabled) fetch_(true); };
-  return { data, loading, refresh };
-}
-
-function useCodexUsage(enabled: boolean) {
-  const [data, setData] = useState<CodexUsageData | null>(null);
-  const timerRef = useRef<number | null>(null);
-
-  const fetch_ = async () => {
-    try {
-      const res = await fetch("/api/codex-usage");
-      if (res.ok) setData(await res.json());
-    } catch { /* server unreachable */ }
-  };
-
-  useEffect(() => {
-    if (!enabled) return;
-    fetch_();
-    timerRef.current = window.setInterval(fetch_, CODEX_POLL_MS);
-    return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
-  }, [enabled]);
-
-  return { data };
-}
+// The quota bars' countdown went to relative-time.ts for the same reason: the
+// accounts panel had one too, and the two render the same quota reset. The
+// bars themselves, and the pace they draw, are components/QuotaBar.tsx, and the
+// two sections that draw them are components/QuotaSections.tsx, with the words
+// each prints when it has nothing to show.
+//
+// The three quota reads, and the shapes their routes answer in, are
+// use-quota.ts; the ccusage read for the chosen period is use-usage-range.ts,
+// and the count the headline figures move by is use-count-up.ts.
+//
+// The two things this panel remembers between reloads — the period and
+// whether the session list is open — are usage-prefs.ts's, with the reasons
+// each is kept and the default each falls back to.
 
 interface Props {
   state: GraphState;
@@ -506,161 +63,6 @@ interface Props {
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
-}
-
-/**
- * The chosen span, read from ccusage through the deck's own route.
- *
- * This is the panel's answer to #687 and #737. The figures below it used to sum
- * the agents on the canvas — honest numbers with an unusual scope, and the
- * scope was the problem: the canvas evicts finished sessions on a timer, so the
- * total went DOWN while nothing had happened and nothing had been refunded.
- * ccusage reads the transcripts and forgets nothing.
- *
- * NEVER A HARD DEPENDENCY. ccusage is optional — a machine with no npm, or one
- * running under AGENTS_DECK_NO_INSTALL=1, has none — so `data` staying null is
- * an ordinary state and the panel falls back to the board figures it has always
- * drawn. What this adds can only ever add.
- *
- * Refetched on the period AND on a manual refresh, not on a timer: a range is
- * two ccusage children on the far side, and a panel that is open all afternoon
- * must not spawn them on a clock. The route caches per range anyway.
- */
-function useUsageRange(
-  period: PeriodKey,
-  refreshKey: number,
-  /** The board, right now, as a per-session map — called at the instant a
-   *  reading lands so the two are committed together. Stable by construction
-   *  in the caller (a ref-backed callback), because a changing identity here
-   *  would re-run the fetch on every 250ms tick. */
-  takeBaseline: () => ReadonlyMap<string, SessionUsage>,
-) {
-  // THE ANSWER AND THE QUESTION IT ANSWERS, together.
-  //
-  // A bare `data` here was a defect: `period` moves the instant a chip is
-  // pressed and the response lands seconds later, so between the two the panel
-  // drew today's money under the words "all time" and then silently rewrote the
-  // number. Everything downstream reads `landed.period` — the label, the noun,
-  // both tables — so the figures and the word over them can never disagree,
-  // whatever is in flight. The pressed chip still shows the reader's intent.
-  const [landed, setLanded] = useState<Landed | null>(null);
-  const [loading, setLoading] = useState(false);
-  // A panel left open must not freeze at the figure it opened on, and must not
-  // become a background job either. Once a minute, which is the rate a reader
-  // watching a total actually notices — and it is a real minute: the server's
-  // cache is set to the same 60s, so every poll is a fresh reading rather than
-  // the same number handed back. That makes this interval the ccusage run rate,
-  // and a run walks every transcript on the machine, which is why it is not
-  // faster.
-  const [tick, setTick] = useState(0);
-  // When the reading on screen was taken. The catch-up below is gated on its
-  // age rather than on the tab merely coming forward: flicking between two tabs
-  // three times must not spend three ccusage runs.
-  const landedAtRef = useRef(0);
-  useEffect(() => {
-    const visible = () => document.visibilityState === "visible";
-    // Nothing to keep fresh behind a hidden tab. A deck left open for a week on
-    // a second desktop otherwise spends a run a minute updating numbers nobody
-    // is looking at — and on this machine a run is 7.8 CPU-seconds, because
-    // ccusage walks every transcript whatever period it is asked for.
-    const beat = () => { if (visible()) setTick(n => n + 1); };
-    const t = window.setInterval(beat, POLL_MS);
-    // Coming back to the tab: read again only if the figures are actually
-    // stale. A tab hidden for an hour holds an hour-old reading and is worth a
-    // run; a tab hidden for four seconds is not.
-    const wake = () => {
-      if (!visible()) return;
-      if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);
-    };
-    document.addEventListener("visibilitychange", wake);
-    return () => { window.clearInterval(t); document.removeEventListener("visibilitychange", wake); };
-  }, []);
-
-  // `refresh=1` belongs to the press that asked for it and to nothing after it.
-  // Keyed on the value rather than on truthiness: `refreshKey > 0` made every
-  // later fetch — including each poll — spawn a ccusage child for the rest of
-  // the panel's life, to re-read data the server had already cached.
-  const forcedRef = useRef(refreshKey);
-  useEffect(() => {
-    let alive = true;
-    const force = refreshKey !== forcedRef.current;
-    forcedRef.current = refreshKey;
-    const want = period;
-    const since = sinceFor(want);
-    setLoading(true);
-    fetch(`/api/ccusage?since=${since}${force ? "&refresh=1" : ""}`)
-      .then(r => (r.ok ? r.json() : null))
-      // The baseline is taken HERE, in the same call that stores the reading
-      // (#784). Taken in a follow-up effect it was one render late, so the memo
-      // that reads it paired a new reading with the old starting point and the
-      // headline overshot by a minute of spend until the next tick.
-      .then(d => {
-        if (!alive || !d?.ok) return;
-        landedAtRef.current = Date.now();
-        setLanded({ period: want, data: d, baseline: takeBaseline() });
-      })
-      // A deck that is down, or a ccusage that is not there. The panel says so
-      // by falling back to the board, not by showing an error over numbers it
-      // still has — and a failure leaves the last good reading standing rather
-      // than blanking a panel that was correct a moment ago.
-      .catch(() => {})
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [period, refreshKey, tick]);
-
-  // `rangeView` is the decision — what is shown, which period it is OF, and
-  // whether a slower one is still coming — and it lives in the shaping layer so
-  // a test can hand it a landed reading and a pressed chip. `loading` is the
-  // one thing here that is not a function of those two, and the panel does not
-  // read it (see the note at the call site).
-  return { ...rangeView(landed, period), loading };
-}
-
-/**
- * A figure that counts to its new value instead of teleporting to it.
- *
- * `key` is what the number MEANS — the period it belongs to. When that changes,
- * the value snaps: "today $269" and "all time $12.4k" are different quantities,
- * and counting between them would be theatre rather than a delta. Within one
- * period, a five-minute poll can move a total while somebody is looking at it,
- * and a count says which way and roughly how far.
- *
- * See count-up.ts for what deliberately does not animate — the first paint, a
- * change too small to read, and the tables.
- */
-function useCountUp(value: number): number {
-  const [shown, setShown] = useState(value);
-  // What is on screen right now, so a second change starts a count from where
-  // the number IS rather than from where the last one began.
-  const currentRef = useRef(value);
-  const firstRef = useRef(true);
-
-  useEffect(() => {
-    currentRef.current = shown;
-  }, [shown]);
-
-  useEffect(() => {
-    // ONLY THE FIRST PAINT SNAPS. Pressing `month` or `all` counts too — the
-    // figures ride up to twelve thousand or back down to three hundred, which
-    // is the one place in this panel where the size of the difference between
-    // two periods is worth feeling. It was a snap at first, on the reasoning
-    // that two periods are different quantities rather than one that moved;
-    // that reasoning is sound and the motion is still better, because the
-    // reader pressed the button and is watching the number they asked for.
-    if (firstRef.current) {
-      firstRef.current = false;
-      currentRef.current = value;
-      setShown(value);
-      return;
-    }
-    const stop = countTo(currentRef.current, value, v => {
-      currentRef.current = v;
-      setShown(v);
-    });
-    return stop;
-  }, [value]);
-
-  return shown;
 }
 
 export default function UsagePanel({ state, now, providers, leaving, onClose, liveSince = null }: Props & {
@@ -673,77 +75,13 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   const { data: codexUsage } = useCodexUsage(providers.codex);
 
   // Tick every 30s so countdowns + pace stay live without parent re-render
-  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
-  /** Per-session spend against the clock, for the header's $/min (#821). A ref,
-   *  because the samples are history the memo below reads and extends — not
-   *  state, which would re-render the panel for every sample it takes. */
-  const spendSamples = useRef<SpendHistory>(NO_SPEND_HISTORY);
-  /** The replay the samples above were taken after. A new one — a reconnect —
-   *  starts them again, since it re-applies the ring the board was built from. */
-  const spendSince = useRef<number | null>(null);
+  const nowSec = usePanelClock();
+  // The By model rows, the board's own headline figures and the header's
+  // $/min, with the samples that rate is measured from — use-board-spend.ts.
+  const { byModel, totalCost, totalTokens, burnRate } = useBoardSpend(state, now, liveSince);
 
-  // Both memos below key on `state.revision`, not on `state.lastSeq`. The
-  // `state` prop is `stateRef.current` and `applyEvent` mutates it in place, so
-  // its identity never moves after mount and the second dep is the whole of
-  // what decides whether either of these recomputes. `lastSeq` answers "when did
-  // the last envelope arrive", which is a different question from "has anything
-  // in here changed": the four periodic sweeps mutate this same object every
-  // 250ms tick and move only `revision` — see the note on GraphState.
+  // Keyed on `state.revision` for the reason use-board-spend.ts gives.
   //
-  // This one carries `now` as well, because `burnRate` samples the board total
-  // against the clock (spend-rate.ts, #821) and has to keep moving while nothing
-  // arrives. That third dep is
-  // also what hid the wrong second one: `now` is a fresh Date.now() every tick,
-  // so this recomputed four times a second whatever `lastSeq` said, and the
-  // headline strip stayed honest through a prune by luck rather than by rule.
-  // `bySessions` below has no clock in it, and it is the one that went stale.
-  const { byModel, totalCost, totalTokens, burnRate } = useMemo(() => {
-    // The headline's own arithmetic is `boardTotals`, called once below rather
-    // than accumulated here (#687). It was a second copy of the topbar's, and
-    // the file it moved to is the file that declares what the figure may be
-    // called — which is the whole of the fix: the sum walks the agents on the
-    // canvas, the pruners take agents off the canvas, and the only honest label
-    // for such a number names the canvas. Splitting the label from the sum is
-    // how "total spend" came to stand over a figure that falls by a third on a
-    // quiet tick.
-    //
-    // The table is one pass per MODEL SHARE (#686), in board-usage.ts beside
-    // `boardTotals` so the rows and the headline price the same shares through
-    // the same helper — see boardModelTable.
-    const byModel = boardModelTable(state.agents.values());
-
-    const board = boardTotals(state.agents.values());
-    // How fast the board is spending: its total's rise over the last ten minutes
-    // (#821), not live agents' cost over the longest one's age — see
-    // spend-rate.ts for why that swung eightfold between two tabs of one deck.
-    // And only once the replay has landed: before that the board total is
-    // history arriving, not spending (see liveSince in App.tsx).
-    if (spendSince.current !== liveSince) {
-      spendSince.current = liveSince;
-      spendSamples.current = NO_SPEND_HISTORY;
-    }
-    // PER SESSION, not the board total (#987). The board gains a session's whole
-    // accumulated cost the moment it first reaches the canvas, and against one
-    // total that is indistinguishable from spending: a joining session carrying
-    // $15 of history took a true $0.20/min to $1.70/min and held it for the
-    // full ten-minute window. This is the same map the live delta below is
-    // built on, and the same rule — only work the deck watched happen counts.
-    const bySession = boardBySession(state.agents.values(), now);
-    if (liveSince != null) spendSamples.current = recordSpend(spendSamples.current, now, bySession);
-    const rate = liveSince == null ? null : spendRate(spendSamples.current, now, bySession);
-    const burnRate = rate ? { label: fmtCostRate(rate.spent, rate.spanSec), spanMin: rate.spanMin } : null;
-    return {
-      byModel,
-      totalCost: board.cost,
-      totalTokens: board,
-      burnRate,
-    };
-  }, [state, state.revision, now, liveSince]);
-
   // No clock in these deps, and none wanted — every figure in a row is a running
   // total, not an elapsed time. That made this the one memo in the panel with
   // nothing to mask the wrong dependency, and #575 is what it cost: on a quiet
@@ -772,27 +110,31 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   useEffect(() => { savePeriod(period); }, [period]);
   const [sessionsOpen, setSessionsOpen] = useState<boolean>(loadSessionsOpen);
   useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);
-  // One tab stop for the strip, not three. `role="toolbar"` is what pays for
-  // that — see the markup — and moving the ring needs the buttons themselves.
-  const periodRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [rangeRefresh, setRangeRefresh] = useState(0);
-  // `loading` on its own is not a state this panel shows, and that has not
-  // changed: a refresh of the range already on screen moves no figure the
-  // reader can act on, and dimming for it would make the panel flicker every
-  // five minutes on its own poll. What is read below is `loading AND stale` —
-  // a fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   // What the board sums to right now, behind a stable identity. `state` and
   // `now` move constantly, so handing the hook a fresh closure would re-run its
   // fetch on every 250ms tick; the ref is reassigned each render and the
   // callback that reads it never changes.
-  const boardNowRef = useRef<() => ReadonlyMap<string, SessionUsage>>(() => new Map());
-  boardNowRef.current = () => boardBySession(state.agents.values(), now);
+  //
+  // Nothing at all while the page is still replaying its log (#1407). A reading
+  // that lands then would take its baseline over sessions caught part-way
+  // through their history, and the rest of that history — already inside the
+  // reading — would be added on top of it as new spend. With no baseline the
+  // reading stands alone until the next one, which lands on a board the replay
+  // has finished: the same `liveSince` the header's $/min counts from.
+  const boardNowRef = useRef<() => ReadonlyMap<string, SessionUsage> | null>(() => new Map());
+  boardNowRef.current = () => (liveSince == null ? null : boardBySession(state.agents.values(), now));
   const takeBaseline = useCallback(() => boardNowRef.current(), []);
 
   const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline } =
     useUsageRange(period, rangeRefresh, takeBaseline);
   const fromRange = range != null;
 
+  // `loading` on its own is not a state this panel shows, and that has not
+  // changed: a refresh of the range already on screen moves no figure the
+  // reader can act on, and dimming for it would make the panel flicker once a
+  // minute on its own poll. What is read below is `loading AND stale` — a
+  // fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   /**
    * A read for the pressed period is running, and what is on screen is not it.
    *
@@ -815,54 +157,24 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
    */
   const rangePending = rangeLoading && rangeStale;
 
-  // The board's own names, by session id. ccusage knows what a session cost and
-  // the canvas knows what to call it; `period` on a ccusage session row is the
-  // session id, which is the same key the canvas files its agents under.
-  const boardNames = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const a of state.agents.values()) {
-      // The same label the board's own session rows use — a.label when the
-      // session has been named, the working directory otherwise. Roots only:
-      // a subagent carries its parent's sessionId and would overwrite the
-      // session's name with a tool's.
-      if (a.kind !== "root" || !a.sessionId) continue;
-      const label = a.label || a.cwdBasename;
-      if (label) names.set(a.sessionId, label);
-    }
-    return names;
-  }, [state, state.revision]);
-
-  // What the canvas is doing right now, by the same key. A ccusage row for a
-  // session that finished last week has no state to report and gets no dot;
-  // one that is on the board keeps the dot the session list draws for it.
-  const boardStates = useMemo(() => {
-    const st = new Map<string, AgentState>();
-    for (const a of state.agents.values()) {
-      if (a.kind !== "root" || !a.sessionId) continue;
-      st.set(a.sessionId, a.state);
-    }
-    return st;
-  }, [state, state.revision]);
+  // The board's own names and states, by session id — the two halves of the
+  // join between ccusage's session rows and the canvas. The folds are
+  // usage-session-join.ts's, with the rule that only roots are read; these
+  // memos decide only when they run again.
+  const boardNames = useMemo(() => boardSessionNames(state.agents.values()), [state, state.revision]);
+  const boardStates = useMemo(() => boardSessionStates(state.agents.values()), [state, state.revision]);
 
   const rangeModelRows = useMemo(() => (fromRange ? ccModelRows(range) : []), [range, fromRange]);
   // Cut at twelve, the same as the board's list and for the same reason: this
   // is a 280px column, and "all time" on a machine that has run coding CLIs for
   // a year is hundreds of sessions. The rows are sorted by cost before the cut,
   // so what survives is the spend worth looking at.
+  //
+  // A repeated project name then takes the head of its session id, counted over
+  // the rows that survive the cut — see distinctSessionLabels.
   const rangeSessionRows = useMemo(() => {
     if (!fromRange) return [];
-    const rows = ccSessionRows(range, boardNames).slice(0, 12);
-    // Two sessions in the same folder is the normal case here — parallel
-    // agents, or one deck restarted — and both then arrive under the same
-    // project name. Identical rows carrying different figures read as a bug in
-    // the panel, so a repeated name takes the head of its session id. Only a
-    // repeated one: the common case is a list of distinct projects, and a uuid
-    // fragment on every row would be noise on a 280px column.
-    const seen = new Map<string, number>();
-    for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);
-    return rows.map(r => (r.label && (seen.get(r.label) ?? 0) > 1
-      ? { ...r, label: `${r.label} ${r.sessionId.slice(0, 4)}` }
-      : r));
+    return distinctSessionLabels(ccSessionRows(range, boardNames).slice(0, 12));
   }, [range, fromRange, boardNames]);
   const rangeSum = useMemo(() => rangeTotals(range), [range]);
   // Off the WHOLE list, which is why it is not folded into `rangeSessionRows`
@@ -877,13 +189,14 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
   const periodNoun = nounFor(shownPeriod, period);
 
-  // WHAT DIMS WHILE A SLOWER RANGE LOADS, and it is the numbers rather than the
-  // chips. The sheet's own rule: --dim-off means "this control cannot be
-  // operated" and --dim-stale means "a newer reading is on its way, this one was
-  // true a moment ago". Dimming the strip said the first about controls that
-  // stay pressable; dimming the figures says the second about the figures, which
-  // is what is actually out of date.
-  const staleCls = rangeStale ? " up-stale" : "";
+  // NOTHING DIMS WHILE A SLOWER RANGE LOADS — not the chips, which stay
+  // pressable, and since #1289 not the figures either. They used to fade to
+  // --dim-stale, and every one of them is a word: 0.45 took --text to 3.55:1 and
+  // --muted to 1.95:1 on the dark panel, under AA for the numbers a reader is
+  // still using. The stale state is said in words instead, at full contrast —
+  // the headline's noun names the period the figures are FROM ("$4.20 today"
+  // with `all` pressed), the session heading says "active today", and the
+  // pressed chip pulses while its read is out.
 
   // WHAT HAS HAPPENED SINCE THE READING WAS TAKEN, from the canvas.
   //
@@ -921,30 +234,14 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   const shownOut    = useCountUp(figures.outputTokens);
   const shownCacheR = useCountUp(figures.cacheReadTokens);
   const shownCacheC = useCountUp(figures.cacheCreateTokens);
-  // Rows worth a line, which is not the same question as rows worth a dollar.
-  // Both tables used to filter on `cost > 0`, and in a deck holding one priced
-  // Claude session and any number of unpriced Codex ones that filter was
-  // invisible: `hasCost` was true, so the tables rendered, and every Codex row
-  // was dropped out of them while its tokens stayed in the strip above. The
-  // panel's own headline number then matched no visible row — the arithmetic
-  // was right and there was nothing on screen to reconcile it against.
-  const boardModelRows   = byModel.filter(m => m.cost.total > 0 || (m.inputTokens + m.outputTokens) > 0);
-  const boardSessionRows = bySessions.filter(s => s.cost > 0 || (s.inputTokens + s.outputTokens) > 0);
-  // A model ccusage priced at nothing is one IT does not know, and the note
-  // below means the same thing either way: these tokens are real and their
-  // dollars are not in the total above them.
-  const hasUnpriced = fromRange
-    ? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)
-    : boardModelRows.some(m => !m.priced);
+  // Rows worth a line, which is not the same question as rows worth a dollar,
+  // and whether the note about unpriced tokens is owed — both
+  // usage-panel-rules.ts's, with why.
+  const boardModelRows   = byModel.filter(worthALine);
+  const boardSessionRows = bySessions.filter(worthALine);
+  const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);
 
   const anyLoading = quotaLoading || codexLoading;
-  // Per section, not per panel. The two quotas come from different places and
-  // now age at very different rates — Codex is fetched here, Claude is usually
-  // read from claude-swap's last collection, which can be half an hour old.
-  // One combined "just now" in the header took the fresher of the two and
-  // stamped it on both.
-  const claudeAge = ageLabel(quota?.fetchedAt, nowSec);
-  const codexAge  = ageLabel(codexQuota?.fetchedAt, nowSec);
 
   // The header's ↻ means "everything on this panel", and the range is now part
   // of everything. `refresh=1` on that path is what forces a new ccusage child
@@ -960,10 +257,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
   // construction: the name a voice-control user says is the words the tooltip
   // shows, per provider, and cannot drift into promising a section that is not
   // rendered.
-  const refreshLabel = providers.claude && providers.codex
-    ? "Refresh Claude + Codex quota"
-    : providers.codex ? "Refresh Codex quota"
-      : "Refresh Claude quota";
+  const refreshLabel = quotaRefreshLabel(providers);
 
   return (
     // The id is the target of the topbar toggle's aria-controls. It is spelled
@@ -1027,73 +321,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
 
       {/* ── Claude quota ── */}
       {providers.claude && (
-      <section className="up-section up-quota-section">
-        <h3 className="up-section-title">
-          Claude quota
-          {/* Where the numbers came from, on hover. Anthropic's usage endpoint
-              allows ~28-30 calls an hour per account, shared by every tool on
-              the machine, so when claude-swap is already collecting them the
-              deck reads its store instead of spending a second call — which is
-              why this age is minutes rather than seconds. */}
-          {claudeAge && !quotaLoading && (
-            <span className="up-section-age" title={quotaSourceHint(quota?.source)}>{claudeAge}</span>
-          )}
-        </h3>
-        {quota?.ok ? (
-          <div className="up-quota-bars">
-            {quota.session5hPct != null && (
-              <QuotaBar
-                label="5-hour window"
-                pct={quota.session5hPct}
-                reset={quota.session5hReset}
-                resetAt={quota.session5hResetAt}
-                windowSec={quota.session5hWindowSec}
-                nowSec={nowSec}
-              />
-            )}
-            {quota.week7dPct != null && (
-              <QuotaBar
-                label="7-day window"
-                pct={quota.week7dPct}
-                reset={quota.week7dReset}
-                resetAt={quota.week7dResetAt}
-                windowSec={quota.week7dWindowSec}
-                nowSec={nowSec}
-              />
-            )}
-            {quota.weekSonnetPct != null && (
-              <QuotaBar label="Sonnet (7d)" pct={quota.weekSonnetPct} nowSec={nowSec} />
-            )}
-            {quota.weekOpusPct != null && (
-              <QuotaBar label="Opus (7d)" pct={quota.weekOpusPct} nowSec={nowSec} />
-            )}
-            {/* The top-up, when there is one. A bar because it is the same kind
-                of fact as the two above — a fraction of an allowance with a
-                hard edge — and because a percentage is the one reading that is
-                true whatever unit the upstream sends. */}
-            {quota.extraEnabled && quota.extraUsedCredits != null && quota.extraMonthlyLimit
-              ? (
-                <QuotaBar
-                  label={`Extra credits (month${quota.extraCurrency ? `, ${quota.extraCurrency}` : ""})`}
-                  pct={Math.min(100, Math.round((quota.extraUsedCredits / quota.extraMonthlyLimit) * 100))}
-                  nowSec={nowSec}
-                />
-              )
-              : quota.extraEnabled && (
-                /* Enabled with no ceiling to measure against: say that it is on
-                   rather than draw a bar with no denominator. */
-                <div className="up-quota-sub up-credits">extra usage credits: on</div>
-              )}
-          </div>
-        ) : quota?.ok === false ? (
-          <div className="up-quota-na">
-            <span>{quota.reason === "no_subscription" ? "No quota to show." : "Quota unavailable."}</span>
-            <span className="up-quota-hint">{claudeQuotaHint(quota.reason)}</span>
-          </div>
-        ) : (
-          <div className="up-quota-na up-quota-loading">Checking…</div>
-        )}
-      </section>
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} />
       )}
 
       {/* ── Codex quota ──
@@ -1102,122 +330,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
           unavailable. / Run codex login to authenticate." permanently, for a
           CLI it has no reason to install. */}
       {providers.codex && (
-      <section className="up-section up-quota-section">
-        <h3 className="up-section-title">
-          Codex quota
-          {codexQuota?.ok && codexQuota.planLabel && (
-            <span className="up-plan-badge">{codexQuota.planLabel}</span>
-          )}
-          {codexAge && !codexLoading && (
-            <span className="up-section-age" title="Fetched from the Codex usage endpoint">{codexAge}</span>
-          )}
-        </h3>
-        {codexQuota?.ok ? (
-          <div className="up-quota-bars">
-            {codexQuota.windows?.map(w => (
-              <QuotaBar
-                key={w.id}
-                label={w.label}
-                pct={w.pct}
-                reset={w.reset ?? undefined}
-                resetAt={w.resetAt ?? undefined}
-                windowSec={w.windowSec ?? undefined}
-                limitReached={codexQuota.limitReached && w.pct >= 100}
-                nowSec={nowSec}
-              />
-            ))}
-
-            {/* Per-model families (Codex Spark and friends) — separate caps
-                that run out independently of the account-wide lanes. */}
-            {codexQuota.extraWindows?.map(w => (
-              <QuotaBar
-                key={w.id}
-                label={w.label}
-                pct={w.pct}
-                reset={w.reset ?? undefined}
-                resetAt={w.resetAt ?? undefined}
-                windowSec={w.windowSec ?? undefined}
-                nowSec={nowSec}
-              />
-            ))}
-
-            {/* Spend cap (team/enterprise, or a personal monthly credit limit).
-                Denominated in dollars, so it gets its own bar rather than
-                pretending to be a rate-limit lane. */}
-            {codexQuota.creditLimit && (
-              <QuotaBar
-                label={`spend cap · $${Math.round(codexQuota.creditLimit.used)} of $${Math.round(codexQuota.creditLimit.limit)}`}
-                pct={codexQuota.creditLimit.usedPct}
-                reset={codexQuota.creditLimit.reset ?? undefined}
-                resetAt={codexQuota.creditLimit.resetAt ?? undefined}
-                limitReached={codexQuota.spendControlReached}
-                nowSec={nowSec}
-              />
-            )}
-
-            {codexQuota.creditsBalance && !codexQuota.creditsUnlimited && (
-              <div className="up-quota-sub up-credits">
-                credits: ${codexQuota.creditsBalance}
-                {codexQuota.overageReached && " · overage limit reached"}
-              </div>
-            )}
-            {codexQuota.creditsUnlimited && (
-              <div className="up-quota-sub up-credits">credits: unlimited</div>
-            )}
-            {codexQuota.resetCredits && codexQuota.resetCredits.availableCount > 0 && (
-              <div className="up-quota-sub up-reset-credits" title={`Redeem in the Codex CLI or ChatGPT — ${PRODUCT} only reports them`}>
-                {codexQuota.resetCredits.availableCount} rate-limit reset
-                {codexQuota.resetCredits.availableCount !== 1 ? "s" : ""} available
-                {codexQuota.resetCredits.nextExpiryAt &&
-                  ` · expires ${new Date(codexQuota.resetCredits.nextExpiryAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-              </div>
-            )}
-            {codexQuota.promo && (
-              <div className="up-quota-sub">{codexQuota.promo}</div>
-            )}
-            {codexQuota.partial && (
-              <div className="up-quota-sub up-quota-hint">
-                Partial data — OpenAI returned limits this build doesn't recognise.
-              </div>
-            )}
-          </div>
-        ) : codexQuota?.ok === false ? (
-          <div className="up-quota-na">
-            <span>Quota unavailable.</span>
-            <span className="up-quota-hint">{codexHint(codexQuota.reason)}</span>
-          </div>
-        ) : (
-          <div className="up-quota-na up-quota-loading">Checking…</div>
-        )}
-
-        {/* The 7-day token count, from the rollout files on this disk. It sits
-            OUTSIDE the three quota branches above, which is the whole point:
-            until #400 it was nested in the success branch, so the one number in
-            this section that needs no token, no account and no network was
-            withheld whenever the network call failed — on `no_token`, on
-            `api_key_mode`, on an expired refresh, on blocked egress. The poll
-            ran every 60s regardless and its answer was thrown away.
-            Measured on this machine, cold cache, three rounds: /api/codex-usage
-            takes 2-4ms and makes zero outbound requests; /api/codex-quota takes
-            991-1299ms across two authenticated HTTPS GETs to chatgpt.com. The
-            fast local number was waiting on the slow remote one for permission
-            to render.
-            The 5h window goes in the title rather than on the line: the server
-            has computed it since this file was written and nothing has ever
-            read it, and this panel is 280px wide (#369) — a second visible
-            figure costs more than it says. */}
-        {codexUsage?.ok && codexUsage.window7d && codexUsage.window7d.sessionCount > 0 && (
-          <div
-            className="up-quota-sub"
-            title={`Counted from the rollout files under CODEX_HOME — no network, no account${
-              codexUsage.window5h ? `\nlast 5h: ${fmtTokens(codexUsage.window5h.totalTokens)} tokens · ${codexUsage.window5h.sessionCount} session${codexUsage.window5h.sessionCount !== 1 ? "s" : ""}` : ""
-            }`}
-          >
-            {fmtTokens(codexUsage.window7d.totalTokens)} tokens · {codexUsage.window7d.sessionCount} session
-            {codexUsage.window7d.sessionCount !== 1 ? "s" : ""} (7d)
-          </div>
-        )}
-      </section>
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} codexUsage={codexUsage} nowSec={nowSec} />
       )}
 
       {/* ── Cost + tokens ──
@@ -1233,96 +346,8 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               The board has exactly one — right now — so the strip appears only
               under ccusage, and the panel is silently the old panel when
               ccusage is absent rather than showing three chips that all mean
-              the same thing.
-              `.uh-range` rather than a new set of chips: it is the same control
-              the history modal's presets use, it already carries #583's
-              luminance inversion for the selected chip, and toggle-state
-              coverage is written against that selector. Reusing it is also the
-              honest signal to a reader — these two surfaces read the same
-              ccusage data over the same kind of range. */}
-      {fromRange && (
-        /* role="toolbar", not role="group", and the difference is a bill this
-            strip now pays. #381 deleted role="tablist" from the history
-            modal's range strip because a tablist promises one tab stop, arrows
-            between the members and a tabpanel each, and that strip could
-            honour none of the three. The third clause is still false here —
-            these words select a range, they do not reveal a region — so
-            tablist stays wrong. But the first two are exactly what a toolbar
-            promises and nothing more, and three of the Usage panel's five tab
-            stops going to one three-way choice is the defect they fix. So:
-            one stop, arrows and Home/End across it, Enter or Space to commit.
-            tablist-contract.test.ts holds any file that says "tab" to the
-            whole model; this one says "toolbar" and carries the whole of that.
-
-            The stop is the SELECTED segment rather than the last-focused one.
-            The strip has three members and no scroll, so there is no long walk
-            to resume, and re-entering on the period actually being shown is
-            the more useful place to land than wherever the ring was left. */
-        <div
-          className="uh-range up-period"
-          role="toolbar"
-          aria-orientation="horizontal"
-          aria-label="Period"
-          aria-busy={rangePending || undefined}
-          onKeyDown={e => {
-            // From where the RING is, not from where the selection is. Arrows
-            // that reckon off `period` walk one step from the selected segment
-            // every time and then stop: press Right three times from `today`
-            // and you get `month`, `month`, `month`. The origin has to be the
-            // segment the key was pressed on, which is what bubbled the event.
-            const from = periodRefs.current.indexOf(e.target as HTMLButtonElement);
-            if (from < 0) return;
-            const to = periodFocusMove(e.key, from);
-            if (to === null) return;
-            e.preventDefault();
-            periodRefs.current[to]?.focus();
-          }}
-        >
-          {PERIODS.map((p, i) => (
-            <button
-              key={p.key}
-              type="button"
-              ref={el => { periodRefs.current[i] = el; }}
-              tabIndex={period === p.key ? 0 : -1}
-              aria-pressed={period === p.key}
-              // Only ever on the pressed one, which is what lets the CSS key the
-              // pulse on this attribute alone: a rule that also named
-              // `[aria-pressed="true"]` would join the set of scoped state rules
-              // usage-series-contrast.test.ts holds to exactly three, and this
-              // is a temporary activity rather than a fourth way of being
-              // selected.
-              data-pending={period === p.key && rangePending ? "" : undefined}
-              // While it reads, the tooltip says what it is reading. The wait is
-              // the deck walking transcripts on this disk, and a reader who
-              // knows that reads two and a half seconds as work rather than as a
-              // request that may not come back.
-              title={period === p.key && rangePending ? `Reading ${p.noun} from the transcripts on this machine…` : p.hint}
-              className="uh-range-btn"
-              onClick={() => setPeriod(p.key)}
-            >{p.label}</button>
-          ))}
-        </div>
-      )}
-      {/* WHAT THE WAIT SOUNDS LIKE, since until now it made no sound at all: a
-          reader who cannot see the strip pressed `all`, and for two and a half
-          seconds nothing was announced, nothing was disabled, and the figures
-          they could read were the previous period's.
-          Always mounted with only its text moving — App.tsx's blocked-session
-          region carries the whole argument, and the half that matters here is
-          that a live region registers when it ENTERS the tree, so text arriving
-          in the same tick as the region is routinely never spoken. Rendering
-          this only while pending would put the region and its one sentence on
-          screen together, which is the delivery screen readers are least
-          reliable about, and would take it away again before it could say the
-          wait was over.
-          Polite, because a figure that is two seconds late costs nothing and
-          talking over the reader costs a sentence. `aria-atomic` because half
-          of this only means the wrong thing. */}
-      {fromRange && (
-        <div className="vis-hidden" role="status" aria-atomic="true">
-          {rangePending ? `Reading ${nounFor(period, period)}…` : ""}
-        </div>
-      )}
+              the same thing. */}
+      {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
 
       {totalTokenSum > 0 ? (
         <>
@@ -1339,7 +364,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className={`up-total${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+              <div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
                 <span className="up-total-value">{fmtCost(shownCost)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
@@ -1357,7 +382,7 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             </>
           )}
 
-          <div className={`up-tokens-row${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+          <div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
             <span className="up-tok"><span className="up-k">in</span>{fmtTokens(shownIn)}</span>
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
@@ -1386,50 +411,11 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
               when ccusage has not answered at all. */}
 
           {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
-            <section className={`up-section${staleCls}`}>
-              <h3 className="up-section-title">By model</h3>
-              <table className="up-table">
-                <thead>
-                  <tr>
-                    <th>Model</th>
-                    <th>Tokens</th>
-                    <th>Cost</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fromRange
-                    ? rangeModelRows.map(m => (
-                      <tr key={m.model}>
-                        <td className="up-model-name" title={m.model}>{shortModel(m.model)}</td>
-                        {/* Every token, not input plus output. The board's row
-                            counts the two it can price per agent; ccusage sends
-                            all four, and on an agentic session the cache is the
-                            larger part by two orders of magnitude — 9.56B
-                            against 320k on the machine this was written on. */}
-                        <td className="up-num">{fmtTokens(m.tokens)}</td>
-                        {m.cost > 0
-                          ? <td className="up-num up-cost-val">{fmtCost(m.cost)}</td>
-                          : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
-                      </tr>
-                    ))
-                    : boardModelRows.map(m => (
-                      <tr key={m.model}>
-                        {/* `__unknown__` is the map's key for an agent that has
-                            not reported a model yet, and it is not a word. The
-                            row still belongs here — its tokens are in the strip
-                            above — but under a name a person can read. */}
-                        <td className="up-model-name" title={m.model === UNKNOWN_MODEL ? "no model reported yet" : m.model}>
-                          {m.model === UNKNOWN_MODEL ? "unknown" : shortModel(m.model)}
-                        </td>
-                        <td className="up-num">{fmtTokens(m.inputTokens + m.outputTokens)}</td>
-                        {m.priced
-                          ? <td className="up-num up-cost-val">{fmtCost(m.cost.total)}</td>
-                          : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </section>
+            <UsageModelTable
+              fromRange={fromRange}
+              rangeModelRows={rangeModelRows}
+              boardModelRows={boardModelRows}
+            />
           )}
 
           {/* THE HOUR AFTER LOCAL MIDNIGHT, said rather than left blank.
@@ -1453,142 +439,18 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             </section>
           )}
 
-          {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (() => {
-            const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;
-            return (
-            <section className={`up-section${staleCls}`}>
-              {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
-                  in a tooltip, because the reader can see the arithmetic fail
-                  without it: rows that add up past the figure above read as a
-                  bug in the panel until something on screen says otherwise.
-                  What the panel may NOT do is name the reason, because the
-                  reason changed under it. Through ccusage 20.0.20 a row carried
-                  the session's lifetime — `--since` picked WHICH sessions
-                  appeared and left their figures whole — and 20.0.21 scopes
-                  them to the window. The deck runs `ccusage@latest` and
-                  refreshes it daily, so both are live on real machines and
-                  either sentence is false on half of them.
-                  So the qualifier is measured: sessionListScale sums every row
-                  in the range against the period's own cost, and the heading
-                  speaks only when that sum really is the larger one. */}
-              {/* THE ONE SECTION THAT SHUTS, and the chevron is what says so.
-                  Every other block in this panel is a fixed two or three rows;
-                  this one is as long as the reader's week and is the reason the
-                  panel scrolls. Shut, the panel is one screen.
-                  The <button> is inside the <h3> rather than instead of it —
-                  the ARIA disclosure pattern, and the one spelling that keeps
-                  the heading in the document outline while still giving the
-                  reader a real control. landmark-outline.test.ts reads these
-                  four headings as headings and would have lost one to a bare
-                  button. The whole row is the target, 250 x 24, because a
-                  chevron alone is a 9px hit area for a section-sized decision;
-                  the chevron is the affordance, not the control.
-                  The count goes on the title rather than into the row: shut,
-                  the reader cannot see how much is behind it, and that is the
-                  one fact the collapse actually takes away. Saying it in ink
-                  would be a third thing on a line that already carries two. */}
-              <h3 className="up-section-title">
-                <button
-                  type="button"
-                  className="up-disclose"
-                  aria-expanded={sessionsOpen}
-                  aria-controls="up-sessions"
-                  title={sessionsOpen
-                    ? "Hide the per-session breakdown"
-                    : `Show the per-session breakdown — ${sessionCount} session${sessionCount === 1 ? "" : "s"}`}
-                  onClick={() => setSessionsOpen(o => !o)}
-                >
-                  By session
-                  {fromRange && (
-                    <span
-                      className="up-section-age"
-                      title={sessionListNote(periodNoun, sessionScale, fmtCost)}
-                    >active {periodNoun}</span>
-                  )}
-                  {/* Drawn, not typed. `.bw-chev` swaps two Unicode glyphs and
-                      is at the mercy of whichever font answers for them on
-                      Windows and Linux; a path is the same three strokes
-                      everywhere, and it can turn rather than be replaced. */}
-                  <svg className="up-chev" width="9" height="9" viewBox="0 0 10 10" fill="none"
-                       stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"
-                       strokeLinejoin="round" aria-hidden>
-                    <path d="M2.2 3.6 5 6.4 7.8 3.6" />
-                  </svg>
-                </button>
-              </h3>
-              {/* `hidden` rather than an unrendered branch: it takes the rows
-                  out of the accessibility tree and out of the tab order the
-                  same way, and it leaves `aria-controls` pointing at something
-                  that exists in both states, which is the whole contract of a
-                  disclosure. Twelve divs cost nothing to keep. */}
-              <div className="up-sessions" id="up-sessions" hidden={!sessionsOpen}>
-                {fromRange && rangeSessionRows.map(s => {
-                  const live = boardStates.get(s.sessionId);
-                  return (
-                    <div className="up-session-row" key={s.sessionId}>
-                      {/* A dot only for a session the canvas is drawing. The
-                          rest of this list is history — ccusage remembers every
-                          session that ever ran — and a "done" tick on a session
-                          from three weeks ago would be reporting a state this
-                          deck never observed. The placeholder keeps the label
-                          column aligned between the two kinds of row. */}
-                      {live
-                        ? <>
-                            <span className={`sl-dot state-${live}`} aria-hidden />
-                            <span className="vis-hidden">{stateLabel(live)}</span>
-                          </>
-                        : <span className="sl-dot up-dot-past" aria-hidden />}
-                      {/* ccusage names a session by its uuid, which is not a
-                          name. The board's label is used when the board has one
-                          — that join is the point of this table — and the first
-                          segment of the uuid otherwise, under a title carrying
-                          the whole of it. */}
-                      <span
-                        className={`up-session-label${s.label ? "" : " up-session-id"}`}
-                        title={s.label ? `${s.label}\n${s.sessionId}` : s.sessionId}
-                      >{s.label ?? s.sessionId.slice(0, 8)}</span>
-                      <span className="up-session-tokens">{fmtTokens(s.tokens)}</span>
-                      {s.cost > 0
-                        ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>
-                        : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
-                    </div>
-                  );
-                })}
-                {!fromRange && boardSessionRows.map(s => (
-                  <div className="up-session-row" key={s.sessionId}>
-                    {/* Same dot and the same hidden word as the session list
-                        (#373) — this row is a <div>, so its state is read as
-                        part of the line rather than as a control's name, but it
-                        was the same silence either way. Two defects here, not
-                        one: the dot also matched no rule at all, because every
-                        `.sl-dot` selector was scoped to `.session-list` and
-                        this panel is that sidebar's sibling. It was drawn as a
-                        zero-sized empty span, so this list reported the state
-                        in no channel whatsoever. */}
-                    <span className={`sl-dot state-${s.state}`} aria-hidden />
-                    <span className="vis-hidden">{stateLabel(s.state)}</span>
-                    <span className="up-session-label">{s.label}</span>
-                    <span className="up-session-tokens">{fmtTokens(s.inputTokens + s.outputTokens)}</span>
-                    {/* A mixed session keeps its figure and gains a title: the
-                        dollars are real, they are just not all of them, and a
-                        floor presented as a total is the one thing this panel
-                        must not print without saying so. */}
-                    {s.cost > 0
-                      ? (
-                        <span
-                          className="up-session-cost"
-                          title={s.unpricedTokens > 0
-                            ? `${fmtTokens(s.unpricedTokens)} tokens in this session are on an unpriced model, so this is a floor`
-                            : undefined}
-                        >{fmtCost(s.cost)}{s.unpricedTokens > 0 ? "+" : ""}</span>
-                      )
-                      : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
-                  </div>
-                ))}
-              </div>
-            </section>
-            );
-          })()}
+          {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (
+            <UsageSessionBreakdown
+              fromRange={fromRange}
+              rangeSessionRows={rangeSessionRows}
+              boardSessionRows={boardSessionRows}
+              boardStates={boardStates}
+              sessionsOpen={sessionsOpen}
+              setSessionsOpen={setSessionsOpen}
+              periodNoun={periodNoun}
+              sessionScale={sessionScale}
+            />
+          )}
 
           {hasUnpriced && (
             <div className="up-hint">

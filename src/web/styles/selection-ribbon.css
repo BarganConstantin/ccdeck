@@ -1,0 +1,154 @@
+/* Selected-agent ribbon — context chip that follows you across the canvas
+   when an agent is selected. Click → fit-view to that agent. The × on
+   the right clears selection without leaving the topbar. */
+.selected-ribbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  /* Not --ctl-fill, which is mixed from the foreground and therefore drags the
+     bed toward it: --muted on 7% of --text is 4.05:1 in dark, and the rate and
+     the cost inside this chip are --muted and --ok. A control whose own words
+     already sit near the floor of the readable ramp cannot take the control
+     fill; the boundary is what carries it, and that is what changed. */
+  background: var(--bg-soft);
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  /* Against the bar rather than at a literal (#508). The flat 380px plus the
+     `margin: 0 12px 0 4px` this rule used to carry cost 396px the instant an
+     agent was selected, on a bar whose worst-case control cluster was 1016px —
+     so a 1440px laptop with a paused deck, a held queue and a blocked session
+     was 148px over and four controls were the wrong height. The margin is gone
+     (the topbar's own 24px role gap does that job now) and the cap follows the
+     viewport, which moves worst-case-plus-ribbon collision from ~1588px to
+     ~1350px. It is the largest width lever in this bar and it is not a media
+     query: the label's ellipsis was already doing the right thing at every
+     width, it was only ever given too much room to do it in.
+     24vw since the controls say their names from 1440px: the share that still
+     leaves a blocked session readable beside them at that width (see THE
+     WORDS). */
+  max-width: min(380px, 24vw);
+  min-width: 0;
+  transition: border-color 120ms, background 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.selected-ribbon:hover { border-color: var(--text); background: var(--bg); }
+/* The ribbon itself is a button — it fits the view to the agent it names — and
+   it was the only part of this chip that did not answer a press while its own ×
+   did, so the small target moved and the large one holding it did not.
+   The guard is not decoration. `:active` is set on every ancestor of the
+   pressed element, and the × is a span INSIDE this button (it has to be —
+   nesting a button is invalid, see App.tsx), so without it a press on the ×
+   would shrink the whole ribbon as well as the ×, saying "fit view" while
+   doing "deselect". The two verbs are different, so only one of them moves. */
+.selected-ribbon:active:not(:has(.selected-close:active)) { transform: scale(0.97); }
+.selected-ribbon:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.selected-ribbon .selected-label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+/* The same declaration the label above already had, and for the same reason
+   (#508). The label shrank correctly; its siblings did not. `.selected-cost` is
+   a plain flex item at the default `min-width: auto`, so once the label had
+   ellipsed away all its slack the cost reached its own min-content and broke
+   `$4.10` off ` · $0.31/min` — which put a 41.88px chip in a 52px bar whose
+   every other control is 30px, at every viewport from 1152 to 3000, as soon as
+   an agent's name passed about 22 characters. */
+.selected-ribbon .selected-cost {
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.selected-ribbon .selected-rate { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.selected-ribbon .selected-extra {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+/* 24 x 24 of target around an 18px glyph (#509).
+   It measured 18 x 18, under the floor SC 2.5.8 sets and this sheet argues for
+   three separate times — at `.ver-close`, at `.ap-more` and at `.sd-close`
+   — and it is the one control here that cannot use the standard's own escape
+   hatch. That exception excuses an undersized target when a 24px circle centred
+   on it touches no other target; this × sits INSIDE `.selected-ribbon`, and the
+   ribbon is itself a button, so the circle intersects a target by construction
+   and always will. It is also the miss with the worst consequence in the bar:
+   the thing behind it fits the view to the agent, which moves the whole canvas.
+
+   The box stays 18px and the target is drawn around it, which is NOT the
+   padding-plus-negative-margin technique the issue proposed and is the same
+   idea one step further. That one is right for a control that paints nothing at
+   rest — grow its box and there is no fill to grow with it. This glyph fills a disc on hover, and the trap is specific and was
+   measured rather than guessed at: `background` is a SHORTHAND, so the
+   `background: var(--line)` in the hover rule below resets `background-clip`
+   to `border-box` however carefully the resting rule set it to `content-box`.
+   The disc came out 24px instead of 18 — 407 painted pixels against 203, a
+   third wider under the pointer — while every computed style still read
+   correctly. A pseudo-element has no such coupling: it is a transparent box
+   that exists only to be hit, the glyph keeps its own 18px geometry, and the
+   paint is provably identical because nothing about the painted element
+   changed. Verified by rendering both rules and diffing: 0 pixels differ at
+   rest and 0 hovered, in both themes.
+   `position: relative` is here for the pseudo-element to anchor to, and is the
+   only declaration this rule gained. */
+.selected-ribbon .selected-close {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  /* Or the 24px above is only true on a wide screen. `width: 18px` sets this
+     item's base size and nothing was stopping it from shrinking below it: a
+     flex item defaults to `flex-shrink: 1` with `min-width: auto`, which
+     resolves to the min-content of a single × — 8.67px. Swept across viewports
+     with a worst-case ribbon (a 19-character agent name, a cost with a rate and
+     a +2 chip), the close measured 17.72px at 1400, 14.28px at 1300 and 8.67px
+     at 1200, and the target drawn around it shrinks with it. #509 measured this
+     control at 1470, where it is intact, so the report says 18 × 18 and the
+     shrink is a second defect underneath the first one.
+     `flex: none` rather than `flex-shrink: 0`, which is the same thing here and
+     is the spelling `.topbar .actions` and `.topbar .brand` already use for
+     "this does not give". What gives instead is the label, which ellipses, and
+     that is the order #508 chose. */
+  flex: none;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms, color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The target. 3px of reach on every side, which takes an 18px glyph to 24px and
+   leaves the hit area 4px inside the ribbon's own right edge — it never spills
+   over the boundary onto the canvas behind. A pointer event landing on a
+   pseudo-element is delivered to the element that owns it, so this needs no
+   markup and no handler of its own.
+   `border-radius: inherit` makes it a circle rather than a square, which is
+   what `.glyph-btn` already resolved for the four bare closes: at this size the
+   sheet's answer to SC 2.5.8 is a 24px circle, and one control drawing a square
+   target under a round glyph would be the odd one out for no reason. */
+.selected-ribbon .selected-close::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+}
+.selected-ribbon .selected-close:hover { background: var(--line); color: var(--text); }
+.selected-ribbon .selected-close:active { transform: scale(0.94); }

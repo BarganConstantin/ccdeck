@@ -36,11 +36,15 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { quotaRefreshLabel } from "../usage-panel-rules";
 import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
+import { usageSurface } from "./usage-surface";
+import { usageHistorySurface } from "./usage-history-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {
@@ -52,7 +56,26 @@ function components(dir: string): string[] {
 }
 
 const FILES = components(web);
-const source = (name: string) => readFileSync(FILES.find(p => p.endsWith(name))!, "utf8");
+
+/** A path from the walk, relative to src/web and with forward slashes. join()
+ *  spells `components/Detail.tsx` with a backslash on Windows, so every name
+ *  this file compares a path against goes through here first. */
+const rel = (path: string) => path.slice(web.length).replace(/\\/g, "/");
+
+/**
+ * One .tsx, raw, by its name or by its path under src/web
+ * (`"App.tsx"`, `"components/Detail.tsx"`).
+ *
+ * It matches whole path segments, and it throws on a miss: a `find` that comes
+ * back empty used to reach readFileSync as `undefined`, which is how the Windows
+ * leg reported the missing backslash — as a TypeError about the path argument,
+ * with nothing to say which file was being looked for.
+ */
+function source(name: string): string {
+  const hit = FILES.find(p => rel(p) === name || rel(p).endsWith(`/${name}`));
+  if (!hit) throw new Error(`no .tsx at ${name} under src/web`);
+  return readFileSync(hit, "utf8");
+}
 
 /** The same text with its comments gone — the only form an "appears nowhere"
  *  assertion may read. */
@@ -63,20 +86,34 @@ function code(src: string): string {
 }
 
 const app = source("App.tsx");
+/** The canvas's <main>, out of App.tsx's markup. */
+const canvasMain = source("components/CanvasMain.tsx");
+/** The detail panel, which moved out of App.tsx into its own component. */
+const detail = source("components/Detail.tsx");
+/** The version chip beside the wordmark, out of App.tsx's topbar. */
+const versionChip = source("components/VersionChip.tsx");
+/** The topbar's readout group, the wordmark among it, out of App.tsx's topbar. */
+const readouts = source("components/TopbarReadouts.tsx");
 const usage = source("UsagePanel.tsx");
+/** The usage panel and every file lifted out of it, for negatives and counts. */
+const usageAll = usageSurface();
 const accounts = source("AccountsPanel.tsx");
+/** The accounts panel's header, lifted out of it: the title and the + live here. */
+const accountsHeader = source("AccountsHeader.tsx");
 const sessions = source("SessionList.tsx");
 const history = source("UsageHistoryModal.tsx");
+/** The history modal and every file lifted out of it, for negatives. */
+const historyAll = usageHistorySurface();
 const summary = source("SessionSummary.tsx");
 // The stacked cost bar, which was written out in three of the files above until
 // #374 gave it a file of its own.
 const costBar = source("CostBar.tsx");
 
-/** Every file in the bundle, as [name, comment-stripped text]. The separator is
- *  normalised because two of the assertions below name a file inside
- *  components/, and join() spells that with a backslash on Windows. */
+/** Every file in the bundle, as [name, comment-stripped text]. The name goes
+ *  through `rel` because two of the assertions below name a file inside
+ *  components/. */
 const BUNDLE: Array<[string, string]> = FILES.map(p =>
-  [p.slice(web.length).replace(/\\/g, "/"), code(readFileSync(p, "utf8"))]);
+  [rel(p), code(readFileSync(p, "utf8"))]);
 
 /**
  * Every file in the bundle again, comment-free the way `./tsx-scan` means it —
@@ -91,7 +128,7 @@ const BUNDLE: Array<[string, string]> = FILES.map(p =>
  * first also makes each tag's `end` an index into a string this file holds.
  */
 const BARE: Array<[string, string]> = FILES.map(p =>
-  [p.slice(web.length).replace(/\\/g, "/"), withoutComments(readFileSync(p, "utf8"))]);
+  [rel(p), withoutComments(readFileSync(p, "utf8"))]);
 
 // ── how the two tag sweeps read markup (#655) ───────────────────────────────
 //
@@ -127,12 +164,14 @@ const GENERIC = [
 
 describe("the deck's five regions are five landmarks (#381)", () => {
   it("puts the canvas in the one <main> a document is allowed", () => {
-    expect(code(app)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}\n\s+className=\{`canvas-wrap/);
+    // <main> is components/CanvasMain.tsx's, which App.tsx mounts.
+    expect(code(app)).toMatch(/<CanvasMain\b/);
+    expect(code(canvasMain)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}\n\s+className=\{`canvas-wrap/);
     const mains = BUNDLE.flatMap(([name, src]) =>
       [...src.matchAll(/<main[\s>]/g)].map(() => name));
-    expect(mains).toEqual(["App.tsx"]);
+    expect(mains).toEqual(["components/CanvasMain.tsx"]);
     // The shape it replaced, gone rather than merely outnumbered.
-    expect(code(app)).not.toMatch(/<div\s*\n?\s*className=\{`canvas-wrap/);
+    expect(code(app) + "\n" + code(canvasMain)).not.toMatch(/<div\s*\n?\s*className=\{`canvas-wrap/);
   });
 
   it("keeps the topbar the banner it already was", () => {
@@ -158,17 +197,21 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // be a template built on the class. What is NOT allowed to move is the
       // rest of it: the tag, the id and the label are what the rotor reads.
       const className = `(?:"${cls}"|\\{\`${cls}\\$\\{[^\`]*\\}\`\\})`;
+      // What follows the label is not the rotor's: the accounts panel listens
+      // for focus on the whole column (#1497), and handlers render nothing.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}">`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}"(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\})*>`));
     }
-    // The detail panel was already an <aside> and was the unnamed one.
-    expect(code(app)).toMatch(/<aside className="detail" aria-label="Detail">/);
+    // The detail panel was already an <aside> and was the unnamed one. Its
+    // frame is components/DetailAside.tsx, which App.tsx mounts.
+    expect(code(app)).toMatch(/<DetailAside\b/);
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label="Detail">/);
   });
 
   it("has no <div> left wearing one of those class names", () => {
     // The exact two shapes the issue measured, which is the assertion that
     // fails if somebody re-opens one of these files and reaches for a <div>.
-    expect(code(usage)).not.toMatch(/<div className="usage-panel"/);
+    expect(code(usageAll)).not.toMatch(/<div className="usage-panel"/);
     expect(code(accounts)).not.toMatch(/<div className="accounts-panel"/);
   });
 
@@ -225,10 +268,14 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // import it. The assertion got stronger rather than narrower — it is no
     // longer possible for one surface to have the role and another not.
     expect(code(costBar)).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label="Cost breakdown"/);
-    for (const [file, src] of [["App.tsx", app], ["UsagePanel.tsx", usage], ["SessionSummary.tsx", summary]] as const) {
+    for (const [file, src] of [["components/Detail.tsx", detail], ["UsagePanel.tsx", usage], ["SessionSummary.tsx", summary]] as const) {
       expect(code(src), `${file} imports the bar`).toMatch(/import CostBar from "\.(\/components)?\/CostBar";/);
       expect(code(src), `${file} draws no bar of its own`).not.toMatch(/className="cost-bar/);
     }
+    // Nor does any file lifted out of the usage panel.
+    expect(code(usageAll), "the usage panel's files draw no bar of their own").not.toMatch(/className="cost-bar/);
+    // App.tsx no longer imports the bar at all, and must not grow one of its own.
+    expect(code(app), "App.tsx draws no bar of its own").not.toMatch(/className="cost-bar/);
   });
 });
 
@@ -236,9 +283,12 @@ describe("the deck's five regions are five landmarks (#381)", () => {
 
 describe("the heading outline starts at level 1 and skips nothing (#381)", () => {
   it("has exactly one <h1>, and it is the wordmark already on the page", () => {
+    // In the readout group, which App.tsx mounts at the head of the topbar.
     const h1s = BUNDLE.flatMap(([name, src]) => [...src.matchAll(/<h1[\s>]/g)].map(() => name));
-    expect(h1s).toEqual(["App.tsx"]);
-    expect(code(app)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
+    expect(h1s).toEqual(["components/TopbarReadouts.tsx"]);
+    expect(code(readouts)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
+    // `{}` is what is left of the pointer comment between the two.
+    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*<ReadoutGroup\b/);
   });
 
   it("did not hide it, because the name it carries is already visible", () => {
@@ -246,36 +296,44 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // reader say "ccdeck" twice — once as the heading, once as the wordmark two
     // pixels to its right. The class exists (#373) and is deliberately not used
     // here; marking up the text that is already on screen is what 1.3.1 asks.
-    expect(code(app)).toMatch(/<h1>/);
-    expect(code(app)).not.toMatch(/<h1 className="vis-hidden"/);
-    expect(code(app)).not.toMatch(/<h1[^>]*aria-hidden/);
+    // The heading is the readout group's now; the negatives read it and App.tsx.
+    expect(code(readouts)).toMatch(/<h1>/);
+    expect(code(app) + "\n" + code(readouts)).not.toMatch(/<h1 className="vis-hidden"/);
+    expect(code(app) + "\n" + code(readouts)).not.toMatch(/<h1[^>]*aria-hidden/);
   });
 
   it("keeps the <h1> out of the version chip's accessible name", () => {
     // The chip is a sibling of the heading and not a child of it. Inside, its
     // whole sentence about npm would become part of the heading's name — the
     // rotor's entry for this page would be a paragraph.
-    const brand = code(app).slice(code(app).indexOf('<div className="brand">'));
+    // The brand is in the readout group (components/TopbarReadouts.tsx) now.
+    const brand = code(readouts).slice(code(readouts).indexOf('<div className="brand">'));
     expect(brand).toContain("<h1>");
-    // The chip's branches open with the desktop app's ready update (#1187),
-    // then the deck's own notice; the heading comes before both.
-    expect(brand.indexOf("<h1>")).toBeLessThan(brand.indexOf("{readyAppUpdate ?"));
-    expect(brand.indexOf("{readyAppUpdate ?")).toBeLessThan(brand.indexOf(") : notice ?"));
+    // The chip is VersionChip now: drawn after the heading, and outside it.
+    expect(brand.indexOf("<VersionChip")).toBeGreaterThan(-1);
+    expect(brand.indexOf("<h1>")).toBeLessThan(brand.indexOf("<VersionChip"));
+    expect(brand).not.toMatch(/<h1>[\s\S]*?<VersionChip[\s\S]*?<\/h1>/);
     expect(brand).not.toMatch(/<h1>[\s\S]*?<button[\s\S]*?<\/h1>/);
+    // Its branches open with the desktop app's ready update (#1187), then the
+    // deck's own notice.
+    const chip = code(versionChip);
+    expect(chip.indexOf("{readyAppUpdate ?")).toBeGreaterThan(-1);
+    expect(chip.indexOf("{readyAppUpdate ?")).toBeLessThan(chip.indexOf(") : notice ?"));
   });
 
   it("heads every persistent region with an <h2>", () => {
     expect(code(usage)).toMatch(/<h2>Usage<\/h2>/);
     // `Claude accounts`, and the same string as the landmark name below: this
     // panel holds Claude logins only, on a deck that also draws Codex.
-    expect(code(accounts)).toMatch(/<h2>Claude accounts<\/h2>/);
+    expect(code(accountsHeader)).toMatch(/<h2>Claude accounts<\/h2>/);
     expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
     // and that whole empty state is gone: the panel is about an agent, and with
     // none selected it does not render at all. So the heading it must carry is
     // the agent's name, and there is no longer a second h2 to check.
-    expect(code(app)).toMatch(/<h2 className="hero-title"/);
+    expect(code(detail)).toMatch(/<h2 className="hero-title"/);
+    expect(code(detail)).not.toMatch(/<h2>Detail<\/h2>/);
     expect(code(app)).not.toMatch(/<h2>Detail<\/h2>/);
   });
 
@@ -298,11 +356,11 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       do { prev = out; out = out.replace(/\{[^{}]*\}/g, " "); } while (out !== prev);
       return out;
     };
-    const heads = [...code(usage).matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
+    const heads = [...code(usageAll).matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
       .map(m => stripBraces(m[1]).replace(/<[^>]*>/g, " ").match(/[A-Za-z][A-Za-z ]*/)?.[0].trim() ?? "");
     expect(heads).toHaveLength(5);
     expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
-    expect(code(usage)).not.toMatch(/<h4/);
+    expect(code(usageAll)).not.toMatch(/<h4/);
   });
 
   it("keeps <h4> to the dialogs, plus the one panel section that really has subsections", () => {
@@ -322,7 +380,14 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     const withH4 = BUNDLE.filter(([, src]) => /<h4[\s>]/.test(src)).map(([name]) => name).sort();
     expect(withH4).toEqual([
       "components/AddAccountDialog.tsx",
-      "components/BrowserWatchModal.tsx",
+      // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
+      // rendered inside its dialog: their <h4>s are the dialog's, and the
+      // dialog's own file has none left.
+      "components/BrowserWatchFeed.tsx",
+      "components/BrowserWatchFindings.tsx",
+      "components/BrowserWatchOverview.tsx",
+      "components/BrowserWatchProfiles.tsx",
+      "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
       "components/ToolModal.tsx",
@@ -411,14 +476,16 @@ describe("the route past a hundred and sixty-six tab stops (#381)", () => {
     expect(link).toBeGreaterThan(start);
     expect(link).toBeLessThan(topbar);
     // The href and the id are the same word, and the element that carries the
-    // id is the element the link means to reach.
-    expect(bare).toMatch(/<main\n\s+id="canvas"/);
+    // id is the element the link means to reach: CanvasMain's <main>, which
+    // App.tsx mounts after the topbar.
+    expect(bare.indexOf("<CanvasMain", start)).toBeGreaterThan(topbar);
+    expect(code(canvasMain)).toMatch(/<main\n\s+id="canvas"/);
   });
 
   it("gives that target a negative tabIndex, because a fragment must be focusable to be focused", () => {
     // Without it the browser scrolls to the element and leaves focus where it
     // was, which for a skip link is the whole failure.
-    expect(code(app)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
+    expect(code(canvasMain)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
   });
 
   it("is out of flow, or it would take the topbar's grid cell", () => {
@@ -560,12 +627,15 @@ describe("no control is named by its title attribute alone (#381)", () => {
     // words a voice-control user says are the words on screen. It is per
     // provider, so it never promises a section the panel is not rendering.
     expect(code(usage)).toMatch(/aria-label=\{refreshLabel\}\n\s+title=\{refreshLabel\}/);
-    expect(code(usage)).toMatch(/providers\.claude && providers\.codex\s*\n?\s*\? "Refresh Claude \+ Codex quota"/);
+    // The sentence is usage-panel-rules.ts's since it left the render, so it is
+    // asked for rather than matched, and the panel is checked to use it.
+    expect(code(usage)).toContain("const refreshLabel = quotaRefreshLabel(providers);");
+    expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota");
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {
-    expect(code(accounts)).toMatch(/aria-label="Add an account"/);
-    expect(code(accounts)).toMatch(/title="Sign in to another Claude account/);
+    expect(code(accountsHeader)).toMatch(/aria-label="Add an account"/);
+    expect(code(accountsHeader)).toMatch(/title="Sign in to another Claude account/);
   });
 });
 
@@ -577,7 +647,7 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
     // and an aria-hidden dot, so with no aria-label its accessible name was
     // the version string — byte for byte what the healthy chip announces. The
     // branch carrying the news was the quieter of the two.
-    expect(code(app)).toMatch(/aria-label=\{versionNoticeLabel\(\{ \.\.\.notice, open: noticeOpen \}\)\}/);
+    expect(code(versionChip)).toMatch(/aria-label=\{versionNoticeLabel\(\{ \.\.\.notice, open: noticeOpen \}\)\}/);
   });
 
   it("says which way the drift goes, in both kinds", () => {
@@ -634,7 +704,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // now and something has to park it on today — so the match allows the
     // attributes before `className` while still pinning the role and the name.
     expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label="Daily cost by model">/);
-    expect(code(history)).not.toMatch(/role="img"/);
+    expect(code(historyAll)).not.toMatch(/role="img"/);
   });
 
   it("names each day with the figure its tooltip already carried", () => {
@@ -650,8 +720,8 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // contract, so the swap is to group + aria-pressed, which is the shape the
     // canvas category chips already use.
     expect(code(history)).toMatch(/<div className="uh-range" role="group" aria-label="Range">/);
-    expect(code(history)).not.toMatch(/role="tab(list)?"/);
-    expect(code(history)).not.toMatch(/aria-selected/);
+    expect(code(historyAll)).not.toMatch(/role="tab(list)?"/);
+    expect(code(historyAll)).not.toMatch(/aria-selected/);
   });
 
   it("hands the one real tab set over to the test that can hold it (#581)", () => {

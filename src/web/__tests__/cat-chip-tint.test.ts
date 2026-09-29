@@ -23,8 +23,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { collectBursts, mcpChipIdentity } from "../components/ToolBursts";
+import { collectBursts } from "../burst-layout";
+import { mcpChipIdentity } from "../tool-skin";
 import type { AgentNodeData, ToolCall } from "../types";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -53,9 +55,10 @@ function modulesUnder(dir: string): string[] {
 }
 // Comments stripped: this file asks what the sheet DECLARES, and the rule added
 // for "other" is introduced by a comment naming its own selector.
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const taxonomy = readFileSync(join(web, "tool-taxonomy.ts"), "utf8");
-const app = readFileSync(join(web, "App.tsx"), "utf8");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
 
 /** The categories, from the union itself — never a list maintained here. */
 const CATEGORIES: string[] = (() => {
@@ -359,21 +362,22 @@ describe("the chip's hue IS the bubble's hue, drawn from the same call", () => {
     // copy fails wherever somebody puts it rather than only in the one file.
     //
     // Two modules spell this arithmetic and the second is NOT the defect #374
-    // removed. `reducer.sessionHue` hashes a session id and `ToolBursts.hashHue`
-    // hashes an MCP server segment: same body, different domains, neither
-    // derived from the other, and #374's sweep (duplicated-helpers.test.ts) went
-    // through seven helper pairs without listing them. They are named here
+    // removed. `session-hue.sessionHue` hashes a session id and
+    // `tool-skin.hashHue` hashes an MCP server segment: same body, different
+    // domains, neither derived from the other, and #374's sweep
+    // (duplicated-helpers.test.ts) went through seven helper pairs without
+    // listing them. They are named here
     // rather than pattern-allowed, so merging them stays a decision somebody
     // makes on purpose — and a THIRD spelling fails this line on arrival.
     const spelt = modulesUnder(web)
       .filter(p => /h = \(\(h << 5\) \+ h\)/.test(readFileSync(p, "utf8")))
       .map(p => p.slice(web.length).replace(/\\/g, "/"))
       .sort();
-    expect(spelt).toEqual(["components/ToolBursts.tsx", "reducer.ts"]);
+    expect(spelt).toEqual(["session-hue.ts", "tool-skin.ts"]);
     // The MCP one is private, so a second copy is the only way to get one.
-    const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
-    expect(bursts).toMatch(/^function hashHue\(/m);
-    expect(bursts, "hashHue is exported again with no reader outside the file")
+    const skin = readFileSync(join(web, "tool-skin.ts"), "utf8");
+    expect(skin).toMatch(/^function hashHue\(/m);
+    expect(skin, "hashHue is exported again with no reader outside the file")
       .not.toMatch(/^export function hashHue\b/m);
     expect(app, "App.tsx imports a hash it no longer has a use for")
       .not.toMatch(/\bhashHue\b/);
@@ -662,8 +666,11 @@ describe("the category stripe on a tool bubble, in both themes (#877)", () => {
     const audit: Record<string, number> = {
       file: 1.54, shell: 1.37, web: 1.38, agent: 1.61, task: 1.34, plan: 1.67, mcp: 1.41, other: 2.18,
     };
+    // The pastels as the audit measured them: agent's has since moved off
+    // --inflight (#1283), so it is restated as the value that shipped.
+    const shipped = (cat: string) => (cat === "agent" ? "#f0abfc" : accentOf(cat, "dark"));
     for (const cat of CATEGORIES) {
-      expect(stripeRatio(accentOf(cat, "dark"), "light"), cat).toBeCloseTo(audit[cat], 2);
+      expect(stripeRatio(shipped(cat), "light"), cat).toBeCloseTo(audit[cat], 2);
     }
   });
 

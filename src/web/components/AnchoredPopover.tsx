@@ -51,6 +51,7 @@ import { createPortal } from "react-dom";
 import { menuMove } from "../menu-keys";
 import { placePopover } from "../popover-place";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { useOutsidePress } from "./use-outside-press";
 
 interface Props {
   /** The control this hangs off, by id. Looked up at each placement rather
@@ -147,21 +148,11 @@ export default function AnchoredPopover({
     };
   }, [place, ref]);
 
-  // A press anywhere else closes it — the rule SoundMenu spells out, for the
-  // same reasons: `pointerdown` so a press that starts outside counts even if
-  // it ends inside, on window in the capture phase so a control that stops
-  // propagation still closes it first, and never for the anchor, whose own
-  // onClick is what closes it on a second press. Focus is left where the press
-  // put it: it landed on something the user chose.
-  useEffect(() => {
-    const onDown = (e: globalThis.PointerEvent) => {
-      const t = e.target as Node | null;
-      if (!t || ref.current?.contains(t) || document.getElementById(anchorId)?.contains(t)) return;
-      closeRef.current();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    return () => window.removeEventListener("pointerdown", onDown, true);
-  }, [anchorId, ref]);
+  // A press anywhere else closes it — use-outside-press.ts, the rule SoundMenu
+  // shares — and never for the anchor, whose own onClick is what closes it on a
+  // second press. Looked up at the press, like every other use of the anchor
+  // here, so a row re-rendered under it is followed rather than lost.
+  useOutsidePress(ref, () => document.getElementById(anchorId), onClose);
 
   // Where a menu's focus starts. The hook's own mount focus has already put it
   // on the first item; this is what makes ArrowUp on the anchor land on the

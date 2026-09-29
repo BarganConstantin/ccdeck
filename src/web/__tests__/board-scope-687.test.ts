@@ -47,7 +47,7 @@
 //     makes "the wording moved without the sum" and "the sum moved without the
 //     wording" both failures rather than one.
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
@@ -64,6 +64,9 @@ import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, type Graph
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
 /** The shipped constants — the same module App.tsx reads. The point is the deck as it runs. */
 import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "../board-limits";
+import { clientSources } from "./client-source";
+import { usageSurface } from "./usage-surface";
+import { sheetText } from "./sheet-source";
 
 // Sandboxed before anything can read a real one, the way api-events-streaming
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
@@ -287,13 +290,6 @@ const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 
 /** Every client source that ends up in the bundle. The suite's own files are
  *  excluded: this one quotes the retired label on purpose. */
-function clientSources(dir: string): string[] {
-  return readdirSync(dir).flatMap(name => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : clientSources(path);
-    return path.endsWith(".ts") || path.endsWith(".tsx") ? [path] : [];
-  });
-}
 
 /** The same text with its comments gone — the only form an "appears nowhere"
  *  assertion may read. This repo's prose quotes the code it retires, and
@@ -308,8 +304,15 @@ const sources: Array<[string, string]> = clientSources(web)
   .map(p => [p.slice(web.length).replaceAll("\\", "/"), readFileSync(p, "utf8")]);
 
 const boardUsage = read("board-usage.ts");
-const app = code(read("App.tsx"));
+// The keydown handler moved to use-deck-shortcuts.ts, and the dialogs App.tsx
+// mounts to components/DeckDialogs.tsx; the keys and the rest of the deck are read as one.
+const app = code(read("App.tsx")) + "\n" + code(read("use-deck-shortcuts.ts"))
+  + "\n" + code(read("components/DeckDialogs.tsx"));
 const panel = code(read("components/UsagePanel.tsx"));
+/** The panel's board figures, lifted out of it into a hook of their own. */
+const spend = code(read("use-board-spend.ts"));
+/** The panel and every file lifted out of it, for the negatives. */
+const panelSurface = code(usageSurface());
 const sessionList = code(read("components/SessionList.tsx"));
 const sessionSummary = code(read("components/SessionSummary.tsx"));
 
@@ -362,6 +365,7 @@ describe("the label lives in the same module as the sum", () => {
     expect(BOARD_SCOPE_TITLE).toMatch(/\bH\b/);
     expect(app).toContain(`if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);`);
     expect(app).toContain("<UsageHistoryModal");
+    expect(code(read("App.tsx"))).toContain("<DeckDialogs");
 
     // The strip's numbers add up both CLIs, so the sentence attached to them
     // may name neither — the same rule codex-copy.test.ts holds the tooltips to.
@@ -392,11 +396,11 @@ describe("every surface that prints one of these figures prints the shared label
     // one after the colon and a bare `toContain(BOARD_SPEND_LABEL)` would pass
     // on a panel that had stopped rendering it at all.
     expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>`);
-    // The class carries the stale dim now (a template literal), and the title
-    // is what this issue is about — asserted as the whole attribute so the
-    // board branch cannot quietly lose its sentence.
-    expect(panel).toContain('<div className={`up-total${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
-    expect(panel).toContain('<div className={`up-tokens-row${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    // The title is what this issue is about — asserted as the whole attribute
+    // so the board branch cannot quietly lose its sentence. (The class carried
+    // a stale dim as a template literal until #1289 took the dim off words.)
+    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
     // The unpriced deck: no headline renders there, so the strip says it itself.
     expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}`);
   });
@@ -413,11 +417,11 @@ describe("every surface that prints one of these figures prints the shared label
     // So the line is gone, and this is what keeps it gone. The board figures
     // are still on the topbar, with the sentence, and the board BRANCH below
     // still prints them when ccusage has not answered at all.
-    expect(panel).not.toContain('className="up-live"');
-    expect(panel).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
+    expect(panelSurface).not.toContain('className="up-live"');
+    expect(panelSurface).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
     // And the sheet lost its rules with it — a selector nothing emits is the
     // shape unstyled-class.test.ts and dead-css.test.ts both exist to prevent.
-    expect(read("styles.css"), "the rule outlived its markup").not.toContain(".up-live");
+    expect(sheetText(), "the rule outlived its markup").not.toContain(".up-live");
   });
 
   it("has no board-scoped figure left in the topbar", () => {
@@ -428,11 +432,14 @@ describe("every surface that prints one of these figures prints the shared label
     // #737 puts an aggregate back, but its source is ccusage and its period is
     // explicit. This case still guards the original failure: a board total must
     // never reappear in the bar and shrink when cards are pruned.
-    const strip = app.slice(
-      app.indexOf(`<span className="status">`),
-      app.indexOf(`<div className="vis-hidden"`),
-    );
-    expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
+    // The strip is components/TopbarReadouts.tsx's; it ends where the next
+    // component there starts.
+    const readouts = code(read("components/TopbarReadouts.tsx"));
+    const opens = readouts.indexOf(`<span className="status">`);
+    expect(opens, "the .status strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
+    const next = readouts.indexOf("export function", opens);
+    const strip = readouts.slice(opens, next === -1 ? undefined : next);
+    expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx").toBeTruthy();
     expect(strip).not.toContain("boardTotals");
     expect(strip).toContain("this month");
     expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");
@@ -466,8 +473,12 @@ describe("no surface computes a board figure of its own", () => {
     // are declared beside the loop that produces it, and that is worth as much
     // to one surface as to two — the panel is where the next such label will be
     // written, and re-inlining the sum there is how #687 was built.
-    expect(panel).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\.\/board-usage";/);
-    expect(panel).toContain("boardTotals(state.agents.values())");
-    expect(app, "the topbar computes a board figure again").not.toContain("boardTotals");
+    // Through the hook the panel's board figures moved into.
+    expect(panel).toContain("useBoardSpend(state, now, liveSince)");
+    expect(spend).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\/board-usage";/);
+    expect(spend).toContain("boardTotals(state.agents.values())");
+    // The topbar's readout group is components/TopbarReadouts.tsx's now.
+    expect(app + "\n" + code(read("components/TopbarReadouts.tsx")), "the topbar computes a board figure again")
+      .not.toContain("boardTotals");
   });
 });

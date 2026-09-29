@@ -77,9 +77,12 @@ vi.mock("../../server/claude-dir.mjs", async (importOriginal) => {
 // @ts-expect-error — a plain .mjs module, no types
 const quota = await import("../../server/quota.mjs");
 const {
-  fetchClaudeQuota, invalidateQuotaCache, forgetQuotaFailureNotice,
+  fetchClaudeQuota, invalidateQuotaCache,
   resetQuotaPollFloor, QUOTA_DEADLINE_MS,
 } = quota;
+// The notice's memory moved to quota-cli.mjs with the run that says it.
+// @ts-expect-error — a plain .mjs module, no types
+const { forgetQuotaFailureNotice } = await import("../../server/quota-cli.mjs");
 
 // Nothing here talks to a network, and a test that quietly did would be a test
 // whose result depends on the machine it ran on.
@@ -265,8 +268,9 @@ describe("the budget the route spends", () => {
     // The route is where the 47 seconds were spent, so the route is where this
     // has to be read out of. A deadline the module offers and no caller uses
     // leaves the connection pinned exactly as before.
+    // The route's own module, since the usage routes left index.mjs.
     const server = readFileSync(
-      fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+      fileURLToPath(new URL("../../server/usage-routes.mjs", import.meta.url)), "utf8");
     expect(server).toContain("await fetchClaudeQuota({ force, deadlineMs: QUOTA_DEADLINE_MS })");
   });
 
@@ -277,8 +281,9 @@ describe("the budget the route spends", () => {
     // comfortably above the server's five seconds rather than racing it, since
     // a client deadline that beat the answer would turn a slow success into a
     // failure.
-    const panel = readFileSync(
-      fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
-    expect(panel).toContain("await fetch(url, { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) })");
+    // The hook moved out of UsagePanel.tsx into use-quota.ts.
+    const reads = readFileSync(
+      fileURLToPath(new URL("../use-quota.ts", import.meta.url)), "utf8");
+    expect(reads).toContain("await fetch(url, { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) })");
   });
 });

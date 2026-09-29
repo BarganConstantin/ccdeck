@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
-import { collectBursts, primaryBubbleWidth } from "../components/ToolBursts";
+import { collectBursts, primaryBubbleWidth } from "../burst-layout";
 import {
   categoryFor,
   codexScriptCommand,
@@ -159,26 +159,37 @@ describe("every Codex tool the deck knows, drawn from the one spec table", () =>
 // ── the six tables have exactly one source now ──────────────────────────────
 
 describe("where the six tables get their Codex names from", () => {
-  const toolBursts = readFileSync(join(web, "components", "ToolBursts.tsx"), "utf8");
-  const app = readFileSync(join(web, "App.tsx"), "utf8");
+  // The five tables left components/ToolBursts.tsx for tool-skin.ts with the skin
+  // code that reads them. The positives read the module that owns them now; the
+  // negatives read both files, so a copy put back in either one still fails.
+  const toolSkin = readFileSync(join(web, "tool-skin.ts"), "utf8");
+  const toolBursts = toolSkin + "\n" + readFileSync(join(web, "components", "ToolBursts.tsx"), "utf8");
+  // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+  const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8");
 
-  it("has App.tsx reading the shared bucket table instead of its own copy", () => {
+  it("has the detail categories reading the shared bucket table instead of their own copy", () => {
     // The seventh copy is the one that would restart the drift, and it is the
     // one a future edit is most likely to re-introduce, because App.tsx is
-    // where the filter chips and the activity strip live.
-    expect(app).toMatch(/import \{ categoryFor[^}]*\} from "\.\/tool-taxonomy"/);
-    expect(app).not.toMatch(/const DETAIL_TOOL_CAT/);
+    // where the filter chips and the activity strip live. The categories now
+    // come to App.tsx through detail-category.tsx, so the chain is pinned link
+    // by link, and the copy is refused in both files — either is a place a
+    // future edit could put it back.
+    const detail = readFileSync(join(web, "detail-category.tsx"), "utf8");
+    expect(detail).toMatch(/import \{ categoryFor[^}]*\} from "\.\/tool-taxonomy"/);
+    // The detail panel is components/Detail.tsx now, one directory down.
+    expect(app).toMatch(/import \{[^}]*\bdetailCategoryFor\b[^}]*\} from "\.\.?\/detail-category"/);
+    for (const src of [app, detail]) expect(src).not.toMatch(/const DETAIL_TOOL_CAT/);
   });
 
-  it("has ToolBursts.tsx deriving its five tables rather than listing them", () => {
+  it("has tool-skin.ts deriving its five tables rather than listing them", () => {
     // Each of the five is spread or aliased from the shared spec; none of them
     // spells a Codex tool name itself any more.
-    expect(toolBursts).toMatch(/from "\.\.\/tool-taxonomy"/);
+    expect(toolSkin).toMatch(/from "\.\/tool-taxonomy"/);
     expect(toolBursts).not.toMatch(/const TOOL_CATEGORY/);
-    expect(toolBursts).toMatch(/\.\.\.CODEX_TOOL_EMOJI/);
-    expect(toolBursts).toMatch(/\.\.\.CODEX_SHELL_TOOLS/);
-    expect(toolBursts).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
-    expect(toolBursts).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
+    expect(toolSkin).toMatch(/\.\.\.CODEX_TOOL_EMOJI/);
+    expect(toolSkin).toMatch(/\.\.\.CODEX_SHELL_TOOLS/);
+    expect(toolSkin).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
+    expect(toolSkin).toMatch(/CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL/);
     expect(toolBursts).not.toMatch(/const CODEX_TOOLS\s*=/);
   });
 });

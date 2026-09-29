@@ -43,11 +43,24 @@ import {
 } from "../canvas-keys";
 import { ownsKeystroke, type FocusTarget } from "../shortcuts";
 import { escapeOutcome } from "../modal-dismiss";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const app = readFileSync(join(web, "App.tsx"), "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// The detail panel moved to components/Detail.tsx, the selected ribbon to
+// components/SelectedRibbon.tsx, and focusing and stepping between cards to
+// use-agent-focus.ts, and the <ReactFlow> element to components/BoardFlow.tsx;
+// App.tsx and they are read as one.
+const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8")
+  + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8")
+  + "\n" + readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")
+  + "\n" + readFileSync(join(web, "use-agent-focus.ts"), "utf8")
+  + "\n" + readFileSync(join(web, "use-canvas-clicks.ts"), "utf8")
+  + "\n" + readFileSync(join(web, "components/BoardFlow.tsx"), "utf8");
+// Which element is a card's wrapper is canvas-node-element.ts's now.
+const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** The same source with its comments gone, for the assertions that say a
  *  pattern appears NOWHERE. This repo explains every non-obvious decision in
@@ -140,13 +153,26 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     expect(canvasKeyIntent({ key: "Enter", shiftKey: true }, NODE))
       .toEqual({ kind: "activate", nodeId: NODE, additive: true });
     expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\)/);
-    expect(app).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\)/);
+    // The click handler is use-canvas-clicks.ts's; App.tsx hands the hook's
+    // return to BoardFlow, which hands the handler to <ReactFlow>.
+    expect(app).toMatch(/const clicks = useCanvasClicks\(\{/);
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bclicks=\{clicks\}/);
+    expect(app).toMatch(/onNodeClick=\{onNodeClick\}/);
+    expect(app).toMatch(/const onNodeClick = \(e: React\.MouseEvent, n: Node\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\)/);
   });
 
   it("leaves the card the keys the card owns", () => {
-    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Delete", "Backspace", "Escape"]) {
+    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Escape"]) {
       expect(canvasKeyIntent({ key, shiftKey: false }, NODE)).toEqual({ kind: "node", nodeId: NODE });
     }
+  });
+
+  it("hands Delete to the deck, which removes the card a click just selected (#1668)", () => {
+    // A click on a card selects it and puts focus on it, so a Delete left to
+    // the card was dead exactly where the shortcut is pressed.
+    expect(canvasKeyIntent({ key: "Delete", shiftKey: false }, NODE)).toEqual({ kind: "deck", nodeId: NODE });
+    // Backspace is not the shortcut, and a stray one must not take a card away.
+    expect(canvasKeyIntent({ key: "Backspace", shiftKey: false }, NODE)).toEqual({ kind: "node", nodeId: NODE });
   });
 
   it("hands every other key straight back to the deck's shortcuts", () => {
@@ -200,9 +226,10 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     // bubbles UP — an onKeyDown on the card AgentNode renders inside would
     // never fire. And matching an ancestor instead would have answered the
     // context donut's Enter, since the donut is a real <button> in the card.
-    expect(app).toMatch(/const RF_NODE_CLASS = "react-flow__node";/);
-    expect(app).toMatch(/el\.classList\?\.contains\?\.\(RF_NODE_CLASS\)/);
+    expect(nodeElement).toMatch(/const RF_NODE_CLASS = "react-flow__node";/);
+    expect(nodeElement).toMatch(/el\.classList\?\.contains\?\.\(RF_NODE_CLASS\)/);
     expect(app).not.toMatch(/closest\(["'`]\.react-flow__node/);
+    expect(nodeElement).not.toMatch(/closest\(["'`]\.react-flow__node/);
     expect(readFileSync(join(web, "components/AgentNode.tsx"), "utf8")).not.toMatch(/onKeyDown/);
   });
 
@@ -271,8 +298,8 @@ describe("traversal order", () => {
     expect(app).toMatch(/if \(follow\) focusCanvasNode\(target\.id\);/);
     // preventScroll: the canvas is a transformed plane in a fixed box, and the
     // browser's own scroll-into-view would shove the whole layer behind the
-    // panels. fitView is what brings the node on screen.
-    expect(app).toMatch(/\.focus\(\{ preventScroll: true \}\)/);
+    // panels. focusAgent is what brings the node on screen.
+    expect(nodeElement).toMatch(/\.focus\(\{ preventScroll: true \}\)/);
   });
 });
 
@@ -296,7 +323,7 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
   });
 
   it("leaves the mouse exactly where it was", () => {
-    expect(bursts).toMatch(/onClick=\{clickable \? \(\) => onOpenTool!\(b\.toolId\) : undefined\}/);
+    expect(bursts).toMatch(/onClick=\{clickable \? \(\) => onOpenTool!\(b\.agentId, b\.toolId\) : undefined\}/);
     expect(bursts).toMatch(/\$\{clickable \? " clickable" : ""\}/);
     expect(css).toMatch(/\.tool-burst\.clickable:hover \{/);
   });
@@ -309,7 +336,7 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
     // This is what makes decoration the right answer rather than the other one:
     // the tools are already a keyboard-reachable, ordered, announced list.
     expect(app).toMatch(/<button className="tool clickable"/);
-    expect(app).toMatch(/<ToolRow key=\{t\.id\}[^>]*onClick=\{\(\) => onOpenTool\(t\.id\)\}/);
+    expect(app).toMatch(/<ToolRow key=\{t\.id\}[^>]*onClick=\{\(\) => onOpenTool\(agent\.id, t\.id\)\}/);
   });
 });
 
@@ -350,12 +377,13 @@ describe("nothing else in the deck invents a focus stop", () => {
   it("keeps its one negative tabIndex on the skip link's target and nowhere else", () => {
     // A tabindex="-1" is cheap to add and easy to leave behind, and the shape
     // it leaves behind is a mouse-focusable div nobody can reach by keyboard.
-    // One in the app, on <main>, is the whole allowance.
+    // One in the app, on <main>, is the whole allowance. <main> is
+    // components/CanvasMain.tsx's since it left App.tsx's markup.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
-        .map(() => p.slice(web.length)));
-    expect(negatives).toEqual(["App.tsx"]);
-    expect(code(app)).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
+        .map(() => p.slice(web.length).replaceAll("\\", "/")));
+    expect(negatives).toEqual(["components/CanvasMain.tsx"]);
+    expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {
@@ -363,7 +391,8 @@ describe("nothing else in the deck invents a focus stop", () => {
     // inside the ribbon's own <button> — where a button may not go — and with
     // no tabIndex, so no keyboard could ever reach it. Escape carries the same
     // verb from anywhere, so the × is decoration with a click on it.
-    expect(code(app)).not.toMatch(/role="button"/);
+    // The topbar's readout group moved out of App.tsx, so the sweep reads it too.
+    expect(code(app) + "\n" + code(readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8"))).not.toMatch(/role="button"/);
     expect(app).toMatch(/aria-hidden\s*\n\s*className="selected-close"/);
   });
 });

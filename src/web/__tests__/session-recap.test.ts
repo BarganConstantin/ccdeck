@@ -22,12 +22,13 @@ import { recapShown } from "../session-recap";
 import { dismissRecap, isRecapDismissed, isRecapNoteId, recapKey, recapNoteId, toggleRecapDismissed } from "../recap-note";
 import { autoLayout } from "../layout";
 import { liveNodeIds, measuredNodeIds } from "../prune";
-import { clusterBounds } from "../components/SessionClusters";
+import { clusterBounds } from "../cluster-bounds";
 import { buildRows } from "../components/SessionList";
 import type { HookEnvelope, HookPayload, SessionRecap } from "../types";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const SHEET = read("../styles.css");
+const SHEET = sheetText();
 
 const T0 = Date.parse("2026-09-14T11:09:28.646Z");
 const MIN = 60_000;
@@ -294,10 +295,12 @@ describe("where it is drawn", () => {
     expect(card).toContain("const noteOpen = recap != null && !noteDismissed;");
     // The note is a node of its own, built beside the root while the recap is
     // true and not put away, and tied to it by an edge from note to root.
-    const appSrc = read("../App.tsx");
+    // The two renderers are registered where <ReactFlow> is, in
+    // components/BoardFlow.tsx since it left App.tsx's markup.
+    const appSrc = read("../components/BoardFlow.tsx");
     expect(appSrc).toContain("const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };");
     expect(appSrc).toContain("const edgeTypes = { recapTie: RecapTieEdge };");
-    // The node and its tie are built in canvas-flow.ts since #1175 — App.tsx
+    // The node and its tie are built in canvas-flow.ts since #1175 — BoardFlow
     // registers the two renderers, and the snapshot decides what to draw.
     const flowSrc = read("../canvas-flow.ts");
     expect(flowSrc).toContain('type: "recapNote",');
@@ -309,7 +312,8 @@ describe("where it is drawn", () => {
     expect(noteSrc).not.toContain("useModalDismiss");
     expect(read("../components/SessionList.tsx")).toContain("recap: recapShown(a),");
     expect(read("../components/SessionList.tsx")).toContain('<span className="sl-recap" title={r.recap.text}><RecapMark />');
-    const app = read("../App.tsx");
+    // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+    const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
     expect(app).toContain("const recap = recapShown(agent);");
     expect(app).toContain('<p className="detail-recap">{recap.text}</p>');
   });
@@ -317,9 +321,12 @@ describe("where it is drawn", () => {
   it("draws the terminal's ※ rather than typing it, so every platform gets the same figure", () => {
     // U+203B comes from whatever fallback font a platform has; the card and the
     // list share one authored mark instead.
+    // The mark is RecapMark.tsx's, lifted out of the card; the card draws it.
     const card = read("../components/AgentNode.tsx");
-    expect(card).toContain('<svg className="recap-glyph" viewBox="0 0 12 12"');
-    expect(card).not.toContain("※</");
+    const mark = read("../components/RecapMark.tsx");
+    expect(mark).toContain('<svg className="recap-glyph" viewBox="0 0 12 12"');
+    expect(card).toContain("<RecapMark />");
+    expect(card + "\n" + mark).not.toContain("※</");
   });
 
   /** The body of the first rule whose selector list names `sel`. */
@@ -430,8 +437,10 @@ describe("the note is a node the layout, the frame and the caches can see", () =
     const flowSrc = read("../canvas-flow.ts");
     expect(flowSrc).toContain('new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,');
     expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, \{ x: root\.x - RECAP_NOTE_GAP - nw/);
-    // And a note that was closed forgets its laid-out spot unless it was dragged.
-    expect(flowSrc).toContain("if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {");
+    // And a note that was closed forgets its laid-out spot unless it was dragged
+    // — once the log has replayed, since until then it may simply not be back
+    // yet (#1333).
+    expect(flowSrc).toContain("if (historyReplayed && isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {");
     expect(isRecapNoteId(recapNoteId("s1"))).toBe(true);
     expect(isRecapNoteId("s1")).toBe(false);
   });

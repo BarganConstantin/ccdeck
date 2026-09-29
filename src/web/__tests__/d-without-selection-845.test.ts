@@ -13,7 +13,11 @@ import { fileURLToPath } from "node:url";
 import { blockedSessions } from "../ambient-counts";
 import type { AgentNodeData } from "../types";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts and the waiting button to
+// components/TopbarReadouts.tsx; the keys and the rest of the deck are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/TopbarReadouts.tsx", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");

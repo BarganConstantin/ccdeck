@@ -34,7 +34,7 @@ import { join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
 import { candidateSpec, candidates, looksMissing, run, runInteractive } from "../../server/exec.mjs";
 // @ts-expect-error — .mjs server module, no types
-import { quotaClaudeBin } from "../../server/quota.mjs";
+import { quotaClaudeBin } from "../../server/quota-cli.mjs";
 // @ts-expect-error — plain JS module, no types
 import { upgradeSpec } from "../../server/self-update.mjs";
 
@@ -118,8 +118,8 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
   });
 
   it("names npm.cmd by its full path for the in-app upgrade — the caller this sweep missed", () => {
-    // self-update.mjs's startUpgrade, and the reason it was not in this list:
-    // it does not go through run/runInteractive/runDetached at all. It called
+    // startUpgrade (npm-upgrade.mjs now), and the reason it was not in this
+    // list: it does not go through run/runInteractive/runDetached at all. It called
     // `spawn("npm.cmd", args, { shell: true })` directly, so #457 swept the
     // helpers' callers and walked straight past the one place left spelling the
     // defect out in full — with a comment claiming it matched ccusage, which had
@@ -180,8 +180,8 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
 
   it("names a cswap shim by its full path wherever one exists", () => {
     // cswapBin() answers the bare word whenever `cswap --version` worked, and
-    // every mutation in cswap-admin.mjs plus the polls in cswap-auto.mjs and
-    // claude-accounts.mjs go through it. uv and pipx normally leave a
+    // every mutation in cswap-admin.mjs plus the polls in cswap-auto-readers.mjs
+    // and claude-accounts.mjs go through it. uv and pipx normally leave a
     // `cswap.exe`, which is not a batch file and never had this bug — but the
     // candidate loop reaches `cswap.cmd` whenever the .exe is absent, which is
     // what an older pipx or a scoop shim leaves, and that spelling must not be
@@ -195,8 +195,8 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
   });
 
   it("names the installer shims the same way", () => {
-    // cswap-install.mjs:206/207/294 — `uv`, `pipx` and `python -m pipx` are all
-    // bare names reaching run() and runDetached(). Both normally resolve to a
+    // cswap-install.mjs's installers() — `uv`, `pipx` and `python -m pipx` are
+    // all bare names reaching run(). Both normally resolve to a
     // .exe; a .cmd layout exists (npm-shipped wrappers, MSYS) and gets the same
     // treatment rather than a second rule.
     const uv = `${NODE_DIR}\\uv.cmd`;

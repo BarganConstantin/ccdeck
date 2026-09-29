@@ -33,14 +33,16 @@
 // write defaults over it, destroying the LAN key every paired machine had
 // pinned. A file that cannot be parsed is now moved aside and said out loud;
 // only a genuinely ABSENT file starts clean. See loadPrefs.
-import { chmod, mkdir, readFile, stat, unlink } from "node:fs/promises";
-// The rename, with the Windows retry ladder installer.mjs wrote for exactly
+import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
+// The rename, with the Windows retry ladder atomic-write.mjs keeps for exactly
 // this call. See the note over the write below (#786). `stripBom` and
 // `createTemp` come from the same module for the reason its export block gives:
 // a rule spelled twice is a rule that drifts, and both of these are rules
 // settings.json and auth.json already follow on files with the same stakes.
-import { createTemp, renameWithRetry, stripBom } from "./installer.mjs";
-import { join } from "node:path";
+import { createTemp, renameWithRetry, stripBom } from "./atomic-write.mjs";
+import { prefsDir, prefsPath } from "./prefs-path.mjs";
+import { NOT_JSON, prefsRefusalDetail, prefsWriteRefusal, unreadablePrefs } from "./prefs-refusal.mjs";
+import { DENIED, foreignPath, quarantinePath, setAsideForeign } from "./prefs-set-aside.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -49,14 +51,8 @@ import { PRODUCT } from "./brand.mjs";
  *  AGENTS_DECK_NO_INSTALL, and unchanged in meaning by this file. */
 export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
 
-/* WHERE THIS FILE LIVES, AND WHY IT MOVED. It sat in ~/.claude/agent-dag — the
-   directory Claude Code owns — which meant a person clearing Claude Code's
-   configuration cleared this deck's private key, and every machine that had
-   pinned it had to be told to trust this one again. deck-home.mjs owns the new
-   answer and the reasons; what matters here is that the parameter is still a
-   DIRECTORY, so every caller that passes one is unchanged. */
-const prefsDir = (home = deckDataDir()) => home;
-export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.json");
+// Where prefs.json lives, and why it moved: prefs-path.mjs.
+export { prefsPath };
 
 /**
  * Every preference the deck keeps, with the answer it gives when there is no
@@ -179,6 +175,15 @@ function aliasesFrom(raw) {
   return out;
 }
 
+/** A stored switch, or its default when the file does not hold a real boolean.
+ *  Only `true` and `false` override a default: a truthy string or a 1 from a
+ *  hand-edited file is not an answer anybody gave, and reading it as one would
+ *  turn on a switch nobody pressed. One function, because the rule was spelled
+ *  out at every switch and a copy is where the next one would have differed. */
+export function flagOr(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
 /** One LAN section, coerced. Unknown keys dropped like everything else here,
  *  and string lists forced to arrays of strings before anything compares them
  *  with account keys, addresses or fingerprints. */
@@ -186,7 +191,7 @@ function normaliseLan(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
   return {
-    enabled: typeof src.enabled === "boolean" ? src.enabled : DEFAULTS.lan.enabled,
+    enabled: flagOr(src.enabled, DEFAULTS.lan.enabled),
     name: typeof src.name === "string" ? src.name : "",
     // THIS DECK'S PRIVATE KEY, and the only secret this file has ever held —
     // which is why the write below names a mode rather than taking the umask's.
@@ -224,7 +229,7 @@ function normaliseLan(raw) {
     // ASK FIRST. A deck heard on the broadcast is sent a pairing request without
     // anybody pressing `ask` — the outbound half, which gives nothing away: the
     // machine on the other end still answers it, by hand or by the switch below.
-    autoAsk: typeof src.autoAsk === "boolean" ? src.autoAsk : true,
+    autoAsk: flagOr(src.autoAsk, DEFAULTS.lan.autoAsk),
     // AND SAY YES, once somebody has turned this on. Every deck that finishes a
     // handshake and is not already trusted is then pinned without anybody being
     // asked — the accept button pressed in advance, and it hands whoever asks a
@@ -232,16 +237,16 @@ function normaliseLan(raw) {
     // which is off since the feature itself started on; only a real boolean
     // overrides it, because a truthy string from a hand-edited file is not an
     // answer.
-    autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : DEFAULTS.lan.autoAccept,
+    autoAccept: flagOr(src.autoAccept, DEFAULTS.lan.autoAccept),
     pairingMode: src.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
-    shareActive: typeof src.shareActive === "boolean" ? src.shareActive : DEFAULTS.lan.shareActive,
+    shareActive: flagOr(src.shareActive, DEFAULTS.lan.shareActive),
     // The Tailscale switch and its two permissions. Only a real boolean
     // overrides a default, as above.
-    tailscale: typeof src.tailscale === "boolean" ? src.tailscale : DEFAULTS.lan.tailscale,
-    tailscaleAsk: typeof src.tailscaleAsk === "boolean" ? src.tailscaleAsk : DEFAULTS.lan.tailscaleAsk,
-    tailscaleAccept: typeof src.tailscaleAccept === "boolean" ? src.tailscaleAccept : DEFAULTS.lan.tailscaleAccept,
+    tailscale: flagOr(src.tailscale, DEFAULTS.lan.tailscale),
+    tailscaleAsk: flagOr(src.tailscaleAsk, DEFAULTS.lan.tailscaleAsk),
+    tailscaleAccept: flagOr(src.tailscaleAccept, DEFAULTS.lan.tailscaleAccept),
   };
 }
 
@@ -254,159 +259,21 @@ function normaliseLan(raw) {
 export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
-    notifications: typeof src.notifications === "boolean" ? src.notifications : DEFAULTS.notifications,
-    tourSeen: typeof src.tourSeen === "boolean" ? src.tourSeen : DEFAULTS.tourSeen,
-    autoUpdate: typeof src.autoUpdate === "boolean" ? src.autoUpdate : DEFAULTS.autoUpdate,
+    notifications: flagOr(src.notifications, DEFAULTS.notifications),
+    tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
+    autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     lan: normaliseLan(src.lan),
   };
 }
 
-/** Where the bytes of a prefs.json nothing could parse are put.
- *
- *  `Date.now()` rather than an ISO timestamp because a colon is not a legal
- *  filename character on Windows, and a quarantine that cannot be created on
- *  the platform it is protecting is not a quarantine. */
-export const quarantinePath = (home = deckDataDir(), at = Date.now()) =>
-  `${prefsPath(home)}.corrupt-${at}`;
+// How a refusal to write is told — the error writePrefs throws, and the reason
+// and the detail the route hands the panel: prefs-refusal.mjs.
+export { prefsRefusalDetail, prefsWriteRefusal };
 
-/** The refusal `writePrefs` throws rather than merge onto a base it knows is
- *  not the user's. Shaped like installer.mjs's SETTINGS_UNREADABLE, which is
- *  the same policy on the other file this deck rewrites: a file we cannot
- *  reproduce is never treated as an empty one. */
-function unreadablePrefs(path, why, blocked) {
-  const err = new Error(
-    `${path} could not be read (${why}). Refusing to overwrite it — this deck's ` +
-    `LAN key and its pairings are in there and cannot be re-derived. Fix the ` +
-    `file or move it aside, then restart ${PRODUCT}.`,
-  );
-  err.code = "PREFS_UNREADABLE";
-  err.prefsPath = path;
-  err.why = why;
-  err.blocked = blocked;
-  return err;
-}
-
-/** The errors a filesystem raises for a place this user may not write — most
- *  often a settings folder a `sudo` run left owned by root (#1335). */
-const NOT_WRITABLE = new Set(["EACCES", "EPERM", "EROFS"]);
-
-/**
- * Why a settings write failed, as a reason the panel can name — or null when
- * the failure is not one of the two a person can fix from outside the deck.
- *
- * A code, never the message: the message carries the absolute path, and a
- * route's body is readable by a DNS-rebound page (see sendInternalError). The
- * deck's log keeps the path for the person who has to go and look.
- */
-export function prefsWriteRefusal(err) {
-  if (err?.code === "PREFS_UNREADABLE") return "prefs_unreadable";
-  if (NOT_WRITABLE.has(err?.code)) return "prefs_not_writable";
-  return null;
-}
-
-/** What blocked a prefs.json that is not JSON and could not be moved aside —
- *  no errno for it, so a name of the deck's own in the same shape. */
-const NOT_JSON = Object.freeze({ code: "BADJSON", owner: "unknown", on: "file" });
-
-const OWNERS = new Set(["you", "other", "unknown"]);
-/** An errno as Node spells one, or the deck's BADJSON. Anything else — which
- *  nothing here produces — is dropped rather than echoed to the page. */
-const ERRNO = /^E?[A-Z][A-Z0-9]{1,15}$/;
-
-/**
- * The same refusal, told precisely enough to act on from a screenshot (#1335).
- *
- * 3.29.3's panel could only guess — "the file may belong to another user" — and
- * the one Mac it was written for turned out not to be the case 3.29.4 repairs,
- * with nothing on the screen to say which case it was. So the page now gets the
- * errno, who owns what blocked the read (`you`, `other`, `unknown`), and whether
- * that is the `file` or its `folder`.
- *
- * Every field is picked from a closed set. Still no path and no uid: the route's
- * body is readable by a DNS-rebound page (see prefsWriteRefusal), and a path
- * names the user. Null when there is nothing precise to add.
- */
-export function prefsRefusalDetail(err) {
-  const blocked = err?.code === "PREFS_UNREADABLE" ? err.blocked
-    : NOT_WRITABLE.has(err?.code) ? { code: err.code, owner: "unknown", on: "folder" }
-    : null;
-  if (!blocked || typeof blocked !== "object") return null;
-  return {
-    code: ERRNO.test(blocked.code ?? "") ? blocked.code : "",
-    owner: OWNERS.has(blocked.owner) ? blocked.owner : "unknown",
-    on: blocked.on === "folder" ? "folder" : "file",
-  };
-}
-
-/** The read errors that can mean "not yours" rather than "broken". Only these
- *  send a read to setAsideForeign; EISDIR, EIO and EMFILE never do. */
-const DENIED = new Set(["EACCES", "EPERM"]);
-
-/** Where a prefs.json another user owns is put. Beside the file, like
- *  quarantinePath, and stamped in milliseconds for the same Windows reason —
- *  but a name of its own, because nothing is wrong with these bytes. */
-export const foreignPath = (home = deckDataDir(), at = Date.now()) =>
-  `${prefsPath(home)}.foreign-${at}`;
-
-/**
- * Move a prefs.json that ANOTHER USER OWNS out of the way, or say why not.
- *
- * #1335. A `sudo ccdeck` that kept the user's HOME writes a root-owned 0600
- * prefs.json into the user's own folder. From then on every
- * deck that user starts is refused the read, refuses every settings write on
- * top of it — rightly — and so can never keep anything: a new LAN identity on
- * every start, a share tick that says "Could not share that account", and no
- * way out from inside the deck.
- *
- * WHY MOVING IT IS SAFE HERE WHEN IT IS NOT FOR "unreadable". The refusal
- * exists so the deck never loses a key it could still have read. A file owned
- * by somebody else is not one this user's deck will ever read — waiting does
- * not help, and the deck is already running on defaults. A rename reads and
- * changes nothing: owner and mode travel with the file, so the key in it stays
- * private and whole, and `sudo chown` plus a move puts it back.
- *
- * Only when the owner is KNOWN to be somebody else. A file this user owns and
- * still cannot read (a mode bit, a lock, a sandbox) is left exactly where it
- * is, and so is anything on Windows, where there is no uid to compare and
- * EPERM is usually another program holding the file.
- *
- * Answers `{ moved, uid }`, `{ gone }` when the file vanished under it, or,
- * when it stayed, `{ why, owner, on }`: a sentence for the log, possibly empty,
- * and who owns what blocked the read — "you", "other" or "unknown" — and
- * whether that is the "file" or its "folder". The last two are what the panel
- * is told (see prefsRefusalDetail); the sentence, which has the path, is not.
- */
-async function setAsideForeign(path, home, deps) {
-  const uid = deps.getuid ? deps.getuid() : process.getuid?.();
-  if (uid === undefined) return { why: "", owner: "unknown", on: "file" };
-  const look = deps.stat ?? stat;
-  let st;
-  try {
-    st = await look(path);
-  } catch (err) {
-    if (err?.code === "ENOENT") return { gone: true };
-    // The folder itself is out of reach, so nothing in it can be looked at, let
-    // alone moved. Name the folder and its owner, which is what a person needs.
-    const folder = prefsDir(home);
-    const owner = await look(folder).then(s => s.uid, () => undefined);
-    if (owner === undefined) return { why: "", owner: "unknown", on: "folder" };
-    if (owner === uid) return { why: "", owner: "you", on: "folder" };
-    return {
-      why: ` The folder ${folder} belongs to another user (uid ${owner}), most likely from a run with sudo; sudo chown -R "$(id -un)" "${folder}" gives it back.`,
-      owner: "other",
-      on: "folder",
-    };
-  }
-  if (st.uid === uid) return { why: "", owner: "you", on: "file" };
-  const to = foreignPath(home);
-  try {
-    await (deps.rename ?? renameWithRetry)(path, to);
-  } catch (err) {
-    if (err?.code === "ENOENT") return { gone: true };
-    return { why: ` It belongs to another user (uid ${st.uid}) and could not be moved aside either: ${err?.message ?? err}.`, owner: "other", on: "file" };
-  }
-  return { moved: to, uid: st.uid };
-}
+// Moving a prefs.json nobody can use out of the way — the quarantine for bytes
+// that are not JSON, and setAsideForeign for a file another user owns (#1335):
+// prefs-set-aside.mjs.
+export { foreignPath, quarantinePath };
 
 /**
  * Read prefs.json, and say WHICH of five things happened — because four of
@@ -517,7 +384,7 @@ let _chain = Promise.resolve();
  * and the write becomes the thing that destroys the key. So the two failures
  * that read as defaults are separated: a file that was moved aside is safe to
  * start clean over, and one still sitting there unread is not. See
- * installer.mjs's readSettingsForWrite, which is this policy on settings.json.
+ * atomic-write.mjs's readSettingsForWrite, which is this policy on settings.json.
  */
 export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
   return queued(() => save(() => patch, home, deps));
@@ -538,11 +405,11 @@ export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
  * already merges field by field, so two writes naming two different fields
  * cannot lose each other. What it cannot do is merge two writes of the SAME
  * field, and three callers compute one whole field — `lan.manual` twice and
- * `lan.aliases` once — out of `index.mjs`'s module-level `_prefs`, which is
- * refreshed only when a previous write resolves. Two of them in one turn both
- * read before either job runs, and the second patch is a whole array or a whole
- * map without the first's entry in it: both answer 200, both panels redraw, one
- * change is never written.
+ * `lan.aliases` once. Computed out of the in-memory copy prefs-state.mjs holds,
+ * which is refreshed only when a previous write resolves, two of them in one
+ * turn both read before either job runs, and the second patch is a whole array
+ * or a whole map without the first's entry in it: both answer 200, both panels
+ * redraw, one change is never written.
  *
  * Measured against this file in a temp directory, with those exact call shapes,
  * starting from `manual: ["10.0.0.1:5000"]`:
@@ -567,7 +434,7 @@ export async function updatePrefs(mutate, home = deckDataDir(), deps = {}) {
  * The two `mutate`s the three callers above hand updatePrefs, named so that the
  * callers and prefs-update-1041.test.ts run the same function. The suite used to
  * carry its own copy of each closure and test the copy (#1168), which stays
- * green however the one in index.mjs is edited.
+ * green however the one the server runs is edited.
  */
 
 /** `lan.manual` with `entry` on the end, or no change when it is there already.
@@ -687,15 +554,6 @@ async function save(mutate, home, deps) {
 }
 
 /**
- * May the deck raise a desktop notification right now?
- *
- * The env var wins. A machine launched with AGENTS_DECK_NO_NOTIFY=1 has been
- * told by whoever started it to stay off the desktop, and a page posting to
- * /api/prefs must not be able to overrule that — the person at the keyboard and
- * the person who wrote the launch script are not always the same person, and
- * only one of them is making a claim about the machine.
- */
-/**
  * The preferences as a PAGE may see them.
  *
  * THE PRIVATE KEY NEVER LEAVES THIS PROCESS. `GET /api/prefs` is readable by
@@ -720,8 +578,17 @@ export function publicPrefs(prefs) {
   };
 }
 
+/**
+ * May the deck raise a desktop notification right now?
+ *
+ * The env var wins. A machine launched with AGENTS_DECK_NO_NOTIFY=1 has been
+ * told by whoever started it to stay off the desktop, and a page posting to
+ * /api/prefs must not be able to overrule that — the person at the keyboard and
+ * the person who wrote the launch script are not always the same person, and
+ * only one of them is making a claim about the machine.
+ */
 export function notificationsOn(prefs, env = process.env) {
-  if (env[OFF_ENV] === "1") return false;
+  if (notificationsVetoed(env)) return false;
   return normalise(prefs).notifications;
 }
 

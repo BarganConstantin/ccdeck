@@ -69,7 +69,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { claudeConfigDir } from "./claude-dir.mjs";
-import { readSettingsForWrite, writeFileAtomic } from "./installer.mjs";
+import { readSettingsForWrite, writeFileAtomic } from "./atomic-write.mjs";
 
 const CLAUDE_DIR    = claudeConfigDir();
 const SETTINGS_PATH = join(CLAUDE_DIR, "settings.json");
@@ -122,8 +122,8 @@ const commandsOf = (entry) =>
  * The last two segments are fixed whatever the prefix is — the install
  * directory is always `<config dir>/agent-dag` — and they contain no character
  * any quoting rewrites. Case is folded where the filesystem folds it, which is
- * the other half: `exec.mjs`'s own `sameCommand` lowercases "because Windows
- * paths are", and this comparison did not.
+ * the other half: exec-not-found.mjs's own `sameCommand` lowercases "because
+ * Windows paths are", and this comparison did not.
  */
 const SCRIPT_TAILS = ["agent-dag/notify.mjs", "agent-dag/notify.js"];
 

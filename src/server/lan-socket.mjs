@@ -1,6 +1,10 @@
-// The sockets. Every decision this makes lives in lan-sync.mjs; what is here is
-// the plumbing that decision layer refuses to own — a UDP socket that shouts,
-// a TCP listener that answers, and the deadlines around both.
+// The sockets. Every decision this makes lives in lan-sync.mjs and
+// lan-wire.mjs, or for an invite in lan-invite.mjs; what is here is the
+// plumbing that decision layer refuses to own — a UDP socket that shouts, a TCP
+// listener that answers, and the deadlines around both. The shouting half is
+// lan-beacon.mjs and the calling half lan-call.mjs, and the line a dialler and
+// this listener speak is lan-lines.mjs's; this file is the answering, and it
+// re-exports the other two, so what imports them from here still does.
 //
 // TWO SOCKETS, AND NEITHER IS THE DECK'S HTTP SERVER. That server binds
 // 127.0.0.1 and stays there. It has a mutation guard that deliberately trusts a
@@ -8,144 +12,26 @@
 // correct on loopback, and total exposure the moment the same server answers
 // the network. So this feature never asks anybody to run `--host`: it opens its
 // own listener, that listener speaks one protocol and nothing else, and it
-// refuses every frame from anybody who has not proved they hold the group
-// passphrase.
+// serves no frame to anybody who has not proved they hold the key of a deck
+// somebody here accepted.
 //
 // DISCOVERY IS BROADCAST ON A FIXED PORT; THE SYNC LISTENER IS EPHEMERAL and
 // says its port in the beacon. One fixed port rather than two is one thing to
 // collide with, one firewall dialog, and one number in a support answer.
-//
-// A DECK HEARS ITSELF. Measured, not assumed: a broadcast to 255.255.255.255
-// comes back to every socket on the sending machine bound to that port, from
-// the machine's own LAN address rather than from loopback. That is what makes
-// two decks on one machine find each other — which is how this gets tested at
-// all — and it is why self-recognition is by fingerprint rather than by
-// address.
-import dgram from "node:dgram";
-import { networkInterfaces } from "node:os";
-import { looksLikeTunnel } from "./route-via.mjs";
-
-/** An IPv4 dotted quad as four numbers, or null for anything that is not one. */
-/**
- * What each refusal reason means, in a sentence the LAN panel can print.
- *
- * At module scope so it is one object rather than one per frame, and named so
- * the `Object.hasOwn` guard below reads as the rule it is rather than as
- * punctuation. The keys are the protocol's, not a user's.
- */
-const REFUSALS = Object.freeze({
-  pending: "waiting for the other deck to accept this one",
-  declined: "that deck said no",
-  "invite only": "that deck pairs only by invite",
-  // Sent back to a caller that said it was not asking, so the far end's answer
-  // is about the caller's own setting — the same words its own round uses.
-  "not asking": "this deck pairs only by invite",
-  impostor: "that deck has this one pinned under a different key",
-  "bad proof": "the other deck refused this one's proof",
-});
-
-function quad(text) {
-  const parts = String(text ?? "").split(".");
-  if (parts.length !== 4) return null;
-  const out = parts.map(p => Number(p));
-  return out.every(n => Number.isInteger(n) && n >= 0 && n <= 255) ? out : null;
-}
-
-/**
- * The address that reaches every host on one interface's own subnet.
- *
- * `address | ~netmask`, which is the definition. Null for a /32, because a
- * point-to-point link — a VPN tunnel, `utun` on macOS — has a directed
- * broadcast equal to its own address, and sending a beacon to ourselves down a
- * tunnel is a packet nobody wanted.
- */
-export function directedBroadcast(address, netmask) {
-  const a = quad(address);
-  const m = quad(netmask);
-  if (!a || !m) return null;
-  if (m.every(o => o === 255)) return null;
-  return a.map((o, i) => o | (~m[i] & 255)).join(".");
-}
-
-/**
- * Where a beacon has to go to be heard on this machine's networks.
- *
- * The limited broadcast first, because it is the one that works where a router
- * or an access point filters the directed form, and because it is what every
- * deck before this version sent — a machine that was fine stays fine. Then one
- * per interface, which is what a multi-homed host actually needs: see announce.
- *
- * Loopback and IPv6 are skipped. A deck on `lo0` can only hear itself, and this
- * protocol is IPv4 broadcast by construction — there is no such thing as an
- * IPv6 broadcast address.
- */
-export function broadcastTargets(ifaces) {
-  return broadcastPlan(ifaces).map(p => p.to);
-}
-
-/**
- * The same targets, each with the interface whose subnet it is — null for the
- * limited broadcast, which is nobody's. What lets a beacon be held back when
- * the machine would send it out by some OTHER interface: see leavesByTunnel.
- */
-export function broadcastPlan(ifaces) {
-  const out = [{ to: "255.255.255.255", iface: null }];
-  for (const [name, list] of Object.entries(ifaces ?? {})) {
-    for (const ni of list ?? []) {
-      if (!ni || ni.internal) continue;
-      // Node 18 reports `family` as the string "IPv4"; older shapes used 4.
-      if (ni.family !== "IPv4" && ni.family !== 4) continue;
-      const to = directedBroadcast(ni.address, ni.netmask);
-      if (to && !out.some(p => p.to === to)) out.push({ to, iface: name });
-    }
-  }
-  return out;
-}
-
-/**
- * Would this broadcast leave the local network?
- *
- * A directed broadcast belongs to the interface whose subnet it is, so the
- * machine sending it out by any other one means something rerouted the local
- * network — a VPN, or a Tailscale exit node without local network access —
- * and the beacon would come out on the far end of the tunnel. The limited
- * broadcast belongs to none, so it is held back only when it would go into
- * something that is plainly a tunnel. Unknown answers nothing: send.
- */
-export function leavesByTunnel(target, via, isTunnel) {
-  if (!via) return false;
-  if (target.iface) return via !== target.iface;
-  return isTunnel(via);
-}
 import net from "node:net";
-import { randomBytes } from "node:crypto";
 import {
-  beaconPayload, beaconVerdict, challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript,
-  hostId, mixesEphemeral, notePeer, proof, proofOk, inviteProof, inviteProofBack, readBeacon, readChallenge,
-  readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
-  ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
+  challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript, mixesEphemeral, proof, proofOk,
+  readChallenge, readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
 } from "./lan-sync.mjs";
-
-/** The one fixed port in the feature. Out of the deck's HTTP range (4317-4400)
- *  so a beacon can never be mistaken for a deck's own traffic, and unassigned:
- *  45317 reads as "4317, elsewhere", which is what a person tracing this in a
- *  firewall log needs it to say. */
-export const DISCOVERY_PORT = 45_317;
-
-/** How long a connection has to finish the handshake before it is dropped. A
- *  handshake is two round trips on a local network — single-digit
- *  milliseconds — so five seconds is generous for a slow machine and short
- *  enough that holding sockets open costs an attacker something. */
-export const HANDSHAKE_MS = 5_000;
-
-/** The most one frame may be, and the most a peer may hold open.
- *
- *  Frames are JSON lines. The largest legitimate one is a manifest; the cap is
- *  an order of magnitude over the biggest real store, and the buffer is
- *  ABANDONED rather than grown past it — a socket that keeps sending without a
- *  newline is trying to make this allocate, and the answer is to stop reading
- *  rather than to read faster. */
-export const MAX_FRAME_BYTES = MAX_MANIFEST_BYTES;
+import { inviteProof, inviteProofBack } from "./lan-invite.mjs";
+// The line both halves speak — the reader, the writer, the cap on a frame and
+// the deadline on a handshake — is lan-lines.mjs's. Re-exported, so what
+// imports it from here still does.
+import { frameReader, sendFrame, HANDSHAKE_MS } from "./lan-lines.mjs";
+export { frameReader, sendFrame, HANDSHAKE_MS, MAX_FRAME_BYTES } from "./lan-lines.mjs";
+// The calling half — dialling, proving, and reading a refusal — is
+// lan-call.mjs's. Re-exported, so what dials through this file still does.
+export { connectToPeer } from "./lan-call.mjs";
 
 /** Concurrent connections from all peers together. Small on purpose: the real
  *  number is one per peer per minute, and anything above this is either a bug
@@ -198,414 +84,6 @@ export const MAX_SOCKETS_PER_HOST = 4;
  */
 export const IDLE_MS = 30_000;
 
-/** The shortest gap between two "I am here too" replies to a stranger. Long
- *  enough that a burst of decks starting together cannot make a storm, short
- *  enough that starting two decks by hand feels instant. */
-const REPLY_COOLDOWN_MS = 2_000;
-
-/**
- * The shouting half.
- *
- * `reuseAddr` is not a convenience: without it a second deck on the same
- * machine cannot bind the discovery port at all, and two decks on one machine
- * is both a real setup and the only way this gets tested here.
- *
- * Errors are reported, never thrown. A machine with no route, a firewall that
- * refuses the bind, an interface that comes and goes with a VPN — none of them
- * is a reason for the deck to fall over, and all of them are reasons for the
- * panel to be able to say what happened.
- */
-export function createBeacon({
-  port, name, fp, onPeer, onStranger, onError, onIdClash, now = Date.now,
-  /** The decks somebody has accepted, read fresh each packet so an accept takes
-   *  effect immediately rather than at the next restart. */
-  trusted = () => [],
-  // Injected so the suite can drive this with a socket it controls. CI runners
-  // are not a network: GitHub's have no broadcast domain worth the name, and a
-  // test that quietly skipped there would be a test that stopped testing
-  // without saying so. The REAL socket is exercised by hand, two decks on one
-  // machine, which works because a broadcast comes back to its own host.
-  createSocket = opts => dgram.createSocket(opts),
-  // Injected for the same reason, and read PER ANNOUNCE rather than once: a
-  // laptop that joins a network, or brings a VPN up, grows an interface without
-  // restarting the deck, and a list captured at start would announce to the
-  // addresses it had at breakfast.
-  ifaces = () => networkInterfaces(),
-  /**
-   * Addresses to send the beacon to one by one, beside the broadcast — the
-   * owner's machines on Tailscale, whose tunnel carries no broadcast at all.
-   * Read per announce like `ifaces`, because the tailnet list is re-read while
-   * the deck runs and a machine that just came online belongs in the next one.
-   */
-  unicast = () => [],
-  /**
-   * Which way a packet from this address came: "lan", "tailscale", or null for
-   * one to ignore entirely. Null is what a tailnet packet gets while this
-   * deck's Tailscale switch is off — the sockets hear it either way, because
-   * they bind every interface, and off has to mean the deck does not act on it.
-   */
-  routeFor = () => "lan",
-  /** How long to wait before trying the discovery port again while another
-   *  program holds it, and who to tell when hearing stops or comes back. */
-  rebindMs = 30_000,
-  onHearing,
-  /**
-   * Where the machine would send each broadcast — see createRouteCheck in
-   * route-via.mjs. Absent, every broadcast goes, as before; the suite's
-   * beacons have none.
-   */
-  routes = null,
-} = {}) {
-  // Randomised per process. Two beacons from one fingerprint with different
-  // instance ids mean the deck restarted between them, which is the signal to
-  // drop any session held for it rather than resume into a process that is gone.
-  const instance = randomBytes(8).toString("hex");
-  /** Which computer this is, as opposed to which process or which key. Derived
-   *  once per beacon rather than per packet: it cannot change while a process
-   *  is running, and hashing a hostname thirty seconds apart forever is work
-   *  nobody asked for. See hostId. */
-  const host = hostId();
-  const peers = new Map();
-  let sock = null;
-  /**
-   * The socket beacons LEAVE by, on a port of its own. See start.
-   *
-   * Null until it is bound, and whenever it could not be — the listening
-   * socket then sends as it always did, because a beacon from the wrong port is
-   * still a beacon and none at all is a deck nobody finds.
-   */
-  let out = null;
-  let timer = null;
-  /**
-   * Whether this deck can HEAR — whether it holds the discovery port.
-   *
-   * SEPARATE FROM RUNNING, because a deck that cannot bind 45317 is still most
-   * of a deck. It announces from its own socket, so every other deck still
-   * finds it, asks it and dials it; what it has lost is hearing them announce.
-   * Stopping the whole feature over that — which is what this did — took a
-   * working sync away from somebody whose Tailscale exit node happened to be
-   * holding the port. It keeps trying for the port instead, and takes it back
-   * the moment it is free.
-   */
-  let hearing = false;
-  let deafError = null;
-  /** Whether the last announce held back every broadcast because the local
-   *  network goes through a tunnel here — see leavesByTunnel. */
-  let tunneled = false;
-  let told = null;
-  let rebind = null;
-  let stopped = true;
-  // Socket binds finish asynchronously. A stopped start must not attach its
-  // late socket to a subsequent start or leave an outbound socket open.
-  let startGeneration = 0;
-  /** When this deck last answered a deck it had not heard, so answering cannot
-   *  become a storm, and which decks it has already answered — without the
-   *  second, a deck that is never accepted is answered again on every packet
-   *  for as long as both are running. */
-  let repliedAt = 0;
-  const answered = new Set();
-
-    const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
-
-  const announce = (also = []) => {
-    if (!sock && !out) return;
-    const announcedIn = startGeneration;
-    // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
-    //
-    // This used to send only to 255.255.255.255, on the argument that the
-    // limited broadcast "needs nothing" while a subnet-directed one needs the
-    // netmask of whichever interface the packet leaves by. The argument is
-    // sound and the machine disagreed with it. Measured on a Mac with Wi-Fi and
-    // a VPN tunnel up, from a bare node process with no deck involved:
-    //
-    //   send to 255.255.255.255  ->  EHOSTUNREACH
-    //   send to 192.168.1.255    ->  sent ok
-    //
-    // On a multi-homed host the limited broadcast has no single interface to
-    // leave by, and macOS refuses it rather than choosing. The deck went on
-    // announcing into nothing for as long as that machine was up: it could still
-    // HEAR colleagues, because receiving is per-port and not per-address, so the
-    // symptom was one-sided and looked like everybody else's problem.
-    //
-    // So the limited form stays — it is the one that works where a directed
-    // broadcast is filtered, and it is what Syncthing sends — and every
-    // interface's own directed broadcast goes out beside it. A duplicate packet
-    // costs one datagram; a missing one costs the whole feature.
-    const plan = broadcastPlan(ifaces());
-    // Asked behind the send, and read from what was last answered: the first
-    // beacon after a start goes as it always did, and the ones after it know.
-    void routes?.want?.(plan.map(p => p.to));
-    const kept = routes ? plan.filter(p => !leavesByTunnel(p, routes.via(p.to), looksLikeTunnel)) : plan;
-    tunneled = kept.length === 0;
-    const targets = kept.map(p => p.to);
-    const from = out ?? sock;
-    let left = targets.length;
-    const failed = [];
-    for (const to of targets) {
-      from.send(payload(), DISCOVERY_PORT, to, err => {
-        // A send may finish after this socket has closed and a new LAN
-        // session has started. Its result says nothing about the new session.
-        if (stopped || announcedIn !== startGeneration) return;
-        if (err) failed.push(`${to} (${err.code ?? err.message})`);
-        // REPORTED ONLY WHEN EVERY ONE FAILED. One address being unreachable is
-        // the ordinary state of a machine with a VPN up, and a panel that said
-        // so every thirty seconds would be crying wolf about a working deck.
-        // No address working at all is a deck nobody can discover, which is
-        // exactly what the panel is for.
-        if (--left === 0 && failed.length === targets.length) {
-          onError?.("announce", new Error(`no broadcast address worked — ${failed.join(", ")}`));
-        }
-      });
-    }
-    // AND ONE PACKET PER TAILNET MACHINE. Not part of the verdict above: a node
-    // that has gone to sleep since the list was read is the ordinary state of a
-    // laptop, and it says nothing about whether this deck can be discovered.
-    let direct = [];
-    try { direct = [...(unicast() ?? []), ...also]; } catch { direct = [...also]; }
-    for (const to of new Set(direct)) {
-      if (typeof to !== "string" || !to || targets.includes(to)) continue;
-      from.send(payload(), DISCOVERY_PORT, to, () => {});
-    }
-  };
-
-  const onMessage = (msg, rinfo) => {
-    // A queued UDP callback can run after close(). It belongs to the stopped
-    // discovery session and must not repopulate peers or invite strangers.
-    if (stopped) return;
-    // Everything about whether to care lives in lan-sync.mjs. This hands it
-    // the bytes and the address and does what it is told.
-    if (msg.length > MAX_BEACON_BYTES) return;
-    let via = "lan";
-    try { via = routeFor(rinfo.address); } catch { via = "lan"; }
-    if (!via) return;
-    const beacon = readBeacon(msg);
-    const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
-    // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
-    // part is the change. It used to answer only a deck already in the group,
-    // which was fine when a group existed. Now the first thing a new deck has
-    // to become is a row on somebody's screen, and it cannot become one if
-    // this deck never tells it that it exists.
-    //
-    // Measured on two real decks before any of this: deck 1 saw deck 2 the
-    // instant it started and deck 2 saw nobody, because deck 1's own
-    // immediate announce went out before deck 2 was listening. Thirty seconds
-    // of an empty list is how a working feature reads as broken.
-    //
-    // At most once every few seconds, because the obvious version is a shout
-    // storm: two decks answering each other's answers forever. A new pair
-    // converges in two extra packets.
-    const newToUs = beacon && verdict !== "self" && verdict !== "id-clash" && verdict !== "unreadable"
-      && !peers.has(beacon.fp) && !answered.has(beacon.fp);
-    if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
-      repliedAt = now();
-      answered.add(beacon.fp);
-      // A deck that reached this one over the tailnet is answered there too:
-      // a broadcast never gets back down its tunnel.
-      announce(via === "tailscale" ? [rinfo.address] : []);
-    }
-    if (verdict !== "peer") {
-      // Another deck is using this one's key — see beaconVerdict. Reported
-      // rather than fixed here: this file carries packets, and choosing a new
-      // identity for the deck belongs to whoever stores it.
-      if (verdict === "id-clash") onIdClash?.();
-      // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
-      // dropped: it is a name and an address on the same network, which is a
-      // row somebody can accept. Nothing is asked of it and nothing is
-      // offered to it until they do.
-      if (verdict === "stranger") {
-        onStranger?.({
-          fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
-          // Carried through so the list can show one row per machine rather
-          // than one per key that machine has ever held.
-          host: beacon.host, at: now(), via,
-        });
-      }
-      return;
-    }
-    const noted = notePeer(peers, beacon, rinfo.address, now(), via);
-    if (noted.changed || noted.restarted) onPeer?.(noted);
-  };
-
-  /** Tell whoever asked, once per change rather than once per try. */
-  const tell = now => {
-    if (told === now) return;
-    told = now;
-    onHearing?.(now);
-  };
-
-  /** One try at the discovery port: the listening socket, or the error that
-   *  kept it. A bind that fails never calls back; it arrives as an error. */
-  const listen = (startedIn) => new Promise(resolve => {
-    let s;
-    try { s = createSocket({ type: "udp4", reuseAddr: true }); } catch (err) { resolve({ err }); return; }
-    let bound = false;
-    s.on("error", err => {
-      if (bound) {
-        if (!stopped && startedIn === startGeneration) onError?.("socket", err);
-        return;
-      }
-      try { s.close(); } catch { /* never opened */ }
-      resolve({ err });
-    });
-    // close() can leave a message callback queued. After restart, stopped is
-    // false again, so the socket's own generation must also be checked.
-    s.on("message", (msg, rinfo) => {
-      if (startedIn !== startGeneration) return;
-      onMessage(msg, rinfo);
-    });
-    s.bind(DISCOVERY_PORT, "0.0.0.0", () => {
-      bound = true;
-      try { s.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
-      resolve({ sock: s });
-    });
-  });
-
-  const tryListen = async (startedIn) => {
-    if (stopped || startedIn !== startGeneration) return;
-    const got = await listen(startedIn);
-    if (stopped || startedIn !== startGeneration) { try { got.sock?.close(); } catch { /* gone */ } return; }
-    if (got.sock) {
-      sock = got.sock;
-      hearing = true;
-      deafError = null;
-      tell(true);
-      return;
-    }
-    hearing = false;
-    deafError = got.err;
-    tell(false);
-    rebind = setTimeout(() => { rebind = null; void tryListen(startedIn); }, rebindMs);
-    rebind.unref?.();
-  };
-
-  /**
-   * The socket beacons leave by, bound to whatever port the OS gives it.
-   *
-   * SENT FROM A PORT OF ITS OWN, NOT FROM 45317. Nothing that hears a beacon
-   * reads the port it came from — the reply goes to 45317 whatever the source
-   * — and sending from the discovery port gave that port away. Measured on a
-   * Mac that is a Tailscale exit node: a deck elsewhere on the tailnet routed a
-   * beacon through it, and Tailscale's forwarder binds its end of every UDP
-   * flow to the CLIENT's source port (netstack.go, forwardUDP), idling it out
-   * after two minutes. A beacon every thirty seconds never idles, so the Mac's
-   * own deck could never bind 45317 again. From an ephemeral port, the
-   * forwarder takes an ephemeral port.
-   */
-  const openOut = () => new Promise(resolve => {
-    let o;
-    try { o = createSocket({ type: "udp4" }); } catch { resolve(null); return; }
-    let opened = false;
-    o.on("error", err => {
-      if (opened) { onError?.("socket", err); return; }
-      opened = true;
-      try { o.close(); } catch { /* never opened */ }
-      resolve(null);
-    });
-    o.bind(0, "0.0.0.0", () => {
-      if (opened) return;
-      opened = true;
-      try { o.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
-      resolve(o);
-    });
-  });
-
-  const start = async () => {
-    const startedIn = ++startGeneration;
-    stopped = false;
-    told = null;
-    await tryListen(startedIn);
-    if (stopped || startedIn !== startGeneration) return;
-    const opened = await openOut();
-    if (stopped || startedIn !== startGeneration) {
-      try { opened?.close(); } catch { /* already closed */ }
-      return;
-    }
-    out = opened;
-    // Immediately, not on the next tick. Syncthing's rule: a deck that just
-    // came up should appear now rather than up to thirty seconds later, which
-    // is the difference between "it works" and "it seems broken" for anybody
-    // who starts two decks and watches.
-    announce();
-    timer = setInterval(announce, ANNOUNCE_MS);
-    timer.unref?.();
-  };
-
-  return {
-    start,
-    announce,
-    peers,
-    /** Whether this deck holds the discovery port, and why not when it does
-     *  not. */
-    hearing: () => hearing,
-    deafError: () => deafError,
-    tunneled: () => tunneled,
-    stop() {
-      stopped = true;
-      startGeneration++;
-      if (timer) clearInterval(timer);
-      timer = null;
-      if (rebind) clearTimeout(rebind);
-      rebind = null;
-      hearing = false;
-      try { sock?.close(); } catch { /* already closed */ }
-      sock = null;
-      try { out?.close(); } catch { /* already closed */ }
-      out = null;
-    },
-  };
-}
-
-/**
- * Read newline-delimited JSON off a socket, refusing to be made to allocate.
- *
- * The cap is on the UNTERMINATED buffer rather than on a frame that arrived,
- * which is the distinction that matters: a peer that sends a megabyte with no
- * newline in it is not sending a large frame, it is sending nothing at all,
- * expensively. Past the cap this stops reading and hands the caller a refusal
- * — it does not keep buffering in the hope a newline turns up.
- */
-export function frameReader(onFrame, onRefuse, max = MAX_FRAME_BYTES) {
-  let buf = "";
-  let dead = false;
-  return chunk => {
-    if (dead) return;
-    buf += chunk;
-    if (buf.length > max) { dead = true; buf = ""; onRefuse("frame too large"); return; }
-    let i;
-    while ((i = buf.indexOf("\n")) !== -1) {
-      const line = buf.slice(0, i);
-      buf = buf.slice(i + 1);
-      if (!line.trim()) continue;
-      let msg;
-      try { msg = JSON.parse(line); }
-      catch { dead = true; buf = ""; onRefuse("not json"); return; }
-      // `typeof [] === "object"`, so an array walks straight past the obvious
-      // check and reaches a handler that reads `msg.t` off it — undefined, and
-      // then whatever that handler does with a frame that has no type. A frame
-      // is a record; anything else is refused.
-      if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
-        dead = true; buf = ""; onRefuse("not an object"); return;
-      }
-      // A HANDLER THAT THROWS ENDS ITS CONNECTION, NOT THE PROCESS. This runs
-      // inside the socket's `data` event, where nothing above catches, so a
-      // throw from a frame handler took the whole deck down — and every frame
-      // read here has come off the network before anybody is trusted. The
-      // handlers are meant never to throw; this is what holds when one does.
-      // The error goes on with the refusal, so the next one that hides here is
-      // logged with its stack rather than as two words.
-      try { onFrame(msg); }
-      catch (err) { dead = true; buf = ""; onRefuse("bad frame", err); return; }
-      if (dead) return;
-    }
-  };
-}
-
-/** One line out. Kept in one place so nothing forgets the newline the reader
- *  above is waiting for. */
-export function sendFrame(sock, obj) {
-  try { sock.write(`${JSON.stringify(obj)}\n`); } catch { /* peer went away */ }
-}
-
 /**
  * The answering half.
  *
@@ -644,8 +122,14 @@ export function createSyncServer({
    *  on arrival rather than queued behind a press. */
   invite = () => null,
   /** One was used. The caller stores the pairing and retires the invite: a
-   *  token that pairs twice is a token worth stealing twice. */
+   *  token that pairs twice is a token worth stealing twice. Called for EVERY
+   *  proof that holds, a deck already paired included — see auth (#1137). */
   onInviteUsed,
+  /** A caller brought a proof of the invite this deck is offering, and it did
+   *  not hold. The caller counts it against the invite and puts the invite
+   *  away after a few — see MAX_WRONG_PROOFS. Told the caller's address and
+   *  who it says it is, which is what the record of it is for. */
+  onWrongInvite,
   /** A connection arrived, before anything about it is known — called with the
    *  address it came from and nothing else.
    *
@@ -666,6 +150,11 @@ export function createSyncServer({
    *  case that slept for the real value would be thirty seconds of CI per run
    *  and would still only be checking a timer. */
   idleMs = IDLE_MS,
+  /** How long a connection has to finish the handshake — see HANDSHAKE_MS,
+   *  which is what the deck runs on. A parameter for idleMs' reason: so the
+   *  suite can watch a silent caller dropped in a few hundred milliseconds
+   *  rather than sitting through the real five seconds of it (#994). */
+  handshakeMs = HANDSHAKE_MS,
   /** Whether this deck seals every frame after the handshake with a peer that
    *  says it does too — see frameChannel. On in every real deck. False makes
    *  this listener announce nothing and seal nothing, which is the wire every
@@ -732,7 +221,7 @@ export function createSyncServer({
     // Carrying this deck's marks — that it seals, and that it mixes a key pair
     // of its own into the key — inside the one field the handshake already
     // binds. See "THE ANNOUNCEMENT RIDES INSIDE THE CHALLENGE" and EPHEMERAL
-    // in lan-sync.mjs.
+    // in lan-wire.mjs.
     const myChallenge = challengeFor({ seals: sealFrames, ephemeral });
     let theirChallenge = null;
     /** What the key was derived over, kept so the invite proofs below are made
@@ -757,7 +246,7 @@ export function createSyncServer({
     // Armed before the first byte is read, and cleared only by a completed
     // handshake. A socket that connects and says nothing is the cheapest
     // possible way to hold a resource, so it is also the first one closed.
-    const deadline = setTimeout(() => { if (!authed) sock.destroy(); }, HANDSHAKE_MS);
+    const deadline = setTimeout(() => { if (!authed) sock.destroy(); }, handshakeMs);
     deadline.unref?.();
 
     const done = () => { clearTimeout(deadline); live.delete(sock); };
@@ -799,6 +288,213 @@ export function createSyncServer({
       setTimeout(bye, 250).unref?.();
     };
 
+    /** Step 1 of the four, answered: a caller's hello, checked, and this
+     *  end's challenge back — with the connection's key derived first. */
+    const hello = msg => {
+      // A string of letters, digits, `.`, `_` and `-` — a `|` inside it
+      // would let the transcript come out the same on both ends while each
+      // read a different challenge. See readChallenge.
+      if (theirChallenge || !readChallenge(msg.challenge)) return refuse("bad hello");
+      const them = readPub(msg.pub);
+      // The fingerprint is a hash of the key, so a hello whose two halves
+      // disagree is not a deck with a stale field, it is somebody trying to
+      // be announced as one deck and prove they are another.
+      if (!them || them.fp !== msg.fp) return refuse("bad hello");
+      theirChallenge = msg.challenge;
+      peerFp = them.fp;
+      peerPub = them.pub;
+      // THROUGH cleanName, like the beacon and the invite. This path — the
+      // handshake — was the one that skipped it, and it is the one that
+      // feeds the pairing prompt and cfg.trusted, which lan-deck.mjs writes to
+      // prefs.json. So the only bound on the name an operator reads before
+      // pressing Accept was the 128 KB frame cap.
+      //
+      // cleanName caps at MAX_NAME (40) and collapses \s+, which includes
+      // U+00A0 — and 200 non-breaking spaces neither collapse in HTML nor
+      // offer a break opportunity, so a name of "Alice's laptop at
+      // 192.168.1.10 wants to pair" + padding pushed the REAL address out
+      // of a fixed 288px column and left a complete, plausible sentence.
+      peerName = cleanName(msg.name, "");
+      peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
+      peerNoAsk = msg.ask === false;
+      // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
+      // the proofs bind decide it, never whether a field turned up. Once
+      // both say so, a hello with no usable key is refused rather than
+      // answered the old way, because answering the old way is the
+      // downgrade. See EPHEMERAL in lan-wire.mjs.
+      //
+      // A KEY OFFERED IS A KEY ANSWERED, whatever the challenges say, so
+      // what this end sends depends only on what it was sent. When the two
+      // do not mix, ours goes out and is never used. That happens only
+      // between two decks of this version whose challenges somebody edited
+      // on the way, and there it takes the dialler on to a proof this end
+      // refuses by name — `bad proof`, as for every other edit to a
+      // challenge — rather than stopping it one message short. Made here
+      // and not when the socket opened, so a connection that never says
+      // hello costs what it always did.
+      const theirEphemeral = readEphemeral(msg.epk);
+      const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
+      if (mixing && !theirEphemeral) return refuse("bad hello");
+      let mine = theirEphemeral && mixesEphemeral(myChallenge) ? ephemeralPair() : null;
+      const epk = mine?.pub;
+      transcript = mixing
+        ? handshakeTranscript(peerFp, fp, theirChallenge, myChallenge, theirEphemeral, epk)
+        : handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
+      // A key X25519 cannot use throws in here, and nothing above this
+      // handler catches it — see readPub for what that throw used to do.
+      try {
+        key = sessionKey(secret, peerPub, transcript,
+          mixing ? { role: "listener", priv: mine.priv, peer: theirEphemeral } : null);
+      } catch {
+        return refuse("bad hello");
+      } finally {
+        // The private half, let go before a byte of the reply is written.
+        mine = null;
+      }
+      sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
+    };
+
+    /**
+     * Step 4, and the only way `authed` turns true: sealed from here when both
+     * challenges said so, the handshake deadline off, and this deck's own proof
+     * sent — with the invite's proof back when the caller held one. `ok` goes
+     * out in the clear; the frames after it are the sealed kind.
+     */
+    const welcome = back => {
+      authed = true;
+      chan = sealedChannel();
+      clearTimeout(deadline);
+      sendFrame(sock, {
+        t: "ok", fp, name,
+        proof: proof(key, {
+          challenge: myChallenge, peerChallenge: theirChallenge,
+          fromFp: fp, toFp: peerFp, direction: "reply",
+        }),
+        ...back,
+      });
+    };
+
+    /** Step 3: the caller's proof, and then who it turns out to be — a deck
+     *  somebody here accepted, one holding this deck's invite, or a refusal
+     *  that says which. */
+    const auth = msg => {
+      // A key, too: a challenge on record says a `hello` arrived, not that one
+      // was accepted. Unreachable after the guard at the top of the frame
+      // handler, and stated anyway, because it is the rule `proof` below
+      // depends on.
+      if (msg.t !== "auth" || !theirChallenge || !key) return refuse("expected auth");
+      const want = proof(key, {
+        challenge: theirChallenge, peerChallenge: myChallenge,
+        fromFp: peerFp, toFp: fp, direction: "hello",
+      });
+      // A recording of a previous exchange fails here, because `myChallenge`
+      // was made when this socket opened and has never been sent before.
+      if (!proofOk(want, msg.proof)) return refuse("bad proof");
+
+      // WHO IS THIS, and it is the only question left. The handshake proves
+      // they hold the key they claimed; the trusted list says whether anybody
+      // here ever agreed to talk to it.
+      const known = trustedPeer(trusted(), peerFp);
+      if (known && known.pub !== peerPub) {
+        // The fingerprint we pinned, presented with a different key. 48 bits
+        // is far past accident, so this is somebody wearing a paired deck's
+        // name — refused loudly rather than quietly re-pinned.
+        return refuse("impostor");
+      }
+      // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
+      // holds a token the owner of this machine copied and sent, which is the
+      // same decision the accept button is — made earlier, and made once.
+      //
+      // The proof is over the transcript, so it is worth nothing to somebody
+      // who recorded an earlier exchange, and the code itself never travels.
+      //
+      // ASKED BEFORE "DO I KNOW THIS DECK", because the two questions are
+      // independent and the answer to this one is owed to the caller either
+      // way. A caller that sent a code is waiting to be shown one back, and a
+      // deck it has ALREADY paired with is not exempt from that — somebody
+      // pasting a token into a deck that happens to be paired already would
+      // otherwise be told the minter does not hold its own invite.
+      // `offer` rather than `live`, which is what this used to be called: the
+      // socket table one scope out is also `live`, and widening this block
+      // widened the shadow with it.
+      const offer = invite();
+      const brought = typeof msg.invite === "string";
+      // Over the transcript the key came from — the ephemeral keys in it
+      // when the two mix — which is the string the dialler proved over too.
+      const heldInvite = !!offer && brought && proofOk(inviteProof(offer.code, transcript), msg.invite);
+      // A PROOF THAT DID NOT HOLD, against an invite that is live (#1137).
+      // Counted against that invite, which is put away after a few, and
+      // refused by name rather than read as a caller that brought nothing:
+      // that used to make a wrong token a pairing request here, and on the
+      // caller's screen "waiting for them to say yes" about a question
+      // nobody was going to be asked. With no invite live there is nothing
+      // to count against, and the caller is answered as it always was.
+      if (offer && brought && !heldInvite) {
+        onWrongInvite?.({ fp: peerFp, name: peerName, addr: from(sock) });
+        return refuse("wrong invite");
+      }
+      // AND THE CODE, BACK. The session proof says "I hold the private half
+      // of the key I just showed you", which anything with a socket can say.
+      // This says "I am the deck whose owner minted that token", which only
+      // the minter can — and a caller joining on an invite has no pin to
+      // check against, so it is the only thing standing between an invite
+      // address and whoever else is reachable there.
+      const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
+      // SPENT BY ANY PROOF THAT HOLDS, known deck or not (#1137). This was
+      // asked only on the stranger's path below, so a deck already on the list
+      // was shown the proof back and the token stayed live for the rest of its
+      // ten minutes — and "already on the list" includes a deck whose first
+      // pairing dropped out after this very proof, which is exactly the deck
+      // that comes back with a fresh invite. Whether the caller was known
+      // decides nothing about whether the token has been used; it has. So
+      // there is nothing to press, either: the deck is pinned here.
+      if (heldInvite) {
+        onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort, addr: from(sock) });
+        welcome(back);
+        return;
+      }
+      if (!known) {
+        // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
+        // It is not asked again here, and — the half a held refusal cannot
+        // do — the deck that asked is told, so its own panel can stop saying
+        // "waiting" about a question that has been answered.
+        if (declined(peerFp)) return refuse("declined");
+        // AN INVITE-ONLY DECK, and this caller holds no live invite of it (a
+        // caller that did was paired above, and one that got it wrong was
+        // refused). Answered rather than queued: the engine records no
+        // request in this mode, so "pending" would leave the other deck's
+        // panel saying "waiting for them to say yes" about a question nobody
+        // here will ever see. After "declined", which is the more specific
+        // answer about this one deck.
+        if (inviteOnly()) return refuse("invite only");
+        // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
+        // addresses it already had, because an invite-paired deck is one of
+        // them; one that turns out not to know it must not become a request
+        // here — with the accept switch on, that request would have pinned a
+        // deck whose owner said it pairs only by invite.
+        if (peerNoAsk) return refuse("not asking");
+
+        // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
+        // a port scan, and it told us a name and an address a person can
+        // recognise. That is a row with an accept on it, and nothing else
+        // happens until somebody presses it.
+        onPending?.({
+          fp: peerFp, pub: peerPub, name: peerName,
+          addr: from(sock),
+          // Where it LISTENS, from the hello — not this socket's remote port,
+          // which is ephemeral. This is what lets an accept dial back.
+          port: peerPort,
+        });
+        return refuse("pending");
+      }
+
+      // And ours, so the caller knows it reached the deck it pinned rather
+      // than something standing in the way of one. No invite on this path: a
+      // caller that held one was answered above, and a deck already on this
+      // list that holds no live one is simply a paired deck calling.
+      welcome({});
+    };
+
     sock.on("data", frameReader(msg => {
       // NOTHING AFTER A REFUSAL. The reader hands over every frame in a chunk,
       // and `refuse` destroys the socket without stopping it. So a `hello`
@@ -827,188 +523,8 @@ export function createSyncServer({
         // they buy is a connection key that is gone once both ends have let go
         // of the private halves, whoever takes either long-term key later —
         // see sessionKey.
-        if (msg.t === "hello") {
-          // A string of letters, digits, `.`, `_` and `-` — a `|` inside it
-          // would let the transcript come out the same on both ends while each
-          // read a different challenge. See readChallenge.
-          if (theirChallenge || !readChallenge(msg.challenge)) return refuse("bad hello");
-          const them = readPub(msg.pub);
-          // The fingerprint is a hash of the key, so a hello whose two halves
-          // disagree is not a deck with a stale field, it is somebody trying to
-          // be announced as one deck and prove they are another.
-          if (!them || them.fp !== msg.fp) return refuse("bad hello");
-          theirChallenge = msg.challenge;
-          peerFp = them.fp;
-          peerPub = them.pub;
-          // THROUGH cleanName, like the beacon and the invite. This path — the
-          // handshake — was the one that skipped it, and it is the one that
-          // feeds the pairing prompt and cfg.trusted, which index.mjs writes to
-          // prefs.json. So the only bound on the name an operator reads before
-          // pressing Accept was the 128 KB frame cap.
-          //
-          // cleanName caps at MAX_NAME (40) and collapses \s+, which includes
-          // U+00A0 — and 200 non-breaking spaces neither collapse in HTML nor
-          // offer a break opportunity, so a name of "Alice's laptop at
-          // 192.168.1.10 wants to pair" + padding pushed the REAL address out
-          // of a fixed 288px column and left a complete, plausible sentence.
-          peerName = cleanName(msg.name, "");
-          peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
-          peerNoAsk = msg.ask === false;
-          // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
-          // the proofs bind decide it, never whether a field turned up. Once
-          // both say so, a hello with no usable key is refused rather than
-          // answered the old way, because answering the old way is the
-          // downgrade. See EPHEMERAL in lan-sync.mjs.
-          //
-          // A KEY OFFERED IS A KEY ANSWERED, whatever the challenges say, so
-          // what this end sends depends only on what it was sent. When the two
-          // do not mix, ours goes out and is never used. That happens only
-          // between two decks of this version whose challenges somebody edited
-          // on the way, and there it takes the dialler on to a proof this end
-          // refuses by name — `bad proof`, as for every other edit to a
-          // challenge — rather than stopping it one message short. Made here
-          // and not when the socket opened, so a connection that never says
-          // hello costs what it always did.
-          const theirEphemeral = readEphemeral(msg.epk);
-          const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
-          if (mixing && !theirEphemeral) return refuse("bad hello");
-          let mine = theirEphemeral && mixesEphemeral(myChallenge) ? ephemeralPair() : null;
-          const epk = mine?.pub;
-          transcript = mixing
-            ? handshakeTranscript(peerFp, fp, theirChallenge, myChallenge, theirEphemeral, epk)
-            : handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
-          // A key X25519 cannot use throws in here, and nothing above this
-          // handler catches it — see readPub for what that throw used to do.
-          try {
-            key = sessionKey(secret, peerPub, transcript,
-              mixing ? { role: "listener", priv: mine.priv, peer: theirEphemeral } : null);
-          } catch {
-            return refuse("bad hello");
-          } finally {
-            // The private half, let go before a byte of the reply is written.
-            mine = null;
-          }
-          sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
-          return;
-        }
-        // A key, too: a challenge on record says a `hello` arrived, not that one
-        // was accepted. Unreachable after the guard at the top of this handler,
-        // and stated anyway, because it is the rule `proof` below depends on.
-        if (msg.t !== "auth" || !theirChallenge || !key) return refuse("expected auth");
-        const want = proof(key, {
-          challenge: theirChallenge, peerChallenge: myChallenge,
-          fromFp: peerFp, toFp: fp, direction: "hello",
-        });
-        // A recording of a previous exchange fails here, because `myChallenge`
-        // was made when this socket opened and has never been sent before.
-        if (!proofOk(want, msg.proof)) return refuse("bad proof");
-
-        // WHO IS THIS, and it is the only question left. The handshake proves
-        // they hold the key they claimed; the trusted list says whether anybody
-        // here ever agreed to talk to it.
-        const known = trustedPeer(trusted(), peerFp);
-        if (known && known.pub !== peerPub) {
-          // The fingerprint we pinned, presented with a different key. 48 bits
-          // is far past accident, so this is somebody wearing a paired deck's
-          // name — refused loudly rather than quietly re-pinned.
-          return refuse("impostor");
-        }
-        // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
-        // holds a token the owner of this machine copied and sent, which is the
-        // same decision the accept button is — made earlier, and made once.
-        //
-        // The proof is over the transcript, so it is worth nothing to somebody
-        // who recorded an earlier exchange, and the code itself never travels.
-        //
-        // ASKED BEFORE "DO I KNOW THIS DECK", because the two questions are
-        // independent and the answer to this one is owed to the caller either
-        // way. A caller that sent a code is waiting to be shown one back, and a
-        // deck it has ALREADY paired with is not exempt from that — somebody
-        // pasting a token into a deck that happens to be paired already would
-        // otherwise be told the minter does not hold its own invite.
-        // `offer` rather than `live`, which is what this used to be called: the
-        // socket table one scope out is also `live`, and widening this block
-        // widened the shadow with it.
-        const offer = invite();
-        // Over the transcript the key came from — the ephemeral keys in it
-        // when the two mix — which is the string the dialler proved over too.
-        const heldInvite = !!offer && typeof msg.invite === "string"
-          && proofOk(inviteProof(offer.code, transcript), msg.invite);
-        // AND THE CODE, BACK. The session proof says "I hold the private half
-        // of the key I just showed you", which anything with a socket can say.
-        // This says "I am the deck whose owner minted that token", which only
-        // the minter can — and a caller joining on an invite has no pin to
-        // check against, so it is the only thing standing between an invite
-        // address and whoever else is reachable there.
-        const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
-        if (!known) {
-          if (heldInvite) {
-            // So there is nothing to press: the deck is pinned here.
-            onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort,
-              addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "" });
-            authed = true;
-            chan = sealedChannel();
-            clearTimeout(deadline);
-            sendFrame(sock, {
-              t: "ok", fp, name,
-              proof: proof(key, {
-                challenge: myChallenge, peerChallenge: theirChallenge,
-                fromFp: fp, toFp: peerFp, direction: "reply",
-              }),
-              ...back,
-            });
-            return;
-          }
-          // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
-          // It is not asked again here, and — the half a held refusal cannot
-          // do — the deck that asked is told, so its own panel can stop saying
-          // "waiting" about a question that has been answered.
-          if (declined(peerFp)) return refuse("declined");
-          // AN INVITE-ONLY DECK, and this caller brought none (a caller that
-          // did was paired above). Answered rather than queued: the engine
-          // records no request in this mode, so "pending" would leave the other
-          // deck's panel saying "waiting for them to say yes" about a question
-          // nobody here will ever see. After "declined", which is the more
-          // specific answer about this one deck.
-          if (inviteOnly()) return refuse("invite only");
-          // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
-          // addresses it already had, because an invite-paired deck is one of
-          // them; one that turns out not to know it must not become a request
-          // here — with the accept switch on, that request would have pinned a
-          // deck whose owner said it pairs only by invite.
-          if (peerNoAsk) return refuse("not asking");
-
-          // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
-          // a port scan, and it told us a name and an address a person can
-          // recognise. That is a row with an accept on it, and nothing else
-          // happens until somebody presses it.
-          onPending?.({
-            fp: peerFp, pub: peerPub, name: peerName,
-            addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "",
-            // Where it LISTENS, from the hello — not this socket's remote port,
-            // which is ephemeral. This is what lets an accept dial back.
-            port: peerPort,
-          });
-          return refuse("pending");
-        }
-
-        authed = true;
-        chan = sealedChannel();
-        clearTimeout(deadline);
-        // And ours, so the caller knows it reached the deck it pinned rather
-        // than something standing in the way of one. Plus the invite, when one
-        // was presented and held: a deck already on this list is not a reason
-        // to leave a caller's question unanswered. Nothing is retired on this
-        // path — nobody was paired, because they already were.
-        sendFrame(sock, {
-          t: "ok", fp, name,
-          proof: proof(key, {
-            challenge: myChallenge, peerChallenge: theirChallenge,
-            fromFp: fp, toFp: peerFp, direction: "reply",
-          }),
-          ...back,
-        });
-        return;
+        if (msg.t === "hello") return hello(msg);
+        return auth(msg);
       }
       // SEALED FROM HERE WHEN BOTH ENDS SAID SO, AND ONLY SEALED. A frame that
       // does not open is refused and the socket goes with it — see
@@ -1104,202 +620,4 @@ export function createSyncServer({
       server = null;
     },
   };
-}
-
-/**
- * The calling half: connect, prove, be proved to, then talk.
- *
- * BOTH SIDES PROVE, and the second half is the one that is easy to skip. A
- * handshake where only the caller proves itself stops a stranger reading a
- * manifest and stops nothing else — a stranger can still stand up a listener on
- * the announced port, wait for a real deck to dial it, and be handed whatever
- * that deck was going to say. So this checks the reply with the same care the
- * server checks the hello, and gives up if it does not hold.
- */
-export function connectToPeer({
-  host, port, fp, pub, secret, name, myPort = null, code = null, timeoutMs = HANDSHAKE_MS,
-  /** False when this deck is reaching an address it already had WITHOUT asking
-   *  to pair — an invite-only deck's round. Sent only when false, so every other
-   *  hello is byte-for-byte what it was, and a deck that predates the field
-   *  reads past it the way it reads past `epk`. */
-  ask = true,
-  /** The public key we pinned for this deck the first time, or null for a deck
-   *  we are meeting — an address somebody typed. */
-  expectPub = null,
-  /** Whether the deck that minted `code` said it will prove it holds one too.
-   *  From the token's own `pb`, which is the only way to tell a deck that will
-   *  not from a deck that cannot — see mintInvite. False leaves this path
-   *  exactly as it shipped, for a token minted by an older deck. */
-  inviteProvesBack = false,
-  /** Whether this deck seals every frame after the handshake with a deck that
-   *  says it does too — see frameChannel. False announces nothing and seals
-   *  nothing, exactly as every deck before #810 dials; only the suite asks. */
-  sealFrames = true,
-  /** Whether this deck mixes a key pair made for the connection into its key,
-   *  with a deck that says it does too — see sessionKey. False dials exactly
-   *  as a deck of #810's version does; only the suite asks. */
-  ephemeral = true,
-}) {
-  return new Promise((resolve, reject) => {
-    const myChallenge = challengeFor({ seals: sealFrames, ephemeral });
-    // Made before the other deck is heard from, because the public half goes
-    // in the hello. Let go of once the key is derived — unused, when the deck
-    // that answers turns out not to mix — and on every way out below.
-    let mine = mixesEphemeral(myChallenge) ? ephemeralPair() : null;
-    const myEpk = mine?.pub;
-    const sock = net.createConnection({ host, port });
-    sock.setEncoding("utf8");
-    let settled = false;
-    const fail = err => {
-      if (settled) return;
-      settled = true;
-      mine = null;
-      sock.destroy();
-      reject(err instanceof Error ? err : new Error(String(err)));
-    };
-    const timer = setTimeout(() => fail(new Error("handshake timed out")), timeoutMs);
-    timer.unref?.();
-
-    sock.on("error", fail);
-    sock.on("close", () => fail(new Error("peer closed the connection")));
-    sock.on("connect", () => {
-      // No proof in the hello: the caller cannot cover a challenge it has not
-      // been given, and a proof over an empty one would be a proof that means
-      // nothing. It goes in message three.
-      // `port` is where WE listen, which is not the port this socket came from
-      // — that one is ephemeral and useless to dial. Without it a deck can
-      // accept an incoming request and still have no way to reach back, so the
-      // pairing is mutual on paper and one-way in fact.
-      // `epk` is this connection's key pair, offered: a deck from before #1120
-      // reads past a field it does not know, and one of this version answers.
-      sendFrame(sock, {
-        t: "hello", fp, pub, name, port: myPort, challenge: myChallenge, ...(myEpk ? { epk: myEpk } : {}),
-        ...(ask === false ? { ask: false } : {}),
-      });
-    });
-
-    let theirChallenge = null;
-    let theirFp = null;
-    let theirPub = null;
-    let key = null;
-    /** What the key was derived over; the invite proofs are made over it too. */
-    let transcript = null;
-    sock.on("data", frameReader(msg => {
-      if (settled) return;
-      // A deck that heard us and said no. Each reason is a different problem
-      // with a different fix, and until this frame existed they were all one
-      // silent close that read as a firewall. See REFUSALS.
-      if (msg.t === "no") {
-        // `Object.hasOwn`, and here more than anywhere: `msg.why` is a field in
-        // a frame written by the OTHER MACHINE, which is the case admin-failure
-        // states the rule for (#474). Every member of Object.prototype answers
-        // a plain bracket read with an inherited value that is neither nullish
-        // nor falsy, so `?? "the other deck refused this handshake"` never
-        // fired for one — `{...}["constructor"]` is the Object function itself,
-        // and `new Error(Object).message` is the string "function Object() {
-        // [native code] }". lan-engine files that as `lastRound.error` and the
-        // LAN panel prints it verbatim, so a peer chose what appeared in the
-        // user's interface. Asking whether the map has a ROW is the question
-        // this read was always trying to ask; no real reason moves.
-        return fail(new Error(Object.hasOwn(REFUSALS, msg.why) ? REFUSALS[msg.why]
-          : "the other deck refused this handshake"));
-      }
-      if (msg.t === "challenge") {
-        if (theirFp || !readChallenge(msg.challenge)) return fail(new Error("bad challenge"));
-        const them = readPub(msg.pub);
-        if (!them || them.fp !== msg.fp) return fail(new Error("bad challenge"));
-        // THE PIN, CHECKED BEFORE ANYTHING ELSE. A deck we have paired with is
-        // this key and no other; a key that does not match is not a peer whose
-        // details changed, it is a different machine at the same address.
-        if (expectPub && expectPub !== them.pub) {
-          return fail(new Error("a different deck is answering at that address"));
-        }
-        theirChallenge = msg.challenge;
-        theirFp = them.fp;
-        theirPub = them.pub;
-        // Mixed when both challenges say so, as at the listener, and then the
-        // listener's key is required: a deck of this version that says it
-        // mixes and sends no key is not an older deck, it is a deck whose key
-        // was taken out on the way. Refused, and never read the old way.
-        const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
-        const theirEphemeral = mixing ? readEphemeral(msg.epk) : null;
-        if (mixing && !theirEphemeral) return fail(new Error("bad challenge"));
-        transcript = mixing
-          ? handshakeTranscript(fp, theirFp, myChallenge, theirChallenge, myEpk, theirEphemeral)
-          : handshakeTranscript(fp, theirFp, myChallenge, theirChallenge);
-        try {
-          key = sessionKey(secret, theirPub, transcript,
-            mixing ? { role: "caller", priv: mine.priv, peer: theirEphemeral } : null);
-        } catch {
-          return fail(new Error("bad challenge"));
-        } finally {
-          // Used or not, the private half goes now.
-          mine = null;
-        }
-        sendFrame(sock, {
-          t: "auth",
-          proof: proof(key, {
-            challenge: myChallenge, peerChallenge: theirChallenge,
-            fromFp: fp, toFp: theirFp, direction: "hello",
-          }),
-          // Only when joining on an invite. Sent in the same frame as the
-          // session proof so a deck that holds a token is paired in one round
-          // trip rather than being queued behind somebody else's press.
-          ...(code ? { invite: inviteProof(code, transcript) } : {}),
-        });
-        return;
-      }
-      // The same deck that gave us the challenge, or nothing: a reply naming a
-      // different fingerprint is a second party in the middle of this.
-      //
-      // AND A CHALLENGE FIRST. `theirFp` is null until one is accepted, so an
-      // `ok` sent as the very first frame with `fp: null` matched it — null is
-      // null — and walked into `proof` with no key, which throws. Before #1146
-      // that throw ended the deck, and this end dials whatever address a beacon
-      // announces; since #1146 the reader catches it as "bad frame". Neither is
-      // the answer: an `ok` before a challenge is out of order, and says so.
-      if (msg.t !== "ok" || !theirFp || !key || msg.fp !== theirFp) return fail(new Error("expected ok"));
-      const want = proof(key, {
-        challenge: theirChallenge, peerChallenge: myChallenge,
-        fromFp: theirFp, toFp: fp, direction: "reply",
-      });
-      if (!proofOk(want, msg.proof)) return fail(new Error("that deck could not prove its own key"));
-      // AND THAT IT IS THE DECK THE INVITE NAMED. The proof above is about a
-      // key the responder chose a moment ago; this one is about a code it had
-      // to have been given. `join` has no pin to pass, so `expectPub` above is
-      // null on this path and this is the only check that distinguishes the
-      // deck whose owner minted the token from whatever else is reachable at
-      // one of the ten addresses the token happens to carry.
-      //
-      // The caller giving up here is not the end of the attempt: `join` walks
-      // the rest of the list, so a deck answering at a stale or borrowed
-      // address costs one failed address instead of winning the whole token.
-      if (code && inviteProvesBack) {
-        const back = inviteProofBack(code, transcript);
-        if (!proofOk(back, msg.inviteProof)) {
-          return fail(new Error("that deck does not hold the invite"));
-        }
-      }
-      // Sealed from here when both challenges said so. The listener decided
-      // the same at the same moment from the same two strings, and the proof
-      // just checked is what says it saw the same two. See frameChannel.
-      const chan = sealsFrames(myChallenge) && sealsFrames(theirChallenge) ? frameChannel(key, "caller") : null;
-      settled = true;
-      clearTimeout(timer);
-      sock.removeAllListeners("close");
-      resolve({
-        sock, key, sealed: !!chan,
-        peerFp: theirFp, peerPub: theirPub, peerName: cleanName(msg.name, ""),
-        send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
-        /** What a frame from the other end says — or null on a sealed
-         *  connection when it does not open, which ends the connection: every
-         *  frame after it would fail too. On a connection to a deck from before
-         *  #810, a plain frame passes through as it arrived. */
-        read: frame => (chan ? chan.unwrap(frame) : frame),
-      });
-    // A refusal from the reader, with the thrown error as its cause when there
-    // was one: the message is the one it always was, and whatever logs the
-    // rejection can reach what actually threw.
-    }, (why, cause) => fail(cause ? new Error(why, { cause }) : new Error(why))));
-  });
 }

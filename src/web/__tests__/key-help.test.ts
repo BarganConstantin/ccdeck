@@ -32,7 +32,12 @@ import { ASSUMED } from "../providers";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
-const app = read("App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts, the canvas stack to
+// components/CanvasControls.tsx, the topbar's settings run to
+// components/TopbarRuns.tsx and the dialogs to components/DeckDialogs.tsx; the
+// keys and the rest of the deck are read as one.
+const app = read("App.tsx") + "\n" + read("use-deck-shortcuts.ts") + "\n" + read("components/CanvasControls.tsx")
+  + "\n" + read("components/TopbarRuns.tsx") + "\n" + read("components/DeckDialogs.tsx");
 const sheet = read("components/KeyboardHelp.tsx");
 
 /** The body of the deck's one window keydown handler. Sliced rather than
@@ -141,6 +146,8 @@ describe("the way in", () => {
   it("binds ? to the sheet, and the sheet to ?", () => {
     expect(app).toMatch(/if \(e\.key === "\?"\) setKeyHelpOpen\(o => !o\);/);
     expect(app).toMatch(/\{keyHelpOpen && <KeyboardHelp onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
+    // The sheet is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
+    expect(read("App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
   });
 
   it("keeps a control on screen for the deck a user actually works in", () => {
@@ -192,14 +199,21 @@ describe("the sound switch, which had a control and no key", () => {
     // stopped toggling — it opens the menu — so the two routes to the switch
     // are now M and the menu's own control, and both still land on toggleSound.
     // A second setter, on either of them, is what this refuses.
+    // The switch itself lives in use-sound-switch.ts; the key that reaches it
+    // is use-deck-shortcuts.ts's and the menu's control SettingsRun's, which
+    // App.tsx hands the switch whole. The door is all of them together.
+    const door = app + "\n" + read("use-sound-switch.ts");
     expect(app).toMatch(/activateSoundRef\.current\(e\.shiftKey\)/);
-    expect(app).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
+    expect(door).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
+    expect(app).toMatch(/<SettingsRun\b[^>]*\bsound=\{sound\}/);
+    expect(app).toMatch(/const \{ soundOn, toggleSound \} = sound;/);
     expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
     // Two writers of the flag and no more: the effect that reads the stored
     // value back on mount, and the toggle itself. A third would be a second
-    // door — the exact thing this case exists to refuse.
-    expect([...app.matchAll(/setSoundOn\(/g)]).toHaveLength(2);
-    expect(app).toMatch(/const toggleSound = useCallback\(\(\) => \{\s*\n\s*setSoundOn\(prev => \{/);
+    // door — the exact thing this case exists to refuse. Counted across both
+    // files, so a writer added back to App.tsx or the run is a third, not a first.
+    expect([...door.matchAll(/setSoundOn\(/g)]).toHaveLength(2);
+    expect(door).toMatch(/const toggleSound = useCallback\(\(\) => \{\s*\n\s*setSoundOn\(prev => \{/);
   });
 
   it("keeps a one-press route to silence now that the click opens a menu", () => {

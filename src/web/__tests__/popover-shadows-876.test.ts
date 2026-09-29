@@ -8,8 +8,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The value of `prop` in the first rule written for exactly this selector. */
@@ -44,12 +45,26 @@ describe("the usage-history dialog's shadow (#876)", () => {
   });
 });
 
-describe("the sound popover's shadow on the light theme (#876)", () => {
-  const dark = decl(".sound-menu", "box-shadow")!;
-  const light = decl(`${LIGHT}.sound-menu`, "box-shadow");
+/** A token's value in the dark block, the one :root opens with. */
+function darkToken(name: string): string {
+  const block = /:root,\s*\n:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/.exec(css);
+  const m = block && new RegExp(`${name}\\s*:\\s*([^;]+);`).exec(block[1]);
+  if (!m) throw new Error(`dark theme declares no ${name}`);
+  return m[1].trim();
+}
 
-  it("has a light rule at all", () => {
-    expect(light, "no light rule, so black stays black on the white page").not.toBeNull();
+describe("the sound popover's shadow on the light theme (#876)", () => {
+  // A light RULE until #1287 made the popover's two layers a token, --shadow-3,
+  // which each theme block tunes for its own ground — so the light answer is
+  // the light block's value of the token the popover reads.
+  const reads = decl(".sound-menu", "box-shadow");
+  const dark = darkToken("--shadow-3");
+  const light = lightToken("--shadow-3");
+
+  it("has a light answer at all", () => {
+    expect(reads, "the popover no longer reads the token that answers the theme").toBe("var(--shadow-3)");
+    expect(decl(`${LIGHT}.sound-menu`, "box-shadow"), "a light rule would be a second copy of the token").toBeNull();
+    expect(light, "no light value, so black stays black on the white page").not.toBe(dark);
   });
 
   it("keeps the two layers and their geometry", () => {

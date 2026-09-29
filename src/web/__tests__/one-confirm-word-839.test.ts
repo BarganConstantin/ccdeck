@@ -6,11 +6,15 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { accountsSurface } from "./accounts-surface";
 
 const components = fileURLToPath(new URL("../components", import.meta.url));
 const read = (name: string) => readFileSync(join(components, name), "utf8");
-const accounts = read("AccountsPanel.tsx");
+/** The ⋯ menu, which is where Remove is drawn. */
+const accounts = read("AccountMenuPopover.tsx");
 const lan = read("LanSyncSection.tsx");
+/** The rows, which the section draws through a list of their own. */
+const list = read("LanDeckList.tsx");
 
 describe("one arm-then-confirm word for the in-panel destructive acts (#839)", () => {
   it("arms removing an account to confirm", () => {
@@ -20,7 +24,7 @@ describe("one arm-then-confirm word for the in-panel destructive acts (#839)", (
   });
 
   it("arms unpairing a deck to the same word", () => {
-    expect(lan).toMatch(/armed === p\.fp \? "confirm" : "unpair"/);
+    expect(list).toMatch(/armed === p\.fp \? "confirm" : "unpair"/);
   });
 
   it("leaves no second word for it anywhere in the components", () => {
@@ -36,7 +40,7 @@ describe("one arm-then-confirm word for the in-panel destructive acts (#839)", (
       .filter(f => /btn danger/.test(read(f)) && /role="dialog"/.test(read(f)));
     expect(dialogs).toContain("ClearConfirm.tsx");
     // Neither in-panel act opens one.
-    expect(accounts).not.toMatch(/Confirm(Remove)?Dialog/);
-    expect(lan).not.toMatch(/Unpair(Confirm|Dialog)/);
+    expect(accountsSurface()).not.toMatch(/Confirm(Remove)?Dialog/);
+    for (const src of [lan, list]) expect(src).not.toMatch(/Unpair(Confirm|Dialog)/);
   });
 });

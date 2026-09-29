@@ -1,0 +1,293 @@
+/* ---------------- topbar ---------------- */
+
+/* Four distances in this bar and one meaning each, so a gap is readable as a
+   claim about what is on either side of it:
+
+     4px   control to control      .action-run (the controls are borderless,
+                                   so their own padding does the separating)
+     14px  readout to readout      .topbar .status — unchanged
+     12px  run to run              .topbar .actions
+     24px  role to role            .topbar, .topbar .readout, and the settings
+                                   run's own offset from the panel runs
+
+   Every one of them was already somewhere in this sheet; what was missing was
+   the largest. The bar used to run 14px between the last readout and the first
+   button and 8px between two buttons — a 1.75x step, under 16px, doing the work
+   of a group boundary, while a literal 1px rule marked the far smaller break
+   between two readouts. So the bar's own spacing said the break inside the
+   readouts was bigger than the break between watching and acting.
+   `justify-content: space-between` stays: the gaps are the floor between
+   neighbours, and the free space still goes to the middle. */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 18px;
+  background: var(--topbar-grad);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+/* Everything the deck is telling you, in one group, on the LEFT. Not centred:
+   a centred group's x-position is a function of both its neighbours' widths, so
+   the `live` pill would slide sideways every time the token count or the cost
+   gained a digit — and the one light on this bar that has to be noticed cannot
+   be the one that moves. On the left, everything ahead of it (a 14px logo, a
+   wordmark of a fixed string, a version chip that grows by at most a warning
+   dot) has bounded width, which makes the pill an anchor. */
+.topbar .readout {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  /* Able to give (#849). `.actions` below says the readouts give first and the
+     controls not at all, but a flex item's default `min-width: auto` never let
+     this group shrink below its content — so on a narrow window it held its
+     width and pushed the controls off the right edge, and the page scrolled
+     sideways: at 400px, six buttons past the edge. Now it shrinks to nothing
+     before a single control moves, and what it loses is clipped rather than
+     pushed. */
+  min-width: 0;
+  overflow: hidden;
+  /* And it gives from the LEFT. A clipped group loses its trailing edge by
+     default, and the trailing edge of this one is the blocked-session chip, so
+     the one thing on the bar that has to be seen was the first to go. Packed
+     to the end, the overflow falls off the wordmark instead, and the stream
+     pill and the alarm stay. With room to spare the group is its own width
+     and this moves nothing. */
+  justify-content: flex-end;
+}
+.topbar .brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  /* The version chip grows when it carries a drift warning; the product name
+     must not break onto two lines to make room for it. */
+  white-space: nowrap;
+  flex: none;
+}
+/* The wordmark is the page's <h1> now (#381). `font: inherit` is the whole
+   rule's point: an <h1> arrives from the UA sheet at 2em bold with a 0.67em
+   block margin, and none of that is what a 14px wordmark in a 52px bar looks
+   like. Nothing about the heading's appearance changed — only what it is. */
+.topbar .brand h1 {
+  font: inherit;
+  margin: 0;
+}
+/* The favicon's ring, in the deck's one accent (#867). This was a cyan-pink-
+   green conic gradient in a rounded square with a 12px cyan halo, the only
+   permanent decorative glow in a sheet that keeps glow for state. The tab and
+   the page now carry one mark; the tab's copy is the one that fills in when
+   the deck wants you, so this one stays still. */
+.topbar .brand .logo {
+  flex: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: none;
+}
+.topbar .brand .v {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 11px;
+  margin-left: 2px;
+}
+/* Version drift lives here permanently. The banner can be dismissed; the fact
+   that this process is running superseded code cannot, so the chip keeps
+   carrying it — and clicking brings the banner back. */
+/* 24px on the short side (#509). It measured 53.55 x 21.94 — the width was never
+   the problem and the height was 11px of type at 1.45 leading plus 2px of
+   padding plus two 1px borders, which lands 2.06px under the floor the rest of
+   this sheet holds itself to.
+   `min-height` rather than more padding, because padding is the wrong lever for
+   2px: a third pixel top and bottom would take the chip to 23.94 and still miss,
+   and a fourth would take it to 25.94 and overshoot by two. The floor is the
+   thing being asked for, so the floor is what the rule says. `align-items:
+   center` was already here, so the label stays optically centred as the box
+   grows around it.
+   The 2px is worth spending and the issue is right about why: this chip is the
+   only permanent surface that tells you the running process is superseded. The
+   drift banner can be dismissed and this cannot, which makes it the last thing
+   in the deck that should be hard to hit. */
+.topbar .brand button.v {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 130ms, border-color 130ms, color 130ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.topbar .brand button.v:active { transform: scale(0.97); }
+/* The same chip when nothing is stale: still a button (clicking it asks npm
+   now), but it must not draw attention to itself for saying "up to date". It
+   is metadata beside the wordmark, so it wears the toolbar's resting look at
+   the other end of the bar: no outline, --muted where the name is --text, so
+   it does not read as part of the name. The hairline it had made it a pill;
+   the pointer still finds the control, because the fill and the foreground
+   come up under it exactly as they do on the toolbar. */
+.topbar .brand button.v:not(.stale):not(.ready) {
+  color: var(--muted);
+  font-weight: 400;
+}
+.topbar .brand button.v:not(.stale):not(.ready):hover {
+  color: var(--text);
+  background: var(--ctl-fill);
+}
+/* A forced check is a request to npm, which on a slow line is seconds. Without
+   this the click looks like it did nothing at all. */
+.topbar .brand button.v.checking {
+  cursor: progress;
+  opacity: var(--dim-off);
+}
+/* 85%, not 34%: a third of --warn is 3.05:1 on this canvas and 1.81:1 on white,
+   the amber equivalent of the --line edge above it. #325 found 65% enough for
+   an --err boundary and it is not enough for a --warn one — light --warn is
+   #ad4e08 against an #eef1f6 canvas, which leaves 4.79:1 of headroom to spend
+   where --err has 6.47:1, so 65% of it lands at 2.83:1. Every --warn boundary
+   in the sheet is 85% for that reason, and every --err boundary stays 65%. */
+.topbar .brand button.v.stale {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 85%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.topbar .brand button.v.stale:hover {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+/* THE APP'S UPDATE IS READY (#1187), and that is good news, which is why it no
+   longer wears the stale chip's amber. Amber is this bar's warning — the deck
+   running superseded code, a session blocked on you — and a download the app
+   has already verified is the opposite of something being wrong. So it is
+   drawn in the accent, the deck's own colour for "here, this is for you",
+   in the stale chip's proportions so the two read as one family: a full-
+   strength edge (the accent clears 3:1 on both ends of the bar in both themes
+   without being mixed down, where --warn needed 85%), a tenth of it for the
+   bed, and a little more under the pointer. Its dot holds still: a pulse is
+   how this bar says something needs you, and nothing here does until you
+   choose it. */
+.topbar .brand button.v.ready {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.topbar .brand button.v.ready:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.topbar .brand button.v.ready .v-dot {
+  background: var(--accent);
+  box-shadow: none;
+  animation: none;
+}
+/* #712 put a second pill here — "What's new", the way back into the release
+   notes — and #715 took it away again. The chip beside it now opens them, so
+   the words were two of topbar spent permanently on a dialog most people open
+   once a month, next to a number that could carry it for nothing. Nothing about
+   the chip's own appearance changed with them; this comment is the only trace,
+   and it is here so the next person to want a control in this corner knows it
+   has been tried. */
+.topbar .brand button.v .v-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 7px var(--warn);
+  animation: pulse 2.4s infinite;
+}
+/* The runs of controls, and the distance between runs rather than between
+   buttons — the 8px that used to be this rule's gap now lives on .action-run,
+   one step down, where it says "these two are the same kind of thing".
+   Three runs when this rule was written and two since Pause left for the canvas
+   control stack; the 18px is a claim about the seam between two runs and does
+   not care how many there are.
+   `flex: none` is the deliberate half. Every flex item shrinks by default, so
+   under compression the bar used to take width from whatever gave first, which
+   included the controls. It never should: a readout that has been squeezed off
+   the bar can be read again from a panel, while a control that has been squeezed
+   off is the only way to reach the thing it opens. The readouts give first now,
+   and the controls do not give at all. */
+.topbar .actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: none;
+}
+/* 4px between two controls: enough for the focus ring's 3px (2px at the
+   sheet's 1px offset) to clear the next button, and no more, because a
+   borderless button's own padding is what separates it from its neighbour. */
+.topbar .action-run {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* The settings pair stands apart from the panels, by spacing and not by a
+   rule: 12px between runs plus these 12 is the 24px this bar already uses
+   between roles, so Sound and the theme read as utilities, not a fourth
+   group of panels. */
+.topbar .action-run-utility { margin-left: 12px; }
+/* The dollar sign is the one glyph whose ink is far narrower than its box:
+   4.8 of 14 units, where the rest of the set runs 8.6 to 12.2. At the set's
+   shared 13px box that left about 2.4px more air on each side than any
+   neighbour, so "$  Usage" read loose beside "Accounts": 9.6px from ink to
+   word against 6.2 to 8.1 for the others, measured. The box gives the air
+   back on both sides at once, so the glyph stays centred in a square button. */
+.topbar .tb-glyph-narrow { margin-inline: -2px; }
+/* THE WORDS (#836). Eight bare glyphs meant a first-timer or a touch user could
+   not learn the bar without hovering each one. Where the bar has room, each
+   says its name beside the glyph: a word its accessible name already contains,
+   so what the eye reads and what voice control hears agree (2.5.3). The theme
+   button keeps its sun or moon alone, and no word ends in an ellipsis.
+   From 1440px, which is a 14" laptop at its default scale and a 1920 screen at
+   125%; 1600 left every one of those on bare glyphs. The words cost about
+   440px, and the bar's common worst case at 1440 still fits: a blocked
+   session, a live stream and a selected agent come to 256 of readout, 346 of
+   ribbon at 24vw, 743 of controls and 84 of gaps and padding, 1429 in all.
+   A paused deck on top of that does not fit, and `.readout` above is why that
+   costs the wordmark rather than the alarm. Under 1440 the bar is glyphs
+   again: the readouts give first and the controls never do. */
+.tb-word { display: none; }
+@media (min-width: 1440px) {
+  .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
+  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 8px; }
+}
+/* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
+   controls still do not shrink; the bar spends less on padding and gaps so all
+   of them fit down to a 320px screen. */
+@media (max-width: 640px) {
+  .topbar { gap: 12px; padding: 0 10px; }
+  .topbar .actions { gap: 8px; }
+  .topbar .action-run-utility { margin-left: 4px; }
+  /* THE ALARM OUTLASTS THE NAME. `.readout` gives first and clips what it
+     loses, and the blocked-session chip is its last child, so at 600px it was
+     cut in half and at 400px it was gone while the wordmark still said "ccdec".
+     Here the bar spends its readout on the alarm: the wordmark leaves the
+     screen but not the outline (it is the page's <h1>, so it is hidden the way
+     .vis-hidden hides, never with display), an up-to-date version chip leaves
+     (a stale one stays, it is a warning, and so does the app's ready update,
+     the one way into it from the window), and the chip says its number without
+     the word, which its accessible name still carries in full. */
+  .topbar .readout { gap: 12px; }
+  .topbar .brand h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .topbar .brand button.v:not(.stale):not(.ready),
+  .topbar .waiting-stat .ws-word { display: none; }
+  .topbar .waiting-stat { padding: 3px 8px; }
+}
+

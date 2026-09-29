@@ -50,7 +50,10 @@ describe("the camera under reduced motion (#870)", () => {
   });
 });
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// focusAgent moved to use-agent-focus.ts; App.tsx and it are read as one, so a
+// fitView brought back in either still has to ask.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
@@ -67,9 +70,16 @@ describe("every fit that frames a card asks the rule", () => {
       expect(options).not.toMatch(/duration:\s*\d/);
       expect(options).toMatch(/duration: fitViewDuration\(\d+\)/);
     }
-    const apply = appCode.slice(appCode.indexOf("const applyViewport = useCallback("), appCode.indexOf("}, [rf, storeApi]);"));
+    // applyViewport lives in use-camera.ts. Found first, so a move cannot turn
+    // this into a match against an empty slice.
+    const camera = readFileSync(fileURLToPath(new URL("../use-camera.ts", import.meta.url)), "utf8");
+    const start = camera.indexOf("const applyViewport = useCallback(");
+    expect(start, "applyViewport is not in use-camera.ts").toBeGreaterThan(-1);
+    const apply = camera.slice(start, camera.indexOf("}, [rf, storeApi]);", start));
     expect(apply).toMatch(/if \(shouldAnimateViewport\(\{ durationMs: duration, documentHidden: document\.hidden \}\)\)/);
-    expect(appCode).toMatch(/applyViewport\(want, FOCUS_MS\);/);
+    // The focus moves through moveCamera, which goes through applyViewport.
+    expect(appCode).toMatch(/moveCamera\(want, FOCUS_MS\);/);
+    expect(camera).toMatch(/const moveCamera = useCallback\([\s\S]*?applyViewport\(want, duration\);/);
   });
 
   it("relies on a synchronous branch React Flow's fitView still has", () => {

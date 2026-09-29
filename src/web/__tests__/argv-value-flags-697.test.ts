@@ -69,10 +69,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isPortValue, looksLikeFlag, parseArgs } from "../../server/args.mjs";
+import { isPortValue, looksLikeFlag, parseArgs, startPort } from "../../server/args.mjs";
+import { workerArgs } from "../../server/supervisor.mjs";
 
 const ARGS_MJS = fileURLToPath(new URL("../../server/args.mjs", import.meta.url));
 const DECK_JS = fileURLToPath(new URL("../../../bin/deck.js", import.meta.url));
+const HELP_JS = fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url));
 const AGENT_DAG_JS = fileURLToPath(new URL("../../../bin/agent-dag.js", import.meta.url));
 
 // ── the table, read out of the parser ───────────────────────────────────────
@@ -277,15 +279,52 @@ describe("isPortValue, which is what makes a bad --port name the flag", () => {
   });
 });
 
+describe("startPort, which port a start binds and whose mistake a bad one is", () => {
+  it("takes --port over AGENT_DAG_PORT, and 4317 when neither names one", () => {
+    expect(startPort({ flag: "4500", env: "4600" })).toEqual({ port: 4500, refused: null });
+    expect(startPort({ flag: undefined, env: "4600" })).toEqual({ port: 4600, refused: null });
+    expect(startPort({ flag: undefined, env: undefined })).toEqual({ port: 4317, refused: null });
+    expect(startPort({ flag: "0", env: undefined })).toEqual({ port: 0, refused: null });
+  });
+
+  it("reads a blank AGENT_DAG_PORT as unset, and trims one that is not", () => {
+    // A variable that did not expand is not a request for port zero.
+    for (const env of ["", "   "]) expect(startPort({ env })).toEqual({ port: 4317, refused: null });
+    expect(startPort({ env: " 4600 " })).toEqual({ port: 4600, refused: null });
+  });
+
+  it("refuses a value that is not a port, naming where it came from and quoting it", () => {
+    expect(startPort({ flag: "banana", env: "4600" }))
+      .toEqual({ port: null, refused: { named: "--port", raw: "banana" } });
+    expect(startPort({ flag: undefined, env: "banana" }))
+      .toEqual({ port: null, refused: { named: "AGENT_DAG_PORT", raw: "banana" } });
+    // --port wins even when it is the bad one and the variable is fine.
+    expect(startPort({ flag: "65536", env: "4600" }).refused?.named).toBe("--port");
+  });
+
+  it("is what bin/deck.js asks, with the flag and the variable", () => {
+    expect(readFileSync(DECK_JS, "utf8"))
+      .toContain("const asked = startPort({ flag: flags.port, env: process.env.AGENT_DAG_PORT });");
+  });
+});
+
 // ── 2. the supervisor ───────────────────────────────────────────────────────
 
 describe("a respawn keeps the port it was bound to", () => {
   it("still appends --port last, which is what makes it win", () => {
     // The mechanism this depends on. If the append moves or stops being last,
-    // the assertion below is about a command line the supervisor no longer
-    // builds.
+    // the assertions below are about a command line the supervisor no longer
+    // builds — so this asks the function that builds it, and pins that the
+    // supervisor hands it the bound port.
     const sup = readFileSync(AGENT_DAG_JS, "utf8");
-    expect(sup).toMatch(/args\.push\("--port", String\(boundPort\)\)/);
+    expect(sup).toMatch(/workerArgs\(WORKER, process\.argv\.slice\(2\), \{ respawn, boundPort \}\)/);
+    const args = workerArgs("/w/deck.js", ["--port", "4000", "--no-open"], { respawn: true, boundPort: 4317 });
+    expect(args).toEqual(["/w/deck.js", "--port", "4000", "--no-open", "--port", "4317"]);
+    expect(parseArgs(args.slice(1)).port).toBe("4317");
+    // A first launch, or a respawn before any worker has bound, is the user's
+    // argv and nothing else.
+    expect(workerArgs("/w/deck.js", ["--no-open"], { respawn: false, boundPort: 4317 })).toEqual(["/w/deck.js", "--no-open"]);
+    expect(workerArgs("/w/deck.js", ["--no-open"], { respawn: true, boundPort: null })).toEqual(["/w/deck.js", "--no-open"]);
   });
 
   it("does not lose the port to an argv that ends in a bare --workspace", () => {
@@ -293,7 +332,7 @@ describe("a respawn keeps the port it was bound to", () => {
     // variable) + `--port 4317` (the supervisor's). `--workspace` used to eat
     // `--port`, the number landed in `unknown`, and the deck came back on the
     // default port — moving out from under the tab the user was looking at.
-    const got = parseArgs(["--workspace", "--port", "4317"]);
+    const got = parseArgs(workerArgs("/w/deck.js", ["--workspace"], { respawn: true, boundPort: 4317 }).slice(1));
     expect(got.port, "the respawn lost its bound port").toBe("4317");
     expect(got.unknown).toEqual([]);
     expect(got.incomplete).toEqual([{ flag: "--workspace", expects: "a path" }]);
@@ -432,8 +471,8 @@ describe("a malformed --port names the flag and the value", () => {
 
 describe("--help says what the parser now does", () => {
   it("tells the reader a value-taking flag will not swallow the next flag", () => {
-    const deck = readFileSync(DECK_JS, "utf8");
-    expect(deck).toMatch(/never swallows the next flag/);
+    const help = readFileSync(HELP_JS, "utf8");
+    expect(help).toMatch(/never swallows the next flag/);
   });
 });
 

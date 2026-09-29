@@ -21,9 +21,10 @@ import { figureText, latencyFigure, rateFigure } from "./net-format";
 // labels are whatever the chip publishes, so a join on the display label breaks
 // on exactly the platform nobody re-checks.
 
-/** The shape of `/api/system` this needs, structurally — MachinePanel's own
- *  `Snapshot` satisfies it, without this module importing that component and
- *  closing an import cycle back through the modal that renders the strip. */
+/** The shape of `/api/system` this needs, structurally — `Snapshot` in
+ *  machine-snapshot.ts satisfies it. Written this way while that shape lived
+ *  inside MachinePanel, so this module would not import the component and
+ *  close an import cycle back through the modal that renders the strip. */
 export interface LiveSource {
   cpu: number | null;
   perCore: number[] | null;

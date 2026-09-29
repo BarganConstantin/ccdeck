@@ -89,14 +89,20 @@ export interface ActivationModifiers {
   shiftKey: boolean;
 }
 
-// Arrows are React Flow's own node-move gesture and Delete/Backspace its own
-// delete gesture. Neither does anything in this deck today — both route through
-// the same controlled-nodes dead end that swallowed Enter — but they are the
-// card's keys, not the deck's, and answering them here would be the deck
-// claiming keys it has no shortcut for. Escape is settled before this function
-// is ever called; it is listed so the table below is the whole story.
+// Arrows are React Flow's own node-move gesture and Backspace its own delete
+// gesture. Neither does anything in this deck today — both route through the
+// same controlled-nodes dead end that swallowed Enter — but they are the card's
+// keys, not the deck's, and answering them here would be the deck claiming keys
+// it has no shortcut for. Escape is settled before this function is ever
+// called; it is listed so the table below is the whole story.
+//
+// Delete was on this list too, from before the deck had a shortcut for it. It
+// has one now — Remove from board, for the selected card — and a click on a
+// card is what selects it AND what puts focus on it, so leaving Delete to the
+// card made the key dead exactly where it is pressed (#1668). Backspace stays:
+// it is the key a stray press sends, which is why the shortcut is Delete alone.
 const NODE_OWNED_KEYS = new Set([
-  "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape", "Delete", "Backspace",
+  "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape", "Backspace",
 ]);
 
 export function canvasKeyIntent(e: ActivationModifiers, nodeId: string | null | undefined): CanvasKeyIntent {

@@ -25,7 +25,9 @@ describe("a panel switch confirmation follows the live account (#1116)", () => {
   });
 
   it("reconciles only when fresh account data arrives, so a successful POST can finish first", () => {
-    const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
+    // The confirmation and the effect that reconciles it are the switching
+    // hook's, which owns the only setter.
+    const panel = readFileSync(fileURLToPath(new URL("../use-account-switching.ts", import.meta.url)), "utf8");
     expect(panel).toMatch(/useEffect\(\(\) => \{\s*if \(!data\?\.ok \|\| !data\.accounts\) return;\s*setSwitched\(previous => activeSwitchNote\(previous, data\.accounts\)\);\s*\}, \[data\]\)/);
   });
 });

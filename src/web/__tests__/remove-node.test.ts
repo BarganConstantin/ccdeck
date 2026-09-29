@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { collectBursts } from "../components/ToolBursts";
+import { collectBursts } from "../burst-layout";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
 import { blockedSessions } from "../ambient-counts";
 import { applyEvent, initialState, pruneDoneSessions, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "../reducer";
 import { lastWorkedAt, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
 import { AUTO_PAN_EDGE_PX, clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
-import { clientText } from "./client-source";
+import { clientPairs, clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -99,24 +100,41 @@ describe("what a removal takes off the canvas's visibility set (#1237)", () => {
 
 describe("the canvas wiring (#1237)", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The removal state and its operations are use-removals.ts's, which App.tsx calls.
+  const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
+  // The layout signature, the visibility set and the nodes are use-board-graph.ts's,
+  // which App.tsx hands the removals.
+  const graph = readFileSync(fileURLToPath(new URL("../use-board-graph.ts", import.meta.url)), "utf8");
+  // The bubbles are mounted in components/BoardFlow.tsx, which App.tsx hands the graph.
+  const board = readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8");
 
   it("works the removal out once, from the removed-node store", () => {
-    expect(app).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
+    expect(removals).toMatch(/const removedAgentIds = useMemo\(\s*\(\) => removalHiddenIds\(stateRef\.current\.agents\.values\(\), removedNodes\),/);
   });
 
   it("subtracts it from the visibility set the cards AND the tool bubbles both gate on", () => {
-    const memo = /const visibleAgentIds = useMemo<Set<string>>\([\s\S]*?\n  \);/.exec(app)?.[0] ?? "";
+    expect(app).toMatch(/const graph = useBoardGraph\(\{[^}]*\bremovedAgentIds\b/);
+    const memo = /const visibleAgentIds = useMemo<Set<string>>\([\s\S]*?\n  \);/.exec(graph)?.[0] ?? "";
     expect(memo).toMatch(/for \(const id of removedAgentIds\) ids\.delete\(id\);/);
     expect(memo).toMatch(/removedAgentIds\],/);
-    // The two readers of that set: the cards and the bubble overlay.
-    expect(app).toMatch(/selectedIds, spotlightSet, visibleAgentIds, openContext,/);
-    expect(app).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
+    // The two readers of that set: the cards and the bubble overlay, which
+    // BoardFlow mounts from the graph App.tsx hands it.
+    expect(graph).toMatch(/selectedIds, spotlightSet, visibleAgentIds, openContext,/);
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bgraph=\{graph\}/);
+    expect(board).toMatch(/const \{ allNodes, edges, visibleAgentIds, spotlightSet \} = graph;/);
+    expect(board).toMatch(/<ToolBursts[\s\S]*?visibleAgentIds=\{visibleAgentIds\}/);
   });
 
   it("keeps the layout signature in step with it, so the board reflows around a removal", () => {
-    const sig = /const layoutSig = useMemo\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
-    expect(sig).toMatch(/if \(!isAgentVisible\(a, now\) \|\| removedAgentIds\.has\(a\.id\)\) continue;/);
-    expect(sig).toMatch(/removedAgentIds\]\);$/);
+    // Three links: App.tsx hands the removals to useLayoutSig, its memo hands
+    // them to layoutSignature and recomputes when they change, and
+    // layoutSignature skips them.
+    expect(app).toMatch(/const layoutSig = useLayoutSig\(\{[^}]*\bremovedAgentIds\b/);
+    const sig = /const layoutSig = useMemo\([\s\S]*?\n  \);/.exec(graph)?.[0] ?? "";
+    expect(sig).toMatch(/layoutSignature\(stateRef\.current\.agents\.values\(\), now, removedAgentIds, /);
+    expect(sig).toMatch(/removedAgentIds\],\s*\);$/);
+    const fn = readFileSync(fileURLToPath(new URL("../layout-signature.ts", import.meta.url)), "utf8");
+    expect(fn).toMatch(/if \(!isAgentVisible\(a, now\) \|\| removedAgentIds\.has\(a\.id\)\) continue;/);
   });
 });
 
@@ -126,6 +144,21 @@ describe("the canvas wiring (#1237)", () => {
 // way back was Clear. A removed session that started waiting was still counted
 // by the alarm and still listed, and clicking either selected a card that was
 // not drawn.
+
+describe("what is off the board changes in one place", () => {
+  it("is written only by use-removals.ts, through its named operations", () => {
+    // The removed set and the last-removal notice used to be set from three
+    // places in App.tsx — Clear, the session list's bring-back-all, and the
+    // removal itself. The setters stay private to the hook now, and every
+    // change is one of its operations.
+    const writers = clientPairs()
+      .filter(([, src]) => /\bsetRemovedNodes\(|\bsetLastRemoval\(/.test(src))
+      .map(([path]) => path.replaceAll("\\", "/"));
+    expect(writers).toEqual(["use-removals.ts"]);
+    expect(clientText()).toMatch(/onBringBackAll=\{bringBackAll\}/);
+    expect(clientText()).toMatch(/const handleClear = useCallback\(async \(\) => \{[\s\S]*?forgetRemovals\(\);/);
+  });
+});
 
 describe("bringing removed cards back", () => {
   it("takes the named ids out and leaves the rest removed", () => {
@@ -436,7 +469,7 @@ describe("live work brings a removed card back (#1315)", () => {
     // Re-run on every revision and every change to the set, or new work and a
     // new removal would both wait for something else to render.
     expect(effect).toMatch(/\}, \[waitingSessions, removedAgentIds, removedNodes, bringBack\]\);$/);
-    expect(client).toMatch(/const next = withoutRemovals\(previous, list\);\s*if \(next !== previous\) saveRemovedNodes\(window\.localStorage, next\);/);
+    expect(client).toMatch(/const next = withoutRemovals\(previous, list\);\s*if \(next !== previous\) saveRemovedNodes\(localStore\(\), next\);/);
   });
 });
 
@@ -468,7 +501,7 @@ describe("drag-to-trash hit testing", () => {
   });
 
   it("keeps the whole target clear of the band where React Flow pans the board", () => {
-    const sheet = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const sheet = sheetText();
     const rule = /\.drag-trash-zone \{([^}]*)\}/.exec(sheet)?.[1] ?? "";
     const bottom = Number(/\bbottom:\s*(\d+)px/.exec(rule)?.[1]);
     expect(bottom - TRASH_HIT_SLOP_PX).toBeGreaterThan(AUTO_PAN_EDGE_PX);
@@ -483,28 +516,44 @@ describe("drag-to-trash hit testing", () => {
 
 describe("where Remove lives and what follows it", () => {
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The removal state and its operations are use-removals.ts's, which App.tsx calls.
+  const removals = readFileSync(fileURLToPath(new URL("../use-removals.ts", import.meta.url)), "utf8");
+  // Clear is use-clear-flow.ts's, which App.tsx hands forgetRemovals.
+  const clearFlow = readFileSync(fileURLToPath(new URL("../use-clear-flow.ts", import.meta.url)), "utf8");
   const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
-  const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+  const css = sheetText();
 
   it("is gone from the topbar and sits with the card's own verbs in the detail panel", () => {
     expect(app).not.toMatch(/>\s*Remove node\s*</);
-    const detail = /function Detail\([\s\S]*?\n}\n/.exec(app)?.[0] ?? "";
+    // The panel is components/Detail.tsx now; its frame, components/DetailAside.tsx,
+    // hands it onRemove, and App.tsx hands the frame the removal.
+    const panel = readFileSync(fileURLToPath(new URL("../components/Detail.tsx", import.meta.url)), "utf8");
+    const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
+    expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
+    expect(panel).not.toMatch(/>\s*Remove node\s*</);
     expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>Remove from board<\/button>/);
-    expect(app).toMatch(/onRemove=\{removeSelectedNode\}/);
+    expect(app).toMatch(/<DetailAside\b[^>]*\bremoveSelectedNode=\{removeSelectedNode\}/);
+    const aside = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
+    expect(aside).toMatch(/onRemove=\{removeSelectedNode\}/);
     // Reversible from the session list, so not dressed as the one destructive .btn the sheet reserves
     // red for.
     expect(detail).not.toMatch(/btn danger[^"]*"\s+onClick=\{onRemove\}/);
   });
 
   it("is one key from a selection, since a plain click shuts the panel it lives in", () => {
-    expect(app).toMatch(/if \(e\.key === "Delete"\) removeSelectedRef\.current\(\);/);
-    expect(app).toMatch(/removeSelectedRef\.current = removeSelectedNode;/);
+    // The key is answered in use-deck-shortcuts.ts, through the ref App.tsx hands it.
+    const keys = readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
+    expect(keys).toMatch(/if \(e\.key === "Delete"\) removeSelectedRef\.current\(\);/);
+    expect(app).toMatch(/useDeckShortcuts\(\{[\s\S]*?\bremoveSelectedRef\b[\s\S]*?\}\);/);
+    // The mirror is `useMirroredRef` now — the keydown handler outlives the
+    // render that registered it, so it has to read the current callback.
+    expect(app).toMatch(/const removeSelectedRef = useMirroredRef\(removeSelectedNode\);/);
   });
 
   it("draws nothing after a removal, and keeps focus on the board", () => {
-    expect(app).not.toMatch(/is off the board\.<\/strong>/);
-    expect(app).not.toMatch(/undoRemoval/);
-    expect(app).toMatch(/if \(lastRemoval\) canvasRef\.current\?\.focus\(\);/);
+    expect(app + "\n" + removals).not.toMatch(/is off the board\.<\/strong>/);
+    expect(app + "\n" + removals).not.toMatch(/undoRemoval/);
+    expect(removals).toMatch(/if \(lastRemoval\) canvasRef\.current\?\.focus\(\);/);
   });
 
   it("says the removal through a region that is mounted before the words arrive", () => {
@@ -527,7 +576,13 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("forgets the last removal on Clear", () => {
-    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
-    expect(clear).toMatch(/setLastRemoval\(null\);/);
+    // Three links: App.tsx hands Clear the removals' forget, Clear forgets
+    // them, and forgetting them drops the notice.
+    expect(app).toMatch(/useClearFlow\(\{[^}]*\bforgetRemovals\b/);
+    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(clearFlow)?.[0] ?? "";
+    expect(clear).toMatch(/forgetRemovals\(\);/);
+    const forget = /const forgetRemovals = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(removals)?.[0] ?? "";
+    expect(forget).toMatch(/setLastRemoval\(null\);/);
+    expect(forget).toMatch(/setRemovedNodes\(new Set\(\)\);/);
   });
 });

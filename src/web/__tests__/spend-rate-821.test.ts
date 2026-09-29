@@ -7,7 +7,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import { recordSpend, spendRate, SPEND_WINDOW_MS, NO_SPEND_HISTORY, type SpendHistory, type SpendBySession } from "../spend-rate";
+import { sheetText } from "./sheet-source";
 
 /** One session on the board, at this cost. The rate is per-session since #987;
  *  these #821 cases are about the window and the arithmetic over it, so one
@@ -118,20 +120,27 @@ const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.ur
 
 describe("the usage header's pill (#821)", () => {
   const panel = read("../components/UsagePanel.tsx");
-  const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  /** Where the samples are taken and the rate is read, since the headline memo
+   *  and its two refs left the panel. */
+  const spend = read("../use-board-spend.ts");
+  const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("no longer divides live agents' cost by the longest one's age", () => {
-    expect(panel).not.toMatch(/liveCost|liveSec/);
-    expect(panel).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
+    expect(usageSurface()).not.toMatch(/liveCost|liveSec/);
+    expect(spend).toMatch(/recordSpend\(spendSamples\.current, now, bySession\)/);
   });
 
   it("counts only from the moment the replay landed, and starts again on each one", () => {
     const app = read("../App.tsx");
-    expect(app).toMatch(/es\.addEventListener\("replay-end", \(\) => \{[\s\S]*?setLiveSince\(Date\.now\(\)\);/);
-    expect(app).toMatch(/es\.addEventListener\("error", \(\) => \{ setLive\(false\); setLiveSince\(null\); \}\);/);
+    // The stream sets it and clears it, in use-event-stream.ts; App.tsx hands it on.
+    const stream = read("../use-event-stream.ts");
+    expect(stream).toMatch(/es\.addEventListener\("replay-end", \(\) => \{[\s\S]*?setLiveSince\(Date\.now\(\)\);/);
+    expect(stream).toMatch(/es\.addEventListener\("error", \(\) => \{ setLive\(false\); setLiveSince\(null\); \}\);/);
     expect(app).toMatch(/liveSince=\{liveSince\}/);
-    expect(panel).toMatch(/if \(spendSince\.current !== liveSince\) \{[\s\S]*?spendSamples\.current = NO_SPEND_HISTORY;/);
-    expect(panel).toMatch(/const rate = liveSince == null \? null : spendRate\(/);
+    // And the panel hands it to the hook that samples against it.
+    expect(panel).toContain("useBoardSpend(state, now, liveSince)");
+    expect(spend).toMatch(/if \(spendSince\.current !== liveSince\) \{[\s\S]*?spendSamples\.current = NO_SPEND_HISTORY;/);
+    expect(spend).toMatch(/const rate = liveSince == null \? null : spendRate\(/);
   });
 
   it("says the span it measured, beside the figure and in its title", () => {

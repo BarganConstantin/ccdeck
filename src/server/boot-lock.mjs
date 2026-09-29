@@ -115,7 +115,7 @@ export async function takeBootLock({
   const file = join(dir, BOOT_LOCK_FILE);
   const nonce = randomBytes(8).toString("hex");
   let waited = false;
-  // 0700 like the registry beside it — installer.mjs asserts the same mode on
+  // 0700 like the registry beside it — discovery.mjs asserts the same mode on
   // the same directory, and whichever runs first creates it.
   try { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { /* the open below decides */ }
   for (;;) {

@@ -6,16 +6,19 @@
 // running server still sees both CLIs. Re-runs are safe; entries are tagged
 // with __agent-dag and de-duped.
 import { hookRuntime } from "./app-host.mjs";
-import { readFile, mkdir, unlink, rename, open, stat, chmod, realpath, readlink, utimes } from "node:fs/promises";
+import { readFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME } from "./codex-dir.mjs";
-import { canonicalLogPath } from "./log-writer.mjs";
 import { shellQuoteArg } from "./exec.mjs";
-import { PRODUCT } from "./brand.mjs";
+// The read-before-rewrite and the atomic replace every settings writer goes
+// through — see atomic-write.mjs.
+import { readSettingsForWrite, writeFileAtomic } from "./atomic-write.mjs";
+// The discovery dir every deck registers in and every hook reads — see
+// discovery.mjs, which keeps this deck's record there.
+import { AGENT_DAG_DIR } from "./discovery.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -28,12 +31,6 @@ const CLAUDE_DIR = claudeConfigDir();
 // because CODEX_DIR is what the rest of this file and its tests call it, and it
 // says what the value is FOR here: the directory hooks.json is taken out of.
 const CODEX_DIR = CODEX_HOME;
-
-// Single shared discovery dir — both providers' hook scripts post here so one
-// running agent-dag server can match either ecosystem's events. It follows the
-// Claude config dir, so hook/hook.js has to resolve that dir the same way: it
-// reads what this writes, and a disagreement means the hooks find no server.
-const AGENT_DAG_DIR = join(CLAUDE_DIR, "agent-dag");
 
 const CLAUDE_EVENTS = [
   "SessionStart",
@@ -128,266 +125,6 @@ async function ensureDir(p) {
   if (!existsSync(p)) await mkdir(p, { recursive: true });
 }
 
-// Notepad and PowerShell's Set-Content write UTF-8 with a byte-order mark, and
-// JSON.parse throws on it when the file is read as utf8. A BOM is not damage —
-// the JSON behind it is fine — so it never gets to look like a corrupt file.
-function stripBom(text) {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
-function unreadableSettings(p, why) {
-  const err = new Error(
-    `${p} could not be read as JSON (${why}). Refusing to overwrite it — ` +
-    `fix the file or move it aside, then run ${PRODUCT} again.`,
-  );
-  err.code = "SETTINGS_UNREADABLE";
-  err.settingsPath = p;
-  // The bare reason, without the path and without the remedy sentence, so a
-  // caller that wants to phrase its own advice — `--uninstall` does; "run
-  // ccdeck again" is the wrong instruction there — does not have to take this
-  // message apart with a regex to get at the only part it cannot re-derive.
-  err.why = why;
-  return err;
-}
-
-/**
- * Read settings we are about to rewrite. Only ENOENT means "nothing there yet";
- * every other failure is a file whose contents we cannot reproduce — a stray
- * comma, a half-written file from another process, a permission error — and
- * writing our hooks over it would destroy every setting the user has. So the
- * install refuses instead, loudly, and leaves the file exactly as it found it.
- */
-async function readSettingsForWrite(p) {
-  let raw;
-  try {
-    raw = await readFile(p, "utf8");
-  } catch (err) {
-    if (err?.code === "ENOENT") return { settings: {}, raw: null };
-    throw unreadableSettings(p, err?.message ?? String(err));
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(stripBom(raw));
-  } catch (err) {
-    throw unreadableSettings(p, err?.message ?? String(err));
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw unreadableSettings(p, "top level is not a JSON object");
-  }
-  return { settings: parsed, raw };
-}
-
-// Rename over an open file is the one thing Windows does differently here.
-// libuv's rename is one MoveFileExW with MOVEFILE_REPLACE_EXISTING and nothing
-// else — no retry, no MOVEFILE_COPY_ALLOWED — and MoveFileEx honours share
-// modes: it fails outright while ANY other handle is open on the source or the
-// target without FILE_SHARE_DELETE. A virus scanner or the search indexer opens
-// files the instant they are written, so the target is briefly untouchable on a
-// perfectly healthy machine. Node has declined to paper over this (nodejs/node
-// #29481, closed wontfix: "not something that's really under Node's or libuv's
-// control"), and libuv reverted its own four-attempt ladder for the same
-// reason. So the policy lives here, where the stakes are known.
-//
-// The ladder is 10 attempts over ~1.4s, and the second number is the one that
-// matters. It used to be 5 over 200ms, which is comfortably enough for the
-// indexer and not enough for a scanner: the argument on libuv#2098 for
-// reverting their retry was in part that an AV hold can outlast 2s, and 200ms
-// of patience on a hold like that is the same as none.
-//
-// What that thinness cost is not an install. codex-auth.mjs stages a REFRESH
-// TOKEN through this call, the old one is spent server-side by the time it runs,
-// and a rename that gives up too early destroys the only copy of the new
-// credential — the deck reports refresh_rejected and the user has to run
-// `codex login` again. Trading a second of latency against that is not close.
-// The comparison points: steno retries a rename 10 times at 100ms, npm's
-// bin-links 5 times at 500ms exponential, and write-file-atomic does not retry
-// at all (npm/write-file-atomic#227).
-//
-// POSIX never hits this path, and a genuinely permanent permission error costs
-// that second and a half once, on a path that was already failing.
-const RENAME_RETRY_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
-
-async function renameWithRetry(from, to, attempts = 10) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (err) {
-      if (attempt >= attempts || !RENAME_RETRY_CODES.has(err?.code)) throw err;
-      // Linear: 30, 60, 90 … 270ms, ~1.4s across the nine waits. Linear rather
-      // than exponential because the holds this exists for are short and
-      // frequent, and a doubling ladder spends its whole budget on the last
-      // two waits.
-      await delay(30 * attempt);
-    }
-  }
-}
-
-// Counts writes, not processes. The pid alone gave every call in one deck the
-// same temp path, and there is more than one writer in a deck now: the sound
-// toggle rewrites settings.json from a request handler, so two clients toggling
-// within the same few milliseconds both opened that one path with O_TRUNC and
-// both wrote their own JSON at offset zero. What got renamed over settings.json
-// was the shorter payload with the tail of the longer one still behind it —
-// unparseable, and readSettingsForWrite turns unparseable into a permanent
-// SETTINGS_UNREADABLE refusal for every later toggle and install. The loser then
-// found its temp file already renamed away and threw ENOENT on top of it.
-let tmpSeq = 0;
-
-/**
- * Create the temp file for one write, never sharing it with another writer.
- *
- * "wx" is the point of it: a name that already exists is an error here rather
- * than a silently truncated file two writers are both filling in. The only way
- * to meet a taken name is a deck killed between the write and the rename whose
- * pid the OS has since handed out again — that writer is gone by definition, so
- * the leftover is deleted and the next counter tried. Which is also the whole
- * story on litter: the names come from a small space, this pid crossed with the
- * first few counters, because a deck writes these files a handful of times per
- * run. Later runs walk the same names and sweep what they find instead of
- * piling fresh ones beside it. Digits and hyphens only — a legal filename
- * everywhere, Windows included.
- *
- * `mode` is the mode the file is created with, which matters when the bytes are
- * secret: codex-auth stages a rotated Codex refresh token here, and a temp file
- * that starts at the umask default is readable by every other account on the
- * box for as long as the write takes, whatever chmod follows it. O_EXCL is what
- * makes the mode binding — a create honours it only when it is the call that
- * makes the file, so adopting a leftover would keep the leftover's permissions.
- */
-async function createTemp(target, { mode = 0o666, attempts = 5 } = {}) {
-  for (let attempt = 1; ; attempt++) {
-    const tmp = `${target}.agent-dag-${process.pid}-${tmpSeq++}.tmp`;
-    try {
-      return { tmp, handle: await open(tmp, "wx", mode) };
-    } catch (err) {
-      if (attempt >= attempts || err?.code !== "EEXIST") throw err;
-      await unlink(tmp).catch(() => {});
-    }
-  }
-}
-
-// A chain longer than this is a loop, or something no real setup has: stow and
-// chezmoi produce one hop, an encrypted volume two. The number is a bound on the
-// walk below, not a promise about how deep a legitimate link goes.
-const MAX_LINK_HOPS = 8;
-
-/**
- * The file a name is really asking for — the one the links under it end at.
- *
- * A rename replaces the DIRECTORY ENTRY it is handed. Handed a symlink, it
- * deletes the link and leaves an ordinary file where it was, and
- * `~/.claude/settings.json` is a symlink on a great many machines: into a
- * dotfiles repo, a stow or chezmoi target, an encrypted volume. The content
- * survives — we write back what we read — so nothing looks wrong and nothing
- * says anything. The repo copy keeps what it said before, never goes dirty, and
- * from then on the user's edits there reach nobody while every launch rewrites
- * the detached file and widens the gap. This is a file the deck did not create
- * and does not own; quietly cutting it loose from the thing that manages it is
- * worse than failing to write it at all.
- *
- * persistAuth in codex-auth.mjs has resolved for exactly this reason since it
- * was written, on the file that is LESS often linked. This is the same rule at
- * the helper every settings writer in the deck goes through — and the same
- * function, so there is one of it rather than two that can drift.
- *
- * Resolving also decides which filesystem the temp file is staged on, and it has
- * to be the target's. A rename is atomic within one filesystem and fails with
- * EXDEV across two, so staging beside the LINK — a link into a dotfiles repo on
- * a separate volume — is a write that cannot land at all.
- *
- * A DANGLING link is the case realpath alone cannot answer: the target not
- * created yet, the encrypted volume not mounted. Answering it with the raw path
- * is the bug again, because that is precisely when the link gets replaced — so
- * the walk falls back to readlink, which reads a link without needing its target
- * to exist, and follows it the way opening the name for writing would.
- * `printf x > link` creates the target; it does not replace the link. If the
- * target's directory is gone the write then fails, which is the honest answer:
- * the bytes did not reach the file the user's setup points at.
- *
- * The ordinary case — a plain file, no link anywhere — is one realpath and the
- * first return.
- */
-async function resolveWriteTarget(raw) {
-  let at = raw;
-  for (let hop = 0; hop < MAX_LINK_HOPS; hop++) {
-    // Resolves every link on the path at once, when all of them lead somewhere.
-    const real = await realpath(at).catch(() => null);
-    if (real !== null) return real;
-    const to = await readlink(at).catch(() => null);
-    // Not a link, so nothing exists at this name yet and this name is the
-    // answer: a first install, or the far end of a chain we have just followed.
-    if (to === null) return at;
-    at = resolve(dirname(at), to);
-  }
-  // Only a cycle gets here. Say so rather than pick a link out of it and
-  // destroy that one — the OS answers a write through such a name the same way.
-  const err = new Error(`too many symbolic links resolving ${raw}`);
-  err.code = "ELOOP";
-  throw err;
-}
-
-/**
- * Replace a file in a single step readers cannot land inside.
- *
- * The temp file is created beside the target rather than in $TMPDIR, because
- * rename is only atomic within one filesystem and the two are routinely on
- * different ones. It is fsync'd before the rename so that a crash or power loss
- * just after a successful install cannot leave the new directory entry pointing
- * at blocks that were never flushed — the classic file-of-zero-bytes.
- *
- * "Beside the target" means beside the file the name resolves to, not beside the
- * name: see resolveWriteTarget, which is what keeps a symlinked settings.json a
- * symlink.
- */
-async function writeFileAtomic(rawTarget, text) {
-  const target = await resolveWriteTarget(rawTarget);
-  const { tmp, handle } = await createTemp(target);
-  try {
-    try {
-      await handle.writeFile(text, "utf8");
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    // A rename creates a fresh directory entry, so the old file's mode does not
-    // come with it. Carry it over — a settings.json the user chmod'ed to 600 has
-    // to stay 600. No-op on Windows, where chmod only toggles the read-only bit.
-    const mode = await stat(target).then(s => s.mode, () => null);
-    if (mode !== null) await chmod(tmp, mode).catch(() => {});
-    // A READ-ONLY TARGET IS A DEAD END ON WINDOWS, and only there. libuv's
-    // rename is one MoveFileExW(MOVEFILE_REPLACE_EXISTING), which refuses to
-    // replace a destination carrying FILE_ATTRIBUTE_READONLY; POSIX rename(2)
-    // over a 0444 file succeeds, because only the parent directory's write bit
-    // decides. A settings.json picks that attribute up from a OneDrive restore,
-    // a copy off a network share, or read-only media — and EACCES is in the
-    // retry ladder, so the whole ~1.4s was spent before throwing, on every
-    // boot, forever. Every settings writer goes through here, so hooks never
-    // installed and the sound-hook retirement could never repair a stale entry
-    // either.
-    //
-    // chmod on Windows toggles exactly that attribute and nothing else, which
-    // is why this is safe to do unconditionally there: the mode carried above
-    // is re-applied to the new file after the rename, so a file the user marked
-    // read-only stays read-only.
-    // ONLY WHEN THE TARGET IS ACTUALLY READ-ONLY. Two extra syscalls on the
-    // path between the temp write and the rename are not free on Windows:
-    // discovery-live.test.ts hammers writeDiscovery while a reader holds the
-    // destination open, and the wider window turned a rename the retry ladder
-    // used to win into an EPERM it gave up on. The attribute is what this
-    // clears, so a file that does not carry it has nothing to clear.
-    const readOnly = process.platform === "win32" && mode !== null && (mode & 0o200) === 0;
-    if (readOnly) await chmod(target, 0o666).catch(() => {});
-    await renameWithRetry(tmp, target);
-    if (readOnly) await chmod(target, mode).catch(() => {});
-  } catch (err) {
-    // Cleanup covers the write and the fsync as well as the rename: a full disk
-    // used to leave the half-written temp file sitting beside the target.
-    await unlink(tmp).catch(() => {});
-    throw err;
-  }
-}
-
 /**
  * Install one of the packaged hook scripts without ever exposing a partial one.
  *
@@ -473,6 +210,67 @@ function dedupeOurEntries(group) {
   return group.filter(g => !isOurEntry(g));
 }
 
+/**
+ * Whether a settings file still holds exactly the bytes a pass read at its
+ * start: false when another writer has changed it since, and false when it
+ * cannot be read back at all. installHooks and uninstallHooks both ask it at
+ * the last moment before they write, and both decline on false.
+ *
+ * A READ THE GUARD COULD NOT PERFORM IS NOT PROOF NOTHING CHANGED (#788).
+ * This used to be `.catch(() => ({ raw: before }))`, which substituted the
+ * snapshot and so answered "unchanged" for every failed re-read. ENOENT is
+ * the one case that substitution would be right for, and it does not reach
+ * here at all — readSettingsForWrite returns `{ raw: null }` for it without
+ * throwing. What does reach here is EACCES/EBUSY on a file written
+ * microseconds ago, which is the condition atomic-write.mjs's rename retry
+ * names:
+ * "a virus scanner or the search indexer opens files the instant they are
+ * written, so the target is briefly untouchable on a perfectly healthy
+ * machine". Precisely when another deck has just written it.
+ */
+async function unchangedSince(settingsPath, before) {
+  let onDisk;
+  let unreadable = false;
+  try { ({ raw: onDisk } = await readSettingsForWrite(settingsPath)); }
+  catch { unreadable = true; }
+  return !(unreadable || onDisk !== before);
+}
+
+/**
+ * Take the retired finish-sound hook out of `current`, the settings object
+ * installHooks is about to write, and hand back what is left to do once that
+ * write has landed. installHooks says why it rides along on that write.
+ *
+ * Imported here rather than at the top of the file because retire-sound-hook.mjs
+ * imports this module — it takes writeFileAtomic and readSettingsForWrite from
+ * here — and a static import would close that into a cycle. Claude only: the
+ * entry was one line in Claude Code's settings.json and there was never a Codex
+ * one.
+ *
+ * The equality test is not ceremony. Retirement DELETES two files — the parked
+ * hooks and the installed script — at absolute paths it resolved for itself,
+ * from claudeConfigDir() and os.homedir(), at its own import. installHooks
+ * writes `cfg.settingsPath`. In the product those are the same settings.json
+ * and the paths belong together. When they are not the same file, the two
+ * modules are looking at different homes, and acting on that difference means
+ * deleting files belonging to a machine this install is not writing to. That
+ * is not hypothetical: it happened to the author's own ~/.agents-deck while
+ * this very change was being written, from a test whose environment teardown
+ * ran a describe too early. Disagreement is a reason to do nothing.
+ */
+async function soundHookRetirement(provider, cfg, current) {
+  let retire = { pending: false, changed: false, removed: 0, restored: 0 };
+  let completeSoundHookRetirement = null;
+  if (provider === "claude") {
+    const retirement = await import("./retire-sound-hook.mjs");
+    if (retirement.SETTINGS_PATH === cfg.settingsPath) {
+      completeSoundHookRetirement = retirement.completeSoundHookRetirement;
+      retire = await retirement.retireSoundHookIn(current);
+    }
+  }
+  return { retire, completeSoundHookRetirement };
+}
+
 /** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}. */
 export async function installHooks({ provider = "claude", beforeWrite = null } = {}) {
   const cfg = PROVIDERS[provider];
@@ -519,31 +317,7 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
   // write split is what keeps the script deletion after the write: until the new
   // file has landed, a live Claude Code session's next turn still runs the old
   // command.
-  //
-  // Imported here rather than at the top of the file because retire-sound-hook.mjs
-  // imports this module — writeFileAtomic and readSettingsForWrite live here —
-  // and a static import would close that into a cycle. Claude only: the entry
-  // was one line in Claude Code's settings.json and there was never a Codex one.
-  //
-  // The equality test is not ceremony. Retirement DELETES two files — the parked
-  // hooks and the installed script — at absolute paths it resolved for itself,
-  // from claudeConfigDir() and os.homedir(), at its own import. This function
-  // writes `cfg.settingsPath`. In the product those are the same settings.json
-  // and the paths belong together. When they are not the same file, the two
-  // modules are looking at different homes, and acting on that difference means
-  // deleting files belonging to a machine this install is not writing to. That
-  // is not hypothetical: it happened to the author's own ~/.agents-deck while
-  // this very change was being written, from a test whose environment teardown
-  // ran a describe too early. Disagreement is a reason to do nothing.
-  let retire = { pending: false, changed: false, removed: 0, restored: 0 };
-  let completeSoundHookRetirement = null;
-  if (provider === "claude") {
-    const retirement = await import("./retire-sound-hook.mjs");
-    if (retirement.SETTINGS_PATH === cfg.settingsPath) {
-      completeSoundHookRetirement = retirement.completeSoundHookRetirement;
-      retire = await retirement.retireSoundHookIn(current);
-    }
-  }
+  const { retire, completeSoundHookRetirement } = await soundHookRetirement(provider, cfg, current);
 
   // Every launch reinstalls, and on all but the first the entries are already
   // there and identical. Writing anyway is pure downside: it is one more chance
@@ -575,27 +349,12 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
     // real fs work, so a test that raced it by wall clock would pass or fail by
     // how fast the machine is. Production passes nothing.
     if (beforeWrite) await beforeWrite();
-    // A READ THE GUARD COULD NOT PERFORM IS NOT PROOF NOTHING CHANGED (#788).
-    // This used to be `.catch(() => ({ raw: before }))`, which substituted the
-    // snapshot and so answered "unchanged" for every failed re-read. ENOENT is
-    // the one case that substitution would be right for, and it does not reach
-    // here at all — readSettingsForWrite returns `{ raw: null }` for it without
-    // throwing. What does reach here is EACCES/EBUSY on a file written
-    // microseconds ago, which is the condition this module's own header names:
-    // "a virus scanner or the search indexer opens files the instant they are
-    // written, so the target is briefly untouchable on a perfectly healthy
-    // machine". Precisely when another deck has just written it.
-    //
     // So an unreadable re-read declines, like a changed one. Declining is safe
     // for the reason above: every boot reinstalls and the next pass converges.
     // Being wrong the other way is not — it is the lost update this guard
     // exists to prevent, with the user's own sound hook gone from settings.json
     // and from the park that was its only other copy.
-    let onDisk;
-    let unreadable = false;
-    try { ({ raw: onDisk } = await readSettingsForWrite(cfg.settingsPath)); }
-    catch { unreadable = true; }
-    if (unreadable || onDisk !== before) {
+    if (!(await unchangedSince(cfg.settingsPath, before))) {
       return {
         settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider,
         changed: false, raced: true, retire: { ...retire, pending: false },
@@ -691,11 +450,7 @@ export async function uninstallHooks({ provider = "claude", beforeWrite = null }
     // raced it by wall clock would pass or fail by how fast the machine is.
     // Production passes nothing.
     if (beforeWrite) await beforeWrite();
-    let onDisk;
-    let unreadable = false;
-    try { ({ raw: onDisk } = await readSettingsForWrite(cfg.settingsPath)); }
-    catch { unreadable = true; }
-    if (unreadable || onDisk !== before) {
+    if (!(await unchangedSince(cfg.settingsPath, before))) {
       return {
         ok: false, reason: "raced", changed: false, provider,
         settingsPath: cfg.settingsPath,
@@ -767,299 +522,15 @@ export async function leftoverCodexHooks() {
   return count > 0 ? { settingsPath, count } : null;
 }
 
-/**
- * The events log as the record spells it: an absolute path, or null when this
- * deck writes none. Shared by the writer and by ensureDiscovery's comparison,
- * so a file this process wrote can never read back as somebody else's.
- */
-function persistField(persist) {
-  return typeof persist === "string" && persist !== "" ? persist : null;
-}
-
-/**
- * The Codex tree as the record spells it: the canonical path of the CODEX_HOME
- * this process reads, or null for a --no-codex deck, which reads none. Shared by
- * the writer and by ensureDiscovery's comparison for the reason persistField
- * is, and exported for a start's own shape in bin/deck.js — so a start asking
- * "does the running deck read my tree" spells the tree exactly the way the
- * record it compares against does. Worked out on every call rather than once at
- * load: it is one realpath on a five-second heartbeat, and a tree that did not
- * exist when the deck started — the first `codex login` creates it — is then
- * named the way it is named once it does.
- */
-export function codexHomeField(codex) {
-  return codex !== false ? canonicalLogPath(CODEX_DIR) : null;
-}
-
-// Every deck's token lives in this directory, and writeFileAtomic's temp file is
-// created beside its target with whatever the umask allows — 0644 on most
-// machines — so for the moment before the rename the token would sit in a
-// world-readable file. 0700 on the directory closes that window from the outside:
-// another user cannot traverse into it whatever the mode of a file inside says.
-// The dir usually predates this code, so the mode is re-asserted rather than only
-// set at creation, where it would be masked by the umask anyway. Windows ignores
-// both — NTFS ACLs inherit from the per-user profile directory.
-async function ensureDiscoveryDir() {
-  if (!existsSync(AGENT_DAG_DIR)) await mkdir(AGENT_DAG_DIR, { recursive: true, mode: 0o700 });
-  await chmod(AGENT_DAG_DIR, 0o700).catch(() => {});
-}
-
-/**
- * Register this deck, in one step no reader can land inside.
- *
- * The record used to go down with a plain writeFile, which truncates the target
- * and then fills it, so the file existed and was empty for a moment on every
- * rewrite. Everything that reads this directory parses each record whole —
- * electWriters in hook/hook.js, readLiveDecks and sweepStaleDiscovery in
- * index.mjs — and a record that fails to parse is a deck missing from that
- * cycle: the event it should have logged is either logged by nobody or logged
- * twice by the decks that remain, which is the exact failure the single-writer
- * election exists to prevent, reached through the file the election reads. A
- * rename is atomic on Linux, macOS and Windows alike, so a reader now sees the
- * previous record or the new one and never half of either.
- *
- * The token is the deck's proof of identity, so the file holding it is the
- * deck's key material: readable and writable by its owner, nobody else. The mode
- * is pinned after the write because writeFileAtomic can only carry over a mode
- * the target already had — a first registration, or one left by an earlier run
- * under a recycled pid, would otherwise keep whatever the umask handed it.
- */
-export async function writeDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null }) {
-  await ensureDiscoveryDir();
-  const file = discoveryPath();
-  const data = {
-    pid: process.pid,
-    port,
-    workspace: workspace ?? "",
-    // Without this the hooks refuse to post: a file naming a port it cannot
-    // authenticate is exactly the stale-file case they now decline to trust.
-    token: token ?? "",
-    // Absolute path of the events log this deck appends to, or null under
-    // --no-persist. The hook reads it to elect a single writer per file:
-    // several decks receive the same event by design, and without this they
-    // each appended their own copy to the one log they share. See
-    // electWriters in hook/hook.js.
-    persist: persistField(persist),
-    // Is this deck tailing Codex's rollout files? Those events never pass
-    // through a hook, so the decks elect a writer for them among themselves —
-    // and a deck running --no-codex must be left out of that election rather
-    // than win it and record a rollout it is not even reading. See
-    // writesCodexLog in src/server/log-writer.mjs.
-    codex: codex !== false,
-    // And WHOSE rollouts. `codex: true` says this deck tails them and never said
-    // from where, while CODEX_HOME moves the whole tree — #375 was five modules
-    // disagreeing about where it points. Two decks sharing one events.jsonl can
-    // therefore be reading two different trees, and the election grouped them
-    // anyway, because an unscoped deck's workspace contains every cwd and this
-    // was the one field that could have told them apart. The lower-port deck won
-    // a rollout it had never opened, the deck reading it stood down, and the
-    // shared log recorded nothing of that session (#982).
-    //
-    // Canonical rather than as spelled, for the reason canonicalLogPath gives
-    // the log path above (#793): a symlinked ~/.codex, an 8.3-shortened
-    // USERPROFILE or /tmp against /private/tmp would otherwise put two decks
-    // reading one tree into two groups and elect them both — the duplicate the
-    // election exists to end. Only this published copy is canonicalised.
-    // codex-dir.mjs goes on reading and writing through the spelling the user
-    // chose, which it has to for a symlinked home (see codexHome() there).
-    codexHome: codexHomeField(codex),
-    // Does this deck run Browser Watch? The watch elects a single writer among
-    // the decks on a machine, and it elected on port alone — so an older ccdeck
-    // that predates the feature won the election by having the lower port and
-    // then wrote nothing, while the deck that HAS the watch stood down. Measured
-    // on this machine: a v1.46 deck from an npx cache held 4317, answered the
-    // watch route with the SPA's index.html, and Browser Watch silently
-    // recorded nothing for as long as both were up. No error, no log line — the
-    // panel showed findings on screen and the disk stayed empty.
-    //
-    // Same shape as `codex` above, and for the same reason: a deck that is not
-    // doing the work must be left out of the election rather than win it. An
-    // older deck has no such field, so it is excluded by construction.
-    watch: true,
-    // Is the Claude side of this deck switched on? Same shape as `codex` above
-    // and there for a second reader: a bare `ccdeck` that finds this deck
-    // running attaches to it instead of starting a rival, and it may only do
-    // that when the deck on the port is the deck it would itself have built. A
-    // `--no-claude` deck has no hooks, no accounts panel and no switcher, and
-    // until this field existed it was indistinguishable from one that has all
-    // three. An older deck has no such field, so it never passes for one and is
-    // replaced instead — see secondStart.
-    claude: claude !== false,
-    // What this deck IS, so a launcher that attaches can say whether the deck
-    // it found is the version the user just asked for. Never a decision: a
-    // rival deck on a random port is worse than an older deck said out loud.
-    version: typeof version === "string" ? version : "",
-    // The supervisor above this worker, or null when nothing is supervising.
-    //
-    // Only `ccdeck --stop` reads it, and only on the path where the polite
-    // request failed. A worker killed on its own leaves its supervisor alive,
-    // and a supervisor that puts crashed workers back would answer that kill by
-    // starting the deck again — so the ladder has to end the parent first and
-    // the child second, which it cannot do without being told who the parent is.
-    parent: Number.isInteger(parent) ? parent : null,
-    startedAt: new Date().toISOString(),
-  };
-  await writeFileAtomic(file, JSON.stringify(data, null, 2) + "\n");
-  await chmod(file, 0o600).catch(() => {});
-  return file;
-}
-
-export async function removeDiscovery(file) {
-  try { await unlink(file); } catch {}
-}
-
-/** Where this process registers itself. One file per deck, named by pid. */
-export function discoveryPath() {
-  return join(AGENT_DAG_DIR, `${process.pid}.json`);
-}
-
-/**
- * Make sure this deck's discovery file is on disk and says what it should.
- *
- * Registration was a single write at boot, so anything that took the file away
- * afterwards — a sweep on another machine's clock, a half-finished restart, a
- * user tidying the directory — left a deck that was listening, serving and
- * completely invisible: hook.js enumerates this directory and nothing else, so
- * the deck received zero events while looking perfectly healthy. Re-asserting
- * is cheap (one small read), so the deck checks rather than assumes.
- *
- * A file this process wrote is left alone, mode and contents included — only its
- * mtime moves, stamped on every check; see the note where it is. Anything else —
- * no file, unreadable, another pid, a stale port, token, events log, Codex
- * setting or Codex tree, Claude setting, or a version left by the deck this
- * process replaced — is replaced. Every field another deck decides by is compared, the
- * log path included: leave one out and a record missing it would pass as ours
- * forever, which for the log path means no deck can tell which of them share a
- * file and they all write their own copy of every event again. The Codex tree
- * is compared strictly for the same reason: a record from before the field
- * existed has none, and `undefined` must read as "rewrite", never as a
- * --no-codex deck's null.
- */
-export async function ensureDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null }) {
-  const file = discoveryPath();
-  try {
-    const d = JSON.parse(stripBom(await readFile(file, "utf8")));
-    if (d
-      && d.pid === process.pid
-      && d.port === port
-      && (d.workspace ?? "") === (workspace ?? "")
-      && (d.token ?? "") === (token ?? "")
-      && (d.persist ?? null) === persistField(persist)
-      && d.codex === (codex !== false)
-      && d.codexHome === codexHomeField(codex)
-      && d.claude === (claude !== false)
-      && (d.version ?? "") === (typeof version === "string" ? version : "")
-      && (d.parent ?? null) === (Number.isInteger(parent) ? parent : null)) {
-      // STAMPED, though nothing in it changed. The mtime is how a reader tells a
-      // record some deck is still keeping from one whose deck is gone while its
-      // pid lives on under another process: hook.js unlinks a record whose port
-      // lets both challenge deadlines pass only once this stamp is a minute old
-      // (#1069), which a deck running this check every five seconds never lets
-      // happen. Best-effort — a stamp that cannot be written leaves the record
-      // exactly as every deck before this one left it.
-      const now = new Date();
-      await utimes(file, now, now).catch(() => {});
-      return { file, rewritten: false };
-    }
-  } catch { /* missing, unreadable or corrupt — rewritten below */ }
-  await writeDiscovery({ port, workspace, token, persist, codex, claude, version, parent });
-  return { file, rewritten: true };
-}
-
-/**
- * Keep this deck registered for as long as it runs, and tell the caller when
- * that stops being true.
- *
- * `onState` hears the first outcome, every change of health, and every
- * re-registration after the first — never a steady state. A deck that cannot
- * write the file has to say so: silently listening while no hook can find it
- * is the failure this exists to end, not a state worth hiding.
- *
- * The interval is unref'd, so it never keeps a finished process alive, and
- * `stop()` must be called before the file is removed on shutdown — otherwise
- * the next tick would put it straight back.
- *
- * `stop()` ANSWERS WITH THE CHECK ALREADY IN FLIGHT, and shutdown has to await
- * it. Clearing the interval stops the next tick; it does nothing about the one
- * that started a moment ago and is currently inside writeFileAtomic. That tick
- * finishes after the unlink and re-creates the file — exactly the "leave the
- * file behind for the hooks to find once nothing is listening" that stopping
- * first is supposed to prevent, reached by the one route stopping first does
- * not cover. The window is a rename and an fsync on POSIX; on Windows it is
- * that plus renameWithRetry's ladder, up to 200ms of sleeping while a scanner
- * holds the target — the platform the retry was written for is the platform
- * where the race is twenty times wider.
- *
- * `run()` never rejects (every failure is a state), so awaiting this cannot
- * throw and cannot outlast one bounded check.
- */
-export function keepDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null, intervalMs = 5000, onState = null } = {}) {
-  // null until the first outcome, which therefore always differs and is always
-  // reported — the caller learns where it stands before anything else happens.
-  let healthy = null;
-
-  const run = async () => {
-    let state;
-    try {
-      const { rewritten } = await ensureDiscovery({ port, workspace, token, persist, codex, claude, version, parent });
-      state = { ok: true, rewritten, file: discoveryPath(), error: null };
-    } catch (err) {
-      state = { ok: false, rewritten: false, file: discoveryPath(), error: err };
-    }
-    const worthSaying = healthy !== state.ok || state.rewritten;
-    healthy = state.ok;
-    if (worthSaying && onState) { try { onState(state); } catch { /* not our problem */ } }
-    return state;
-  };
-
-  // One check at a time. Registration is a write and a write is now a rename,
-  // which costs an fsync — long enough that a tick can land inside the boot-time
-  // check bin/deck.js runs by hand. That second check reads a file the first has
-  // not renamed into place yet, concludes the deck is unregistered and writes it
-  // again, and the two writes race over one record: the deck reports itself
-  // unregistered on a machine where nothing whatsoever is wrong. A caller that
-  // asks mid-check gets the answer the check already in flight is fetching.
-  let inFlight = null;
-  const check = () => (inFlight ??= run().finally(() => { inFlight = null; }));
-
-  const timer = setInterval(() => { check(); }, intervalMs);
-  timer.unref?.();
-
-  const stop = () => {
-    clearInterval(timer);
-    return inFlight ?? Promise.resolve(null);
-  };
-
-  return { file: discoveryPath(), check, stop };
-}
-
 // CLAUDE_EVENTS used to ride along here (#383). It is the events list of the
 // `claude` entry in PROVIDERS and has never had a reader outside this file; it
 // was easy to miss because the three directories beside it ARE imported and
-// because the long justification below belongs to the SECOND export, not this
-// one. Which events the deck asks Claude Code for is answered by installHooks
-// writing settings.json, which is what the tests read.
+// because the long justification that sat below it belonged to the SECOND
+// export, not this one (it is in atomic-write.mjs now, with that export). Which
+// events the deck asks Claude Code for is answered by installHooks writing
+// settings.json, which is what the tests read.
 export { AGENT_DAG_DIR, CLAUDE_DIR, CODEX_DIR };
-// Exported for the other modules that rewrite settings.json — the sound toggle
-// today. Every one of them needs the same two guarantees: a file we cannot
-// parse is never treated as an empty one, and the replacement is a single
-// rename rather than a truncate a reader can land inside. installScript carries
-// the same guarantee to the hook scripts themselves, which are the files live
-// sessions are actually executing, and renameWithRetry goes out on its own for
-// the files writeFileAtomic cannot write — the fetched uv binary in
-// uv-bootstrap.mjs — which still need the Windows retry. createTemp goes out for
-// the same reason one step lower: codex-auth.mjs needs the collision-free temp
-// name but not writeFileAtomic's mode handling, which carries over the target's
-// mode and so would leave a brand-new auth.json at whatever the umask allows.
-// resolveWriteTarget goes with them, because auth.json is linked into a dotfiles
-// repo for the same reasons settings.json is, and "never rename onto a link" is
-// one rule: codex-auth.mjs called a realpath of its own before this existed, and
-// two spellings of a rule are two things that can drift.
-// `stripBom` goes out on the same argument at the smallest scale. Two stores
-// now move an unparseable file aside instead of writing defaults over it —
-// deck-prefs.mjs since #1002 and browser-watch-store.mjs since #1003 — and all
-// three readers have to mean the same thing by "a BOM is not damage". If they
-// do not, a prefs.json or a state.json somebody opened in Notepad gets
-// quarantined for a mark settings.json has ignored since this function was
-// written.
-export { readSettingsForWrite, writeFileAtomic, renameWithRetry, createTemp, resolveWriteTarget, stripBom };
+// This deck's discovery record, which moved to discovery.mjs. Exported from this
+// file before they moved, and still: bin/deck.js and the CLI import them from
+// here.
+export { codexHomeField, discoveryPath, ensureDiscovery, keepDiscovery, removeDiscovery, writeDiscovery } from "./discovery.mjs";

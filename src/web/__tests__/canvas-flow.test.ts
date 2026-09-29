@@ -68,6 +68,9 @@ function frame(state: GraphState, o: {
   visible?: Set<string>;
   selected?: Set<string>;
   lineage?: Set<string> | null;
+  replayed?: boolean;
+  settled?: boolean;
+  restored?: Set<string>;
 } = {}) {
   const positions = o.positions ?? new Map<string, Point>();
   const provisional = o.provisional ?? new Set<string>();
@@ -76,9 +79,10 @@ function frame(state: GraphState, o: {
   const flow = snapshotToFlow(
     state, 3_000, 4_000, 2_000,
     o.pinned ?? new Map(), o.measured ?? new Map(), new Map(), () => {},
-    /* settled */ true, /* dragging */ false,
+    o.settled ?? true, /* dragging */ false,
     positions, provisional, o.layoutSig ?? "sig", ref,
     o.selected ?? new Set(), o.lineage ?? null, visible, onOpenContext,
+    o.replayed ?? true, o.restored ?? new Set(),
   );
   return { ...flow, positions, provisional, ref };
 }
@@ -187,6 +191,20 @@ describe("where a recap note goes", () => {
     frame(state, { positions, pinned });
     expect(pinned.get(NOTE)).toEqual({ x: 12, y: 34 });
   });
+
+  it("keeps a restored spot while the log is replaying, and comes back to it (#1333)", () => {
+    // Off the board mid-replay only because its recap has not been replayed
+    // yet. Placed again from its card instead, the note landed 18px off where it
+    // was saved — onto the next session down.
+    const NOTE = recapNoteId("s5");
+    const positions = new Map<string, Point>([["s5", { x: 460, y: 18 }], [NOTE, { x: 0, y: 0 }]]);
+    const restored = new Set(positions.keys());
+    const ref = { current: "" };
+    frame(board(agent("s5")), { positions, restored, ref, layoutSig: "s5", replayed: false, settled: false });
+    expect(positions.get(NOTE)).toEqual({ x: 0, y: 0 });
+    const { nodes } = frame(board(withRecap("s5", 1_500)), { positions, restored, ref, layoutSig: "s5", replayed: true, settled: false });
+    expect(nodes.find(n => n.id === NOTE)?.position).toEqual({ x: 0, y: 0 });
+  });
 });
 
 describe("when the frame is allowed to lay the board out again", () => {
@@ -220,6 +238,124 @@ describe("when the frame is allowed to lay the board out again", () => {
     expect(ref.current).toBe("sig#lanes:a:1");
     // And the repair pass really ran: the two cards no longer sit on each other.
     expect(positions.get("b")).not.toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("a board restored while the log is still replaying (#1333)", () => {
+  // Positions and pins come back from storage before the event log does, and
+  // the log arrives a few agents at a time. Anything that renders in between
+  // runs this against the agents replayed so far, which is not all the agents
+  // there are.
+  const restored = () => ({
+    positions: new Map<string, Point>([["a", { x: 0, y: 0 }], ["b", { x: 460, y: 0 }], ["c", { x: 0, y: 580 }]]),
+    pinned: new Map<string, Point>([["c", { x: 0, y: 580 }]]),
+  });
+
+  it("keeps the places of agents that have not arrived yet", () => {
+    const { positions, pinned } = restored();
+    frame(board(agent("a")), { positions, pinned, replayed: false });
+    expect(positions.get("b")).toEqual({ x: 460, y: 0 });
+    // A pin is the user's own placement, and it is restored the same way.
+    expect(pinned.get("c")).toEqual({ x: 0, y: 580 });
+  });
+
+  it("puts a late arrival back where it was rather than laying it out afresh", () => {
+    const { positions, pinned } = restored();
+    frame(board(agent("a")), { positions, pinned, replayed: false });
+    frame(board(agent("a"), agent("b")), { positions, pinned, replayed: false });
+    expect(positions.get("b")).toEqual({ x: 460, y: 0 });
+  });
+
+  it("prunes against the agents once the whole log is back", () => {
+    const { positions, pinned } = restored();
+    frame(board(agent("a")), { positions, pinned, replayed: true });
+    expect(positions.has("b")).toBe(false);
+    expect(pinned.has("c")).toBe(false);
+  });
+});
+
+describe("a restored card holds still until its board is back (#1333)", () => {
+  // Each frame is keyed the way App.tsx keys it, by the agents on the board and
+  // their sizes, so the overlap pass runs when the board changes.
+  const keyed = (state: GraphState, sizes = "") => [...state.agents.keys()].sort().join("|") + sizes;
+  const card = { width: 240, height: 100 };
+
+  it("is not pushed off its spot by an arrival laid out before it came back", () => {
+    // The reload that drew a different board, frame by frame. `r` is a card the
+    // board was saved with. `t` is from a session the replay brings back and the
+    // tick's sweep evicts as soon as it is over, and a render in the middle of
+    // the replay laid it out before `r` had arrived — on the spot `r` was
+    // coming back to. The overlap pass then slid `r`, the lower of the two,
+    // below `t`; the sweep took `t` away and left `r` 236px down.
+    const positions = new Map<string, Point>([["r", { x: 0, y: 40 }]]);
+    const restored = new Set(["r"]);
+    const ref = { current: "" };
+    const early = board(agent("t"));
+    frame(early, { positions, restored, ref, layoutSig: keyed(early), replayed: false, settled: false });
+    expect(positions.get("t")).toEqual({ x: 0, y: 0 });
+    const replayed = board(agent("t"), agent("r"));
+    frame(replayed, { positions, restored, ref, layoutSig: keyed(replayed), replayed: true, settled: false });
+    expect(positions.get("r")).toEqual({ x: 0, y: 40 });
+    // What lay on it moved instead.
+    expect(positions.get("t")!.y).toBeGreaterThan(40);
+    const swept = board(agent("r"));
+    frame(swept, { positions, restored, ref, layoutSig: keyed(swept), replayed: true, settled: true });
+    expect(positions.get("r")).toEqual({ x: 0, y: 40 });
+  });
+
+  it("is not repaired against the default card size before the cards have measured", () => {
+    // Packed at the size the cards measured when the board was saved. Until they
+    // measure again the pass sees the default, 30px taller, and slid `s2` down
+    // by the difference — the smaller moves a lost reload showed.
+    const positions = new Map<string, Point>([["s1", { x: 0, y: 0 }], ["s2", { x: 0, y: 246 }]]);
+    const restored = new Set(["s1", "s2"]);
+    const ref = { current: "" };
+    const state = board(agent("s1"), agent("s2"));
+    frame(state, { positions, restored, ref, layoutSig: keyed(state), settled: false });
+    expect(positions.get("s2")).toEqual({ x: 0, y: 246 });
+    const measured = new Map([["s1", card], ["s2", card]]);
+    frame(state, { positions, restored, ref, measured, layoutSig: keyed(state, "#sv1"), settled: true });
+    expect(positions.get("s2")).toEqual({ x: 0, y: 246 });
+  });
+
+  it("is repaired once the page has settled, if the overlap is real", () => {
+    // The hold defers the repair; it does not cancel it. Nothing about the board
+    // changes between these two frames but the hold lifting, and that alone has
+    // to run the pass again.
+    const positions = new Map<string, Point>([["s1", { x: 0, y: 0 }], ["s2", { x: 0, y: 50 }]]);
+    const restored = new Set(["s1", "s2"]);
+    const ref = { current: "" };
+    const measured = new Map([["s1", card], ["s2", card]]);
+    const state = board(agent("s1"), agent("s2"));
+    frame(state, { positions, restored, ref, measured, layoutSig: keyed(state), settled: false });
+    expect(positions.get("s2")).toEqual({ x: 0, y: 50 });
+    frame(state, { positions, restored, ref, measured, layoutSig: keyed(state), settled: true });
+    expect(positions.get("s2")!.y).toBeGreaterThanOrEqual(100);
+    expect(restored.size).toBe(0);
+  });
+
+  it("stops being held once it is laid out afresh, the way R lays out every card", () => {
+    // R empties the cached positions; what the next pass puts there is R's
+    // arrangement, not the stored board's, and is repaired like any other.
+    const restored = new Set(["s1"]);
+    frame(board(agent("s1")), { restored, settled: false });
+    expect(restored.has("s1")).toBe(false);
+  });
+
+  it("holds nothing on a board that starts empty", () => {
+    // A first load restores nothing, and its overlaps are repaired while the log
+    // is still arriving, as they always were: here `s1` measures taller than the
+    // default before the page has settled, and `s2` makes room at once.
+    const positions = new Map<string, Point>();
+    const ref = { current: "" };
+    const state = board(agent("s1"), agent("s2"));
+    frame(state, { positions, ref, layoutSig: keyed(state), replayed: false, settled: false });
+    const top = positions.get("s2")!.y;
+    const measured = new Map([["s1", { width: 240, height: 400 }], ["s2", card]]);
+    frame(state, { positions, ref, measured, layoutSig: keyed(state, "#sv1"), replayed: false, settled: false });
+    expect(positions.get("s1")).toEqual({ x: 0, y: 0 });
+    expect(positions.get("s2")!.y).toBeGreaterThan(top);
+    expect(positions.get("s2")!.y).toBeGreaterThanOrEqual(400);
   });
 });
 

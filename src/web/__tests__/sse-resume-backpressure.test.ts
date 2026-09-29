@@ -102,9 +102,14 @@ const FAT_EVENTS = 40;
 const primed: number[] = [];
 
 
+/** The server's half of every connection it accepts, so a hang-up can be seen
+ *  where it happens rather than from a client that is not reading. */
+const accepted: Socket[] = [];
+
 beforeAll(async () => {
   server = await startServer({ port: 0, host: "127.0.0.1", persist: null, codex: false });
   port = (server.address() as AddressInfo).port;
+  server.on("connection", (s: Socket) => { accepted.push(s); });
   for (let i = 0; i < FAT_EVENTS; i++) {
     primed.push(await post({
       hook_event_name: "PostToolUse", session_id: "sid-fat", cwd: DIR,
@@ -185,17 +190,20 @@ async function waitUntil(pred: () => Promise<boolean> | boolean, label: string, 
 }
 
 /**
- * A resuming subscriber that never reads a byte, held that way for longer than
- * the drain budget and then allowed to read whatever it was sent. Raw TCP
+ * A resuming subscriber that never reads a byte, held that way until the server
+ * has hung up on it and then allowed to read whatever it was sent. Raw TCP
  * rather than http.get: pausing a parsed response still lets Node drain the
  * socket, and it is the socket standing still that reproduces the report.
  * `Last-Event-ID: 0` asks for the whole ring, which is the resume a tab makes
  * after a suspend.
  *
- * Returns once the server has hung up — which a paused socket only learns when
- * it reads again, the close arriving behind the bytes already queued for it, so
- * the stall has to be timed rather than watched. Returning at all is the
- * assertion: it throws if the hang-up never comes.
+ * Returns once the server has hung up. A paused socket only learns that when it
+ * reads again, the close arriving behind the bytes already queued for it, so
+ * the hang-up is watched on the SERVER's half of the connection instead — the
+ * accepted socket whose remote port is this one's local port. It used to be a
+ * fixed stall of three drain budgets, 4.5s a call, where the hang-up comes one
+ * budget after the replay stalls (#994). Returning at all is the assertion: it
+ * throws if the hang-up never comes, or if what was hung up on was not a resume.
  */
 async function droppedStalledResumer(): Promise<void> {
   const sock = connect(port, "127.0.0.1");
@@ -204,16 +212,44 @@ async function droppedStalledResumer(): Promise<void> {
   sock.on("error", () => {});
   sock.on("end", () => { ended = true; });
   sock.on("close", () => { ended = true; });
-  // Read and discard: the socket has to be draining for the close to arrive.
-  sock.on("data", () => {});
+  // Read, keeping only the head: the socket has to be draining for the close
+  // to arrive, and the head says whether this was ever a resume at all.
+  let head = "";
+  sock.on("data", (c: Buffer) => { if (head.length < 4096) head += c.toString("latin1"); });
   sock.write(
     `GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n` +
+    // The guarded-read gate wants the deck's own token from a client that is
+    // not a browser. Without it this request is a 401, and a 401 on a
+    // keep-alive socket is hung up on too — five seconds later, by the idle
+    // timeout, with no replay ever written. That is how both cases that use
+    // this passed from 23da5f2 on without reaching the code they name (#994).
+    `x-ccdeck-token: ${hookToken()}\r\n` +
     `Accept: text/event-stream\r\nLast-Event-ID: 0\r\n\r\n`,
   );
   sock.pause();
-  await new Promise(r => setTimeout(r, DRAIN_MS * 3));
+  await new Promise<void>(res => sock.once("connect", () => res()));
+  let serverSide: Socket | undefined;
+  await waitUntil(() => (serverSide = accepted.find(s => s.remotePort === sock.localPort)) !== undefined,
+    "the server to accept the resumer");
+  // Well inside the case's 30s, so a server that never hangs up fails here with
+  // a sentence. One that honours the budget does it one DRAIN_MS after the
+  // kernel stops taking frames — about 1.5s after connecting, measured on Linux
+  // loopback.
+  let guard: ReturnType<typeof setTimeout> | undefined;
+  const hungUp = await Promise.race([
+    new Promise<boolean>(res => (serverSide!.destroyed ? res(true) : serverSide!.once("close", () => res(true)))),
+    new Promise<boolean>(res => { guard = setTimeout(() => res(false), 20_000); }),
+  ]);
+  // Cleared, not left to run out: the last case counts this worker's timers.
+  clearTimeout(guard);
+  if (!hungUp) throw new Error("timed out waiting for the server to hang up on the stalled resumer");
   sock.resume();
-  await waitUntil(() => ended, "the stalled resumer to be hung up on");
+  await waitUntil(() => ended, "the stalled resumer to see the hang-up");
+  // And what it was hung up on was the resume: admitted as a stream, and
+  // replayed to until it stopped taking frames.
+  expect(head, "the resumer was never admitted to the stream").toMatch(/^HTTP\/1\.1 200 /);
+  expect(head).toMatch(/\r\ncontent-type: text\/event-stream/i);
+  expect(head, "the resumer was admitted and then sent nothing of the ring").toMatch(/\nid: \d+\n/);
 }
 
 describe("SSE resume backpressure", () => {

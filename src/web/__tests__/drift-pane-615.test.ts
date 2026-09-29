@@ -50,8 +50,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isBoxOnPane, shouldRefit, type NodeBox, type PaneSize, type Viewport } from "../drift";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
 
 /** App.tsx with its comments stripped. The prose in this repo quotes the shapes
@@ -60,18 +62,29 @@ const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
+/** use-canvas-size.ts the same way. The observer and the ref it fills moved
+ *  there; the watchdog that reads the ref, and the element it observes, stayed. */
+/** use-auto-fit.ts the same way: the drift watchdog lives there. */
+const fitCode = readFileSync(fileURLToPath(new URL("../use-auto-fit.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+const sizeCode = readFileSync(fileURLToPath(new URL("../use-canvas-size.ts", import.meta.url)), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+
 /** The body of the watchdog's interval callback. */
 const watchdog = (() => {
-  const at = appCode.indexOf("const id = setInterval(");
-  const end = appCode.indexOf("}, 1500);", at);
-  return at < 0 || end < 0 ? "" : appCode.slice(at, end);
+  // The watchdog is use-auto-fit.ts's, which App.tsx calls.
+  const at = fitCode.indexOf("const id = setInterval(");
+  const end = fitCode.indexOf("}, 1500);", at);
+  return at < 0 || end < 0 ? "" : fitCode.slice(at, end);
 })();
 
 /** The ResizeObserver effect that measures the canvas. */
 const observer = (() => {
-  const at = appCode.indexOf("new ResizeObserver(");
-  const end = appCode.indexOf("ro.disconnect()", at);
-  return at < 0 || end < 0 ? "" : appCode.slice(at, end);
+  const at = sizeCode.indexOf("new ResizeObserver(");
+  const end = sizeCode.indexOf("ro.disconnect()", at);
+  return at < 0 || end < 0 ? "" : sizeCode.slice(at, end);
 })();
 
 /**
@@ -194,8 +207,18 @@ describe("the six layouts are still the six the stylesheet declares", () => {
   it("opens with the accounts panel and without the detail panel", () => {
     // Which is `288px 1fr` — a pane 72px wider than the guess believed, on
     // every deck that has never had its panels touched.
-    expect(appCode).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
-    expect(appCode).toMatch(/function loadDetailOpen\(\): boolean \{[\s\S]*?return false;\s*\}/);
+    // The accounts panel's default moved with the left column, and the detail
+    // panel's below with the right-hand panels, to use-right-panels.ts, which
+    // App.tsx calls.
+    expect(clientText()).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
+    // Open only on a stored "1": nothing stored, and a store that refuses, both
+    // read as null through readStored, and null is closed.
+    const rightCode = readFileSync(fileURLToPath(new URL("../use-right-panels.ts", import.meta.url)), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+    expect(rightCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
+    expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(\);/);
   });
 });
 
@@ -398,10 +421,12 @@ describe("App.tsx hands the rule the pane it measured", () => {
     // in this file may go back to measuring a grid column with `window.inner*`.
     expect(watchdog).not.toMatch(/window\.inner(Width|Height)/);
     expect(appCode).not.toMatch(/window\.inner(Width|Height)/);
+    expect(fitCode).not.toMatch(/window\.inner(Width|Height)/);
+    expect(sizeCode).not.toMatch(/window\.inner(Width|Height)/);
   });
 
   it("starts that ref empty, so a tick before the first measurement decides nothing", () => {
-    expect(appCode).toMatch(/const paneSizeRef = useRef<PaneSize \| null>\(null\);/);
+    expect(sizeCode).toMatch(/const paneSizeRef = useRef<PaneSize \| null>\(null\);/);
   });
 
   it("fills that ref from the ResizeObserver on the canvas element", () => {
@@ -424,7 +449,12 @@ describe("App.tsx hands the rule the pane it measured", () => {
   });
 
   it("observes the element the canvas is drawn in", () => {
-    expect(appCode).toMatch(/const el = canvasRef\.current;/);
-    expect(appCode).toMatch(/className=\{`canvas-wrap\$\{[\s\S]*?ref=\{canvasRef\}/);
+    expect(sizeCode).toMatch(/const el = canvasRef\.current;/);
+    // The element is components/CanvasMain.tsx's, which App.tsx hands the ref.
+    const mainCode = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+    expect(appCode).toMatch(/<CanvasMain\b[^>]*\bcanvasRef=\{canvasRef\}/);
+    expect(mainCode).toMatch(/className=\{`canvas-wrap\$\{[\s\S]*?ref=\{canvasRef\}/);
   });
 });

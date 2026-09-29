@@ -14,12 +14,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
 import { panelFigures, rangeView, type Board, type Delta, type Landed, type UsageRange } from "../usage-from-ccusage";
 import { boardBySession, liveDelta, type CountableAgent } from "../live-delta";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
 const app = read("../App.tsx");
+// The <ReactFlow> element and what renders inside it, out of App.tsx's markup.
+const board = read("../components/BoardFlow.tsx");
 const watchModal = read("../components/BrowserWatchModal.tsx");
 const clusters = read("../components/SessionClusters.tsx");
 
@@ -78,9 +81,10 @@ describe("#784 — the reading and the point it is measured from", () => {
   });
 
   it("is wired that way in the panel, with no effect left to be one render late", () => {
-    expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
+    // The reading is stored by the range hook, lifted out of the panel.
+    expect(read("../use-usage-range.ts")).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
     expect(panel).toContain("liveDelta(baseline, boardBySession(state.agents.values(), now))");
-    expect(panel, "the baseline is back in a ref an effect writes").not.toContain("baselineRef.current =");
+    expect(usageSurface(), "the baseline is back in a ref an effect writes").not.toContain("baselineRef.current =");
     // And the snapshot handed to the hook must be stable, or the fetch re-runs
     // on every 250ms tick — which would be a far louder bug than the one fixed.
     expect(panel).toContain("const takeBaseline = useCallback(() => boardNowRef.current(), []);");
@@ -116,7 +120,9 @@ describe("#783 — the tool-category filter", () => {
   it("still applies the filter downstream, so the bar is not merely decorative", () => {
     // If this stopped being true the bar would be a control over nothing, and
     // the case above would pass over a feature that had quietly been removed.
-    expect(app).toContain("hiddenCategories={hiddenCats}");
+    // App.tsx hands BoardFlow the filter, and BoardFlow hands it to the bubbles.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bhiddenCats=\{hiddenCats\}/);
+    expect(board).toContain("hiddenCategories={hiddenCats}");
   });
 });
 
@@ -130,18 +136,30 @@ describe("#785 — a camera move the deck made itself", () => {
   // The cluster label used to move the camera itself and stamp through an
   // `onFit` prop. It asks App now, and App's focusAgent — the one routine every
   // "go to this card" shares — moves and stamps in one place.
-  const focus = app.slice(app.indexOf("const focusAgent = useCallback("), app.indexOf("const peekAgent = useCallback("));
+  // focusAgent lives in use-agent-focus.ts, which App.tsx calls; the slice runs
+  // to the next callback there, and is empty (failing the checks) if it is gone.
+  const focusSrc = read("../use-agent-focus.ts");
+  const focusAt = focusSrc.indexOf("const focusAgent = useCallback(");
+  const focusEnd = focusSrc.indexOf("const stepAgent = useCallback(", focusAt);
+  const focus = focusAt === -1 ? "" : focusSrc.slice(focusAt, focusEnd === -1 ? undefined : focusEnd);
 
   it("leaves the moving to App, so there is one stamp to keep right", () => {
     expect(clusters).not.toContain("rf.fitView(");
     expect(clusters).not.toContain("useReactFlow");
     expect(clusters).toContain("onFocusSession?.(sessionId)");
-    expect(app).toContain("<SessionClusters onFocusSession={focusAgent} />");
+    // App.tsx hands BoardFlow focusAgent, and BoardFlow mounts the labels on it.
+    expect(app).toMatch(/<BoardFlow\b[^>]*\bfocusAgent=\{focusAgent\}/);
+    expect(board).toContain("<SessionClusters onFocusSession={focusAgent} />");
   });
 
   it("stamps the move after it is made, inside the routine that makes it", () => {
-    const move = focus.indexOf("applyViewport(want, FOCUS_MS);");
-    const stamp = focus.indexOf("lastFitTimeRef.current = Date.now();");
+    // The routine is moveCamera now, in use-camera.ts, and the focus goes
+    // through it; the order inside is the one this pinned.
+    expect(focus).toContain("moveCamera(want, FOCUS_MS);");
+    const camera = read("../use-camera.ts");
+    const moveBody = camera.slice(camera.indexOf("const moveCamera = useCallback("));
+    const move = moveBody.indexOf("applyViewport(want, duration);");
+    const stamp = moveBody.indexOf("lastFitTimeRef.current = Date.now();");
     expect(move).toBeGreaterThan(-1);
     expect(stamp, "the stamp is before the move").toBeGreaterThan(move);
   });
@@ -151,6 +169,6 @@ describe("#785 — a camera move the deck made itself", () => {
     // the next layout change must not frame the whole board over it. It says
     // so through the one door a pan uses, so the chip and its Resume appear.
     expect(focus).toContain("disableAutoFit();");
-    expect(focus.indexOf("disableAutoFit();")).toBeLessThan(focus.indexOf("applyViewport(want, FOCUS_MS);"));
+    expect(focus.indexOf("disableAutoFit();")).toBeLessThan(focus.indexOf("moveCamera(want, FOCUS_MS);"));
   });
 });

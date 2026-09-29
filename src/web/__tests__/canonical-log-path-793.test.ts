@@ -30,12 +30,13 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 const DIR = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-canon-log-")));
 afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — plain .mjs server module, no types
-const { canonicalLogPath, electWriters } = await import("../../server/log-writer.mjs");
+const { canonicalLogPath, electWriters } = await import("../../server/log-election.mjs");
 
 const deckJs = () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -140,7 +141,7 @@ describe("the value the discovery file publishes", () => {
     // and every other deck group by exactly this value.
     const src = deckJs();
     expect(src).toContain("canonicalLogPath(flags.history ??");
-    expect(src, "the bare resolve is back on the log path")
+    expect(cliSurface(), "the bare resolve is back on the log path")
       .not.toMatch(/:\s*resolve\(flags\.history/);
   });
 });

@@ -47,26 +47,51 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  CHIME_ORDER, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
-  DEFAULT_PREFS, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
+  CHIME_ORDER, clampLevel, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
+  DEFAULT_PREFS, ENVELOPE_FLOOR, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
   GAIN_CEILING, GAIN_FLOOR, gainForLevel, LEVEL_KEYS, levelFrom, LEVEL_MAX,
   LEVEL_MIN, LEVEL_STEP, PEAK_GAIN, peakFor, PREVIEW_DELAY_MS, readPrefs,
   type Chime, type Figure, type Note, type TonePrefs,
 } from "../sound";
+import { createChimePlayer } from "../chime-player";
 import { readStored } from "../storage";
 import { finishSoundTitle } from "../provider-copy";
 import { ASSUMED } from "../providers";
 import { KEY_HELP } from "../key-help";
 import { openTags, withoutComments } from "./tsx-scan";
+import { clientText, sourceOf } from "./client-source";
+import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 /** Comment-stripped, so a paragraph explaining a decision cannot satisfy an
  *  assertion about the code that carries it out (#513). */
-const app = withoutComments(read("App.tsx"));
+// The keydown handler moved to use-deck-shortcuts.ts, the topbar's settings run
+// to components/TopbarRuns.tsx and the menus' open state to
+// use-settings-menus.ts; the keys, the run and the rest of the deck are read as one.
+const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-deck-shortcuts.ts"))
+  + "\n" + withoutComments(read("components/TopbarRuns.tsx")) + "\n" + withoutComments(read("use-settings-menus.ts"));
+// The tone settings, their write-through and the preview timer moved to
+// use-tone-prefs.ts. The cases about them read the whole client — every one of
+// them is a positive match, so the wider text cannot make one pass falsely.
+// `app` stays those four files for the rest, including the one negative case.
+const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
+// The outside-press rule SoundMenu shares with AnchoredPopover.
+const outsidePress = withoutComments(read("components/use-outside-press.ts"));
+// Each tone's row — its preview, volume and sound — moved to ToneSection.tsx,
+// and the volume on from there to VolumeRow.tsx.
+const toneSection = withoutComments(read("components/ToneSection.tsx"));
+const volumeRow = withoutComments(read("components/VolumeRow.tsx"));
+// The custom sounds moved to CustomSoundsSection.tsx. The cases about them read
+// that file; the negatives read the menu and every file lifted out of it.
+const customSounds = withoutComments(read("components/CustomSoundsSection.tsx"));
+// And its spoken-voice form moved on again, to SpokenVoiceForm.tsx.
+const voiceForm = withoutComments(read("components/SpokenVoiceForm.tsx"));
+const menuSurface = withoutComments(soundMenuSurface());
 const sheet = withoutComments(read("components/KeyboardHelp.tsx"));
-const css = read("styles.css");
+const css = sheetText();
 
 const pitches = (notes: readonly Note[]) => notes.map(n => n.hz);
 const ends = (notes: readonly Note[]) => Math.max(...notes.map(n => n.at * 1000 + n.ms));
@@ -113,10 +138,10 @@ describe("what a tone can be set to", () => {
     // was written: the catalogue was checked and what the MENU does with it was
     // not. A sound the user cannot select is a sound that does not exist, and
     // that gap grows with the list rather than shrinking.
-    expect(menu).toMatch(/\{FIGURE_SETS\[chime\]\.map\(f => \(/);
-    expect(menu).toMatch(/<option key=\{f\.id\} value=\{f\.id\}>\{f\.label\}<\/option>/);
+    expect(toneSection).toMatch(/\{FIGURE_SETS\[chime\]\.map\(f => \(/);
+    expect(toneSection).toMatch(/<option key=\{f\.id\} value=\{f\.id\}>\{f\.label\}<\/option>/);
     // Nothing between the set and the options — no slice, no filter, no cap.
-    const rendered = menu.slice(menu.indexOf("FIGURE_SETS[chime]"), menu.indexOf("</select>"));
+    const rendered = toneSection.slice(toneSection.indexOf("FIGURE_SETS[chime]"), toneSection.indexOf("</select>"));
     expect(rendered, "the select narrows the set before rendering it").not.toMatch(/slice|filter|splice/);
   });
 
@@ -672,7 +697,7 @@ function fakeAudio() {
       return {
         gain: {
           setValueAtTime() {},
-          exponentialRampToValueAtTime(target: number) { if (target > 0.0001) peaks.push(target); },
+          exponentialRampToValueAtTime(target: number) { if (target > ENVELOPE_FLOOR) peaks.push(target); },
         },
         connect: (n: unknown) => n,
       } as unknown as GainNode;
@@ -819,7 +844,7 @@ describe("the one press allowed past the switch", () => {
 describe("the click opens the menu, and M still silences the deck", () => {
   it("makes the topbar speaker a disclosure rather than a toggle", () => {
     expect(app).toMatch(/onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/);
-    const tags = openTags(read("App.tsx"), ["button"])
+    const tags = openTags(read("components/TopbarRuns.tsx"), ["button"])
       .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags).toHaveLength(1);
     expect(tags[0].ranAway).toBe(false);
@@ -870,17 +895,49 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // `soundOn` and nothing is disabled or dimmed. A later, legitimate use of
     // `soundOn` anywhere else in this component is untouched by this; a use
     // INSIDE the tone groups is exactly the thing worth stopping to look at.
+    //
+    // The tone groups are ToneSection.tsx now, rendered once per tone inside
+    // `.sm-tones`; the menu's own slice holds the loop that renders them and
+    // hands each the switch, and the row's markup holds the rest.
     const tones = menu.slice(menu.indexOf('<div className="sm-tones">'));
     const inside = tones.slice(0, tones.lastIndexOf("</div>"));
-    expect(inside).toContain("TONE_NOTE[chime]");            // the right slice
+    expect(inside).toContain("<ToneSection");                // the right slice
     expect(inside, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
     expect(inside, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
+    // The menu passes the switch on and does nothing else with it there.
+    expect(inside.replace("soundOn={soundOn}", "")).not.toMatch(/\bsoundOn\b/);
+    const row = toneSection.slice(toneSection.indexOf("  return ("));
+    expect(row).toContain("TONE_NOTE[chime]");               // the right slice
+    expect(row, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
+    expect(row, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
+    // The volume slider left the row for VolumeRow.tsx, and is held to the same
+    // two there.
+    const volume = volumeRow.slice(volumeRow.indexOf("  return ("));
+    expect(row).toContain("<VolumeRow");                     // the row still draws it
+    expect(volume).toContain('type="range"');                 // the right slice
+    expect(volume, "the volume slider was disabled").not.toMatch(/\bdisabled\b/);
+    expect(volume, "the volume slider was dimmed").not.toMatch(/\bopacity\b/);
+    expect(volume).not.toMatch(/\bsoundOn\b/);
     // Two uses of `soundOn` in there, and they are the sentence rather than a
     // state: the tooltip and the description that says the preview will sound.
-    expect([...inside.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
-    expect(inside).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
-    expect(inside).toMatch(/: "Plays even when Sounds is off"\}/);
-    expect(inside).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
+    expect([...row.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
+    expect(row).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
+    expect(row).toMatch(/: "Plays even when Sounds is off"\}/);
+    expect(row).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
+    // The slice above ran to the menu's last </div>, so it also held the custom
+    // sounds, which moved to CustomSoundsSection.tsx. Their markup is held to the
+    // same three there.
+    const custom = customSounds.slice(customSounds.indexOf("  return ("));
+    expect(custom).toContain('<section className="sm-custom"');   // the right slice
+    expect(custom, "a custom-sound control was disabled").not.toMatch(/\bdisabled\b/);
+    expect(custom, "a custom-sound control was dimmed").not.toMatch(/\bopacity\b/);
+    expect(custom).not.toMatch(/\bsoundOn\b/);
+    // The voice form was inside that markup too, until it moved on again.
+    const voice = voiceForm.slice(voiceForm.indexOf("  return ("));
+    expect(voice).toContain('<details className="sm-voice">');     // the right slice
+    expect(voice, "a voice-form control was disabled").not.toMatch(/\bdisabled\b/);
+    expect(voice, "a voice-form control was dimmed").not.toMatch(/\bopacity\b/);
+    expect(voice).not.toMatch(/\bsoundOn\b/);
   });
 
   it("gives the tooltip the exception and the description the reason", () => {
@@ -888,7 +945,7 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // read in the half-second before a press, so it states the exception and
     // stops; the description is read in sequence by somebody who cannot see the
     // switch above it, and carries why the exception is useful.
-    const tip = menu.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
+    const tip = toneSection.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
     const said = menu.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
     expect(tip).toBe("Plays even when Sounds is off");
     expect(said.length).toBeGreaterThan(tip.length);
@@ -939,7 +996,7 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     expect(menu).toMatch(/role="dialog"/);
     expect(menu).toMatch(/aria-label="Sound settings"/);
     // Non-modal on purpose: there is no scrim and nothing behind it is inert.
-    expect(menu).not.toMatch(/aria-modal/);
+    expect(menuSurface).not.toMatch(/aria-modal/);
   });
 
   it("adds the one rule a popover needs and a modal does not", () => {
@@ -947,13 +1004,18 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // rather than click, so a press that starts outside dismisses even if the
     // pointer travels back in before release — and in the capture phase, so a
     // control that stops propagation cannot keep the menu open.
-    expect(menu).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
-    expect(menu).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
+    //
+    // The listener is use-outside-press.ts's now, shared with AnchoredPopover,
+    // so the phase and the event are read there and the menu is held to
+    // handing it the right two elements.
+    expect(outsidePress).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
+    expect(outsidePress).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
     // The two exclusions, and the opener is the one that matters: without it
     // the outside-press closes the menu and the button's own onClick reopens it
     // in the same gesture.
-    expect(menu).toMatch(/if \(dialogRef\.current\?\.contains\(target\)\) return;/);
-    expect(menu).toMatch(/if \(openerRef\.current\?\.contains\(target\)\) return;/);
+    expect(outsidePress).toMatch(/if \(popover\?\.contains\(target\)\) return false;/);
+    expect(outsidePress).toMatch(/if \(opener\?\.contains\(target\)\) return false;/);
+    expect(menu).toMatch(/useOutsidePress\(dialogRef, \(\) => openerRef\.current, onClose\);/);
     expect(app).toMatch(/openerRef=\{soundButtonRef\}/);
     expect(app).toMatch(/ref=\{soundButtonRef\}/);
   });
@@ -964,9 +1026,9 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // refusal the menu does make — no more custom sounds at the ceiling
     // (#1207) — is aria-disabled, which leaves the control focusable, and is
     // the only spelling of the word allowed here.
-    expect(menu).toMatch(/"aria-disabled": true/);
-    expect(menu.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
-    const tags = openTags(read("App.tsx"), ["button"])
+    expect(customSounds).toMatch(/"aria-disabled": true/);
+    expect(menuSurface.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
+    const tags = openTags(read("components/TopbarRuns.tsx"), ["button"])
       .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags[0].attrs.replace(/\s+/g, " ")).toMatch(/\{\.\.\.selfPressProps\(false\)\}/);
     expect(tags[0].attrs).not.toMatch(/disabled=/);
@@ -981,21 +1043,21 @@ describe("the popover, built out of the parts the six dialogs already use", () =
 describe("hearing it is the point, not a nicety", () => {
   it("gives each tone its own preview, and auditions rather than reports", () => {
     // Two buttons, one per tone, each playing THAT tone.
-    expect(menu).toMatch(/onClick=\{\(\) => onPreview\(chime\)\}/);
-    expect(menu).toMatch(/aria-label=\{`Hear the \$\{TONE_LABEL\[chime\]\.toLowerCase\(\)\} tone`\}/);
-    expect(app).toMatch(/onPreview=\{chime => previewTone\(chime\)\}/);
-    expect(app).toMatch(/chimesRef\.current\?\.play\(chime, true\)/);
+    expect(toneSection).toMatch(/onClick=\{\(\) => onPreview\(chime\)\}/);
+    expect(toneSection).toMatch(/aria-label=\{`Hear the \$\{TONE_LABEL\[chime\]\.toLowerCase\(\)\} tone`\}/);
+    expect(client).toMatch(/onPreview=\{chime => previewTone\(chime\)\}/);
+    expect(client).toMatch(/chimesRef\.current\?\.play\(chime, true\)/);
   });
 
   it("answers a press at once and a drag after it settles", () => {
     // The distinction that makes both usable: a slider crossing a dozen steps
     // must collapse to one figure, and a deliberate press must not feel laggy.
-    expect(app).toMatch(/if \(!soon\) \{ chimesRef\.current\?\.play\(chime, true\); return; \}/);
-    expect(app).toMatch(/previewRef\.current = setTimeout\(/);
-    expect(app).toMatch(/\}, PREVIEW_DELAY_MS\);/);
+    expect(client).toMatch(/if \(!soon\) \{ chimesRef\.current\?\.play\(chime, true\); return; \}/);
+    expect(client).toMatch(/previewRef\.current = setTimeout\(/);
+    expect(client).toMatch(/\}, PREVIEW_DELAY_MS\);/);
     // A pending debounce is cancelled before either path runs, so a press and a
     // drag can never overlap into two figures at once.
-    expect(app).toMatch(/if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\);\n\s*previewRef\.current = null;/);
+    expect(client).toMatch(/if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\);\n\s*previewRef\.current = null;/);
     expect(PREVIEW_DELAY_MS).toBeGreaterThan(80);
     expect(PREVIEW_DELAY_MS).toBeLessThan(200);
     // Shorter than the figure it plays, so a settled change is heard before the
@@ -1006,42 +1068,48 @@ describe("hearing it is the point, not a nicety", () => {
   it("plays the tone back whenever a setting of that tone changes", () => {
     // Not just the slider: picking a sound you cannot hear is the same guess as
     // setting a level in silence.
-    expect(app).toMatch(/previewTone\(chime, true\);/);
-    expect(app).toMatch(/onLevel=\{\(chime, level\) => changeTone\(chime, \{ level \}\)\}/);
-    expect(app).toMatch(/onFigure=\{\(chime, figure\) => changeTone\(chime, \{ figure \}\)\}/);
+    expect(client).toMatch(/previewTone\(chime, true\);/);
+    expect(client).toMatch(/onLevel=\{\(chime, level\) => changeTone\(chime, \{ level \}\)\}/);
+    expect(client).toMatch(/onFigure=\{\(chime, figure\) => changeTone\(chime, \{ figure \}\)\}/);
   });
 
   it("unlocks before it asks, because this may be the tab's first gesture", () => {
-    expect(app).toMatch(/chimesRef\.current\?\.unlock\(\);\n\s*if \(previewRef\.current !== null\)/);
+    expect(client).toMatch(/chimesRef\.current\?\.unlock\(\);\n\s*if \(previewRef\.current !== null\)/);
   });
 
   it("does not leave a timer running past the tab", () => {
-    expect(app).toMatch(/useEffect\(\(\) => \(\) => \{ if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\); \}, \[\]\);/);
+    expect(client).toMatch(/useEffect\(\(\) => \(\) => \{ if \(previewRef\.current !== null\) clearTimeout\(previewRef\.current\); \}, \[\]\);/);
   });
 });
 
 describe("App owns the settings, the write and the round trip", () => {
   it("reads them back through the wrapped read, in an initialiser that must not throw", () => {
-    expect(app).toMatch(/useState<TonePrefs>\(\(\) => readPrefs\(readStored\)\)/);
+    expect(client).toMatch(/useState<TonePrefs>\(\(\) => readPrefs\(readStored\)\)/);
   });
 
   it("writes both of a tone's settings, checked, under the namespaced keys", () => {
-    expect(app).toMatch(/level: clampLevel\(patch\.level \?\? prev\[chime\]\.level\)/);
-    expect(app).toMatch(/figure: figureIdFrom\(chime, patch\.figure \?\? prev\[chime\]\.figure\)/);
-    expect(app).toMatch(/localStorage\.setItem\(LEVEL_KEYS\[chime\], String\(next\.level\)\)/);
-    expect(app).toMatch(/localStorage\.setItem\(FIGURE_KEYS\[chime\], next\.figure\)/);
+    expect(client).toMatch(/level: clampLevel\(patch\.level \?\? prev\[chime\]\.level\)/);
+    expect(client).toMatch(/figure: figureIdFrom\(chime, patch\.figure \?\? prev\[chime\]\.figure\)/);
+    expect(client).toMatch(/writeStored\(LEVEL_KEYS\[chime\], String\(next\.level\)\)/);
+    expect(client).toMatch(/writeStored\(FIGURE_KEYS\[chime\], next\.figure\)/);
     // Wrapped, like every other preference here: a blocked store costs the
-    // setting and nothing else.
-    expect(app).toMatch(/try \{[\s\S]{0,200}localStorage\.setItem\(LEVEL_KEYS\[chime\][\s\S]{0,200}\} catch/);
+    // setting and nothing else. writeStored is the wrapped write —
+    // storage-blocked.test.ts drives it under a getter that throws.
+    expect(sourceOf("use-tone-prefs.ts")).toMatch(/import \{[^}]*\bwriteStored\b[^}]*\} from "\.\/storage";/);
   });
 
   it("hands the player the settings through a ref, the way it hands it the flag", () => {
-    expect(app).toMatch(/prefs: \(\) => tonePrefsRef\.current,/);
-    expect(app).toMatch(/enabled: \(\) => soundOnRef\.current === true,/);
-    expect(app).toMatch(/tonePrefsRef\.current = tonePrefs;/);
+    expect(client).toMatch(/prefs: \(\) => tonePrefsRef\.current,/);
+    expect(client).toMatch(/enabled: \(\) => soundOnRef\.current === true,/);
+    // The mirror is `useMirroredRef` now — same fact, named: the ref holds the
+    // current settings so the player, built once on mount, reads them at play time.
+    expect(client).toMatch(/const tonePrefsRef = useMirroredRef\(tonePrefs\);/);
   });
 
   it("gives the menu everything it needs and nothing it does not", () => {
+    // The run that mounts the menu is SettingsRun, which App.tsx hands the
+    // switch, the tone settings and the menus' state whole.
+    expect(withoutComments(read("App.tsx"))).toMatch(/<SettingsRun\b[^>]*\bsound=\{sound\} tones=\{tones\}[^>]*\bmenus=\{menus\}/);
     for (const prop of [
       /soundOn=\{soundOn === true\}/, /onToggleSound=\{toggleSound\}/, /prefs=\{tonePrefs\}/,
       /onLevel=/, /onFigure=/, /onPreview=/, /openerRef=/, /onClose=/,
@@ -1050,6 +1118,6 @@ describe("App owns the settings, the write and the round trip", () => {
     }
     // The menu writes nothing itself: every change leaves through a callback,
     // so there is one writer of the store and it is App.
-    expect(menu).not.toMatch(/localStorage/);
+    expect(menuSurface).not.toMatch(/localStorage/);
   });
 });

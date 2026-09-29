@@ -45,9 +45,9 @@
 import { describe, it, expect } from "vitest";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
-import { collectBursts, primaryBubbleWidth } from "../components/ToolBursts";
+import { collectBursts, primaryBubbleWidth } from "../burst-layout";
 // @ts-expect-error — .mjs server module, no types
-import { codexObjToPayload } from "../../server/index.mjs";
+import { codexObjToPayload } from "../../server/codex-translate.mjs";
 
 const SESSION = "01a00e99-37b3-7781-90d7-aa76a7fca6fa";
 const CWD = "/repo";

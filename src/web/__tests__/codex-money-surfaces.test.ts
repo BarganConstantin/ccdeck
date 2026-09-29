@@ -39,9 +39,10 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { usageSurface } from "./usage-surface";
+import { contextWindowForModel } from "../context-window";
 import {
   billedInputTokens,
-  contextWindowForModel,
   costForUsage,
   fmtCost,
   ratesForModel,
@@ -52,9 +53,10 @@ import {
 // where this file has many, and the count of what a fix actually repairs is the
 // point of running it against the old tree.
 import * as pricing from "../pricing";
-import { costBreakdownTooltip } from "../components/AgentNode";
+import { costBreakdownTooltip } from "../card-cost";
 import { applyEvent, initialState } from "../reducer";
 import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
+import { sheetText } from "./sheet-source";
 
 const usage = (u: Partial<TokenUsage> = {}): TokenUsage => ({
   inputTokens: 0,
@@ -73,8 +75,16 @@ const strip = (src: string) =>
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = strip(read("../components/UsagePanel.tsx"));
+/** The panel and every file lifted out of it, for the negatives and counts. */
+const panelSurface = strip(usageSurface());
+/** The panel's small decisions, lifted out of its render. */
+const rules = strip(read("../usage-panel-rules.ts"));
+/** The two quota sections, lifted out of the panel. */
+const sections = strip(read("../components/QuotaSections.tsx"));
 const card = strip(read("../components/AgentNode.tsx"));
-const css = strip(read("../styles.css"));
+/** What the card's cost slot holds, decided out of the card since it moved. */
+const cardCost = strip(read("../card-cost.ts"));
+const css = strip(sheetText());
 
 // ── 1. the price table ──────────────────────────────────────────────────────
 
@@ -220,18 +230,19 @@ describe("a model with no rate says so instead of vanishing", () => {
   it("puts the marker on the card in the slot the money would have used", () => {
     // The gate that removed the whole element is gone; the lookup now chooses
     // between two renderings instead of between one and nothing.
-    expect(card).not.toMatch(/data\.model && ratesForModel\(data\.model\) &&/);
-    expect(card).toMatch(/const rates = ratesForModel\(data\.model\);/);
+    // The choice is costChip's, in card-cost.ts; the card draws what it says.
+    expect(card + "\n" + cardCost).not.toMatch(/data\.model && ratesForModel\(data\.model\) &&/);
+    expect(cardCost).toMatch(/const rates = ratesForModel\(data\.model\);/);
     expect(card).toMatch(/className="cost-unpriced"/);
     expect(card).toMatch(/\{UNPRICED_LABEL\}/);
     // And only once there are tokens: a card that has not reported usage yet
     // has nothing to be unpriced about.
-    expect(card).toMatch(/data\.usage\.inputTokens \+ data\.usage\.outputTokens\) <= 0\) return null/);
+    expect(cardCost).toMatch(/data\.usage\.inputTokens \+ data\.usage\.outputTokens\) <= 0\) return null/);
   });
 
   it("stops the usage panel dropping rows whose tokens it still counts", () => {
-    expect(panel).not.toMatch(/filter\(m => m\.cost\.total > 0\)/);
-    expect(panel).not.toMatch(/filter\(s => s\.cost > 0\)/);
+    expect(panelSurface).not.toMatch(/filter\(m => m\.cost\.total > 0\)/);
+    expect(panelSurface).not.toMatch(/filter\(s => s\.cost > 0\)/);
     // Rows are selected on tokens now, in one place each rather than twice in
     // the markup — the old code called the same filter for the length check and
     // for the map.
@@ -239,8 +250,11 @@ describe("a model with no rate says so instead of vanishing", () => {
     // CANVAS's rows, the ones this rule is about, and the ccusage rows beside
     // them keep an unpriced model for the same reason (`m.cost <= 0 &&
     // m.tokens > 0` there — tokens present, dollars unknown).
-    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
-    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
+    // Both through one rule since the two spellings were merged: worthALine in
+    // usage-panel-rules.ts, which keeps a row with tokens and no dollars.
+    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
+    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
+    expect(rules).toContain("return dollars > 0 || (row.inputTokens + row.outputTokens) > 0;");
     expect(panel).toMatch(/\{UNPRICED_LABEL\}/);
   });
 
@@ -249,7 +263,7 @@ describe("a model with no rate says so instead of vanishing", () => {
     // unpriced model got a two-number strip and no breakdown whatsoever.
     expect(panel).toMatch(/\{totalTokenSum > 0 \? \(/);
     expect(panel).toMatch(/\{hasCost && \(/);
-    expect(panel).not.toMatch(/\{hasCost \? \(/);
+    expect(panelSurface).not.toMatch(/\{hasCost \? \(/);
   });
 
   it("paints the marker as a state rather than as an amount", () => {
@@ -463,23 +477,28 @@ describe("the 7-day token line does not wait on an authenticated round trip", ()
     // to chatgpt.com, and it fails outright on no_token, api_key_mode, an
     // expired refresh or blocked egress. The local line used to render only
     // inside the success case of the second one.
-    const uses = [...panel.matchAll(/codexUsage\?\.ok/g)];
+    //
+    // The section is QuotaSections.tsx's now, so the positions are read there;
+    // the count reads the panel and everything lifted out of it.
+    const uses = [...panelSurface.matchAll(/codexUsage\?\.ok/g)];
     expect(uses).toHaveLength(1);
-    const at = panel.indexOf("codexUsage?.ok");
+    const at = sections.indexOf("codexUsage?.ok");
     // Scoped to the Codex section: the Claude quota above it has the same three
     // branches, and an unanchored search for the loading one finds Claude's.
-    const section = panel.indexOf("Codex quota");
+    const section = sections.indexOf("Codex quota");
     expect(section).toBeGreaterThan(-1);
-    const successBranch = panel.indexOf("codexQuota?.ok ? (", section);
-    const failureBranch = panel.indexOf("codexQuota?.ok === false", section);
-    const loadingBranch = panel.indexOf("up-quota-loading", failureBranch);
+    const successBranch = sections.indexOf("codexQuota?.ok ? (", section);
+    const failureBranch = sections.indexOf("codexQuota?.ok === false", section);
+    const loadingBranch = sections.indexOf("up-quota-loading", failureBranch);
     expect(successBranch).toBeGreaterThan(-1);
     expect(failureBranch).toBeGreaterThan(successBranch);
     expect(loadingBranch).toBeGreaterThan(failureBranch);
     // After the last of the three: outside the ternary entirely.
     expect(at).toBeGreaterThan(loadingBranch);
-    // And still inside the Codex section rather than adrift in the cost half.
-    expect(at).toBeLessThan(panel.indexOf("up-total-value"));
+    // And still inside the Codex section rather than adrift after it.
+    expect(at).toBeLessThan(sections.indexOf("</section>", loadingBranch));
+    // Which the panel hands the local reading, whatever the quota call did.
+    expect(panel).toMatch(/<CodexQuotaSection [^>]*codexUsage=\{codexUsage\}/);
   });
 
   it("keeps polling it on its own timer, which is what makes that worth doing", () => {
@@ -489,14 +508,15 @@ describe("the 7-day token line does not wait on an authenticated round trip", ()
     // is only that the line has a hook of its own rather than riding on the
     // authenticated quota call.
     expect(panel).toMatch(/const \{ data: codexUsage \} = useCodexUsage\([^)]*\);/);
-    expect(panel).toMatch(/fetch\("\/api\/codex-usage"\)/);
+    // The hook itself is use-quota.ts's, with the other two quota reads.
+    expect(strip(read("../use-quota.ts"))).toMatch(/fetch\("\/api\/codex-usage"\)/);
   });
 
   it("finally reads the 5-hour window the server has always computed", () => {
     // Nothing consumed window5h. It goes in the title rather than on the line:
     // the panel is 280px wide (#369) and a second visible figure costs more
     // than it says.
-    expect(panel).toMatch(/codexUsage\.window5h/);
-    expect(panel).toMatch(/last 5h/);
+    expect(sections).toMatch(/codexUsage\.window5h/);
+    expect(sections).toMatch(/last 5h/);
   });
 });

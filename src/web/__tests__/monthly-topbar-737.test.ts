@@ -10,10 +10,17 @@ import {
   MONTHLY_USAGE_CHECK_MS,
   MONTHLY_USAGE_POLL_MS,
 } from "../monthly-usage";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(join(web, "App.tsx"), "utf8");
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+// The read moved to use-monthly-usage.ts, and the phrase it fills to
+// components/TopbarReadouts.tsx, which App.tsx mounts. The feature is the three
+// together, and what is asked of the read — including the negative, which now
+// has three files to be true of — is asked of all of them.
+const phrase = readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8");
+const feature = app + "\n" + phrase + "\n" + readFileSync(join(web, "use-monthly-usage.ts"), "utf8");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("month-to-date topbar usage (#737)", () => {
   it("starts at the first day of the local calendar month", () => {
@@ -38,18 +45,18 @@ describe("month-to-date topbar usage (#737)", () => {
   });
 
   it("fetches ccusage for that month and labels the figures together", () => {
-    expect(app).toContain('fetch(`/api/ccusage?since=${since}`)');
-    expect(app).toContain('className="month-usage-label">this month</span>');
-    expect(app).toContain("fmtTokens(monthlyUsage.tokens)");
-    expect(app).toContain("fmtMonthlyCost(monthlyUsage.cost)");
-    expect(app).not.toContain("boardTotals(state.agents.values())");
+    expect(feature).toContain('fetch(`/api/ccusage?since=${since}`)');
+    expect(phrase).toContain('className="month-usage-label">this month</span>');
+    expect(phrase).toContain("fmtTokens(monthlyUsage.tokens)");
+    expect(phrase).toContain("fmtMonthlyCost(monthlyUsage.cost)");
+    expect(feature).not.toContain("boardTotals(state.agents.values())");
   });
 
   it("does not keep last month's figure under \"this month\" when a read fails", () => {
     // A failed read leaves the last good figure standing only while it is
     // still the same month; after the 1st it goes rather than being relabelled.
-    expect(app).toContain("goodSince = since;");
-    expect(app).toContain("if (since !== goodSince) setMonthlyUsage(null);");
+    expect(feature).toContain("goodSince = since;");
+    expect(feature).toContain("if (since !== goodSince) setMonthlyUsage(null);");
   });
 
   it("leaves the bar whole where it would otherwise be clipped, by width alone", () => {
@@ -107,7 +114,8 @@ describe("month-to-date topbar usage (#737)", () => {
     // Glyphs: W - g meets 24vw at g / 0.76. Words: W - w meets 380 at w + 380.
     expect(gEnd).toBe(Math.floor(g / 0.76) - 1);
     expect(wEnd).toBe(w + 380 - 1);
-    expect(app).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`Zoom to \$\{selected\.label\} and its session \(Z\)\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
+    // The ribbon is components/SelectedRibbon.tsx's.
+    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`Zoom to \$\{selected\.label\} and its session \(Z\)\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
   });
 
   it("never lets a selection decide whether the phrase is there", () => {
@@ -156,13 +164,13 @@ describe("the month is read only while it is shown (#737)", () => {
   });
 
   it("asks the phrase itself whether it is drawn, and watches it come back", () => {
-    const start = app.indexOf("const monthUsageRef = useRef<HTMLSpanElement>(null);");
+    const start = feature.indexOf("const monthUsageRef = useRef<HTMLSpanElement>(null);");
     expect(start).toBeGreaterThan(-1);
-    const effect = app.slice(start, app.indexOf("}, []);", start));
+    const effect = feature.slice(start, feature.indexOf("}, []);", start));
     // Not a copy of the breakpoints: a box inside display: none has no client
     // rects, whichever rule put it there.
     expect(effect).toContain("shown: !!phrase && phrase.getClientRects().length > 0,");
-    expect(app).toMatch(/ref=\{monthUsageRef\}\s+className="month-usage"/);
+    expect(phrase).toMatch(/ref=\{monthUsageRef\}\s+className="month-usage"/);
     expect(effect).toContain("seen = new ResizeObserver(poll);");
     expect(effect).toContain("seen.observe(monthUsageRef.current);");
     expect(effect).toContain('document.addEventListener("visibilitychange", poll);');

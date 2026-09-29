@@ -13,13 +13,30 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { entryLine, type DeckRow } from "../components/LanSyncSection";
+import { entryLine, type DeckRow } from "../lan-roster";
+import { accountsSurface } from "./accounts-surface";
+import { lanSectionSurface } from "./lan-section-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
 const lan = read("../components/LanSyncSection.tsx");
+/** The card itself, which moved out of the section into its own file. What the
+ *  section is never allowed to do, the card beside it is not either. */
+const card = read("../components/LanPeek.tsx");
+/** The view's rows, which the section draws through a list of their own. */
+const list = read("../components/LanDeckList.tsx");
+/** The card's timing — whether it is showing, its one timer and the verbs the
+ *  row calls — which moved out of the section into a hook of its own. */
+const peekHook = read("../use-hover-peek.ts");
+/** The way-in row itself, and the peek beside it, which moved out of the
+ *  section into a component of their own. */
+const entryRow = read("../components/LanEntryRow.tsx");
+/** The view's header, which moved out of the section into a component of its
+ *  own. */
+const viewHeader = read("../components/LanViewHeader.tsx");
 const guide = read("../components/guide-art.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 let n = 0;
 const row = (kind: DeckRow["kind"], tone: DeckRow["tone"] = "ok", here = tone === "ok"): DeckRow => ({
@@ -95,7 +112,7 @@ describe("what the way in says (#844)", () => {
     // why, is a press away — and the list still counts it under its own fold.
     const failing = [row("paired", "bad", false), row("paired"), row("dialling", "bad", false)];
     expect(entryLine(on, failing)).toEqual({ text: "1 of 2 online", tone: "ok", live: true });
-    expect(lan).not.toMatch(/ap-nav-bad|not responding<\/span>\}/);
+    expect(lanSectionSurface()).not.toMatch(/ap-nav-bad|not responding<\/span>\}/);
     expect(css).not.toMatch(/\.ap-nav-bad/);
     // The fold inside the view keeps its own count, which is where it belongs.
     expect(lan).toMatch(/\{" · "\}\{troubled\} not responding/);
@@ -104,17 +121,19 @@ describe("what the way in says (#844)", () => {
 
 describe("one way in, at the foot of the accounts (#844)", () => {
   it("is the section itself, drawn as one row while the accounts have the column", () => {
-    expect(lan).toMatch(/<div className="ap-foot">\s*<button type="button" id="ap-lan-entry" className="ap-nav"/);
+    // The section's foot holds the row, and the row is the button first.
+    expect(lan).toMatch(/<div className="ap-foot">\s*<LanEntryRow /);
+    expect(entryRow).toMatch(/return \(\s*<>\s*<button type="button" id="ap-lan-entry" className="ap-nav"/);
     // No grace on the way into the view: a card that outlived the view it
     // belongs to would be a card about a list the reader is already looking at.
-    expect(lan).toMatch(/onClick=\{\(\) => \{ dropPeek\(\); onOpen\(\); \}\}/);
-    expect(lan).toMatch(/<span className="ap-nav-name">Local network<\/span>/);
-    expect(lan).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>/);
+    expect(entryRow).toMatch(/onClick=\{\(\) => \{ dropPeek\(\); onOpen\(\); \}\}/);
+    expect(entryRow).toMatch(/<span className="ap-nav-name">Local network<\/span>/);
+    expect(entryRow).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>/);
     // The mark for present, drawn only while somebody is present, in the green
     // the machines themselves wear one press away — see `.ap-lan-who .ap-pulse`.
     // Recolouring the same fact between the summary and the list would make a
     // reader check whether the two were counting different things.
-    expect(lan).toMatch(/\{entry\.live && <i className="ap-nav-live" aria-hidden \/>\}/);
+    expect(entryRow).toMatch(/\{entry\.live && <i className="ap-nav-live" aria-hidden \/>\}/);
     expect(/\n\.ap-nav-live \{([^}]*)\}/.exec(css)?.[1] ?? "").toMatch(/background: var\(--ok\)/);
     expect(css).toMatch(/\.ap-lan-who \.ap-pulse \{ color: var\(--ok\)/);
     // A summary of every machine does not ping; the machines themselves do.
@@ -122,7 +141,7 @@ describe("one way in, at the foot of the accounts (#844)", () => {
   });
 
   it("comes after the roster and the policy row, and is the only place the network's state is said", () => {
-    expect(panel).not.toMatch(/ap-lan-way|jumpToLan|lanSummary|onSummary/);
+    expect(accountsSurface()).not.toMatch(/ap-lan-way|jumpToLan|lanSummary|onSummary/);
     expect(lan).not.toMatch(/onSummary/);
     // Auto-switch moved back into the column when the fold made it short again
     // — it is about these accounts, so it stands under them. This row did not:
@@ -130,7 +149,7 @@ describe("one way in, at the foot of the accounts (#844)", () => {
     // and still the only place the network's state is said.
     expect(panel.indexOf("{policyBlock}")).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
     expect(panel.indexOf("<LanSyncSection")).toBeGreaterThan(panel.indexOf("{policyBlock}"));
-    expect(panel).not.toMatch(/<div className="ap-foot">/);
+    expect(accountsSurface()).not.toMatch(/<div className="ap-foot">/);
   });
 
   it("keeps the section mounted in both views once it has been shown", () => {
@@ -154,50 +173,50 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
   // To the brace on its own line: the props are a destructure whose own `\n})`
   // ends a shorter match, and a body that stops at the signature would let the
   // assertions below pass on nothing.
-  const peek = /function LanPeek\(([\s\S]*?)\n\}\n/.exec(lan)?.[0] ?? "";
+  const peek = /function LanPeek\(([\s\S]*?)\n\}\n/.exec(card)?.[0] ?? "";
   const block = (sel: string) => new RegExp(`\\n\\${sel} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
 
   it("hangs off the way-in row and is drawn only while it is open", () => {
-    expect(lan).toMatch(/\{peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows=\{rows\}/);
+    expect(entryRow).toMatch(/\{peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows=\{rows\}/);
     expect(peek).toMatch(/createPortal\(/);
     expect(peek).toMatch(/className="ap-peek" role="tooltip"/);
   });
 
   it("opens after a delay for a mouse and at once for focus, and shuts on either leaving", () => {
-    expect(lan).toMatch(/onPointerEnter=\{e => \{ if \(e\.pointerType === "mouse"\) openPeek\(PEEK_DELAY_MS\); \}\}/);
-    expect(lan).toMatch(/onPointerLeave=\{shutPeek\}/);
+    expect(entryRow).toMatch(/onPointerEnter=\{e => \{ if \(e\.pointerType === "mouse"\) openPeek\(PEEK_DELAY_MS\); \}\}/);
+    expect(entryRow).toMatch(/onPointerLeave=\{shutPeek\}/);
     // A keyboard's focus only: Back hands focus to this row on the way out of
     // the view, and a card opened by that hand-back has no pointer to leave it
     // and no blur coming — it just sits there. Reported from a screenshot of
     // exactly that.
-    expect(lan).toMatch(/onFocus=\{e => \{ if \(e\.target\.matches\(":focus-visible"\)\) openPeek\(0\); \}\}/);
-    expect(lan).toMatch(/onBlur=\{shutPeek\}/);
+    expect(entryRow).toMatch(/onFocus=\{e => \{ if \(e\.target\.matches\(":focus-visible"\)\) openPeek\(0\); \}\}/);
+    expect(entryRow).toMatch(/onBlur=\{shutPeek\}/);
     // A pointer that leaves before the delay fires cancels it, rather than
     // opening a card the pointer has already walked away from. One timer does
     // open, shut and hold, because only one of them can ever be pending.
-    expect(lan).toMatch(/peekTimer\.current = window\.setTimeout\(\(\) => setPeek\(false\), PEEK_GRACE_MS\);/);
-    expect(lan).toMatch(/const holdPeek = \(\) => window\.clearTimeout\(peekTimer\.current\);/);
-    expect(lan).toMatch(/useEffect\(\(\) => \(\) => window\.clearTimeout\(peekTimer\.current\), \[\]\);/);
+    expect(peekHook).toMatch(/peekTimer\.current = window\.setTimeout\(\(\) => setPeek\(false\), PEEK_GRACE_MS\);/);
+    expect(peekHook).toMatch(/const holdPeek = \(\) => window\.clearTimeout\(peekTimer\.current\);/);
+    expect(peekHook).toMatch(/useEffect\(\(\) => \(\) => window\.clearTimeout\(peekTimer\.current\), \[\]\);/);
   });
 
   it("is told to a screen reader too, and only while the card is there", () => {
-    expect(lan).toMatch(/aria-describedby=\{peek \? "ap-lan-peek" : undefined\}/);
+    expect(entryRow).toMatch(/aria-describedby=\{peek \? "ap-lan-peek" : undefined\}/);
     // No Escape of its own: a card that holds no focus and takes no pointer is
     // not something a reader can be stuck inside, and App.tsx stays the one
     // place that reads that key. Held by modal-dismiss.test.ts for every
     // component; said here because this is the surface that raised it.
-    expect(lan).not.toMatch(/"Escape"/);
+    expect(lanSectionSurface()).not.toMatch(/"Escape"/);
   });
 
   it("lets the pointer rest on it, and stays while it is there", () => {
     // The first spelling refused the pointer outright, and a reader's next move
     // after a list appears is onto it — so the card went out from under them.
-    expect(lan).toMatch(/onPointerEnter=\{onHold\} onPointerLeave=\{onLet\}/);
-    expect(lan).toMatch(/onHold=\{holdPeek\} onLet=\{shutPeek\}/);
+    expect(card).toMatch(/onPointerEnter=\{onHold\} onPointerLeave=\{onLet\}/);
+    expect(entryRow).toMatch(/onHold=\{holdPeek\} onLet=\{shutPeek\}/);
     expect(block(".ap-peek")).not.toMatch(/pointer-events/);
     // The grace is what makes the 4px between row and card crossable at all.
-    expect(lan).toMatch(/export const PEEK_GRACE_MS = 140;/);
-    expect(lan).toMatch(/const POPOVER_GAP|placeBeside/);
+    expect(peekHook).toMatch(/export const PEEK_GRACE_MS = 140;/);
+    expect(card).toMatch(/const POPOVER_GAP|placeBeside/);
   });
 
   it("holds no control, whatever the pointer does on it", () => {
@@ -211,16 +230,18 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
   });
 
   it("names at most a handful, then counts the rest", () => {
-    expect(lan).toMatch(/const shown = here\.slice\(0, PEEK_NAMES\);/);
-    expect(lan).toMatch(/export const PEEK_NAMES = 6;/);
-    expect(lan).toMatch(/\{here\.length \? "On the network now" : "Nobody on the network"\}/);
-    expect(lan).toMatch(/\$\{off\} not on right now/);
+    expect(card).toMatch(/const shown = here\.slice\(0, PEEK_NAMES\);/);
+    expect(card).toMatch(/export const PEEK_NAMES = 6;/);
+    expect(card).toMatch(/\{here\.length \? "On the network now" : "Nobody on the network"\}/);
+    expect(card).toMatch(/\$\{off\} not on right now/);
   });
 });
 
 describe("the view (#844)", () => {
   it("has the panel's header shape: Back, the title, the section's own acts and the panel's close", () => {
-    const head = /<div className="ap-lan-view">\s*<div className="ap-header">([\s\S]*?)\n {6}<\/div>/.exec(lan)?.[1] ?? "";
+    // The view opens on its header, which is a component of its own.
+    expect(lan).toMatch(/<div className="ap-lan-view">\s*<LanViewHeader /);
+    const head = /<div className="ap-header">([\s\S]*?)\n {4}<\/div>\n {2}\);/.exec(viewHeader)?.[1] ?? "";
     expect(head).toMatch(/id="ap-lan-back" className="glyph-btn ap-back" onClick=\{onBack\}/);
     expect(head).toMatch(/aria-label="Back to Claude accounts"/);
     expect(head).toMatch(/<h2 id="ap-lan-title">Local network<\/h2>/);
@@ -234,7 +255,7 @@ describe("the view (#844)", () => {
   });
 
   it("adds no focus stop of its own", () => {
-    expect(lan).not.toMatch(/tabIndex=\{-1\}/);
+    expect(lanSectionSurface()).not.toMatch(/tabIndex=\{-1\}/);
   });
 });
 

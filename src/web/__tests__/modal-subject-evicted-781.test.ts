@@ -7,10 +7,10 @@
 //       || contextFor != null || summaryFor != null || …
 //
 // while both of those modals render nothing once their subject is gone — the
-// context modal on `if (!root) return null`, and SessionSummary on the same
-// `state.agents.get(sessionId)` inside `buildSummary`. `contextFor` is only ever
-// cleared by the dialog's own `onClose`, which lives on the dialog that no
-// longer exists.
+// context modal because App.tsx's `contextAgent` no longer resolves, and
+// SessionSummary on the same `state.agents.get(sessionId)` inside
+// `buildSummary`. `contextFor` is only ever cleared by the dialog's own
+// `onClose`, which lives on the dialog that no longer exists.
 //
 // So: open the context donut on a card, leave it open, let the session finish.
 // `pruneDoneSessions` evicts it about two minutes later — or another deck
@@ -36,6 +36,12 @@ import { applyEvent, initialState, pruneDoneSessions, type GraphState } from "..
 import type { HookEnvelope, HookPayload } from "../types";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+/** The dialogs' state, which App.tsx calls and which calls the modal gate. */
+const dialogs = readFileSync(fileURLToPath(new URL("../use-dialogs.ts", import.meta.url)), "utf8");
+/** The modal gate, which use-dialogs.ts hands every dialog's flag. */
+const gate = readFileSync(fileURLToPath(new URL("../use-modal-gate.ts", import.meta.url)), "utf8");
+/** The deck's 250ms tick, which App.tsx calls with both modal setters. */
+const tick = readFileSync(fileURLToPath(new URL("../use-board-tick.ts", import.meta.url)), "utf8");
 
 let seq = 0;
 function send(state: GraphState, session: string, payload: HookPayload, at?: number): GraphState {
@@ -79,8 +85,9 @@ describe("what App.tsx does about it", () => {
     // The selection already had this treatment (#576) and the two modals did
     // not; that asymmetry IS the bug. Pinned by shape because a DOM-less suite
     // cannot watch a setter run.
-    expect(app).toContain("setContextFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
-    expect(app).toContain("setSummaryFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
+    expect(app).toMatch(/useBoardTick\(\{[^}]*\bsetContextFor\b[^}]*\bsetSummaryFor\b[^}]*\}\)/);
+    expect(tick).toContain("setContextFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
+    expect(tick).toContain("setSummaryFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));");
   });
 
   it("puts them beside the selection prune, so one tick owns all four", () => {
@@ -88,22 +95,30 @@ describe("what App.tsx does about it", () => {
     // would be a second mechanism to keep in step with the pruner, and the
     // reason this tick runs its clears unconditionally (a `__clear` over SSE)
     // applies to the modals exactly as it does to the selection.
-    const sel = app.indexOf("setPrimarySelectedId(prev => (prev != null");
-    const ctx = app.indexOf("setContextFor(prev => (prev != null");
-    const sum = app.indexOf("setSummaryFor(prev => (prev != null");
-    const tickEnd = app.indexOf("if (changed) rerender();", sel);
+    // The selection's half is one call now, to the operation in use-selection.ts
+    // that makes both of its prunes.
+    const sel = tick.indexOf("pruneSelectionToBoard();");
+    const ctx = tick.indexOf("setContextFor(prev => (prev != null");
+    const sum = tick.indexOf("setSummaryFor(prev => (prev != null");
+    const tickEnd = tick.indexOf("if (changed) rerender();", sel);
     expect(sel).toBeGreaterThan(-1);
     expect(ctx, "setContextFor is not in the prune tick").toBeGreaterThan(sel);
     expect(sum, "setSummaryFor is not in the prune tick").toBeGreaterThan(sel);
     expect(ctx).toBeLessThan(tickEnd);
     expect(sum).toBeLessThan(tickEnd);
+    const selection = readFileSync(fileURLToPath(new URL("../use-selection.ts", import.meta.url)), "utf8");
+    expect(selection).toMatch(/const pruneSelectionToBoard = useCallback\(\(\) => \{\s*setSelectedIds\(prev => pruneSelection\(prev, stateRef\.current\.agents\)\);\s*setPrimarySelectedId\(prev => \(prev != null && !stateRef\.current\.agents\.has\(prev\) \? null : prev\)\);/);
   });
 
   it("still counts them as open while they can render, which is what the flag is for", () => {
     // The other direction. The flag must keep blocking shortcuts for a modal
     // that IS on screen — "fixing" this by dropping the two ids from the
     // expression would make Escape-less dialogs swallow every key press.
-    expect(app).toContain("modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null");
-    expect(app).toContain("|| summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;");
+    // Three links: the gate is use-modal-gate.ts's, use-dialogs.ts hands it the
+    // ids, and App.tsx calls use-dialogs.ts with the two dialogs it does not own.
+    expect(gate).toContain("modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null");
+    expect(gate).toContain("|| summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;");
+    expect(dialogs).toMatch(/useModalGate\(\{\s*openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,\s*\}\)/);
+    expect(app).toMatch(/useDialogs\(\{ stateRef, tourOpen, releaseNotes \}\)/);
   });
 });

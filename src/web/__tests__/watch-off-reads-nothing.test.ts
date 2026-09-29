@@ -11,11 +11,12 @@
 // is ON, because recording in the background is the feature; and the panel
 // itself, because that is somebody looking.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { clientText } from "./client-source";
+import { browserWatchSurface } from "./browser-watch-surface";
 
 // Sandboxed BEFORE the server module is imported: it resolves its config
 // directories at import time, and the developer's own watch setting — this one
@@ -31,8 +32,6 @@ afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — .mjs server module, no types
 const { browserWatchSnapshot, invalidateBrowserWatchCache } = await import("../../server/browser-watch.mjs");
-
-const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 const PROFILE = {
   browser: "brave", name: "Brave", profile: "Default",
@@ -108,8 +107,10 @@ describe("when it does read", () => {
 
 describe("who asks for what", () => {
   it("the badge poll sends live=0 and the panel does not", () => {
-    const app = read("../App.tsx");
-    const modal = read("../components/BrowserWatchModal.tsx");
+    // The badge's poll lives in use-browser-watch-badge.ts now.
+    const app = clientText();
+    // The panel's reads live in use-browser-watch.ts, one of the files it is made of.
+    const modal = browserWatchSurface();
     expect(app).toContain('fetch("/api/browser-watch?live=0")');
     expect(modal).toContain('fetch(`/api/browser-watch${refresh ? "?refresh=1" : ""}`)');
   });

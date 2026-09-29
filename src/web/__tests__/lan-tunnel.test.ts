@@ -9,14 +9,14 @@
 import { describe, it, expect } from "vitest";
 import { randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
-import { broadcastPlan, createBeacon, leavesByTunnel } from "../../server/lan-socket.mjs";
+import { broadcastPlan, createBeacon, leavesByTunnel } from "../../server/lan-beacon.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { fingerprint } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { createRouteCheck, looksLikeTunnel, lookupRoutes, viaFromFindNetRoute, viaFromIpRoute, viaFromRouteGet } from "../../server/route-via.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { readTailnet } from "../../server/tailscale.mjs";
-import { tunnelNote } from "../components/LanSyncSection";
+import { tunnelNote } from "../components/LanDiscoveryNotes";
 
 const WIFI = { en1: [{ address: "192.168.1.82", netmask: "255.255.255.0", family: "IPv4", internal: false }] };
 

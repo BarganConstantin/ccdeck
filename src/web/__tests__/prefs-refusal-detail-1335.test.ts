@@ -12,7 +12,8 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { writeFailure } from "../components/LanSyncSection";
+// writeFailure moved to use-lan-section.ts with the section's other rules.
+import { writeFailure } from "../use-lan-section";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-prefs-detail-"));
 process.env.HOME = DIR;

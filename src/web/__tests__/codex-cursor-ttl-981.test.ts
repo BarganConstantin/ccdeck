@@ -55,9 +55,15 @@
 //
 // WHY THE CLOCK IS FAKED AND THE TIMERS ARE NOT. The window is ten real minutes.
 // Only `Date` is replaced, so the watcher's own `setInterval` keeps polling for
-// real and the waits below are real waits: the scan simply looks at a clock that
-// has moved. Faking the timers too would have meant driving the watcher's poll
-// by hand, which is the part under test. #981.
+// real: the scan simply looks at a clock that has moved. Faking the timers too
+// would have meant driving the watcher's poll by hand, which is the part under
+// test. #981.
+//
+// WHAT THE CASES WAIT ON is a scan, not the poll's clock (#994). They used to
+// sleep 3.5s — two polls and change — wherever they needed "the watcher has
+// looked since this change", and as long again for "and nothing more came".
+// `scanCodexNow` is the same scan the poll runs, awaited, and it begins after
+// the call; so two of them are the two polls, without the time between them.
 import { describe, it, expect, afterAll, beforeAll, vi } from "vitest";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
@@ -94,10 +100,9 @@ mkdirSync(DAY, { recursive: true });
 
 /** The watcher's own window, which the clock jumps below have to clear. */
 const CURSOR_TTL_MS = 10 * 60 * 1000;
-/** Comfortably more than two of the watcher's 1500ms polls. */
-const SETTLE_MS = 3500;
 
-const INDEX_SRC = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+// The watcher, where the TTL is declared.
+const WATCHER_SRC = readFileSync(fileURLToPath(new URL("../../server/codex-watch.mjs", import.meta.url)), "utf8");
 
 const SID = "7d3c9a10-1111-4000-8000-aabbccddeeff";
 const CWD = join(DIR, "workspace");
@@ -114,7 +119,7 @@ const BEFORE_THE_DECK =
 writeFileSync(ROLLOUT, BEFORE_THE_DECK, "utf8");
 
 // @ts-expect-error — .mjs server module, no types
-const { startCodexWatcher, eventsSince, CODEX_SESSIONS_DIR } = await import("../../server/index.mjs");
+const { startCodexWatcher, scanCodexNow, eventsSince, CODEX_SESSIONS_DIR } = await import("../../server/index.mjs");
 
 // Belt and braces: the watcher walks the tree it resolved at import, so if the
 // override were ignored this file would be reading the developer's own sessions.
@@ -122,7 +127,12 @@ if (!String(CODEX_SESSIONS_DIR).startsWith(DIR)) {
   throw new Error(`refusing to run: the watcher resolved ${CODEX_SESSIONS_DIR}, outside ${DIR}`);
 }
 
-const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+/** Two of the watcher's scans, each begun after the last: what the poll would
+ *  have done in the 3.5s these cases used to sleep. */
+async function settle(): Promise<void> {
+  await scanCodexNow();
+  await scanCodexNow();
+}
 
 let timer: ReturnType<typeof setInterval> | null = null;
 beforeAll(async () => {
@@ -130,8 +140,8 @@ beforeAll(async () => {
   // The initial catalog is async, and it is what parks the cursor at the end of
   // the file already on disk. Appending before it has run would put the append
   // on the wrong side of that park, and the first case would be measuring a race
-  // rather than a rule.
-  await wait(SETTLE_MS);
+  // rather than a rule. scanCodexNow waits that catalog out before its own scan.
+  await settle();
 });
 afterAll(() => {
   if (timer) clearInterval(timer);
@@ -158,14 +168,11 @@ const drawn = (): string[] => eventsSince(0)
   .filter((p: Record<string, unknown>) => p.session_id === SID)
   .map((p: Record<string, unknown>) => String(p.hook_event_name));
 
-/** Poll until the watcher has produced `n` events for this session, or give up. */
-async function until(n: number, ms = 15000): Promise<string[]> {
-  const deadline = realNow() + ms;
-  while (drawn().length < n && realNow() < deadline) await wait(50);
-  // Then a little longer, which is the window a replay would land in: the scan
-  // is a timer and the emit is fire-and-forget, so "and nothing more arrived"
-  // has to be given the chance to be wrong.
-  await wait(SETTLE_MS);
+/** What the watcher has produced for this session once it has looked twice
+ *  since the last change. The second scan is the window a replay would land in:
+ *  "and nothing more arrived" has to be given the chance to be wrong. */
+async function settled(): Promise<string[]> {
+  await settle();
   return drawn();
 }
 
@@ -195,7 +202,7 @@ describe("a rollout this deck joined late", () => {
     // would be a change to the module under test made for a test's benefit —
     // so it is read out of the source, the way boot-lock.test.ts reads
     // bin/deck.js.
-    expect(INDEX_SRC).toMatch(/const CODEX_STATE_TTL_MS = 10 \* 60 \* 1000;/);
+    expect(WATCHER_SRC).toMatch(/const CODEX_STATE_TTL_MS = 10 \* 60 \* 1000;/);
     expect(CURSOR_TTL_MS).toBe(10 * 60 * 1000);
   });
 
@@ -209,7 +216,7 @@ describe("a rollout this deck joined late", () => {
       payload: { type: "function_call_output", call_id: "call_BEFORE", output: "ok" },
     }), "utf8");
 
-    expect(await until(1)).toEqual(["PostToolUse"]);
+    expect(await settled()).toEqual(["PostToolUse"]);
   }, 25000);
 });
 
@@ -222,7 +229,7 @@ describe("a listing that came back empty", () => {
     // held on ticks that had refreshed none of them.
     rmSync(ROLLOUT, { force: true });
     jumpPastTheTtl();
-    await wait(SETTLE_MS);
+    await settle();
     expect(existsSync(ROLLOUT)).toBe(false);
 
     // Back, with everything it had and one line more — the shape a volume that
@@ -234,7 +241,7 @@ describe("a listing that came back empty", () => {
 
     // One new event, and only one. A cursor expired into nothing would have
     // re-opened this file at byte 0 and handed the whole of it back.
-    expect(await until(2)).toEqual(["PostToolUse", "PreToolUse"]);
+    expect(await settled()).toEqual(["PostToolUse", "PreToolUse"]);
   }, 30000);
 });
 
@@ -246,7 +253,7 @@ describe("a tree that goes away and comes back", () => {
     // sized to survive, and the one it could not.
     unplug(SESSIONS, SESSIONS_ASIDE);
     jumpPastTheTtl();
-    await wait(SETTLE_MS);
+    await settle();
     unplug(SESSIONS_ASIDE, SESSIONS);
 
     appendFileSync(ROLLOUT, line({
@@ -254,7 +261,7 @@ describe("a tree that goes away and comes back", () => {
       payload: { type: "function_call_output", call_id: "call_AFTER", output: "ok" },
     }), "utf8");
 
-    expect(await until(3)).toEqual(["PostToolUse", "PreToolUse", "PostToolUse"]);
+    expect(await settled()).toEqual(["PostToolUse", "PreToolUse", "PostToolUse"]);
   }, 30000);
 });
 
@@ -270,25 +277,25 @@ describe("a cursor the sweep really did expire", () => {
     // job rather than the rule above doing it for us.
     const other = join(DAY, "rollout-2026-09-15T11-00-00-11112222-3333-4000-8000-444455556666.jsonl");
     writeFileSync(other, line({ type: "session_meta", payload: { id: "11112222-3333-4000-8000-444455556666", cwd: CWD } }), "utf8");
-    await wait(SETTLE_MS);
+    await settle();
 
     const had = drawn();
     rmSync(ROLLOUT, { force: true });
     jumpPastTheTtl();
-    await wait(SETTLE_MS);
+    await settle();
 
     writeFileSync(ROLLOUT, BEFORE_THE_DECK +
       line({ type: "response_item", payload: { type: "function_call_output", call_id: "call_BEFORE", output: "ok" } }) +
       line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_AFTER", arguments: "{}" } }) +
       line({ type: "response_item", payload: { type: "function_call_output", call_id: "call_AFTER", output: "ok" } }),
       "utf8");
-    await wait(SETTLE_MS);
+    await settle();
     appendFileSync(ROLLOUT, line({
       type: "response_item",
       payload: { type: "function_call", name: "shell", call_id: "call_LAST", arguments: "{}" },
     }), "utf8");
 
-    const now = await until(had.length + 1);
+    const now = await settled();
     expect(now).toEqual([...had, "PreToolUse"]);
     // Said on its own because it is the half the reducer cannot defend: a
     // `SessionStart` here would reach every tab and the shared log, and

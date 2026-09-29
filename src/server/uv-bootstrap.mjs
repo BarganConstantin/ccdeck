@@ -25,7 +25,7 @@ import { run } from "./exec.mjs";
 // holds the target open, and a virus scanner or the search indexer opens a
 // freshly written executable the instant it appears. Sharing one implementation
 // keeps the retryable-error list from drifting apart between the two callers.
-import { renameWithRetry } from "./installer.mjs";
+import { renameWithRetry } from "./atomic-write.mjs";
 
 const TOOL_DIR = join(homedir(), ".agents-deck", "tools");
 const UV_DIR   = join(TOOL_DIR, "uv");

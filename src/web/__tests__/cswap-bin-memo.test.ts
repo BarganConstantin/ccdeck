@@ -1,8 +1,8 @@
 // Which binary every account operation is sent to, and when that answer is
 // allowed to change.
 //
-// `cswapBin()` is called on roughly twenty paths across cswap-admin.mjs,
-// cswap-auto.mjs and claude-accounts.mjs — every add, switch, move, import,
+// `cswapBin()` is called on roughly twenty paths across cswap-admin.mjs, the
+// cswap-auto modules and claude-accounts.mjs — every add, switch, move, import,
 // export, remove and poll. Each call would otherwise cost a `cswap --version`
 // child process, so the answer is memoized; and because it is memoized, there
 // has to be a way to invalidate it after an install, which is `resetCswapBin`.
@@ -48,9 +48,13 @@ const mod = await import("../../server/cswap-install.mjs") as {
   cswapBin: () => Promise<string>;
   cswapVersion: () => Promise<string | null>;
   resetCswapBin: () => void;
+};
+const { cswapBin, cswapVersion, resetCswapBin } = mod;
+// Where cswapBin looks when PATH does not answer, from the module that knows.
+// @ts-expect-error — .mjs server module, no types
+const { cswapCandidates } = await import("../../server/cswap-layout.mjs") as {
   cswapCandidates: (platform?: string, env?: Record<string, string>, home?: string) => string[];
 };
-const { cswapBin, cswapVersion, resetCswapBin, cswapCandidates } = mod;
 
 const prevOverride = process.env.AGENTS_DECK_CSWAP;
 beforeEach(() => {

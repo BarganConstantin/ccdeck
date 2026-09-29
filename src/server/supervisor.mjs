@@ -144,6 +144,30 @@ export function isCrash({ code, signal, served, stopping } = {}) {
 }
 
 /**
+ * The line a crash crashPolicy answers leaves behind: what ended the deck, how
+ * long until it is back, and how much of the ceiling that has used.
+ *
+ * `recent` over CRASH_CEILING is the pair that makes the count mean something:
+ * "3/5" says how many more of these the supervisor will answer. The dash is a
+ * parameter for the reason upgradeRefusalText takes one (#797) — detached, this
+ * is written into deck.log, and the terminal tailing it may be a console that
+ * cannot draw an em dash.
+ */
+export function crashRestartNote({ code, signal, delayMs, recent, product = "ccdeck", dash = "—" }) {
+  const how = signal ? `killed by ${signal}` : `exit ${code}`;
+  return `${product}: the deck stopped on its own (${how}) ${dash} starting it again in ${Math.round(delayMs / 1000)}s (${recent}/${CRASH_CEILING}).`;
+}
+
+/**
+ * The line the crash past the ceiling leaves before the supervisor ends: how
+ * many, in how long, and the command that starts the deck again once somebody
+ * has looked — the one the user typed, when that is known.
+ */
+export function crashCeilingNote({ product = "ccdeck", command = "ccdeck", dash = "—" } = {}) {
+  return `${product}: the deck has stopped ${CRASH_CEILING} times in ${Math.round(CRASH_WINDOW_MS / 60000)} minutes ${dash} not starting it again. Run \`${command}\` when you have looked at the log above.`;
+}
+
+/**
  * How to report a worker that did not exit at all but was killed by a signal.
  *
  *   { reraise: "SIGHUP", code: 129 } — die of the same signal; `code` is only
@@ -187,6 +211,18 @@ export function signalExitAction(signal, platform = process.platform, numbers = 
  *
  * `proc` is a parameter so the whole sequence can be driven in a test child.
  */
+export function dieOfSignal(signal, proc = process) {
+  const { reraise, code } = signalExitAction(signal, proc.platform);
+  if (reraise) {
+    proc.removeAllListeners(reraise);
+    try { proc.kill(proc.pid, reraise); } catch { /* fall through to the number */ }
+  }
+  // Reached on Windows, and on POSIX only when the signal is ignored or
+  // blocked — inherited dispositions survive spawn — so the kill above returns
+  // instead of ending us.
+  proc.exit(code);
+}
+
 /**
  * What to say when the upgrade that just succeeded took this install with it,
  * or null when that is not what happened.
@@ -221,18 +257,6 @@ export function replacedNote({ workerExists, moved, product = "ccdeck", command 
     `  the new version is in ${moved}`,
     `  run \`${command}\` again to start it`,
   ].join("\n");
-}
-
-export function dieOfSignal(signal, proc = process) {
-  const { reraise, code } = signalExitAction(signal, proc.platform);
-  if (reraise) {
-    proc.removeAllListeners(reraise);
-    try { proc.kill(proc.pid, reraise); } catch { /* fall through to the number */ }
-  }
-  // Reached on Windows, and on POSIX only when the signal is ignored or
-  // blocked — inherited dispositions survive spawn — so the kill above returns
-  // instead of ending us.
-  proc.exit(code);
 }
 
 // ── how often an upgrade that failed may be attempted again ──────────────────
@@ -322,6 +346,43 @@ export function upgradeRefusalText({ reason, waitMs = 0, attempt = 0, dash = "�
   }
   const left = waitMs >= 60_000 ? `${Math.ceil(waitMs / 60_000)}m` : `${Math.max(1, Math.ceil(waitMs / 1000))}s`;
   return `${what} failed to fetch a moment ago ${dash} waiting ${left} before trying again`;
+}
+
+/** Drop the two flags launchNpx sets itself. `--port` takes a value, and both
+ *  spellings npm's parser accepts (`--port 4317`, `--port=4317`) have to go.
+ *  launchNpx appends its own two after what this leaves of the user's argv. */
+export function withoutPortAndOpen(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--no-open") continue;
+    if (a === "--port") { i++; continue; } // and its value
+    if (a.startsWith("--port=")) continue;
+    out.push(a);
+  }
+  return out;
+}
+
+/** The worker's command line: the script and the user's own argv, and on a
+ *  respawn the port the last worker actually bound. Appended last so it wins:
+ *  the worker's parser keeps the final --port. */
+export function workerArgs(worker, argv, { respawn = false, boundPort = null } = {}) {
+  const args = [worker, ...argv];
+  if (respawn && boundPort != null) args.push("--port", String(boundPort));
+  return args;
+}
+
+/** npx's command line for an upgrade: the spec, then the user's argv with the
+ *  two flags this sets itself taken out. Ours are appended, so the originals
+ *  are dropped rather than left to be overridden — `--port 4317 --no-open
+ *  --port 4317 --no-open` works, but it is what the next person reads in `ps`. */
+export function npxRelaunchArgs(spec, argv, boundPort = null) {
+  const args = ["-y", spec, ...withoutPortAndOpen(argv)];
+  if (boundPort != null) args.push("--port", String(boundPort));
+  // The tab that asked for this is open and reconnecting; a second one would be
+  // the deck talking over itself.
+  args.push("--no-open");
+  return args;
 }
 
 /**

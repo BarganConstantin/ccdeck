@@ -44,6 +44,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
+import { steppedClock } from "./clock-step";
 
 // The home the server thinks it has, the config dir the discovery override
 // points at, and the Codex home it tails — all temporary, all set before the
@@ -76,8 +77,12 @@ process.env.USERPROFILE = FAKE_HOME;
 process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 
+// The AGENTS.md scan is throttled per session on the wall clock, so the second
+// case steps `Date.now` past it rather than sleeping 4.2s (#994).
+const step = steppedClock();
+
 // @ts-expect-error — .mjs server module, no types
-const { startServer, eventsSince, challengeProof } = await import("../../server/index.mjs");
+const { startServer, scanCodexNow, eventsSince, challengeProof } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -206,8 +211,9 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
     writeFileSync(join(CWD, "AGENTS.md"), "# house rules\n\nbe brief.\n", "utf8");
     mkdirSync(DAY, { recursive: true });
     // The watcher's first pass skips whatever is already on disk, so the rollout
-    // has to appear after it — as a live session does.
-    await tick(300);
+    // has to appear after it — as a live session does. scanCodexNow waits that
+    // pass out, where this used to sleep 300ms and hope it had run.
+    await scanCodexNow();
   });
 
   afterAll(async () => {
@@ -224,6 +230,8 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
       line({ type: "session_meta", payload: { id: SID, cwd: CWD } }) +
       line({ type: "event_msg", payload: { type: "user_message", message: "hello codex" } }),
       "utf8");
+    // A scan begun after the write, rather than the next 1500ms poll.
+    await scanCodexNow();
 
     // The fan-out from #405 is intact: this deck is NOT the writer and still
     // draws the event, so its own context modal lists the AGENTS.md files.
@@ -240,10 +248,11 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
   it("writes exactly one copy once it is the deck holding the log", async () => {
     rmSync(OTHER, { force: true });
     // Past the per-session throttle, so the next batch is allowed to scan again.
-    await tick(4200);
+    step(4200);
     appendFileSync(ROLLOUT,
       line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_ONE", arguments: "{}" } }),
       "utf8");
+    await scanCodexNow();
 
     expect(await waitFor(() => loggedContext().length > 0)).toBe(true);
     // One line, not one per deck that ever tailed the rollout. Written by this

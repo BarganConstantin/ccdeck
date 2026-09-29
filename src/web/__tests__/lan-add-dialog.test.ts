@@ -16,7 +16,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { addressFault, faultLine } from "../components/LanAddDeckModal";
-import { parseAddress, writeFailure } from "../components/LanSyncSection";
+import { parseAddress } from "../lan-add-deck";
+import { writeFailure } from "../use-lan-section";
+import { sheetText } from "./sheet-source";
 
 /** The dialog, with its comments taken out, so no rule here can be satisfied by
  *  a paragraph that describes it. */
@@ -25,7 +27,7 @@ const ADD = readFileSync(
   "utf8",
 ).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const CSS = sheetText();
 
 /** The body of the first rule whose selector matches, comments stripped. */
 function rule(selector: string): string {
@@ -101,7 +103,7 @@ describe("a refusal says what to do about it", () => {
     expect(addressFault("192.168.1.5:70000")).toMatch(/1 to 65535/);
     expect(addressFault("fe80::1:54340")).toMatch(/colons/);
     // And it promises nothing about IPv6, because nothing downstream delivers
-    // it: lan-engine splits a stored entry on its last colon too.
+    // it: lan-dials splits a stored entry on its last colon too.
     expect(addressFault("fe80::1:54340")).not.toMatch(/\[/);
   });
 

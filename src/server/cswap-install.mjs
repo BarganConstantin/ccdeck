@@ -8,14 +8,20 @@
 // entirely. It is always best-effort — the deck's core function does not
 // depend on it, so a failure is reported and then ignored.
 import { run } from "./exec.mjs";
+import { failureDetail } from "./exec-output.mjs";
 // The version comparator was written out here as well, identical apart from a
 // type guard this copy lacked, and only the self-update one was under test
-// (#374). No cycle: self-update.mjs imports node:* and ./exec.mjs, which this
-// file already imports itself.
+// (#374). No cycle: self-update.mjs and the four modules it reads from
+// (install-layout, npm-latest, restart-note, npm-upgrade) import node:* and
+// three modules that reach nothing but leaves — exec.mjs, app-host.mjs and
+// deck-probe.mjs — and none of them imports this file.
 import { isOlder } from "./self-update.mjs";
 import { bootstrapUv, existingBootstrappedUv } from "./uv-bootstrap.mjs";
-import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { join, posix as posixPath, win32 as winPath } from "node:path";
+// Where installers leave claude-swap and which one owns this machine's copy —
+// pure layout, with the platform a parameter, so it lives on its own.
+import { PKG, cswapCandidates, cswapOwner } from "./cswap-layout.mjs";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { homedir } from "node:os";
 
 const INSTALL_TIMEOUT_MS = 180_000; // uv resolves + builds a Python env
@@ -25,127 +31,14 @@ const INSTALL_TIMEOUT_MS = 180_000; // uv resolves + builds a Python env
 const UPDATE_CHECK_MS = 24 * 3600_000;
 const MARKER = join(homedir(), ".agents-deck", ".cswap-update-check");
 
-/**
- * The subdirectories of `dir`, newest-looking first, or [] when it cannot be
- * read at all.
- *
- * Injected into cswapCandidates below rather than called from it, for the reason
- * the platform is a parameter there: a Windows layout has to be describable from
- * a Mac. A missing directory, a disconnected network drive and a profile the
- * process cannot read are all the same answer — nothing here — never a throw,
- * because this runs unprompted at startup for an optional panel.
- *
- * The sort is numeric so `Python313` sorts above `Python39` rather than below
- * it: when two interpreters both have a cswap, the newer one is the one the user
- * most likely installed it with, and the order this returns is the order the
- * caller probes in.
- *
- * Exported for its test rather than for a caller. Every part of it that can be
- * wrong — which names count as an interpreter, what order they come back in,
- * what a directory that cannot be read answers — is invisible from
- * cswapCandidates, which injects a substitute precisely so its own Windows
- * layout can be checked from a Mac. Driven against real directories in
- * cswap-admin.test.ts, on whichever OS is running the suite.
- */
-export function pythonVersionDirs(dir) {
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter(e => e.isDirectory() || e.isSymbolicLink())
-      .map(e => e.name)
-      // `Python312`, and the tagged builds the installer also writes:
-      // `Python312-32`, `Python313-arm64`.
-      .filter(n => /^Python\d[\w.-]*$/i.test(n))
-      .sort((a, b) => b.localeCompare(a, "en", { numeric: true }));
-  } catch {
-    return [];
-  }
-}
-
-/**
- * How to invoke cswap: the bare name when PATH resolves it, otherwise an
- * absolute path to where its installers actually put it.
- *
- * ~/.local/bin is where both `uv tool install` and `pipx install` place
- * executables, on every platform, and it is famously not on PATH — that is the
- * whole reason `pipx ensurepath` exists. Installing claude-swap successfully
- * and then reporting it as missing because the shell cannot see it is a bad
- * enough outcome on its own; it is worse now that the deck may have done the
- * installing. So PATH is a convenience here, not the source of truth.
- *
- * Re-resolved when a lookup fails so an install during this process is picked
- * up without a restart.
- */
-/**
- * Every place an installer is known to leave cswap. The platform is a parameter
- * and the directory listing is injected, so the Windows list can be checked from
- * a Mac — which is the only way this list stays right, since it exists entirely
- * for machines the author is not sitting at.
- */
-export function cswapCandidates(platform = process.platform, env = process.env, home = homedir(), {
-  versionDirs = pythonVersionDirs,
-} = {}) {
-  // The path flavour follows the PLATFORM ARGUMENT, not the host: node's `join`
-  // would emit forward slashes when this is exercised from a Mac, which is both
-  // wrong for the caller and invisible in a test.
-  const { join } = platform === "win32" ? winPath : posixPath;
-  const exe = platform === "win32" ? "cswap.exe" : "cswap";
-  const dirs = [];
-  // Explicit configuration first: someone who set these means them.
-  if (env.UV_TOOL_BIN_DIR) dirs.push(env.UV_TOOL_BIN_DIR);
-  if (env.XDG_BIN_HOME) dirs.push(env.XDG_BIN_HOME);
-  // Where `uv tool install` and `pipx install` put executables, everywhere.
-  dirs.push(join(home, ".local", "bin"));
-  if (platform === "win32") {
-    // pipx before 1.5, and any `pip install --user`. APPDATA is respected when
-    // set because a roaming profile moves it off the home directory.
-    //
-    // THE VERSION SEGMENT IS NOT OPTIONAL (#552). CPython on Windows always
-    // puts the interpreter between the root and `Scripts`:
-    //
-    //     %APPDATA%\Python\Python312\Scripts               pip install --user
-    //     %LOCALAPPDATA%\Programs\Python\Python312\Scripts per-user installer
-    //
-    // — `{userbase}\Python{version_nodot}\Scripts` is sysconfig's `nt_user`
-    // scheme, not a convention. The two paths this used to build omitted it, so
-    // NEITHER could exist on a real machine: every candidate missed,
-    // `cswapVersion` answered null, `ensureCswap` reported `not_on_path`, and
-    // the deck re-ran a whole install attempt on every launch for a user who
-    // already had cswap.exe sitting there. The POSIX side never had the bug —
-    // `~/.local/bin` carries no version — which is why this stayed a Windows
-    // false negative in the one function whose whole purpose is to not depend
-    // on PATH.
-    //
-    // Which versions exist is a fact about the machine, so it is read rather
-    // than guessed: enumerating Python38…Python315 would be eight wrong paths
-    // and a ninth wrong one next year.
-    const appData = env.APPDATA || join(home, "AppData", "Roaming");
-    const localAppData = env.LOCALAPPDATA || join(home, "AppData", "Local");
-    for (const root of [join(appData, "Python"), join(localAppData, "Programs", "Python")]) {
-      for (const version of versionDirs(root)) dirs.push(join(root, version, "Scripts"));
-    }
-    dirs.push(join(home, "scoop", "shims"));
-  } else {
-    dirs.push(join(home, ".pyenv", "shims"));
-    // uv keeps the tool's own venv here and only symlinks into ~/.local/bin; if
-    // that link was never made, this is still a working executable.
-    dirs.push(join(home, ".local", "share", "uv", "tools", "claude-swap", "bin"));
-    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
-  }
-  return dirs.map(d => join(d, exe));
-}
-
-// The distribution name, which is what both installers key their directories on
-// — `cswap` is only the console script.
-const PKG = "claude-swap";
-
 // ── which versions of it this deck is willing to install ─────────────────────
 //
 // The install used to be the bare name — `uv tool install claude-swap` — which
 // means "whatever that project publishes next, forever", resolved on a machine
 // the author will never see, and then handed `cswap export -`, `add` and
 // `import`: every command in the accounts panel that carries a Claude refresh
-// token. Forty lines away, uv itself is fetched only after its SHA-256 is
-// checked against the one Astral publishes beside it (uv-bootstrap.mjs). The
+// token. On the same install path, uv itself is fetched only after its SHA-256
+// is checked against the one Astral publishes beside it (uv-bootstrap.mjs). The
 // package that holds the credentials had no bound of any kind.
 //
 // FLOOR: the newest release at the time this bound was written, which is the
@@ -197,136 +90,6 @@ export function isAcceptableVersion(v) {
 /** Two version strings naming the same release — `0.26` and `0.26.0` do. */
 function sameVersion(a, b) { return !isOlder(a, b) && !isOlder(b, a); }
 
-/** True when `child` is `dir` or lives under it, in `platform`'s path flavour. */
-function underDir(child, dir, platform) {
-  const { sep, normalize } = platform === "win32" ? winPath : posixPath;
-  const norm = p => {
-    // Windows paths compare case-insensitively, and `C:\x\` and `C:\x` are one
-    // directory.
-    let s = normalize(String(p));
-    if (platform === "win32") s = s.toLowerCase();
-    return s.length > 1 && s.endsWith(sep) ? s.slice(0, -sep.length) : s;
-  };
-  const c = norm(child), d = norm(dir);
-  return c === d || c.startsWith(d + sep);
-}
-
-/**
- * Where `uv tool install claude-swap` puts the tool's own venv.
- *
- * UV_TOOL_DIR wins outright; otherwise uv's persistent data directory, which is
- * `$XDG_DATA_HOME/uv` or `~/.local/share/uv` on Unix — macOS included, uv does
- * not use `~/Library` — and `%APPDATA%\uv\data` on Windows. The `data` segment
- * is Windows-only and is not optional there.
- */
-function uvToolVenvs(platform, env, home) {
-  const { join } = platform === "win32" ? winPath : posixPath;
-  if (env.UV_TOOL_DIR) return [join(env.UV_TOOL_DIR, PKG)];
-  if (platform === "win32") {
-    const appData = env.APPDATA || join(home, "AppData", "Roaming");
-    return [join(appData, "uv", "data", "tools", PKG)];
-  }
-  return [join(env.XDG_DATA_HOME || join(home, ".local", "share"), "uv", "tools", PKG)];
-}
-
-/**
- * Where `pipx install claude-swap` puts the package's venv.
- *
- * Read off pipx's own `paths.py`: the venvs are always `<home>/venvs`, and the
- * home is PIPX_HOME when set, else the first EXISTING legacy fallback
- * (`~/.local/pipx`, plus `~/pipx` on Windows), else platformdirs'
- * `user_data_path("pipx")`. Since what gets asked here is whether one specific
- * venv is on disk, every candidate home can simply be tried rather than
- * replaying pipx's precedence.
- *
- * platformdirs on Windows appends the app name twice when no author is given,
- * which pipx does not give — `%LOCALAPPDATA%\pipx\pipx`, not `%LOCALAPPDATA%\
- * pipx`. That doubled segment is real and is the whole path on a modern
- * Windows pipx.
- */
-function pipxVenvs(platform, env, home) {
-  const { join } = platform === "win32" ? winPath : posixPath;
-  if (env.PIPX_HOME) return [join(env.PIPX_HOME, "venvs", PKG)];
-  const homes = [join(home, ".local", "pipx")];
-  if (platform === "win32") {
-    homes.push(join(home, "pipx"));
-    homes.push(join(env.LOCALAPPDATA || join(home, "AppData", "Local"), "pipx", "pipx"));
-  } else if (platform === "darwin") {
-    homes.push(join(home, "Library", "Application Support", "pipx"));
-  } else {
-    homes.push(join(env.XDG_DATA_HOME || join(home, ".local", "share"), "pipx"));
-  }
-  return homes.map(h => join(h, "venvs", PKG));
-}
-
-function realpathOrSelf(p) {
-  try { return realpathSync(p); } catch { return p; }
-}
-
-/**
- * Which installer OWNS the claude-swap this machine runs — "uv", "pipx", or
- * null when nothing offered here does, or when the evidence is ambiguous.
- *
- * The daily upgrade used to be handed to `findInstaller()`, which returns the
- * first tool that answers `--version`. That is the right question when choosing
- * something to install WITH and the wrong one when upgrading something already
- * installed: on a machine with uv present and claude-swap installed some other
- * way — a `pip install --user` copy, which #574 taught cswapBin to find, or a
- * pipx one — the upgrade went to uv, which answers
- *
- *     error: Failed to upgrade claude-swap
- *       Caused by: `claude-swap` is not installed; run `uv tool install …`
- *
- * and pipx, given someone else's package, answers "Package is not installed.
- * Expected to find <PIPX_HOME>/venvs/claude-swap, but it does not exist." Both
- * went through runDetached, which read no output and waited for no exit, so the
- * refusal reached nobody while ensureCswap still reported "upgrading" and the
- * marker was already burned for the day. The version never moved and the deck
- * said it was moving, every launch, forever. The upgrade is captured now (#1000)
- * and a refusal is at least written down — but aiming it correctly is still
- * this function's job, and a recorded failure is a worse outcome than one that
- * never had to happen.
- *
- * Two signals, strongest first. The executable the deck actually runs, with its
- * symlinks followed, sitting inside one installer's directory is decisive —
- * that is the POSIX case, where both installers link `~/.local/bin/cswap` at
- * their own venv. Windows copies the launcher instead, so there the layout
- * question is asked directly: exactly one of the two venv directories exists.
- * Zero means nothing offered here owns it — a `pip install --user` copy is the
- * common shape, and `installers()` deliberately refuses to offer bare pip — and
- * two means the machine has both and the resolved path did not say which is on
- * PATH. Both answer null, because a silent boot is better than a daily sentence
- * that is not true.
- *
- * Pure, and platform/env/home/filesystem all arrive as arguments, for the reason
- * cswapCandidates gives: a Windows layout has to be checkable from a Mac.
- */
-export function cswapOwner(bin, platform = process.platform, env = process.env, home = homedir(), {
-  exists = existsSync,
-  realpath = realpathOrSelf,
-} = {}) {
-  const roots = [
-    ...uvToolVenvs(platform, env, home).map(dir => ({ owner: "uv", dir })),
-    ...pipxVenvs(platform, env, home).map(dir => ({ owner: "pipx", dir })),
-  ];
-
-  // cswapBin answers the bare word whenever PATH resolved it, and a bare word
-  // points at no layout at all — only a path can be followed.
-  if (typeof bin === "string" && /[\\/]/.test(bin)) {
-    // BOTH sides get resolved, or the comparison is between two spellings of one
-    // directory rather than between two directories. A symlinked home is the
-    // ordinary way that happens — /var → /private/var on macOS, a network or
-    // container-mounted profile on Linux — and it would silently turn the
-    // strongest signal here into no signal at all.
-    const real = realpath(bin);
-    const hit = roots.find(r => underDir(real, realpath(r.dir), platform));
-    if (hit) return hit.owner;
-  }
-
-  const owners = new Set(roots.filter(r => exists(r.dir)).map(r => r.owner));
-  return owners.size === 1 ? [...owners][0] : null;
-}
-
 let _bin = null;
 
 /**
@@ -354,6 +117,20 @@ function versionIn(r) {
   return m ? m[1] : "installed";
 }
 
+/**
+ * How to invoke cswap: the bare name when PATH resolves it, otherwise an
+ * absolute path to where its installers actually put it.
+ *
+ * ~/.local/bin is where both `uv tool install` and `pipx install` place
+ * executables, on every platform, and it is famously not on PATH — that is the
+ * whole reason `pipx ensurepath` exists. Installing claude-swap successfully
+ * and then reporting it as missing because the shell cannot see it is a bad
+ * enough outcome on its own; it is worse now that the deck may have done the
+ * installing. So PATH is a convenience here, not the source of truth.
+ *
+ * Re-resolved when a lookup fails so an install during this process is picked
+ * up without a restart.
+ */
 export async function cswapBin() {
   // An explicit path wins over everything and is never cached away — someone
   // debugging a bad resolution needs it to take effect immediately.
@@ -410,15 +187,6 @@ export async function cswapVersion() {
   return versionIn(r);
 }
 
-/**
- * Install claude-swap with whichever Python tool installer is present.
- *
- * `uv` first because it is what claude-swap documents and it is dramatically
- * faster; `pipx` as the established alternative. Deliberately NOT falling back
- * to bare `pip install --user`: that drops the package into the user's default
- * Python environment where it can collide with their own dependencies, which
- * is not a thing to do to someone without asking.
- */
 /**
  * Python interpreters that are safe to execute on this machine.
  *
@@ -537,6 +305,15 @@ async function installers(spec = RANGE_SPEC) {
   return out;
 }
 
+/**
+ * Install claude-swap with whichever Python tool installer is present.
+ *
+ * `uv` first because it is what claude-swap documents and it is dramatically
+ * faster; `pipx` as the established alternative. Deliberately NOT falling back
+ * to bare `pip install --user`: that drops the package into the user's default
+ * Python environment where it can collide with their own dependencies, which
+ * is not a thing to do to someone without asking.
+ */
 async function installCswap() {
   // What to ask for is decided HERE, before anything is installed, so that what
   // arrives can be checked against it afterwards — see ensureCswap. When the
@@ -552,7 +329,7 @@ async function installCswap() {
     if (!(await run(cmd, probe, { timeout: 8_000 })).ok) continue;
     const r = await run(cmd, args, { timeout: INSTALL_TIMEOUT_MS });
     if (r.ok) return { ok: true, via, want, spec };
-    return { ok: false, reason: "install_failed", via, spec, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+    return { ok: false, reason: "install_failed", via, spec, detail: failureDetail(r, 300) };
   }
 
   // Nothing on the machine can install a Python application. Rather than hand
@@ -563,7 +340,7 @@ async function installCswap() {
 
   const r = await run(boot.bin, ["tool", "install", spec], { timeout: INSTALL_TIMEOUT_MS });
   if (r.ok) return { ok: true, via: `uv ${boot.version} (fetched)`, want, spec };
-  return { ok: false, reason: "install_failed", via: "uv (fetched)", spec, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+  return { ok: false, reason: "install_failed", via: "uv (fetched)", spec, detail: failureDetail(r, 300) };
 }
 
 /**
@@ -694,6 +471,24 @@ let _upgrade = null;
 export function upgradeSettled() { return _upgrade; }
 
 /**
+ * Whether ensureCswap is installing claude-swap right now.
+ *
+ * The install runs behind a deck that is already serving — reportStartup stops
+ * waiting the moment `onInstalling` fires — so for the minutes a first run takes
+ * the accounts panel is asking about a tool that is on its way. Absence alone
+ * read as `no_cswap`, and the panel answered it the only way that reason
+ * allows: "claude-swap isn't installed", and a command to install it by hand.
+ * Somebody who ran it then had two installers racing for one directory, over a
+ * tool that would have arrived by itself a minute later.
+ *
+ * True from the moment ensureCswap commits to an install until it has checked
+ * what arrived, whichever way that went. A failed install is `no_cswap` again,
+ * and then the hand-typed command is the right answer.
+ */
+let _installing = false;
+export function cswapInstalling() { return _installing; }
+
+/**
  * Upgrade claude-swap in the background when a newer release exists, and find
  * out what happened.
  *
@@ -752,7 +547,7 @@ function upgradeInBackground({ cmd, upgrade, via }, { from, want }) {
           : (typeof to === "string" && to !== "installed" && !isAcceptableVersion(to))
             ? "unexpected_version"
             : null,
-        detail: r.ok ? null : (r.stderr || r.stdout).trim().slice(0, 300),
+        detail: r.ok ? null : failureDetail(r, 300),
       };
     } catch (e) {
       entry = { from, want: want ?? null, to: null, at: new Date().toISOString(), via: via ?? null,
@@ -817,7 +612,7 @@ export async function ensureCswap({ onInstalling = null } = {}) {
     // boot with no network yet — a laptop opened on a train, the ten seconds
     // before Wi-Fi associates — burned the whole shared 24-hour window on a
     // check that never reached PyPI, and the next real chance was the day
-    // after. self-update.mjs states this rule for itself in as many words.
+    // after. npm-latest.mjs states this rule for itself in as many words.
     const latest = await newestAcceptableOnPypi();
     touchMarker();
     if (latest && existing !== "installed" && isOlder(existing, latest)) {
@@ -835,10 +630,19 @@ export async function ensureCswap({ onInstalling = null } = {}) {
     return { state: "present", version: existing };
   }
 
-  // Said before the install starts rather than after it, because after it is
-  // three minutes later and the whole point is not to be waited for.
-  try { onInstalling?.(); } catch { /* a caller's notification is not our problem */ }
+  _installing = true;
+  try {
+    // Said before the install starts rather than after it, because after it is
+    // three minutes later and the whole point is not to be waited for.
+    try { onInstalling?.(); } catch { /* a caller's notification is not our problem */ }
+    return await installAndConfirm();
+  } finally {
+    _installing = false;
+  }
+}
 
+/** The install half of ensureCswap: run it, then check what arrived. */
+async function installAndConfirm() {
   const result = await installCswap();
   if (!result.ok) return { state: "unavailable", ...result };
   // Something was just installed, so any path resolved before it is a guess made

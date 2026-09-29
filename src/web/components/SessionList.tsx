@@ -16,7 +16,8 @@ import type { GraphState } from "../reducer";
 import type { SessionRecap, WaitingBlock } from "../types";
 import { shortModel, modelFamily } from "../model-label";
 import { recapShown } from "../session-recap";
-import { RecapMark, blockedToolTooltip, stateLabel, waitingSentence } from "./AgentNode";
+import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
+import { RecapMark } from "./RecapMark";
 
 export interface Row {
   sessionId: string;

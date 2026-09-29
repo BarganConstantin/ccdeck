@@ -13,20 +13,26 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { currentFor } from "../../server/lan-sync.mjs";
-// @ts-expect-error — plain .mjs server module, no types
-import { heardCurrent } from "../../server/lan-engine.mjs";
+import { currentFor, heardCurrent } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
-import { exchangeLanes } from "../components/LanSyncSection";
+import { exchangeLanes } from "../lan-exchange";
+import { peerView } from "../lan-peer";
+import { deckRows, rowSource } from "../lan-roster";
+import { lanPeerSurface } from "./lan-peer-surface";
+import { sheetText } from "./sheet-source";
 
 /** A file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
-const MODAL = code("../components/LanPeerModal.tsx");
+/** The picture in the dialog, which moved out of the component into its own:
+ *  both ends' notes and the lanes are drawn there. */
+const MAP = code("../components/LanPeerMap.tsx");
+/** The dialog and what was lifted out of it, for counts and negatives. */
+const DIALOG = lanPeerSurface(src => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "));
 const SETUP = code("../components/LanSetupModal.tsx");
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const CSS = sheetText();
 
 describe("what a deck says about the account it is on", () => {
   const mine = (key: string, active = false) => ({ key, email: key, alive: true, active });
@@ -98,7 +104,7 @@ describe("the lane that deck is on", () => {
   it("is the only mark — this deck's own account is not drawn", () => {
     const [l] = exchangeLanes([acct("a")], [acct("a")], ["a"], null);
     expect(l).not.toHaveProperty("usedHere");
-    expect(MODAL).not.toContain("data-used-here");
+    expect(DIALOG).not.toContain("data-used-here");
     expect(CSS).not.toContain("data-used-here");
   });
 });
@@ -125,22 +131,45 @@ describe("the switch", () => {
 
 describe("the dialog", () => {
   it("marks only while that deck answers", () => {
-    expect(MODAL).toMatch(/const current = link === "up" \? offers\?\.current \?\? null : null;/);
+    // "On this one right now" cannot be vouched for by a deck that has gone
+    // quiet, so the mark stops with the lights.
+    const NOW = 1_700_000_000_000;
+    const acct = (key: string) => ({ key, email: key, alive: true });
+    const say = (lastSeen: number, current: Record<string, unknown>) => {
+      const s = {
+        peers: [{
+          fp: "aaa", peerFp: "aaa", name: "Office", paired: true, addr: "10.0.0.2", port: 5000, lastSeen,
+          last: { at: lastSeen, done: [] }, offers: { at: lastSeen, accounts: [acct("a")], current },
+        }],
+        shared: ["a"],
+      } as never;
+      const [row] = deckRows(s, NOW);
+      return peerView({ row, source: rowSource(s, row), status: s, accounts: [acct("a")], now: NOW });
+    };
+    expect(say(NOW, { key: "a" }).link).toBe("up");
+    expect(say(NOW, { key: "a" }).lanes[0].usedThere).toBe(true);
+    expect(say(NOW, { hidden: true }).hiddenThere).toBe(true);
+    expect(say(NOW, { other: true }).otherThere).toBe(true);
+    const quiet = NOW - 3_600_000;
+    expect(say(quiet, { key: "a" }).link).toBe("down");
+    expect(say(quiet, { key: "a" }).lanes[0].usedThere).toBeFalsy();
+    expect(say(quiet, { hidden: true }).hiddenThere).toBe(false);
+    expect(say(quiet, { other: true }).otherThere).toBe(false);
   });
 
   it("says current account hidden under whichever machine is hiding it", () => {
-    expect(MODAL.match(/current account hidden/g)?.length).toBe(2);
-    expect(MODAL).toMatch(/paired && status\.shareActive === false/);
-    expect(MODAL).toMatch(/\{hiddenThere && /);
+    expect(DIALOG.match(/current account hidden/g)?.length).toBe(2);
+    expect(MAP).toMatch(/paired && status\.shareActive === false/);
+    expect(MAP).toMatch(/\{hiddenThere && /);
   });
 
   it("says on another account under that deck when it is on one it does not share", () => {
-    expect(MODAL.match(/on another account/g)?.length).toBe(1);
-    expect(MODAL).toMatch(/\{otherThere && /);
+    expect(DIALOG.match(/on another account/g)?.length).toBe(1);
+    expect(MAP).toMatch(/\{otherThere && /);
   });
 
   it("puts the mark on that deck's lane", () => {
-    expect(MODAL).toMatch(/data-used-there=\{l\.usedThere \|\| undefined\}/);
+    expect(MAP).toMatch(/data-used-there=\{l\.usedThere \|\| undefined\}/);
   });
 
   it("rings that deck's end with the rows' own ping, and holds it still for less motion", () => {

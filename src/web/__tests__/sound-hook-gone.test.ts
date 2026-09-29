@@ -23,6 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { CLI_FILES } from "./cli-surface";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -113,7 +114,7 @@ describe("the script the package used to ship", () => {
     // revert into a red suite instead of a broken `npx ccdeck`. The two spellings
     // are the two ways this repo reaches a server module: a relative import
     // inside src/server, and a pathToFileURL off PKG_ROOT from bin/.
-    for (const file of ["src/server/index.mjs", "src/server/installer.mjs", "bin/deck.js"]) {
+    for (const file of ["src/server/index.mjs", "src/server/installer.mjs", ...CLI_FILES]) {
       const text = read(...file.split("/"));
       expect(text, file).not.toContain('"./sound-hook.mjs"');
       expect(text, file).not.toContain("src/server/sound-hook.mjs");

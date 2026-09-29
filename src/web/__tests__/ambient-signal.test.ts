@@ -355,13 +355,15 @@ describe("the favicon", () => {
     // And the other end of the same fact: the selector App.tsx actually runs.
     // Matched loosely on everything but the selector string itself, which is
     // the only part of the line that has to be exact.
-    expect(read("../App.tsx"), "App.tsx stopped asking for the element index.html declares")
+    expect(read("../use-tab-ambient.ts"), "the tab's write stopped asking for the element index.html declares")
       .toMatch(/querySelector<HTMLLinkElement>\(\s*'link\[rel="icon"\]'\s*\)/);
   });
 });
 
 describe("what App.tsx does with it", () => {
-  const app = read("../App.tsx");
+  // The tab's DOM write moved to use-tab-ambient.ts, which App.tsx calls; the
+  // two are read as one, so a negative here holds in either.
+  const app = read("../App.tsx") + "\n" + read("../use-tab-ambient.ts");
 
   it("compares before it writes, on both surfaces", () => {
     // The effect recomputes on every SSE frame and both counts churn under a
@@ -395,8 +397,10 @@ describe("what App.tsx does with it", () => {
     // The counts are derived per frame from the map the canvas draws from.
     // pruneOldAgents evicts agents outright, so a tally maintained alongside it
     // would outlive the thing it was counting; the eviction case below proves
-    // the behaviour, and this keeps a tally from creeping back in beside it.
-    expect(app).not.toMatch(/set(Waiting|Running)Count/);
+    // the behaviour, and this keeps a tally from creeping back in beside it —
+    // or into the topbar's readout group, which shows the waiting count and
+    // moved out of App.tsx to components/TopbarReadouts.tsx.
+    expect(app + "\n" + read("../components/TopbarReadouts.tsx")).not.toMatch(/set(Waiting|Running)Count/);
   });
 
   it("hands the signal the connection, and re-runs when it changes", () => {

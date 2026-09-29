@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { matchesReadyUpdate, restartReadyUpdate } from "../../../desktop/window-update.mjs";
+import { clientText } from "./client-source";
 import {
   desktopAppVersion,
   readDesktopUpdate,
@@ -16,6 +17,10 @@ import {
 } from "../desktop-update";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
+
+// Read across the whole client rather than App.tsx: the updater's state, its
+// press rule and the stream event that releases a press moved to
+// use-desktop-update.ts, and what these cases pin is the discipline, not the file.
 
 describe("desktop update state in the window", () => {
   it("accepts known states and requires a version for ready", () => {
@@ -81,10 +86,16 @@ describe("the one-button window wiring", () => {
   });
 
   it("shows the verified target version and one Restart to update action", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const modal = read("../components/ReleaseNotesModal.tsx");
-    expect(app).toContain('es.addEventListener("desktop-update"');
-    expect(app).toMatch(/es\.addEventListener\("desktop-update"[\s\S]*?if \(!inDesktopApp\(\)\) return;/);
+    // Three links, each in the file that owns it: the stream hands the frame
+    // on, App.tsx binds it to the updater's handler, and the handler ignores it
+    // outside the desktop app. This used to be one lazy match from the
+    // subscription to the guard, which held only because the two files it
+    // spanned happened to sort in that order.
+    expect(app).toContain('es.addEventListener("desktop-update", (e) => desktopUpdateRef.current((e as MessageEvent).data));');
+    expect(app).toContain("desktopUpdateRef.current = onDesktopUpdateEvent;");
+    expect(app).toMatch(/const onDesktopUpdateEvent = useCallback\(\(data: string\) => \{\s*if \(!inDesktopApp\(\)\) return;/);
     expect(app).toContain('fetch("/api/desktop-update/restart"');
     expect(app).toContain("readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version)");
     // One restart door: the deck's own Restart is not offered beside it.
@@ -109,7 +120,7 @@ describe("the one-button window wiring", () => {
   });
 
   it("wears its own chip, not the stale chip's warning", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const at = app.indexOf("readyChipCopy(desktopAppVersion()");
     const chip = app.slice(at, app.indexOf("</button>", at));
     expect(chip).toContain('className="v ready"');
@@ -117,13 +128,13 @@ describe("the one-button window wiring", () => {
   });
 
   it("tells the app when the dialog has offered the update", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     expect(app).toContain("const offeredAppUpdate = releaseNotes && readyAppUpdate ? readyAppUpdate.version : null;");
     expect(app).toContain('fetch("/api/desktop-update/seen"');
   });
 
   it("asks for the app's state again on every reconnect, not only on load", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     expect(app).toMatch(/if \(!live \|\| !inDesktopApp\(\)\) return;[\s\S]*?fetch\("\/api\/desktop-update"\)[\s\S]*?\}, \[live\]\);/);
   });
 });
@@ -141,32 +152,37 @@ describe("the ready chip's words (#1187)", () => {
     expect(title).toContain("click to open What's new");
     expect(title).toContain(RESTART_TO_UPDATE);
     expect(title).not.toMatch(/click to (?:update|restart)/i);
-    const app = read("../App.tsx");
+    const app = clientText();
     expect(app).not.toContain("click to update and restart");
   });
 });
 
 describe("one phrase and one version spelling on all three surfaces (#1187)", () => {
   const main = read("../../../desktop/main.mjs");
+  /** The tray's rows, which main.mjs draws through trayMenuItems. */
+  const trayMenu = read("../../../desktop/tray-menu.mjs");
+  /** Everything the desktop app says, for the assertions that say what it does not. */
+  const desktop = `${main}\n${trayMenu}`;
   const modal = read("../components/ReleaseNotesModal.tsx");
 
   it("says Restart to update in the window, the native sheet and the tray", () => {
     expect(RESTART_TO_UPDATE).toBe("Restart to update");
     expect(modal).toContain("RESTART_TO_UPDATE");
     expect(main).toContain('buttons: ["Restart to update", "Later"]');
-    expect(main).toContain("label: `Restart to update to v${u.version}`");
-    for (const src of [main, modal, read("../App.tsx")]) {
+    expect(trayMenu).toContain("label: `Restart to update to v${u.version}`");
+    for (const src of [desktop, modal, clientText()]) {
       expect(src).not.toMatch(/"Update and restart"|"Restart now", "Later"/);
     }
   });
 
   it("spells the version with its v everywhere the update is named", () => {
     expect(main).toContain("message: `ccdeck v${version} is ready`");
-    expect(main).toContain("label: `Downloading ccdeck v${u.version}…`");
-    expect(main).toContain("`ccdeck v${app.getVersion()}");
+    expect(trayMenu).toContain("label: `Downloading ccdeck v${u.version}…`");
+    expect(trayMenu).toContain("`ccdeck v${appVersion}");
+    expect(main).toContain("appVersion: app.getVersion(),");
     expect(modal).toContain("ccdeck v{updateVersion} is downloaded and verified.");
     // No bare version after "ccdeck " or "update to " in the desktop copy.
-    expect(main).not.toMatch(/(?:ccdeck|update to|deck) \$\{(?:u\.version|version|app\.getVersion\(\)|deck\.version)\}/);
+    expect(desktop).not.toMatch(/(?:ccdeck|update to|deck) \$\{(?:u\.version|version|appVersion|app\.getVersion\(\)|deck\.version)\}/);
   });
 
   it("names the tray menu the way the native sheet does", () => {
@@ -201,7 +217,7 @@ describe("a restart that did not happen says so (#1187)", () => {
   });
 
   it("hands the press back with a reason, into a live region the dialog already has", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const modal = read("../components/ReleaseNotesModal.tsx");
     expect(app).toContain("handBack(updateRestartRefusal(await response.json().catch(() => null)))");
     expect(app).toContain('return handBack("unreachable");');
@@ -214,7 +230,7 @@ describe("a restart that did not happen says so (#1187)", () => {
   });
 
   it("never lets an older press's clock or answer hand back a newer one", () => {
-    const app = read("../App.tsx");
+    const app = clientText();
     const start = app.indexOf("const askDesktopUpdateRestart = useCallback(");
     const ask = app.slice(start, app.indexOf("}, []);", start));
     // Each press takes a number and stops whatever clock is still running.

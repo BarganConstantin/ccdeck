@@ -28,8 +28,10 @@
 // happens beside it while it keeps serving, and only a fetch that worked is
 // answered with the exit that gives up the port. See prefetchUpgrade.
 //
-// Everything else the deck does still lives in bin/deck.js. This file must stay
-// boring: it is the one process that is never replaced.
+// Everything else the deck does lives in bin/deck.js and the pieces lifted out
+// of it into bin/cli/, and the rules this file follows are in
+// src/server/supervisor.mjs. This file must stay boring: it is the one process
+// that is never replaced.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
@@ -37,19 +39,19 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { killTree } from "../src/server/exec.mjs";
 import { invokedAs } from "../src/server/invoked-as.mjs";
-import { isOneShot, parseArgs } from "../src/server/args.mjs";
-import { npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
+import { parseArgs } from "../src/server/args.mjs";
+import { holdOutput, npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
   isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
-  CRASH_CEILING, CRASH_WINDOW_MS, crashPolicy, dieOfSignal, dieWithParent, isCrash, replacedNote,
-  upgradeAttempt, upgradeRefusalText, workerExitAction,
+  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, npxRelaunchArgs,
+  replacedNote, upgradeAttempt, upgradeRefusalText, workerArgs, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
-import { DETACHED_ENV, detachAndWatch, stopCommand } from "../src/server/detach.mjs";
+import { DETACHED_ENV, backgroundNote, detachAndWatch, noConsoleOptions, shouldDetach } from "../src/server/detach.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 
 const BIN_DIR = dirname(fileURLToPath(import.meta.url));
@@ -76,81 +78,31 @@ const INVOKED_AS = invokedAs({ pkgRoot: PKG_ROOT, argv1: process.argv[1], platfo
 const P = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
 const G = glyphs(unicodeOK());
 
-// Who the restart-failure note below belongs to. Several decks of the same
-// package run out of one home directory — two `npx ccdeck` runs even share the
-// _npx directory and therefore the version — so a note named after the package
-// alone was read by every one of them, and a deck that had never asked for an
-// update reported someone else's failed npx as its own. Our pid is unique among
-// the decks alive on the machine, and putting it in our own environment is what
-// carries it to the worker: launch() spawns with a copy of it.
 // ── the terminal stops being the deck's leash ────────────────────────────────
 //
-// Everything about why is in src/server/detach.mjs. Here is only the decision,
-// and it has exactly two ways out:
-//
-//   ALREADY DETACHED — we ARE the background copy. Carry on as this file always
-//   has: spawn the worker, supervise it, never come back here.
-//
-//   A ONE-SHOT — `--version`, `--stop`, `--status`, `--help`, `--uninstall`.
-//   Those answer and leave, and a one-shot that detached would print its answer
-//   into a log file and hand the terminal back empty. They run in the
-//   foreground exactly as they always have.
-//
-// Anything else is a start, and a start goes to the background.
+// Everything about why is in src/server/detach.mjs, and so is the decision —
+// shouldDetach, which names every way of staying in the foreground. Here is
+// only what it is asked, and what a yes does.
 const DETACHED = process.env[DETACHED_ENV] === "1";
 
-/**
- * How the worker (and an upgrade's replacement) is started when this
- * supervisor has no console of its own — detached from a terminal, or run by
- * the desktop app.
- *
- * ON WINDOWS, A CONSOLE PROGRAM STARTED BY A PROCESS WITH NO CONSOLE IS GIVEN A
- * NEW ONE, and with Windows Terminal as the default terminal that new console
- * is a window. Measured on a Windows 10 box: `npx ccdeck` put a second
- * Windows Terminal window on screen, hosting the deck's own node.exe, after the
- * one the user typed into. `windowsHide` alone does not stop it: with stdio
- * inherited, libuv only asks for a hidden window, which Windows Terminal's
- * default-terminal handoff does not honour. DETACHED_PROCESS gives the child
- * no console at all, so there is nothing to show.
- *
- * Only when detached: a supervisor in the user's own terminal shares that
- * console with its worker, and Ctrl+C has to reach both.
- */
-const NO_CONSOLE = DETACHED && process.platform === "win32"
-  ? { detached: true, windowsHide: true }
-  : {};
+// How the worker (and an upgrade's replacement) is started when this
+// supervisor has no console of its own — without one either, on Windows,
+// where a console program given none opens a window. See noConsoleOptions.
+const NO_CONSOLE = noConsoleOptions({ detached: DETACHED, platform: process.platform });
 // A parent already holding our lifecycle. `process.send` exists only when
 // somebody spawned us with an IPC channel, and that somebody has armed
-// dieWithParent below and is waiting on our exit code — running away from them
-// into our own process group is precisely the wrong answer to being supervised.
-// The suite's spawnSupervised is the caller that does this today.
+// dieWithParent below and is waiting on our exit code. The suite's
+// spawnSupervised is the caller that does this today.
 const LEASHED = typeof process.send === "function";
-// And the way to ask for the old behaviour out loud.
-//
-// Every version before this one held the terminal, and something out there
-// depends on that: a wrapper script, a CI step, a supervisor of somebody else's
-// that starts `ccdeck` and waits on it, a `ccdeck && open …`. Handing all of
-// those an immediate exit and no way to say otherwise would be a breaking change
-// with no escape hatch — and the marker above is an internal one, not something
-// to tell a user to export.
+// `--foreground` and the one-shots are read off these.
 const FLAGS = parseArgs(process.argv.slice(2));
-if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
+if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
   const { deckLogDir } = await import("../src/server/deck-home.mjs");
   const { registeredDecks } = await import("../src/server/running-deck.mjs");
   const isTTY = Boolean(process.stdout.isTTY);
   const profile = colorProfile({ isTTY });
   const tone = palette(profile);
   const npx = isNpxInstall(PKG_ROOT);
-  const stop = stopCommand({ npx, invokedAs: INVOKED_AS, product: PRODUCT });
-  // THE ONE THING AN NPX RUN CANNOT HAVE, said where it is missing. A login item
-  // must name a path that will still be there tomorrow, and npx runs out of a
-  // cache npm deletes whenever it likes — so an npx deck runs in the background
-  // and cannot come back after a reboot. One line, no disk written, offered
-  // rather than done: `npx` means "run without installing", and a tool that
-  // installs itself anyway is the one people uninstall.
-  const offer = npx
-    ? `     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --install\` also starts it at login${tone.reset}\n`
-    : "";
   const outcome = await detachAndWatch({
     file: fileURLToPath(import.meta.url),
     argv: process.argv.slice(2),
@@ -161,7 +113,7 @@ if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
     isTTY,
     profile,
     columns: termColumns(process.stdout),
-    backgroundLine: `  ${tone.muted}${G.dash}  running in the background ${G.bullet} \`${stop}\` ends it${tone.reset}\n${offer}\n`,
+    backgroundLine: backgroundNote({ npx, invokedAs: INVOKED_AS, product: PRODUCT, tone, g: G }),
   });
   // detachAndWatch never returns on the paths that worked. Reaching this line
   // means the log could not be opened at all — a read-only home, a full disk —
@@ -170,6 +122,13 @@ if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
   console.error(`${PRODUCT}: could not open ${PRODUCT}'s log (${outcome.reason}) ${G.dash} staying in the foreground.`);
 }
 
+// Who the restart-failure note below belongs to. Several decks of the same
+// package run out of one home directory — two `npx ccdeck` runs even share the
+// _npx directory and therefore the version — so a note named after the package
+// alone was read by every one of them, and a deck that had never asked for an
+// update reported someone else's failed npx as its own. Our pid is unique among
+// the decks alive on the machine, and putting it in our own environment is what
+// carries it to the worker: launch() spawns with a copy of it.
 claimRestartFailureKey();
 
 // The port the worker actually bound, which is not necessarily the one it was
@@ -199,6 +158,23 @@ let stopping = false;
 // answer to broken is to stop and say so rather than to spin.
 let crashes = [];
 
+/**
+ * Stop the npx fetch in flight, if there is one, and say whether there was.
+ *
+ * A fetch ends early three ways — the worker it was for exits, a signal
+ * reaches this process, the parent holding our leash goes away — and all three
+ * stop it with killTree, which on Windows is the only thing that reaches npm
+ * under cmd.exe. The answer is for the first of them: a worker that leaves
+ * mid-fetch writes its attempt off, while one that leaves after a fetch that
+ * worked is handing the attempt to launchNpx.
+ */
+function stopFetch(signal) {
+  if (!fetching) return false;
+  killTree(fetching, signal);
+  fetching = null;
+  return true;
+}
+
 function launch(respawn) {
   // Asked on every spawn rather than once at boot: the deletion this catches
   // happens while the deck is running, so a constant read at import time would
@@ -213,9 +189,9 @@ function launch(respawn) {
     console.error(replaced);
     process.exit(1);
   }
-  const args = [WORKER, ...process.argv.slice(2)];
-  // Appended last so it wins: the worker's parser keeps the final --port.
-  if (respawn && boundPort != null) args.push("--port", String(boundPort));
+  // On a respawn, the port the last worker bound goes last so it wins — see
+  // workerArgs.
+  const args = workerArgs(WORKER, process.argv.slice(2), { respawn, boundPort });
 
   const worker = spawn(process.execPath, args, {
     ...NO_CONSOLE,
@@ -272,7 +248,7 @@ function launch(respawn) {
     // download is spent effort and the process holding it has to be stopped:
     // left running it would keep writing into the npx cache directory the next
     // attempt reads, minutes after the deck stopped waiting for it.
-    if (fetching) { killTree(fetching); fetching = null; attempting = null; }
+    if (stopFetch()) attempting = null;
     // `stopping` outranks the exit code — see supervisor.mjs. A restart and a
     // Ctrl+C can land together, and honouring the code first is how the deck
     // came back to life after the user stopped it.
@@ -292,14 +268,16 @@ function launch(respawn) {
     // Before this ran in the background a crash was self-reporting: the terminal
     // came back with the stack on it. Detached, the first sign is noticing hours
     // later that a day of work was never recorded — so it goes back up. The
-    // whole of which crashes qualify is in isCrash, and the ceiling that stops
-    // this becoming a spin loop is in crashPolicy.
+    // whole of which crashes qualify is in isCrash, the ceiling that stops this
+    // becoming a spin loop is in crashPolicy, and what each answer says is in
+    // crashRestartNote and crashCeilingNote.
     if (isCrash({ code, signal, served: boundPort != null, stopping })) {
       const verdict = crashPolicy(crashes);
       if (verdict.restart) {
         crashes = verdict.history;
-        const how = signal ? `killed by ${signal}` : `exit ${code}`;
-        console.error(`${PRODUCT}: the deck stopped on its own (${how}) ${G.dash} starting it again in ${Math.round(verdict.delayMs / 1000)}s (${verdict.recent}/${CRASH_CEILING}).`);
+        console.error(crashRestartNote({
+          code, signal, delayMs: verdict.delayMs, recent: verdict.recent, product: PRODUCT, dash: G.dash,
+        }));
         restarts++;
         // Unref'd would be wrong here: this timer IS the supervisor's reason to
         // stay alive, and without it the event loop empties and the process
@@ -310,7 +288,7 @@ function launch(respawn) {
       // Said once, with the two numbers that make it actionable, and then this
       // process really does end — a supervisor that keeps trying forever is the
       // failure the ceiling exists to prevent.
-      console.error(`${PRODUCT}: the deck has stopped ${CRASH_CEILING} times in ${Math.round(CRASH_WINDOW_MS / 60000)} minutes ${G.dash} not starting it again. Run \`${INVOKED_AS ?? PRODUCT}\` when you have looked at the log above.`);
+      console.error(crashCeilingNote({ product: PRODUCT, command: INVOKED_AS ?? PRODUCT, dash: G.dash }));
     }
 
     // Anything else is the worker's own verdict and belongs to whoever started
@@ -328,26 +306,12 @@ function launch(respawn) {
   });
 }
 
-/** Drop the two flags launchNpx sets itself. `--port` takes a value, and both
- *  spellings npm's parser accepts (`--port 4317`, `--port=4317`) have to go. */
-function withoutPortAndOpen(args) {
-  const out = [];
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === "--no-open") continue;
-    if (a === "--port") { i++; continue; } // and its value
-    if (a.startsWith("--port=")) continue;
-    out.push(a);
-  }
-  return out;
-}
-
 /**
  * Which package an npx upgrade here names, and the spec that installs it — or
  * null when this deck was not started by npx and there is nothing to re-run.
  *
  * One function because there is one answer, and the worker above us reaches it
- * independently: `upgradeName` in self-update.mjs resolves the npx case as
+ * independently: `upgradeName` in install-layout.mjs resolves the npx case as
  * `bareSpecName(npxRestartSpec(pkgRoot, installedName(pkgRoot)))`, and
  * everything registry-shaped on that side — the dist-tag it fetched, the marker
  * it cached the answer in, the failure note the browser reads — is keyed by it.
@@ -487,14 +451,9 @@ function launchNpx() {
   // one answer, so the spec that is run, the note that records it and the
   // marker its target came from all name one package. See npxUpgrade.
   const { spec, pkgName } = upgrade;
-  // Our two are appended, so the originals are dropped rather than left to be
-  // overridden — `--port 4317 --no-open --port 4317 --no-open` works, but it is
-  // what the next person reads in `ps`.
-  const args = ["-y", spec, ...withoutPortAndOpen(process.argv.slice(2))];
-  if (boundPort != null) args.push("--port", String(boundPort));
-  // The tab that asked for this is open and reconnecting; a second one would be
-  // the deck talking over itself.
-  args.push("--no-open");
+  // On the port the deck is bound to, and without opening a tab — see
+  // npxRelaunchArgs.
+  const args = npxRelaunchArgs(spec, process.argv.slice(2), boundPort);
 
   // A retry answers for itself: whatever the last attempt left on disk is about
   // to be replaced by this attempt's outcome, and leaving it there would keep
@@ -526,18 +485,8 @@ function launchNpx() {
   // Held, not discarded: the moment the replacement is serving, everything it
   // wrote goes to the terminal and every later byte passes straight through.
   // Until then it is only evidence for a failure that may not happen.
-  let tail = "";
-  let teeing = false;
-  const tee = () => {
-    if (teeing) return;
-    teeing = true;
-    if (tail) process.stderr.write(tail);
-  };
-  started.stderr?.on("data", (d) => {
-    const s = String(d);
-    if (teeing) { process.stderr.write(s); return; }
-    tail = (tail + s).slice(-8000);
-  });
+  const held = holdOutput({ write: (s) => process.stderr.write(s) });
+  started.stderr?.on("data", held.take);
 
   // Whether the replacement ever got as far as serving. An npx that cannot
   // resolve exits in seconds having bound nothing; a deck the user stops with
@@ -547,7 +496,7 @@ function launchNpx() {
     if (boundPort == null || served) return;
     const sock = connect({ port: boundPort, host: "127.0.0.1" });
     sock.setTimeout(1000);
-    sock.on("connect", () => { served = true; tee(); sock.destroy(); });
+    sock.on("connect", () => { served = true; held.release(); sock.destroy(); });
     sock.on("timeout", () => sock.destroy());
     sock.on("error", () => { /* not up yet */ });
   }, 1000);
@@ -557,8 +506,8 @@ function launchNpx() {
     clearInterval(probe);
     child = null;
     if (stopping || served) return; // the user stopped it, or it ran and ended
-    const summary = npxFailureSummary(tail);
-    const hint = npxFailureHint(tail);
+    const summary = npxFailureSummary(held.tail);
+    const hint = npxFailureHint(held.tail);
     console.error(`${PRODUCT}: ${why} ${G.dash} staying on v${VERSION}`);
     if (summary) console.error(`  ${summary}`);
     if (hint) console.error(`  ${hint}`);
@@ -610,7 +559,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     // Windows the shim path leaves npm as a grandchild of cmd.exe that only
     // killTree can reach. Stopped before the worker, since the worker's own
     // exit path is what ends this process.
-    if (fetching) { killTree(fetching, second ? "SIGKILL" : sig); fetching = null; }
+    stopFetch(second ? "SIGKILL" : sig);
     if (!child) { process.exit(0); return; }
     try { child.kill(second ? "SIGKILL" : sig); } catch { /* already gone */ }
     // The npx step is a shell that exec's the new deck, and a signal can land in
@@ -643,7 +592,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 // the deck kill itself a second after every successful start.
 if (!DETACHED) dieWithParent(() => {
   stopping = true;
-  if (fetching) { killTree(fetching, "SIGTERM"); fetching = null; }
+  stopFetch("SIGTERM");
   if (child) killTree(child, "SIGTERM");
   // Long enough for the worker to unregister its discovery file and let the
   // port go, short enough that nothing is waiting on us. Unref'd: if the worker

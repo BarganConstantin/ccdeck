@@ -27,66 +27,40 @@
 //
 // 2 and 3 are rate-floored (SELF_POLL_MS) and gated behind the same 429
 // cooldown; 1 is not, because it is a local file read.
+//
+// CLAUDE'S SAVED LIMIT RESETS (#1308) ride on source 2 rather than being a
+// fourth source. The usage endpoint returns them in a `cedar_ember` block when
+// the request asks with `cedar_ember=1` — which is what Claude Code itself
+// sends — so on source 2 they arrive in the very response the windows come
+// from: no extra request, and no way for them to belong to a different account
+// than the bars beside them. Neither of the other two sources carries them:
+// claude-swap does not ask for the block, and `claude --print /usage` does not
+// print it. On source 1 they are therefore a separate read with the same
+// token, floored at CREDITS_POLL_MS, and published only once the token's owner
+// has been checked against the account claude-swap says is active — see
+// refreshStoreResetCredits. Source 3 gets none: it runs when there is no token
+// to read with, or when the token is in a 429 cooldown.
+//
+// There is no claude.ai web session here, on purpose. The organization
+// endpoint Claude's own Settings → Usage page reads is reported to refuse an
+// OAuth token (`403 oauth_token_not_accepted`), so reaching it would take the
+// browser's session cookie, and a browser's cookie store is not something this
+// deck reads.
+//
+// WHERE THE PARTS LIVE. This module is the chain: which source to ask, on what
+// floor, and what to publish. Each source's answer is mapped to the panel's
+// shape in quota-shape.mjs; the token, source 2's request and the cooldown are
+// quota-oauth.mjs's; running source 3 is quota-cli.mjs's; and the store path's
+// reset inventory is quota-store-resets.mjs's.
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
-import { claudeCliCandidates, claudeConfigDir } from "./claude-dir.mjs";
-import { pathLookup, run } from "./exec.mjs";
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import { PRODUCT } from "./brand.mjs";
-// One ANSI stripper for the whole deck. The private copy that used to live
-// here accepted only the BEL terminator for an OSC sequence, while term.mjs's
-// also accepts ESC \\ — so a hyperlink written the other legal way survived
-// into text this module then parsed for quota lines.
-import { stripAnsi } from "./term.mjs";
-import { resetLabelIso } from "./reset-label.mjs";
-
-const USAGE_URL   = "https://api.anthropic.com/api/oauth/usage";
-const BETA_HEADER = "oauth-2025-04-20";
-const WIN_5H_SEC  = 18000;
-const WIN_7D_SEC  = 604800;
-
-// 429 cooldown gate — after a rate-limit, skip the API until this passes.
-let _rateLimitedUntil = 0;
-
-/**
- * Where Claude Code keeps the OAuth credentials this module borrows a token
- * from.
- *
- * It is `.credentials.json` inside the Claude config dir, and that dir moves:
- * CLAUDE_CONFIG_DIR replaces ~/.claude wholesale rather than overlaying it, so
- * on a machine where it is set there is no ~/.claude to read at all. Hardcoding
- * ~/.claude here did not fail loudly — it made readOAuthToken() return null
- * forever, which reads exactly like "this machine keeps its credentials in the
- * Keychain", and the quota chain quietly fell through to source 3 on every poll
- * it was allowed to make. See src/server/claude-dir.mjs, which owns the rule
- * and is the only place it is spelled.
- *
- * Resolved per call rather than frozen into a module-level constant, for the
- * same reason claudeConfigDir() is a function: a constant captured at import
- * time is a value nothing can observe or correct afterwards, and this module is
- * imported lazily by the /api/quota route rather than at a point in startup
- * anyone here controls.
- *
- * Exported for tests — it is the whole of the bug, and it is pure.
- */
-export function credentialsPath() {
-  return join(claudeConfigDir(), ".credentials.json");
-}
-
-async function readOAuthToken() {
-  try {
-    const raw  = await readFile(credentialsPath(), "utf8");
-    const auth = JSON.parse(raw)?.claudeAiOauth;
-    if (!auth?.accessToken) return null;
-    // expiresAt is epoch milliseconds. If expired, the CLI fallback handles it.
-    if (auth.expiresAt && Date.now() >= auth.expiresAt) return null;
-    return auth.accessToken;
-  } catch {
-    return null;
-  }
-}
+import { quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
+import {
+  SELF_POLL_MS, clearCooldown, coolingDown, cooldownUntil, fetchOAuthUsage, hasSubscriptionCredential,
+} from "./quota-oauth.mjs";
+import {
+  accountOf, clearResetCreditsFloor, forgetResetCredits, heldResetCredits, refreshStoreResetCredits,
+} from "./quota-store-resets.mjs";
+import { runUsageOnce, quotaClaudeBin } from "./quota-cli.mjs";
 
 /**
  * Whether we may spend a request of the user's budget right now.
@@ -101,144 +75,6 @@ export function maySelfPoll({ now, force, lastSelfPollAt, rateLimitedUntil }) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-/**
- * A cooldown from a `retry-after`, kept inside limits the deck can live with.
- *
- * Unclamped, the header decided the poller's fate in both directions: `0` (or a
- * value the server rounds down to it) defeats the cooldown entirely and the
- * next tick asks again immediately, which is the loop a 429 exists to stop; a
- * large one — a day is a legal value — freezes the reader for the life of the
- * process, and nothing here re-reads it. Both are the remote side deciding how
- * this deck behaves, which a header is not entitled to do.
- *
- * The floor is the deck's own minimum backoff and the ceiling is an hour: long
- * enough to be a real retreat, short enough that a quota panel is not dead for
- * the rest of the day because one reply said so.
- */
-export function cooldownFromHeader(raw, fallbackMs, minMs = 30_000, maxMs = 3600_000) {
-  const seconds = parseInt(String(raw ?? ""), 10);
-  if (!Number.isFinite(seconds)) return fallbackMs;
-  return Math.min(Math.max(seconds * 1000, minMs), maxMs);
-}
-
-/**
- * WHETHER THIS MACHINE HAS A SUBSCRIPTION TO REPORT ON AT ALL.
- *
- * Every source here needs a Claude.ai OAuth credential: the claude-swap store
- * holds one, `claudeAiOauth` in the credentials file is one, and
- * `claude --print /usage` prints windows only for a session signed in with one.
- * An API-key, Bedrock or Vertex install has none — and there is no quota to
- * read, because those are billed per token rather than in five-hour windows.
- *
- * That mattered because of what the CLI does on such a machine: it RUNS, prints
- * no quota lines, and the branch below used to read that as "genuine <1%" and
- * publish `ok: true` with two zeroes. The panel then drew empty bars, which is
- * a measurement nobody took. Codex already answers this properly, with
- * `api_key_mode` as its own reason and its own sentence.
- *
- * Cheap and synchronous: environment first, because a machine configured for
- * Bedrock or Vertex says so there, then the presence of the OAuth block in the
- * credentials file. `readOAuthToken` above answers a different question — it
- * also rejects an EXPIRED token, and an expired subscription is still a
- * subscription.
- */
-export async function hasSubscriptionCredential(env = process.env) {
-  if (env.CLAUDE_CODE_USE_BEDROCK === "1" || env.CLAUDE_CODE_USE_VERTEX === "1") return false;
-  try {
-    const raw = await readFile(credentialsPath(), "utf8");
-    if (JSON.parse(raw)?.claudeAiOauth?.accessToken) return true;
-  } catch { /* absent or unreadable, decided below */ }
-  // A key in the environment and no OAuth block beside it is the API-key
-  // install. Without either, this deck simply has not been signed in yet, and
-  // "sign in" is the right thing to say — which is the `waiting` branch, not
-  // this one.
-  return !(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN);
-}
-
-// ISO-8601 → "Jun 19, 1:19pm" (local time, matching the CLI display format).
-//
-// The body moved to reset-label.mjs in #374: codex-quota.mjs had a copy that
-// claimed in its own comment to match this one and did not, so the Codex lanes
-// and the Claude lanes printed the same instant two different ways in the same
-// panel. This rendering is the one both surfaces use now. The alias stays so
-// the four call sites below read the way they always have.
-const fmtResetIso = resetLabelIso;
-
-function isoToSec(iso) {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  return isNaN(t) ? null : Math.floor(t / 1000);
-}
-
-// Map the OAuth usage JSON to our quota result shape.
-// utilization is already a 0–100 percentage. 5h falls back to 7d if absent.
-function mapOAuthUsage(data) {
-  const fh = data?.five_hour;
-  const sd = data?.seven_day;
-  const son = data?.seven_day_sonnet;
-  const opus = data?.seven_day_opus;
-
-  const primary = (fh?.utilization != null) ? fh : sd;
-  if (!primary || primary.utilization == null) return null;
-
-  const round = (v) => Math.min(100, Math.max(0, Math.round(v)));
-  const result = {
-    session5hPct:       round(primary.utilization),
-    session5hWindowSec: WIN_5H_SEC,
-    session5hReset:     fmtResetIso(primary.resets_at),
-    session5hResetAt:   isoToSec(primary.resets_at),
-    week7dWindowSec:    WIN_7D_SEC,
-  };
-  if (sd?.utilization != null) {
-    result.week7dPct     = round(sd.utilization);
-    result.week7dReset   = fmtResetIso(sd.resets_at);
-    result.week7dResetAt = isoToSec(sd.resets_at);
-  } else {
-    result.week7dPct = 0;
-  }
-  if (son?.utilization != null)  result.weekSonnetPct = round(son.utilization);
-  if (opus?.utilization != null) result.weekOpusPct   = round(opus.utilization);
-
-  // extra usage credits (pay-as-you-go top-up), if enabled
-  const extra = data?.extra_usage;
-  if (extra?.is_enabled) {
-    result.extraEnabled = true;
-    if (extra.used_credits != null)  result.extraUsedCredits  = extra.used_credits;
-    if (extra.monthly_limit != null) result.extraMonthlyLimit = extra.monthly_limit;
-    if (extra.currency)              result.extraCurrency     = extra.currency;
-  }
-  return result;
-}
-
-async function fetchOAuthUsage() {
-  if (Date.now() < _rateLimitedUntil) return null;
-  const token = await readOAuthToken();
-  if (!token) return null;
-
-  try {
-    const res = await fetch(USAGE_URL, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "anthropic-beta": BETA_HEADER,
-        "Accept":         "application/json",
-        "Content-Type":   "application/json",
-        "User-Agent":     "claude-code/2.1.0",
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (res.status === 429) {
-      _rateLimitedUntil = Date.now() + cooldownFromHeader(res.headers.get("retry-after"), 5 * 60_000);
-      return null;
-    }
-    if (!res.ok) return null;
-
-    return mapOAuthUsage(await res.json());
-  } catch {
-    return null;
-  }
-}
-
 let _cache    = null;
 let _cacheAt  = 0;
 let _inflight = null;   // deduplicates concurrent CLI probes
@@ -252,13 +88,22 @@ let _generation = 0;
 
 const CACHE_MS = 60_000;
 
-// Floor between two polls WE pay for. Twelve an hour against a budget of
-// ~28-30 leaves claude-swap room to collect for every account, which is what
-// the accounts panel is made of. Only reached when the store cannot answer.
-const SELF_POLL_MS = 5 * 60_000;
+// How long an answer with no fresh numbers in it stays cached: the "no reading
+// yet" of the poll-floor branch, and both answers _doFetch gives when the CLI
+// printed no windows — the last good reading held over, or the zero or failure
+// when there never was one. A whole CACHE_MS would keep the panel on one of
+// those for a minute when the next attempt may well succeed, so they are
+// stamped CACHE_MS - SHORT_CACHE_MS in the past and expire this long after they
+// were written.
+const SHORT_CACHE_MS = 5_000;
 
-// The refresh button may beat that floor, but not turn into a poll loop when
-// held down. It never beats the 429 cooldown.
+/** The cache stamp that makes an answer published at `now` expire
+ *  SHORT_CACHE_MS later. */
+const shortLived = (now) => now - (CACHE_MS - SHORT_CACHE_MS);
+
+// The refresh button may beat SELF_POLL_MS — the floor for polls we pay for,
+// kept in quota-oauth.mjs beside the cooldown — but not turn into a poll loop
+// when held down. It never beats the 429 cooldown.
 const FORCE_POLL_MS = 60_000;
 
 // How old a claude-swap row may be before we stop treating it as the answer.
@@ -294,217 +139,6 @@ const STORE_TRUSTED_MS = 45 * 60_000;
  * publishes to the cache, and the panel's next poll gets the real numbers.
  */
 export const QUOTA_DEADLINE_MS = 5_000;
-
-/**
- * claude-swap's row for the active account, in the shape the panel speaks.
- *
- * Exported for tests: the mapping is where a wrong number would come from, and
- * it is pure.
- */
-export function quotaFromStore(entry) {
-  const good = entry?.lastGood;
-  const fh = good?.five_hour;
-  const sd = good?.seven_day;
-  const primary = (typeof fh?.pct === "number") ? fh : sd;
-  if (typeof primary?.pct !== "number") return null;
-
-  const round = (v) => Math.min(100, Math.max(0, Math.round(v)));
-  const out = {
-    ok: true,
-    source: "claude-swap",
-    session5hPct:       round(primary.pct),
-    session5hWindowSec: WIN_5H_SEC,
-    session5hReset:     fmtResetIso(primary.resets_at),
-    session5hResetAt:   isoToSec(primary.resets_at),
-    week7dWindowSec:    WIN_7D_SEC,
-    week7dPct:          typeof sd?.pct === "number" ? round(sd.pct) : 0,
-    week7dReset:        fmtResetIso(sd?.resets_at),
-    week7dResetAt:      isoToSec(sd?.resets_at),
-    // The age of the DATA, not of our read of it. The panel prints this, and
-    // "30s ago" over numbers claude-swap collected twenty minutes back is the
-    // kind of true-looking lie this whole change exists to remove.
-    fetchedAt: entry.fetchedAt,
-  };
-  // claude-swap keeps per-model windows in a named list rather than fixed
-  // fields, because which ones an account has depends on its plan.
-  for (const s of Array.isArray(good.scoped) ? good.scoped : []) {
-    if (typeof s?.pct !== "number") continue;
-    if (/sonnet/i.test(s.name ?? "")) out.weekSonnetPct = round(s.pct);
-    else if (/opus/i.test(s.name ?? "")) out.weekOpusPct = round(s.pct);
-  }
-  return out;
-}
-
-
-// Parse "Jun 18, 4:09pm" (local time, no tz) into unix seconds.
-// Claude shows times in the user's local timezone, so parsing as local is correct.
-// `now` is injectable so the year-boundary case is testable.
-export function parseResetToSec(resetStr, now = Date.now()) {
-  if (!resetStr) return null;
-  try {
-    // "4:09pm" → "4:09 PM" so Date.parse handles it. Minutes are optional in
-    // the CLI's output ("9am"); Date.parse rejects "9 AM", so supply ":00".
-    const norm = resetStr
-      .replace(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
-               (_all, h, mm, ampm) => `${h}:${mm ?? "00"} ${ampm}`)
-      .trim();
-    // The CLI prints no year, so we have to supply one. Stamping the current
-    // year blindly puts a "Jan 2" reset read on Dec 30 eleven months in the
-    // past, which hides the countdown and pins the pace marker at 100%. A
-    // reset is never more than a week away, so the neighbouring year that
-    // lands nearest to `now` is the one Claude meant.
-    const thisYear = new Date(now).getFullYear();
-    let best = null;
-    for (const year of [thisYear - 1, thisYear, thisYear + 1]) {
-      const t = new Date(`${norm} ${year}`).getTime();
-      if (isNaN(t)) continue;
-      if (best === null || Math.abs(t - now) < Math.abs(best - now)) best = t;
-    }
-    return best === null ? null : Math.floor(best / 1000);
-  } catch { return null; }
-}
-
-/**
- * Parse `claude --print /usage` output.
- *
- * Observed format (Claude Code ≥ 1.x):
- *   "Current session: 84% used · resets Jun 18, 4:09pm (Europe/Chisinau)"
- *   "Current week (all models): 85% used · resets Jun 21, 8:59am (Europe/Chisinau)"
- *   "Current week (Sonnet only): 48% used · resets Jun 21, 9am (Europe/Chisinau)"
- *   "Current week (Opus only): ..."   (if present)
- */
-function parseUsageText(raw) {
-  const text = stripAnsi(raw);
-  const result = {};
-
-  // Helper: find "X% used · resets <rest>" on a line matching a label.
-  const extract = (labelRe) => {
-    const line = text.split("\n").find(l => labelRe.test(l));
-    if (!line) return null;
-    const pctM = line.match(/(\d{1,3})\s*%/);
-    const resetM = line.match(/resets\s+(.+)/i);
-    const resetFull = resetM
-      ? resetM[1].replace(/\(.*?\)/g, "").replace(/·/g, "").trim()
-      : null;
-    return {
-      pct:     pctM ? Math.min(100, parseInt(pctM[1], 10)) : null,
-      reset:   resetFull,
-      resetAt: parseResetToSec(resetFull),
-    };
-  };
-
-  const session = extract(/current session/i);
-  if (session?.pct != null) {
-    result.session5hPct       = session.pct;
-    result.session5hWindowSec = 18000;
-    if (session.reset)   result.session5hReset   = session.reset;
-    if (session.resetAt) result.session5hResetAt  = session.resetAt;
-  }
-
-  const weekAll = extract(/current week\s*\(all models\)/i) || extract(/current week\s*[:·]/i);
-  if (weekAll?.pct != null) {
-    result.week7dPct       = weekAll.pct;
-    result.week7dWindowSec = 604800;
-    if (weekAll.reset)   result.week7dReset   = weekAll.reset;
-    if (weekAll.resetAt) result.week7dResetAt  = weekAll.resetAt;
-  }
-
-  const weekSon = extract(/current week\s*\(sonnet/i);
-  if (weekSon?.pct != null) result.weekSonnetPct = weekSon.pct;
-
-  const weekOpus = extract(/current week\s*\(opus/i);
-  if (weekOpus?.pct != null) result.weekOpusPct = weekOpus.pct;
-
-  return Object.keys(result).length > 0 ? result : null;
-}
-
-// Where the `claude` CLI can be. The list moved to claude-dir.mjs, which is the
-// module that owns every "where does Claude Code live" answer the deck has —
-// the config dir was already there, and the boot-time presence check that reads
-// this same list had no business importing a quota poller to get at it.
-
-/** Which `claude` to run for `--print /usage`: the first candidate that exists.
- *
- *  This used to hand back a whole shell command line — `"<bin>" --print /usage
- *  < /dev/null` — for `exec()` to parse. Double quotes are not escaping on
- *  POSIX: `$(…)`, backticks and `\` all still work inside them, and every
- *  ingredient of that line came from the environment (`%APPDATA%`, `homedir()`),
- *  so a home directory named `/home/a$(id)b` was shell code the quota poll ran
- *  every minute. A bare `$` was the duller half of the same bug — it expanded
- *  to nothing and the probe looked for a binary at a path that did not exist.
- *
- *  There is nothing left to escape once there is no shell: exec.mjs's `run`
- *  spawns the argument vector as given, resolves the Windows `.cmd`/`.exe`
- *  spelling itself, and closes the child's stdin — which is what `< /dev/null`
- *  was for, since `claude --print` waits three seconds on a stdin pipe nobody
- *  is writing to.
- *
- *  Exported, with everything it touches injectable, so the Windows branch is
- *  testable from the platforms this repo is actually developed on.
- *
- *  WHY THE BARE NAME HAS TO EARN ITS PLACE (#553). This used to be a `.find`
- *  over `!c.includes(sep) || exists(c)`, which reads as "a bare name always
- *  answers, a full path only when it is there". On Windows that is harmless —
- *  the bare name is LAST in the list — but on POSIX it is FIRST, so the `||`
- *  short-circuited on candidate one and `exists` was never called even once:
- *  `~/.local/bin/claude`, `/usr/local/bin/claude` and `/opt/homebrew/bin/claude`
- *  were in a list nothing ever read. The user this broke is the one
- *  claude-dir.mjs names out loud: Claude Code installed by the official
- *  installer, so the binary is at `~/.local/bin/claude`, and the deck launched
- *  from something whose PATH never sourced a shell rc — a LaunchAgent, a
- *  systemd user unit, pm2, a desktop shortcut. `hasClaudeInstalled()` stats the
- *  absolute paths and says yes, so hooks install and the Claude surface turns
- *  on; every `claude --print /usage` spawn is then a bare-name ENOENT logged as
- *  `quota: claude CLI failed`. On macOS there is no `.credentials.json` to fall
- *  back to (the token is in the Keychain, #360), so the quota panel simply stays
- *  dark on a machine that plainly has Claude Code. The identical install on
- *  Windows worked, because there the ordering already said what this now says.
- *
- *  WHICH WINS. The candidate list's own order decides, unchanged on both
- *  platforms — PATH first on POSIX, the two known install directories first on
- *  Windows — because the ordering question here is the one getRunner in
- *  ccusage.mjs already answered: preferring a different copy would silently
- *  change which binary runs on every machine that has two, and a deck that
- *  works today must not start running a `claude` it has never run. A user with
- *  a current claude on PATH via nvm/mise/volta and a stale one left in
- *  `~/.local/bin` keeps getting the one their own shell gives them. All that
- *  changes is that a bare name is now only ANSWERED WITH when PATH actually
- *  holds it, which is the same rule claudeCliOnDisk in claude-dir.mjs has
- *  always applied to this very list — the two readers of one list can no longer
- *  disagree about whether the deck can run what it says is installed.
- *
- *  WHAT IT COSTS. One PATH walk, stopping at the first hit, and only for the
- *  bare candidate; the absolute paths are stat'ed only once PATH has come up
- *  empty. That is the trade ccusage.mjs already priced for the same shape of
- *  question — "a handful of stats, once per uncached fetch, against a process
- *  spawn that follows it" — and here the spawn that follows is a whole Claude
- *  Code process measured at ~3s, behind the SELF_POLL_MS floor.
- *
- *  `pathLookup` is used as a yes/no gate rather than for the path it found, on
- *  purpose: answering with the bare name keeps spawn's own resolution (and, on
- *  Windows, exec.mjs's PATHEXT candidate walk) in charge of the PATH case
- *  exactly as before, so a PATH entry that merely LOOKS like a hit — a
- *  directory named `claude` — cannot become the answer.
- */
-export function quotaClaudeBin(platform = process.platform, env = process.env,
-                               home = homedir(), exists = existsSync) {
-  const sep = platform === "win32" ? "\\" : "/";
-  // process.env is case-insensitive on Windows; an injected plain object in a
-  // test is not, and %Path% is how the variable is actually spelled there.
-  const pathEnv = env.PATH ?? env.Path ?? env.path ?? "";
-  for (const c of claudeCliCandidates(platform, env, home)) {
-    // A full path is worth a single stat; a bare name means "ask PATH", which
-    // is pathLookup's walk — PATHEXT included, since `claude` on Windows is
-    // spelled `claude.exe` or `claude.cmd` and never the bare word.
-    if (c.includes(sep)) { if (exists(c)) return c; }
-    else if (pathLookup(c, platform, { pathEnv, exists })) return c;
-  }
-  // Nothing on PATH and nothing at any known install directory. The bare name
-  // is still the right last resort — POSIX `execvp` and cmd.exe's own search
-  // both deserve their turn at a layout no list here knows — and the ENOENT it
-  // produces is what `quota: claude CLI failed` reports.
-  return "claude";
-}
 
 /**
  * @param deadlineMs how long the CALLER is prepared to wait. Zero — the
@@ -576,10 +210,16 @@ export function answerWithin(read, deadlineMs, now = Date.now()) {
   return Promise.race([read, expired]).finally(() => clearTimeout(bell));
 }
 
+/** What the deck says when it holds no reading at all: that a 429 is being
+ *  waited out, or simply that the first reading has not arrived. */
+function noReading(now) {
+  return { ok: false, reason: coolingDown(now) ? "rate_limited" : "waiting", fetchedAt: now };
+}
+
 /** What the deck can honestly say about a reading it has not finished taking. */
 function notYet(now) {
   if (_lastGood) return { ..._lastGood, stale: true };
-  return { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
+  return noReading(now);
 }
 
 /**
@@ -619,11 +259,24 @@ function publish(gen, result, at, { good = false } = {}) {
  */
 async function storeQuota() {
   try {
-    return quotaFromStore(await activeAccountUsage());
+    const entry = await activeAccountUsage();
+    const quota = quotaFromStore(entry);
+    if (!quota) return null;
+    const account = accountOf(entry.email, entry.organizationUuid);
+    const credits = heldResetCredits(account, Date.now());
+    const reading = credits ? { ...quota, resetCredits: credits } : quota;
+    if (account) _accountOfReading.set(reading, account);
+    return reading;
   } catch {
     return null;
   }
 }
+
+// Which account a store reading is about, for the inventory read it starts.
+// Beside the reading rather than on it: the reading is sent to the browser as
+// it is, and an identity is not something the panel needs. Weak, so a reading
+// nothing holds any more takes its entry with it.
+const _accountOfReading = new WeakMap();
 
 // After asking claude-swap to collect, how long to keep looking for the row it
 // writes. Its fetch is a single HTTPS call; three tries covers a slow one
@@ -659,78 +312,48 @@ async function nudgeAndReread(previous) {
   return previous;
 }
 
-// Run `claude --print /usage` once. Returns { cliOk, parsed }.
-//   cliOk  — the CLI ran and we recognized its output (preamble present)
-//   parsed — quota percentages object, or null if the "Current session/week"
-//            lines were absent (CLI cold-start, or genuinely <1% usage)
-/**
- * The failure this last said out loud, so a standing one is said once.
- *
- * #742. A Windows user with no Claude Code installed sent a screenshot of three
- * identical lines — `ccdeck quota: claude CLI failed: claude exited ENOENT` —
- * interleaved with the deck's pulse line, and they keep coming for as long as
- * the deck runs. Every poll ran the loop below three times, and every attempt
- * printed. A CLI that is not installed is not news three times a minute; it is
- * a condition, and a condition is worth exactly one line.
- *
- * Cleared on the first run that works, so a `claude` installed while the deck
- * is up can still report its next genuine failure.
- */
-let _saidFailure = null;
-
-/** Exported for its test, and for the same reason resetCswapBin is: a module
- *  that remembers something across calls needs a way to be asked twice.
- *
- *  Deliberately NOT folded into invalidateQuotaCache, which production calls
- *  after an account switch — forgetting the notice there would put the same
- *  sentence back on the terminal every time somebody changed accounts. */
-export function forgetQuotaFailureNotice() { _saidFailure = null; }
-
 /** The rate floor, cleared. `maySelfPoll` keeps a self-poll to one a minute
  *  even under `force`, which is correct for a user's budget and is a test
  *  asking the same question three times running into a wall. */
 export function resetQuotaPollFloor() {
   _lastSelfPollAt = 0;
-  _rateLimitedUntil = 0;
+  clearCooldown();
+  clearResetCreditsFloor();
 }
 
-async function _execOnce(bin) {
-  const r = await run(bin, ["--print", "/usage"], {
-    timeout: 15_000,
-    maxBuffer: 1024 * 1024,
-    // Marks this Claude Code run as the deck's own. `claude --print /usage`
-    // is a full invocation, so it fires the hooks we installed, and every
-    // quota poll was drawing itself onto the canvas as a fresh session with
-    // no prompt and no tools. Hooks inherit the environment, so hook.js
-    // sees this and stays quiet.
-    env: { ...process.env, NO_COLOR: "1", TERM: "dumb", AGENTS_DECK_INTERNAL: "1" },
-  });
-  // `run` never rejects, so there is one path rather than two — and the output
-  // is kept either way, which matters because the CLI writes the quota lines to
-  // stdout and can still exit non-zero afterwards.
-  const combined = r.stdout + "\n" + r.stderr;
-  // `run` normalises a binary that is not there to this, on every platform —
-  // see exec.mjs. It is the difference between "Claude Code answered badly",
-  // which is worth retrying and worth saying, and "there is no Claude Code on
-  // this machine", which is neither.
-  const missing = r.code === "ENOENT";
-  if (!r.ok) {
-    const msg = stripAnsi(r.stderr).trim() || `claude exited ${r.code}`;
-    if (msg !== _saidFailure) {
-      _saidFailure = msg;
-      console.error(`${PRODUCT} quota: claude CLI failed:`, msg);
-    }
-  } else {
-    _saidFailure = null;
+// How many times source 3 is run before its silence is taken at its word, and
+// how far apart. Like REREAD_TRIES above, a count and a gap rather than a
+// deadline; QUOTA_DEADLINE_MS's note adds up what the two cost a caller.
+const CLI_ATTEMPTS = 3;
+const CLI_RETRY_GAP_MS = 1200;
+
+/**
+ * Source 3, attempted until it prints windows: `{ cliOk, cliRan, parsed }`,
+ * where the first two say whether ANY attempt was recognised and whether any
+ * ran cleanly — the no-numbers branch of _doFetch needs both — and `parsed` is
+ * the first set of windows printed, or null.
+ */
+async function readCliUsage(bin) {
+  // The CLI sometimes omits the "Current session/week" quota lines on a cold
+  // invocation (right after the server starts, or after the page is hard-
+  // refreshed). The real lines appear on a subsequent call. Retry a couple
+  // times before giving up so the first paint already shows real values.
+  let cliOk = false;
+  let cliRan = false;
+  let parsed = null;
+  for (let attempt = 0; attempt < CLI_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(CLI_RETRY_GAP_MS);
+    const r = await runUsageOnce(bin);
+    cliOk = r.cliOk || cliOk;
+    cliRan = r.ran || cliRan;
+    if (r.parsed) { parsed = r.parsed; break; }
+    // The retry exists for a CLI that RAN and left the quota lines out of a cold
+    // invocation. A CLI that is not installed will not be installed 1.2 seconds
+    // from now, and asking twice more spends two spawns and 2.4 seconds of the
+    // caller's wait to print the same sentence three times. See runUsageOnce.
+    if (r.missing) break;
   }
-  const cliOk = /subscription/i.test(combined) || /claude code usage/i.test(combined);
-  // WHETHER THE RUN ITSELF SUCCEEDED, which `cliOk` does not answer. `cliOk` is
-  // a test of the OUTPUT — it means "we recognised what came back" — and a CLI
-  // that printed its banner and then failed satisfies it. That is the right
-  // rule for the parse above (see the note there: the quota lines can be on
-  // stdout and the exit non-zero), and the wrong one for the no-numbers
-  // fallback in _doFetch, which was publishing 0% for a run that errored.
-  return { cliOk, ran: r.ok, missing, parsed: parseUsageText(combined) };
+  return { cliOk, cliRan, parsed };
 }
 
 async function _doFetch(now, force = false, gen = _generation) {
@@ -750,12 +373,15 @@ async function _doFetch(now, force = false, gen = _generation) {
     // throttle inside is shared with the accounts panel, so two open panels
     // ask no more often than one.
     if (!force) requestCollection().catch(() => {});
+    // The saved limit resets are the one thing the store cannot say. Read
+    // behind this answer, never in front of it; see refreshStoreResetCredits.
+    refreshStoreResetCredits({ now, force, account: _accountOfReading.get(store) });
     return publish(gen, store, now, { good: true });
   }
 
   // Nothing usable in the store. Everything below spends the user's budget, so
   // it happens on a floor, and not at all while a 429 cooldown is running.
-  if (!maySelfPoll({ now, force, lastSelfPollAt: _lastSelfPollAt, rateLimitedUntil: _rateLimitedUntil })) {
+  if (!maySelfPoll({ now, force, lastSelfPollAt: _lastSelfPollAt, rateLimitedUntil: cooldownUntil() })) {
     // A stale row still beats an empty panel, and says how stale it is — but
     // it must be the freshest thing we hold, not just the store. Preferring
     // the store here threw away readings we had already paid for: after a boot
@@ -764,8 +390,8 @@ async function _doFetch(now, force = false, gen = _generation) {
     // next poll, because the store had not moved.
     const held = freshest(store, _lastGood);
     if (held) return publish(gen, { ...held, stale: true }, now);
-    const result = { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
-    return publish(gen, result, now - (CACHE_MS - 5_000));
+    const result = noReading(now);
+    return publish(gen, result, shortLived(now));
   }
   _lastSelfPollAt = now;
 
@@ -776,27 +402,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   }
 
   // Source 3: parse `claude --print /usage` CLI output.
-  const bin = quotaClaudeBin();
-
-  // The CLI sometimes omits the "Current session/week" quota lines on a cold
-  // invocation (right after the server starts, or after the page is hard-
-  // refreshed). The real lines appear on a subsequent call. Retry a couple
-  // times before giving up so the first paint already shows real values.
-  let cliOk = false;
-  let cliRan = false;
-  let parsed = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await sleep(1200);
-    const r = await _execOnce(bin);
-    cliOk = r.cliOk || cliOk;
-    cliRan = r.ran || cliRan;
-    if (r.parsed) { parsed = r.parsed; break; }
-    // The retry exists for a CLI that RAN and left the quota lines out of a cold
-    // invocation. A CLI that is not installed will not be installed 1.2 seconds
-    // from now, and asking twice more spends two spawns and 2.4 seconds of the
-    // caller's wait to print the same sentence three times. See _execOnce.
-    if (r.missing) break;
-  }
+  const { cliOk, cliRan, parsed } = await readCliUsage(quotaClaudeBin());
 
   // Got real quota lines — cache normally and remember as last-known-good.
   if (parsed) {
@@ -811,7 +417,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // vouches for numbers this branch already knows are stale. Short-cache so we
   // retry the CLI again soon.
   if (_lastGood) {
-    return publish(gen, { ..._lastGood, stale: true }, now - (CACHE_MS - 5_000));
+    return publish(gen, { ..._lastGood, stale: true }, shortLived(now));
   }
 
   // Never had good data. A CLI that RAN and printed no quota lines is two
@@ -841,10 +447,10 @@ async function _doFetch(now, force = false, gen = _generation) {
   // and absence plus failure is not a measurement.
   const subscribed = cliOk && cliRan ? await hasSubscriptionCredential() : false;
   const result = cliOk && cliRan && subscribed
-    ? { ok: true, session5hPct: 0, session5hWindowSec: 18000,
-        week7dPct: 0, week7dWindowSec: 604800, fetchedAt: now }
+    ? { ok: true, session5hPct: 0, session5hWindowSec: WIN_5H_SEC,
+        week7dPct: 0, week7dWindowSec: WIN_7D_SEC, fetchedAt: now }
     : { ok: false, reason: cliOk && cliRan ? "no_subscription" : "cli_failed", fetchedAt: now };
-  return publish(gen, result, now - (CACHE_MS - 5_000));
+  return publish(gen, result, shortLived(now));
 }
 
 /**
@@ -894,4 +500,12 @@ export function invalidateQuotaCache() {
   _lastGood = null;
   _generation++;
   _inflight = null;
+  // Forgotten with the rest, because it is about the account the deck just
+  // left. It is not what keeps those resets off the next card, though:
+  // heldResetCredits compares accounts at every read, which also covers the
+  // switches this function never hears about — `cswap` in a terminal, or
+  // claude-swap's own auto-switch. The inventory floor survives, for the reason
+  // the self-poll floor does, and an account not tried yet is on the short one
+  // anyway.
+  forgetResetCredits();
 }

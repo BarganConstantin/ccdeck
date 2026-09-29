@@ -63,12 +63,12 @@ function assistant(inputTokens: number): string {
   }) + "\n";
 }
 
-// Matches MAX_TRANSCRIPT_SCAN_SESSIONS in src/server/index.mjs, which counts
-// sessions rather than paths (#611). Every transcript in this file is a bare
-// `<name>.jsonl` with no `subagents/` directory beside it, so each one is a
-// session of its own and the two readings coincide — which is what keeps these
-// cases about the LRU ordering and not about the grouping. The grouping has
-// its own file, transcript-scan-session-cap.test.ts.
+// Matches MAX_TRANSCRIPT_SCAN_SESSIONS in src/server/transcript-scan.mjs, which
+// counts sessions rather than paths (#611). Every transcript in this file is a
+// bare `<name>.jsonl` with no `subagents/` directory beside it, so each one is
+// a session of its own and the two readings coincide — which is what keeps
+// these cases about the LRU ordering and not about the grouping. The grouping
+// has its own file, transcript-scan-session-cap.test.ts.
 const CAP = 256;
 const FIRST = assistant(100);
 // Same byte length as FIRST, so a cursor parked at its end cannot tell the

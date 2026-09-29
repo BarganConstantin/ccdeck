@@ -21,7 +21,7 @@
 //
 // No React here: types from reactflow, and the same modules App.tsx was calling.
 import { type Edge, type Node } from "reactflow";
-import { agentAriaLabel } from "./components/AgentNode";
+import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
@@ -134,6 +134,19 @@ export function snapshotToFlow(
   lineage: Set<string> | null,
   visibleIds: Set<string>,
   onOpenContext: (sessionId: string) => void,
+  /**
+   * The event log has finished replaying, so the agents in `state` are all the
+   * agents there are. Until then `positions` and `pinned` hold a board restored
+   * from storage for agents that have not arrived yet (#1333).
+   */
+  historyReplayed: boolean,
+  /**
+   * Ids whose position came back from storage and has not yet been seen on the
+   * board it was saved with (#1333). An id leaves it when it is laid out
+   * afresh, and the whole set is emptied, for good, once the log has replayed
+   * and the page has settled.
+   */
+  restored: Set<string>,
 ): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
@@ -273,7 +286,28 @@ export function snapshotToFlow(
   // forty tool calls, grew 420px sideways, and nothing ever reconsidered its
   // neighbours. Clamping at four bubbles is what keeps this cheap: the string
   // stops changing after an agent's fourth tool call.
-  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}`;
+  //
+  // A RESTORED POSITION IS NOT REPAIRED BEFORE ITS BOARD IS BACK (#1333). It was
+  // clear of everything on the board it was saved from, and until the log has
+  // replayed and the cards have measured, the board here is not that one: the
+  // agents replayed so far, at the default card size, beside sessions from the
+  // log that the tick's sweep evicts right after the replay. A render in the
+  // middle of the replay lays out the first of those while the restored agents
+  // they will land on have not arrived — nothing tells autoLayout where a card
+  // that is not on the board yet is coming back to. When the restored ones did
+  // arrive, the overlap pass slid whichever of the two was lower, often the
+  // restored card; the sweep then took the arrival away and left the card
+  // lower than it was saved, and a reload drew a different board. So until the
+  // log is back and the page has settled, restored cards stand still and
+  // whatever covers one slides off it instead. `#held` leaving the key is what
+  // runs the pass once more when the hold lifts, and an overlap still there
+  // then is real and is repaired as ever. A board that starts empty restores
+  // nothing and is never held. (A replay that outlasts the settle delay lifts
+  // the hold on its own last frame, a tick before the sweep: that board is
+  // repaired the way every board was before this.)
+  const holding = restored.size > 0 && !(settled && historyReplayed);
+  if (!holding) restored.clear();
+  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}${holding ? "#held" : ""}`;
   // A node holding a placeholder counts as missing however real its entry in
   // `positions` looks — see placement.ts. Without that, the one write that
   // exists to keep a node on screen for a frame was also the write that told
@@ -282,9 +316,16 @@ export function snapshotToFlow(
   // the next one is placed beside its card as the card sits THEN — a note put
   // away before its card moved must not come back to where the card used to
   // be. Where somebody DRAGGED one is a pin, and pins are kept (liveNodeIds).
+  // After the replay, like the prune further down (#1333): while it streams in,
+  // a note is off the board because its recap has not been replayed yet, not
+  // because it was put away. Forgetting it then placed it again from a card
+  // that had not measured, a few pixels off the spot it was saved at — and,
+  // with the restored cards around it holding still, slid it down the column
+  // away from its card, which stretched the session's box across its
+  // neighbours for the push to shove the whole board apart once it settled.
   const shownNotes = new Set(nodes.filter(n => n.type === "recapNote").map(n => n.id));
   for (const id of Array.from(positions.keys())) {
-    if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
+    if (historyReplayed && isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
       positions.delete(id);
       provisional.delete(id);
     }
@@ -292,6 +333,9 @@ export function snapshotToFlow(
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
+      // Laid out afresh — after R, the reframe, or anything else that emptied
+      // its place — so this page's arrangement, not the stored board's.
+      for (const n of missing) restored.delete(n.id);
       // A card joining a session already on the canvas goes beside that session
       // as it sits now, not where a layout from scratch would have it.
       const laidOut = joinSessions(
@@ -329,7 +373,7 @@ export function snapshotToFlow(
         recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
       }
     }
-    separateOverlaps(nodes, positions, pinned, measured, lanes);
+    separateOverlaps(nodes, positions, pinned, measured, lanes, holding ? restored : undefined);
     lastLayoutSigRef.current = sig;
   }
   // A session that just fanned out subagents is wider and taller than it was a
@@ -346,12 +390,17 @@ export function snapshotToFlow(
   // is false during a state transition) doesn't lose the position and snap
   // the node to {0,0} on return — that was causing "nodes vanish on action
   // change" while bursts (which gate on visibleIds) also disappeared.
-  // Like the pins below, this is guarded on a non-empty graph: positions are
+  // Like the pins below, this waits for the replay to finish: positions are
   // restored from storage before the event log has replayed, so pruning them
   // against an empty agent map would wipe the whole saved arrangement on every
-  // page load and re-derive it with dagre.
+  // page load and re-derive it with dagre. Guarding on an empty map alone was
+  // not enough (#1333). The replay renders once at its end, but anything else
+  // that renders while it streams in — the clock's tick, the stream opening —
+  // runs this against the few agents replayed so far, and every restored
+  // position the rest were coming back to was dropped. They were then laid out
+  // afresh as they arrived, and a reload drew a different board.
   const live = liveNodeIds(state.agents.values());
-  pruneStaleEntries(positions, live);
+  if (historyReplayed) pruneStaleEntries(positions, live);
   // A mark normally lives one frame — the pass it asks for clears it — but an
   // agent that leaves between the stamp and that pass would leave its id in the
   // set for the life of the tab, which is the leak the size cache below had.
@@ -360,8 +409,9 @@ export function snapshotToFlow(
   // localStorage on every load, so without this a drag from some previous run
   // outlives the agent it belonged to and keeps claiming that spot on the
   // canvas — where a later session, laid out from the top, gets stacked
-  // straight onto it.
-  pruneStaleEntries(pinned, live);
+  // straight onto it. After the replay, for the same reason as the positions:
+  // a pin is the user's own placement, and the partial map would drop it too.
+  if (historyReplayed) pruneStaleEntries(pinned, live);
   // Drop measurements for nodes that no longer exist. This cache is not
   // restored from storage, but it is not rebuilt either: nothing but the Clear
   // button ever removed an id, so a tab left open for days holds a size for

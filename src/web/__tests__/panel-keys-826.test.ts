@@ -7,7 +7,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { KEY_HELP } from "../key-help";
 
-const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8")
+  + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
 const rows = KEY_HELP.flatMap(g => g.rows);
 
 describe("the three pointer-only panels get keys (#826)", () => {

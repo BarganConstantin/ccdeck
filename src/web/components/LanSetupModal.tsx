@@ -15,7 +15,8 @@
 // twice, and that is what is left here.
 //
 // Two fields, then, and both of them are about this machine. Everything that
-// takes an address, a token or another deck's name is in LanSyncSection.tsx.
+// takes an address or a token is in LanAddDeckModal.tsx, and another deck's
+// name is given in that deck's own dialog, LanPeerModal.tsx.
 //
 // THE FINGERPRINT IS BACK, WITHOUT THE PROSE (#815). It was taken out of here
 // once, with the sentence that told the reader to read it out, as the cost of
@@ -66,9 +67,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
-import { nextShared, settlePending, writeFailure } from "./LanSyncSection";
+import { nextShared, settlePending } from "../lan-share";
+import { writeFailure } from "../use-lan-section";
 import { copyText } from "../copy-text";
-import type { LanAccount, LanStatus, LanTailscale } from "./LanSyncSection";
+import type { LanAccount, LanStatus, LanTailscale } from "../lan-types";
 
 /**
  * The line under "Look for my devices": whose devices those are, and how many

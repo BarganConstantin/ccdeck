@@ -23,7 +23,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
-import { npxPrefetch, npxPrefetchArgs } from "../../server/npx.mjs";
+import { holdOutput, npxPrefetch, npxPrefetchArgs } from "../../server/npx.mjs";
 // @ts-expect-error — .mjs server module, no types
 import { spawnSpec } from "../../server/exec.mjs";
 
@@ -224,5 +224,47 @@ describe("npxPrefetch against a fetch that works", () => {
       },
     });
     expect(seen[0].stdio).toEqual(["ignore", "pipe", "pipe"]);
+  });
+});
+
+describe("an npx run's output, held as evidence", () => {
+  it("keeps the end of it, because npm's reason is on its last lines", () => {
+    const out = holdOutput({ limit: 8 });
+    out.take("npm WARN exec one\n");
+    out.take(Buffer.from("ETARGET\n"));
+    expect(out.tail).toBe("ETARGET\n");
+    // The default is the 8000 characters both holders used to trim to by hand.
+    const big = holdOutput();
+    big.take("x".repeat(9000) + "Error: the reason");
+    expect(big.tail).toHaveLength(8000);
+    expect(big.tail.endsWith("Error: the reason")).toBe(true);
+  });
+
+  it("writes nothing while it holds, so a live deck's terminal is left alone", () => {
+    const written: string[] = [];
+    const out = holdOutput({ write: s => written.push(s) });
+    out.take("resolving…\n");
+    expect(written).toEqual([]);
+  });
+
+  it("hands what it held over once, then passes every later chunk straight through", () => {
+    // The replacement turned out to be serving: what it wrote before that goes
+    // to the terminal, and so does everything after.
+    const written: string[] = [];
+    const out = holdOutput({ write: s => written.push(s) });
+    out.take("banner\n");
+    out.release();
+    out.release();
+    out.take(Buffer.from("later\n"));
+    expect(written).toEqual(["banner\n", "later\n"]);
+    // And the tail is still what was held before the hand-over.
+    expect(out.tail).toBe("banner\n");
+  });
+
+  it("writes nothing on release when nothing was held", () => {
+    const written: string[] = [];
+    const out = holdOutput({ write: s => written.push(s) });
+    out.release();
+    expect(written).toEqual([]);
   });
 });

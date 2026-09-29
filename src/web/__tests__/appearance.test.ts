@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_OPTIONS, resolveCharacterEnabled } from "../appearance";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -27,9 +29,11 @@ describe("character appearance preference", () => {
   });
 
   it("gates the character at its App mount and persists the chosen state", () => {
-    const app = read("App.tsx");
+    // The state and its storage are in use-appearance.ts; the mount is
+    // components/BoardFlow.tsx's. Every match is positive, so this reads the client.
+    const app = clientText();
     expect(app).toContain("useState(storedCharacterEnabled)");
-    expect(app).toContain('localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
+    expect(app).toContain('writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
     expect(app).toContain("{characterEnabled && (");
     expect(app).toContain("<ClaudeFm");
     expect(app).toContain("muted={fmMuted}");
@@ -38,7 +42,7 @@ describe("character appearance preference", () => {
 
   it("uses a dismissible, accessible centered modal for the two appearance settings", () => {
     const menu = read("components/AppearanceMenu.tsx");
-    const styles = read("styles.css");
+    const styles = sheetText();
     expect(menu).toContain("useModalDismiss");
     expect(menu).toContain('role="dialog"');
     expect(menu).toContain('aria-modal="true"');
@@ -78,7 +82,7 @@ describe("character appearance preference", () => {
 
   it("keeps the whole Claude FM row one control, and Space and T working inside the menu", () => {
     const menu = read("components/AppearanceMenu.tsx");
-    const styles = read("styles.css");
+    const styles = sheetText();
     expect(menu).toContain('aria-haspopup="listbox"');
     expect(menu).toContain("aria-activedescendant");
     expect(menu).toContain('role="listbox"');

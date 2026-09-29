@@ -21,12 +21,23 @@ import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
 import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
+import { clientText } from "./client-source";
+import { browserWatchSurface } from "./browser-watch-surface";
+import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const app = read("../App.tsx");
+// The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
+// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
 const soundMenu = read("../components/SoundMenu.tsx");
-const watchModal = read("../components/BrowserWatchModal.tsx");
-const css = read("../styles.css");
+// The menu and every file lifted out of it, so the negatives below still see
+// the custom sounds, which moved to CustomSoundsSection.tsx.
+const soundMenuAll = soundMenuSurface();
+// Browser Watch's reads and writes moved to use-browser-watch.ts; the dialog and
+// what was lifted out of it are read as one, so #803's negative still sees them.
+const watchModal = browserWatchSurface();
+const css = sheetText();
 
 describe("#800 — the session list", () => {
   it("has a button in the top bar again, not only a key", () => {
@@ -91,6 +102,9 @@ describe("#801 — what the Notifications switch is saying", () => {
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
+    // The switch's press and the asker's ref moved to use-os-notifications.ts;
+    // all three matches are positive, so this case reads the client.
+    const app = clientText();
     // `requestPermission()` needs a user gesture and the press IS one, so the
     // prompt goes up on the same press — off to on only, and only while the
     // browser can still be asked. The button below is then the way back from a
@@ -134,8 +148,8 @@ describe("#801 — what the Notifications switch is saying", () => {
     // too — one meaning on/off, the other which of three figures plays. The
     // switch is plural now and the picker is the thing it picks.
     expect(soundMenu).toContain('id="sm-sound-label">Sounds<');
-    expect(soundMenu).toContain("<label htmlFor={figureId}>Tone</label>");
-    expect(soundMenu).not.toMatch(/>Sound</);
+    expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
+    expect(soundMenuAll).not.toMatch(/>Sound</);
   });
 
   it("keeps the promise identical either side of the press that grants it", () => {
@@ -165,8 +179,8 @@ describe("#801 — what the Notifications switch is saying", () => {
     // ONE clause, in the two states where a browser has taken the first away,
     // because there it changes what a refusal means. Never a row: nobody
     // outside this repo asks which mechanism fired.
-    expect(soundMenu).not.toContain("This tab, when hidden");
-    expect(soundMenu).not.toContain("The deck, when no tab is open");
+    expect(soundMenuAll).not.toContain("This tab, when hidden");
+    expect(soundMenuAll).not.toContain("The deck, when no tab is open");
     for (const p of ["denied", "unsupported"] as const) {
       expect(browserChannel(p).note, p).toContain("once this tab is closed");
     }
@@ -222,6 +236,9 @@ describe("#801 — what the Notifications switch is saying", () => {
 });
 
 describe("#802 — the empty hero and the scope it was started with", () => {
+  // The hero and the copy it is built from moved to components/EmptyHero.tsx;
+  // the call site that hands it the workspace stayed in App.tsx.
+  const hero = read("../components/EmptyHero.tsx");
   it("renders the scoped sentence instead of 'any folder'", () => {
     // The one user for whom the canvas stays empty is exactly the one who
     // started the deck with --scope or --workspace and then ran an agent
@@ -230,8 +247,8 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     expect(scoped.kind).toBe("scoped");
     expect(scoped.workspace).toBe("/w/paycore");
     expect(scoped.tail).toContain("--workspace/--scope");
-    expect(app).toContain("const scope = emptyScope(workspace);");
-    expect(app).toContain('{scope.kind === "scoped" ? (');
+    expect(hero).toContain("const scope = emptyScope(workspace);");
+    expect(hero).toContain('{scope.kind === "scoped" ? (');
   });
 
   it("keeps the 'any folder' sentence for a deck that is not scoped", () => {
@@ -239,12 +256,12 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     // must survive.
     expect(emptyScope("").kind).toBe("machine");
     expect(emptyScope(null).kind).toBe("unknown");
-    expect(app).toContain("Run <code>claude</code> or <code>codex</code> in any folder.");
+    expect(hero).toContain("Run <code>claude</code> or <code>codex</code> in any folder.");
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {
-    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={() => setTourOpen(true)} />");
-    expect(app).toContain("function agentNoneCopy(providers: Providers, workspace: string | null) {");
+    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} />");
+    expect(hero).toContain("function agentNoneCopy(providers: Providers, workspace: string | null) {");
   });
 });
 
@@ -302,6 +319,8 @@ describe("#803 — a failed write in Browser Watch", () => {
 
 describe("#804 — the deck restarting itself", () => {
   it("is armed only while the switch that stops it is on screen", () => {
+    // Auto-restart lives in use-auto-restart.ts; these matches are positive.
+    const app = clientText();
     // The behaviour was keyed on `notice?.kind`; the switch renders inside
     // `noticeOpen && notice`. Dismiss the banner with its × and the server
     // still exited, respawned and reloaded the page thirty seconds after the
@@ -324,9 +343,11 @@ describe("#804 — the deck restarting itself", () => {
   });
 
   it("keeps the default the useful one, because the switch is now always beside it", () => {
+    // Auto-restart lives in use-auto-restart.ts; these matches are positive.
+    const app = clientText();
     // Defaulting to off would leave every user on a version they already have
     // installed until they found a switch they have no reason to look for. The
     // defect was reachability, not the default — so the default stays.
-    expect(app).toContain('window.localStorage.getItem(AUTO_RESTART_KEY) !== "0"');
+    expect(app).toContain('readStored(AUTO_RESTART_KEY) !== "0"');
   });
 });

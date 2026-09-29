@@ -46,6 +46,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
+import { endStdin } from "./child-stdin";
 
 // The home the server thinks it has, the config dir the override points at and
 // the Codex home it tails — all temporary, all set before the server module is
@@ -70,6 +71,8 @@ process.env.XDG_CONFIG_HOME = join(FAKE_HOME, ".config");
 
 // @ts-expect-error — .mjs server module, no types
 const { startServer, eventsSince, hookToken, challengeProof } = await import("../../server/index.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { drainAppends } = await import("../../server/log-writer.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -124,15 +127,25 @@ const lines = () =>
   (existsSync(LOG) ? readFileSync(LOG, "utf8") : "").split("\n").filter(Boolean).length;
 
 /**
- * Wait for the log to reach `n` lines — then a little longer, which is the
- * window a line that should NOT be there would land in. The append is
+ * Every line this process has queued for the log, landed. The append is
  * fire-and-forget, so "it has not arrived yet" and "it is never coming" look
- * identical for a moment.
+ * identical until log-writer's own queue has drained — and once it has, they
+ * do not (#994). The hook exits only when every exchange it started is over,
+ * so a fireHook that has resolved has had everything it sent admitted.
+ */
+async function landed(): Promise<void> {
+  expect(await drainAppends(), "the log's append queue did not drain").toBe(true);
+}
+
+/**
+ * Wait for the log to reach `n` lines, then for the queue behind them, which
+ * is where a line that should NOT be there would be. This used to wait 250ms
+ * more instead.
  */
 async function settle(n: number, ms = 15000) {
   const deadline = Date.now() + ms;
   while (lines() < n && Date.now() < deadline) await tick(25);
-  await tick(250);
+  await landed();
   return lines();
 }
 
@@ -213,7 +226,7 @@ async function fireHook(session: string) {
   let stderr = "";
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", c => { stderr += c; });
-  child.stdin.end(JSON.stringify({
+  endStdin(child, JSON.stringify({
     cwd: FAKE_HOME, session_id: session, hook_event_name: "PreToolUse",
     tool_name: "Read", tool_use_id: id,
   }));
@@ -304,7 +317,9 @@ describe("an elected writer that does not take the event", () => {
     expect(seen, `the writer was asked to keep the event (stderr: ${stderr})`)
       .toContain("/api/event");
     expect(code, "the hook still ends itself cleanly").toBe(0);
-    await settle(before + 1, 2000);
+    // It has exited, so whatever it asked this deck to keep has been admitted,
+    // and the queue says whether it was written. This waited 2s instead.
+    await landed();
     expect(lines(), "no second deck was asked to write it").toBe(before);
     expect(drawnCount(id), "drawn once, with ?persist=0, and never handed the log").toBe(1);
     dropWriter();
@@ -323,7 +338,7 @@ describe("an elected writer that does not take the event", () => {
     const { id, code } = await fireHook("sess-healthy");
     expect(code).toBe(0);
     expect(seen).toEqual(["/api/event"]);
-    await settle(before + 1, 2000);
+    await landed(); // as in the case above, where this waited 2s
     expect(lines(), "the elected writer owns the log and we keep no copy").toBe(before);
     expect(drawnCount(id), "drawn once — a 2xx ends the hand-on before it starts").toBe(1);
     dropWriter();
@@ -347,7 +362,7 @@ describe("an elected writer that does not take the event", () => {
     expect(code).toBe(0);
     expect(stderr).toBe("");
     expect(seen).toContain("/api/event");
-    await settle(before + 1, 2000);
+    await landed(); // as above, where this waited 2s
     expect(lines()).toBe(before);
     dropWriter();
     await writeDiscovery({ port: PORT, workspace: "", token: hookToken(), persist: LOG, codex: false });

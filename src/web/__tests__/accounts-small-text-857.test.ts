@@ -9,8 +9,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Bodies of every rule whose selector list names exactly this selector. */
@@ -54,8 +56,8 @@ describe("the accounts panel's reading sizes (#857)", () => {
 
   it("has no footnote under the roster any more — every row says when it was collected", () => {
     const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
-    expect(panel).not.toMatch(/className="ap-footnote"/);
-    expect(panel).not.toMatch(/These numbers only update while this panel is open/);
+    expect(accountsSurface()).not.toMatch(/className="ap-footnote"/);
+    expect(accountsSurface()).not.toMatch(/These numbers only update while this accountsSurface() is open/);
     expect(css).not.toMatch(/\.ap-footnote\s*\{/);
   });
 });

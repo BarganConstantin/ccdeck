@@ -117,9 +117,10 @@ export interface PromptEntry {
  *  believing they know what it was.
  *
  *  That is why this one carries a window `subagentId` does not need
- *  (`BLOCK_GUESS_WINDOW_MS` in reducer.ts) and why every surface that renders it
- *  hedges the wording. When the window rejects the call the field is absent and
- *  the deck says only what CC said, which is the behaviour before this existed. */
+ *  (`BLOCK_GUESS_WINDOW_MS` in waiting-block.ts) and why every surface that
+ *  renders it hedges the wording. When the window rejects the call the field is
+ *  absent and the deck says only what CC said, which is the behaviour before this
+ *  existed. */
 export interface BlockedTool {
   /** The tool as CC named it — `Bash`, `Edit`, `WebFetch`. */
   name: string;
@@ -201,8 +202,8 @@ export interface ContextBreakdown {
    *  Claude: the last usage block in the transcript, input + cache_read +
    *  cache_creation. Codex: `last_token_usage.total_tokens` off the newest
    *  `token_count` record, which is the CLI's own count rather than an
-   *  estimate — see the mapper in index.mjs for why that field and not
-   *  `input_tokens` beside it (#399). */
+   *  estimate — see codexObjToPayload in src/server/codex-translate.mjs for
+   *  why that field and not `input_tokens` beside it (#399). */
   currentContextTokens: number;
   /** The memory files this session loaded, nearest-first from cwd outwards.
    *
@@ -336,7 +337,7 @@ export interface AgentNodeData {
    *  with replay events written before multi-provider support. */
   provider?: Provider;
   /** The context window the CLI itself reports, which takes precedence over the
-   *  static table in pricing.ts when present.
+   *  static table in context-window.ts when present.
    *
    *  NOT from `session_meta`, as this said until #399 went looking: that record
    *  does carry a `context_window` key, but it holds `{ window_id }` — the id of
@@ -513,9 +514,9 @@ export interface HookEnvelope {
    *
    *  The reducer does NOT read it. `applyEvent` never branches on replay: its
    *  turn cleanup keys on event time, which comes out right for live and
-   *  replayed events alike (see UserPromptSubmit in reducer.ts). A `replay`
-   *  branch there would bring back the flash-then-vanish that approach
-   *  fixed. */
+   *  replayed events alike (see `applyUserPromptSubmit` in
+   *  session-lifecycle.ts). A `replay` branch there would bring back the
+   *  flash-then-vanish that approach fixed. */
   replay?: boolean;
   /** Identifies the server process that assigned `seq`. The counter restarts
    *  at 1 on every boot, so a changed epoch means "the numbering restarted,
@@ -592,29 +593,33 @@ export interface HookPayload {
   // about three-quarters of the wire, and the undeclared quarter was where
   // any future drift would land silently.
 
-  /** On the synthetic `ModelObserved` (index.mjs:1298): the model the ROOT of
-   *  this session is running, resolved from the transcript. Also stamped by
-   *  pushEvent onto any payload that carries a session id and no model of its
-   *  own, so the client's recursive scanner finds it. */
+  /** On the synthetic `ModelObserved` (maybeResolveModel, in
+   *  src/server/session-enrichment.mjs): the model the ROOT of this session is
+   *  running, resolved from the transcript. Also stamped by pushEvent onto any
+   *  payload that carries a session id and no model of its own, so the
+   *  client's recursive scanner finds it. */
   model?: string;
   /** Beside it on the same event: each live subagent's resolved model, keyed by
    *  agent id. Sent whenever the resolved SET changes, which is what stops a
    *  late subagent model from never landing. */
   subagentModels?: Record<string, string>;
-  /** On the synthetic `UsageObserved` (index.mjs:1431): the session's cumulative
-   *  token totals as the transcript reports them, in the provider's own
-   *  snake_case. Read through `usageFromWire`, which is why this is not the
-   *  camelCase `Usage` the client uses internally. */
+  /** On the synthetic `UsageObserved` (maybeResolveUsage, in
+   *  src/server/session-enrichment.mjs): the session's cumulative token totals
+   *  as the transcript reports them, in the provider's own snake_case. Read
+   *  through `usageFromWire`, which is why this is not the camelCase `Usage`
+   *  the client uses internally. */
   usage?: Record<string, unknown> | null;
-  /** On the synthetic `ContextObserved` (index.mjs:1737, :1817): the context
-   *  breakdown plus the memory files this session loaded, assembled from two
-   *  reads of the same moment. Partial by construction — the scan can produce
-   *  the file list with no breakdown behind it — so every reader gates per
-   *  field rather than on the object. */
+  /** On the synthetic `ContextObserved` (maybeResolveContext and
+   *  maybeResolveCodexMemory, in src/server/session-enrichment.mjs): the
+   *  context breakdown plus the memory files this session loaded, assembled
+   *  from two reads of the same moment. Partial by construction — the scan can
+   *  produce the file list with no breakdown behind it — so every reader gates
+   *  per field rather than on the object. */
   context?: Partial<ContextBreakdown> | null;
-  /** On the synthetic `OutputObserved` (index.mjs:2811): what the transcript
-   *  watch saw land. One of "thinking", "text" or "tool_use"; the reducer
-   *  refuses anything else rather than widening on a string off the wire. */
+  /** On the synthetic `OutputObserved` (outputWatchOnce, in
+   *  src/server/session-tracking.mjs): what the transcript watch saw land. One
+   *  of "thinking", "text" or "tool_use"; the reducer refuses anything else
+   *  rather than widening on a string off the wire. */
   kind?: string;
   /** Beside it: when it landed, in wall-clock milliseconds. The reducer falls
    *  back to its own `now` when this is not a finite number, because a bad

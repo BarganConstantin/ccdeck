@@ -44,9 +44,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const rawCss = readFileSync(join(web, "styles.css"), "utf8");
+const rawCss = sheetText();
 
 /** Comments quote the values they retired — the ladder note names 9.5 and 10.5
  *  while explaining where they went — so every read below is of stripped text.
@@ -402,13 +403,18 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     }
   });
 
-  it("names the two superseded surfaces apart, so they stay free to differ", () => {
-    // `.uh-stale` and `.ap-share.expired` are not "you cannot use this", they
-    // are "this is a refresh out of date" — still readable, still true a moment
-    // ago. Folding them into --dim-off would make a later decision about
-    // disabled controls silently restate itself about stale data.
-    expect(decl(".uh-stale", "opacity")).toBe("var(--dim-stale)");
-    expect(decl(".ap-share.expired .ap-share-blob", "opacity")).toBe("var(--dim-stale)");
+  it("names the superseded surface apart, so the two stay free to differ", () => {
+    // A re-running range is not "you cannot use this", it is "this is a
+    // refresh out of date" — still readable, still true a moment ago. Folding
+    // it into --dim-off would make a later decision about disabled controls
+    // silently restate itself about stale data. Since #1289 what reads the
+    // token is the modal's marks rather than its words (contrast-floors.test.ts
+    // holds it there), and the expired share keeps its ink altogether.
+    for (const mark of [".uh-stale .uh-bar-seg", ".uh-stale .uh-agent-seg", ".uh-stale .uh-model-bar-fill", ".uh-stale .uh-legend-dot"]) {
+      expect(decl(mark, "opacity"), mark).toBe("var(--dim-stale)");
+    }
+    expect(decl(".uh-stale", "opacity")).toBeNull();
+    expect(decl(".ap-share.expired .ap-share-blob", "opacity")).toBeNull();
     expect(decl(":root", "--dim-stale")).not.toBe(decl(":root", "--dim-off"));
   });
 

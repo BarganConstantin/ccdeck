@@ -51,7 +51,7 @@ import { killTree, shimPath, spawnSpec } from "./exec.mjs";
  * pick something that is not npm.
  *
  * The path arithmetic is done on the string rather than through `node:path`,
- * for the same reason npxRoot in self-update.mjs does: `path` here is the
+ * for the same reason npxRoot in install-layout.mjs does: `path` here is the
  * platform running the SUITE, so a Windows layout checked from macOS would come
  * back with forward slashes and a `..` nothing resolves.
  */
@@ -134,6 +134,41 @@ export function npxPrefetchArgs(spec) {
   return ["-y", "--package", spec, "--call", "exit 0"];
 }
 
+/** How much of an npx run's output is held as evidence. The END of it, because
+ *  npm and Node both put the sentence worth quoting on their last lines. */
+const OUTPUT_TAIL_CHARS = 8000;
+
+/**
+ * An npx run's output, held as evidence for a failure that may not happen.
+ *
+ * `take` is the stream's data listener: each chunk is added to what is held,
+ * and only the last OUTPUT_TAIL_CHARS of it are kept. `release` is for a run
+ * that turned out to be the deck after all — what was held is written through
+ * `write`, and every later chunk goes straight there instead of being kept.
+ * `tail` is what was held, which is the text npxFailureSummary reads.
+ *
+ * The two places that hold an npx run's output kept their own copy of the
+ * trim, and the supervisor its own pair of variables for the hand-over; this
+ * is both, once.
+ */
+export function holdOutput({ write = null, limit = OUTPUT_TAIL_CHARS } = {}) {
+  let held = "";
+  let passing = false;
+  return {
+    take(d) {
+      const s = String(d);
+      if (passing) { write?.(s); return; }
+      held = (held + s).slice(-limit);
+    },
+    release() {
+      if (passing) return;
+      passing = true;
+      if (held) write?.(held);
+    },
+    get tail() { return held; },
+  };
+}
+
 /**
  * Resolve, download and unpack `spec` while the current deck keeps serving.
  *
@@ -169,13 +204,12 @@ export function npxPrefetch(spec, {
     }
     onChild?.(child);
 
-    let tail = "";
-    const keep = (d) => { tail = (tail + String(d)).slice(-8000); };
+    const output = holdOutput();
     // Both streams, one buffer: npm writes its errors to stderr and its
     // resolution notices to stdout, and which of the two carries the sentence
     // worth quoting depends on the failure.
-    child.stdout?.on("data", keep);
-    child.stderr?.on("data", keep);
+    child.stdout?.on("data", output.take);
+    child.stderr?.on("data", output.take);
 
     let settled = false;
     const settle = (result) => {
@@ -203,8 +237,8 @@ export function npxPrefetch(spec, {
       if (code === 0) { settle({ ok: true, error: null, hint: null }); return; }
       settle({
         ok: false,
-        error: npxFailureSummary(tail) ?? `npx could not fetch ${spec} — exited ${code ?? signal}`,
-        hint: npxFailureHint(tail),
+        error: npxFailureSummary(output.tail) ?? `npx could not fetch ${spec} — exited ${code ?? signal}`,
+        hint: npxFailureHint(output.tail),
       });
     });
   });

@@ -17,6 +17,8 @@ import {
   historySnapshot, probeNetwork, startSystemMetrics, stopSystemMetrics, systemSnapshot,
 } from "../../server/system-metrics.mjs";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
+import { machinePanelSurface } from "./machine-panel-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -209,8 +211,10 @@ describe("reaching out only when asked", () => {
 });
 
 describe("the panel gives it a section of its own", () => {
-  const panel = read("../components/MachinePanel.tsx");
-  const css = read("../styles.css");
+  // The section and its popover, which moved out of MachinePanel.tsx into a
+  // component of their own.
+  const panel = read("../components/MachineNetwork.tsx");
+  const css = sheetText();
 
   // It shared a line with Load average for one release, two half-width columns
   // of three figures each. They are not one glance: a load average is a
@@ -220,7 +224,7 @@ describe("the panel gives it a section of its own", () => {
   // the CPU block, so neither is read as a half of the other.
   it("stands on its own, with no half-width column left behind", () => {
     expect(panel).toContain('<div className="sd-section" role="group" aria-label="Network">');
-    expect(panel).not.toContain("sd-pair");
+    expect(machinePanelSurface()).not.toContain("sd-pair");
     expect(css).not.toContain(".sd-pair");
   });
 

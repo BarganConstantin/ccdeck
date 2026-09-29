@@ -29,12 +29,16 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { machinePanelSurface } from "./machine-panel-surface";
+import { sheetText } from "./sheet-source";
 
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const raw = at("../styles.css");
+const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
-const machinePanel = at("../components/MachinePanel.tsx");
 const soundMenu = at("../components/SoundMenu.tsx");
+const toneSection = at("../components/ToneSection.tsx");
+// A tone's volume row, lifted out of ToneSection.tsx.
+const volumeRow = at("../components/VolumeRow.tsx");
 const processList = at("../components/ProcessListModal.tsx");
 
 /**
@@ -150,7 +154,7 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // --n was `os.cpus().length` with no cap anywhere in the chain, which is
     // how the strip came to have a column count it could not fit.
     expect(css).not.toMatch(/var\(--n\)/);
-    expect(machinePanel).not.toMatch(/"--n"/);
+    expect(machinePanelSurface()).not.toMatch(/"--n"/);
   });
 });
 
@@ -169,8 +173,11 @@ describe("the sound menu's reading is described once (#1026)", () => {
 
   it("is rendered only where that descendant selector reaches", () => {
     // The merge is only safe because the span has exactly one render site, and
-    // it is inside `.sound-menu`.
-    expect(soundMenu).toMatch(/className="sm-read"/);
+    // it is inside `.sound-menu`: a tone's row, which the menu renders. The
+    // span is VolumeRow's now, and a tone's row draws it.
+    expect(volumeRow).toMatch(/className="sm-read"/);
+    expect(toneSection).toMatch(/<VolumeRow\b/);
+    expect(soundMenu).toMatch(/<ToneSection\b/);
     expect(soundMenu).toMatch(/className="sound-menu"/);
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
     for (const f of others) expect(at(f), f).not.toMatch(/className="[^"]*\bsm-read\b/);

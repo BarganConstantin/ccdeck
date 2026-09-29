@@ -152,7 +152,11 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
               <h4>{dead
                 ? "This share has expired"
                 : carried === 1 ? "1 account, ready to paste" : `${carried} accounts, ready to paste`}</h4>
-              <code className={`ap-share-blob${dead ? " sa-dead" : ""}`}>{bundle.blob}</code>
+              {/* The text keeps its ink past the expiry (#1289). It used to fade
+                  to --dim-stale to read as spent — 1.93:1 on the dark panel,
+                  for the text somebody reads to check which share this was.
+                  The heading above says it has expired, at full contrast. */}
+              <code className="ap-share-blob">{bundle.blob}</code>
               <div className="ap-share-foot">
                 {/* Past the expiry the import dialog on the other deck refuses
                     this text, so offering to copy it is offering a dead end.

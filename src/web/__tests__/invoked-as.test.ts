@@ -36,6 +36,8 @@ import { glyphs, labelColumn, palette, statusLine, stripAnsi } from "../../serve
 // shape this is, versus whether this copy may `npm i -g` over itself (#363).
 // @ts-expect-error — plain JS module, no types
 import { upgradeBlock, upgradeMode } from "../../server/self-update.mjs";
+import { clientText } from "./client-source";
+import { CLI_FILES, cliSurface } from "./cli-surface";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -233,18 +235,21 @@ describe("what gets said, and to whom", () => {
   it("leads with the reassurance, in both surfaces, and never raises its voice", () => {
     // Nothing is breaking, no command is being taken away, and the notice has
     // to read that way or it is a lie about severity. The browser half is
-    // written in App.tsx (React cannot be rendered here) so it is read as text.
-    const app = read("src", "web", "App.tsx");
+    // written in components/OldNameBanner.tsx (React cannot be rendered here)
+    // so it is read as text; components/DeckBanner.tsx mounts it and App.tsx
+    // mounts that, and the negative reads all three.
+    const banner = read("src", "web", "components", "OldNameBanner.tsx");
+    const app = read("src", "web", "App.tsx") + "\n" + read("src", "web", "components", "DeckBanner.tsx") + "\n" + banner;
     for (const name of ["agents-deck", "agent-dag"]) {
       const notice = renameNotice({ invoked: name, pkgRoot: "/usr/local/lib/node_modules/agents-deck" });
       expect(notice.said.startsWith(`${name} still works`), name).toBe(true);
       expect(`${notice.said} ${notice.fix}`).not.toMatch(/[!]/);
     }
-    expect(app).toContain("{oldName} still works — the deck is called {PRODUCT} now.");
-    // Only the first line is written in App.tsx. The second one is renameNotice's
+    expect(banner).toContain("{oldName} still works — the deck is called {PRODUCT} now.");
+    // Only the first line is written in the browser. The second one is renameNotice's
     // `fix`, handed over by /api/version — see "one fact, one place" below for
     // why it stopped being written twice.
-    expect(app).toContain("{version.renameFix}");
+    expect(banner).toContain("{version.renameFix}");
     expect(app).not.toMatch(/deprecated/i);
   });
 
@@ -259,10 +264,9 @@ describe("what gets said, and to whom", () => {
 });
 
 describe("the terminal row it becomes", () => {
-  // bin/deck.js's own list and its own row(), rebuilt from the same term.mjs
-  // primitives — the file is a script that starts a server, so it cannot be
-  // imported here, and term-layout.test.ts keeps its copy of LABELS the same
-  // way.
+  // The boot's own list and its own row(), rebuilt from the same term.mjs
+  // primitives. They live in bin/cli/screen.js now, which keeps LABELS to
+  // itself, and term-layout.test.ts keeps its copy of LABELS the same way.
   const LABELS = [
     "workspace", "Claude hooks", "Codex sessions", "claude-swap", "accounts",
     "ccusage", "update", "name", "server ready", "log",
@@ -273,7 +277,7 @@ describe("the terminal row it becomes", () => {
     // The order matters and the line breaks do not (#378). This used to be the
     // array literal byte for byte, so reflowing it across two lines — which
     // moves no row anywhere — failed a test named for the rows not moving.
-    expect(read("bin", "deck.js"), "the `name` row left its place in deck.js' label list")
+    expect(read("bin", "cli", "screen.js"), "the `name` row left its place in the boot's label list")
       .toMatch(/"ccusage",\s*"update",\s*"name",\s*"server ready",\s*"log",/);
     expect(width).toBe("Codex sessions".length);
   });
@@ -307,7 +311,10 @@ describe("the terminal row it becomes", () => {
 describe("the wiring, which is the half no pure function can hold", () => {
   const supervisor = read("bin", "agent-dag.js");
   const worker = read("bin", "deck.js");
-  const server = read("src", "server", "index.mjs");
+  // Where the worker works out which package it is and the name it was typed as.
+  const identity = read("bin", "cli", "package.js");
+  // /api/version's handler, where the name is attached to the report.
+  const server = read("src", "server", "lifecycle.mjs");
   const app = read("src", "web", "App.tsx");
 
   it("resolves the name in the only process whose argv[1] carries it", () => {
@@ -321,8 +328,29 @@ describe("the wiring, which is the half no pure function can hold", () => {
       .toMatch(/AGENTS_DECK_INVOKED_AS:\s*INVOKED_AS\s*\?\?\s*""/);
     // AGENTS_DECK_*, like every other variable the deck reads — display-name
     // .test.ts owns that boundary and this is the new one it applies to.
-    expect(worker).toContain("invokedName({ pkgRoot: PKG_ROOT })");
-    expect(worker).not.toContain("process.argv[1]");
+    expect(identity).toContain("invokedName({ pkgRoot: PKG_ROOT })");
+    // And the files that print it take it from there rather than working it out
+    // again: COMMAND is the typed name with ccdeck as the fallback.
+    expect(identity).toContain("export const COMMAND = INVOKED_AS ?? PRODUCT;");
+    expect(cliSurface()).toMatch(/import \{[^}]*\bCOMMAND\b[^}]*\} from "\.\/package\.js";/);
+    expect(cliSurface()).not.toContain("process.argv[1]");
+  });
+
+  it("names the command that was typed in every hint the worker prints (#1501)", () => {
+    // A hint is a command for the user to type, so it has to be one their
+    // machine has: the name they typed, or ccdeck when that cannot be told.
+    // The boot's unknown-option row and --uninstall's repair line said
+    // `ccdeck` outright, beside one-shots that already said the typed name.
+    // `--help` is the one exception: it documents the product rather than
+    // telling anybody what to type next.
+    const hints = CLI_FILES.filter(f => f !== "bin/cli/help.js")
+      .flatMap(f => read(...f.split("/")).split("\n").map(l => [f, l] as const))
+      .filter(([, l]) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .filter(([, l]) => /\\`\$\{PRODUCT\}[ \\]/.test(l))
+      .map(([f, l]) => `${f}: ${l.trim()}`);
+    expect(hints).toEqual([]);
+    // The scan is looking at the right spelling: the typed-name form is there.
+    expect(cliSurface()).toContain("\\`${COMMAND} --help\\`");
   });
 
   it("warns and returns, rather than refusing to run", () => {
@@ -330,7 +358,10 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // "Update & restart", the copy that arrives declines to boot, and the deck
     // is dead on the machine where the deck is what would have explained why.
     // So the block that prints it writes rows and does nothing else.
-    const block = worker.slice(worker.indexOf("const rename = renameNotice("));
+    const report = read("bin", "cli", "startup.js");
+    const at = report.indexOf("const rename = renameNotice(");
+    expect(at, "the rename notice left the startup report").toBeGreaterThan(-1);
+    const block = report.slice(at);
     const stanza = block.slice(0, block.indexOf("\n}"));
     expect(stanza).toContain("write(row(");
     expect(stanza).not.toMatch(/process\.exit|throw |exitCode/);
@@ -346,6 +377,9 @@ describe("the wiring, which is the half no pure function can hold", () => {
   });
 
   it("dismisses the browser notice per name, not with a flag", () => {
+    // The notice moved to use-old-name-notice.ts, key and all. Every match below
+    // is positive, so it reads the whole client.
+    const client = clientText();
     // Somebody who dismisses it under agent-dag and later starts a second
     // install as agents-deck has not heard this yet.
     //
@@ -356,13 +390,13 @@ describe("the wiring, which is the half no pure function can hold", () => {
     // invoked name differing from the product. None of that moves when the
     // surrounding code is reformatted, and all of it fails if the per-name
     // dismissal goes back to being a flag.
-    expect(app, "the dismissal key was renamed, which silently un-dismisses everyone")
+    expect(client, "the dismissal key was renamed, which silently un-dismisses everyone")
       .toMatch(/const OLD_NAME_DISMISSED_KEY\s*=\s*"agent-dag\.oldNameNoticeDismissed"/);
-    expect(app, "the dismissal stores something other than the name it dismissed")
-      .toMatch(/localStorage\.setItem\(\s*OLD_NAME_DISMISSED_KEY\s*,\s*oldName\s*\)/);
-    expect(app, "the notice no longer compares the dismissal against the current name")
+    expect(client, "the dismissal stores something other than the name it dismissed")
+      .toMatch(/writeStored\(\s*OLD_NAME_DISMISSED_KEY\s*,\s*oldName\s*\)/);
+    expect(client, "the notice no longer compares the dismissal against the current name")
       .toMatch(/oldNameDismissed\s*!==\s*oldName/);
-    expect(app, "the notice no longer keys off the name the deck was invoked as")
+    expect(client, "the notice no longer keys off the name the deck was invoked as")
       .toMatch(/version\.invokedAs\s*!==\s*PRODUCT/);
   });
 });
@@ -379,16 +413,26 @@ describe("the wiring, which is the half no pure function can hold", () => {
 // have — while the terminal row, which asks isNpxInstall directly, printed the
 // right one a few lines above. Two surfaces, one fact, opposite answers.
 describe("one fact, one place: which line the rename notice ends with", () => {
-  const app = read("src", "web", "App.tsx");
-  const server = read("src", "server", "index.mjs");
+  // The banner's markup is components/OldNameBanner.tsx; components/DeckBanner.tsx
+  // keeps the branch that mounts it, and App.tsx mounts that. The negatives
+  // below read all three.
+  const banner = read("src", "web", "components", "OldNameBanner.tsx");
+  const app = read("src", "web", "App.tsx") + "\n" + read("src", "web", "components", "DeckBanner.tsx") + "\n" + banner;
+  // /api/version's handler computes the notice; the negative below reads the
+  // route table's file as well, so no second caller can pass a dash either.
+  const server = read("src", "server", "lifecycle.mjs");
+  const serverSurface = read("src", "server", "index.mjs") + "\n" + server;
 
   // The JSX comments carry the reasoning, including the name of the field this
   // must no longer branch on, so the assertion below reads the code only.
   const withoutComments = (jsx: string) => jsx.replace(/\{\/\*[^]*?\*\/\}/g, "");
   const bannerJsx = () => {
-    const start = app.indexOf("oldNameOpen && oldName ? (");
+    const mount = app.indexOf("oldNameOpen && oldName ? (");
+    expect(mount, "the rename banner moved — this test needs a new anchor").toBeGreaterThan(-1);
+    expect(app.slice(mount, app.indexOf("dismissOldName}", mount))).toContain("<OldNameBanner ");
+    const start = banner.indexOf('<div className="ver-banner" role="status">');
     expect(start, "the rename banner moved — this test needs a new anchor").toBeGreaterThan(-1);
-    return app.slice(start, app.indexOf("dismissOldName}", start));
+    return banner.slice(start, banner.indexOf("dismissOldName}", start));
   };
 
   /** Runs `body` with one AGENTS_DECK_* variable set, and puts it back. These
@@ -469,13 +513,15 @@ describe("one fact, one place: which line the rename notice ends with", () => {
     expect(server).toContain("renameFix: rename?.fix ?? null");
     // No `dash`: the glyph tier is a terminal concern and the default is the em
     // dash a browser should get. bin/deck.js is the only caller that passes one.
-    expect(server).not.toMatch(/renameNotice\(\{[^}]*dash/);
+    expect(serverSurface).not.toMatch(/renameNotice\(\{[^}]*dash/);
   });
 
   it("is rendered by the browser, not decided there", () => {
     const jsx = bannerJsx();
     expect(jsx).toContain('{version?.renameFix ? <span className="ver-sub">{version.renameFix}</span> : null}');
-    expect(app).toContain("renameFix?: string | null;");
+    // VersionInfo moved to use-version-check.ts with the check itself; the
+    // field is what this pins, not the file it is declared in.
+    expect(clientText()).toContain("renameFix?: string | null;");
     // The branch itself is gone, not merely corrected — this is the assertion
     // that stops the next person deriving the same fact from the same field.
     expect(withoutComments(jsx)).not.toContain("upgradeMode");
@@ -504,7 +550,7 @@ describe("the name the deck asks people to type", () => {
     // nothing overrides it — not the signature's line breaks (#378). Reflowing
     // the parameters across three lines used to fail this and display-name
     // .test.ts, which asserts the same default, at once.
-    expect(read("src", "server", "self-update.mjs"), "the upgrade stopped defaulting to the published package")
+    expect(read("src", "server", "install-layout.mjs"), "the upgrade stopped defaulting to the published package")
       .toMatch(/export function upgradeName\(\s*pkgRoot,\s*name\s*=\s*PUBLISHED_NAME,?\s*\)/);
     expect(JSON.parse(read("package.json")).name).toBe(PREFERRED);
   });

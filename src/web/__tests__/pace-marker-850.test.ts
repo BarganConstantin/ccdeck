@@ -9,10 +9,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { computePace } from "../components/UsagePanel";
+import { computePace } from "../components/QuotaBar";
+import { sheetText } from "./sheet-source";
 
-const panel = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+// The bar, its tick and its note are QuotaBar.tsx's, lifted out of the panel.
+const bar = readFileSync(fileURLToPath(new URL("../components/QuotaBar.tsx", import.meta.url)), "utf8");
+const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
 function decl(selector: string, prop: string): string | null {
@@ -21,9 +23,9 @@ function decl(selector: string, prop: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-const marker = /<div[^>]*?className="qb-pace-marker"[\s\S]*?\/>/.exec(panel)![0];
+const marker = /<div[^>]*?className="qb-pace-marker"[\s\S]*?\/>/.exec(bar)![0];
 // A button since #856, which made the note open the number it is measured against.
-const note = /className="qb-pace"[\s\S]*?<\/button>/.exec(panel)![0];
+const note = /className="qb-pace"[\s\S]*?<\/button>/.exec(bar)![0];
 const key = /<i className="qb-pace-key"[^>]*\/>/.exec(note)?.[0] ?? null;
 const background = (jsx: string) => /background:\s*([^,}]+?)\s*[,}]/.exec(jsx)![1].trim();
 

@@ -14,15 +14,21 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { LAN_STEPS, WELCOME_STEPS } from "../components/guide-art";
+import { sheetText } from "./sheet-source";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(`${WEB}${rel}`, "utf8");
 const bare = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
-const css = read("styles.css");
+const css = sheetText();
 const art = bare(read("components/guide-art.tsx"));
 const modal = bare(read("components/GuideModal.tsx"));
 const lan = bare(read("components/LanSyncSection.tsx"));
-const app = bare(read("App.tsx"));
+/** The section's poll and its writes, which moved into a hook of their own. */
+const lanHook = bare(read("use-lan-section.ts"));
+// The empty-board heroes moved to components/EmptyHero.tsx, and the dialogs to
+// components/DeckDialogs.tsx; App.tsx and they are read as one.
+const app = bare(read("App.tsx")) + "\n" + bare(read("components/EmptyHero.tsx"))
+  + "\n" + bare(read("components/DeckDialogs.tsx"));
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -114,7 +120,12 @@ describe("where the guides open from", () => {
     // The LAN section already keeps this rule for its setup dialog, and the
     // reason holds here twice over: a guide that opened on `enabled` would open
     // on every reload of a deck that is on.
-    for (const [effect] of lan.matchAll(/useEffect\([\s\S]*?\n  \}, \[[^\]]*\]\);/g)) {
+    // Every effect in the section and its hook, each one exactly: a one-line
+    // effect to the end of its line, a block to its own closing line. The
+    // poll's is among them, or the scan is passing on nothing.
+    const effects = [...`${lan}\n${lanHook}`.matchAll(/useEffect\((?:[^\n]*\]\);$|[\s\S]*?\n  \}, \[[^\]]*\]\);)/gm)].map(m => m[0]);
+    expect(effects.some(e => /setTimeout\(tick, every\.current\)/.test(e))).toBe(true);
+    for (const effect of effects) {
       expect(effect).not.toMatch(/setGuideOpen/);
     }
     // The card while it is off, and the word under an empty list.
@@ -146,8 +157,12 @@ describe("where the guides open from", () => {
     }
     expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">/);
     expect(notes).toMatch(/\{onTour && !updateVersion && \(\s*<div className="guide-door">/);
-    expect(app).toMatch(/onTour=\{\(\) => \{ setReleaseNotes\(null\); setTourOpen\(true\); \}\}/);
-    expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); setTourOpen\(true\); \}\}/);
+    // The notes close and the tour opens through named operations now. Both
+    // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome
+    // hook whole.
+    expect(bare(read("App.tsx"))).toMatch(/<DeckDialogs\b[^>]*\bwelcome=\{welcome\}/);
+    expect(app).toMatch(/onTour=\{\(\) => \{ closeReleaseNotes\(\); openTour\(\); \}\}/);
+    expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); openTour\(\); \}\}/);
   });
 
   it("gives the empty canvas its way back, and only while the server is there", () => {

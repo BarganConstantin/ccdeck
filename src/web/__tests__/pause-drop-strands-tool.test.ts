@@ -44,8 +44,6 @@
 // gate, the real reducer, the real sweep. There is no DOM in this suite, and
 // none is needed — every surface in the issue is a field on a `ToolCall`.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { createPauseGate, PAUSE_QUEUE_LIMIT } from "../pause";
 import {
   applyEvent,
@@ -57,6 +55,7 @@ import {
   type GraphState,
 } from "../reducer";
 import type { HookEnvelope, HookPayload, ToolCall } from "../types";
+import { clientText } from "./client-source";
 
 const T0 = 1_700_000_000_000;
 const CWD = "/repo";
@@ -404,15 +403,19 @@ describe("the deck this is all wired into", () => {
   // component is still doing the same thing, and both halves of this fix are
   // one line of wiring each — a gate built without `protect`, or a resume that
   // drains before it notes the hole, puts the bug straight back with every case
-  // above still green. So the source is read.
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // above still green. So the source is read — the whole client, not a named
+  // file. These two lines have already moved once, out of `Inner` and into
+  // use-pause-gate.ts, and neither of them changed in the move: what this case
+  // defends is that the deck wires it this way, not where the wiring is written.
+  const src = clientText();
 
   it("builds its pause gate with the protection the ceiling reads", () => {
-    expect(app).toMatch(/createPauseGate<HookEnvelope>\(\{\s*protect: env => settlesInFlightCall\(stateRef\.current, env\),/);
+    expect(src).toMatch(/createPauseGate<HookEnvelope>\(\{\s*protect: env => settlesInFlightCall\(stateRef\.current, env\),/);
   });
 
   it("notes the hole on a resume that dropped, before it feeds the run in", () => {
-    const toggle = app.slice(app.indexOf("const togglePause"), app.indexOf("const [now, setNow]"));
+    const at = src.indexOf("const togglePause");
+    const toggle = src.slice(at, src.indexOf("return {", at));
     expect(toggle).toContain("noteDroppedEvents(stateRef.current)");
     // Ordering is the whole of it, twice over. `dropped` has to be read while
     // the gate is still paused, because the resume clears it; and the note has

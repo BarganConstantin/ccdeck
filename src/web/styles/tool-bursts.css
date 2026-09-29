@@ -1,0 +1,453 @@
+/* ---------------- floating tool bursts ---------------- */
+
+.tool-bursts-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+.tool-bursts-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.tool-conn {
+  fill: none;
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+  transition: opacity 300ms ease;
+}
+.tool-conn.status-inflight {
+  stroke: var(--inflight);
+  animation: dashflow 0.7s linear infinite;
+  /* No drop-shadow (#882): a filter on a path whose dashes move forever is
+     re-rasterised on every frame of the move. The colour and the travelling
+     dashes are what say "in flight". */
+}
+/* The ordinary outcome, drawn as the ordinary outcome. Four of these and one
+   error is the shape of a healthy minute, and at 0.85 the four successes were
+   as present as the failure between them. 5.46:1 on the canvas — quieter, and
+   still far clear of the 3:1 a line like this owes. */
+.tool-conn.status-done { stroke: rgba(134,239,172,0.60); }
+.tool-conn.status-err  { stroke: rgba(252,165,165,0.85); }
+.tool-conn.fading { stroke-dasharray: 4 6; }
+
+.tool-burst-wrap {
+  position: absolute;
+  /* Wrap stays non-interactive — the bubble itself opts in to pointer events
+     so the canvas can still be panned where the wrap extends beyond the pill. */
+  pointer-events: none;
+  /* Position snaps, on both axes. `left` and `top` are rewritten together from
+     the viewport on every pan and zoom frame, and the leader line to this
+     bubble is an SVG path redrawn from the same coordinates with no easing of
+     its own — so easing either axis here detaches the pill from its own
+     connector for the length of the transition. That held for the sibling
+     index shift the easing was added for as much as for a camera move: the
+     bubble slid up while its line jumped. Both ends move on the same frame or
+     neither does. Only `transform` is still written per frame, so only it is
+     worth promoting. */
+  will-change: transform;
+}
+.tool-burst {
+  display: inline-flex;
+  max-width: 190px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
+  white-space: nowrap;
+  color: var(--text);
+  /* Default animation: bubble flies out from the agent's centre. The
+     --spawn-dx/dy custom properties are injected per-bubble in JS.
+
+     220ms, not the 460ms this ran at for most of its life. A live deck was
+     sampled with 79 of these on screen at once, and 460ms was the longest
+     duration in the app sitting on its single most repetitive element — the
+     rule the accounts panel states in full at .aa-primer is that what you see
+     hundreds of times a day does not get to celebrate. By the same rule it no
+     longer overshoots (#860): it used to reach 1.06 on a back-out curve and
+     spring back, a wobble on every tool call competing with the done flash and
+     the error shake, which are the motions that carry meaning. It arrives on
+     the sheet's ease-out and stops at its own size. */
+  animation: bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.tool-burst .tb-emoji {
+  font-size: 13px;
+  line-height: 1;
+  /* No saturate(). Roughly 250 full-gamut raster glyphs are the one place a
+     six-token, contrast-swept palette is overridden by the whole of sRGB;
+     boosting them 20% on top was the canvas shouting in a colour it does not
+     own. */
+  display: inline-block;
+  /* tiny continuous wobble while inflight — see .status-inflight rule */
+}
+.tool-burst .tb-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-burst .tb-spin {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--inflight), transparent 70%);
+  box-shadow: 0 0 8px var(--inflight);
+  animation: pulse var(--pulse-live) infinite;
+}
+.tool-burst .tb-mark {
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+  margin-left: 2px;
+  animation: mark-pop 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+/* The ✓ is flat for the reason .tool-burst.status-done below gives up its ring
+   and its glow (#861): success is the ordinary case, so the × is the only mark
+   on the canvas lit in its own colour. A live view had 103 glowing ticks around
+   two glowing crosses. */
+.tool-burst .tb-mark.done { color: var(--ok); }
+.tool-burst .tb-mark.err  { color: var(--err); text-shadow: 0 0 6px rgba(252,165,165,0.55); }
+
+.tool-burst.status-inflight {
+  border-color: rgba(240, 171, 252, 0.55);
+  background: var(--burst-live-wash), var(--panel);
+  box-shadow: 0 0 0 1px rgba(240,171,252,0.30), 0 6px 18px rgba(240,171,252,0.25);
+}
+.tool-burst.status-inflight .tb-emoji {
+  animation: emoji-wobble 1.6s ease-in-out infinite;
+}
+.tool-burst.status-done {
+  border-color: rgba(134, 239, 172, 0.55);
+  background: linear-gradient(180deg, rgba(134,239,172,0.10), transparent), var(--panel);
+  /* SUCCESS IS FLAT, AND THAT IS WHAT MAKES FAILURE FINDABLE. A done bubble
+     and an err bubble used to differ by a border alpha of 0.05 and a ring
+     alpha of 0.13 — and the hues run the wrong way for the one thing that
+     matters, because --ok has a relative luminance of 0.698 and --err has
+     0.503, so the failed pill was literally DIMMER than the four successes
+     beside it. Adding weight to the failure was the wrong repair: four
+     successes is the ordinary case and the ordinary case should not glow at
+     all. So the success keeps its tint, its border and its tick, and gives up
+     the coloured ring and the coloured glow. It keeps the neutral elevation
+     every bubble has. The failure below keeps everything, which leaves it the
+     only bubble on the canvas lit in its own colour. */
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
+  /* No delay on the flash, and that is the whole of #354's first defect.
+     The delay used to read 460ms and the comment here used to say "spawn THEN
+     flash, so neither interrupts the other" — which would be true if this list
+     started when the bubble did. It does not. `bubble-spawn` is named at the
+     same list index under both .tool-burst and this rule, so it survives the
+     class change untouched, but `bubble-done-flash` is NEW to the list at that
+     moment and therefore starts THEN, carrying its delay from the class change
+     rather than from spawn. The class change is the tool finishing, which lands
+     at an arbitrary time.
+     Measured on a real Bash call through this deck at 127.0.0.1:4409, timeline
+     ms: spawn painted at 4106, the tool settled and .status-done landed at
+     5356, `mark-pop` on the freshly-inserted ✓ started on the next frame at
+     5373 with no delay, and the flash did not paint until 5833 — 477ms after
+     the event it is reporting, and 697ms on the sub-bubble, whose delay was
+     summed to 680ms in the belief that the list restarts. One event, two
+     signals, and the sub's glow trailing the primary's by 220ms.
+     The sequencing this delay was buying is bought instead by the flash no
+     longer touching `transform`: it pulses the independent `scale` property,
+     which composes with the transform bubble-spawn is filling rather than
+     overriding it — exactly the argument .tool-burst.clickable's hover lift
+     already makes for using `translate`. Overlap is now harmless, so the flash
+     can fire on the frame the tool lands, beside the ✓. */
+  animation:
+    bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-done-flash 520ms ease-out;
+}
+.tool-burst.status-err {
+  border-color: rgba(252, 165, 165, 0.60);
+  background: linear-gradient(180deg, rgba(252,165,165,0.10), transparent), var(--panel);
+  box-shadow: 0 0 0 1px rgba(252,165,165,0.35), 0 4px 12px rgba(252,165,165,0.18);
+  /* The shake carried the identical delay and therefore the identical defect —
+     a failure announced 460ms after it happened — so it loses it for the same
+     reason and by the same means: it shakes `translate`, not `transform`. */
+  animation:
+    bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-err-shake 380ms ease-in-out;
+}
+.tool-burst.fading {
+  /* Overrides whatever spawn/flash/shake was running — we're on the way out.
+
+     Two animations rather than one, and the reason is the one .confetti-bit
+     writes out at length: a single timing function governs every property in a
+     keyframe set, so a curve chosen to make movement feel committed also
+     rewrites the opacity ramp. Here the opacity ramp is not free to be
+     rewritten. The leader line to this bubble is an SVG path whose opacity
+     ToolBursts computes in JS as `1 - since / FADE_MS` — dead linear, over this
+     exact 600ms — so any curve on this fade is a curve the connector does not
+     follow, and .tool-burst-wrap's rule above is that both ends move on the
+     same frame or neither does. Movement gets a curve; the fade runs linear on
+     its own clock and lands on its line every frame.
+     The curve it stops using was `ease-in`, which was the only ease-in in this
+     sheet — the other 40 timing functions here all put their second control
+     point at x < 1, so they flatten as they land, and none of them accelerates
+     out of rest the way this did. Measured on the pre-fix sheet, 150ms into the
+     600ms exit the bubble was still at opacity 0.907 and scale 0.983 while its
+     own connector had already given up a quarter of its opacity: the bubble
+     hung, and leaving read as heavier than arriving. The 600ms itself stays —
+     FADE_MS in ToolBursts.tsx gates the element's removal and the
+     reduced-motion answer keeps it too. Only the curve was ever free. */
+  animation:
+    bubble-fade-move 600ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards,
+    bubble-fade-out 600ms linear forwards;
+}
+
+/* Per-category accent — recolours the emoji circle and adds a tinted left
+   stripe so categories register at a glance even at low zoom. */
+.tool-burst {
+  position: relative;
+}
+.tool-burst::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--cat-accent, transparent);
+  opacity: 0.85;
+}
+.tool-burst.cat-file  { --cat-accent: var(--cat-file); }
+.tool-burst.cat-shell { --cat-accent: var(--cat-shell); }
+.tool-burst.cat-web   { --cat-accent: var(--cat-web); }
+.tool-burst.cat-agent { --cat-accent: var(--cat-agent); }
+.tool-burst.cat-task  { --cat-accent: var(--cat-task); }
+.tool-burst.cat-plan  { --cat-accent: var(--cat-plan); }
+.tool-burst.cat-mcp   { --cat-accent: var(--cat-mcp); }
+.tool-burst.cat-other { --cat-accent: var(--cat-other); }
+/* An MCP server with no entry in MCP_SERVERS still has to look like itself, so
+   ToolBursts hashes its name to a hue and this pairs it with the tier the
+   topbar's legend dot uses — the same server, the same colour, two places.
+   Both classes are in the selector because .cat-mcp above would otherwise tie
+   on specificity and win on source order; a bubble only ever carries .mcp-hue
+   when parseMcpName matched, which is exactly when categoryFor returned mcp. */
+.tool-burst.cat-mcp.mcp-hue { --cat-accent: hsl(var(--mcp-hue, 170) 65% var(--mcp-dot-l)); }
+
+/* Dimmed bursts — matches the spotlight treatment on agent nodes when a selection
+   has an active query that doesn't include this bubble's agent. */
+.tool-burst.dim {
+  opacity: 0.22;
+  filter: saturate(0.4);
+  transition: opacity 180ms ease, filter 180ms ease;
+}
+.tool-burst.dim:hover { opacity: 0.6; }
+
+/* Shell sub-bubble — slightly compressed and a touch dimmer so the eye
+   parses "primary → sub" instead of "two equal bubbles". Spawn is delayed so
+   the chain reads sequentially: Bash appears, then git/grep slides out of it.
+   The delay is 110ms rather than the 220ms it was, which is not a taste change:
+   it was set at roughly half the primary's spawn so the sub leaves while the
+   primary is still arriving, and holding that ratio against a 220ms spawn is
+   what keeps the chain reading as one gesture instead of two. It also halves
+   the whole pair to 330ms, on the element the deck draws most.
+   The flash and shake below carry NO delay at all now. They used to carry the
+   sum, 220 + 460, on the theory that the animation list restarts when the
+   status class lands and the sub therefore has to wait out its own spawn. The
+   list does not restart — see .tool-burst.status-done — so that sum was 680ms
+   of pure lateness, measured, and it is what made a sub's glow trail its
+   primary's by 220ms on a tool that finished once.
+
+   The 140px is what SUB_LABEL_MAX in ToolBursts.tsx is counted against: the
+   word is cut there, to the thirteen characters this pill shows, so this
+   max-width only catches a glyph wider than that count assumed. Raise one and
+   the other has to follow — and the lane has 2px left for it (#978). */
+.tool-burst.sub {
+  max-width: 140px;
+  font-size: 10px;
+  padding: 4px 10px 4px 8px;
+  opacity: 0.94;
+  animation: bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.tool-burst.sub .tb-emoji { font-size: 12px; }
+.tool-burst.sub.status-done {
+  animation:
+    bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-done-flash 520ms ease-out;
+}
+.tool-burst.sub.status-err {
+  animation:
+    bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-err-shake 380ms ease-in-out;
+}
+/* Fade-out wins regardless — when the underlying tool fades, sub fades
+   with primary so they leave together. Same pair, same curves, same reason as
+   the primary's: the movement eases, the opacity does not. */
+.tool-burst.sub.fading {
+  animation:
+    bubble-fade-move 600ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards,
+    bubble-fade-out 600ms linear forwards;
+}
+
+/* Clickable bubble — pointer-events on, hover lift.
+   The lift is `translate`, not `transform`, and that is not a style choice.
+   bubble-spawn runs with `both`, so it keeps filling its 100% keyframe —
+   `transform: translate(0,0) scale(1)` — for the rest of the bubble's life, and
+   an animation's declarations outrank author rules for as long as they fill.
+   A hover `transform` here was unreachable at every point a pointer could
+   reach it. The independent `translate` property is composed with the animated
+   transform rather than overridden by it, so it lands. */
+.tool-burst.clickable {
+  pointer-events: auto;
+  cursor: pointer;
+  /* The dim pair is restated, not inherited: .tool-burst.dim ties this rule on
+     specificity and loses on source order, so a search-dimmed bubble would
+     snap its fade the moment this transition existed. */
+  transition: translate 120ms ease, scale 140ms cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease;
+}
+.tool-burst.clickable:hover {
+  translate: 0 -1px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45), 0 0 0 1px var(--cat-accent, rgba(255,255,255,0.15));
+}
+/* The press is `scale`, for the reason the lift above is `translate`: transform
+   is bubble-spawn's for the bubble's whole life. Same convention as every other
+   control, spelled with the independent property so it composes into the same
+   matrix instead of losing to the filling animation.
+   One overlap is real and left alone: bubble-done-flash also writes `scale`,
+   and while it runs — 520ms, once, when the tool completes — it outranks this
+   rule and the press does not show. A bubble that just finished is already
+   announcing itself; a competing press would be the second thing to say. */
+.tool-burst.clickable:active { scale: 0.97; }
+/* A bubble has no :focus-visible rule because a bubble cannot be focused: the
+   layer is aria-hidden decoration and the tools it draws are reached from the
+   detail panel's list, which is real buttons. See ToolBursts.tsx. */
+
+/* One curve for the whole entrance: the sheet's ordinary ease-out,
+   cubic-bezier(0.23, 1, 0.32, 1), which is monotone and cannot overshoot.
+   `animation-timing-function` on the shorthand is the default curve of every
+   SEGMENT, not of the animation, which is how this once bounced twice (a
+   back-out curve on both segments, measured peaking at 1.1948 and then
+   dipping to 0.9883). #354 kept the bounce on the arriving segment only;
+   #860 took it off that one too, so there is no overshoot left to double and
+   no keyframe needs an easing of its own.
+
+   The start scale is 0.92 rather than 0.35 for the reason .aa-done already
+   states beside its own entrance: nothing in the real world appears from
+   nothing. A pill that begins at just over a third of its size is not arriving,
+   it is inflating, and the travel from --spawn-dx is what carries the "this
+   came out of that agent" reading anyway. The 55% stop names opacity and
+   filter only: the pill is solid and sharp a little before it stops moving. */
+@keyframes bubble-spawn {
+  0%   {
+    opacity: 0;
+    transform: translate(var(--spawn-dx, -28px), var(--spawn-dy, 0)) scale(0.92);
+    filter: blur(3px) brightness(1.4);
+  }
+  55%  {
+    opacity: 1;
+    filter: blur(0) brightness(1.15);
+  }
+  /* transform only, for the reason nodeSpawn carries in full: this animation
+     fills for the bubble's whole life, so anything named here is pinned against
+     the cascade and .tool-burst.dim cannot fade what it names. The transform
+     stays deliberately — the hover lift below is `translate` precisely because
+     this keyframe owns transform — while opacity and filter fall back to the
+     element's own rules, which is 1 and none unless the bubble is dimmed. */
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+/* `scale` and `translate`, the independent properties, and never `transform`.
+   These two run concurrently with bubble-spawn now that neither carries a delay
+   to hold it clear, and `transform` is the one property bubble-spawn cannot
+   share: it is declared on the base class with `both`, so it fills its 100%
+   keyframe for the bubble's whole life, and a second animation naming
+   `transform` does not compose with that, it replaces it for as long as it
+   runs. A tool that finished inside its own spawn would have snapped from
+   whatever scale the spawn had reached to this animation's 1. The independent
+   properties multiply into the same matrix instead — the same reason
+   .tool-burst.clickable's hover lift is `translate`, written out there. */
+@keyframes bubble-done-flash {
+  0%   { scale: 1; box-shadow: 0 0 0 1px rgba(134,239,172,0.22), 0 4px 14px rgba(134,239,172,0.15); }
+  40%  {
+    scale: 1.14;
+    box-shadow: 0 0 0 2px rgba(134,239,172,0.55), 0 0 22px rgba(134,239,172,0.55);
+  }
+  100% { scale: 1; box-shadow: 0 0 0 1px rgba(134,239,172,0.22), 0 4px 14px rgba(134,239,172,0.15); }
+}
+@keyframes bubble-err-shake {
+  0%, 100% { translate: 0; }
+  15% { translate: -4px; }
+  35% { translate: 4px; }
+  55% { translate: -3px; }
+  75% { translate: 2px; }
+}
+/* One exit split in two so the curve and the fade stop sharing a clock — see
+   .tool-burst.fading. Neither half names a property the other does, so the two
+   compose cleanly, and `opacity` staying out of the movement half is what lets
+   it be linear without flattening the travel with it. */
+@keyframes bubble-fade-move {
+  from { transform: scale(1)    translate(0, 0);         filter: blur(0); }
+  to   { transform: scale(0.82) translate(18px, -4px);   filter: blur(1.5px); }
+}
+@keyframes bubble-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes emoji-wobble {
+  0%, 100% { transform: rotate(-6deg) scale(1); }
+  50%      { transform: rotate(6deg)  scale(1.08); }
+}
+/* From 0.6 and straight (#860). It came in from 0.3 at -30° on a back-out
+   curve, a spin and a spring on a mark drawn for every finished tool. */
+@keyframes mark-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+:root[data-theme="light"] .tool-burst {
+  box-shadow: 0 2px 8px rgba(15,23,42,0.10), 0 0 0 1px rgba(15,23,42,0.04);
+}
+:root[data-theme="light"] .tool-burst.status-inflight {
+  border-color: rgba(126,34,206,0.55);
+  box-shadow: 0 0 0 1px rgba(126,34,206,0.20), 0 6px 14px rgba(126,34,206,0.18);
+}
+:root[data-theme="light"] .tool-burst.status-done {
+  border-color: rgba(21,128,61,0.50);
+}
+:root[data-theme="light"] .tool-burst.status-err {
+  border-color: rgba(185,28,28,0.55);
+  /* THE RED CAME BACK. `:root[data-theme="light"] .tool-burst` above is
+     (0,3,0) and beats `.tool-burst.status-err`'s (0,2,0), so redoing only the
+     border here left the failed bubble wearing the same neutral slate shadow
+     as every success beside it — separated by one 0.55-alpha line. Measured in
+     Firefox on the real sheet, light theme, resting:
+
+       .tool-burst.status-err  -> rgba(15,23,42,0.1) 0 2px 8px, rgba(15,23,42,0.04) 0 0 0 1px
+       .tool-burst.status-done -> the same two layers, to the byte
+
+     which is the state the argument at .status-done says the design must not
+     reach: success is flat so that failure is findable, and failure was flat
+     too. The inflight twin above was given its colour back; this one was
+     missed. Same geometry as the dark rule — a 1px ring and a 12px glow — in
+     the deep red this theme's border already uses. */
+  box-shadow: 0 0 0 1px rgba(185,28,28,0.22), 0 4px 12px rgba(185,28,28,0.20);
+}
+/* And the lift, for the same reason: `.tool-burst.clickable:hover` is (0,3,0)
+   too and is written EARLIER, so on the light theme the hover resolved to the
+   resting shadow and `transition: box-shadow 120ms` animated a property that
+   never changed. Dark's geometry, in slate at --shadow-2's own weight. */
+:root[data-theme="light"] .tool-burst.clickable:hover {
+  box-shadow: 0 6px 18px rgba(15,23,42,0.16), 0 0 0 1px var(--cat-accent, rgba(15,23,42,0.14));
+}
+:root[data-theme="light"] .tool-conn.status-inflight {
+  stroke: rgba(126,34,206,0.85);
+}
+:root[data-theme="light"] .tool-conn.status-done { stroke: rgba(21,128,61,0.85); }
+:root[data-theme="light"] .tool-conn.status-err  { stroke: rgba(185,28,28,0.85); }
+

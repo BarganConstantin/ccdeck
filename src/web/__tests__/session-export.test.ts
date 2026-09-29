@@ -138,7 +138,10 @@ describe("exportFileName", () => {
 });
 
 describe("the download App triggers is the file this module describes", () => {
-  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  // The download moved with the detail panel's frame into
+  // components/DetailAside.tsx; the negatives read it and App.tsx together.
+  const app = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
 
   it("builds the blob from sessionExport and names it through exportFileName", () => {
     expect(app).toMatch(/const payload = sessionExport\(state, sessionId, new Date\(\)\.toISOString\(\)\);/);

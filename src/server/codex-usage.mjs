@@ -13,6 +13,9 @@ import { createReadStream } from "node:fs";
 import zlib from "node:zlib";
 import { STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
+// The shape of a token_count record, read where the translation reads it — see
+// codex-translate.mjs.
+import { tokenCountInfo } from "./codex-translate.mjs";
 
 // Cache results for 60s (lighter than Claude quota — reads more files)
 let _cache = null;
@@ -132,8 +135,7 @@ function foldTokenLine(series, raw) {
   if (!raw.includes("total_token_usage")) return;
   let obj;
   try { obj = JSON.parse(raw); } catch { return; }
-  if (obj.type !== "event_msg" || obj.payload?.type !== "token_count") return;
-  const u = obj.payload.info?.total_token_usage;
+  const u = tokenCountInfo(obj)?.total_token_usage;
   if (!u) return;
   const ts = obj.timestamp ? Date.parse(obj.timestamp) : NaN;
   series.push({
@@ -401,9 +403,10 @@ function parseRolloutTime(filename) {
 
 // List rollout files whose start times fall within the given window.
 //
-// The walk over $CODEX_HOME/sessions is shared with the two entry points in
-// index.mjs (codex-dir.mjs) rather than repeated here, so the files this counts
-// usage from are exactly the files the watcher tails. They used to be two
+// The walk over $CODEX_HOME/sessions is shared with the rollout lookup in
+// codex-enrichment.mjs and the watcher in codex-watch.mjs (codex-dir.mjs) rather
+// than repeated here, so the files this counts usage from are exactly the files
+// the watcher tails. They used to be two
 // verbatim copies of the same four nested readdirs over two verbatim copies of
 // the same CODEX_SESSIONS_DIR — which is how one of them came to resolve a
 // relative CODEX_HOME differently from the other (#375).

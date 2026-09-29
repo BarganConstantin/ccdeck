@@ -47,6 +47,7 @@
 import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { isOneShot } from "./args.mjs";
 
 /** The marker that stops the child doing this again. A fork bomb is the only
  *  way this file can fail catastrophically, so the guard is one variable with
@@ -91,6 +92,61 @@ export function detachEnv({ isTTY = false, profile = "none", columns = 0 } = {})
 }
 
 /**
+ * Does this start go to the background?
+ *
+ * bin/agent-dag.js asks, and a yes sends it to detachAndWatch. Every no is a
+ * way of staying put:
+ *
+ *   ALREADY DETACHED — we ARE the background copy. Carry on as the supervisor
+ *   always has: spawn the worker, supervise it, never come back here.
+ *
+ *   LEASHED — a parent is already holding our lifecycle, over an IPC channel,
+ *   and is waiting on our exit code. Running away from it into our own process
+ *   group is precisely the wrong answer to being supervised.
+ *
+ *   `--foreground` — the way to ask for the old behaviour out loud. Every
+ *   version before this one held the terminal, and something out there depends
+ *   on that: a wrapper script, a CI step, a supervisor of somebody else's that
+ *   starts `ccdeck` and waits on it, a `ccdeck && open …`. Handing all of those
+ *   an immediate exit and no way to say otherwise would be a breaking change
+ *   with no escape hatch — and DETACHED_ENV is an internal marker, not
+ *   something to tell a user to export.
+ *
+ *   A ONE-SHOT — `--version`, `--stop`, `--status`, `--help`, `--uninstall`.
+ *   Those answer and leave, and a one-shot that detached would print its answer
+ *   into a log file and hand the terminal back empty. They run in the
+ *   foreground exactly as they always have.
+ *
+ * Anything else is a start, and a start goes to the background.
+ */
+export function shouldDetach({ detached = false, leashed = false, flags = {} } = {}) {
+  return !detached && !leashed && flags.foreground !== true && !isOneShot(flags);
+}
+
+/**
+ * How the worker (and an upgrade's replacement) is started when this
+ * supervisor has no console of its own — detached from a terminal, or run by
+ * the desktop app.
+ *
+ * ON WINDOWS, A CONSOLE PROGRAM STARTED BY A PROCESS WITH NO CONSOLE IS GIVEN A
+ * NEW ONE, and with Windows Terminal as the default terminal that new console
+ * is a window. Measured on a Windows 10 box: `npx ccdeck` put a second
+ * Windows Terminal window on screen, hosting the deck's own node.exe, after the
+ * one the user typed into. `windowsHide` alone does not stop it: with stdio
+ * inherited, libuv only asks for a hidden window, which Windows Terminal's
+ * default-terminal handoff does not honour. DETACHED_PROCESS gives the child
+ * no console at all, so there is nothing to show.
+ *
+ * Only when detached: a supervisor in the user's own terminal shares that
+ * console with its worker, and Ctrl+C has to reach both.
+ */
+export function noConsoleOptions({ detached = false, platform = process.platform } = {}) {
+  return detached && platform === "win32"
+    ? { detached: true, windowsHide: true }
+    : {};
+}
+
+/**
  * The command that ends it, spelled the way this user would have to type it.
  *
  * An npx run has no `ccdeck` on PATH — that is the whole point of npx — so
@@ -101,6 +157,28 @@ export function detachEnv({ isTTY = false, profile = "none", columns = 0 } = {})
 export function stopCommand({ npx = false, invokedAs = null, product = "ccdeck" } = {}) {
   const name = invokedAs || product;
   return npx ? `npx ${name} --stop` : `${name} --stop`;
+}
+
+/**
+ * What the terminal is left with once the deck has gone to the background: the
+ * command that ends it, and — for an npx run — the one thing it cannot have.
+ *
+ * THE ONE THING AN NPX RUN CANNOT HAVE, said where it is missing. A login item
+ * must name a path that will still be there tomorrow, and npx runs out of a
+ * cache npm deletes whenever it likes — so an npx deck runs in the background
+ * and cannot come back after a reboot. One line, no disk written, offered
+ * rather than done: `npx` means "run without installing", and a tool that
+ * installs itself anyway is the one people uninstall.
+ *
+ * `tone` is a palette and `g` a glyph tier, both from term.mjs, so a pipe gets
+ * no escapes and a console without the em dash gets its stand-in.
+ */
+export function backgroundNote({ npx = false, invokedAs = null, product = "ccdeck", tone, g }) {
+  const stop = stopCommand({ npx, invokedAs, product });
+  const offer = npx
+    ? `     ${tone.muted}\`${invokedAs ?? product} --install\` also starts it at login${tone.reset}\n`
+    : "";
+  return `  ${tone.muted}${g.dash}  running in the background ${g.bullet} \`${stop}\` ends it${tone.reset}\n${offer}\n`;
 }
 
 /**

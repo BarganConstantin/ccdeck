@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
+import { cliSurface } from "./cli-surface";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -51,6 +52,8 @@ type Verdict = { ok: boolean; how: string; old?: boolean; reason?: string };
 type KillOpts = { platform?: string; spawnFn?: unknown; kill?: (p: number, s: string) => void };
 
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
+// `--status`, `--logs` and `--stop` themselves, lifted out of deck.js.
+const ONE_SHOT = readFileSync(fileURLToPath(new URL("../../../bin/cli/one-shot.js", import.meta.url)), "utf8");
 
 /** One request, with whatever headers the case is about. */
 function post(port: number, path: string, headers: Record<string, string>) {
@@ -360,8 +363,8 @@ describe("which deck --stop ends", () => {
   it("ends every deck unless one is named, since a start keeps only one", () => {
     // A second deck here is a leftover from before the one-deck rule, and an
     // off switch that ended one of two would leave the machine running.
-    expect(DECK).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
-    expect(DECK).not.toMatch(/decks\.filter\(d => sameShape\(d, mine\)\)\.slice\(0, 1\)/);
+    expect(ONE_SHOT).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
+    expect(cliSurface()).not.toMatch(/decks\.filter\(d => sameShape\(d, mine\)\)\.slice\(0, 1\)/);
   });
 
   it("reads the default shape, not the flags on this command line", () => {
@@ -370,8 +373,9 @@ describe("which deck --stop ends", () => {
     // miss the deck it was pointed at and report that nothing is running.
     // The object itself, not everything between it and the next statement --
     // `--logs` now sits in that gap and mentions flags of its own.
-    const at = DECK.indexOf("const mine = {");
-    const mine = DECK.slice(at, DECK.indexOf("\n  };", at));
+    const at = ONE_SHOT.indexOf("const mine = {");
+    expect(at, "the default shape is gone or renamed").toBeGreaterThan(-1);
+    const mine = ONE_SHOT.slice(at, ONE_SHOT.indexOf("\n  };", at));
     expect(mine).toContain('workspace: "",');
     expect(mine).toContain("codex: hasCodexInstalled(),");
     expect(mine).toContain("claude: hasClaudeInstalled(),");
@@ -381,8 +385,8 @@ describe("which deck --stop ends", () => {
   it("names what it did NOT stop", () => {
     // A command that ends one of three decks and says only "stopped" leaves the
     // reader believing the machine is clear.
-    expect(DECK).toContain("other deck");
-    expect(DECK).toContain("still running:");
+    expect(ONE_SHOT).toContain("other deck");
+    expect(ONE_SHOT).toContain("still running:");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
     //
@@ -392,12 +396,12 @@ describe("which deck --stop ends", () => {
     // reachable at all, since it prints when a `--stop --port <n>` left others
     // running. So the hint names the two forms that do something different from
     // each other.
-    expect(DECK).toContain("--stop\\` ends every deck");
-    expect(DECK).toContain("--stop --port <n>\\` ends one");
+    expect(ONE_SHOT).toContain("--stop\\` ends every deck");
+    expect(ONE_SHOT).toContain("--stop --port <n>\\` ends one");
     // Scoped to the OFFER rather than to the file: the line above it explains
     // in prose why `--stop --all` was dropped, and a bare not-toContain would
     // be tripped by that explanation.
-    expect(DECK, "--all does nothing; the hint must not offer it as an action")
+    expect(cliSurface(), "--all does nothing; the hint must not offer it as an action")
       .not.toContain("--stop --all\\` ends");
   });
 
@@ -414,10 +418,11 @@ describe("which deck --stop ends", () => {
 
   it("carries the supervisor's pid in the record, or the ladder has no parent", () => {
     expect(DECK).toContain("parent: SUPERVISED ? process.ppid : null,");
-    const installer = readFileSync(
-      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    // The record is written in discovery.mjs, which moved out of installer.mjs.
+    const discovery = readFileSync(
+      fileURLToPath(new URL("../../server/discovery.mjs", import.meta.url)), "utf8",
     );
-    expect(installer).toContain("parent: Number.isInteger(parent) ? parent : null,");
+    expect(discovery).toContain("parent: Number.isInteger(parent) ? parent : null,");
   });
 
   it("can end a deck that is not supervised, unlike restarting one", () => {
@@ -470,8 +475,8 @@ afterAll(() => {
 // was silent at every layer.
 describe("a stop that asked for one deck never ends them all", () => {
   it("refuses a --port value the parser could not use, before the selector runs", () => {
-    const refusal = DECK.indexOf("refusing to stop every deck when you asked for one.");
-    const selector = DECK.indexOf("const named = flags.port != null && isPortValue(flags.port)");
+    const refusal = ONE_SHOT.indexOf("refusing to stop every deck when you asked for one.");
+    const selector = ONE_SHOT.indexOf("const named = flags.port != null && isPortValue(flags.port)");
     expect(refusal).toBeGreaterThan(0);
     expect(selector).toBeGreaterThan(0);
     expect(refusal, "the refusal has to run first, or it refuses nothing").toBeLessThan(selector);
@@ -481,19 +486,26 @@ describe("a stop that asked for one deck never ends them all", () => {
     // `--port` with nothing after it leaves flags.port undefined, which is the
     // same shape as "no --port at all" — so the refusal reads `incomplete`
     // rather than the absent value.
-    expect(DECK).toContain('(flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p")');
+    expect(ONE_SHOT).toContain('(flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p")');
   });
 
   it("reports unknown and incomplete flags from the one-shot block itself", () => {
     // --help promises "Anything else on the command line is reported as an
     // unknown option and then ignored". reportUnknownFlags lives below this
     // block and cannot be called from it, so the rows are written inline.
-    const oneShot = DECK.indexOf("if (flags.stop || flags.status || flags.logs || flags.install");
-    const unknown = DECK.indexOf("unknown option${tone.reset}");
-    const missing = DECK.indexOf("missing value${tone.reset}");
+    // The block is oneShot in bin/cli/one-shot.js; deck.js hands every
+    // one-shot flag to it.
+    expect(DECK).toMatch(/if \(flags\.stop \|\| flags\.status \|\| flags\.logs \|\| flags\.install[^\n]*\{\s*process\.exit\(await oneShot\(flags\)\);/);
+    const oneShot = ONE_SHOT.indexOf("export async function oneShot(");
+    const unknown = ONE_SHOT.indexOf("unknown option${tone.reset}");
+    const missing = ONE_SHOT.indexOf("missing value${tone.reset}");
+    expect(oneShot).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(oneShot);
     expect(missing).toBeGreaterThan(oneShot);
-    // Below the block's own tone/glyphs, or it is a temporal dead zone (#797).
-    expect(unknown).toBeGreaterThan(DECK.indexOf("const tone = palette(colorProfile("));
+    // Drawn with the screen's glyphs and palette. bin/cli/screen.js answers them
+    // when it loads, so no line here can reach for them before they exist — the
+    // temporal dead zone the one-shots used to build their own to avoid (#797).
+    expect(ONE_SHOT).toMatch(/^import \{ G, P \} from "\.\/screen\.js";$/m);
+    expect(ONE_SHOT).toContain("const tone = P;");
   });
 });

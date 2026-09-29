@@ -107,9 +107,10 @@ describe("the static import graph of src/server", () => {
 
 describe("the two modules the boot wires together", () => {
   it("each expose the function the call site reaches for", async () => {
-    // Loaded the way index.mjs loads them — by file URL out of the package root
-    // — rather than by the specifier this file would normally use, because that
-    // is the resolution the boot actually performs.
+    // Loaded the way wireStaleCopyRepair (account-routes.mjs) loads them — by
+    // file URL out of the package root — rather than by the specifier this file
+    // would normally use, because that is the resolution the boot actually
+    // performs.
     const accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
     const admin = await import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-admin.mjs")).href);
     expect(typeof (accounts as Record<string, unknown>).repairStaleCopyWith).toBe("function");
@@ -122,6 +123,22 @@ describe("the two modules the boot wires together", () => {
     // their tests look. A move that quietly dropped the re-export would leave
     // admin-claude-bin.test.ts and cswap-identity.test.ts importing undefined.
     expect(read("cswap-admin.mjs")).toMatch(/^export \{ adminClaudeBin, currentIdentity \};$/m);
+  });
+
+  it("still answer for the verdicts, which moved to claude-verdicts.mjs", async () => {
+    // cswap-admin.mjs imports verdictNow and verdictsNow from claude-accounts.mjs
+    // statically, and lan-deck.mjs reaches verdictsNow there through a dynamic
+    // import that swallows its own failure — so a dropped re-export would be
+    // an undefined function in one and a verdict that silently never arrives in
+    // the other. Identity, not merely presence: a second copy would be a second
+    // queue and a second cache.
+    const accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
+    const verdicts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-verdicts.mjs")).href);
+    for (const name of ["verdictNow", "verdictsNow"]) {
+      expect(typeof (verdicts as Record<string, unknown>)[name], name).toBe("function");
+      expect((accounts as Record<string, unknown>)[name], name).toBe((verdicts as Record<string, unknown>)[name]);
+    }
+    expect(read("claude-accounts.mjs")).toMatch(/^export \{ verdictNow, verdictsNow \} from "\.\/claude-verdicts\.mjs";$/m);
   });
 });
 
@@ -140,11 +157,18 @@ describe("the modules that exist so that others need not import each other", () 
     // because the next dependency added here is the one that would put it back
     // in a cycle, and it would look reasonable at the time.
     expect(relativeDeps(read("store-lock.mjs"))).toEqual([]);
-    // claude-identity.mjs runs a subprocess, so it needs two modules — both of
-    // which are leaves themselves, which is the property that matters.
+    // claude-identity.mjs runs a subprocess, so it needs two modules. One is a
+    // leaf. The other, exec.mjs, now imports the pieces lifted out of it — and
+    // every one of those is a leaf, which is still the property that matters: a
+    // cycle needs a way back, and nothing under the oracle has one. Each level
+    // is listed exactly, so the next dependency added anywhere under it is seen
+    // here rather than in a boot step that silently did nothing.
     const identity = relativeDeps(read("claude-identity.mjs"));
     expect(identity).toEqual(["claude-dir.mjs", "exec.mjs"]);
-    for (const leaf of identity) {
+    expect(relativeDeps(read("claude-dir.mjs")), "claude-dir.mjs is no longer a leaf").toEqual([]);
+    const exec = relativeDeps(read("exec.mjs"));
+    expect(exec).toEqual(["exec-children.mjs", "exec-not-found.mjs", "exec-spec.mjs"]);
+    for (const leaf of exec) {
       expect(relativeDeps(read(leaf)), `${leaf} is no longer a leaf`).toEqual([]);
     }
   });
@@ -157,7 +181,7 @@ describe("the modules that exist so that others need not import each other", () 
     const lock = await import("../../server/store-lock.mjs");
     const admin = await import("../../server/cswap-admin.mjs");
     expect(admin.withStoreLock).toBe(lock.withStoreLock);
-    for (const name of ["claude-accounts.mjs", "cswap-auto.mjs"]) {
+    for (const name of ["claude-accounts.mjs", "cswap-auto.mjs", "cswap-auto-loop.mjs"]) {
       expect(read(name), `${name} takes the lock from somewhere else`)
         .toMatch(/^import \{ withStoreLock \} from "\.\/store-lock\.mjs";$/m);
     }

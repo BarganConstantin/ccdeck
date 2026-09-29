@@ -19,12 +19,16 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
+import { authTrouble } from "../../server/claude-accounts.mjs";
+import { readVerdicts } from "../../server/claude-verdicts.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-const accounts = await import("../../server/claude-accounts.mjs");
+const verdicts = await import("../../server/claude-verdicts.mjs");
 import { autoRecaptureState } from "../../server/cswap-admin.mjs";
 import { manifestFor } from "../../server/lan-sync.mjs";
-import { accountIssue, collectorText, staleCopyText } from "../components/AccountsPanel";
+import { accountIssue, collectorText, staleCopyText } from "../account-issue";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -166,7 +170,8 @@ describe("a collector that has simply stopped", () => {
     // into account, so a genuine lost copy remains healable.
     const server = src("../../server/claude-accounts.mjs");
     expect(server).toContain("alive:    storedCopyAlive(trouble == null, collector),");
-    const lan = src("../../server/lan-sync.mjs");
+    // Which copy wins is lan-copies.mjs's (re-exported by lan-sync.mjs).
+    const lan = src("../../server/lan-copies.mjs");
     // A peer heals only what this deck calls dead …
     expect(lan).toContain("return mine.alive ? null : \"heal\";");
     // … and publishes only what it calls alive. A copy this process cannot
@@ -210,9 +215,17 @@ describe("what the panel is allowed to offer", () => {
     // in as is `staleCopy`, and that has no fix at all.
     expect(accountIssue({ error: null, stopped: false, staleCopy: true, repair: { state: "running" } }, 0)?.fix).toBeNull();
     expect(accountIssue({ error: "invalid_grant", stopped: false, staleCopy: false }, 0)?.fix).toBe("Sign in again");
-    expect(panel).toMatch(/\{issue\.fix && \(\s*<button type="button" className="btn primary" onClick=\{\(\) => \{ closeIssue\(true\); setAddOpen\(true\); \}\}/);
+    //
+    // The popover is its own component now, so the chain is three links, each
+    // asked of the file that holds it: the button renders only under
+    // `issue.fix` and is the popover's one call to `onSignIn`, and the panel
+    // hands it the dialog's opener and nothing else.
+    const popover = src("../components/AccountIssuePopover.tsx");
+    expect(popover).toMatch(/\{issue\.fix && \(\s*<button type="button" className="btn primary" onClick=\{\(\) => \{ onClose\(true\); onSignIn\(\); \}\}/);
+    expect((popover.match(/onSignIn\(\)/g) ?? []).length, "the popover signs in from somewhere other than its fix").toBe(1);
+    expect(panel).toMatch(/<AccountIssuePopover[^>]*onSignIn=\{\(\) => setAddOpen\(true\)\}/);
     expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
-    const openers = (panel.match(/setAddOpen\(true\)/g) ?? []).length;
+    const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
     expect(openers, "something opens the sign-in dialog outside the gated fix and the header's +").toBe(3);
   });
 
@@ -233,7 +246,7 @@ describe("what the panel is allowed to offer", () => {
     expect(collectorText(null)).toBeNull();
     expect(collectorText("something_new")?.fix).toBeUndefined();
     // The panel asks `fix` rather than deciding for itself.
-    expect(panel).toContain("fix: v.fix ? sentence(v.fix) : null,");
+    expect(clientText()).toContain("fix: v.fix ? sentence(v.fix) : null,");
     expect(accountIssue({ error: null, stopped: true, collector: null }, 0)?.fix).toBeNull();
     expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.fix).toBeNull();
     expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.fix).toBe("Sign in");
@@ -246,13 +259,13 @@ describe("what the panel is allowed to offer", () => {
     // row. Re-capturing the credentials is what ends that, and there is one way
     // to do it — so `resume` was a button asking a person to confirm the only
     // answer there is. The server starts it now, and the row says how it went.
-    expect(panel).not.toMatch(/action: "recapture"/);
-    expect(panel).not.toMatch(/pressProps\("recapture"\)/);
-    expect(panel).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
+    expect(accountsSurface()).not.toMatch(/action: "recapture"/);
+    expect(accountsSurface()).not.toMatch(/pressProps\("recapture"\)/);
+    expect(clientText()).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
   });
 
   it("says the quieter true thing instead", () => {
-    expect(panel).toMatch(/if \(a\.staleCopy\) \{/);
+    expect(clientText()).toMatch(/if \(a\.staleCopy\) \{/);
     expect(accountIssue({ error: null, staleCopy: true, repair: { state: "running" } }, 0))
       .toMatchObject({ text: "Resuming…", tone: "quiet", fix: null, blocksSwitch: false });
     // And names the remedy that actually applies, rather than the one that
@@ -345,6 +358,8 @@ describe("the repair itself", () => {
 describe("the repair runs itself", () => {
   const server = src("../../server/claude-accounts.mjs");
   const index = src("../../server/index.mjs");
+  // Where startServer's hand-over lives — see wireStaleCopyRepair.
+  const routes = src("../../server/account-routes.mjs");
   const MIN = 60_000;
 
   it("starts once, then waits, then tries again", () => {
@@ -369,10 +384,19 @@ describe("the repair runs itself", () => {
     // them may be able to reach `cswap add`.
     expect(server).not.toMatch(/import \{[^}]*autoRecapture[^}]*\} from/);
     // Inside startServer rather than at module scope, which every test that
-    // imports index.mjs would evaluate.
+    // imports index.mjs would evaluate. startServer calls wireStaleCopyRepair,
+    // and the hand-over is inside that function — account-routes.mjs is
+    // imported by index.mjs, so its module scope would be evaluated as well.
     const start = index.indexOf("export async function startServer(");
     expect(start).toBeGreaterThan(-1);
-    expect(index.indexOf("repairStaleCopyWith(admin.autoRecapture)")).toBeGreaterThan(start);
+    expect(index.indexOf("wireStaleCopyRepair();", start)).toBeGreaterThan(start);
+    const wire = routes.indexOf("export function wireStaleCopyRepair() {");
+    expect(wire).toBeGreaterThan(-1);
+    const end = routes.indexOf("\n}\n", wire);
+    expect(end).toBeGreaterThan(wire);
+    expect(routes.slice(wire, end)).toContain("repairStaleCopyWith(admin.autoRecapture)");
+    // One hand-over, in that one function.
+    expect(routes.split("repairStaleCopyWith(admin.autoRecapture)")).toHaveLength(2);
   });
 
   it("lets the next read say how the attempt went", () => {
@@ -470,7 +494,7 @@ describe("what claude-swap says, in its own words", () => {
 
 describe("which half of the row is allowed to be loud", () => {
   const panel = src("../components/AccountsPanel.tsx");
-  const css = src("../styles.css");
+  const css = sheetText();
 
   it("draws a broken account at the rank of the other faults, and a repairing one below them", () => {
     // `staleCopy` is quiet on purpose: #721 means the collector cannot read an
@@ -494,7 +518,7 @@ describe("which half of the row is allowed to be loud", () => {
     expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.blocksSwitch).toBe(true);
     expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.blocksSwitch).toBe(false);
     expect(accountIssue({ error: "http-429" }, 0)?.blocksSwitch).toBe(false);
-    expect(panel).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
+    expect(clientText()).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
   });
 
   it("stops painting the symptom when the cause is already on the row", () => {
@@ -502,8 +526,8 @@ describe("which half of the row is allowed to be loud", () => {
     // that. Two ambers on one row gave the louder half to the consequence:
     // "no stored login" in the dimmest tone the panel has, beside "collected
     // 22h ago · due" in the warning one.
-    expect(panel).toContain('`ap-age${a.stale && !issue ? " ap-stale" : ""}`');
-    expect(panel).toMatch(/\{a\.stale && !issue && \(\s*<span className="ap-q-age"/);
+    expect(clientText()).toContain('`ap-age${a.stale && !issue ? " ap-stale" : ""}`');
+    expect(clientText()).toMatch(/\{a\.stale && !issue && \(\s*<span className="ap-q-age"/);
   });
 });
 
@@ -511,7 +535,7 @@ describe("asking claude-swap about one account, now", () => {
   // The cached verdicts are up to ten minutes old, which is right for a label
   // and wrong for a decision that writes a credential: somebody who signed in
   // two minutes ago still reads as `no_credentials` there.
-  const { verdictNow } = accounts as {
+  const { verdictNow } = verdicts as {
     verdictNow: (email: string, org: string, o?: Record<string, unknown>) => Promise<string | null>;
   };
   const LIST = JSON.stringify({

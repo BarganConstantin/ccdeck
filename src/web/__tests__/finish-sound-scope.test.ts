@@ -121,11 +121,14 @@ describe("the silence a browser imposes", () => {
 
 describe("the topbar button", () => {
   it("reads its tooltip out of the module that owns the words", () => {
-    const app = stripComments(src("App.tsx"));
-    expect(app).toMatch(/title=\{finishSoundTitle\(/);
+    // The button is SettingsRun's (components/TopbarRuns.tsx), which App.tsx
+    // hands the chime state.
+    expect(stripComments(src("App.tsx"))).toMatch(/<SettingsRun\b[^>]*\bchimeState=\{chimeState\}/);
+    const run = stripComments(src("components/TopbarRuns.tsx"));
+    expect(run).toMatch(/title=\{finishSoundTitle\(/);
     // And passes the locked state through, or the sentence above can never
     // appear however locked the context is.
-    expect(app).toMatch(/locked:\s*chimeState === "locked"/);
+    expect(run).toMatch(/locked:\s*chimeState === "locked"/);
   });
 
   it("is still drawn only where Claude Code is", () => {
@@ -133,7 +136,9 @@ describe("the topbar button", () => {
     // in its aria-label, which is only true because it does not render without
     // it. The finish tone now covers Codex, but a Codex-only machine has no
     // Notification to explain and no established home for this control.
-    const app = stripComments(src("App.tsx"));
-    expect(app).toMatch(/providers\.claude && soundOn !== null/);
+    // SettingsRun's, which App.tsx hands the providers.
+    expect(stripComments(src("App.tsx"))).toMatch(/<SettingsRun\b[^>]*\bproviders=\{providers\}/);
+    const run = stripComments(src("components/TopbarRuns.tsx"));
+    expect(run).toMatch(/providers\.claude && soundOn !== null/);
   });
 });

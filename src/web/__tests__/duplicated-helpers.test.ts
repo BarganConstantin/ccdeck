@@ -29,6 +29,10 @@ import { resetLabel, resetLabelIso } from "../../server/reset-label.mjs";
 import CostBar from "../components/CostBar";
 import type { CostBreakdown } from "../pricing";
 import type { ToolCall } from "../types";
+import { accountsSurface } from "./accounts-surface";
+import { usageSurface } from "./usage-surface";
+import { quotaSurface } from "./quota-surface";
+import { clientText } from "./client-source";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -43,15 +47,27 @@ function code(text: string): string {
 }
 
 const app = src("../App.tsx");
+// The detail panel — the third surface that draws a cost bar, an elapsed clock
+// and a tool row — is components/Detail.tsx now.
+const detail = src("../components/Detail.tsx");
 const agentNode = src("../components/AgentNode.tsx");
 const usagePanel = src("../components/UsagePanel.tsx");
-const accountsPanel = src("../components/AccountsPanel.tsx");
+// The usage panel's quota bars, and the countdown they print, are QuotaBar.tsx.
+const quotaBar = src("../components/QuotaBar.tsx");
+// And the two quota sections, with the age each one prints, are QuotaSections.tsx.
+const quotaSections = src("../components/QuotaSections.tsx");
+const accountRow = src("../components/AccountRow.tsx");
 const sessionSummary = src("../components/SessionSummary.tsx");
 const toolModal = src("../components/ToolModal.tsx");
 const costBarSrc = src("../components/CostBar.tsx");
 const cswapInstall = src("../../server/cswap-install.mjs");
+// Where claude-swap lives on disk, lifted out of cswap-install.mjs. A negative
+// about cswap-install reads both.
+const cswapLayout = src("../../server/cswap-layout.mjs");
 const codexQuota = src("../../server/codex-quota.mjs");
-const quota = src("../../server/quota.mjs");
+// The mapping that renders a reset label moved out of quota.mjs into
+// quota-shape.mjs; the sweeps below read quota.mjs and what left it.
+const quotaShape = src("../../server/quota-shape.mjs");
 
 // ── 1. the token formatter #323 missed ──────────────────────────────────────
 
@@ -184,10 +200,10 @@ describe("the stacked cost bar", () => {
   });
 
   it("is drawn in one file, and the three panels import it", () => {
-    expect(app).toMatch(/import CostBar from "\.\/components\/CostBar";/);
+    expect(detail).toMatch(/import CostBar from "\.\/CostBar";/);
     expect(usagePanel).toMatch(/import CostBar from "\.\/CostBar";/);
     expect(sessionSummary).toMatch(/import CostBar from "\.\/CostBar";/);
-    for (const [name, text] of [["App.tsx", app], ["UsagePanel.tsx", usagePanel], ["SessionSummary.tsx", sessionSummary]] as const) {
+    for (const [name, text] of [["App.tsx", app], ["components/Detail.tsx", detail], ["UsagePanel.tsx and the files lifted out of it", usageSurface()], ["SessionSummary.tsx", sessionSummary]] as const) {
       expect(code(text), name).not.toMatch(/function (Ss)?CostBar\b/);
       expect(code(text), name).not.toMatch(/"cb-seg /);
       expect(code(text), name).not.toMatch(/className="cost-bar/);
@@ -252,12 +268,13 @@ describe("the elapsed clock", () => {
 
   it("reads the same function from both surfaces", () => {
     expect(agentNode).toMatch(/import \{ elapsed \} from "\.\.\/duration";/);
-    expect(app).toMatch(/import \{ elapsed, toolDuration \} from "\.\/duration";/);
+    expect(detail).toMatch(/import \{ elapsed, toolDuration \} from "\.\.\/duration";/);
     expect(code(agentNode)).not.toMatch(/function elapsed\b/);
     expect(code(app)).not.toMatch(/const elapsedLabel = elapsedSec < 60/);
+    expect(code(detail)).not.toMatch(/const elapsedLabel = elapsedSec < 60/);
     // #822 marks a clock whose start the deck did not see as a floor ("≥ "); the
     // clock itself is still this one function.
-    expect(code(app)).toMatch(/const elapsedLabel = `\$\{agent\.synthetic \? "≥ " : ""\}\$\{elapsed\(agent\.startedAt, agent\.endedAt, now\)\}`;/);
+    expect(code(detail)).toMatch(/const elapsedLabel = `\$\{agent\.synthetic \? "≥ " : ""\}\$\{elapsed\(agent\.startedAt, agent\.endedAt, now\)\}`;/);
   });
 
   it("left the two genuinely different dialects where they are", () => {
@@ -314,10 +331,11 @@ describe("a tool call's duration", () => {
 
   it("is one function, called from the row and the dialog it opens", () => {
     expect(toolModal).toMatch(/import \{ toolDuration \} from "\.\.\/duration";/);
-    expect(code(app)).toMatch(/const durLabel = toolDuration\(t, "…"\);/);
+    expect(code(detail)).toMatch(/const durLabel = toolDuration\(t, "…"\);/);
     expect(code(toolModal)).toMatch(/toolDuration\(tool, "in-flight…"\)/);
     expect(code(toolModal)).not.toMatch(/function dur\(/);
     expect(code(app)).not.toMatch(/toFixed\(1\)\}s/);
+    expect(code(detail)).not.toMatch(/toFixed\(1\)\}s/);
   });
 });
 
@@ -399,9 +417,14 @@ describe("how long ago something happened", () => {
   });
 
   it("leaves no second dialect in the accounts panel", () => {
-    expect(accountsPanel).toMatch(/import \{ resetCountdown, shortAgoSec \} from "\.\.\/relative-time";/);
-    expect(code(accountsPanel)).not.toMatch(/return "just now"/);
-    expect(code(accountsPanel)).toMatch(/return shortAgoSec\(nowSec - Math\.floor\(ms \/ 1000\)\);/);
+    // Two links, each in the file that holds it now: the panel's ages moved to
+    // account-freshness.ts, and its reset countdown went with the row's bars
+    // to AccountRow.tsx.
+    expect(src("../account-freshness.ts")).toMatch(/import \{ shortAgoSec \} from "\.\/relative-time";/);
+    expect(accountRow).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
+    // No second dialect anywhere the panel has been split into.
+    expect(code(accountsSurface())).not.toMatch(/return "just now"/);
+    expect(clientText()).toMatch(/return shortAgoSec\(nowSec - Math\.floor\(ms \/ 1000\)\);/);
   });
 
   it("left the usage panel's age label alone, because it is a different rule", () => {
@@ -409,8 +432,8 @@ describe("how long ago something happened", () => {
     // SECONDS — "40s ago" — where these count minutes. Two thresholds and a
     // whole tier apart, so it is a third rule rather than a third copy, and
     // folding it in would have changed what the panel says.
-    expect(code(usagePanel)).toMatch(/if \(s < 10\)\s+return "just now";/);
-    expect(code(usagePanel)).toMatch(/if \(s < 60\)\s+return `\$\{s\}s ago`;/);
+    expect(code(quotaSections)).toMatch(/if \(s < 10\)\s+return "just now";/);
+    expect(code(quotaSections)).toMatch(/if \(s < 60\)\s+return `\$\{s\}s ago`;/);
   });
 });
 
@@ -462,10 +485,14 @@ describe("the countdown to a quota reset", () => {
   });
 
   it("is read from one place by both panels", () => {
-    expect(usagePanel).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
-    expect(accountsPanel).toMatch(/\bresetCountdown\b/);
-    expect(code(usagePanel)).not.toMatch(/function fmtCountdown\b/);
-    expect(code(accountsPanel)).not.toMatch(/function countdown\b/);
+    // The usage half is the quota bar now, lifted out of the panel with the
+    // countdown it prints.
+    expect(quotaBar).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
+    // The accounts half is the row's bars now, asked of the row's own file:
+    // the usage panel's use would satisfy a search of the whole client.
+    expect(accountRow).toMatch(/\bresetCountdown\b/);
+    expect(code(usageSurface())).not.toMatch(/function fmtCountdown\b/);
+    expect(code(accountsSurface())).not.toMatch(/function countdown\b/);
   });
 });
 
@@ -549,7 +576,9 @@ describe("the version comparator", () => {
 
   it("is imported by the installer rather than written out there again", () => {
     expect(cswapInstall).toMatch(/import \{ isOlder \} from "\.\/self-update\.mjs";/);
-    expect(code(cswapInstall)).not.toMatch(/function isOlder\b/);
+    // Both halves of what was cswap-install.mjs: a copy written into the layout
+    // module lifted out of it is the same regression.
+    expect(code(cswapInstall + cswapLayout)).not.toMatch(/function isOlder\b/);
     expect(code(cswapInstall)).toMatch(/isOlder\(existing, latest\)/);
   });
 });
@@ -565,7 +594,7 @@ describe("when a quota window resets", () => {
       month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
     }).replace(",", "").toLowerCase().replace(/\s+am/, "am").replace(/\s+pm/, "pm");
   }
-  /** quota.mjs's `fmtResetIso`, restated — the rendering that was kept. */
+  /** quota-shape.mjs's `fmtResetIso`, restated — the rendering that was kept. */
   function claudeCopy(iso: string): string | null {
     if (!iso) return null;
     const d = new Date(iso);
@@ -634,9 +663,9 @@ describe("when a quota window resets", () => {
   });
 
   it("is read from one module by both quota sources", () => {
-    expect(quota).toMatch(/import \{ resetLabelIso \} from "\.\/reset-label\.mjs";/);
+    expect(quotaShape).toMatch(/import \{ resetLabelIso \} from "\.\/reset-label\.mjs";/);
     expect(codexQuota).toMatch(/import \{ resetLabel \} from "\.\/reset-label\.mjs";/);
-    for (const [name, text] of [["quota.mjs", quota], ["codex-quota.mjs", codexQuota]] as const) {
+    for (const [name, text] of [["quota.mjs and the files lifted out of it", quotaSurface()], ["codex-quota.mjs", codexQuota]] as const) {
       expect(code(text), name).not.toMatch(/toLocaleString\("en-US"/);
       expect(code(text), name).not.toMatch(/hour12: true/);
     }
@@ -650,14 +679,14 @@ describe("the shapes these helpers replaced", () => {
   const FILES: Array<[string, string]> = [
     ["App.tsx", app],
     ["AgentNode.tsx", agentNode],
-    ["UsagePanel.tsx", usagePanel],
-    ["AccountsPanel.tsx", accountsPanel],
+    ["UsagePanel.tsx and the files lifted out of it", usageSurface()],
+    ["AccountsPanel.tsx and the files lifted out of it", accountsSurface()],
     ["SessionSummary.tsx", sessionSummary],
     ["ToolModal.tsx", toolModal],
     ["CostBar.tsx", costBarSrc],
-    ["cswap-install.mjs", cswapInstall],
+    ["cswap-install.mjs and the file lifted out of it", cswapInstall + cswapLayout],
     ["codex-quota.mjs", codexQuota],
-    ["quota.mjs", quota],
+    ["quota.mjs and the files lifted out of it", quotaSurface()],
   ].map(([n, t]) => [n, code(t)]);
 
   it("appear in none of the files they were removed from", () => {

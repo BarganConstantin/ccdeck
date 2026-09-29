@@ -7,7 +7,7 @@
 // with `killed` in scope and not consulted — while the memo guard eleven lines
 // below already distrusted a kill for the same reason:
 //
-//     if (code === 0 && !killed && !timedOut) resolved.set(cmd, raw);
+//     if (code === 0 && !killed && !timedOut) rememberSpelling(cmd, raw);
 //
 // so the two halves of one function disagreed about what a killed exit means.
 //
@@ -119,7 +119,7 @@ describe("the two halves of the same function", () => {
     // a later edit to one is made against the other rather than beside it.
     const src = readSrc();
     expect(src).toContain("ok: code === 0 && !err && !timedOut && !killed");
-    expect(src).toContain("if (code === 0 && !killed && !timedOut) resolved.set(cmd, raw);");
+    expect(src).toContain("if (code === 0 && !killed && !timedOut) rememberSpelling(cmd, raw);");
   });
 });
 

@@ -21,6 +21,7 @@ import {
   areaPath, band, clock, linePath, spanLabel, summary, throttleNote, yFor,
   type Point,
 } from "../components/SectionHistoryModal";
+import { machinePanelSurface } from "./machine-panel-surface";
 
 const MIN = 60_000;
 /** Points a minute apart, newest last, as the server emits them. */
@@ -305,7 +306,9 @@ describe("the two names a section carries", () => {
   // A control is named for what pressing it does; a dialog is named for what it
   // is. They were briefly the same string, and the button announced "Core
   // history" — a label where an action belongs.
-  const src = readFileSync(fileURLToPath(new URL("../components/MachinePanel.tsx", import.meta.url)), "utf8");
+  // The panel and every file lifted out of it: the network section's call is
+  // in MachineNetwork.tsx now, and a count of the panel alone would miss it.
+  const src = machinePanelSurface();
 
   it("names every button with a verb", () => {
     const actions = [...src.matchAll(/action="([^"]+)"/g)].map(m => m[1]);

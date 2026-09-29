@@ -51,9 +51,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { USAGE_FILES } from "./usage-surface";
+import { ACCOUNTS_FILES } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
+const cssRaw = sheetText();
 /** Comments quote the declarations they explain — including the ones this file
  *  asserts are gone — so every read of the sheet goes through the stripped copy. */
 const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -65,10 +68,19 @@ function markup(...path: string[]): string {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
-const app = markup("App.tsx");
+// The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
+const app = markup("App.tsx") + "\n" + markup("components/Detail.tsx");
 const agentNode = markup("components", "AgentNode.tsx");
+/** The card's words, stateLabel among them, lifted out of AgentNode.tsx. */
+const agentCopy = markup("agent-copy.ts");
 const sessionList = markup("components", "SessionList.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
+/** The usage panel's session rows, and the dot each one draws, lifted out of it. */
+const sessionBreakdown = markup("components", "UsageSessionBreakdown.tsx");
+/** The usage panel and every file lifted out of it, for the negatives. */
+const usageSurface = USAGE_FILES.map(f => markup(f)).join("\n");
+/** The accounts panel and every file lifted out of it, the same way. */
+const accountsSurface = ACCOUNTS_FILES.map(f => markup(f)).join("\n");
 const toolModal = markup("components", "ToolModal.tsx");
 const bursts = markup("components", "ToolBursts.tsx");
 
@@ -382,7 +394,10 @@ describe("the usage panel's dot reaches a rule at all", () => {
 
   it("still renders it from both components, which is why the scope had to go", () => {
     expect(sessionList).toMatch(/className=\{`sl-dot state-\$\{r\.state\}`\}/);
-    expect(usagePanel).toMatch(/className=\{`sl-dot state-\$\{s\.state\}`\}/);
+    // The usage panel's rows are UsageSessionBreakdown.tsx's, and the panel
+    // mounts it.
+    expect(sessionBreakdown).toMatch(/className=\{`sl-dot state-\$\{s\.state\}`\}/);
+    expect(usagePanel).toMatch(/<UsageSessionBreakdown\b/);
     // …and the panels are siblings in App, not one inside the other.
     // The panel is mounted from its own flag, directly or through the presence
     // that holds it on screen while it leaves — see panel-exit.ts. What this
@@ -419,20 +434,21 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
 
   it("puts the word where the dot is, so it is heard in the order it is seen", () => {
     expect(sessionList).toMatch(/<span className=\{`sl-dot state-\$\{r\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
-    expect(usagePanel).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
+    expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
     expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{TOOL_STATUS_LABEL\[status\]\}<\/span>/);
   });
 
   it("says it in one vocabulary, shared with the word already on the card", () => {
     // A card that reads `live` beside a row that reads `running` is one state
     // with two names. StatePill and both lists go through the same function.
-    expect(agentNode).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
-    expect(agentNode).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
+    expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
+    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
     expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state\)\}<\/span>/);
-    for (const [name, src] of [["SessionList", sessionList], ["UsagePanel", usagePanel]] as const) {
-      expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\/AgentNode"/);
+    for (const [name, src] of [["SessionList", sessionList], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
+      expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\.\/agent-copy"/);
       expect(src, `${name} re-states the vocabulary`).not.toMatch(/\? "live"/);
     }
+    expect(usageSurface, "a file lifted out of UsagePanel re-states the vocabulary").not.toMatch(/\? "live"/);
   });
 
   it("names a tool's outcome in the words the tool modal already prints", () => {
@@ -484,7 +500,7 @@ describe("the visually-hidden utility, now that four surfaces read it", () => {
 
   it("dropped the panel prefix rather than lending three panels a private name", () => {
     expect(css).not.toMatch(/\.ap-vh\b/);
-    for (const src of [app, sessionList, usagePanel, markup("components", "AccountsPanel.tsx")]) {
+    for (const src of [app, sessionList, usageSurface, accountsSurface]) {
       expect(src).not.toMatch(/ap-vh/);
     }
     expect(markup("components", "AccountsPanel.tsx")).toMatch(/className="vis-hidden"/);

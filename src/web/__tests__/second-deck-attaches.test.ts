@@ -21,6 +21,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — .mjs server module, no types
 const mod = await import("../../server/running-deck.mjs");
@@ -79,7 +80,12 @@ const SRC = readFileSync(
   "utf8",
 );
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
+const HELP = readFileSync(fileURLToPath(new URL("../../../bin/cli/help.js", import.meta.url)), "utf8");
+const ONE_SHOT = readFileSync(fileURLToPath(new URL("../../../bin/cli/one-shot.js", import.meta.url)), "utf8");
+// The question and what is done with its answer, lifted out of deck.js.
+const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
 const INDEX = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+const LISTEN = readFileSync(fileURLToPath(new URL("../../server/listen.mjs", import.meta.url)), "utf8");
 
 describe("a start keeps at most one deck", () => {
   it("starts when nothing is running", () => {
@@ -156,7 +162,8 @@ describe("a start keeps at most one deck", () => {
   });
 
   it("is asked of every start, respawns included, with nothing but the rule's inputs", () => {
-    const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(DECK)?.[1] ?? "";
+    const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(SECOND_START)?.[1] ?? "";
+    expect(call, "the question left bin/cli/second-start.js").not.toBe("");
     expect(call).toMatch(/live: await liveDecks\(\)/);
     expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude, codexHome \}/);
     expect(call).toMatch(/fresh: flags\.new === true/);
@@ -165,29 +172,33 @@ describe("a start keeps at most one deck", () => {
     // lesson of `ccdeck --stpo` building a second deck through the old guard.
     expect(call).not.toMatch(/unknown|incomplete/);
     // And no gate in front of it that a respawn or a flag could walk around.
-    expect(DECK).not.toContain("asksForOwnDeck");
-    expect(DECK).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}process\.exit\(0\);/);
+    expect(cliSurface()).not.toContain("asksForOwnDeck");
+    expect(SECOND_START).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}return 0;/);
+    // And deck.js asks it of every start and exits with what it says.
+    expect(DECK).toMatch(/const ended = await settleSecondStart\(\{[^}]*\bRESPAWN\b[^}]*\}\);\s*\n(?:\s*\/\/[^\n]*\n)*\s*if \(ended !== null\) process\.exit\(ended\);/);
   });
 
   it("stops what it replaces before it binds anything, and says why", () => {
-    const stop = DECK.indexOf("const out = await stopDeck(d)");
+    // The stop is settleSecondStart's, and deck.js settles it before the bind.
+    expect(SECOND_START).toContain("const out = await stopDeck(d)");
+    const settle = DECK.indexOf("await settleSecondStart(");
     const bind = DECK.indexOf("const starting = startServer({");
-    expect(stop).toBeGreaterThan(0);
-    expect(stop).toBeLessThan(bind);
-    expect(DECK).toContain("stopped the deck on ${d.port}");
-    expect(DECK).toContain("you asked for a fresh one");
-    expect(DECK).toContain("it was started with different settings");
+    expect(settle).toBeGreaterThan(0);
+    expect(settle).toBeLessThan(bind);
+    expect(SECOND_START).toContain("stopped the deck on ${d.port}");
+    expect(SECOND_START).toContain("you asked for a fresh one");
+    expect(SECOND_START).toContain("it was started with different settings");
   });
 
   it("prints a typo's warning on the attach path, which is what was actually needed", () => {
-    const ask = DECK.indexOf("if (plan.act === \"attach\") {");
-    const unknown = DECK.indexOf("reportUnknownFlags(flags.unknown);", ask);
-    const incomplete = DECK.indexOf("reportIncompleteFlags(flags.incomplete);", ask);
-    const bind = DECK.indexOf("const starting = startServer({");
+    const ask = SECOND_START.indexOf("if (plan.act === \"attach\") {");
+    const unknown = SECOND_START.indexOf("reportUnknownFlags(flags.unknown);", ask);
+    const incomplete = SECOND_START.indexOf("reportIncompleteFlags(flags.incomplete);", ask);
+    expect(ask).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(ask);
     expect(incomplete).toBeGreaterThan(ask);
-    expect(unknown).toBeLessThan(bind);
-    expect(incomplete).toBeLessThan(bind);
+    // Before anything binds: deck.js settles the second start first.
+    expect(DECK.indexOf("await settleSecondStart(")).toBeLessThan(DECK.indexOf("const starting = startServer({"));
   });
 
   it("is offered by the parser, and documented as the replace it now is", () => {
@@ -195,7 +206,7 @@ describe("a start keeps at most one deck", () => {
       fileURLToPath(new URL("../../server/args.mjs", import.meta.url)), "utf8",
     );
     expect(args).toContain('a === "--new"');
-    expect(DECK).toContain("--new                Replace the running deck with a fresh one.");
+    expect(HELP).toContain("--new                Replace the running deck with a fresh one.");
   });
 });
 
@@ -235,8 +246,8 @@ describe("the deck found must be the deck we would have built", () => {
     // flags alone, so every tree matched it. Once the start began passing its tree
     // (the case above), the marker could name the very deck the next `ccdeck`
     // replaces. The selector now carries the tree, worked out the start's way.
-    expect(DECK).toMatch(/mine\.codexHome = codexHomeField\(mine\.codex\);/);
-    const selector = DECK.slice(DECK.indexOf("const mine = {"), DECK.indexOf("const opens = decks.find"));
+    expect(ONE_SHOT).toMatch(/mine\.codexHome = codexHomeField\(mine\.codex\);/);
+    const selector = ONE_SHOT.slice(ONE_SHOT.indexOf("const mine = {"), ONE_SHOT.indexOf("const opens = decks.find"));
     expect(selector).toContain("codexHomeField(");
   });
 
@@ -246,11 +257,13 @@ describe("the deck found must be the deck we would have built", () => {
     expect(DECK).toMatch(/const codexHome = codexHomeField\(wantCodex\);/);
     // One function for both ends, so a start and a record cannot canonicalise
     // the same tree two ways and disagree about a symlinked ~/.codex.
-    const installer = readFileSync(
-      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    // Both ends are in discovery.mjs, the record's writer, which installer.mjs
+    // re-exports them from.
+    const discovery = readFileSync(
+      fileURLToPath(new URL("../../server/discovery.mjs", import.meta.url)), "utf8",
     );
-    expect(installer).toMatch(/export function codexHomeField\(codex\)/);
-    expect(installer).toMatch(/codexHome: codexHomeField\(codex\)/);
+    expect(discovery).toMatch(/export function codexHomeField\(codex\)/);
+    expect(discovery).toMatch(/codexHome: codexHomeField\(codex\)/);
   });
 
   it("never passes a deck older than the `claude` field for one, so it is replaced", () => {
@@ -261,11 +274,11 @@ describe("the deck found must be the deck we would have built", () => {
   });
 
   it("publishes both fields, or nothing downstream can compare them", () => {
-    const installer = readFileSync(
-      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    const discovery = readFileSync(
+      fileURLToPath(new URL("../../server/discovery.mjs", import.meta.url)), "utf8",
     );
-    expect(installer).toMatch(/claude: claude !== false/);
-    expect(installer).toMatch(/version: typeof version === "string"/);
+    expect(discovery).toMatch(/claude: claude !== false/);
+    expect(discovery).toMatch(/version: typeof version === "string"/);
     // And the deck actually fills them in — a field published as its default
     // for every deck is a field that decides nothing.
     expect(DECK).toMatch(/claude: wantClaude,\s*\n\s*version: PKG_VERSION,/);
@@ -353,9 +366,9 @@ describe("what the attach does and does not disturb", () => {
     // The position is the point: an attach must leave the machine exactly as it
     // found it, so it happens before the port, the hooks, the tool probes, the
     // banner and the discovery file.
-    const ask = DECK.indexOf("const plan = secondStart({");
+    const ask = DECK.indexOf("await settleSecondStart(");
     const bind = DECK.indexOf("const starting = startServer({");
-    const work = DECK.indexOf("const jobs = startupWork()");
+    const work = DECK.indexOf("const jobs = startupWork(");
     const register = DECK.indexOf("discovery = keepDiscovery({");
     expect(ask).toBeGreaterThan(0);
     for (const [name, at] of Object.entries({ bind, work, register })) {
@@ -369,7 +382,8 @@ describe("what the attach does and does not disturb", () => {
     // and Docker Desktop, so it can be unavailable with nothing listening on it.
     // A deck coming up on 4322 beats a deck refusing to come up.
     expect(INDEX).toContain("portRange = [4318, 4400]");
-    expect(INDEX).toMatch(/portRetryable = \(err\) =>[\s\S]{0,120}EADDRINUSE[\s\S]{0,40}EACCES/);
+    // The rule that sends a refused bind to the next candidate is listen.mjs's.
+    expect(LISTEN).toMatch(/portRetryable = \(err\) =>[\s\S]{0,120}EADDRINUSE[\s\S]{0,40}EACCES/);
   });
 
   it("waits for the launcher chain instead of exiting out from under it", () => {
@@ -377,20 +391,20 @@ describe("what the attach does and does not disturb", () => {
     // process before a missing xdg-open has been answered by gio — and then no
     // browser opens and nothing says why. The boot path never had to think
     // about this because it stays alive forever.
-    expect(DECK).toMatch(/openUrl\(liveUrl\);[\s\S]{0,400}await sleep\(LAUNCH_GRACE_MS\);/);
+    expect(SECOND_START).toMatch(/openUrl\(liveUrl\);[\s\S]{0,400}await sleep\(LAUNCH_GRACE_MS\);/);
   });
 
   it("says a second deck was not started, and how to get a fresh one", () => {
     // Without it the command looks like it did nothing at all, which is the
     // other way to be confusing about this.
-    expect(DECK).toContain("no second deck was started");
+    expect(SECOND_START).toContain("no second deck was started");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
-    expect(DECK).toContain("--new\\` replaces it with a fresh one");
+    expect(SECOND_START).toContain("--new\\` replaces it with a fresh one");
   });
 
   it("has nothing left to warn about older decks, because they are replaced", () => {
-    expect(DECK).not.toContain("too old to be recognised");
+    expect(cliSurface()).not.toContain("too old to be recognised");
   });
 });
 
@@ -398,8 +412,8 @@ describe("the off switch ends every deck", () => {
   it("stops them all unless one is named by port", () => {
     // There is meant to be one. A second is a leftover, and an off switch that
     // ended one of two would leave the machine running.
-    expect(DECK).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
-    expect(DECK).toContain("--stop               Stop the running deck.");
+    expect(ONE_SHOT).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
+    expect(HELP).toContain("--stop               Stop the running deck.");
   });
 });
 
@@ -417,14 +431,20 @@ describe("a newer deck kept on the port is said out loud", () => {
   });
 
   it("prints it on the attach and carries on", () => {
-    expect(DECK).toMatch(/const note = versionNote\(live\.version, PKG_VERSION\);/);
-    expect(DECK).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
+    expect(SECOND_START).toMatch(/const note = versionNote\(live\.version, PKG_VERSION\);/);
+    expect(cliSurface()).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
   });
 });
 
 describe("what a launcher that only asks never does", () => {
-  const index = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8")
+  const code = (name: string) => readFileSync(fileURLToPath(new URL(`../../server/${name}`, import.meta.url)), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+  const index = code("index.mjs");
+  // The read at import is prefs-state.mjs's, which holds what it returns, and
+  // applyLanPrefs is lan-deck.mjs's. The negative and the count read all three
+  // files, since any of them could grow the call.
+  const held = code("prefs-state.mjs");
+  const both = `${index}\n${held}\n${code("lan-deck.mjs")}`;
 
   it("does not start LAN sync from the import, only from a listen that succeeded", () => {
     // Reported from a terminal, the day 3.21.0 shipped: `npx ccdeck` beside a
@@ -433,15 +453,15 @@ describe("what a launcher that only asks never does", () => {
     // ask the registry, and the module bound the beacon and the sync listener
     // on the way in — a port grabbed by a process about to exit, and a line
     // about it in front of the one answer the person wanted.
-    expect(index).not.toMatch(/readPrefs\(\)\.then\([^)]*applyLanPrefs/);
-    expect(index).toMatch(/const _prefsRead = readPrefs\(\)\.then\(p => \{ _prefs = p; \}\)/);
+    expect(both).not.toMatch(/readPrefs\(\)\.then\([^)]*applyLanPrefs/);
+    expect(held).toMatch(/export const prefsRead = readPrefs\(\)\.then\(p => \{ _prefs = p; \}\)/);
     // In the listen loop, after the bind that took, beside the other things a
     // serving process starts and an asking one must not.
     const loop = /for \(const candidate of candidates\) \{([\s\S]*?)\n  \}\n  throw listenFailure/.exec(index)?.[1] ?? "";
     // The metrics carry `probe: true` here and nowhere else: the network
     // section may reach out only from a process that is actually serving.
-    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\{ probe: true \}\);[\s\S]*_prefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
+    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\{ probe: true \}\);[\s\S]*\bprefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
     // And once: a second call site would be a second boot.
-    expect([...index.matchAll(/_prefsRead\.then/g)]).toHaveLength(1);
+    expect([...both.matchAll(/\bprefsRead\.then/g)]).toHaveLength(1);
   });
 });

@@ -17,6 +17,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — a plain .mjs module, no types
 const { launchers, startCommand, normalizeOpenable, isWsl, openUrl, LAUNCH_GRACE_MS } =
@@ -246,7 +247,7 @@ describe("the dependency it replaced", () => {
 
   it("is not imported from anywhere any more", () => {
     const deck = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
-    expect(deck).not.toMatch(/import\(\s*["']open["']\s*\)/);
+    expect(cliSurface()).not.toMatch(/import\(\s*["']open["']\s*\)/);
     expect(deck).toContain("open-url.mjs");
   });
 });

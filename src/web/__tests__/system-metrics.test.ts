@@ -10,8 +10,18 @@
 // Activity Monitor, which is the one outcome this readout exists to prevent.
 import { describe, expect, it } from "vitest";
 import {
+  startSystemMetrics,
+  stopSystemMetrics,
+  systemSnapshot,
+} from "../../server/system-metrics.mjs";
+import {
   availableFromMeminfo,
   availableFromVmStat,
+  swapFromMeminfo,
+  swapFromSysctl,
+  swapFromWmicJson,
+} from "../../server/memory-metrics.mjs";
+import {
   parsePsProcesses,
   psArgs,
   psDetailArgs,
@@ -22,13 +32,7 @@ import {
   elapsedSeconds,
   cpuFromDeltas,
   parseGetProcessJson,
-  startSystemMetrics,
-  stopSystemMetrics,
-  swapFromMeminfo,
-  swapFromSysctl,
-  swapFromWmicJson,
-  systemSnapshot,
-} from "../../server/system-metrics.mjs";
+} from "../../server/process-list.mjs";
 
 // Trimmed from a real `vm_stat` on a 32 GB machine: 4 KiB pages, ~56k free but
 // ~2.6M inactive. Naive "free" would call this 0.2 GB available; the truth is

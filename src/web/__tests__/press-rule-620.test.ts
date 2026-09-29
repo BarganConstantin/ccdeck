@@ -24,6 +24,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { pressAccepted, pressState, selfPressAccepted, selfPressProps } from "../panel-press";
 import { lineOf, openTags, withoutComments } from "./tsx-scan";
+import { clientText } from "./client-source";
+import { USAGE_FILES } from "./usage-surface";
 
 // ── the sources, with comments blanked ──────────────────────────────────────
 
@@ -52,6 +54,20 @@ const SOURCES = tsxFiles().map(rel => {
   const raw = readFileSync(`${WEB}/${rel}`, "utf8");
   return { rel, raw, code: withoutComments(raw) };
 });
+
+/** A file's code plus the `use-*` hooks it imports, comments stripped — the
+ *  surface its buttons' handlers can come from. Resolved relative to the file,
+ *  so `components/` imports of `../use-x` land where they point. */
+function surfaceOf(rel: string, code: string): string {
+  const dir = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
+  const hooks = [...code.matchAll(/from "((?:\.{1,2}\/)+(?:[\w-]+\/)*use-[\w-]+)"/g)].map(m => {
+    const parts = [...(dir ? dir.split("/") : []), ...m[1].split("/")];
+    const out: string[] = [];
+    for (const p of parts) { if (p === "..") out.pop(); else if (p !== ".") out.push(p); }
+    try { return withoutComments(readFileSync(`${WEB}/${out.join("/")}.ts`, "utf8")); } catch { return ""; }
+  });
+  return [code, ...hooks].join("\n");
+}
 
 const lineText = (raw: string, line: number) => raw.split("\n")[line - 1] ?? "";
 
@@ -194,20 +210,20 @@ describe("no control in the client disables itself on press (#620)", () => {
   });
 
   it("lets no busy flag reach a `disabled`, anywhere", () => {
+    // No exclusions. `.ap-fix` in the accounts panel's empty state was the one
+    // #518 named out of scope, pinned here so that lifting it would be a
+    // decision; #1411 made it — the retry dropped focus like every other
+    // control that disabled itself — and it takes the rule now.
     const rogue = disabledSites()
       .filter(s => INFLIGHT.test(s.expr))
-      // `.ap-fix` in the accounts panel's empty state is the one deliberate
-      // exclusion: #518 named it out of scope and row-state-press.test.ts pins
-      // it with a written rationale. It is left exactly as it was.
-      .filter(s => !(s.rel === "components/AccountsPanel.tsx" && s.text.includes('className="ap-fix"')))
       .map(s => `${s.rel}:${s.line} disabled={${s.expr}}`);
     expect(rogue).toEqual([]);
   });
 
-  it("keeps the pinned exclusion pinned, so removing it is a decision", () => {
-    const fix = disabledSites().filter(s => s.rel === "components/AccountsPanel.tsx" && INFLIGHT.test(s.expr));
-    expect(fix.map(s => s.expr)).toEqual(["reloading"]);
-    expect(fix[0].text).toContain('className="ap-fix"');
+  it("has no exclusion left: the empty state's retry takes the rule too (#1411)", () => {
+    const panel = SOURCES.find(s => s.rel === "components/AccountsPanel.tsx")!;
+    expect(disabledSites().filter(s => s.rel === panel.rel && INFLIGHT.test(s.expr))).toEqual([]);
+    expect(panel.code).toMatch(/className="ap-fix" \{\.\.\.pressProps\("reload", reloading\)\}/);
   });
 
   it("does not let the flag move into the second argument instead", () => {
@@ -225,12 +241,24 @@ describe("no control in the client disables itself on press (#620)", () => {
     // spreads the props and never refuses a second press has removed a lock
     // and put nothing in its place.
     for (const { rel, code } of SOURCES) {
-      if (!code.includes("selfPressProps(")) continue;
-      expect(code, `${rel} spreads selfPressProps without guarding a second press`)
+      // A spread whose in-flight flag is the constant `false` has no press to
+      // refuse — the topbar's sound button opens a menu, synchronously, and
+      // says so with the argument (#711). A file whose every spread is that one
+      // has no lock to replace; any other argument, anywhere in it, still does.
+      const guarded = [...code.matchAll(/selfPressProps\(([^)]*)\)/g)].filter(m => m[1].trim() !== "false");
+      if (guarded.length === 0) continue;
+      // A component's handlers live in the component or in the `use-*` hooks it
+      // composes — App.tsx spreads the props on its buttons while their pressed
+      // handlers (askRestart, startUpgrade, askDesktopUpdateRestart) live in
+      // hooks it calls. So the guard may sit in either, but ONLY in a hook this
+      // file itself imports: a guard somewhere else in the client does not
+      // protect this file's buttons, and must not let it pass.
+      const surface = surfaceOf(rel, code);
+      expect(surface, `${rel} spreads selfPressProps without guarding a second press`)
         .toMatch(/!selfPressAccepted\(/);
       // Off a ref, never the state: the state a handler closed over is a render
       // old, and the second press happens before the next render.
-      for (const m of code.matchAll(/!selfPressAccepted\(([^)]*)\)/g)) {
+      for (const m of surface.matchAll(/!selfPressAccepted\(([^)]*)\)/g)) {
         expect(m[1], `${rel}: selfPressAccepted(${m[1]}) reads state, not a ref`)
           .toMatch(/Ref\.current/);
       }
@@ -254,16 +282,16 @@ const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> 
   // the very control the popover's Escape is supposed to hand focus back to, so
   // the user would land on `<body>` with the menu gone. The anchor moves with
   // the handler; the two attributes it must carry do not.
-  ["the topbar sound-menu button", "App.tsx",
+  ["the topbar sound-menu button", "components/TopbarRuns.tsx",
     /onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/,
     /\{\.\.\.selfPressProps\(false\)\}/],
-  ["the version banner's Restart now", "App.tsx",
+  ["the version banner's Restart now", "components/VersionBanner.tsx",
     /onClick=\{\(\) => askRestart\(\)\}/,
     /\{\.\.\.selfPressProps\(restarting\)\}/],
-  ["the version banner's Update now", "App.tsx",
+  ["the version banner's Update now", "components/VersionBanner.tsx",
     /onClick=\{startUpgrade\}/,
     /\{\.\.\.selfPressProps\(upgradeState === "running", upgradeState === "done"\)\}/],
-  ["the version banner's Update & restart", "App.tsx",
+  ["the version banner's Update & restart", "components/VersionBanner.tsx",
     /onClick=\{\(\) => askRestart\(\{ upgrade: true \}\)\}/,
     /\{\.\.\.selfPressProps\(restarting\)\}/],
   ["the usage panel's ↻", "components/UsagePanel.tsx",
@@ -317,7 +345,11 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // writes localStorage, both synchronous, so a double press is idempotent
     // rather than racy. The assertion is that the lock is GONE — a re-added
     // request without a re-added guard is the regression this now watches for.
-    const app = codeOf("App.tsx");
+    // The switch moved to use-sound-switch.ts, so this asks App.tsx and the
+    // hooks it imports — the negatives included, which now have more to hold for
+    // — and the settings run the button itself moved to, with its own.
+    const app = surfaceOf("App.tsx", codeOf("App.tsx"))
+      + "\n" + surfaceOf("components/TopbarRuns.tsx", codeOf("components/TopbarRuns.tsx"));
     expect(app).not.toMatch(/soundBusyRef/);
     expect(app).not.toMatch(/setSoundBusy/);
     expect(app, "the toggle must stay synchronous").toMatch(/const toggleSound = useCallback\(\(\) => \{/);
@@ -327,11 +359,15 @@ describe("a second press is refused by the handler, not by the browser", () => {
   it("holds one restart ask at a time", () => {
     // This guard predates #620 — it was `if (restartAskedRef.current) return`.
     // What changed is that it is now the ONLY thing refusing the second press.
-    expect(codeOf("App.tsx")).toMatch(/if \(!selfPressAccepted\(restartAskedRef\.current\)\) return;/);
+    // askRestart lives in use-auto-restart.ts now.
+    expect(clientText()).toMatch(/if \(!selfPressAccepted\(restartAskedRef\.current\)\) return;/);
   });
 
   it("holds one upgrade at a time, across the gap before the poll answers", () => {
-    const app = codeOf("App.tsx");
+    // The press lock lives in use-deck-upgrade.ts and the round trip it awaits in
+    // use-version-check.ts; what this pins is how they fit together, so it reads
+    // the whole client. All three matches are positive.
+    const app = clientText();
     // `running` is the server's answer and does not arrive until the next
     // /api/version, so the ref covers the window in which nothing else says a
     // run started — and is released once the poll has been awaited.
@@ -341,7 +377,9 @@ describe("a second press is refused by the handler, not by the browser", () => {
   });
 
   it("holds one forced quota read at a time, per hook, and never blocks the poll", () => {
-    const panel = codeOf("components/UsagePanel.tsx");
+    // The panel and every file lifted out of it, so the count follows the
+    // hooks — which live in use-quota.ts now, outside the .tsx sweep.
+    const panel = USAGE_FILES.map(rel => withoutComments(readFileSync(`${WEB}/${rel}`, "utf8"))).join("\n");
     // Both hooks, and both gated on `forceRefresh`: a poll is not a press and
     // must not be refused by one.
     expect([...panel.matchAll(/if \(forceRefresh && !selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(2);
@@ -349,7 +387,8 @@ describe("a second press is refused by the handler, not by the browser", () => {
   });
 
   it("holds one forced ccusage run at a time, and hands the lock to the newest request", () => {
-    const modal = codeOf("components/UsageHistoryModal.tsx");
+    // The run is the modal's hook's, lifted out of it into use-ccusage.ts.
+    const modal = withoutComments(readFileSync(`${WEB}/use-ccusage.ts`, "utf8"));
     expect(modal).toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
     // `busyRef.current = force`, not `= true`: a range change starts an
     // unforced load that supersedes the forced one, whose `finally` will not

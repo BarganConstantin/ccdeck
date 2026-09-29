@@ -58,6 +58,17 @@ const h = await vi.hoisted(async () => {
 vi.mock("electron-updater", () => {
   return { default: { get autoUpdater() { return h.auto; } } };
 });
+// And again by the path updater.mjs reaches it at once desktop/ has been
+// installed (#1293). A mock is keyed on what the specifier resolves to, and
+// from this file "electron-updater" resolves to nothing — the root install does
+// not have it — while from desktop/updater.mjs it resolves to the real package
+// the moment `npm install` has run in desktop/. The two ids stopped matching,
+// the real electron-updater loaded, reached for Electron's `app`, and six cases
+// failed on exactly the machines that build the desktop app. Where desktop/ is
+// not installed this path resolves to nothing either, and the line is inert.
+vi.mock("../../../desktop/node_modules/electron-updater", () => {
+  return { default: { get autoUpdater() { return h.auto; } } };
+});
 
 vi.mock("../../../desktop/updater-mac.mjs", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),

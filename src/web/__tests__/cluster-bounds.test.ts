@@ -11,10 +11,12 @@
 // stacked sessions (SESSION_CHROME = 18 below the cards + 18+26+12 above them)
 // grew to 110, so the 72px of designed breathing room read as half that.
 import { describe, it, expect } from "vitest";
-import { clusterBounds, type ClusterNode } from "../components/SessionClusters";
+import type { Node } from "reactflow";
+import { clusterBounds, type ClusterNode } from "../cluster-bounds";
+import { sessionGroupNodes } from "../session-group-nodes";
 import type { AgentNodeData } from "../types";
 
-const PAD = 18;        // GROUP_PAD in App.tsx
+const PAD = 18;        // GROUP_PAD in session-group-nodes.ts
 const HEADER_H = 26;   // the label strip above the box
 const W = 240, H = 130;
 
@@ -33,22 +35,17 @@ function retiring(n: ClusterNode): ClusterNode {
 }
 
 /**
- * Exactly what App.tsx builds behind a session: the cards' box grown by
- * GROUP_PAD, sized in explicit pixels, carrying the session id and nothing else
- * an agent card carries.
+ * The handle the deck builds behind a session, built by the function that
+ * builds it. This used to be a copy of App.tsx's group-node memo, written out
+ * by hand because the memo could not be called from here; a copy is the thing
+ * that stops matching without anyone noticing (#377), and the real one is a
+ * function now.
  */
 function handle(sessionId: string, cards: ClusterNode[]): ClusterNode {
-  const minX = Math.min(...cards.map(c => c.position.x));
-  const minY = Math.min(...cards.map(c => c.position.y));
-  const maxX = Math.max(...cards.map(c => c.position.x + (c.width ?? 0)));
-  const maxY = Math.max(...cards.map(c => c.position.y + (c.height ?? 0)));
-  return {
-    type: "sessionGroup",
-    position: { x: minX - PAD, y: minY - PAD },
-    width: maxX - minX + PAD * 2,
-    height: maxY - minY + PAD * 2,
-    data: { sessionId } as AgentNodeData,
-  };
+  const nodes = cards.map((c, i) => ({ id: `card-${i}`, ...c })) as Node[];
+  const made = sessionGroupNodes(nodes).find(n => (n.data as AgentNodeData).sessionId === sessionId);
+  expect(made, `no handle was built for ${sessionId}`).toBeTruthy();
+  return made as ClusterNode;
 }
 
 describe("cluster bounds ignore the per-session drag handle", () => {
@@ -99,5 +96,60 @@ describe("cluster bounds ignore the per-session drag handle", () => {
     expect(boxes.map(c => c.sessionId)).toEqual(["s1", "s2"]);
     expect(boxes[0].y + boxes[0].h).toBe(H + PAD);
     expect(boxes[1].y).toBe(900 - PAD - HEADER_H);
+  });
+});
+
+// Only a session's root speaks for its header: the workspace label, the name,
+// whether it is stopped on a human and what its subagents add up to. A
+// subagent carries the same sessionId, so whichever card the store happens to
+// hand over first must not decide any of the four.
+describe("the header fields come from the session's root and nowhere else", () => {
+  const WAITING = { kind: "permission", message: "Run tests?", since: 1 } as const;
+  const BRANCH = { total: 3, live: 2, done: 1, err: 0, failed: 0 };
+
+  function node(sessionId: string, data: Partial<AgentNodeData> & Record<string, unknown>): ClusterNode {
+    return {
+      type: "agent",
+      position: { x: 0, y: 0 },
+      width: W,
+      height: H,
+      data: { sessionId, state: "active", ...data } as AgentNodeData,
+    };
+  }
+
+  const root = node("s1", { kind: "root", label: "vcrm-core", sessionName: "oauth-flow", waiting: WAITING, branch: BRANCH });
+  const sub = node("s1", { kind: "subagent", label: "Explore", sessionName: "not-the-session", waiting: WAITING, branch: BRANCH });
+
+  it("takes all four from the root whichever card arrives first", () => {
+    for (const order of [[root, sub], [sub, root]]) {
+      const [c] = clusterBounds(order);
+      expect(c.label).toBe("vcrm-core");
+      expect(c.name).toBe("oauth-flow");
+      expect(c.alarm).toBe(true);
+      expect(c.branch).toBe("→ 3 · 2 live");
+    }
+  });
+
+  it("lets a root that is not stopped clear an alarm a subagent would have raised", () => {
+    const calm = node("s1", { kind: "root", label: "vcrm-core" });
+    for (const order of [[calm, sub], [sub, calm]]) {
+      const [c] = clusterBounds(order);
+      expect(c.alarm).toBeUndefined();
+      expect(c.branch).toBeUndefined();
+      expect(c.name).toBeUndefined();
+    }
+  });
+
+  it("falls back to the session id, with nothing else, while only subagents are on the canvas", () => {
+    const [c] = clusterBounds([sub]);
+    expect(c.label).toBe("s1");
+    expect(c.name).toBeUndefined();
+    expect(c.alarm).toBeUndefined();
+    expect(c.branch).toBeUndefined();
+  });
+
+  it("keeps the label it has when a later root card carries none", () => {
+    const unlabelled = node("s1", { kind: "root" });
+    expect(clusterBounds([root, unlabelled])[0].label).toBe("vcrm-core");
   });
 });

@@ -36,8 +36,9 @@ import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressAccepted, pressState } from "../panel-press";
 import LanReachNote from "./LanReachNote";
-import { leftLabel, parseAddress, writeFailure } from "./LanSyncSection";
-import type { LanStatus } from "./LanSyncSection";
+import { leftLabel, parseAddress } from "../lan-add-deck";
+import type { LanStatus } from "../lan-types";
+import { writeFailure } from "../use-lan-section";
 
 async function post(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, {

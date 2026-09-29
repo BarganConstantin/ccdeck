@@ -14,8 +14,9 @@
 // and cannot lose a login. Switching shells out to `cswap` rather than
 // reimplementing the lock protocol its correctness depends on.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cswapBin, cswapVersion, installHint } from "./cswap-install.mjs";
+import { cswapBin, cswapInstalling, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
+import { failureDetail } from "./exec-output.mjs";
 import { storedCopyAlive } from "./account-health.mjs";
 // The CLI identity oracle, already written and already trusted by the account
 // admin routes. #721 needs the same answer, so it reuses the same function
@@ -37,6 +38,15 @@ import { currentIdentity } from "./claude-identity.mjs";
 // file: the dependency has to go the other way, and a lock imported over a
 // cycle is a lock that may not be there yet when a mutation wants it.
 import { withStoreLock } from "./store-lock.mjs";
+// claude-swap's own per-slot verdicts, which have to be ASKED for rather than
+// read off the store. The roster puts them on each row; verdictNow and
+// verdictsNow are re-exported because cswap-admin.mjs and lan-deck.mjs reach
+// them through this module.
+import { verdictFor } from "./claude-verdicts.mjs";
+export { verdictNow, verdictsNow } from "./claude-verdicts.mjs";
+// Asking claude-swap to collect, which every roster read does when something is
+// due, and when each account will next be read.
+import { nextReadAt, nudgeCollector } from "./claude-collector.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -105,12 +115,14 @@ const CACHE_MS = 5_000;
 // for, not a cost anyone would have noticed.
 //
 // The reason to fix it anyway is the second half. This is the only one of the
-// six whose cache is invalidated from elsewhere — nine call sites in four
-// modules: six mutations in cswap-admin.mjs, an auto-switch in cswap-auto.mjs, a
-// manual one in index.mjs, and the first `cswap add` below — and #582 has
-// already shown what a read that started before an invalidation does when it
-// lands after one. So the in-flight slot this route was missing arrives with the
-// generation guard that makes it safe, rather than after the next bug report.
+// six whose cache is invalidated from elsewhere — by every mutation in
+// cswap-admin.mjs, the auto-switch tick in cswap-auto-loop.mjs, the rotation
+// flag in cswap-auto.mjs, the manual switch in account-routes.mjs and the first
+// `cswap add` below, and by lan-deck.mjs once it has asked claude-swap for
+// fresh verdicts — and #582 has already shown what a read that started before
+// an invalidation does when it lands after one. So the in-flight slot this
+// route was missing arrives with the generation guard that makes it safe,
+// rather than after the next bug report.
 const FORCE_POLL_MS = 60_000;
 
 // A read in progress, offered to callers that arrive while it is running.
@@ -189,335 +201,6 @@ const STALE_AFTER_MS = 15 * 60_000;
  */
 const COLLECTION_STOPPED_AFTER_MS = 12 * 60 * 60_000;
 
-// Nudging the collector.
-//
-// Two throttles, because the cost of asking is not the cost of fetching. When
-// claude-swap's plan says nothing is due, `cswap list` fetches nothing — the
-// spawn rate is bounded by the plan (one per 180-600s), not by how often we
-// ask. So asking often is cheap in requests and only costs a subprocess, and
-// asking often is exactly how `cswap watch` stays current: it re-asks every
-// three seconds and therefore collects the moment a plan comes due.
-//
-// The exception is an ask that changes nothing — a claim held by another
-// collector, a backoff, a plan that stays overdue. Repeating that every few
-// seconds is pure spawn churn, so a second, slower throttle applies until the
-// store actually moves.
-const NUDGE_EVERY_MS = 15_000;         // when the last ask produced new data
-const NUDGE_QUIET_MS = 60_000;         // when it did not
-let _lastNudge = 0;
-let _lastSeenFetch = 0;                // newest fetchedAt observed, in seconds
-
-// claude-swap's SERVE_TTL_S (180s) plus slack: below this age it serves from
-// the store and fetches nothing, so asking earlier only costs a subprocess.
-const FRESH_MIN_AGE_MS = 190_000;
-
-// claude-swap's RECENT_429_WINDOW_S. While a 429 is this recent, its own
-// congestion control is deliberately holding back, and so do we.
-const RECENT_429_MS = 3_600_000;
-
-/**
- * Whether anything is waiting to be collected.
- *
- * Judged per account that actually exists, and an account counts as waiting in
- * three cases:
- *
- *   - it has no usage row at all;
- *   - it has a row whose fetchedAt is not a number. claude-swap writes a row
- *     when an account is added and fills in the numbers when it first polls,
- *     so "row exists" is not the same as "has been fetched" — and that is the
- *     state a freshly added account sits in. Treating the row's existence as
- *     proof of a fetch left a new account reading "never fetched" forever;
- *   - its own schedule says the next poll is due.
- *
- * Rows are consulted only for accounts in the store. A removed account leaves
- * its row behind, permanently overdue and impossible to collect because the
- * account is gone — counting those meant something was always due and the
- * collector was asked every minute for the rest of the session.
- */
-export function collectionDue(rows, slots, now) {
-  for (const slot of slots) {
-    const r = rows[slot];
-    if (!r) return true;                                                  // never seen
-    if (typeof r.fetchedAt !== "number") return true;                     // seen, never fetched
-    if (typeof r.nextPollAt === "number" && r.nextPollAt * 1000 <= now) return true;
-  }
-  return false;
-}
-
-/**
- * Whether the engine path may be used to refresh this row now.
- *
- * claude-swap gates fetches two different ways (usage_store._row_eligible).
- * On-demand surfaces — `cswap list`, status, switch — need the row to be BOTH
- * stale and past its planned poll time. The auto engine needs it to be stale
- * OR due, and stale means older than SERVE_TTL_S, which is 180 seconds. That
- * OR is the whole difference: it is why a plan stretched out to 30 minutes
- * still yields three-minute-old numbers to the engine, and why `cswap list`
- * cannot do the same however often it is called.
- *
- * The plan is stretched for a reason, though, and one of those reasons must be
- * respected rather than routed around: claude-swap runs AIMD congestion
- * control on a budget it shares with every other machine holding the same
- * account (POST_429_BACKOFF_MULT, RECENT_429_WINDOW_S). While an account is
- * recovering from a 429, backing off IS the correct behaviour, and polling
- * every 180 seconds through it would re-saturate exactly the window that needs
- * to drain. So the engine path is used only for a healthy row: no live
- * backoff, no failures, and no 429 seen within claude-swap's own recovery
- * window.
- *
- * Exported for tests.
- */
-export function freshenAllowed(row, now, recent429Ms = RECENT_429_MS) {
-  if (!row || typeof row.fetchedAt !== "number") return false;   // the list path owns this case
-  if (process.env.AGENTS_DECK_NO_FRESHEN === "1") return false;
-  if (typeof row.backoffUntil === "number" && row.backoffUntil * 1000 > now) return false;
-  if ((row.consecutiveFailures ?? 0) > 0) return false;
-  if (typeof row.last429At === "number" && now - row.last429At * 1000 < recent429Ms) return false;
-  return true;
-}
-
-/** freshenAllowed, plus old enough that asking would actually fetch. */
-export function freshenDue(row, now, { minAgeMs = FRESH_MIN_AGE_MS, recent429Ms = RECENT_429_MS } = {}) {
-  if (!freshenAllowed(row, now, recent429Ms)) return false;
-  // Younger than the serve TTL: claude-swap would answer from the store
-  // without fetching, so asking achieves nothing but a subprocess.
-  return now - row.fetchedAt * 1000 >= minAgeMs;
-}
-
-/**
- * When this account's numbers will next be refreshed, in epoch ms.
- *
- * claude-swap's plan, except for a healthy active account, where the deck's
- * own freshen tick gets there first. Exported for tests.
- */
-export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
-  const planned = matches && typeof row?.nextPollAt === "number"
-    ? Math.round(row.nextPollAt * 1000)
-    : null;
-  const freshenAt = (isActive && fetchedAtMs != null && freshenAllowed(row, now))
-    ? fetchedAtMs + FRESH_MIN_AGE_MS
-    : null;
-  if (planned == null) return freshenAt;
-  if (freshenAt == null) return planned;
-  return Math.min(planned, freshenAt);
-}
-
-/**
- * Keep the store moving while someone is looking at it.
- *
- * Without this the panel is only as live as whatever else is running: with no
- * `cswap watch`/`auto`/TUI open, nothing ever writes the store and the panel
- * shows frozen numbers while looking current.
- *
- * Two ways to ask, and the cheaper one is preferred:
- *   - something is due by claude-swap's own plan → `cswap list`, the ordinary
- *     on-demand pass every surface uses;
- *   - nothing is due but the active account's numbers have aged past the serve
- *     TTL → one `cswap auto --once --dry-run`, which is the engine path and so
- *     is judged on staleness rather than on the plan.
- *
- * What dry run guarantees is narrower than the name suggests, and worth stating
- * exactly: it never switches accounts and never writes autoswitch state — the
- * switch call is unreachable behind its dry-run return. Its collect pass, on
- * the other hand, runs unconditionally, which is the point: it fetches, writes
- * usage rows, and can rotate and persist an OAuth token exactly as `cswap list`
- * does. So this is not a read-only call; it is the same collection every other
- * surface performs, minus the switch.
- *
- * Either way claude-swap decides whether a network call actually happens, and
- * this is throttled on top of that.
- */
-/**
- * What claude-swap says about each slot, in its own words.
- *
- * `usage.json` records numbers and a failure COUNTER; `cswap list --json`
- * records a per-slot VERDICT, and the two answer different questions. Measured
- * on the machine this was written for, at one instant, for the same account:
- *
- *   usage.json  ->  consecutiveFailures: 0, lastError: null
- *   cswap list  ->  usageStatus: "no_credentials"
- *
- * Three verdicts, three different things for a person to do — `no_credentials`
- * is an account to receive or re-add, `relogin_required` is one to sign into,
- * `keychain_unavailable` is not about the account at all but about the process
- * asking. The counter can tell none of them apart, and for two of the three it
- * reads zero.
- *
- * WHERE IT COMES FROM COSTS NOTHING EXTRA. nudgeCollector already spawns
- * `cswap list` when a collection is due, and threw the output away. It now asks
- * for `--json` and keeps the verdicts. Still not awaited by anyone — the nudge
- * stays synchronous for its callers — and still one child at a time.
- */
-let _verdicts = { at: 0, byNum: {}, identities: {} };
-/** Stale after this, because a verdict that outlives its cause is worse than no
- *  verdict: "no credentials" under an account somebody has since signed into is
- *  a sentence that sends them to fix what is already fixed. */
-const VERDICT_TTL_MS = 10 * 60_000;
-/** Run one `cswap list --json` at a time. A post-write question must start
- * after any older collection has finished; routine readers can share the
- * latest pending answer without starting another slow collection. */
-export function createVerdictQueue(collect) {
-  let pending = null;
-  return {
-    ask({ fresh = false } = {}) {
-      if (pending && !fresh) return pending;
-      const previous = pending;
-      // Start the first poll immediately: requestCollection promises the UI that
-      // its refresh has started before it returns. Only subsequent fresh polls
-      // wait for the earlier snapshot to finish.
-      let next;
-      if (previous) next = previous.then(collect, collect);
-      else {
-        try { next = Promise.resolve(collect()); }
-        catch (error) { next = Promise.reject(error); }
-      }
-      pending = next;
-      void next.then(
-        () => { if (pending === next) pending = null; },
-        () => { if (pending === next) pending = null; },
-      );
-      return next;
-    },
-    busy() { return pending !== null; },
-  };
-}
-
-/**
- * Ask claude-swap about one account RIGHT NOW, rather than reading the cache.
- *
- * The cached verdicts are ten minutes old at worst, which is right for a label
- * and wrong for a decision that writes a credential: somebody who signed in two
- * minutes ago still reads as `no_credentials` there, and acting on that would
- * replace the login they just created with a peer's.
- *
- * Matched on IDENTITY rather than on the slot number, because a number is a
- * position in one machine's store and the caller is holding an account.
- *
- * Returns null when the question cannot be answered — no claude-swap, a refusal,
- * an account it does not know. Null is not `no_credentials`, and the one caller
- * treats it as "do not act".
- */
-export async function verdictNow(email, org, { runner = run, bin = cswapBin } = {}) {
-  const want = String(email ?? "").trim().toLowerCase();
-  if (!want) return null;
-  const all = await verdictsNow({ runner, bin, fresh: true });
-  return all?.find(a => a.email === want && a.org === (org ?? ""))?.status ?? null;
-}
-
-/**
- * Every account's verdict from ONE `cswap list --json`, as `{ email, org,
- * status, active }` rows (email lower-cased, status null when claude-swap gave none),
- * or null when the question could not be asked at all.
- *
- * For a caller holding several identities at once — a round that imported
- * three logins asks once, not three times, since each ask is a full usage
- * collection that can take a minute on a cold network.
- */
-async function collectVerdicts({ runner, bin }) {
-  try {
-    const out = await runner(await bin(), ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS });
-    if (!out?.ok) return null;
-    const d = JSON.parse(out.stdout);
-    // The same freshly-read answer feeds the cache the panel draws from, since
-    // it cost a subprocess either way.
-    const byNum = readVerdicts(out.stdout);
-    const identities = {};
-    for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
-      if (Number.isInteger(a?.number) && typeof a?.email === "string" && a.email.trim()) {
-        identities[String(a.number)] = `${a.email.trim().toLowerCase()}@@${a.organizationUuid ?? ""}`;
-      }
-    }
-    _verdicts = { at: Date.now(), byNum, identities };
-    return (Array.isArray(d?.accounts) ? d.accounts : []).map(a => ({
-      number: a?.number,
-      email: String(a?.email ?? "").trim().toLowerCase(),
-      org: a?.organizationUuid ?? "",
-      status: typeof a?.usageStatus === "string" ? a.usageStatus : null,
-      // For the account Claude Code is signed in as, claude-swap reads the
-      // LIVE credential, not the stored copy — so its verdict there is about
-      // the live login. See checkImports.
-      active: a?.active === true,
-    }));
-  } catch { return null; }
-}
-
-const verdictQueue = createVerdictQueue(() => collectVerdicts({ runner: run, bin: cswapBin }));
-
-/** Routine readers share a collection; post-write callers wait for any older
- * collection and start a new one, so they never inspect the pre-write store. */
-export function verdictsNow({ runner = run, bin = cswapBin, fresh = false } = {}) {
-  // Tests and callers supplying their own runner must receive their own answer.
-  if (runner !== run || bin !== cswapBin) return collectVerdicts({ runner, bin });
-  return verdictQueue.ask({ fresh });
-}
-
-/** claude-swap's verdict for a slot, or null when there is none fresh enough. */
-function verdictFor(num, now, email, org) {
-  return cachedVerdictFor(_verdicts, num, now, email, org);
-}
-
-/** Only attach a cached slot verdict to the identity it was collected for. */
-export function cachedVerdictFor(cache, num, now, email, org) {
-  if (now - cache.at > VERDICT_TTL_MS) return null;
-  const identity = `${String(email ?? "").trim().toLowerCase()}@@${org ?? ""}`;
-  if (cache.identities[String(num)] !== identity) return null;
-  const v = cache.byNum[String(num)];
-  return typeof v === "string" && v !== "" ? v : null;
-}
-
-/** Read the verdicts out of a `cswap list --json` payload. Tolerant by
- *  construction: this is another tool's output, and a shape we do not recognise
- *  means no verdicts rather than a thrown boot. */
-export function readVerdicts(stdout) {
-  try {
-    const d = JSON.parse(stdout);
-    const out = {};
-    for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
-      if (typeof a?.number === "number" && typeof a?.usageStatus === "string") {
-        out[String(a.number)] = a.usageStatus;
-      }
-    }
-    return out;
-  } catch { return {}; }
-}
-
-function nudgeCollector(rows, slots, now, activeNum) {
-  // Did the last ask accomplish anything? Cheap proxy: the newest collection
-  // timestamp in the store.
-  let newest = 0;
-  for (const slot of slots) {
-    const f = rows[slot]?.fetchedAt;
-    if (typeof f === "number" && f > newest) newest = f;
-  }
-  const moved = newest > _lastSeenFetch;
-  _lastSeenFetch = Math.max(_lastSeenFetch, newest);
-
-  if (now - _lastNudge < (moved ? NUDGE_EVERY_MS : NUDGE_QUIET_MS)) return;
-
-  const due = collectionDue(rows, slots, now);
-  const freshen = !due && freshenDue(rows[String(activeNum)], now);
-  if (!due && !freshen) return;
-
-  _lastNudge = now;
-  // The due path asks for JSON and KEEPS it — see _verdicts. The dry-run path
-  // stays detached: it is the engine's own collect pass, its JSON is a different
-  // shape, and nothing here reads it.
-  if (!due) {
-    cswapBin().then(bin => runDetached(bin, ["auto", "--once", "--dry-run", "--json"])).catch(() => {});
-    return;
-  }
-  if (verdictQueue.busy()) return;
-  // Fire-and-forget: this function is deliberately synchronous so callers never
-  // wait on it, and resolving the binary is the only async part. `run` rather
-  // than `runDetached` only so the output can be read; the caller is no more
-  // aware of it than before.
-  void verdictsNow();
-}
-
-/** Long enough for a cold collection over a slow network, short enough that a
- *  wedged claude-swap does not hold a child for the rest of the day. */
-const VERDICT_TIMEOUT_MS = 90_000;
-
 async function readJson(path) {
   try {
     const parsed = JSON.parse(await readFile(path, "utf8"));
@@ -525,6 +208,54 @@ async function readJson(path) {
   } catch {
     return null;
   }
+}
+
+/** claude-swap's sequence.json — the accounts, their order and which slot is
+ *  active — or null when it is missing or will not parse. seedFirstAccount
+ *  tells those two apart first, so it reads the file itself. */
+async function readSequence(root) {
+  return readJson(join(root, "sequence.json"));
+}
+
+/** The slot a sequence.json names as active, as the string its `accounts` are
+ *  keyed by, or null when it names none. */
+function activeSlot(seq) {
+  return seq?.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+}
+
+/** The usage rows in claude-swap's cache/usage.json, keyed by slot — see
+ *  usageRows for which of them may be believed. */
+async function readUsageRows(root) {
+  return usageRows(await readJson(join(root, "cache", "usage.json")));
+}
+
+/**
+ * The rows of a parsed usage.json, or none at all.
+ *
+ * A schema bump means the rows may not mean what this code thinks they do, so
+ * a file in any schema but 2 has no rows. Three readers go through this — the
+ * roster, the Usage panel's active account and the refresh button's collection
+ * request — and a rule spelled three times is three places for one of them to
+ * trust a row the other two refuse. Exported for its test.
+ */
+export function usageRows(usage) {
+  return usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
+}
+
+/**
+ * Whether a usage row was written for this account.
+ *
+ * claude-swap keys usage rows by slot but guards them on identity, because a
+ * removed account leaves its row behind and slots get reused. Without the same
+ * check the panel would show the previous occupant's numbers, and the Usage
+ * panel — which reads the active account's row through activeAccountUsage —
+ * would put them under this account's name. Both readers ask here, so they
+ * cannot disagree about whose row it is. Exported for its test.
+ */
+export function rowIsFor(row, acct) {
+  return Boolean(row)
+    && row.email === acct.email
+    && (row.organizationUuid ?? "") === (acct.organizationUuid ?? "");
 }
 
 function pctOf(win) {
@@ -550,10 +281,11 @@ function lane(id, label, win) {
 /**
  * Every managed account with whatever usage claude-swap last saw for it.
  *
- * When there is nothing to show, says which of the two reasons it is:
- * "no_cswap" (the tool is not installed, and here is the command for this
+ * When there is nothing to show, says which of the three reasons it is:
+ * "cswap_installing" (the deck is installing the tool and there is nothing to
+ * do), "no_cswap" (the tool is not installed, and here is the command for this
  * machine) or "no_accounts" (it is installed but nothing has been added yet).
- * They need different things from the user, and reporting both as one empty
+ * They need different things from the user, and reporting them as one empty
  * panel leaves whichever one they are in with nowhere to go.
  */
 export async function fetchClaudeAccounts({ force = false } = {}) {
@@ -588,8 +320,9 @@ export async function fetchClaudeAccounts({ force = false } = {}) {
 //
 // HANDED IN, NOT IMPORTED. The repair writes a credential into claude-swap's
 // store, and this module is read by dozens of tests against fixture stores. The
-// server hands it in when it starts listening (index.mjs) and nothing else does,
-// so no test run can reach `cswap add` through a read.
+// server hands it in when it starts listening (wireStaleCopyRepair, in
+// account-routes.mjs) and nothing else does, so no test run can reach
+// `cswap add` through a read.
 let _repairStaleCopy = null;
 
 /** Called with `{ num, email, now }` for a `stale-copy` row, and returns that
@@ -634,17 +367,20 @@ async function readRoster(now, gen) {
   };
 
   const root = backupRoot();
-  const seq  = await readJson(join(root, "sequence.json"));
+  const seq  = await readSequence(root);
   if (!seq?.accounts) {
+    // Asked before the tool is probed: while the deck's own install is running
+    // there is nothing a `--version` spawn or installHint's interpreter checks
+    // could add, and the one thing the panel must not say is "install it
+    // yourself" — see cswapInstalling.
+    if (cswapInstalling()) return finish({ ok: false, reason: "cswap_installing", fetchedAt: now });
     const version = await cswapVersion();
     return finish(version
       ? { ok: false, reason: "no_accounts", version, fetchedAt: now }
       : { ok: false, reason: "no_cswap", hint: await installHint(), fetchedAt: now });
   }
 
-  const usage = await readJson(join(root, "cache", "usage.json"));
-  // A schema bump means the rows may not mean what this code thinks they do.
-  const rows = usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
+  const rows = await readUsageRows(root);
 
   // Kick a collection for the NEXT poll if anything is due — either because
   // claude-swap's schedule says so, or because an account has never been
@@ -656,7 +392,7 @@ async function readRoster(now, gen) {
   // stored verdict and the live truth can disagree, and it is rare: a healthy
   // machine never spends this subprocess. Never fatal, because a CLI that
   // cannot be reached is not evidence either way.
-  const activeNum = seq.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+  const activeNum = activeSlot(seq);
   const activeRow = activeNum ? rows[activeNum] : null;
   const identity = (activeRow?.consecutiveFailures ?? 0) > 0
     ? await currentIdentity().catch(() => null)
@@ -672,91 +408,100 @@ async function readRoster(now, gen) {
     if (!acct) continue;                       // sequence lists a slot that no longer exists
 
     const row = rows[num];
-    // claude-swap keys usage rows by slot but guards them on identity, because
-    // a removed account leaves its row behind and slots get reused. Without
-    // the same check the panel would show the previous occupant's numbers.
-    const matches = row
-      && row.email === acct.email
-      && (row.organizationUuid ?? "") === (acct.organizationUuid ?? "");
-    const good = matches ? row.lastGood : null;
-
-    const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
-    const isActive = String(seq.activeAccountNumber) === num;
-    const trouble = authTrouble(row, {
-      matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
-    });
-
-    const lanes = [
-      lane("five_hour", "5h", good?.five_hour),
-      lane("seven_day", "7d", good?.seven_day),
-      ...(Array.isArray(good?.scoped) ? good.scoped : [])
-        .map((s, i) => lane(`scoped-${i}`, s?.name ?? "model", s))
-        .filter(Boolean),
-    ].filter(Boolean);
-
-    const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
-    accounts.push({
-      num:      Number(num),
-      email:    acct.email ?? null,
-      alias:    acct.alias ?? null,
-      org:      acct.organizationName ?? null,
-      // The other half of an account's identity, and the reason a slot number
-      // is not one: claude-swap keys on `(email, organizationUuid)` — the same
-      // email under two orgs is two accounts on purpose — and assigns slots
-      // max+1 per store, so the account that is 4 here is 2 on another machine.
-      // Surfaced for LAN sync, which has to match accounts across two stores
-      // that grew in a different order.
-      orgUuid:  acct.organizationUuid ?? null,
-      // Whether CLAUDE-SWAP'S STORED COPY works — not whether the user is
-      // signed in. The two differ, and #721 is the whole argument: a
-      // `stale-copy` row means the live session is fine while the copy in the
-      // store is dead, and the copy is what a share would carry and what a
-      // peer's copy would heal. So both kinds of trouble read as not alive.
-      alive:    storedCopyAlive(trouble == null, collector),
-      active:   String(seq.activeAccountNumber) === num,
-      disabled: acct.disabled === true,
-      lanes,
-      // Headroom against the tightest lane — the number that decides whether
-      // this account is worth switching to.
-      headroom: lanes.length ? Math.max(0, 100 - Math.max(...lanes.map(l => l.pct))) : null,
-      fetchedAt: fetchedAtMs,
-      // When this account will next be read — the earlier of claude-swap's own
-      // plan and, for a healthy active account, the deck's freshen tick. The
-      // plan alone would promise "next in 15m" while the panel actually
-      // updates in three.
-      nextAt: nextReadAt(row, matches, fetchedAtMs, isActive, now),
-      stale:     fetchedAtMs == null || now - fetchedAtMs > STALE_AFTER_MS,
-      // Surfaced rather than hidden: a rate-limited or re-login-needed account
-      // is exactly the one the user is about to try switching to.
-      //
-      // Through authTrouble rather than read straight off the row: see #721.
-      // consecutiveFailures says the COLLECTOR is failing, which for the active
-      // account is not the same claim as the user being signed out — and the
-      // CLI can settle that.
-      error: trouble?.error ?? null,
-      // True when the collector cannot read this account but the user is signed
-      // in as it anyway. The panel says so quietly instead of offering to log
-      // them in again.
-      staleCopy: trouble?.kind === "stale-copy",
-      // How the deck's own repair of that is going — `{ state: "running" }` or
-      // `{ state: "failed", reason, retryAt }` — and null on every other row.
-      // Asking is what starts it; see repairStaleCopyWith.
-      repair: trouble?.kind === "stale-copy" ? repairFor(Number(num), acct.email ?? null, now) : null,
-      // Nothing has been collected for this account in half a day, and nothing
-      // says why. Its own word because the two existing ones would both be
-      // wrong: `error` claims a rejection that was never reported, and
-      // `staleCopy` promises the user is signed in as it, which is only
-      // knowable for the active account.
-      stopped:   trouble?.kind === "stopped",
-      // claude-swap's own verdict for this slot, when there is a fresh one:
-      // "no_credentials", "relogin_required", "keychain_unavailable", … It is
-      // what turns "not collecting" into a sentence with a next step in it, and
-      // it is null on every machine where the collector has not been asked yet.
-      collector,
-    });
+    accounts.push(rosterRow({ seq, num, acct, row, identity, now }));
   }
 
   return finish({ ok: true, accounts, activeNum: seq.activeAccountNumber ?? null, fetchedAt: now });
+}
+
+/**
+ * One account's row on the roster: who it is, what claude-swap last saw for it,
+ * and what is wrong with it, if anything.
+ *
+ * `row` is the usage row stored under this account's slot, which may belong to
+ * whoever held the slot before (see rowIsFor); `identity` is who the CLI says
+ * is signed in, or null when readRoster did not need to ask. It reads the
+ * verdict cache, and asks the registered repair about a `stale-copy` row —
+ * which is what starts that repair (see repairStaleCopyWith).
+ */
+function rosterRow({ seq, num, acct, row, identity, now }) {
+  const matches = rowIsFor(row, acct);
+  const good = matches ? row.lastGood : null;
+
+  const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
+  const isActive = String(seq.activeAccountNumber) === num;
+  const trouble = authTrouble(row, {
+    matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
+  });
+
+  const lanes = [
+    lane("five_hour", "5h", good?.five_hour),
+    lane("seven_day", "7d", good?.seven_day),
+    ...(Array.isArray(good?.scoped) ? good.scoped : [])
+      .map((s, i) => lane(`scoped-${i}`, s?.name ?? "model", s))
+      .filter(Boolean),
+  ].filter(Boolean);
+
+  const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
+  return {
+    num:      Number(num),
+    email:    acct.email ?? null,
+    alias:    acct.alias ?? null,
+    org:      acct.organizationName ?? null,
+    // The other half of an account's identity, and the reason a slot number
+    // is not one: claude-swap keys on `(email, organizationUuid)` — the same
+    // email under two orgs is two accounts on purpose — and assigns slots
+    // max+1 per store, so the account that is 4 here is 2 on another machine.
+    // Surfaced for LAN sync, which has to match accounts across two stores
+    // that grew in a different order.
+    orgUuid:  acct.organizationUuid ?? null,
+    // Whether CLAUDE-SWAP'S STORED COPY works — not whether the user is
+    // signed in. The two differ, and #721 is the whole argument: a
+    // `stale-copy` row means the live session is fine while the copy in the
+    // store is dead, and the copy is what a share would carry and what a
+    // peer's copy would heal. So both kinds of trouble read as not alive.
+    alive:    storedCopyAlive(trouble == null, collector),
+    active:   isActive,
+    disabled: acct.disabled === true,
+    lanes,
+    // Headroom against the tightest lane — the number that decides whether
+    // this account is worth switching to.
+    headroom: lanes.length ? Math.max(0, 100 - Math.max(...lanes.map(l => l.pct))) : null,
+    fetchedAt: fetchedAtMs,
+    // When this account will next be read — the earlier of claude-swap's own
+    // plan and, for a healthy active account, the deck's freshen tick. The
+    // plan alone would promise "next in 15m" while the panel actually
+    // updates in three.
+    nextAt: nextReadAt(row, matches, fetchedAtMs, isActive, now),
+    stale:     fetchedAtMs == null || now - fetchedAtMs > STALE_AFTER_MS,
+    // Surfaced rather than hidden: a rate-limited or re-login-needed account
+    // is exactly the one the user is about to try switching to.
+    //
+    // Through authTrouble rather than read straight off the row: see #721.
+    // consecutiveFailures says the COLLECTOR is failing, which for the active
+    // account is not the same claim as the user being signed out — and the
+    // CLI can settle that.
+    error: trouble?.error ?? null,
+    // True when the collector cannot read this account but the user is signed
+    // in as it anyway. The panel says so quietly instead of offering to log
+    // them in again.
+    staleCopy: trouble?.kind === "stale-copy",
+    // How the deck's own repair of that is going — `{ state: "running" }` or
+    // `{ state: "failed", reason, retryAt }` — and null on every other row.
+    // Asking is what starts it; see repairStaleCopyWith.
+    repair: trouble?.kind === "stale-copy" ? repairFor(Number(num), acct.email ?? null, now) : null,
+    // Nothing has been collected for this account in half a day, and nothing
+    // says why. Its own word because the two existing ones would both be
+    // wrong: `error` claims a rejection that was never reported, and
+    // `staleCopy` promises the user is signed in as it, which is only
+    // knowable for the active account.
+    stopped:   trouble?.kind === "stopped",
+    // claude-swap's own verdict for this slot, when there is a fresh one:
+    // "no_credentials", "relogin_required", "keychain_unavailable", … It is
+    // what turns "not collecting" into a sentence with a next step in it, and
+    // it is null on every machine where the collector has not been asked yet.
+    collector,
+  };
 }
 
 /**
@@ -846,25 +591,23 @@ export function authTrouble(row, {
  */
 export async function activeAccountUsage() {
   const root = backupRoot();
-  const seq  = await readJson(join(root, "sequence.json"));
-  const num  = seq?.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+  const seq  = await readSequence(root);
+  const num  = activeSlot(seq);
   const acct = num ? seq?.accounts?.[num] : null;
   if (!acct) return null;
 
-  const usage = await readJson(join(root, "cache", "usage.json"));
-  if (usage?.schemaVersion !== 2) return null;
-
-  const row = usage.accounts?.[num];
+  const row = (await readUsageRows(root))[num];
   // Same identity guard the panel uses: rows are keyed by slot, and slots are
   // reused, so a row can outlive the account it was written for.
-  if (!row?.lastGood
-      || row.email !== acct.email
-      || (row.organizationUuid ?? "") !== (acct.organizationUuid ?? "")
-      || typeof row.fetchedAt !== "number") return null;
+  if (!row?.lastGood || !rowIsFor(row, acct) || typeof row.fetchedAt !== "number") return null;
 
   return {
     num:       Number(num),
     email:     acct.email ?? null,
+    // The other half of the account's identity. quota.mjs matches the saved
+    // limit resets it reads with Claude Code's token against both halves
+    // before it puts them beside these numbers (#1308).
+    organizationUuid: acct.organizationUuid ?? null,
     lastGood:  row.lastGood,
     fetchedAt: Math.round(row.fetchedAt * 1000),
   };
@@ -880,21 +623,20 @@ export async function activeAccountUsage() {
  */
 export async function requestCollection() {
   const root  = backupRoot();
-  const seq   = await readJson(join(root, "sequence.json"));
+  const seq   = await readSequence(root);
   if (!seq?.accounts) return false;
-  const usage = await readJson(join(root, "cache", "usage.json"));
-  const rows  = usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
-  const before = _lastNudge;
-  nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
-  return _lastNudge !== before;
+  const rows  = await readUsageRows(root);
+  return nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
 }
 
 /**
  * Forget the roster, because something just made it wrong.
  *
- * Called from nine places in four modules — every `cswap` mutation the deck
- * performs — and every one of them is behind a POST that `isTrustedMutation`
- * guards, so nothing a page can send in a loop reaches this.
+ * Called after every `cswap` mutation the deck performs, and by lan-deck.mjs's
+ * verdict refresh. The mutations a page can ask for are POSTs that
+ * `isTrustedMutation` guards; the rest — the auto-switch tick, the first-run
+ * seed, the verdict refresh — run on the deck's own schedule. So nothing a page
+ * can send in a loop reaches this.
  *
  * Three things go besides the reading itself:
  *
@@ -904,9 +646,9 @@ export async function requestCollection() {
  *                  that began before it — joining a run is only free when the
  *                  run is still about the right thing.
  *   `_lastReadAt`  so the very next read is real work rather than a refusal.
- *                  Every one of these call sites is followed by the panel
- *                  reloading with ?refresh=1, and a floor that answered THAT
- *                  with the pre-switch roster would make the guard the bug.
+ *                  A mutation the panel asked for is followed by its reloading
+ *                  with ?refresh=1, and a floor that answered THAT with the
+ *                  pre-switch roster would make the guard the bug.
  */
 export function invalidateClaudeAccountsCache() {
   _cache = null;
@@ -914,6 +656,21 @@ export function invalidateClaudeAccountsCache() {
   _generation++;
   _inflight = null;
   _lastReadAt = 0;
+}
+
+/**
+ * The slot an account argument names, as a number, or null when it names none.
+ *
+ * A slot number goes straight into an exec argument as `String(n)`, so the
+ * bound is what keeps a value there from being read as anything but a slot:
+ * `String(-1)` is "-1", which a child's parser takes for an option, and a
+ * fraction or NaN names no slot at all. Whole numbers from 1 to 999 only. The
+ * account switch here and the rotation flag in cswap-auto.mjs both ask this
+ * rather than restating it. Exported for that caller and for its test.
+ */
+export function slotNumber(accountNum) {
+  const num = Number(accountNum);
+  return Number.isInteger(num) && num >= 1 && num <= 999 ? num : null;
 }
 
 /**
@@ -940,8 +697,8 @@ export function invalidateClaudeAccountsCache() {
  */
 export function switchClaudeAccount(accountNum) {
   // Straight into an exec argument, so nothing but a slot number gets through.
-  const num = Number(accountNum);
-  if (!Number.isInteger(num) || num < 1 || num > 999) {
+  const num = slotNumber(accountNum);
+  if (num == null) {
     return Promise.resolve({ ok: false, reason: "bad_account" });
   }
 
@@ -952,10 +709,29 @@ export function switchClaudeAccount(accountNum) {
     .then(r => {
       if (r.ok) return { ok: true, output: r.stdout.trim() };
       const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
-      return { ok: false, reason, output: (r.stderr || r.stdout).trim().slice(0, 500) };
+      return { ok: false, reason, output: failureDetail(r, 500) };
     }));
 }
 
+/**
+ * How many accounts a sequence.json holds.
+ *
+ * claude-swap writes `accounts` as an object keyed by slot number — {"2": {…},
+ * "3": {…}} — not as a list. An Array.isArray guard here read that as "no
+ * accounts" and ran `cswap add` against a populated store, which is exactly
+ * what the guard existed to prevent. Both shapes are accepted now, and
+ * anything unrecognised counts as -1: unknown is not the same as empty, and
+ * only a confident zero may lead to a write.
+ */
+export function accountCount(seq) {
+  const a = seq?.accounts;
+  if (Array.isArray(a)) return a.length;
+  if (a && typeof a === "object") return Object.keys(a).length;
+  if (a == null && seq && typeof seq === "object") return 0;   // store exists, no accounts yet
+  return -1;                                                    // unreadable — do nothing
+}
+
+const SEED_MARKER = join(homedir(), ".agents-deck", ".cswap-seeded");
 
 /**
  * Register the account already signed in, the first time and only the first
@@ -980,26 +756,6 @@ export function switchClaudeAccount(accountNum) {
  * Failure is normal and quiet: on a machine where Claude Code has never signed
  * in there is nothing to record.
  */
-const SEED_MARKER = join(homedir(), ".agents-deck", ".cswap-seeded");
-
-/**
- * How many accounts a sequence.json holds.
- *
- * claude-swap writes `accounts` as an object keyed by slot number — {"2": {…},
- * "3": {…}} — not as a list. An Array.isArray guard here read that as "no
- * accounts" and ran `cswap add` against a populated store, which is exactly
- * what the guard existed to prevent. Both shapes are accepted now, and
- * anything unrecognised counts as -1: unknown is not the same as empty, and
- * only a confident zero may lead to a write.
- */
-export function accountCount(seq) {
-  const a = seq?.accounts;
-  if (Array.isArray(a)) return a.length;
-  if (a && typeof a === "object") return Object.keys(a).length;
-  if (a == null && seq && typeof seq === "object") return 0;   // store exists, no accounts yet
-  return -1;                                                    // unreadable — do nothing
-}
-
 export async function seedFirstAccount() {
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") return { state: "skipped" };
   if (existsSync(SEED_MARKER)) return { state: "already-tried" };
@@ -1038,7 +794,7 @@ export async function seedFirstAccount() {
 
     const r = await run(await cswapBin(), ["add"], { timeout: 60_000 });
     if (!r.ok) {
-      return { state: "failed", detail: (r.stderr || r.stdout).trim().slice(0, 200) };
+      return { state: "failed", detail: failureDetail(r, 200) };
     }
 
     invalidateClaudeAccountsCache();

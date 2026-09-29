@@ -70,8 +70,8 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 });
 
 type Lane = { id: string; pct: number };
-type Row = { num: number; email: string; lanes: Lane[]; headroom: number | null; fetchedAt: number | null; stale: boolean };
-type Roster = { ok: boolean; accounts: Row[] };
+type Row = { num: number; email: string; lanes: Lane[]; headroom: number | null; fetchedAt: number | null; stale: boolean; active: boolean };
+type Roster = { ok: boolean; accounts: Row[]; activeNum?: number | null };
 type Accounts = {
   fetchClaudeAccounts: (o?: { force?: boolean }) => Promise<Roster>;
   activeAccountUsage: () => Promise<{ num: number; email: string; fetchedAt: number; lastGood: unknown } | null>;
@@ -104,7 +104,7 @@ function seed({ accounts, usage = {}, sequence, active = 2, schemaVersion = 2 }:
   accounts: Record<number, Account>;
   usage?: Record<number, UsageRow>;
   sequence?: number[];
-  active?: number;
+  active?: number | null;
   schemaVersion?: number;
 }) {
   rmTempDir(STORE);
@@ -236,6 +236,24 @@ describe("activeAccountUsage, which the Usage panel's bars are made from", () =>
     // readings the deck took itself; a string would compare as nonsense.
     seed({ accounts: { 2: ALICE }, usage: { 2: collected(ALICE, { fetchedAt: "1700000000" }) } });
     expect(await (await freshAccounts()).activeAccountUsage()).toBeNull();
+  });
+
+  it("answers nothing, and draws no row as active, for a store that names no active slot", async () => {
+    // Both readers ask the store's active slot the same way (activeSlot), and
+    // a store whose activeAccountNumber is null names none: the Usage panel
+    // gets no bars rather than some account's, and the roster marks nobody.
+    seed({ accounts: { 2: ALICE, 3: CAROL }, usage: { 2: collected(ALICE), 3: collected(CAROL) }, active: null });
+    const accounts = await freshAccounts();
+    expect(await accounts.activeAccountUsage()).toBeNull();
+    const roster = await accounts.fetchClaudeAccounts({ force: true });
+    expect(roster.accounts.map(a => [a.num, a.active])).toEqual([[2, false], [3, false]]);
+    expect(roster.activeNum).toBeNull();
+    // And the same store naming slot 3 answers for 3, in both.
+    seed({ accounts: { 2: ALICE, 3: CAROL }, usage: { 2: collected(ALICE), 3: collected(CAROL) }, active: 3 });
+    const named = await freshAccounts();
+    expect(await named.activeAccountUsage()).toMatchObject({ num: 3, email: "carol@x" });
+    expect((await named.fetchClaudeAccounts({ force: true })).accounts.map(a => [a.num, a.active]))
+      .toEqual([[2, false], [3, true]]);
   });
 
   it("answers for the active slot's own row, with claude-swap's seconds as whole milliseconds", async () => {

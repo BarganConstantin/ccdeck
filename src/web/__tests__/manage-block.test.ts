@@ -33,13 +33,27 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { accountsSurface } from "./accounts-surface";
+import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 /** The same file with its comments gone. The comments here quote the copy they
  *  replaced — explaining WHY `rotation order` was wrong needs the old words on
  *  the page — so a search for retired wording has to read the markup only. */
 const panelCode = panel
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The ⋯ popover's markup — the menu and the three forms that were the manage
+ *  block — which is AccountMenuPopover.tsx's now, raw and without comments. */
+const popover = readFileSync(fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8");
+const popoverCode = popover
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+/** The same over the panel and every file lifted out of it, for a count or a
+ *  negative: the row's markup is AccountRow.tsx's now. */
+const surfaceCode = accountsSurface()
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 
@@ -404,15 +418,17 @@ describe("the buttons stopped sharing the labels' colour (#325's first finding)"
     // is its own. Nothing about the resting state changed, which is what this
     // test is for — the button is still never disabled by its draft matching
     // the store, and the busy dimming is still the same token at the same value.
-    expect(panel).not.toMatch(/aliasDraft\.trim\(\)\s*===/);
+    expect(accountsSurface()).not.toMatch(/aliasDraft\.trim\(\)\s*===/);
     // `Save` is the rename form's primary now — the deck's own `.btn primary`
     // rather than the row's pill — and it takes the same two attributes.
-    expect(panel).toMatch(/className="btn primary" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
+    expect(popover).toMatch(/className="btn primary" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
     // The one place the rule is written, so it cannot be spelled two ways.
-    expect(panel).toMatch(/const s = pressState\(busy, tag\);/);
-    expect(panel).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
-    // And no control in the panel goes inert any other way.
-    expect(panel).not.toMatch(/disabled=\{busy/);
+    expect(clientText()).toMatch(/const s = pressState\(busy, tag\);/);
+    expect(clientText()).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
+    // And no control in the panel goes inert any other way — asked of every
+    // file the panel has been split into, so a control that moves is still in
+    // the sweep.
+    expect(accountsSurface()).not.toMatch(/disabled=\{busy/);
     expect(decl(".ap-manage-btn:disabled", "opacity")).toBe("var(--dim-off)");
     const dimOff = parseFloat(/--dim-off:\s*([\d.]+)/.exec(css)![1]);
     expect(dimOff).toBe(0.6);
@@ -464,10 +480,10 @@ describe("no row grid, and one form at a time", () => {
     expect(bare).not.toMatch(/\.ap-manage-row\b/);
     expect(bare).not.toMatch(/\.ap-manage-label\b/);
     expect(bare).not.toMatch(/\.ap-manage-foot\b/);
-    expect(panelCode).not.toMatch(/ap-manage-row|ap-manage-label|ap-manage-foot/);
+    expect(surfaceCode).not.toMatch(/ap-manage-row|ap-manage-label|ap-manage-foot/);
     for (const gone of ["ap-manage-name", "ap-manage-slot", "ap-manage-acts"]) {
       expect(bare, gone).not.toMatch(new RegExp(`\\.${gone}\\b`));
-      expect(panelCode, gone).not.toMatch(new RegExp(`\\b${gone}\\b`));
+      expect(surfaceCode, gone).not.toMatch(new RegExp(`\\b${gone}\\b`));
     }
     expect(decl(".ap-pop-form", "display")).toBe("flex");
     expect(decl(".ap-pop-form", "flex-direction")).toBe("column");
@@ -477,17 +493,26 @@ describe("no row grid, and one form at a time", () => {
     // Distance did it on the row — `remove` pushed 102px along a line of its
     // own. In a list the same pause is a hairline, and there is exactly one:
     // between the three acts that can be taken back and the one that cannot.
-    expect([...panelCode.matchAll(/role="separator"/g)]).toHaveLength(1);
-    expect(panelCode).toMatch(
+    expect([...surfaceCode.matchAll(/role="separator"/g)]).toHaveLength(1);
+    expect(popoverCode).toMatch(
       /<div role="separator" className="ap-menu-sep" \/>\s*(?:\{\}\s*)?<button\s+type="button"\s+role="menuitem"\s+className=\{`ap-menu-item danger/,
     );
     expect(decl(".ap-menu-sep", "height")).toBe("1px");
   });
 
   it("keeps the two-step arm and its four-second expiry", () => {
-    expect(panel).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
-    expect(panel).toMatch(/setConfirmRemove\(c => \(c === a\.num \? null : c\)\), 4000\)/);
-    expect(bare).toMatch(/ap-disarm 4000ms linear forwards/);
+    expect(popover).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
+    // The press itself is the ⋯ menu's hook's, which holds the armed account.
+    const menu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
+    // Stood down by an effect keyed on the armed account, so each arm gets its
+    // own window (#1639), not by a timer started on the press.
+    expect(menu).toMatch(/useEffect\(\(\) => \{\s*if \(confirmRemove == null\) return;\s*const t = window\.setTimeout\(\(\) => setConfirmRemove\(null\), REMOVE_ARMED_MS\);\s*return \(\) => window\.clearTimeout\(t\);\s*\}, \[confirmRemove\]\);/);
+    // The window is one named length, and the bar draining along the item is
+    // timed to the same number: a bar that emptied early or late would be
+    // lying about how long the next press still removes.
+    const armed = Number(menu.match(/const REMOVE_ARMED_MS = ([\d_]+);/)?.[1].replace(/_/g, ""));
+    expect(armed).toBe(4000);
+    expect(bare).toMatch(new RegExp(`ap-disarm ${armed}ms linear forwards`));
   });
 
   it("binds a form's title to its field and sets the answers apart", () => {
@@ -524,13 +549,14 @@ describe("the input behaves like its four siblings (#325's ninth finding)", () =
 
 describe("the disclosure and what it opens are related (#325's seventh finding)", () => {
   it("names the popover, and points the button at it while it exists", () => {
-    expect(panel).toMatch(/id=\{`ap-menu-\$\{a\.num\}`\}/);
+    expect(popover).toMatch(/id=\{`ap-menu-\$\{a\.num\}`\}/);
     // A menu while it is one, named by the button — whose own name carries the
     // account — and a dialog named by its title once an item makes it a form.
-    expect(panel).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
-    expect(panel).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
-    expect(panel).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
-    expect(panel).toMatch(/aria-haspopup="menu"/);
+    expect(popover).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
+    expect(popover).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
+    expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
+    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/aria-haspopup="menu"/);
   });
 
   it("gives both fields a real, visible label", () => {
@@ -539,10 +565,10 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     // room for a label and hid one; each form in the popover has a title, and
     // the title IS the <label for> — one line that names the field and says
     // what the form is for. Still never an aria-label on a bare input.
-    expect(panel).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Rename account<\/label>/);
-    expect(panel).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
-    expect(panel).not.toMatch(/aria-label=\{`Alias for account/);
-    expect(panel).not.toMatch(/aria-label=\{`Slot for account/);
+    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Rename account<\/label>/);
+    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
+    expect(accountsSurface()).not.toMatch(/aria-label=\{`Alias for account/);
+    expect(accountsSurface()).not.toMatch(/aria-label=\{`Slot for account/);
   });
 
   it("keeps the hiding utility in the tree, where a hidden label still names its field", () => {
@@ -558,18 +584,18 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
   });
 
   it("moves the keyboard into the block rather than leaving it above everything", () => {
-    expect(panel).toMatch(/autoFocus/);
+    expect(popover).toMatch(/autoFocus/);
   });
 });
 
 describe("microcopy (#325's eighth finding)", () => {
   it("shows the shape of an answer instead of narrating the empty state", () => {
-    expect(panelCode).toMatch(/placeholder="e\.g\. work"/);
-    expect(panelCode).not.toMatch(/placeholder="no alias"/);
+    expect(popoverCode).toMatch(/placeholder="e\.g\. work"/);
+    expect(surfaceCode).not.toMatch(/placeholder="no alias"/);
   });
 
   it("drops the ellipsis from a button that opens no dialog", () => {
-    expect(panelCode).not.toMatch(/share…/);
+    expect(surfaceCode).not.toMatch(/share…/);
   });
 
   it("says what changing the slot DOES, on the option that does it", () => {
@@ -577,9 +603,9 @@ describe("microcopy (#325's eighth finding)", () => {
     // slot is taken` named the effect and left the reader to work out which
     // slots those were — all of them but the last, which is the one case worth
     // pointing at. Neither sentence survives: the options carry it now.
-    expect(panelCode).not.toMatch(/rotation order/);
-    expect(panelCode).not.toMatch(/swaps if the slot is taken/);
-    expect(panelCode).toMatch(/slotChoices\(/);
+    expect(surfaceCode).not.toMatch(/rotation order/);
+    expect(surfaceCode).not.toMatch(/swaps if the slot is taken/);
+    expect(popoverCode).toMatch(/slotChoices\(/);
   });
 
   it("does not duplicate the notice #327 already shows after a swap", () => {
@@ -589,7 +615,10 @@ describe("microcopy (#325's eighth finding)", () => {
     // reads `swap` for exactly the picks the options mark `· swap`; the sentence
     // spelling out which second account moves is that button's title. So this
     // line stays the one thing said in the block: the fact, after the move.
-    expect(panelCode).toMatch(/swapped with slot \{swapNote\.displaced\}/);
-    expect([...panelCode.matchAll(/swapped with slot/g)]).toHaveLength(1);
+    // The row's own note, read once off the panel's: `swapped` is the swap
+    // when it landed on this row.
+    expect(clientText()).toMatch(/const swapped = swapNote\?\.at === a\.num \? swapNote : null;/);
+    expect(clientText()).toMatch(/swapped with slot \{swapped\.displaced\}/);
+    expect([...surfaceCode.matchAll(/swapped with slot/g)]).toHaveLength(1);
   });
 });

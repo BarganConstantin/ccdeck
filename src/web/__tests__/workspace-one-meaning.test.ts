@@ -32,6 +32,8 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cliSurface } from "./cli-surface";
+import { endStdin } from "./child-stdin";
 
 // Everything the modules below read at import time is pointed inside a temp
 // tree, so nothing here can reach — or be answered by — the developer's own
@@ -55,11 +57,11 @@ process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 
 // @ts-expect-error — .mjs server module, no types
-const { canonicalWorkspace, canonicalCwd, startCodexWatcher, eventsSince } = await import("../../server/index.mjs");
+const { canonicalWorkspace, canonicalCwd, startCodexWatcher, scanCodexNow, eventsSince } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
-const { codexCwdInWorkspace } = await import("../../server/log-writer.mjs");
+const { codexCwdInWorkspace } = await import("../../server/log-election.mjs");
 
 // Refuse to run at all if the sandbox did not take, rather than assert against
 // a developer's real configuration.
@@ -311,19 +313,27 @@ describe("one realpath, at all three sites", () => {
     // fs/promises IS the native one, an equivalence nothing documents, so a site
     // spelled that way is right by accident and reads as if it were the plain
     // one. Every realpath in these two files names .native out loud.
+    //
+    // The server's two sites are canonical-path.mjs's. index.mjs, where they
+    // lived, is held to the first half as well: a plain realpath added back
+    // there is this bug again, whoever writes it.
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    const codeOf = (src: string) => src.split("\n").filter(l => {
+      const t = l.trimStart();
+      return !t.startsWith("*") && !t.startsWith("//") && !t.startsWith("/*");
+    }).join("\n");
     const sources: Array<[string, string]> = [
       ["hook/hook.js", readFileSync(HOOK_SRC, "utf8")],
-      ["src/server/index.mjs", readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8")],
+      ["src/server/canonical-path.mjs", read("../../server/canonical-path.mjs")],
     ];
     for (const [name, src] of sources) {
-      const code = src.split("\n").filter(l => {
-        const t = l.trimStart();
-        return !t.startsWith("*") && !t.startsWith("//") && !t.startsWith("/*");
-      }).join("\n");
+      const code = codeOf(src);
       expect(code.match(/\brealpath(Sync)?\s*\(/g) ?? [], `${name} calls a realpath that does not name .native`).toEqual([]);
       expect(code.match(/\brealpath\w*\.native\b/g) ?? [], `${name} canonicalises through no native realpath at all`)
         .not.toHaveLength(0);
     }
+    expect(codeOf(read("../../server/index.mjs")).match(/\brealpath(Sync)?\s*\(/g) ?? [],
+      "src/server/index.mjs calls a realpath that does not name .native").toEqual([]);
   });
 });
 
@@ -454,26 +464,21 @@ describe("the cwd each capture path compares", () => {
     try {
       writeFileSync(rollout, header, "utf8");
 
-      // The prompt is appended in the loop rather than written once, and that is
-      // about determinism, not impatience. The watcher's first scan skips the
-      // history of everything already on disk — root and all — so a rollout
-      // written in full before that scan gets CPU produces no event at all,
-      // whatever the workspace test said. Only bytes appended AFTER the file is
-      // catalogued are replayed. A fixed pause before writing would be a bet on
-      // how quickly the first scan is scheduled, and vitest runs this file
-      // beside 245 others; appending each time round means whichever pass first
-      // lands after the catalogue is the one that draws, and none of it depends
-      // on the order the first two happen in.
-      const deadline = Date.now() + 15_000;
-      let drawn: Array<Record<string, unknown>> = [];
-      for (;;) {
-        appendFileSync(rollout, prompt, "utf8");
-        await new Promise(r => setTimeout(r, 250));
-        drawn = (eventsSince(0) as Array<{ source: string; payload: Record<string, unknown> }>)
-          .filter(e => e.source === "codex" && e.payload?.session_id === sid)
-          .map(e => e.payload);
-        if (drawn.some(p => p.hook_event_name === "UserPromptSubmit") || Date.now() >= deadline) break;
-      }
+      // The prompt is appended after the watcher's first scan, and that is about
+      // determinism, not impatience. That scan skips the history of everything
+      // already on disk — root and all — so a rollout written in full before it
+      // gets CPU produces no event at all, whatever the workspace test said. Only
+      // bytes appended AFTER the file is catalogued are replayed. This used to
+      // append every 250ms until a poll drew one, because a fixed pause would
+      // have been a bet on how quickly the first scan was scheduled; scanCodexNow
+      // waits that scan out instead, and the second is one begun after the
+      // append (#994).
+      await scanCodexNow();
+      appendFileSync(rollout, prompt, "utf8");
+      await scanCodexNow();
+      const drawn = (eventsSince(0) as Array<{ source: string; payload: Record<string, unknown> }>)
+        .filter(e => e.source === "codex" && e.payload?.session_id === sid)
+        .map(e => e.payload);
 
       expect(drawn.map(p => p.hook_event_name), "the Codex session in the junction-reached workspace never reached the deck")
         .toContain("UserPromptSubmit");
@@ -484,10 +489,10 @@ describe("the cwd each capture path compares", () => {
       //
       // Read off the prompt rather than off a leading `SessionStart` (#684).
       // That event is now minted only for a rollout the watcher opened at byte
-      // 0, and whether this one existed before the startup catalogue ran is
-      // exactly the race the loop above is written to tolerate — so the root
-      // event is sometimes there and sometimes not, while the canonical cwd
-      // this case is about rides on every payload either way.
+      // 0, and whether the header above was written before the startup
+      // catalogue listed the tree is a race this case leaves as it is — so the
+      // root event is sometimes there and sometimes not, while the canonical
+      // cwd this case is about rides on every payload either way.
       expect(drawn.find(p => p.hook_event_name === "UserPromptSubmit"))
         .toMatchObject({ cwd: realpathSync.native(proj), provider: "codex" });
     } finally {
@@ -512,7 +517,9 @@ describe("the flag as bin/deck.js publishes it", () => {
     // The exact shape that shipped: `const workspace = flags.workspace ...`,
     // which put a relative path into the discovery file for the hook to resolve
     // in the wrong process.
-    expect(code.filter(l => /const workspace\b/.test(l) && /flags\./.test(l))).toEqual([]);
+    // Nor anywhere lifted out of this file, which is where it would go next.
+    const surface = cliSurface().split("\n").filter(l => !l.trimStart().startsWith("//"));
+    expect(surface.filter(l => /const workspace\b/.test(l) && /flags\./.test(l))).toEqual([]);
   });
 });
 
@@ -578,7 +585,7 @@ async function runHook(decks: Array<Record<string, unknown>>, event: Record<stri
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
     stdio: ["pipe", "ignore", "ignore"],
   });
-  child.stdin.end(JSON.stringify(event));
+  endStdin(child, JSON.stringify(event));
   await new Promise<void>((done, fail) => {
     child.on("error", fail);
     child.on("exit", () => done());
