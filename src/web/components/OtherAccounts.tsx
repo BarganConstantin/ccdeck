@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type Peer, foldPeek, restLine } from "../other-accounts";
+import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
 import { placeBeside } from "../popover-place";
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from "./LanSyncSection";
 
@@ -104,7 +105,9 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * list the reader owns and switches between, so the switch stays in this
  * column rather than behind a view and a way back.
  */
-export default function OtherAccounts({ peers, strained, armed, threshold, open, onToggle }: {
+export default function OtherAccounts({
+  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll,
+}: {
   peers: Peer[];
   /** Where auto-switch trips. This row says it because the control that sets
    *  it is behind this row now. */
@@ -118,6 +121,13 @@ export default function OtherAccounts({ peers, strained, armed, threshold, open,
   armed: boolean;
   open: boolean;
   onToggle: () => void;
+  /** The order the list is in, as one of `choices` (#1579). */
+  order: string;
+  choices: OrderChoice[];
+  onOrder: (order: string) => void;
+  /** Every row behind the fold is open, so the next press shuts them all. */
+  allOpen: boolean;
+  onToggleAll: () => void;
 }) {
   const [peek, setPeek] = useState(false);
   const peekTimer = useRef(0);
@@ -192,6 +202,59 @@ export default function OtherAccounts({ peers, strained, armed, threshold, open,
       </button>
       {peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
+      {open && <RestTools order={order} choices={choices} onOrder={onOrder}
+        allOpen={allOpen} onToggleAll={onToggleAll} />}
+    </div>
+  );
+}
+
+/**
+ * THE LIST'S TWO CONTROLS, IN THE ROW THAT OPENS IT (#1579): the order, and
+ * every row open or shut at once.
+ *
+ * In the fold's own row, beside its chevron, rather than a row of buttons over
+ * the list: the fold row is already the thing that governs the list, and a bar
+ * of controls would be the one toolbar in a column that has none. Drawn only
+ * while the list is open, because there is nothing to order or open while it
+ * is shut, and siblings of the row's button rather than inside it — a control
+ * inside a button is not a control.
+ *
+ * QUIET AT REST — no edge, --muted — and clear under the pointer and the
+ * keyboard, with the neutral edge and fill every control in this column comes
+ * up to. The order is a native select: the keyboard, a screen reader and a
+ * touch screen all get the platform's own list, and what it shows closed is
+ * the order the list is in. It is drawn at --text once it is anything but
+ * slot, so a sorted list says so.
+ */
+function RestTools({ order, choices, onOrder, allOpen, onToggleAll }: {
+  order: string;
+  choices: OrderChoice[];
+  onOrder: (order: string) => void;
+  allOpen: boolean;
+  onToggleAll: () => void;
+}) {
+  const verb = allOpen ? "Collapse every account" : "Expand every account";
+  return (
+    <div className="ap-rest-tools">
+      <span className="ap-rest-sort">
+        <select value={order} onChange={e => onOrder(e.target.value)}
+          aria-label="Order of the other accounts" title="Order of the other accounts"
+          data-sorted={order === SLOT_ORDER ? undefined : ""}>
+          {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M2.5 3.8 5 6.3l2.5-2.5" />
+        </svg>
+      </span>
+      {/* One glyph that says which way the press goes: chevrons apart to open
+          every row, together to shut them. Its name says it in words. */}
+      <button type="button" className="ap-rest-all" aria-label={verb} title={verb} onClick={onToggleAll}>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d={allOpen ? "M4 2.4 7 5.2l3-2.8M4 11.6 7 8.8l3 2.8" : "M4 5.2 7 2.4l3 2.8M4 8.8 7 11.6l3-2.8"} />
+        </svg>
+      </button>
     </div>
   );
 }

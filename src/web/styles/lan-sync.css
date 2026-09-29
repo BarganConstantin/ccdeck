@@ -108,6 +108,80 @@
 /* No glyph, no gap to leave for one. The chevron keeps its own, from the
    `auto` margin the text column already claims. */
 .ap-rest .ap-nav { gap: 0; }
+/* THE LIST'S TWO CONTROLS, beside the chevron while the list is open (#1579) —
+   see RestTools in OtherAccounts.tsx. Laid over the row's right side rather
+   than put in it, because the row is one button and a control cannot sit
+   inside a button; the text column gives the room back so a long state line
+   ellipses short of them instead of running under them. Centred on the row's
+   button, which starts 4px under this block's own top. */
+.ap-rest { position: relative; }
+.ap-rest:has(.ap-rest-tools) .ap-nav-text { padding-right: 132px; }
+.ap-rest-tools {
+  position: absolute;
+  top: calc(50% + 4px);
+  right: calc(var(--panel-inset) + 18px);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ap-rest-sort { position: relative; display: inline-flex; align-items: center; }
+/* `field-sizing: content` so the closed select is as wide as the order it
+   shows, not the longest one it offers; where a browser does not have it, the
+   cap keeps the widest from pushing into the row's words. */
+.ap-rest-sort select {
+  appearance: none;
+  field-sizing: content;
+  max-width: 108px;
+  min-height: 24px;
+  padding: 0 18px 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.ap-rest-sort select[data-sorted] { color: var(--text); }
+.ap-rest-sort select:hover,
+.ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+.ap-rest-sort select:focus-visible { outline-offset: -2px; }
+/* The menu the platform draws, in the panel's colours rather than the page's
+   default white. */
+.ap-rest-sort option { background: var(--panel); color: var(--text); }
+.ap-rest-sort svg {
+  position: absolute;
+  right: 6px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.ap-rest-sort:hover svg { color: var(--text); }
+.ap-rest-all {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-rest-all:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+.ap-rest-all:active { transform: scale(0.97); }
+.ap-rest-all:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  .ap-rest-all:active { transform: none; }
+}
 /* The list it opens hangs directly off it — the top padding belongs to the
    fold's own bottom, and two of them would read as a gap the reader has to
    cross to believe the rows are what the row was about.
