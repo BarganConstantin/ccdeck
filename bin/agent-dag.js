@@ -47,8 +47,8 @@ import {
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
-  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, replacedNote,
-  upgradeAttempt, upgradeRefusalText, withoutPortAndOpen, workerExitAction,
+  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, npxRelaunchArgs,
+  replacedNote, upgradeAttempt, upgradeRefusalText, workerArgs, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
 import { DETACHED_ENV, backgroundNote, detachAndWatch } from "../src/server/detach.mjs";
@@ -222,9 +222,9 @@ function launch(respawn) {
     console.error(replaced);
     process.exit(1);
   }
-  const args = [WORKER, ...process.argv.slice(2)];
-  // Appended last so it wins: the worker's parser keeps the final --port.
-  if (respawn && boundPort != null) args.push("--port", String(boundPort));
+  // On a respawn, the port the last worker bound goes last so it wins — see
+  // workerArgs.
+  const args = workerArgs(WORKER, process.argv.slice(2), { respawn, boundPort });
 
   const worker = spawn(process.execPath, args, {
     ...NO_CONSOLE,
@@ -484,14 +484,9 @@ function launchNpx() {
   // one answer, so the spec that is run, the note that records it and the
   // marker its target came from all name one package. See npxUpgrade.
   const { spec, pkgName } = upgrade;
-  // Our two are appended, so the originals are dropped rather than left to be
-  // overridden — `--port 4317 --no-open --port 4317 --no-open` works, but it is
-  // what the next person reads in `ps`.
-  const args = ["-y", spec, ...withoutPortAndOpen(process.argv.slice(2))];
-  if (boundPort != null) args.push("--port", String(boundPort));
-  // The tab that asked for this is open and reconnecting; a second one would be
-  // the deck talking over itself.
-  args.push("--no-open");
+  // On the port the deck is bound to, and without opening a tab — see
+  // npxRelaunchArgs.
+  const args = npxRelaunchArgs(spec, process.argv.slice(2), boundPort);
 
   // A retry answers for itself: whatever the last attempt left on disk is about
   // to be replaced by this attempt's outcome, and leaving it there would keep

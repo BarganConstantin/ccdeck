@@ -13,15 +13,15 @@
 // reaches a PATH shim only when that is missing (see npx-launch.test.ts). This
 // file pins what the fallback must still do when it is reached.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 // @ts-expect-error — .mjs server module, no types
 import { spawnSpec } from "../../server/exec.mjs";
 // @ts-expect-error — .mjs server module, no types
-import { withoutPortAndOpen } from "../../server/supervisor.mjs";
+import { npxRelaunchArgs, withoutPortAndOpen } from "../../server/supervisor.mjs";
 
-/** What launchNpx builds: its own flags around the user's forwarded argv, with
- *  the two it sets itself dropped from the user's copy first. */
-const relaunch = (forwarded: string[]) =>
-  ["-y", "ccdeck@latest", ...withoutPortAndOpen(forwarded), "--port", "4317", "--no-open"];
+/** What launchNpx hands npx, for a deck bound to 4317. */
+const relaunch = (forwarded: string[]) => npxRelaunchArgs("ccdeck@latest", forwarded, 4317);
 
 describe("what the relaunch keeps of the user's own argv", () => {
   it("drops --no-open and --port in both spellings, and keeps the rest in order", () => {
@@ -43,6 +43,27 @@ describe("what the relaunch keeps of the user's own argv", () => {
     const argv = ["--port", "1", "--no-open"];
     expect(withoutPortAndOpen(argv)).toEqual([]);
     expect(argv).toEqual(["--port", "1", "--no-open"]);
+  });
+});
+
+describe("the relaunch's own flags", () => {
+  it("puts the spec first, then the user's argv, then the bound port and --no-open", () => {
+    // The port is the one the deck is serving on, so the tab that asked for the
+    // upgrade reconnects to the same URL; --no-open because that tab is already
+    // there, and a second one would be the deck talking over itself.
+    expect(npxRelaunchArgs("ccdeck@latest", ["--workspace", "/a b", "--port=4400", "--no-open", "--no-codex"], 4317))
+      .toEqual(["-y", "ccdeck@latest", "--workspace", "/a b", "--no-codex", "--port", "4317", "--no-open"]);
+  });
+
+  it("names no port before a worker has bound one", () => {
+    expect(npxRelaunchArgs("ccdeck@latest", ["--port", "4400"], null)).toEqual(["-y", "ccdeck@latest", "--no-open"]);
+    expect(npxRelaunchArgs("ccdeck@latest", [])).toEqual(["-y", "ccdeck@latest", "--no-open"]);
+  });
+
+  it("is what the supervisor runs", () => {
+    const supervisor = readFileSync(fileURLToPath(new URL("../../../bin/agent-dag.js", import.meta.url)), "utf8");
+    expect(supervisor).toContain("const args = npxRelaunchArgs(spec, process.argv.slice(2), boundPort);");
+    expect(supervisor).toContain("npxLaunch(args)");
   });
 });
 
