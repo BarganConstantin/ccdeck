@@ -40,7 +40,10 @@
 //   crossed, and no symlink inside the tree followed.
 import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, isAbsolute, normalize, sep } from "node:path";
+// POSIX, not the host's: every path here is a Mac's, and the suite checks
+// them on Windows too, where the host's `normalize` would turn every slash
+// into a backslash and find nothing inside any home (see deckDataDir).
+import { posix } from "node:path";
 import { PRODUCT } from "./brand.mjs";
 import { deckDataDir, deckLogDir, legacyDeckDir } from "./deck-home.mjs";
 import { run } from "./exec.mjs";
@@ -121,6 +124,8 @@ async function survey(path, { uid, home, fs }) {
   if (!real || !realHome || !strictlyInside(real, realHome)) return { path, state: "unsafe" };
   return { path, state: "foreign", id: `${st.dev}:${st.ino}` };
 }
+
+const { basename, isAbsolute, normalize, sep } = posix;
 
 function strictlyInside(path, home) {
   if (!isAbsolute(path) || !isAbsolute(home) || normalize(path) !== path) return false;

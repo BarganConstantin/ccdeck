@@ -130,9 +130,7 @@ describe("the tick an account gets when it arrives", () => {
     expect(onShared).toMatch(/const after = await heldPrefs\.update\(withShared\(key\)\)/);
     expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: after\.lan\.shared \}\)/);
     const held = readFileSync(fileURLToPath(new URL("../../server/prefs-state.mjs", import.meta.url)), "utf8");
-    // `kept` holds the answer and marks the copy as the file's (#1711); the
-    // write is still updatePrefs's own.
-    expect(held).toMatch(/update: async mutate => kept\(await updatePrefs\(mutate\)\)/);
+    expect(held).toMatch(/update: async mutate => \(_prefs = await updatePrefs\(mutate\)\)/);
   });
 
   it("writes nothing for an account with no key", async () => {

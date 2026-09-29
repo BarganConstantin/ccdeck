@@ -96,6 +96,14 @@ function folderArgs(args: string[]) {
 }
 
 describe("which folders are given back", () => {
+  it("names a Mac's folders with a Mac's slashes, whatever machine asks", () => {
+    // The suite runs on Windows too, where the host's path functions would
+    // answer `\\Users\\me\\.claude` and put no folder inside any home.
+    expect(giveBackModule.deckFolders("darwin", {}, HOME)).toEqual([SETTINGS, LOGS, LEGACY]);
+    expect(giveBackModule.deckFolders("darwin", { CLAUDE_CONFIG_DIR: "/Users/me/.claude-work" }, HOME))
+      .toEqual(["/Users/me/.claude-work/agent-dag"]);
+  });
+
   it("gives the settings folder back through one password dialog, and nothing else", async () => {
     const m = mac({ [SETTINGS]: { uid: ROOT } });
     expect(await m.run()).toEqual({ ok: true, changed: true });

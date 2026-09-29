@@ -454,10 +454,10 @@ describe("what a launcher that only asks never does", () => {
     // on the way in — a port grabbed by a process about to exit, and a line
     // about it in front of the one answer the person wanted.
     expect(both).not.toMatch(/(?:readPrefs|loadPrefs)\(\)\.then\([^)]*applyLanPrefs/);
-    // loadPrefs rather than readPrefs since the copy remembers whether it came
-    // from the file (#1711); still a read that keeps its answer and starts
-    // nothing.
-    expect(held).toMatch(/export const prefsRead = loadPrefs\(\)\.then\(r => \{ _prefs = r\.prefs; _source = r\.source; \}\)/);
+    // loadPrefs rather than readPrefs since the deck remembers whether the
+    // file was there and unread (#1711); still a read that keeps its answer
+    // and starts nothing.
+    expect(held).toMatch(/export const prefsRead = loadPrefs\(\)\.then\(r => \{ _prefs = r\.prefs; _unread = r\.source === "unreadable"; \}\)/);
     // In the listen loop, after the bind that took, beside the other things a
     // serving process starts and an asking one must not.
     const loop = /for \(const candidate of candidates\) \{([\s\S]*?)\n  \}\n  throw listenFailure/.exec(index)?.[1] ?? "";

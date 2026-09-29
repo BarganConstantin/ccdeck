@@ -85,6 +85,10 @@ describe("POST /api/prefs/give-back", () => {
 
   it("reads the file again once it can, and hands the engine its own fields off it", async () => {
     becomeReadable("read-again");
+    // A write that lands between the chown and the re-read merges onto the
+    // file, and the engine is still on what it made up — so it must not stand
+    // in for the re-read.
+    await heldPrefs.write({ notifications: true });
     giveBack.giveBackDeckFolders.mockResolvedValueOnce({ ok: true, changed: true });
     const { status, out } = await press();
     expect(status).toBe(200);
