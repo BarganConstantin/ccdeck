@@ -158,11 +158,21 @@ describe("the ccusage install command line", () => {
   });
 
   it("spawns npm directly, with the argument vector intact, off Windows", () => {
+    // Since #1777 through the npm-cli.js beside the running node when there is
+    // one, and by the bare name when there is not. Either way no shell, and
+    // the vector is npm's own.
+    const NODE = "/usr/local/bin/node";
+    const CLI = "/usr/local/lib/node_modules/npm/bin/npm-cli.js";
     for (const platform of ["linux", "darwin"]) {
-      const { file, args, opts } = installSpec("latest", platform);
-      expect(file).toBe("npm");
-      expect(args).toEqual(INSTALL_ARGS);
-      expect(opts).toEqual({}); // no shell, no verbatim arguments
+      const bare = installSpec("latest", platform, { execPath: NODE, exists: () => false });
+      expect(bare.file).toBe("npm");
+      expect(bare.args).toEqual(INSTALL_ARGS);
+      expect(bare.opts).toEqual({}); // no shell, no verbatim arguments
+
+      const beside = installSpec("latest", platform, { execPath: NODE, exists: (p: string) => p === CLI });
+      expect(beside.file).toBe(NODE);
+      expect(beside.args).toEqual([CLI, ...INSTALL_ARGS]);
+      expect(beside.opts).toEqual({});
     }
   });
 

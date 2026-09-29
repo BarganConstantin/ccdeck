@@ -14,6 +14,7 @@ import { accessSync, constants as FS, unlinkSync, writeFileSync } from "node:fs"
 import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
 import { killTree, shimPath, spawnSpec } from "./exec.mjs";
+import { npmCliLaunch } from "./npx.mjs";
 import {
   frozenNameInstall, hostPackage, installedName, isGitCheckout, isNpxInstall,
   PUBLISHED_NAME, successorRoot, upgradeCommand, upgradeName,
@@ -61,7 +62,13 @@ const INSTALL_TIMEOUT_MS = 300_000; // a cold global install on a slow line
  */
 export function upgradeSpec(target, platform = process.platform, deps) {
   const args = ["install", "-g", `${target}@latest`, "--no-audit", "--no-fund", "--loglevel", "error"];
-  const file = platform === "win32" ? (shimPath("npm.cmd", deps) ?? "npm.cmd") : "npm";
+  // POSIX: the npm-cli.js beside this node, and the bare name only when there
+  // is none, because a deck started at login has no PATH that finds npm on a
+  // Homebrew or nvm install (#1777). See npmCliLaunch.
+  if (platform !== "win32") {
+    return { ...(npmCliLaunch(args, { platform, ...deps }) ?? spawnSpec("npm", args, platform)), plain: args };
+  }
+  const file = shimPath("npm.cmd", deps) ?? "npm.cmd";
   return { ...spawnSpec(file, args, platform), plain: args };
 }
 

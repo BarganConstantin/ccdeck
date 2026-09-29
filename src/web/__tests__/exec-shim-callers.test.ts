@@ -156,7 +156,9 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
   it("leaves POSIX byte-identical to what it always spawned", () => {
     // Nothing about this is a Windows-shaped change to a POSIX path: `npm` there
     // is a real executable, isBatch is false, and the vector is the same one.
-    const spec = upgradeSpec("agents-deck", "linux");
+    // (Asked with no npm-cli.js beside node: when there is one, #1777 runs that
+    // instead, so a deck started at login does not need PATH to find npm.)
+    const spec = upgradeSpec("agents-deck", "linux", { execPath: "/usr/local/bin/node", exists: () => false });
     expect(spec.file).toBe("npm");
     expect(spec.args).toEqual(
       ["install", "-g", "agents-deck@latest", "--no-audit", "--no-fund", "--loglevel", "error"]);

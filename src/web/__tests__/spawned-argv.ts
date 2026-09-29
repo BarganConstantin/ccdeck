@@ -33,6 +33,14 @@
 // are about what the deck ran. So the wrapping is undone once, here, and they
 // all ask their question of the same list.
 //
+// AND A THIRD SHAPE, since #1777: on POSIX the deck runs npm as the npm-cli.js
+// beside its own node — `spawn(node, [".../npm/bin/npm-cli.js", "install", …])`
+// — so that a deck started at login, with no PATH that finds npm, can still
+// run it. That is `npm install …` by another spelling, and it is read back as
+// exactly that, program name included: a file asking "did this run npm?" or
+// "is every spawn here ccusage's own cli.js?" must not have the answer changed
+// by how npm was reached.
+//
 // The one thing this does not attempt: an argument containing a literal `"`.
 // viaCmd doubles those (`""`), and unpicking that needs a real parser rather
 // than the token sweep below. No command line the deck builds has one, and the
@@ -62,13 +70,20 @@ function isViaCmd({ file, cmd, args = [] }: SpawnCall): boolean {
     && typeof args[3] === "string";
 }
 
+/** True when this call is npm's own CLI script handed to node — npmCliLaunch. */
+function isNpmCli({ args = [] }: SpawnCall): boolean {
+  return typeof args[0] === "string" && /(^|[\\/])npm-cli\.js$/.test(args[0]);
+}
+
 /**
  * `[program, ...arguments]` as the spawned process really received them —
  * the array as given off Windows, and the cmd.exe line taken back apart on it.
+ * npm run through its npm-cli.js comes back as `npm`.
  */
 export function spawnedArgv(call: SpawnCall): string[] {
   const args = call.args ?? [];
   if (isViaCmd(call)) return cmdTokens(args[3] as string);
+  if (isNpmCli(call)) return ["npm", ...args.slice(1)];
   return [String(call.file ?? call.cmd ?? ""), ...args];
 }
 

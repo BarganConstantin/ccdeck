@@ -37,10 +37,14 @@ export async function oneShot(flags) {
   if (flags.installService || flags.uninstallService) return loginItemCommand(flags, { ...voice, deckDataDir, deckLogDir });
   if (flags.logs) return printLogs(deckLogDir, voice);
 
-  const { liveDecks } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
+  const { liveDecks, restartingDecks } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
   const decks = await liveDecks().catch(() => []);
-  if (flags.status) return printStatus(decks, await defaultShape(deckLogDir), voice);
-  return stopDecks(flags, decks, voice);
+  // And the deck a crash took down, whose supervisor is about to bring it back
+  // (#1779). Left off, `--stop` inside that wait said nothing was running and
+  // the deck came back by itself a few seconds later.
+  const restarting = await restartingDecks().catch(() => []);
+  if (flags.status) return printStatus([...decks, ...restarting], await defaultShape(deckLogDir), voice);
+  return stopDecks(flags, [...decks, ...restarting], voice);
 }
 
 /** The screen's glyphs and palette, by the names the one-shots use, and `say`. */
@@ -54,6 +58,8 @@ function oneShotVoice() {
 const age = (d) => sinceLabel(Date.now() - Date.parse(d.startedAt ?? ""));
 const where = (d) => (d.workspace ? d.workspace : "(all)");
 const url = (d) => `http://127.0.0.1:${d.port}`;
+// A deck between workers is its supervisor: the worker's pid is a dead one.
+const pidOf = (d) => (d.restarting ? d.parent : d.pid);
 
 // WHAT THE ONE-SHOTS USED TO SWALLOW.
 //
@@ -87,8 +93,13 @@ function reportFlagRows(flags, { tone, gWarn, dash }) {
 // an off switch: failing closed costs a retype, failing open costs a deck
 // somebody else was watching. So this answers true, having said why, when
 // `--stop` was pointed at a port it cannot use.
+//
+// And a port-shaped token the parser could not read at all — `--port4317`,
+// `--ports 4317` — which lands in `unknown` with `flags.port` undefined, the
+// same "every deck" by a third road (#1780). Its row above has already named it.
 function refusesPort(flags, { dash }) {
-  const askedPort = (flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p");
+  const askedPort = (flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p")
+    || (flags.unknown ?? []).some(t => /^(-p|--port)/.test(String(t)));
   const badPort = flags.port != null && !isPortValue(flags.port);
   if (badPort || askedPort) {
     const shown = badPort ? ` ${flags.port}` : "";
@@ -165,14 +176,19 @@ async function printStatus(decks, mine, { say, tone, dash, gOk, bullet, arrow })
     return 0;
   }
   // The one a bare `ccdeck` would open is marked, because with two decks up
-  // that is the only question this command is really being asked.
-  const opens = decks.find(d => sameShape(d, mine)) ?? null;
+  // that is the only question this command is really being asked. Never a
+  // deck between workers: a start typed now finds nothing to open there.
+  const opens = decks.find(d => !d.restarting && sameShape(d, mine)) ?? null;
   say("");
   for (const d of decks) {
     // The version chunk is dropped rather than printed as "v?" for a deck too
     // old to publish one — same rule as the attach line, and for the same
     // reason: a question mark beside two real facts reads as a fault.
-    const head = [d.version ? `v${d.version}` : "", `pid ${d.pid}`, `up ${age(d)}`]
+    //
+    // A deck between workers is named by its supervisor, the one process of
+    // it still running, and says what it is doing instead of how long it has
+    // been up.
+    const head = [d.version ? `v${d.version}` : "", `pid ${pidOf(d)}`, d.restarting ? "restarting after a crash" : `up ${age(d)}`]
       .filter(Boolean).join(`  ${bullet}  `);
     const mark = d === opens ? `${tone.ok}${gOk}${tone.reset}` : `${tone.muted}${bullet}${tone.reset}`;
     const tail = d === opens ? `${tone.muted}   ${arrow} \`${COMMAND}\` opens this one${tone.reset}` : "";
@@ -222,18 +238,21 @@ async function stopDecks(flags, decks, { say, tone, dash, gOk, gWarn, bullet }) 
     const out = await stopDeck(d);
     if (!out.ok) {
       refused = true;
-      say(`  ${tone.err}${gWarn}  could not stop pid ${d.pid} on ${d.port} ${dash} ${out.reason}${tone.reset}`);
+      say(`  ${tone.err}${gWarn}  could not stop pid ${pidOf(d)} on ${d.port} ${dash} ${out.reason}${tone.reset}`);
       continue;
     }
     // HOW it went out, not just that it did. "asked" means the deck closed its
     // listener, unlinked its registration and left the LAN cleanly; anything
     // else means none of that happened and the next boot has litter to sweep.
+    // A deck between workers had nothing to ask, and is said to be that.
     const how = out.how === "asked"
       ? ""
-      : out.old
-        ? `  ${tone.muted}(${out.how} ${dash} that deck predates \`--stop\`)${tone.reset}`
-        : `  ${tone.muted}(${out.how} ${dash} it did not answer)${tone.reset}`;
-    say(`  ${tone.ok}${gOk}${tone.reset}  stopped${tone.muted}  ${bullet}  pid ${d.pid}  ${bullet}  port ${d.port}  ${bullet}  was up ${was}${tone.reset}${how}`);
+      : d.restarting
+        ? `  ${tone.muted}(${out.how} ${dash} it was restarting after a crash)${tone.reset}`
+        : out.old
+          ? `  ${tone.muted}(${out.how} ${dash} that deck predates \`--stop\`)${tone.reset}`
+          : `  ${tone.muted}(${out.how} ${dash} it did not answer)${tone.reset}`;
+    say(`  ${tone.ok}${gOk}${tone.reset}  stopped${tone.muted}  ${bullet}  pid ${pidOf(d)}  ${bullet}  port ${d.port}  ${bullet}  was up ${was}${tone.reset}${how}`);
   }
 
   // What is still up, named. A command that ends one of three decks and says
@@ -242,7 +261,7 @@ async function stopDecks(flags, decks, { say, tone, dash, gOk, gWarn, bullet }) 
   if (left.length) {
     say("");
     say(`  ${tone.muted}${dash}  ${left.length} other deck${left.length === 1 ? "" : "s"} still running:${tone.reset}`);
-    for (const d of left) say(`       ${tone.muted}pid ${d.pid} ${bullet} ${d.port} ${bullet} ${where(d)}${tone.reset}`);
+    for (const d of left) say(`       ${tone.muted}pid ${pidOf(d)} ${bullet} ${d.port} ${bullet} ${where(d)}${tone.reset}`);
     // `--stop --all` used to be named here as the way to reach every deck. It
     // is not: `--all` is a parsed no-op, and a bare `--stop` already ends every
     // deck — which is why this line is only reachable after `--stop --port <n>`
