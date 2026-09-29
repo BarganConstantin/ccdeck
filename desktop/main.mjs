@@ -861,8 +861,10 @@ app.on("activate", () => { if (primary) openWindow(); });
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
-// The staged macOS update is handed to its swap script as the app leaves —
-// after its own deck has been stopped, so nothing runs from the old bundle.
+// A verified update installs as the app leaves — the staged macOS bundle
+// through its swap script, a Windows or Linux download through
+// electron-updater (#1757) — after its own deck has been stopped, so nothing
+// runs from the old version.
 app.on("will-quit", () => { updater?.installOnQuit(); });
 
 // Quit stops this app's own deck before leaving, once: the first before-quit

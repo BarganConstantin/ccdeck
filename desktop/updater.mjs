@@ -16,7 +16,9 @@
 //
 // Updates install on Quit (or "Restart to update"), after the app has stopped
 // the deck it started — never under a running deck, and never mid-session
-// without the person choosing to quit.
+// without the person choosing to quit. The one exception is an install a
+// package manager makes, which asks for a password: that waits for Restart to
+// update (#1755).
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -75,6 +77,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   let auto = null;          // Windows/Linux: electron-updater's autoUpdater
   let lastInfo = null;
   let packageType;          // read once, when first asked
+  let installing = false;   // Windows/Linux: an install has been started
 
   const set = next => { state = next; onChange?.(state); };
 
@@ -83,7 +86,10 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     const { autoUpdater } = (await import("electron-updater")).default ?? (await import("electron-updater"));
     auto = autoUpdater;
     auto.autoDownload = true;
-    // Held until our own signature check passes (below).
+    // Never armed. electron-updater decides whether to install on quit the
+    // moment a download finishes — before the signature check below has had a
+    // chance to pass — and from then on installs whatever it downloaded. So
+    // the verified update is installed by installOnQuit instead (#1757).
     auto.autoInstallOnAppQuit = false;
     if (process.env.CCDECK_UPDATE_FEED) auto.setFeedURL({ provider: "generic", url: feed });
     auto.logger = { info: log, warn: log, error: log, debug: () => {} };
@@ -97,7 +103,6 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
       try {
         const ok = verifyFileSignature(await readFile(file), signatureFor(info, file));
         if (!ok) throw new Error("the download is not signed by ccdeck's update key");
-        auto.autoInstallOnAppQuit = true;
         set({ status: "ready", version: info.version });
       } catch (err) {
         log(`update refused: ${err.message}`);
@@ -130,13 +135,23 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     return state;
   }
 
-  /** Called as the app quits: hand the staged macOS update to the swap
-   *  script. electron-updater installs on its own once allowed above. */
+  /** Called as the app quits (will-quit, which a normal Quit reaches and
+   *  app.exit does not): install what is ready without starting it again.
+   *  macOS hands the staged bundle to the swap script. Windows and Linux make
+   *  the call electron-updater's own install-on-quit would have made (#1757),
+   *  silent and with no relaunch — only for a verified update, and not for an
+   *  install that would ask for a password (#1755). */
   function installOnQuit() {
-    if (process.platform === "darwin" && staged) {
-      installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir });
-      staged = null;
+    if (process.platform === "darwin") {
+      if (staged) {
+        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir });
+        staged = null;
+      }
+      return;
     }
+    if (state.status !== "ready" || !auto || installing || !canInstallUnattended()) return;
+    installing = true;
+    auto.install(true, false);
   }
 
   /**
@@ -162,7 +177,9 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     if (state.status !== "ready") return;
     if (process.platform === "darwin") { app.quit(); return; }
     if (process.platform === "linux" && process.env.APPIMAGE) { restartAppImage(); return; }
-    auto?.quitAndInstall(false, true);
+    if (!auto) return;
+    installing = true;
+    auto.quitAndInstall(false, true);
   }
 
   /**
@@ -181,6 +198,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     const renamed = path => { target = path; };
     auto.on("appimage-filename-updated", renamed);
     let installed = false;
+    installing = true;
     try {
       installed = auto.install(true, false);
     } finally {

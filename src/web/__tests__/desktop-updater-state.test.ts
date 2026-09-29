@@ -5,9 +5,11 @@
 // together never ran. That gate is the whole of what stands between an
 // electron-updater download and an install: electron-updater itself checks only
 // a SHA-512 served from the same release as the file, so whoever can replace
-// one can replace both. Initialise `autoInstallOnAppQuit` to true, move the
-// assignment above the verify, and every Windows and Linux app installs
-// whatever it downloads, with the suite green.
+// one can replace both. Initialise `autoInstallOnAppQuit` to true, or set it
+// anywhere, and electron-updater's own quit hook installs whatever it
+// downloaded on every Windows and Linux app, with the suite green; the app's
+// own install on Quit, which only takes what is ready, is pinned in
+// desktop-quit-install-1757.test.ts.
 //
 // electron-updater is not in the root install (it is desktop/'s dependency),
 // so it is mocked: an EventEmitter with the calls updater.mjs makes. The update
@@ -177,7 +179,9 @@ describe("the Windows and Linux install gate", () => {
     fake.emit("update-downloaded", downloaded(bytes, signed(bytes)));
     await until("ready");
     expect(u.state).toEqual({ status: "ready", version: "3.27.0" });
-    expect(fake.autoInstallOnAppQuit).toBe(true);
+    // Still false: the install on Quit is the app's own call, made only for
+    // what is ready (#1757, desktop-quit-install-1757.test.ts).
+    expect(fake.autoInstallOnAppQuit).toBe(false);
     u.restartNow();
     expect(fake.quitAndInstall).toHaveBeenCalledWith(false, true);
   });
@@ -200,6 +204,7 @@ describe("the Windows and Linux install gate", () => {
     expect(fake.quitAndInstall).not.toHaveBeenCalled();
     process.env.APPIMAGE = "/home/u/Applications/ccdeck-linux-x86_64.AppImage";
     u.restartNow();
+    u.installOnQuit();
     expect(fake.install).not.toHaveBeenCalled();
   });
 
