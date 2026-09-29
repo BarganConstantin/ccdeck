@@ -15,11 +15,17 @@ import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const { state } = vi.hoisted(() => ({ state: { timedOut: false } }));
+const { state } = vi.hoisted(() => ({ state: { timedOut: false, failed: false } }));
 
 vi.mock("../../server/exec.mjs", () => ({
   run: async (_cmd: string, args: string[] = []) => {
     if (args[0] === "auto") {
+      // A tick that failed before printing anything: not ok, and the reason on
+      // stderr only.
+      if (state.failed) {
+        return { ok: false, code: 1, killed: false, timedOut: false,
+          stdout: "", stderr: "  error: no account is signed in\n" };
+      }
       // What `run` really returns for a deadline: not ok, killed, timedOut, and
       // a tail of what the child had already printed.
       return state.timedOut
@@ -65,6 +71,21 @@ describe("what the panel is told about a tick that was killed", () => {
     const status = await mod.autoStatus();
     expect(status.lastTick.ok).toBe(true);
     expect(status.lastTick.event).toBe("no-switch");
+    await mod.setAutoEnabled(false);
+  });
+
+  it("and says what a tick that failed without printing wrote to stderr", async () => {
+    // Trimmed and cut the way every other failure the accounts surfaces show
+    // is — failureDetail in exec-output.mjs, which the tick asks too.
+    state.timedOut = false;
+    state.failed = true;
+    await mod.setAutoEnabled(true);
+    await new Promise(r => setTimeout(r, 60));
+    const status = await mod.autoStatus();
+    expect(status.lastTick.ok).toBe(false);
+    expect(status.lastTick.reason).toBe("tick_failed");
+    expect(status.lastTick.detail).toBe("error: no account is signed in");
+    state.failed = false;
     await mod.setAutoEnabled(false);
   });
 });

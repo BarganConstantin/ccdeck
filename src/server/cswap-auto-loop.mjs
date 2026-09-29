@@ -8,6 +8,7 @@
 // restartLoop for a new interval, and its status route reports loopEnabled and
 // lastTick.
 import { run } from "./exec.mjs";
+import { failureDetail } from "./exec-output.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { externalAutoRunning, readCswapConfig } from "./cswap-auto-readers.mjs";
 import { invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
@@ -89,7 +90,7 @@ async function runAutoTick() {
     return { ok: false, reason: "tick_timeout", detail: `cswap auto --once did not finish within ${TICK_TIMEOUT_MS / 1000}s` };
   }
   if (!r.ok && !r.stdout) {
-    return { ok: false, reason: "tick_failed", detail: (r.stderr || "").trim().slice(0, 300) };
+    return { ok: false, reason: "tick_failed", detail: failureDetail(r, 300) };
   }
   return { ok: true, ...summarise(r.stdout) };
 }
