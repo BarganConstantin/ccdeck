@@ -28,6 +28,7 @@ import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
+import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -93,7 +94,7 @@ function buildMenu() {
     starting,
     restarting,
     notifyOn,
-    openAtLogin: app.getLoginItemSettings().openAtLogin,
+    openAtLogin: openAtLogin(loginItemOptions()),
     appVersion: app.getVersion(),
     update: updater?.state ?? { status: "idle" },
     updateAsksPassword: !!updater && !updater.canInstallUnattended(),
@@ -108,7 +109,7 @@ const TRAY_ACTIONS = {
   startDeck: () => ensureDeck().then(() => openWindow()),
   openInBrowser: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`),
   toggleNotifications: () => toggleNotifications(),
-  setOpenAtLogin: checked => app.setLoginItemSettings({ openAtLogin: checked }),
+  setOpenAtLogin: checked => { if (!setOpenAtLogin(checked, loginItemOptions())) trace(`could not ${checked ? "set" : "clear"} start at login`); scheduleRedraw(); },
   restartToUpdate: () => updater.restartNow(),
   checkForUpdates: () => updater?.check(),
   restartDeck: () => restartDeck(),
@@ -119,6 +120,13 @@ const TRAY_ACTIONS = {
   openStatusPage: href => { if (safeStatusPage?.(href)) shell.openExternal(href); },
   quit: () => app.quit(),
 };
+
+/** What login-item.mjs needs to register this app: the binary, and for a
+ *  development run the app's directory after it, or Electron would start its
+ *  own default app at login. */
+function loginItemOptions() {
+  return { platform: process.platform, app, execPath: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()], env: process.env };
+}
 
 /** Redraw the icon, the count, the tooltip and the menu — coalesced, because
  *  a reconnect replays up to two thousand events and each one changes the
@@ -692,7 +700,7 @@ async function firstRun() {
     checkboxChecked: true,
     buttons: ["OK"],
   });
-  app.setLoginItemSettings({ openAtLogin: checkboxChecked });
+  setOpenAtLogin(checkboxChecked, loginItemOptions());
   // Merged into the file as it is NOW (#1695). The question stays up for as
   // long as nobody answers it, and the update notice can be dismissed in the
   // meantime — writing back the copy read before asking put that version's
@@ -736,10 +744,18 @@ async function offerToReplaceLoginItem() {
     cancelId: 1,
   });
   if (response !== 0) return;
-  const out = svc.uninstallService();
-  svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: app.getVersion(), by: "ccdeck desktop" });
-  if (out.ok) app.setLoginItemSettings({ openAtLogin: true });
-  trace(`npm login item ${out.ok ? "removed" : `not removed: ${out.reason}`} (${out.path})`);
+  // The app's own login item first, and the npm one only once that reads back
+  // as on (#1781): the other order left nothing starting at login whenever the
+  // app's registration did not take.
+  const out = replaceNpmLoginItem({
+    registerApp: () => setOpenAtLogin(true, loginItemOptions()),
+    uninstall: () => {
+      const removed = svc.uninstallService();
+      svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: app.getVersion(), by: "ccdeck desktop" });
+      return removed;
+    },
+  });
+  trace(`npm login item ${out.ok ? "removed" : `not removed: ${out.reason}`}${out.path ? ` (${out.path})` : ""}`);
   scheduleRedraw();
 }
 
