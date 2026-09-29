@@ -325,7 +325,13 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                   {showsDayChart(shownDays, view.chart.length) && (
                     <div className="ap-proj-days">
                       <div className="ap-proj-days-cap">By day{view.chart.length > 1 ? " · click a bar" : ""}</div>
-                      <div className="ap-proj-days-plot" role="img"
+                      {/* role="group", not role="img" (#1774), for #381's
+                          reason in UsageHistoryModal: an image's children are
+                          presentational, so each day button left the
+                          accessibility tree and stayed in the tab order —
+                          a stop that said nothing. The share bar above is an
+                          image rightly: nothing in it takes focus. */}
+                      <div className="ap-proj-days-plot" role="group"
                         aria-label={`Spend across ${view.chart.length} day${view.chart.length > 1 ? "s" : ""}`}>
                         {view.chart.map(d => {
                           const h = view.maxDay > 0 ? (d.total / view.maxDay) * 100 : 0;
