@@ -16,7 +16,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, s
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
+import { deckJson, findDecks, openTrayStream, restartAsked } from "./deck-link.mjs";
 import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
 import { navigationFor } from "./nav.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
@@ -28,6 +28,8 @@ import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
+import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
+import { createOwnDeck, discoverPlan, stopChild } from "./own-deck.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -68,7 +70,7 @@ let providerStatus = null;    // the deck's last /api/provider-status answer (#1
 let incidentsOf = null;       // the page's reading of it, from dist/lib/provider-status.mjs
 let safeStatusPage = null;    // and the page's rule for which links are status pages
 let redraw = null;
-let ownDeck = null;           // the deck process this app started, if it did
+const ownDeck = createOwnDeck(); // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
 let updater = null;           // updater.mjs, created once the app is ready
@@ -93,7 +95,7 @@ function buildMenu() {
     starting,
     restarting,
     notifyOn,
-    openAtLogin: app.getLoginItemSettings().openAtLogin,
+    openAtLogin: openAtLogin(loginItemOptions()),
     appVersion: app.getVersion(),
     update: updater?.state ?? { status: "idle" },
     updateAsksPassword: !!updater && !updater.canInstallUnattended(),
@@ -108,7 +110,7 @@ const TRAY_ACTIONS = {
   startDeck: () => ensureDeck().then(() => openWindow()),
   openInBrowser: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`),
   toggleNotifications: () => toggleNotifications(),
-  setOpenAtLogin: checked => app.setLoginItemSettings({ openAtLogin: checked }),
+  setOpenAtLogin: checked => { if (!setOpenAtLogin(checked, loginItemOptions())) trace(`could not ${checked ? "set" : "clear"} start at login`); scheduleRedraw(); },
   restartToUpdate: () => updater.restartNow(),
   checkForUpdates: () => updater?.check(),
   restartDeck: () => restartDeck(),
@@ -119,6 +121,13 @@ const TRAY_ACTIONS = {
   openStatusPage: href => { if (safeStatusPage?.(href)) shell.openExternal(href); },
   quit: () => app.quit(),
 };
+
+/** What login-item.mjs needs to register this app: the binary, and for a
+ *  development run the app's directory after it, or Electron would start its
+ *  own default app at login. */
+function loginItemOptions() {
+  return { platform: process.platform, app, execPath: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()], env: process.env };
+}
 
 /** Redraw the icon, the count, the tooltip and the menu — coalesced, because
  *  a reconnect replays up to two thousand events and each one changes the
@@ -303,20 +312,19 @@ function publishUpdateState() {
  * is listening.
  */
 async function ensureDeck() {
-  await discover();
+  await discover({ willStart: true });
   if (deck) return deck;
   if (starting) return starting;
   starting = (async () => {
     scheduleRedraw();
     const launcher = writeLauncher(process.execPath);
-    ownDeck = startDeck({
+    ownDeck.track(startDeck({
       deckRoot: deckRoot(),
       appBinary: process.execPath,
       logFile: join(app.getPath("logs"), "deck-app.log"),
       path: shellPath(),
       launcher,
-    });
-    ownDeck.on("exit", code => { trace(`own deck exited ${code}`); ownDeck = null; discoverSoon(); });
+    }), code => { trace(`own deck exited ${code}`); discoverSoon(); });
     for (let i = 0; i < 80 && !deck; i++) {
       await new Promise(r => setTimeout(r, 500));
       await discover();
@@ -330,8 +338,8 @@ async function ensureDeck() {
  * Restart the deck (#1163) through the same route the page's own Restart uses,
  * so its supervisor brings the new one up on the same port and the tray simply
  * reattaches when the stream comes back. A deck that cannot restart itself —
- * unsupervised, or with no log to replay — and was started by this app is
- * stopped and started again instead; one that belongs to a terminal is left
+ * unsupervised, with no log to replay, or hung and not answering — and was
+ * started by this app is stopped and started again instead; one that belongs to a terminal is left
  * alone, and the menu says it could not.
  */
 async function restartDeck() {
@@ -349,17 +357,20 @@ async function restartDeck() {
   }
   restarting = Date.now();
   scheduleRedraw();
-  let asked = false;
+  let asked;
   try {
-    const { status, json } = await deckJson(deck, "/api/restart", { method: "POST", body: {}, timeoutMs: 5000 });
-    asked = status >= 200 && status < 300 && json?.ok === true;
-  } catch { /* the socket going away mid-answer is the restart */ asked = true; }
-  if (!asked && ownDeck) {
+    asked = restartAsked(await deckJson(deck, "/api/restart", { method: "POST", body: {}, timeoutMs: 5000 }));
+  } catch (err) {
+    // The socket going away mid-answer is the restart; no answer at all is a
+    // deck that is hung (#1782), and the app's own is stopped below.
+    asked = restartAsked(err);
+  }
+  if (!asked && ownDeck.current()) {
     await stopOwnDeck();
     attach(null);
     await ensureDeck();
   }
-  if (!asked && !ownDeck) restarting = null;
+  if (!asked && !ownDeck.current()) restarting = null;
   // A restart that never lands is not left saying it is happening.
   setTimeout(() => { if (restarting && Date.now() - restarting >= 30_000) { restarting = null; scheduleRedraw(); } }, 30_000);
   discoverSoon(1500);
@@ -369,15 +380,12 @@ async function restartDeck() {
 /** Stop the deck this app started, and only that one: a deck from a terminal
  *  or a login item is somebody else's, and outlives the app. */
 async function stopOwnDeck() {
-  if (!ownDeck) return;
+  const child = ownDeck.current();
+  if (!child) return;
   try {
     if (deck) await deckJson(deck, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 });
   } catch { /* asked; the kill below is the fallback */ }
-  const child = ownDeck;
-  await new Promise(r => {
-    const t = setTimeout(() => { try { child.kill(); } catch {} r(); }, 4000);
-    child.once("exit", () => { clearTimeout(t); r(); });
-  });
+  await stopChild(child);
 }
 
 /** The version of the deck packed into this app. */
@@ -388,31 +396,31 @@ function bundledDeckVersion() {
 
 /**
  * Attach to the running deck — unless it is OLDER than the one this app
- * carries, in which case it is replaced, exactly as a newer `ccdeck` started in
- * a terminal replaces an older running one (running-deck.mjs `olderVersion`,
- * the rule `secondStart` uses). An older deck may not know the tray connection
- * at all, and would count the app as a page open forever — the notifications
- * the app exists to deliver would never come.
+ * carries and `willStart` says the app's own deck starts next (ensureDeck), in
+ * which case it is replaced, exactly as a newer `ccdeck` started in a terminal
+ * replaces an older running one (running-deck.mjs `olderVersion`, the rule
+ * `secondStart` uses). An older deck may not know the tray connection at all,
+ * and would count the app as a page open forever — the notifications the app
+ * exists to deliver would never come. Every other look attaches to it rather
+ * than leave the machine with no deck (#1783) — see discoverPlan.
  */
-async function discover() {
+async function discover({ willStart = false } = {}) {
   try {
     const decks = await findDecks(deckRoot());
     const found = decks[0] ?? null;
-    if (found && !ownDeck && !starting) {
-      const { olderVersion } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href);
-      const ours = bundledDeckVersion();
-      if (olderVersion(found.version, ours)) {
-        trace(`replacing an older deck (${found.version || "unversioned"} on ${found.port}) with this app's ${ours}`);
-        await deckJson(found, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 }).catch(() => {});
-        // Until it has let go of its port, so the app's deck gets 4317 rather
-        // than a random one beside it.
-        for (let i = 0; i < 24; i++) {
-          if (!(await findDecks(deckRoot())).some(d => d.pid === found.pid)) break;
-          await new Promise(r => setTimeout(r, 250));
-        }
-        attach(null);
-        return;
+    const { olderVersion } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href);
+    const ours = bundledDeckVersion();
+    if (discoverPlan({ found, ours, ownDeck: ownDeck.current(), starting, willStart, olderVersion }) === "replace") {
+      trace(`replacing an older deck (${found.version || "unversioned"} on ${found.port}) with this app's ${ours}`);
+      await deckJson(found, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 }).catch(() => {});
+      // Until it has let go of its port, so the app's deck gets 4317 rather
+      // than a random one beside it.
+      for (let i = 0; i < 24; i++) {
+        if (!(await findDecks(deckRoot())).some(d => d.pid === found.pid)) break;
+        await new Promise(r => setTimeout(r, 250));
       }
+      attach(null);
+      return;
     }
     attach(found);
   } catch {
@@ -692,7 +700,7 @@ async function firstRun() {
     checkboxChecked: true,
     buttons: ["OK"],
   });
-  app.setLoginItemSettings({ openAtLogin: checkboxChecked });
+  setOpenAtLogin(checkboxChecked, loginItemOptions());
   // Merged into the file as it is NOW (#1695). The question stays up for as
   // long as nobody answers it, and the update notice can be dismissed in the
   // meantime — writing back the copy read before asking put that version's
@@ -736,10 +744,18 @@ async function offerToReplaceLoginItem() {
     cancelId: 1,
   });
   if (response !== 0) return;
-  const out = svc.uninstallService();
-  svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: app.getVersion(), by: "ccdeck desktop" });
-  if (out.ok) app.setLoginItemSettings({ openAtLogin: true });
-  trace(`npm login item ${out.ok ? "removed" : `not removed: ${out.reason}`} (${out.path})`);
+  // The app's own login item first, and the npm one only once that reads back
+  // as on (#1781): the other order left nothing starting at login whenever the
+  // app's registration did not take.
+  const out = replaceNpmLoginItem({
+    registerApp: () => setOpenAtLogin(true, loginItemOptions()),
+    uninstall: () => {
+      const removed = svc.uninstallService();
+      svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: app.getVersion(), by: "ccdeck desktop" });
+      return removed;
+    },
+  });
+  trace(`npm login item ${out.ok ? "removed" : `not removed: ${out.reason}`}${out.path ? ` (${out.path})` : ""}`);
   scheduleRedraw();
 }
 
@@ -872,7 +888,7 @@ app.on("will-quit", () => { updater?.installOnQuit(); });
 let quitting = false;
 app.on("before-quit", event => {
   stream?.close();
-  if (quitting || !ownDeck) return;
+  if (quitting || !ownDeck.current()) return;
   event.preventDefault();
   quitting = true;
   stopOwnDeck().finally(() => app.quit());
