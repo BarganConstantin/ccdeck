@@ -232,7 +232,7 @@ describe("the version row's upgrade-block copy", () => {
     // The table and the lookup moved with the version banner, out of App.tsx;
     // the negative is asked of both.
     const banner = src("../components/VersionBanner.tsx");
-    expect(banner).toMatch(/Object\.hasOwn\(UPGRADE_BLOCK_TEXT, version\.upgradeBlocked\)/);
+    expect(banner).toMatch(/ownRow\(UPGRADE_BLOCK_TEXT, version\.upgradeBlocked\)/);
     expect(banner).not.toMatch(/UPGRADE_BLOCK_TEXT\[[^\]]+\]\s*\?\?/);
     expect(APP).not.toMatch(/UPGRADE_BLOCK_TEXT\[[^\]]+\]\s*\?\?/);
   });
