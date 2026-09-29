@@ -29,8 +29,12 @@ import { join, resolve, posix as posixPath, win32 as winPath } from "node:path";
  * The environment and the home directory are parameters purely so callers that
  * are already working from an injected environment can stay consistent with it;
  * every caller in the deck passes nothing and gets the real machine's answer.
+ * `platform` is the same kind of parameter: the answer for another platform's
+ * paths, joined with that platform's separator, which is what legacyDeckDir
+ * needs to be checked for a Mac on a Windows runner (#1711).
  */
-export function claudeConfigDir(env = process.env, home = homedir()) {
+export function claudeConfigDir(env = process.env, home = homedir(), platform = process.platform) {
+  const { join, resolve } = platform === "win32" ? winPath : posixPath;
   const override = env.CLAUDE_CONFIG_DIR?.trim();
   return override ? resolve(override) : join(home, ".claude");
 }

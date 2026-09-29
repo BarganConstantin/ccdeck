@@ -64,7 +64,10 @@ async function refusal({ file = ME, folder = ME, readCode = "EACCES", statFile, 
 describe("what the deck tells the page about a read it was refused", () => {
   it("a folder another user owns", async () => {
     const { err } = await refusal({ folder: ROOT, statFile: "EACCES" });
-    expect(prefs.prefsRefusalDetail(err)).toEqual({ code: "EACCES", owner: "other", on: "folder" });
+    expect(prefs.prefsRefusalDetail(err, "linux")).toEqual({ code: "EACCES", owner: "other", on: "folder" });
+    // On a Mac the same refusal also says the panel can give the folder back
+    // (#1711); the three fields that tell the cases apart are unchanged.
+    expect(prefs.prefsRefusalDetail(err, "darwin")).toEqual({ code: "EACCES", owner: "other", on: "folder", fix: "give_back" });
   });
 
   it("a folder this user owns and cannot enter", async () => {

@@ -134,7 +134,7 @@ import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 // The Local network panel's four routes — see lan-routes.mjs.
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
-import { handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
+import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers, and the answer for one that threw
@@ -293,6 +293,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.

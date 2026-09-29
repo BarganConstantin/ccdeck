@@ -10,7 +10,8 @@
 import { notificationsOn, notificationsVetoed, prefsRefusalDetail, prefsWriteRefusal, publicPrefs } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { applyLanPrefs, forgetReach } from "./lan-deck.mjs";
+import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
+import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
 
 /**
@@ -73,4 +74,26 @@ export async function handlePrefsWrite(req, res) {
   // before is about a deck whose sockets were down — see forgetReach.
   if (body.lan?.enabled === true) forgetReach();
   return send(res, 200, prefsPayload());
+}
+
+/**
+ * POST: give the deck's settings folder back to this user, through macOS's own
+ * password dialog (#1711). No body — every path is the deck's own; see
+ * prefs-give-back.mjs.
+ *
+ * AND THEN READ THE FILE AGAIN, AS A BOOT WOULD. A deck that started on a folder
+ * it could not open is running on the defaults, and its LAN engine on a key it
+ * made up and could not keep. Once the file is readable that is the wrong deck:
+ * the settings are re-read, and the engine is handed the fields it authors off
+ * the file again — the stored key and pairings — which is what a restart would
+ * have done, without the restart.
+ */
+export async function handlePrefsGiveBack(req, res) {
+  const out = await giveBackDeckFolders();
+  if (!out.ok) return send(res, 409, { ok: false, reason: out.reason });
+  if ((await heldPrefs.reload()) === "file") {
+    resetLanLoaded();
+    await applyLanPrefs();
+  }
+  return send(res, 200, { ...prefsPayload(), changed: out.changed });
 }

@@ -472,6 +472,13 @@ export function withAlias(fp, name) {
   };
 }
 
+/** loadPrefs, behind every write already queued (#1711): a re-read that lands
+ *  between a write's read and its rename, or that answers with a copy older
+ *  than a write that finished first, is a copy the next write merges onto. */
+export function loadPrefsInTurn(home = deckDataDir(), deps = {}) {
+  return queued(() => loadPrefs(home, deps));
+}
+
 /** One read-modify-write, behind every other one. Both entry points go through
  *  here so there is a single queue and a single merge. */
 function queued(job) {
