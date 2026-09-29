@@ -47,11 +47,11 @@ export const HOOK_TOKEN = randomBytes(32).toString("hex");
 //
 // So the Host check runs for every method now. What it asks is only the
 // rebinding question — did this request arrive addressed to a name that can
-// only ever be this machine — and it asks it of browser-shaped requests alone,
-// meaning anything carrying an Origin, fetch metadata or a Referer. A client
-// sending none of them is not a page and has no ambient authority to borrow:
-// that is hook/hook.js, a plain Node http.request from the user's own machine,
-// and it keeps reaching the deck under whatever name it used before.
+// only ever be this machine. It was first asked of browser-shaped requests
+// alone, meaning anything carrying an Origin, fetch metadata or a Referer, on
+// the reasoning that a client sending none of them is not a page: that is
+// hook/hook.js, a plain Node http.request from the user's own machine. The
+// paragraph after next says why that is no longer the whole test.
 //
 // THE REFERER IS ON THAT LIST because on one browser it is the only mark a page
 // leaves (#1168). A same-origin GET carries no Origin, and Safari 16.0-16.3
@@ -68,18 +68,35 @@ export const HOOK_TOKEN = randomBytes(32).toString("hex");
 // bin/ send none — so nothing that reached the deck before is turned away by
 // this, and the deck's own page names a loopback Host whatever it sends.
 //
+// THE HOST IS NOW READ ON EVERY REQUEST THAT CARRIES ONE. Whether a request
+// is browser-shaped is the sending page's choice as much as the browser's — a
+// page's own GET need carry none of the three marks — so it no longer decides
+// whether the Host is asked about. Every client of this server that is not a
+// browser dials 127.0.0.1 — hook.js, the desktop app, bin/ and deck-probe.mjs
+// — so the Host Node fills in for them is a loopback one, and they are
+// answered exactly as before. Two shapes still pass under a name that is not
+// loopback:
+//
+//   - no Host at all, which is HTTP/1.0 tooling and never a browser — every
+//     browser sends one;
+//   - the deck's token (`token`, the raw x-ccdeck-token header), which only a
+//     process that read the 0600 discovery file can present, and only on a
+//     request that is not browser-shaped. A request a page chose is refused
+//     whoever else may be behind it, as isTrustedMutation's is.
+//
 // Deliberately not part of this: the Sec-Fetch-Site test that isTrustedMutation
 // applies. `cross-site` on a read is an ordinary top-level navigation — a link
 // to http://localhost:4317 clicked on any page — and the document it loads is
 // the deck's own UI on the deck's own origin, which is not an attack and used
 // to work. Rebinding does not need that test either: a rebound page's requests
 // report `same-origin`, and it is the Host that gives it away.
-export function isTrustedRead({ origin, host, secFetchSite, referer } = {}) {
+export function isTrustedRead({ origin, host, secFetchSite, referer, token } = {}) {
   const browserShaped = (typeof origin === "string" && origin !== "")
     || (typeof secFetchSite === "string" && secFetchSite.trim() !== "")
     || (typeof referer === "string" && referer.trim() !== "");
-  if (!browserShaped) return true;
-  return isLoopbackHost(host);
+  if (browserShaped) return isLoopbackHost(host);
+  if (typeof host !== "string" || host.trim() === "") return true;
+  return isLoopbackHost(host) || presentsDeckToken({ "x-ccdeck-token": token });
 }
 
 // Is this mutating request allowed to be acted on?
@@ -113,12 +130,14 @@ export function isTrustedRead({ origin, host, secFetchSite, referer } = {}) {
 // loopback identity. See isLoopbackHost for the attack that gets through
 // without it.
 //
-// A request carrying neither header is not a browser request and is allowed
-// whatever Host it names: that is hook/hook.js, a plain Node http.request from
-// the user's own machine that sends no Origin at all, plus curl and the deck's
-// own tooling. Ambient browser authority is the whole threat here, and those
-// clients have none — a process that can POST here can already run anything as
-// the user, and nothing it sends is chosen by a page.
+// A request carrying neither header is not a browser request and this gate
+// allows it whatever Host it names: that is hook/hook.js, a plain Node
+// http.request from the user's own machine that sends no Origin at all, plus
+// curl and the deck's own tooling. Ambient browser authority is the whole
+// threat here, and those clients have none — a process that can POST here can
+// already run anything as the user, and nothing it sends is chosen by a page.
+// The name such a request is addressed to is isTrustedRead's question, which
+// the router asks first, of every method.
 export function isTrustedMutation({ origin, host, secFetchSite } = {}) {
   const site = typeof secFetchSite === "string" ? secFetchSite.trim().toLowerCase() : "";
   if (site && site !== "same-origin" && site !== "none") return false;

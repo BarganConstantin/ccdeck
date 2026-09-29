@@ -238,6 +238,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       host: req.headers.host,
       secFetchSite: req.headers["sec-fetch-site"],
       referer: req.headers.referer,
+      token: req.headers["x-ccdeck-token"],
     })) {
       return send(res, 403, { error: "cross-site request blocked" });
     }

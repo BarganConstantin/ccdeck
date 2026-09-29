@@ -197,10 +197,13 @@ describe("a browser that sends no fetch metadata", () => {
   }
 
   it("refuses a client that names another host and presents nothing", async () => {
-    // Not a page, so the rebinding gate lets it by — hook.js reaches the deck
-    // under whatever name it used — but naming the deck by another name earns
-    // no more than naming it by its own: the token is still the way in.
-    expect(await get("/api/events", { host: `deck.local:${port}` })).toBe(401);
+    // Not a page, but the rebinding gate reads the Host of every request now:
+    // hook.js and the deck's other clients dial 127.0.0.1, and a request that
+    // names the deck by another name is turned away there, a step before this
+    // gate — 403, as the rebound shapes above are. The token is still the way
+    // in, and past both gates.
+    expect(await get("/api/events", { host: `deck.local:${port}` })).toBe(403);
+    expect(await get("/api/events", { host: `deck.local:${port}`, "x-ccdeck-token": mod.hookToken() })).toBe(200);
   });
 
   it("is refused when the Referer names somebody else", async () => {
