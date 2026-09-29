@@ -66,6 +66,19 @@ export function deckJson(deck, path, { method = "GET", body = null, timeoutMs = 
 }
 
 /**
+ * Whether POST /api/restart reached the deck (#1782), from what deckJson
+ * resolved with or rejected with: a 2xx `{ ok: true }`, or the connection
+ * reset under it — the deck going down mid-answer is the restart. A deck that
+ * does not answer in time is not asked: it is hung, and one that is the app's
+ * own is stopped and started again instead. Nor is a refused connection, or a
+ * deck that answers that it cannot.
+ */
+export function restartAsked(outcome) {
+  if (outcome instanceof Error) return outcome.code === "ECONNRESET" || outcome.message === "socket hang up";
+  return outcome?.status >= 200 && outcome.status < 300 && outcome.json?.ok === true;
+}
+
+/**
  * Keep a tray connection to one deck open, reconnecting after it drops.
  *
  * `on.connected()` fires when the stream opens — the deck then replays its ring

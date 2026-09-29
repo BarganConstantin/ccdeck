@@ -61,7 +61,7 @@ describe("restart in the tray", () => {
     expect(fn).toMatch(/deckJson\(deck, "\/api\/restart", \{ method: "POST"/);
     // A deck this app started that cannot restart itself is stopped and
     // started again; one from a terminal is left alone.
-    expect(fn).toMatch(/if \(!asked && ownDeck\) \{\s*await stopOwnDeck\(\);/);
+    expect(fn).toMatch(/if \(!asked && ownDeck\.current\(\)\) \{\s*await stopOwnDeck\(\);/);
     expect(TRAY_MENU).toMatch(/if \(restarting\) return "Restarting the deck…";/);
     // And the new deck answering is what ends it.
     expect(TRAY).toMatch(/if \(found && restarting\) restarting = null;/);
