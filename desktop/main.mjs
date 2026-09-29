@@ -13,7 +13,7 @@
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
@@ -24,6 +24,7 @@ import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
+import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, trayMenuItems } from "./tray-menu.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -416,10 +417,8 @@ function openWindow(steal = true) {
 }
 
 // ── first run ───────────────────────────────────────────────────────────────
-function statePath() { return join(app.getPath("userData"), "desktop-state.json"); }
-function readState() {
-  try { return JSON.parse(readFileSync(statePath(), "utf8")); } catch { return {}; }
-}
+// What this app remembers between launches — see desktop-state.mjs.
+const desktopState = createDesktopState(() => join(app.getPath("userData"), "desktop-state.json"));
 
 // Custom notification sounds and voices (#1207): local app data the page
 // reaches through preload.cjs by opaque id, never by path. What may be stored,
@@ -502,8 +501,7 @@ function rememberUpdateNotice(version) {
   if (updateNoticeVersion === version) return;
   updateNoticeVersion = version;
   try {
-    const state = readState();
-    writeFileSync(statePath(), JSON.stringify({ ...state, readyUpdateNoticeVersion: version }, null, 2));
+    desktopState.merge({ readyUpdateNoticeVersion: version });
   } catch (err) {
     trace(`could not remember update notice ${version}: ${err?.message ?? err}`);
   }
@@ -566,7 +564,7 @@ async function offerReadyUpdate() {
 }
 
 async function firstRun() {
-  const state = readState();
+  const state = desktopState.read();
   if (state.askedLogin) return;
   const { checkboxChecked } = await ask({
     type: "question",
@@ -577,7 +575,7 @@ async function firstRun() {
     buttons: ["OK"],
   });
   app.setLoginItemSettings({ openAtLogin: checkboxChecked });
-  writeFileSync(statePath(), JSON.stringify({ ...state, askedLogin: true }, null, 2));
+  desktopState.write({ ...state, askedLogin: true });
 }
 
 /**
@@ -591,7 +589,7 @@ async function firstRun() {
  * something the person, or a script of theirs, set up.
  */
 async function offerToReplaceLoginItem() {
-  const state = readState();
+  const state = desktopState.read();
   if (state.askedReplaceService) return;
   const root = deckRoot();
   const svc = await import(pathToFileURL(join(root, "src", "server", "login-service.mjs")).href);
@@ -605,7 +603,7 @@ async function offerToReplaceLoginItem() {
   } else {
     present = existsSync(svc.servicePath());
   }
-  writeFileSync(statePath(), JSON.stringify({ ...readState(), askedReplaceService: true }, null, 2));
+  desktopState.merge({ askedReplaceService: true });
   if (!present) return;
   const { response } = await ask({
     type: "question",
@@ -627,7 +625,7 @@ async function offerToReplaceLoginItem() {
 app.whenReady().then(async () => {
   installNotificationAudioIpc();
   setRegular(false);
-  updateNoticeVersion = readState().readyUpdateNoticeVersion ?? null;
+  updateNoticeVersion = desktopState.read().readyUpdateNoticeVersion ?? null;
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
