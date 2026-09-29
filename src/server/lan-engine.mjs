@@ -1011,7 +1011,16 @@ export function createEngine({
       // From here the socket is accepting, so this is the moment the silence
       // starts being about the network rather than about a deck still starting.
       inbound.listening();
-      if (port !== cfg.port) onPort?.(port);
+      // AND THE NEXT RESTART PREFERS IT (#1740). The port is the engine's own
+      // field, as the key is: prefs hands it over once per boot (see
+      // lanApplyFields), so without this every later restart in the process
+      // preferred the boot's value — 0 on a first run, which is a fresh random
+      // port for each rename or off-and-on, and the old busy port after one
+      // that moved — and addresses saved on other decks stopped answering.
+      if (port !== cfg.port) {
+        cfg = { ...cfg, port };
+        onPort?.(port);
+      }
       const startingBeacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
         trusted: () => cfg.trusted,
