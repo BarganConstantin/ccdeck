@@ -51,11 +51,13 @@ export function statusWorthAsking(snapshot) {
  * @param {boolean} s.openAtLogin
  * @param {string} s.appVersion
  * @param {{ status: string, version?: string }} s.update  the updater's state
+ * @param {boolean} [s.updateAsksPassword]  installing it asks for a password
+ *   (a package manager's install, #1755)
  * @param {Array<{ label: string, href: string }>} [s.incidents]  what the
  *   providers' status pages report, incidents only — the page's own incidentsOf
  * @param {object} on  what each row does when it is clicked
  */
-export function trayMenuItems({ now, snapshot, deck, starting, restarting, notifyOn, openAtLogin, appVersion, update, incidents = [] }, on) {
+export function trayMenuItems({ now, snapshot, deck, starting, restarting, notifyOn, openAtLogin, appVersion, update, updateAsksPassword = false, incidents = [] }, on) {
   const items = [{ label: statusLine({ restarting, starting, deck, snapshot }), enabled: false }];
   for (const b of snapshot.blocked.slice(0, 6)) {
     const what = b.kind === "asked" ? "asking" : "needs permission";
@@ -88,7 +90,7 @@ export function trayMenuItems({ now, snapshot, deck, starting, restarting, notif
     },
     { type: "separator" },
     { label: `ccdeck v${appVersion}${deck?.version && deck.version !== appVersion ? ` · deck v${deck.version}` : ""}`, enabled: false },
-    updateItem(update, on),
+    updateItem(update, on, updateAsksPassword),
     // #1163: the deck restarted from the tray, the way the page's version
     // dialog does it, rather than Quit and a trip to the Start menu.
     { label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: () => on.restartDeck() },
@@ -103,8 +105,14 @@ export function trayMenuItems({ now, snapshot, deck, starting, restarting, notif
  *  window's dialog use for the same action — one verb and one spelling of the
  *  version on all three surfaces, so a person told to find this line by the
  *  window can recognise it. */
-export function updateItem(u, on) {
-  if (u.status === "ready") return { label: `Restart to update to v${u.version}`, click: () => on.restartToUpdate() };
+export function updateItem(u, on, asksPassword = false) {
+  if (u.status === "ready") {
+    const item = { label: `Restart to update to v${u.version}`, click: () => on.restartToUpdate() };
+    // A package manager's install (#1755): the prompt comes next, so it is
+    // said before the click rather than discovered after it.
+    if (asksPassword) item.label += " (asks for your password)";
+    return item;
+  }
   if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
   if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
   return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => on.checkForUpdates() };

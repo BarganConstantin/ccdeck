@@ -17,8 +17,9 @@
 // Updates install on Quit (or "Restart to update"), after the app has stopped
 // the deck it started — never under a running deck, and never mid-session
 // without the person choosing to quit.
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
 import { bundleOf, checkForUpdate, discard, installOnExit, stageUpdate, UPDATE_PUBLIC_KEY } from "./updater-mac.mjs";
 import { relaunchOnExit } from "./relaunch-linux.mjs";
@@ -26,6 +27,21 @@ import { relaunchOnExit } from "./relaunch-linux.mjs";
 /** Where releases are published. `releases/latest/download/<file>` is
  *  GitHub's own redirect to the newest release's asset. */
 export const FEED = "https://github.com/BarganConstantin/ccdeck/releases/latest/download";
+
+/** The installs electron-updater hands to a package manager (#1755): dpkg,
+ *  rpm or pacman, run under pkexec or sudo. electron-builder names them in a
+ *  `package-type` file in Resources, which is what electron-updater picks its
+ *  installer by; the AppImage has none. */
+const PACKAGE_MANAGED = new Set(["deb", "rpm", "pacman"]);
+
+function packageTypeIn(resourcesPath) {
+  if (!resourcesPath) return null;
+  try {
+    return readFileSync(join(resourcesPath, "package-type"), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
 
 /** Verify an Ed25519 signature over a file's bytes with ccdeck's update key. */
 export function verifyFileSignature(bytes, signatureB64, publicKeyPem = UPDATE_PUBLIC_KEY) {
@@ -50,12 +66,15 @@ export function signatureFor(info, file) {
  * @param {(state: {status: string, version?: string, error?: string}) => void} o.onChange
  * @param {(line: string) => void} [o.log]
  * @param {string} [o.feed]  override for testing against a local server
+ * @param {string} [o.resourcesPath]  where the installed app's package-type
+ *   file is, if it has one
  */
-export function createUpdater({ app, onChange, log = () => {}, feed = process.env.CCDECK_UPDATE_FEED || FEED }) {
+export function createUpdater({ app, onChange, log = () => {}, feed = process.env.CCDECK_UPDATE_FEED || FEED, resourcesPath = process.resourcesPath }) {
   let state = { status: "idle" };
   let staged = null;        // macOS: { staged, dir, version }
   let auto = null;          // Windows/Linux: electron-updater's autoUpdater
   let lastInfo = null;
+  let packageType;          // read once, when first asked
 
   const set = next => { state = next; onChange?.(state); };
 
@@ -120,6 +139,20 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     }
   }
 
+  /**
+   * Can the install run with nobody there to answer it (#1755)? The macOS
+   * swap, the per-user Windows installer and the AppImage, which replaces its
+   * own file, ask nothing. A .deb, .rpm or pacman install is the package
+   * manager under pkexec or sudo: a password prompt nobody asked for, run on
+   * the main thread, which freezes the app until somebody answers it. Those
+   * install only when the person chooses Restart to update.
+   */
+  function canInstallUnattended() {
+    if (process.platform === "darwin" || process.platform === "win32") return true;
+    if (packageType === undefined) packageType = packageTypeIn(resourcesPath);
+    return !!process.env.APPIMAGE && !PACKAGE_MANAGED.has(packageType);
+  }
+
   /** "Restart to update": quit into the new version now — and only into one
    *  that is ready. electron-updater's quitAndInstall installs whatever it
    *  downloaded, signed by ccdeck's key or not, so the menu offering this only
@@ -162,5 +195,5 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     if (staged) await discard(staged.dir).catch(() => {});
   }
 
-  return { check, installOnQuit, restartNow, dispose, get state() { return state; } };
+  return { check, installOnQuit, restartNow, canInstallUnattended, dispose, get state() { return state; } };
 }
