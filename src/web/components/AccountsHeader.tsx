@@ -75,15 +75,16 @@ export default function AccountsHeader({
             across every account here — the question ten rows cannot answer
             at a glance. A panel-level read, so it is up here with the
             panel's other acts, and drawn only when there is an account to
-            report on. Three bars rising, the small-icon spec's chart glyph;
-            the name says the rest. */}
+            report on. A gauge, drawn to the small-icon spec: three bars
+            would be the topbar's History glyph again, one button over. */}
         {canReport && (
           <button type="button" className="glyph-btn" onClick={() => onReport()}
             aria-label="Usage report" aria-haspopup="dialog"
             title="Usage report — the 5h and 7d quota added up across every account">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-              <path d="M3 11.5V8.2M7 11.5V2.5M11 11.5V5.4" />
+              <path d="M2.5 10.5a4.5 4.5 0 0 1 9 0" />
+              <path d="M7 10.5l2.2-2.6" />
             </svg>
           </button>
         )}
