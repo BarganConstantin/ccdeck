@@ -48,7 +48,7 @@ import { note, watchLog } from "./browser-watch-feed.mjs";
 export { noteWatchSetting } from "./browser-watch-feed.mjs";
 // What each profile has contributed since the deck started, and the fold that
 // adds one read to it.
-import { absorb, nothingSeen } from "./browser-watch-seen.mjs";
+import { absorb, decided, nothingSeen } from "./browser-watch-seen.mjs";
 export { absorb, nothingSeen } from "./browser-watch-seen.mjs";
 
 /**
@@ -94,6 +94,18 @@ const STARTED_MS = Date.now() - Math.round(process.uptime() * 1000);
  * for the reason given there.
  */
 const _floor = new Map();
+
+/**
+ * How long a visit may sit in the browser before it reaches the History file,
+ * and so how far behind a complete look the quiet windows it closes are drawn.
+ *
+ * A browser writes its history in batches, on a timer measured in seconds, so
+ * a person's click just before a poll can still be missing from the copy it
+ * takes. A minute is several of those timers, and against a fifteen-minute
+ * gate it costs a reaction a minute of delay, where a window closed too early
+ * would let that click arrive after the verdict it should have cancelled.
+ */
+const WRITE_LAG_MS = 60_000;
 
 /** One cached read per profile: the mtime it was taken at, and what it found.
  *  Keyed by history path, so two browsers and two profiles never share an
@@ -415,15 +427,39 @@ function noteRead(profile, key, read, findings, now) {
 }
 
 /**
+ * The episodes built from every finding, each one that holds a page whose
+ * verdict can still change marked `provisional`.
+ *
+ * Compared page by page against the decided findings, since one run can be
+ * decided up to its fifth page and open after it — and that run is still the
+ * one card, under the key the archive and the dismissals use.
+ */
+function provisionalOf(episodes, decidedFindings) {
+  const final = new Set(decidedFindings.map(f => `${f.browser ?? ""}\u0000${f.url}\u0000${f.timeMs}`));
+  return episodes.map(e => (
+    e.urls.every(u => final.has(`${e.browser ?? ""}\u0000${u.url}\u0000${u.timeMs}`)) ? e : { ...e, provisional: true }
+  ));
+}
+
+/** The archive, with this poll's provisional episodes drawn over it: a card
+ *  already written down that has gained open pages since is shown with them,
+ *  and a verdict nobody has decided yet is shown beside what has been. */
+function overProvisional(kept, live) {
+  const byKey = new Map(kept.map(e => [episodeKey(e.host, e.startMs), e]));
+  for (const e of live) if (e.provisional) byKey.set(episodeKey(e.host, e.startMs), e);
+  return [...byKey.values()].sort((a, b) => b.startMs - a.startMs);
+}
+
+/**
  * Write down what this poll found that the archive did not have, and react to
  * it: the elected deck's half of a poll, taken only when the archive changed.
  *
  * Only the deck isReactingDeck elects gets here, so an episode is written and
  * reacted to once however many decks are open — the others still show it,
- * because reading the store is free. `live` is this poll's episodes and `kept`
- * the archive with them merged in.
+ * because reading the store is free. `final` is this poll's decided episodes
+ * and `kept` the archive with them merged in.
  */
-async function recordAndReact(store, kept, live, { platform, now, deps }) {
+async function recordAndReact(store, kept, final, { platform, now, deps }) {
   // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
   // grown, so writing the whole set every time would repeat one episode once
   // per page it gained. "The same episode" is the store's own key, the one
@@ -446,7 +482,7 @@ async function recordAndReact(store, kept, live, { platform, now, deps }) {
   // they are at the moment of the write.
   const merge = cur => ({
     settings: cur.settings,
-    episodes: mergeEpisodes(cur.episodes, live, now),
+    episodes: mergeEpisodes(cur.episodes, final, now),
     dismissed: cur.dismissed,
   });
   if (deps.updateStore) await deps.updateStore(merge, undefined, deps);
@@ -532,7 +568,7 @@ async function coverageOf({ oldestVisitMs, lastHumanMs, quietMs, archived, now, 
  * degraded, or overtaken and demoted to cached), the browser/profile key the
  * accumulators are kept under, and the accumulator itself, already folded.
  */
-async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude }) {
+async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude, now }) {
   // From where this profile's last read finished, or from the deck's start
   // on its first. The count is always taken above the deck's start, which
   // is what makes it the running total noteRead's delta comes out of.
@@ -558,9 +594,11 @@ async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, o
   // millisecond compare equal and the later is dropped as a copy of the
   // first. The floor is exact, being the value every row of the read was
   // selected against.
+  let overtaken = false;
   if (!read.cached && !read.degraded && (_floor.get(profile.historyPath) ?? sinceChromeTime) !== floor) {
     cache.delete(profile.historyPath);
     read = { ...read, rows: [], cached: true };
+    overtaken = true;
   }
   const key = `${profile.browser}/${profile.profile}`;
   // Everything this profile has contributed since the deck started. A read
@@ -568,7 +606,18 @@ async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, o
   // "nothing": the list must not empty itself because one poll found the file
   // untouched or the browser holding a lock.
   const seen = _lastRead.get(key) ?? nothingSeen();
-  const judge = { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser };
+  // HOW FAR THIS POLL HAS SEEN, which is what closes a quiet window (#1751). A
+  // read that succeeded has every visit up to now, and so has a cached one: the
+  // file has not moved since a read that was absorbed. A degraded read has
+  // nothing, and an overtaken one dropped its rows, so neither moves the line.
+  // Less WRITE_LAG_MS, for a visit the browser has made and not written yet.
+  const complete = !read.degraded && !overtaken;
+  const judge = {
+    quietMs,
+    classifyOpts: { ...opts, exclude },
+    browser: profile.browser,
+    readTo: complete ? now - WRITE_LAG_MS : null,
+  };
   if (!read.cached && !read.degraded) {
     // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
     // nothing new hands its floor back as the watermark, so storing that
@@ -692,6 +741,9 @@ export async function browserWatchSnapshot({
 
   const reports = [];
   let allFindings = [];
+  // The part of them no later read can withdraw, which is all that is written
+  // down or reacted to (#1751). See `decided`.
+  let allDecided = [];
   let anyDegraded = false;
   let oldestSeen = null;
   // The newest visit a PERSON made, across every profile. It is what the quiet
@@ -702,12 +754,13 @@ export async function browserWatchSnapshot({
   let lastHuman = null;
 
   for (const profile of profiles) {
-    const { read, key, seen } = await readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude });
+    const { read, key, seen } = await readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, opts, exclude, now });
     if (read.degraded) anyDegraded = true;
     const findings = seen.settled.concat(seen.open);
     const { oldest, human, byProgram } = seen;
     noteRead(profile, key, read, findings, now);
     allFindings = allFindings.concat(findings);
+    allDecided = allDecided.concat(decided(seen));
     if (oldest !== null && (oldestSeen === null || oldest < oldestSeen)) oldestSeen = oldest;
     if (human !== null && (lastHuman === null || human > lastHuman)) lastHuman = human;
     reports.push({
@@ -743,7 +796,14 @@ export async function browserWatchSnapshot({
   // are not "nothing happened".
   _checks += 1;
 
-  const live = toEpisodes(allFindings, gapMs === undefined ? undefined : { gapMs });
+  const grouping = gapMs === undefined ? undefined : { gapMs };
+  const live = provisionalOf(toEpisodes(allFindings, grouping), allDecided);
+  // WHAT IS WRITTEN DOWN IS ONLY WHAT IS DECIDED (#1751). This was `live`: an
+  // open verdict was archived, logged and reacted to on the poll that first saw
+  // it, and a person's visit a minute later withdrew it from the list and left
+  // it everywhere else — in state.json, in watch.log, and in a browser that had
+  // already been quit under them.
+  const final = toEpisodes(allDecided, grouping);
 
   // THE UNION, AND WHY IT IS NOT JUST THE LIVE READ. Chrome's history is the
   // better source right up to the moment somebody clears it — and whoever can
@@ -754,16 +814,18 @@ export async function browserWatchSnapshot({
   // Only while it is ON. An archive that filled itself whether or not the user
   // had asked for a watch would be a record they never consented to keep, of
   // pages they visited, on disk. The switch means what it says.
-  const kept = enabled ? mergeEpisodes(store.episodes, live, now) : store.episodes;
+  const kept = enabled ? mergeEpisodes(store.episodes, final, now) : store.episodes;
   // Only one deck records and reacts; the others still SHOW everything, because
   // reading the store is free and a second panel that went blank would be a
   // worse bug than the one this prevents.
   const acting = enabled ? await isReactingDeck(deps) : false;
-  if (acting && changedFrom(store.episodes, kept)) await recordAndReact(store, kept, live, { platform, now, deps });
+  if (acting && changedFrom(store.episodes, kept)) await recordAndReact(store, kept, final, { platform, now, deps });
   // FILTERED ON BOTH PATHS, because the panel builds episodes from the
   // browser's own history on every poll: dropping only the archived copy would
-  // be undone within ten seconds by the next read of the same visits.
-  const episodes = undismissed(enabled ? kept : live, store.dismissed);
+  // be undone within ten seconds by the next read of the same visits. With the
+  // watch on, what is still open is drawn over the archive, so a run that has
+  // gained pages since it was written down shows them.
+  const episodes = undismissed(enabled ? overProvisional(kept, live) : live, store.dismissed);
 
   // Stamped after the work, so it means "a poll finished" rather than "a poll
   // began" — the difference shows on the first look, which copies every

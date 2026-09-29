@@ -97,8 +97,10 @@ function armed() {
   const reacted: unknown[] = [];
   const nth = ++identities;
   const profile = { ...PROFILE, profile: `Default${nth}`, historyPath: `/p/History-${nth}` };
+  // Twenty minutes old, so its quiet window has closed and the elected deck has
+  // something decided to write down (#1751); a page seconds old is still open.
   const reader = flooredReader(() => [
-    { url: "https://gitlab.example.com/-/jobs", timeMs: Date.now() - 5_000, transition: FROM_API },
+    { url: "https://gitlab.example.com/-/jobs", timeMs: Date.now() - 20 * 60_000, transition: FROM_API },
   ]);
   const deps = {
     readStore: async () => ({

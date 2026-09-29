@@ -107,6 +107,14 @@ export default function BrowserWatchFindings({
                       <span className="bw-ep-meta">
                         {span(e)}
                         {lasted(e) && <> · {lasted(e)}</>}
+                        {e.provisional && (
+                          <>
+                            {" · "}
+                            <span title="Its quiet window has not closed yet. If somebody used the browser in the minutes after it, it is withdrawn; until then it is not written down and no reaction runs.">
+                              provisional
+                            </span>
+                          </>
+                        )}
                       </span>
                       <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
                     </button>
