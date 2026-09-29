@@ -24,7 +24,7 @@ import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
-const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMode, stopCommand, tailFile } = detach as {
+const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMode, shouldDetach, stopCommand, tailFile } = detach as {
   DECK_LOG: string;
   DETACHED_ENV: string;
   backgroundNote: (o: {
@@ -33,6 +33,7 @@ const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMo
   detachAndWatch: (o: Record<string, unknown>) => Promise<{ ok: false; reason: string }>;
   detachEnv: (o?: { isTTY?: boolean; profile?: string; columns?: number }) => Record<string, string>;
   logMode: (n: number) => string;
+  shouldDetach: (o?: { detached?: boolean; leashed?: boolean; flags?: Record<string, unknown> }) => boolean;
   stopCommand: (o?: { npx?: boolean; invokedAs?: string | null; product?: string }) => string;
   tailFile: (p: string, out: { write: (b: Buffer) => void }, o?: { from?: number; everyMs?: number })
     => { pump: () => void; stop: () => void };
@@ -82,7 +83,11 @@ describe("the child's output is a file, never a pipe", () => {
     // This is the whole mechanism. A closing terminal sends SIGHUP to its
     // FOREGROUND process group; a detached child is in its own, so the signal
     // never reaches it. Measured on a real start: ppid 1, pgid its own.
-    expect(SRC).toContain("detached: true");
+    // Read off the launcher's own spawn: detach.mjs also says `detached: true`
+    // for the Windows worker in noConsoleOptions, which is a different child.
+    const at = SRC.indexOf("const child = spawnFn(execPath, [file, ...argv], {");
+    expect(at, "detachAndWatch no longer spawns the child this way").toBeGreaterThan(-1);
+    expect(SRC.slice(at, SRC.indexOf("});", at))).toContain("detached: true");
   });
 });
 
@@ -144,7 +149,10 @@ describe("the leash, which must not be attached to the launcher", () => {
     expect(DETACHED_ENV).toBe("AGENTS_DECK_DETACHED");
     expect(detachEnv()[DETACHED_ENV]).toBe("1");
     expect(SUPERVISOR).toContain("const DETACHED = process.env[DETACHED_ENV] === \"1\";");
-    expect(SUPERVISOR).toContain("if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS))");
+    expect(SUPERVISOR).toContain("if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {");
+    // The marked copy never detaches, whatever else it was asked.
+    expect(shouldDetach({ detached: true, flags: parseArgs([]) })).toBe(false);
+    expect(shouldDetach({ detached: false, flags: parseArgs([]) })).toBe(true);
   });
 
   it("stays put when somebody is already holding its lifecycle", () => {
@@ -154,6 +162,7 @@ describe("the leash, which must not be attached to the launcher", () => {
     // answer to being supervised — and it is how the suite's own spawnSupervised
     // starts a deck it means to hold.
     expect(SUPERVISOR).toContain('const LEASHED = typeof process.send === "function";');
+    expect(shouldDetach({ leashed: true, flags: parseArgs([]) })).toBe(false);
   });
 });
 
@@ -181,12 +190,14 @@ describe("a command line that is not a start", () => {
     ] as [string[], string][]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ")).toBe(true);
       expect(parseArgs(argv)[key]).toBe(true);
+      expect(shouldDetach({ flags: parseArgs(argv) }), argv.join(" ")).toBe(false);
     }
   });
 
   it("treats an ordinary start as a start", () => {
     for (const argv of [[], ["--no-open"], ["--port", "4500"], ["--new"], ["--workspace", "/x"]]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ") || "(bare)").toBe(false);
+      expect(shouldDetach({ flags: parseArgs(argv) }), argv.join(" ") || "(bare)").toBe(true);
     }
   });
 
@@ -200,7 +211,8 @@ describe("a command line that is not a start", () => {
     expect(parseArgs(["--foreground"]).foreground).toBe(true);
     // A start, not a one-shot: it still boots a deck, it just does not leave.
     expect(isOneShot(parseArgs(["--foreground"]))).toBe(false);
-    expect(SUPERVISOR).toContain("FLAGS.foreground !== true");
+    expect(shouldDetach({ flags: parseArgs(["--foreground"]) })).toBe(false);
+    expect(shouldDetach({ flags: parseArgs(["--foreground", "--no-open"]) })).toBe(false);
     expect(HELP).toContain("--foreground");
   });
 });

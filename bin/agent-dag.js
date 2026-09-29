@@ -39,7 +39,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { killTree } from "../src/server/exec.mjs";
 import { invokedAs } from "../src/server/invoked-as.mjs";
-import { isOneShot, parseArgs } from "../src/server/args.mjs";
+import { parseArgs } from "../src/server/args.mjs";
 import { holdOutput, npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
@@ -47,11 +47,11 @@ import {
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
-  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, replacedNote,
-  upgradeAttempt, upgradeRefusalText, withoutPortAndOpen, workerExitAction,
+  crashCeilingNote, crashPolicy, crashRestartNote, dieOfSignal, dieWithParent, isCrash, npxRelaunchArgs,
+  replacedNote, upgradeAttempt, upgradeRefusalText, workerArgs, workerExitAction,
 } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
-import { DETACHED_ENV, backgroundNote, detachAndWatch } from "../src/server/detach.mjs";
+import { DETACHED_ENV, backgroundNote, detachAndWatch, noConsoleOptions, shouldDetach } from "../src/server/detach.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 
 const BIN_DIR = dirname(fileURLToPath(import.meta.url));
@@ -80,56 +80,23 @@ const G = glyphs(unicodeOK());
 
 // ── the terminal stops being the deck's leash ────────────────────────────────
 //
-// Everything about why is in src/server/detach.mjs. Here is only the decision,
-// and it has exactly two ways out:
-//
-//   ALREADY DETACHED — we ARE the background copy. Carry on as this file always
-//   has: spawn the worker, supervise it, never come back here.
-//
-//   A ONE-SHOT — `--version`, `--stop`, `--status`, `--help`, `--uninstall`.
-//   Those answer and leave, and a one-shot that detached would print its answer
-//   into a log file and hand the terminal back empty. They run in the
-//   foreground exactly as they always have.
-//
-// Anything else is a start, and a start goes to the background.
+// Everything about why is in src/server/detach.mjs, and so is the decision —
+// shouldDetach, which names every way of staying in the foreground. Here is
+// only what it is asked, and what a yes does.
 const DETACHED = process.env[DETACHED_ENV] === "1";
 
-/**
- * How the worker (and an upgrade's replacement) is started when this
- * supervisor has no console of its own — detached from a terminal, or run by
- * the desktop app.
- *
- * ON WINDOWS, A CONSOLE PROGRAM STARTED BY A PROCESS WITH NO CONSOLE IS GIVEN A
- * NEW ONE, and with Windows Terminal as the default terminal that new console
- * is a window. Measured on a Windows 10 box: `npx ccdeck` put a second
- * Windows Terminal window on screen, hosting the deck's own node.exe, after the
- * one the user typed into. `windowsHide` alone does not stop it: with stdio
- * inherited, libuv only asks for a hidden window, which Windows Terminal's
- * default-terminal handoff does not honour. DETACHED_PROCESS gives the child
- * no console at all, so there is nothing to show.
- *
- * Only when detached: a supervisor in the user's own terminal shares that
- * console with its worker, and Ctrl+C has to reach both.
- */
-const NO_CONSOLE = DETACHED && process.platform === "win32"
-  ? { detached: true, windowsHide: true }
-  : {};
+// How the worker (and an upgrade's replacement) is started when this
+// supervisor has no console of its own — without one either, on Windows,
+// where a console program given none opens a window. See noConsoleOptions.
+const NO_CONSOLE = noConsoleOptions({ detached: DETACHED, platform: process.platform });
 // A parent already holding our lifecycle. `process.send` exists only when
 // somebody spawned us with an IPC channel, and that somebody has armed
-// dieWithParent below and is waiting on our exit code — running away from them
-// into our own process group is precisely the wrong answer to being supervised.
-// The suite's spawnSupervised is the caller that does this today.
+// dieWithParent below and is waiting on our exit code. The suite's
+// spawnSupervised is the caller that does this today.
 const LEASHED = typeof process.send === "function";
-// And the way to ask for the old behaviour out loud.
-//
-// Every version before this one held the terminal, and something out there
-// depends on that: a wrapper script, a CI step, a supervisor of somebody else's
-// that starts `ccdeck` and waits on it, a `ccdeck && open …`. Handing all of
-// those an immediate exit and no way to say otherwise would be a breaking change
-// with no escape hatch — and the marker above is an internal one, not something
-// to tell a user to export.
+// `--foreground` and the one-shots are read off these.
 const FLAGS = parseArgs(process.argv.slice(2));
-if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
+if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
   const { deckLogDir } = await import("../src/server/deck-home.mjs");
   const { registeredDecks } = await import("../src/server/running-deck.mjs");
   const isTTY = Boolean(process.stdout.isTTY);
@@ -222,9 +189,9 @@ function launch(respawn) {
     console.error(replaced);
     process.exit(1);
   }
-  const args = [WORKER, ...process.argv.slice(2)];
-  // Appended last so it wins: the worker's parser keeps the final --port.
-  if (respawn && boundPort != null) args.push("--port", String(boundPort));
+  // On a respawn, the port the last worker bound goes last so it wins — see
+  // workerArgs.
+  const args = workerArgs(WORKER, process.argv.slice(2), { respawn, boundPort });
 
   const worker = spawn(process.execPath, args, {
     ...NO_CONSOLE,
@@ -484,14 +451,9 @@ function launchNpx() {
   // one answer, so the spec that is run, the note that records it and the
   // marker its target came from all name one package. See npxUpgrade.
   const { spec, pkgName } = upgrade;
-  // Our two are appended, so the originals are dropped rather than left to be
-  // overridden — `--port 4317 --no-open --port 4317 --no-open` works, but it is
-  // what the next person reads in `ps`.
-  const args = ["-y", spec, ...withoutPortAndOpen(process.argv.slice(2))];
-  if (boundPort != null) args.push("--port", String(boundPort));
-  // The tab that asked for this is open and reconnecting; a second one would be
-  // the deck talking over itself.
-  args.push("--no-open");
+  // On the port the deck is bound to, and without opening a tab — see
+  // npxRelaunchArgs.
+  const args = npxRelaunchArgs(spec, process.argv.slice(2), boundPort);
 
   // A retry answers for itself: whatever the last attempt left on disk is about
   // to be replaced by this attempt's outcome, and leaving it there would keep

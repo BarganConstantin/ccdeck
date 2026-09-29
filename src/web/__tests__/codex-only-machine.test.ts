@@ -24,7 +24,7 @@
 // Everything runs against a temp sandbox: HOME, USERPROFILE, CLAUDE_CONFIG_DIR,
 // CODEX_HOME and PATH all point inside it, so no assertion here can be satisfied
 // — or contaminated — by the developer's own machine, and nothing is installed.
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { get, type Server } from "node:http";
@@ -70,6 +70,8 @@ process.env.PATH = EMPTY_PATH;
 const { claudeConfigDir, hasClaudeInstalled, claudeCliCandidates } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { startServer } = await import("../../server/index.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { wantsCli } = await import("../../server/args.mjs");
 const { ASSUMED, readProviders } = await import("../providers");
 
 // Refuse to run at all if the sandbox did not take, rather than write into a
@@ -351,7 +353,16 @@ describe("what a Codex-only boot does on the user's behalf", () => {
 
   it("decides once, from hasClaudeInstalled, with flags able to override it", () => {
     expect(deckSrc).toContain("hasClaudeInstalled");
-    expect(deckSrc).toMatch(/wantClaude\s*=\s*flags\.noClaude/);
+    expect(deckSrc).toContain("const wantClaude = wantsCli({ off: flags.noClaude, on: flags.claude, installed: hasClaudeInstalled });");
+    // The rule itself: the opt-out first, then the opt-in, then the probe —
+    // which is not asked at all when a flag has answered.
+    const probe = vi.fn(() => false);
+    expect(wantsCli({ off: true, on: true, installed: probe })).toBe(false);
+    expect(wantsCli({ off: false, on: true, installed: probe })).toBe(true);
+    expect(probe).not.toHaveBeenCalled();
+    expect(wantsCli({ off: undefined, on: undefined, installed: probe })).toBe(false);
+    expect(wantsCli({ off: undefined, on: undefined, installed: () => true })).toBe(true);
+    expect(probe).toHaveBeenCalledTimes(1);
     // The escape hatches, which the Claude side did not have at all: --claude is
     // the recovery for a presence test that guessed wrong, and --no-claude is
     // the mirror of --no-codex.
