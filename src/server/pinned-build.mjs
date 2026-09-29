@@ -82,6 +82,8 @@ const PINNED_MODULES = [
   "account-projects.mjs",
   "swap-log.mjs",
   "lan-sync.mjs",
+  // The providers' status pages (#1311), reached only from their route.
+  "provider-status.mjs",
 ];
 
 let _pinned = null;

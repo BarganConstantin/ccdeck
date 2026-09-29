@@ -1,5 +1,5 @@
-// The usage panel's reads: Claude's quota windows, Codex's quota and usage, and
-// ccusage's daily history.
+// The usage panel's reads: Claude's quota windows, Codex's quota and usage,
+// ccusage's daily history, and what the providers' status pages say (#1311).
 //
 // These lived in src/server/index.mjs after the shutdown route, and each is the
 // same few lines: read `?refresh=1`, import the module that does the work,
@@ -10,6 +10,7 @@
 // where a string somebody else chose enters on its way to a child's argv.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { deckProviders } from "./deck-scope.mjs";
 import { send } from "./http-io.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
@@ -52,6 +53,20 @@ export async function handleCodexQuota(req, res) {
   const force = url.searchParams.get("refresh") === "1";
   const quota = await fetchCodexQuota({ force });
   send(res, 200, quota);
+}
+
+/**
+ * One line per watched CLI: whether its provider's status page reports an
+ * incident. Never a 500 for an unreachable page — provider-status.mjs files
+ * that as "unknown" — and no `?refresh=1`: the page's own cadence is the only
+ * one there is, so a button held down cannot turn into a poll of someone
+ * else's server.
+ */
+export async function handleProviderStatus(req, res) {
+  const { providerStatusReport } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/provider-status.mjs")).href
+  );
+  send(res, 200, await providerStatusReport({ providers: deckProviders() }));
 }
 
 /**

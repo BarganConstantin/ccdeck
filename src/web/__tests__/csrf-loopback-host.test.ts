@@ -234,6 +234,7 @@ describe("the rebinding gate in front of the routing table", () => {
     "/api/ccusage",
     "/api/codex-usage",
     "/api/codex-quota",
+    "/api/provider-status",
     "/api/cswap-auto",
     "/events",                    // the same buffer, live
     "/",                          // and the page itself
