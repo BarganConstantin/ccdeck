@@ -36,6 +36,10 @@ export interface AutoRestartDeps {
   notice: VersionNotice | null;
   noticeOpen: boolean;
   upgradeFailure: string | null;
+  /** Whether the canvas is paused. A paused page holds every event for the
+   *  resume, so its graph cannot say whether anything is running; the button's
+   *  words say so (#1764). The automatic restart asks the server instead. */
+  paused: boolean;
 }
 
 /** What /api/prefs answers, as far as this hook reads it. */
@@ -43,7 +47,7 @@ export interface AutoRestartPrefsAnswer {
   prefs?: { autoUpdate?: boolean };
 }
 
-export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure }: AutoRestartDeps) {
+export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure, paused }: AutoRestartDeps) {
   // ── restart ───────────────────────────────────────────────────────────────
   // The server cannot restart itself without racing its own listener onto a
   // random fallback port, so the supervisor owns it and this only asks.
@@ -87,30 +91,55 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
   // that armed it. Now that a failure ends an attempt early, a retry can be
   // running while its predecessor's three minutes are still on the clock.
   const restartAttemptRef = useRef(0);
-  const askRestart = useCallback(async (opts?: { upgrade?: boolean }) => {
+  // When the current quiet stretch began — the automatic restart's clock, read
+  // and written by the effect further down. Here because a refused automatic
+  // ask starts it again.
+  const idleSinceRef = useRef<number | null>(null);
+  const askRestart = useCallback(async (opts?: { upgrade?: boolean; whenIdle?: boolean }) => {
     // The guard the `disabled` used to be, now that the two buttons that call
     // this stay enabled while their own request is out (#620). It was already
     // here as `if (restartAskedRef.current) return` — the ref is what a second
     // Enter meets, and the rule is what it is spelled as.
     if (!selfPressAccepted(restartAskedRef.current)) return;
     const upgrade = opts?.upgrade === true;
+    // The automatic restart, which the server grants only while it hears no
+    // turn running (#1764): this page's graph is frozen while the canvas is
+    // paused, and the server's record is not. It shows nothing until the server
+    // has answered, because the answer may be no, and "restarting…" flashing
+    // on the banner for a restart that did not happen is a claim, not news.
+    const whenIdle = opts?.whenIdle === true;
     restartAskedRef.current = true;
     askedFailureRef.current = upgradeFailure;
     const attempt = ++restartAttemptRef.current;
-    setRestartMode(upgrade ? "npx" : "restart");
-    setRestarting(true);
+    const show = () => {
+      setRestartMode(upgrade ? "npx" : "restart");
+      setRestarting(true);
+    };
+    if (!whenIdle) show();
     // Remembered across the reconnect so the deck can confirm what it landed
     // on rather than claiming success the moment the request was accepted.
     try { window.sessionStorage.setItem("agent-dag.restartPending", notice?.to ?? ""); } catch {}
     // The socket dying IS the restart, so a rejection here is a success signal
-    // as often as a failure one — neither is worth acting on.
+    // as often as a failure one — neither is worth acting on. A refusal of an
+    // automatic ask is different: the server answered, and nothing is coming.
+    let refused = false;
     try {
-      await fetch("/api/restart", {
+      const res = await fetch("/api/restart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upgrade }),
+        body: JSON.stringify(whenIdle ? { upgrade, whenIdle } : { upgrade }),
       });
+      refused = whenIdle && res.status === 409;
     } catch { /* expected */ }
+    if (refused) {
+      // Handed straight back, and the quiet stretch starts over, so the next
+      // ask is a full window away rather than on the next tick.
+      restartAskedRef.current = false;
+      idleSinceRef.current = null;
+      try { window.sessionStorage.removeItem("agent-dag.restartPending"); } catch {}
+      return;
+    }
+    if (whenIdle) show();
     // Nothing came back. Rather than leave a disabled button and a banner
     // frozen mid-sentence, hand the control back so it can be tried again —
     // after long enough that an npx fetch on a slow line is not cut short.
@@ -126,8 +155,9 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
   // Nothing running for a sustained stretch is the only safe moment: a restart
   // mid-turn silently drops the hook events fired during the gap, leaving tools
   // stuck in flight on the canvas until the stale sweeper reaps them. The rule
-  // itself lives in restart.ts, where it can be tested.
-  const idleSinceRef = useRef<number | null>(null);
+  // itself lives in restart.ts, where it can be tested. This page's graph is
+  // one witness and the server is the other: the ask is `whenIdle`, which the
+  // server refuses while it hears a turn (#1764), so both have to say quiet.
   useEffect(() => {
     const busy = activeCount(stateRef.current.agents.values()) > 0;
     const step = autoRestartStep({
@@ -146,7 +176,7 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
       now,
     });
     idleSinceRef.current = step.idleSince;
-    if (step.restart) askRestart();
+    if (step.restart) askRestart({ whenIdle: true });
   }, [autoRestart, notice?.kind, version?.canRestart, noticeOpen, now, askRestart]);
 
   // WHAT THE BANNER SAYS ABOUT THIS PRESS, from the two things the effect above
@@ -161,7 +191,7 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
   // value one tick old still yields an exact remainder against the current
   // `now`. A duration would have gone stale; an instant cannot.
   const activeNow = activeCount(stateRef.current.agents.values());
-  const restartCopy = restartSafety(activeNow);
+  const restartCopy = restartSafety(activeNow, paused);
   const restartFuseMs = autoRestartRemainingMs({
     enabled: autoRestart,
     kind: notice?.kind,

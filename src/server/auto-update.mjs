@@ -46,6 +46,19 @@ export const AWAY_TICK_MS = 60_000;
 export const AWAY_RECHECK_MS = 5 * 60_000;
 
 /**
+ * Whether the hook stream says nothing is running: no turn open, and none heard
+ * from for the whole quiet window (activity.mjs). The server's half of "idle",
+ * shared by the away-update below and by the page's automatic restart, which
+ * asks for it on /api/restart as `whenIdle` (lifecycle.mjs). The page cannot
+ * answer this alone: a paused canvas holds every event for the resume, so its
+ * graph shows nothing running while a turn is (#1764). The server is never
+ * paused.
+ */
+export function turnsQuiet({ busy, quietMs, quietNeedMs = AWAY_QUIET_MS }) {
+  return !busy && quietMs >= quietNeedMs;
+}
+
+/**
  * Whether the deck may consider updating itself right now. Every input is
  * already in memory, so this runs every tick at no cost.
  */
@@ -54,7 +67,7 @@ export function awayGate({
   graceMs = AWAY_BOOT_GRACE_MS, quietNeedMs = AWAY_QUIET_MS,
 }) {
   return enabled === true && supervised === true && !restarting
-    && sinceBootMs >= graceMs && !looking && !busy && quietMs >= quietNeedMs;
+    && sinceBootMs >= graceMs && !looking && turnsQuiet({ busy, quietMs, quietNeedMs });
 }
 
 /**

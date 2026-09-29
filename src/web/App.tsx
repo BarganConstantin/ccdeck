@@ -257,7 +257,7 @@ function Inner() {
   // Restarting the deck: the auto-update switch, the press behind the banner's
   // Restart, the idle stretch an automatic one waits for, and what the banner
   // says about it — in use-auto-restart.ts.
-  const restart = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure });
+  const restart = useAutoRestart({ now, stateRef, version, notice, noticeOpen, upgradeFailure, paused: pause.paused });
   const { askRestart, loadAutoRestartPrefs } = restart;
 
   // The deck's look — the theme, the pixel character, and the canvas palette
