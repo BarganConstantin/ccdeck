@@ -87,8 +87,13 @@ function reportFlagRows(flags, { tone, gWarn, dash }) {
 // an off switch: failing closed costs a retype, failing open costs a deck
 // somebody else was watching. So this answers true, having said why, when
 // `--stop` was pointed at a port it cannot use.
+//
+// And a port-shaped token the parser could not read at all — `--port4317`,
+// `--ports 4317` — which lands in `unknown` with `flags.port` undefined, the
+// same "every deck" by a third road (#1780). Its row above has already named it.
 function refusesPort(flags, { dash }) {
-  const askedPort = (flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p");
+  const askedPort = (flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p")
+    || (flags.unknown ?? []).some(t => /^(-p|--port)/.test(String(t)));
   const badPort = flags.port != null && !isPortValue(flags.port);
   if (badPort || askedPort) {
     const shown = badPort ? ` ${flags.port}` : "";
