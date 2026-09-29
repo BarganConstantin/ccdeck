@@ -10,6 +10,7 @@
 // more than the socket could.
 import { arrivalCheck, KEYCHAIN } from "./admin-failure";
 import type { LanStranger, Peer } from "./lan-types";
+import { ownRow } from "./own-row";
 
 /** How long ago, in the panel's own vocabulary. Seconds are not printed: a
  *  beacon lands every thirty of them, so "12s ago" would be a number that
@@ -34,7 +35,7 @@ type DoneRow = NonNullable<NonNullable<Peer["last"]>["done"]>[number];
 /**
  * The reasons a round names, keyed by the codes lan-copies.mjs defines: a few
  * words for the row and the sentence with the remedy for the dialog. Looked up
- * with Object.hasOwn, so a code this build does not know names nothing rather
+ * through ownRow, so a code this build does not know names nothing rather
  * than something from the prototype.
  *
  * WHICH MACHINE is the whole point of the Keychain pair. The fix is on the Mac
@@ -55,7 +56,7 @@ const ROUND_WHY: Record<string, { short: string; long: string }> = {
  *  see arrivalCheck. */
 export function roundWhy(d: DoneRow): { short: string; long: string } | null {
   if (!d.why) return null;
-  return Object.hasOwn(ROUND_WHY, d.why) ? ROUND_WHY[d.why] : arrivalCheck(d.why);
+  return ownRow(ROUND_WHY, d.why) ?? arrivalCheck(d.why);
 }
 
 /**

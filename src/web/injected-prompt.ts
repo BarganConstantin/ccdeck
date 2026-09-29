@@ -13,6 +13,8 @@
 // the rail can show it as what it is — a system event — and count only what was
 // typed.
 
+import { ownRow } from "./own-row";
+
 export interface InjectedPrompt {
   /** What happened, in the deck's words: "background task finished". */
   label: string;
@@ -40,7 +42,7 @@ export function injectedPrompt(text: string): InjectedPrompt | null {
   if (!m) return null;
   const status = tag(m[1], "status");
   return {
-    label: (status && Object.hasOwn(STATUS_LABEL, status) ? STATUS_LABEL[status] : undefined) ?? "background task update",
+    label: (status ? ownRow(STATUS_LABEL, status) : undefined) ?? "background task update",
     detail: tag(m[1], "summary"),
   };
 }

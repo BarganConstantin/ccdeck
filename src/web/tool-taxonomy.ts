@@ -18,6 +18,8 @@
 // them; hoisting them too would be churn without a bug behind it. What is
 // shared here is the part that has actually drifted.
 
+import { ownRow } from "./own-row";
+
 /** The bucket a tool's bubble is tinted by, and the one the detail-panel
  *  activity strip and the canvas filter chips count under. Declared here
  *  because App.tsx and ToolBursts.tsx used to declare the same eight-member
@@ -163,7 +165,7 @@ export const TOOL_CATEGORY: Record<string, ToolCategory> = {
  * The bucket a tool belongs to. Every MCP call is its own family regardless of
  * what the server named the method.
  *
- * `Object.hasOwn` rather than `?? "other"` (#474). A tool name is OUTSIDE data —
+ * An own row (ownRow) rather than a bare `?? "other"` (#474). A tool name is OUTSIDE data —
  * it is `tool_name` off a hook payload, or a `tools.*` method name dug out of a
  * Codex script — so it can be any string at all, including one that names a
  * member of `Object.prototype`. Plain bracket access answers those from the
@@ -181,7 +183,7 @@ export const TOOL_CATEGORY: Record<string, ToolCategory> = {
  */
 export function categoryFor(name: string): ToolCategory {
   if (name.startsWith("mcp__")) return "mcp";
-  return Object.hasOwn(TOOL_CATEGORY, name) ? TOOL_CATEGORY[name] : "other";
+  return ownRow(TOOL_CATEGORY, name) ?? "other";
 }
 
 /**

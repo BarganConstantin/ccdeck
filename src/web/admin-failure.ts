@@ -32,6 +32,7 @@
 // DOM, the same reason login-flow.ts and login-announce.ts live out here.
 import { isLoginOver } from "./login-flow";
 import { PRODUCT } from "./brand";
+import { ownRow } from "./own-row";
 
 /** A refusal from the admin route: the login actions carry the polled login
  *  state with them, the share/import ones answer with a reason alone. */
@@ -46,7 +47,7 @@ export type AdminFailure = {
  * One of the three maps below, read by a reason code — and undefined when this
  * build has no sentence for that code.
  *
- * `Object.hasOwn` rather than `MAP[reason]` (#474). A reason is a string off an
+ * An own row (ownRow) rather than `MAP[reason]` (#474). A reason is a string off an
  * HTTP reply, and every member of `Object.prototype` answers a plain bracket
  * read with an inherited value that is neither nullish nor falsy: a reply
  * saying `"toString"` would pass the `&&` guard and put a FUNCTION on screen
@@ -54,7 +55,7 @@ export type AdminFailure = {
  * all three callers were already trying to ask, so no known code moves.
  */
 function sentenceFor(map: Record<string, string>, reason: string | undefined): string | undefined {
-  return reason && Object.hasOwn(map, reason) ? map[reason] : undefined;
+  return reason ? ownRow(map, reason) : undefined;
 }
 
 // Each is a decision the server made on purpose, so each gets a sentence rather
@@ -153,7 +154,7 @@ const ARRIVAL_CHECK: Record<string, { short: string; long: string }> = {
 /** The words for one arrival check, or null for none — or for a code this
  *  build does not know, prototype keys included. */
 export function arrivalCheck(code: string | null | undefined): { short: string; long: string } | null {
-  return code && Object.hasOwn(ARRIVAL_CHECK, code) ? ARRIVAL_CHECK[code] : null;
+  return code ? ownRow(ARRIVAL_CHECK, code) ?? null : null;
 }
 
 /**

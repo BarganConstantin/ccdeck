@@ -13,6 +13,7 @@ import { autoRestartLabel } from "../restart";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
+import { ownRow } from "../own-row";
 
 // Said in the UI's voice, not npm's. Each of these is a decision we made on
 // purpose, so each gets a reason rather than a disabled button.
@@ -199,12 +200,10 @@ export default function VersionBanner({
             </span>
           ) : version?.upgradeBlocked ? (
             <span className="ver-sub">
-              {/* hasOwn, not `??` — see categoryFor (#474). The reason is a
-                  string off /api/version, so a build that sends one naming
+              {/* An own row, not a bare `??` — see ownRow (#474). The reason
+                  is a string off /api/version, so a build that sends one naming
                   an Object.prototype member would put a function here. */}
-              {Object.hasOwn(UPGRADE_BLOCK_TEXT, version.upgradeBlocked)
-                ? UPGRADE_BLOCK_TEXT[version.upgradeBlocked]
-                : "cannot install from here"}
+              {ownRow(UPGRADE_BLOCK_TEXT, version.upgradeBlocked) ?? "cannot install from here"}
             </span>
           ) : null}
           <button type="button" className="ver-cmd" onClick={copyCommand} title="Copy to clipboard">
