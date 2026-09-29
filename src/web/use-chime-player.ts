@@ -1,5 +1,5 @@
 // The player behind the deck's own two tones (#704): built once, on mount, and
-// woken by the first gesture anywhere on the page.
+// woken by the first gesture anywhere on the page that the browser counts.
 //
 // Lifted out of App.tsx's `Inner`. `chimesRef` is passed in rather than owned,
 // and that is forced rather than chosen: the tone settings need the player to
@@ -41,16 +41,22 @@ export function useChimePlayer({ chimesRef, soundOnRef, tonePrefsRef, customSele
     });
     chimesRef.current = player;
     setChimeState(player.state());
-    // Any gesture anywhere unlocks it, once. `pointerdown` rather than `click`
-    // so a press on the canvas counts, and `keydown` so a keyboard-only user
-    // is not left permanently silent.
-    const wake = () => player.unlock();
-    window.addEventListener("pointerdown", wake, { once: true, capture: true });
-    window.addEventListener("keydown", wake, { once: true, capture: true });
-    return () => {
-      window.removeEventListener("pointerdown", wake, { capture: true } as EventListenerOptions);
-      window.removeEventListener("keydown", wake, { capture: true } as EventListenerOptions);
+    // Any gesture anywhere unlocks it. `pointerdown` rather than `click` so a
+    // press on the canvas counts, and `keydown` so a keyboard-only user is not
+    // left permanently silent. Not once (#1760): Escape and a touch's
+    // pointerdown are not activation, and the context stays suspended after
+    // them, so every press asks again until the context runs — `pointerup`
+    // being the one a touch is counted on.
+    const WAKE_EVENTS = ["pointerdown", "pointerup", "keydown"] as const;
+    const sleep = () => {
+      for (const type of WAKE_EVENTS) window.removeEventListener(type, wake, { capture: true } as EventListenerOptions);
     };
+    const wake = () => {
+      player.unlock();
+      if (player.context?.state === "running") sleep();
+    };
+    for (const type of WAKE_EVENTS) window.addEventListener(type, wake, { capture: true });
+    return sleep;
   }, []);
 
   return { chimeState };
