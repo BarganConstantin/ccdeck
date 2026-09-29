@@ -34,9 +34,11 @@ import { cswapBin } from "./cswap-install.mjs";
  *
  * Two callers reach these without an attacker anywhere: AccountsPanel polls the
  * route every 15s per open tab, and runTick asks externalAutoRunning() again
- * before every tick. And it is a GET, so it passes isTrustedRead for any local
+ * before every tick. And it is a GET, so it passed isTrustedRead for any local
  * client that sends neither Origin nor Sec-Fetch-Site — curl, a shell script, a
- * sandboxed agent.
+ * sandboxed agent. It is a guarded read now (GUARDED_READS in
+ * request-gates.mjs), which refuses those callers unless they hold the token;
+ * the guard below still bounds the ones that pass.
  *
  * The fix is #544's, at the route that sweep did not reach: a minimum gap plus
  * one shared in-flight promise per reader. There is no MAX_OUTSTANDING beside it

@@ -72,6 +72,9 @@ const blockNotifier = createBlockNotifier({
   // menu while the deck is running, and a mute that waited for a restart would
   // not be a mute. The env var still wins inside `notificationsOn`.
   enabled: () => notificationsOn(heldPrefs.current()),
+  // Asked again when the burst cap's window reopens, for the one notice that
+  // stands for what it held back — see BURST_MAX.
+  pages: () => pageCount(),
   onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
 });
 

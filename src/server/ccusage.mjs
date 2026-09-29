@@ -32,7 +32,9 @@ const _cache = new Map(); // key `${since}|${until}` → { result, at }
 // thirty permanent Map entries. isCliDate admits all 10^8 eight-digit strings
 // on purpose (a date outside the logs is ccusage's question to answer, not the
 // deck's to guess at), so the map's key space was 10^8 and its eviction policy
-// was none.
+// was none. The route is a guarded read now (GUARDED_READS in
+// request-gates.mjs), so another site's page is refused before it starts
+// anything; the ceiling stays for the deck's own page and the token's holders.
 //
 // Both numbers are set against what the feature does rather than against the
 // attack. The usage-history modal asks for one range at a time and offers three

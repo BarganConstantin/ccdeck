@@ -106,7 +106,9 @@ afterAll(async () => {
 
 function ccusage(query: string): Promise<{ status: number; body: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
-    get({ host: "127.0.0.1", port, path: `/api/ccusage${query}` }, res => {
+    // As the deck's own page asks it: /api/ccusage is a guarded read, and the
+    // page is its one caller.
+    get({ host: "127.0.0.1", port, path: `/api/ccusage${query}`, headers: { "sec-fetch-site": "same-origin" } }, res => {
       let out = "";
       res.setEncoding("utf8");
       res.on("data", c => { out += c; });
