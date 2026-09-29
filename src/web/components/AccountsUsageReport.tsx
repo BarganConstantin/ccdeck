@@ -24,7 +24,7 @@ import type { Account } from "../claude-accounts";
 import { resetCountdown } from "../relative-time";
 import { holdOrder } from "../other-accounts-order";
 import {
-  heldNote, REPORT_WINDOWS, shownUsed, staleReason, usageReport, usedAndAvailable,
+  freshness, heldNote, REPORT_WINDOWS, shownUsed, usageReport, usedAndAvailable,
   type Cell, type ReportRow, type Status, type WindowTotal,
 } from "../accounts-usage-report";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -135,16 +135,19 @@ const STATE_WORD: Record<Status, string> = {
   stale: "Stale",
 };
 
-/** What the row can do now, as a mark and a word; a row judged on readings
- *  that are not current also says so, quietly, in the words they gave. */
+/** What the row can do now, as a mark and a word, on one line. */
 function StateCell({ row }: { row: ReportRow }) {
-  const why = staleReason(row.cells);
   return (
     <td className="ap-report-state" data-status={row.status}>
       <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
-      {why && <span className="ap-report-why">{why}</span>}
     </td>
   );
+}
+
+/** How current the row's numbers are: "now", an age, or why there are none. */
+function UpdatedCell({ row, nowSec }: { row: ReportRow; nowSec: number }) {
+  const f = freshness(row, nowSec);
+  return <td className="ap-report-upd" data-old={f.old ? "" : undefined}>{f.text}</td>;
 }
 
 /** The disclosure's mark: drawn, in the stroke the deck's other glyphs use. */
@@ -182,7 +185,7 @@ export function UsageReportBody({ accounts, nowSec, held }: {
           accounts can be worked on now. The same count as the rows that say
           Ready, by construction. */}
       <p className="ap-report-lead">
-        <b>{shownReady}</b> of {plural(total, "account", "accounts")} ready
+        <b>{shownReady}</b> of {plural(total, "Claude account", "Claude accounts")} ready
       </p>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
@@ -194,12 +197,14 @@ export function UsageReportBody({ accounts, nowSec, held }: {
           <col />
           {REPORT_WINDOWS.map(w => <col key={w.id} className="ap-report-col-win" />)}
           <col className="ap-report-col-state" />
+          <col className="ap-report-col-upd" />
         </colgroup>
         <thead>
           <tr>
             <th scope="col">Account</th>
             {REPORT_WINDOWS.map(w => <th key={w.id} scope="col">{w.label} used</th>)}
             <th scope="col">Status</th>
+            <th scope="col" className="ap-report-upd-h">Updated</th>
           </tr>
         </thead>
         <tbody>
@@ -215,6 +220,7 @@ export function UsageReportBody({ accounts, nowSec, held }: {
               </th>
               {REPORT_WINDOWS.map(w => <UsedCell key={w.id} cell={r.cells[w.id]} nowSec={nowSec} />)}
               <StateCell row={r} />
+              <UpdatedCell row={r} nowSec={nowSec} />
             </tr>
           ))}
         </tbody>
@@ -256,20 +262,18 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   useEffect(() => { if (accounts && accounts.length > 0) setShown(accounts); }, [accounts]);
   const held = heldNote(failed, !accounts || accounts.length === 0, shown.length > 0);
   const rows = holdOrder(shown, order);
-  const count = rows.length;
 
   // Portalled to <body>: opened from inside AccountsPanel, and a dialog left in
   // the panel's subtree is laid out by it (panel-modal-portal).
   return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div ref={dialogRef} className="modal ap-report-modal" onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-labelledby="ap-report-title ap-report-sub">
+        role="dialog" aria-modal="true" aria-labelledby="ap-report-title">
         <header className="ap-proj-head">
+          {/* No subtitle: the count it carried is the lead's, one line down, and
+              "Claude" moved into the lead with it (#1713). */}
           <div className="ap-proj-titlewrap">
             <h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>
-            <div className="ap-proj-sub" id="ap-report-sub">
-              {plural(count, "Claude account", "Claude accounts")}
-            </div>
           </div>
           <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>

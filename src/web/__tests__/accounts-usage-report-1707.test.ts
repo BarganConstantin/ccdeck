@@ -21,7 +21,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Account } from "../claude-accounts";
 import {
-  heldNote, readingOf, REPORT_STALE_MS, staleReason, statusOf, usageReport, usedAndAvailable, windowTotal,
+  freshness, heldNote, readingOf, REPORT_STALE_MS, statusOf, usageReport, usedAndAvailable, windowTotal,
 } from "../accounts-usage-report";
 import { UsageReportBody } from "../components/AccountsUsageReport";
 import AccountsHeader from "../components/AccountsHeader";
@@ -178,7 +178,7 @@ describe("what each account can do now (#1713)", () => {
       accounts: [acct(1, 0, 0), acct(2, 95, 50), acct(3, 100, 50), acct(4, 10, 10, { stale: true }), acct(5, 30, null)],
       nowSec: NOW, held: null,
     }));
-    const lead = Number(/<b>(\d+)<\/b> of \d+ accounts? ready/.exec(out)?.[1]);
+    const lead = Number(/<b>(\d+)<\/b> of \d+ Claude accounts? ready/.exec(out)?.[1]);
     expect(lead).toBe(out.match(/data-status="ready"/g)?.length);
     expect(lead).toBe(3);
   });
@@ -202,16 +202,19 @@ describe("what each account can do now (#1713)", () => {
     expect(out).toContain('<span class="ap-report-pct" data-level="hi">99%</span>');
     expect(out).not.toContain(">100%<");
     expect(out).toContain('<p class="ap-report-left"><b>1%</b> remaining</p>');
-    expect(out).toContain("<b>1</b> of 1 account ready");
+    expect(out).toContain("<b>1</b> of 1 Claude account ready");
     expect(usedAndAvailable(99.6)).toEqual({ used: 99, available: 1 });
     expect(usedAndAvailable(100)).toEqual({ used: 100, available: 0 });
   });
 
-  it("says why a stale row is stale in its first unread reading's words", () => {
-    const [row] = usageReport([acct(1, 10, null)], NOW).rows;
-    expect(staleReason(row.cells)).toBe("No 7d reading");
-    expect(staleReason(usageReport([acct(1, 10, 10)], NOW).rows[0].cells)).toBeNull();
-    expect(statusOf(row.cells)).toBe("stale");
+  it("says how current a row's numbers are: now, an age, or why there are none", () => {
+    const f = (a: Account) => freshness(usageReport([a], NOW).rows[0], NOW);
+    expect(f(acct(1, 10, 10))).toEqual({ text: "now", old: false });
+    expect(f(acct(1, 10, 10, { stale: true, fetchedAt: (NOW - 20 * 60) * 1000 }))).toEqual({ text: "20m ago", old: true });
+    expect(f(acct(1, 10, null))).toEqual({ text: "No 7d reading", old: true });
+    expect(f(acct(1, 10, 10, { fetchedAt: null }))).toEqual({ text: "never read", old: true });
+    expect(f(acct(1, 10, 10, { error: "invalid_grant", alive: false })).text).toMatch(/login expired/i);
+    expect(statusOf(usageReport([acct(1, 10, null)], NOW).rows[0].cells)).toBe("stale");
   });
 });
 
@@ -252,7 +255,7 @@ describe("the report, drawn", () => {
 
   it("leads with how many accounts are ready, then what each window has remaining", () => {
     const out = html([acct(1, 20, 40, { active: true }), acct(2, 40, null)]);
-    expect(out).toContain("<b>1</b> of 2 accounts ready");
+    expect(out).toContain("<b>1</b> of 2 Claude accounts ready");
     // One line: what "ready" means is in the disclosure, not under the count.
     expect(out).not.toContain("ap-report-lead-sub");
     expect(out).toContain('<p class="ap-report-left"><b>70%</b> remaining</p>');
@@ -291,19 +294,20 @@ describe("the report, drawn", () => {
 
   it("labels the rows' numbers as used, beside a state for each", () => {
     const out = html([acct(1, 10, 10)]);
-    expect(out).toContain('<th scope="col">5h used</th><th scope="col">7d used</th><th scope="col">Status</th>');
+    expect(out).toContain('<th scope="col">5h used</th><th scope="col">7d used</th><th scope="col">Status</th><th scope="col" class="ap-report-upd-h">Updated</th>');
+    expect(out).toContain('<td class="ap-report-upd">now</td>');
   });
 
   it("dims a left-out reading's last number, and says once, in its state, why", () => {
     const out = html([acct(1, 33, 40, { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]);
     expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, not counted</span>');
-    // Judged on its last numbers, and saying how old they are (#1713).
-    expect(out).toMatch(/<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Ready<\/span><span class="ap-report-why">Updated [^<]+<\/span><\/td>/);
-    expect(out.match(/ap-report-why/g)).toHaveLength(1);
+    // Judged on its last numbers — one word, one line — and how old they are
+    // said once, in the Updated column (#1713).
+    expect(out).toContain('<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"></i>Ready</span></td><td class="ap-report-upd" data-old="">1h ago</td>');
     // No number at all: a dash for the eye, words for a screen reader.
     const none = html([acct(1, 20, null)]);
     expect(none).toContain('<span class="ap-report-pct"><span aria-hidden="true">—</span><span class="vis-hidden">no reading</span></span>');
-    expect(none).toContain('<span class="ap-report-why">No 7d reading</span>');
+    expect(none).toContain('<td class="ap-report-upd" data-old="">No 7d reading</td>');
     // And a real zero is a reading, drawn as one.
     expect(html([acct(1, 0, 0)])).toContain(">0%<");
   });
@@ -311,8 +315,8 @@ describe("the report, drawn", () => {
   it("says a login that blocks both windows once, as the row's reason", () => {
     const out = html([acct(1, 10, 10, { error: "invalid_grant", alive: false })]);
     expect(out).toContain('data-status="stale"');
-    expect(out.match(/ap-report-why/g)).toHaveLength(1);
-    expect(out).toMatch(/<span class="ap-report-why">[^<]*login expired/i);
+    expect(out.match(/class="ap-report-upd"/g)).toHaveLength(1);
+    expect(out).toMatch(/<td class="ap-report-upd" data-old="">[^<]*login expired/i);
   });
 
   it("names a spent window Limited and two Exhausted, and warns without a state for one near its limit", () => {
@@ -321,7 +325,7 @@ describe("the report, drawn", () => {
     expect(out).toMatch(/data-status="exhausted"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Exhausted</);
     expect(out).toMatch(/data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Ready</);
     expect(out).toContain('<span class="ap-report-pct" data-level="hi">95%</span>');
-    expect(out).toContain("<b>1</b> of 3 accounts ready");
+    expect(out).toContain("<b>1</b> of 3 Claude accounts ready");
   });
 
   it("marks an account held out of rotation", () => {
@@ -414,7 +418,9 @@ describe("where it opens from", () => {
   it("is a dialog in the Projects report's shell: portalled, dismissed and focused the shared way", () => {
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).toContain("const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });");
-    expect(modal).toContain('role="dialog" aria-modal="true" aria-labelledby="ap-report-title ap-report-sub"');
+    // Named by its title alone: the subtitle's count was the lead's (#1713).
+    expect(modal).toContain('role="dialog" aria-modal="true" aria-labelledby="ap-report-title"');
+    expect(modal).not.toContain("ap-proj-sub");
     expect(modal).toMatch(/return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="modal-backdrop"/);
     expect(modal).toContain('<h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>');
   });

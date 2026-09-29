@@ -290,7 +290,8 @@
    dialog; the column names stay at the top while the rows scroll. */
 .ap-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
 .ap-report-col-win { width: 96px; }
-.ap-report-col-state { width: 164px; }
+.ap-report-col-state { width: 88px; }
+.ap-report-col-upd { width: 88px; }
 .ap-report-table th,
 .ap-report-table td { padding: 6px 0 6px 12px; text-align: left; vertical-align: baseline; }
 .ap-report-table :is(th, td):first-child { padding-left: 0; }
@@ -362,7 +363,17 @@
 .ap-report-state[data-status="exhausted"] .ap-report-state-word { font-weight: 600; color: var(--err); }
 .ap-report-state[data-status="stale"] .ap-report-state-word { color: var(--muted); }
 .ap-report-state[data-status="stale"] .ap-report-state-word i { border-width: 1.5px; }
-.ap-report-why { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--report-meta); }
+/* How current each row's numbers are, in a column of its own so every row is
+   one line: "now" stays quiet, and an age or a reason is the one to notice. */
+.ap-report-upd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--report-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ap-report-upd[data-old] { color: var(--text); }
 
 /* How it is worked out, folded away: it matters once, not on every glance. */
 .ap-report-how { margin-top: -8px; font-size: 12px; }
@@ -412,6 +423,10 @@
   .ap-report-table thead th { top: -16px; }
   .ap-report-col-win { width: 64px; }
   .ap-report-col-state { width: 96px; }
+  /* No room for a fifth column: the age goes, and the rows keep their state. */
+  .ap-report-col-upd { width: 0; }
+  .ap-report-upd,
+  .ap-report-upd-h { display: none; }
   .ap-report-in { display: block; margin-left: 0; }
   .ap-report-acct-in { flex-wrap: wrap; row-gap: 2px; }
 }
