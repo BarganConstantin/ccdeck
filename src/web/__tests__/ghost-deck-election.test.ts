@@ -29,6 +29,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { endStdin } from "./child-stdin";
 
 // The home the server thinks it has, the config dir the override points at, and
 // the Codex home it tails — all temporary, all set before the server module is
@@ -202,7 +203,7 @@ async function fireHook(session: string) {
     },
     stdio: ["pipe", "ignore", "ignore"],
   });
-  child.stdin.end(JSON.stringify({
+  endStdin(child, JSON.stringify({
     cwd: FAKE_HOME, session_id: session, hook_event_name: "PreToolUse",
     tool_name: "Read", tool_use_id: id,
   }));

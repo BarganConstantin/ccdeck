@@ -28,6 +28,7 @@ import { claudeConfigDir } from "../../server/claude-dir.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { claudeDir, launcherScript, shellPath, writeLauncher } from "../../../desktop/deck-host.mjs";
 import { rmTempDir } from "./rm-temp-dir";
+import { endStdin } from "./child-stdin";
 
 describe("knowing the app is the host", () => {
   it("is told by the environment the supervisor and the worker both inherit", () => {
@@ -220,7 +221,7 @@ async function throughLauncher({ onPath }: { onPath: boolean }) {
   child.stdout.on("data", c => { stdout += c; });
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", c => { stderr += c; });
-  child.stdin.end(JSON.stringify({ cwd: dir, hook_event_name: "SessionStart", session_id: "s1" }));
+  endStdin(child, JSON.stringify({ cwd: dir, hook_event_name: "SessionStart", session_id: "s1" }));
   try {
     const code = await new Promise<number | null>((done, fail) => {
       child.on("error", fail);
