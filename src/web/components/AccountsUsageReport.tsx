@@ -18,7 +18,7 @@
 // arrives after that goes at the end. A poll that fails keeps the last roster
 // on screen and says so, and so does one that comes back empty, rather than
 // the report emptying under the reader (the Projects report's #1412).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { Account } from "../claude-accounts";
 import { resetCountdown } from "../relative-time";
@@ -28,6 +28,7 @@ import {
   type Cell, type ReportRow, type Status, type WindowTotal,
 } from "../accounts-usage-report";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { useCountUp } from "../use-count-up";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
  *  70% used and the error past 90%. A warning, never a state — see statusOf. */
@@ -59,6 +60,9 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   // so, so the card does not say it again.
   const never = w.total - w.included;
   const basis = never > 0 && <p className="ap-report-basis">{never} never read</p>;
+  const { used, available } = usedAndAvailable(w.used ?? 0);
+  // Counted in on opening, and on from where it is when a poll moves it.
+  const shownLeft = Math.round(useCountUp(available, { countIn: true }));
   if (w.used == null) {
     return (
       <section className="ap-report-sum" aria-labelledby={id}>
@@ -68,14 +72,19 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
       </section>
     );
   }
-  const { used, available } = usedAndAvailable(w.used);
   const reset = w.nextReset ? resetCountdown(w.nextReset.at, nowSec) : null;
   return (
     <section className="ap-report-sum" aria-labelledby={id}>
       <h3 className="ap-report-win" id={id}>{w.long} window</h3>
-      <p className="ap-report-left"><b>{available}%</b> remaining</p>
+      <p className="ap-report-left"><b>{shownLeft}%</b> remaining</p>
+      {/* A transform, not a width, as the Usage panel's quota bars are: a new
+          reading moves it on the compositor, and it grows in from the left
+          when the dialog opens (see the sheet). */}
       <div className="ap-report-meter" data-level={level(used)} aria-hidden>
-        <i style={{ width: `${available}%` }} />
+        {/* The fraction as a variable the sheet scales by, not an inline
+            transform: an inline one outranks the sheet's starting style, and
+            the bar would stand at its reading from the first frame. */}
+        <i style={{ "--left": available / 100 } as CSSProperties} />
       </div>
       {reset && w.nextReset && (
         // WHOSE, ON THE LINE. Each account keeps its own window and its own
@@ -161,6 +170,7 @@ export function UsageReportBody({ accounts, nowSec, held }: {
 }) {
   const report = usageReport(accounts, nowSec);
   const total = report.rows.length;
+  const shownReady = Math.round(useCountUp(report.roomInBoth, { countIn: true }));
   return (
     // A scroll region with a name: with ten accounts at a phone's width, or
     // twenty-five anywhere, it scrolls, and the browsers that make a scroller a
@@ -172,7 +182,7 @@ export function UsageReportBody({ accounts, nowSec, held }: {
           accounts can be worked on now. The same count as the rows that say
           Ready, by construction. */}
       <p className="ap-report-lead">
-        <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} ready
+        <b>{shownReady}</b> of {plural(total, "account", "accounts")} ready
       </p>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
@@ -193,8 +203,9 @@ export function UsageReportBody({ accounts, nowSec, held }: {
           </tr>
         </thead>
         <tbody>
-          {report.rows.map(r => (
-            <tr key={r.num} data-active={r.active ? "" : undefined}>
+          {report.rows.map((r, i) => (
+            // Its place in the list, for the sheet's stagger as the rows come in.
+            <tr key={r.num} data-active={r.active ? "" : undefined} style={{ "--row": i } as CSSProperties}>
               <th scope="row" className="ap-report-acct">
                 <span className="ap-report-acct-in">
                   <span className="ap-report-name" title={r.name}>{r.name}</span>

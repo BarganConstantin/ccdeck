@@ -272,10 +272,12 @@ describe("the report, drawn", () => {
   });
 
   it("draws one quiet bar of what remains, in the warning ink only once the window runs low", () => {
-    expect(html([acct(1, 20, 40)])).toContain('<div class="ap-report-meter" aria-hidden="true"><i style="width:80%"></i></div>');
+    // A scale rather than a width, as the Usage panel's bars, by a variable
+    // the sheet's starting style can outrank (#1713).
+    expect(html([acct(1, 20, 40)])).toContain('<div class="ap-report-meter" aria-hidden="true"><i style="--left:0.8"></i></div>');
     const low = html([acct(1, 95, 75)]);
-    expect(low).toContain('<div class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="width:5%"></i></div>');
-    expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="width:25%"></i></div>');
+    expect(low).toContain('<div class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="--left:0.05"></i></div>');
+    expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="--left:0.25"></i></div>');
   });
 
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
@@ -330,7 +332,7 @@ describe("the report, drawn", () => {
     const out = html([acct(7, 10, 10, { active: true, alias: "live" }), acct(3, 10, 10, { alias: "three" }), acct(5, 10, 10, { alias: "five" })]);
     expect(out.indexOf(">live<")).toBeLessThan(out.indexOf(">three<"));
     expect(out.indexOf(">three<")).toBeLessThan(out.indexOf(">five<"));
-    expect(out).toContain('<tr data-active="">');
+    expect(out).toContain('<tr data-active="" style="--row:0">');
     expect(out).toContain('<span class="ap-report-name" title="live">live</span><span class="ap-report-current">Current</span>');
     expect(out.match(/ap-report-current/g)).toHaveLength(1);
   });
