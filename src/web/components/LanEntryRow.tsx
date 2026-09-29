@@ -25,7 +25,7 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
   onMap?: () => void;
 } & ReturnType<typeof useHoverPeek>) {
   return (
-    <div className="ap-nav-wrap">
+    <>
       <button type="button" id="ap-lan-entry" className="ap-nav"
         onClick={() => { dropPeek(); onOpen(); }}
         // Described by the card while the card is there, so a screen reader
@@ -81,6 +81,6 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
         </button>
       )}
       {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} onHold={holdPeek} onLet={shutPeek} />}
-    </div>
+    </>
   );
 }

@@ -20,6 +20,8 @@
   --nm-draw: cubic-bezier(0.16, 1, 0.3, 1);
   --nm-wire: color-mix(in srgb, var(--text) 26%, transparent);
   --nm-wire-quiet: color-mix(in srgb, var(--text) 12%, transparent);
+  /* The tailnet's stroke, shared by the wires that cross it and the key. */
+  --nm-wire-tailnet: repeating-linear-gradient(90deg, var(--nm-wire) 0 6px, transparent 6px 10px);
   width: min(1160px, 92vw);
   height: min(740px, 86vh);
   max-height: 86vh;
@@ -116,7 +118,7 @@
 .nm-wire[data-tier="loose"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 1.5px, transparent 1.5px 6px); }
 /* Over the tailnet, dashed — the legend's own stroke. The line is the same
    ink; only its rhythm says which network it crosses. */
-.nm-wire[data-via="tailscale"] { background: repeating-linear-gradient(90deg, var(--nm-wire) 0 6px, transparent 6px 10px); }
+.nm-wire[data-via="tailscale"] { background: var(--nm-wire-tailnet); }
 .nm-wire[data-via="tailscale"][data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 6px, transparent 6px 10px); }
 .nm-wire[data-on] { --nm-wire: color-mix(in srgb, var(--text) 70%, transparent); --nm-wire-quiet: color-mix(in srgb, var(--text) 45%, transparent); height: 2px; margin-top: -1px; }
 
@@ -234,7 +236,7 @@
   padding: 0;
   display: grid;
   place-items: center;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ctl-edge);
   border-radius: 50%;
   background: var(--panel);
   color: var(--muted);
@@ -252,14 +254,19 @@
     transform 140ms var(--nm-ease);
 }
 .nm-node .lan-machine { color: inherit; }
-.nm-node[data-tier="online"] { color: var(--text-secondary); border-color: color-mix(in srgb, var(--ok) 38%, var(--line)); }
-.nm-node[data-tier="loose"] { border-style: dashed; border-color: color-mix(in srgb, var(--text) 22%, transparent); background: var(--bg-soft); }
-.nm-node:hover,
-.nm-node[data-on] { color: var(--text); border-color: color-mix(in srgb, var(--text) 55%, var(--line)); box-shadow: var(--shadow-contact), var(--shadow-2); }
-/* The deck the side panel is describing keeps a ring while the pointer is
-   elsewhere, so what the panel says can be matched to where it is. */
-.nm-node[data-shown] { box-shadow: var(--shadow-contact), 0 0 0 3px color-mix(in srgb, var(--text) 14%, transparent); }
-.nm-node[data-shown][data-on] { box-shadow: var(--shadow-contact), var(--shadow-2), 0 0 0 3px color-mix(in srgb, var(--text) 14%, transparent); }
+.nm-node[data-tier="online"] { color: var(--text); }
+/* Not paired: the disc's edge is dashed and it sits a step back on the ground,
+   the ring's own stroke carried onto the machine. */
+.nm-node[data-tier="loose"] { border-style: dashed; background: var(--bg-soft); }
+/* Looked at — by the pointer, which the map turns into `data-on` itself, or by
+   the keyboard. The edge goes to the text's own ink and the disc lifts. */
+.nm-node[data-on] { color: var(--text); border-color: var(--text); box-shadow: var(--shadow-contact), var(--shadow-2); }
+/* The deck the side panel is describing, once the pointer has left it: its
+   disc keeps the control's fill and its name its weight, so what the panel
+   says can be matched to where the deck is. A fill, not a second ring, so the
+   one boundary a disc draws stays the one the contrast sweep measures. */
+.nm-node[data-shown] { background: color-mix(in srgb, var(--text) 10%, var(--panel)); }
+.nm-node[data-shown] .nm-name { font-weight: 600; }
 .nm-node:active { transform: scale(0.97); }
 .nm-node:focus-visible { outline-offset: 3px; border-radius: 50%; }
 
@@ -284,10 +291,10 @@
   background: var(--panel);
   border: 1.5px solid var(--muted);
 }
-.nm-node[data-tier="online"] .nm-mark { background: var(--ok); border-color: var(--ok); }
-.nm-node[data-tier="loose"] .nm-mark { border-style: dashed; border-color: var(--muted); }
-.nm-node[data-kind="asks"] .nm-mark { background: var(--accent); border-color: var(--accent); }
-.nm-node[data-kind="asks"] .nm-mark::after {
+.nm-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
+.nm-mark[data-tier="loose"] { border-style: dashed; }
+.nm-mark[data-kind="asks"] { background: var(--accent); border-color: var(--accent); }
+.nm-mark[data-kind="asks"]::after {
   content: "";
   position: absolute;
   inset: -1.5px;
@@ -319,7 +326,7 @@
   color: var(--text);
 }
 .nm-node[data-tier="offline"] .nm-name,
-.nm-node[data-tier="loose"] .nm-name { color: var(--text-secondary); }
+.nm-node[data-tier="loose"] .nm-name { color: var(--muted); }
 .nm-cap {
   max-width: 100%;
   overflow: hidden;
@@ -347,7 +354,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--muted);
   text-align: center;
   text-wrap: balance;
 }
@@ -360,7 +367,7 @@
   column-gap: 14px;
   row-gap: 4px;
   margin: 0;
-  padding: 9px 16px 10px;
+  padding: 8px 16px 10px;
   border-top: 1px solid var(--line-soft);
   background: var(--bg);
   list-style: none;
@@ -379,7 +386,7 @@
 .nm-key-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
 .nm-key-mark[data-tier="loose"] { border-style: dashed; }
 .nm-key-wire { width: 18px; height: 1.5px; background: var(--nm-wire); }
-.nm-key-wire[data-via="tailscale"] { background: repeating-linear-gradient(90deg, var(--nm-wire) 0 6px, transparent 6px 10px); }
+.nm-key-wire[data-via="tailscale"] { background: var(--nm-wire-tailnet); }
 .nm-key-glint {
   width: 5px;
   height: 5px;
@@ -419,12 +426,12 @@
 .nm-panel-name .ap-pulse { color: var(--ok); }
 .nm-panel-name .ap-dot { color: var(--muted); }
 .nm-panel-self { margin: -6px 0 0; font-size: 11px; color: var(--muted); }
-.nm-panel-state { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.nm-panel-state { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .nm-panel-state[data-kind="asks"] { color: var(--accent); }
 .nm-panel-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .nm-back { align-self: flex-start; margin: -4px 0 0 -2px; font-size: 11px; }
 
-.nm-facts { row-gap: 7px; column-gap: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.nm-facts { row-gap: 8px; column-gap: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .nm-facts dd { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .nm-addrs { display: flex; flex-direction: column; gap: 2px; }
 
@@ -447,12 +454,12 @@
 }
 .nm-counts li[data-count="online"] .nm-count-n { color: var(--ok); }
 .nm-counts li[data-count="asks"] .nm-count-n { color: var(--accent); }
-.nm-count-words { font-size: 11px; color: var(--text-secondary); }
+.nm-count-words { font-size: 11px; color: var(--text); }
 
 .nm-logins { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
-.nm-logins-title { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.nm-logins-title { margin: 0; font-size: 11px; font-weight: 600; color: var(--text); }
 .nm-lanes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.nm-lane { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; }
+.nm-lane { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
 .nm-lane-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
 .nm-lane[data-tone="ok"] .nm-lane-dot { background: var(--ok); }
 .nm-lane[data-tone="wait"] .nm-lane-dot { background: var(--accent); }
@@ -463,7 +470,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  color: var(--text-secondary);
+  color: var(--text);
 }
 .nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); }
 .nm-lanes-more { margin: 0; font-size: 10px; color: var(--muted); }
@@ -497,7 +504,7 @@
   .nm-glint { animation: nm-round 5.2s cubic-bezier(0.65, 0, 0.35, 1) calc(1.1s + var(--phase, 0s)) infinite; }
   .nm-glint::after { animation: nm-answer 5.2s linear calc(1.1s + var(--phase, 0s)) infinite; }
   .nm-core[data-listening] .nm-core-orb::after { animation: nm-beacon 3.6s cubic-bezier(0.22, 0.61, 0.36, 1) 0.6s infinite; }
-  .nm-node[data-kind="asks"] .nm-mark::after { animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite; }
+  .nm-mark[data-kind="asks"]::after { animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite; }
   .nm-stage[data-paused] .nm-glint,
   .nm-stage[data-paused] .nm-glint::after,
   .nm-stage[data-paused] .nm-core-orb::after,
@@ -519,7 +526,6 @@
   .nm-glint,
   .nm-glint::after,
   .nm-core[data-listening] .nm-core-orb::after,
-  .nm-node[data-kind="asks"] .nm-mark::after { animation: none; }
-  .nm-node[data-kind="asks"] .nm-mark::after { opacity: 0.35; transform: scale(1.8); }
+  .nm-mark[data-kind="asks"]::after { animation: none; opacity: 0.35; transform: scale(1.8); }
   .nm-panel { animation: nm-fade-in 120ms ease-out both; }
 }

@@ -75,7 +75,7 @@ export default function LanViewHeader({
         {/* THE MAP, FIRST OF THE FOUR: it is the one act here that changes
             nothing, and it is about every deck on the list at once. */}
         {on && (
-          <button type="button" className="glyph-btn ap-lan-mapbtn" onClick={() => setMapOpen(true)}
+          <button type="button" className="glyph-btn" onClick={() => setMapOpen(true)}
             aria-label="Show the network map"
             title="Network map — every deck this one knows, drawn around it">
             <MapGlyph />

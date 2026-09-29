@@ -377,6 +377,12 @@ const PRESSES: Press[] = [
   // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
   // labelled control by its name, like the header's icon buttons — 0.97.
   [".ap-rest-all:active", "0.97", "transform"],
+  // The network map's way in, over Local network's row: a glyph in a 26px box,
+  // named "Show the network map" like the header's icon buttons — 0.97. And
+  // a deck on the map, a 40px disc that opens that deck's own dialog: a
+  // labelled control by its name under it, so the same 0.97.
+  [".ap-lan-map:active", "0.97", "transform"],
+  [".nm-node:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

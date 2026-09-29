@@ -89,19 +89,21 @@
 }
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
 /* THE MAP, over the way-in row's right side, just short of its chevron — see
-   LanEntryRow. Edgeless at rest like the fold's own controls, and the row
-   keeps its tone while the pointer is on the map, because the map is still
-   this row's: leaving the row for its own control should not look like
-   leaving it. The row's words stop short of the glyph. */
-.ap-nav-wrap { position: relative; }
-.ap-nav-wrap:has(.ap-lan-map) .ap-nav-text { padding-right: 30px; }
-.ap-nav-wrap:has(.ap-lan-map:hover) .ap-nav { background: color-mix(in srgb, var(--text) 4%, transparent); }
+   LanEntryRow. The row is one button, so the glyph cannot sit in it: the foot
+   lays the two in one grid cell instead, which centres the glyph on the row
+   whatever the row's height turns out to be. Edgeless at rest like the fold's
+   own controls, and the row keeps its tone while the pointer is on the map,
+   because the map is still this row's: leaving the row for its own control
+   should not look like leaving it. The row's words stop short of the glyph. */
+.ap-foot:has(> .ap-lan-map) { display: grid; }
+.ap-foot:has(> .ap-lan-map) > :is(.ap-nav, .ap-lan-map) { grid-area: 1 / 1; }
+.ap-foot:has(> .ap-lan-map) .ap-nav-text { padding-right: 32px; }
+.ap-foot:has(> .ap-lan-map:hover) > .ap-nav { background: color-mix(in srgb, var(--text) 4%, transparent); }
 .ap-lan-map {
   appearance: none;
-  position: absolute;
-  top: calc(50% + 2px);
-  right: 19px;
-  translate: 0 -50%;
+  justify-self: end;
+  align-self: center;
+  margin: 4px 19px 0 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -317,7 +317,7 @@ function DeckNode({ node, os, lit, shown, tabbable, register, onHold, onRelease,
       onBlur={onRelease}
       onClick={onOpen}>
       <Machine />
-      <i className="nm-mark" aria-hidden />
+      <i className="nm-mark" data-tier={node.tier} data-kind={row.kind} aria-hidden />
       <span className="nm-label" aria-hidden>
         <span className="nm-name">{row.name}</span>
         <span className="nm-cap">{caption}</span>
@@ -340,7 +340,7 @@ function EmptyNote({ status }: { status: LanStatus | null }) {
 /** The key, drawn with the map's own marks rather than described. */
 function Legend() {
   return (
-    <ul className="nm-legend" aria-label="Key">
+    <ul className="nm-legend">
       <li><i className="nm-key-mark" data-tier="online" aria-hidden />online</li>
       <li><i className="nm-key-mark" data-tier="offline" aria-hidden />offline</li>
       <li><i className="nm-key-mark" data-tier="loose" aria-hidden />not paired</li>
@@ -453,9 +453,9 @@ function DeckDetails({ row, status, accounts, now, onOpen, onBack }: {
       <Facts facts={facts} />
       {view.paired && (
         <section className="nm-logins" aria-label="Logins the two decks share">
-          <h4 className="nm-logins-title">
+          <p className="nm-logins-title">
             {view.lanes.length === 0 ? "No logins between the two" : `${view.lanes.length} login${view.lanes.length === 1 ? "" : "s"} between the two`}
-          </h4>
+          </p>
           {lanes.length > 0 && (
             <ul className="nm-lanes">
               {lanes.map(l => (
