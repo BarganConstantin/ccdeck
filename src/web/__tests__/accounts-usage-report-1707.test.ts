@@ -253,7 +253,8 @@ describe("the report, drawn", () => {
   it("leads with how many accounts are ready, then what each window has remaining", () => {
     const out = html([acct(1, 20, 40, { active: true }), acct(2, 40, null)]);
     expect(out).toContain("<b>1</b> of 2 accounts ready");
-    expect(out).toContain("Available in both usage windows");
+    // One line: what "ready" means is in the disclosure, not under the count.
+    expect(out).not.toContain("ap-report-lead-sub");
     expect(out).toContain('<p class="ap-report-left"><b>70%</b> remaining</p>');
     expect(out).toContain('<p class="ap-report-left"><b>60%</b> remaining</p>');
     expect(out.indexOf("accounts ready")).toBeLessThan(out.indexOf("remaining"));
@@ -261,10 +262,10 @@ describe("the report, drawn", () => {
     expect(out).not.toMatch(/available<|% used</);
   });
 
-  it("says a card counts stale accounts at their last reading, and which were never read", () => {
+  it("says only which accounts a card leaves out: the ones never read", () => {
     expect(html([acct(1, 20, 40), acct(2, 40, 40)])).not.toContain("ap-report-basis");
-    const stale = html([acct(1, 20, 40), acct(2, 40, 40, { stale: true }), acct(3, 40, 40, { stale: true })]);
-    expect(stale.match(/Includes 2 stale accounts at the last reading/g)).toHaveLength(2);
+    // Stale ones are in the total, and their rows say how old they are.
+    expect(html([acct(1, 20, 40), acct(2, 40, 40, { stale: true })])).not.toContain("ap-report-basis");
     const never = html([acct(1, 20, 40), acct(2, 40, null)]);
     expect(never.match(/ap-report-basis/g)).toHaveLength(1);
     expect(never).toContain('<p class="ap-report-basis">1 never read</p>');
@@ -280,7 +281,7 @@ describe("the report, drawn", () => {
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
     // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span class="ap-report-reset-when">Next reset in <span class="ap-report-num">1h 0m</span> · </span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span class="ap-report-reset-when">Next reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
     expect(out).not.toMatch(/>Resets in /);
     const two = html([acct(1, 12, 10, { alias: "a" }, [NOW + HOUR]), acct(2, 10, 10, { alias: "b" }, [NOW + HOUR + 20])]);
     expect(two).toContain('<span class="ap-report-who">a</span><span class="ap-report-more">+1</span>');

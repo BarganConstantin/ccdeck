@@ -218,7 +218,6 @@
 /* The answer, and the one large number in the dialog: how many accounts can
    be worked on now. The windows' averages under it are smaller on purpose —
    an average can hide spent accounts behind fresh ones. */
-.ap-report-ready { display: flex; flex-direction: column; gap: 2px; }
 .ap-report-lead { margin: 0; font-size: 14px; color: var(--text); }
 .ap-report-lead b {
   margin-right: 2px;
@@ -227,7 +226,6 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.ap-report-lead-sub { margin: 0; font-size: 12px; color: var(--report-meta); }
 
 /* Each window's capacity, on a surface one step off the dialog rather than in
    a box. In light the dialog is already the lightest surface there is, so the
@@ -263,11 +261,10 @@
 .ap-report-meter[data-level="hi"] i { background: var(--err); }
 .ap-report-reset,
 .ap-report-none { margin: 0; font-size: 12px; color: var(--report-meta); }
-.ap-report-reset { display: flex; align-items: baseline; min-width: 0; white-space: nowrap; }
-.ap-report-reset-when,
-.ap-report-more { flex: none; }
-.ap-report-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-.ap-report-more { margin-left: 4px; color: var(--report-meta); }
+.ap-report-reset { display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; }
+.ap-report-reset > span { flex: none; }
+.ap-report-reset > .ap-report-who { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ap-report-more { color: var(--report-meta); }
 .ap-report-none { color: var(--text); }
 .ap-report-basis { margin: 0; font-size: 11px; color: var(--report-meta); }
 .ap-report-num { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }

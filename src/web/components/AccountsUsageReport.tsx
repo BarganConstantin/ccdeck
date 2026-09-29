@@ -54,16 +54,11 @@ function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
  */
 function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   const id = `ap-report-${w.id}`;
-  const stale = w.included - w.reporting;
+  // Only the one exclusion there is: an account never read, which has no
+  // number to count. A stale one counts at its last reading and its row says
+  // so, so the card does not say it again.
   const never = w.total - w.included;
-  const basis = (stale > 0 || never > 0) && (
-    <p className="ap-report-basis">
-      {[
-        stale > 0 && `Includes ${plural(stale, "stale account", "stale accounts")} at the last reading`,
-        never > 0 && `${never} never read`,
-      ].filter(Boolean).join(" · ")}
-    </p>
-  );
+  const basis = never > 0 && <p className="ap-report-basis">{never} never read</p>;
   if (w.used == null) {
     return (
       <section className="ap-report-sum" aria-labelledby={id}>
@@ -88,7 +83,8 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
         // 25m" under 88% read as all of it coming back then. The name is the
         // one part that may be cut; the rest stays whole.
         <p className="ap-report-reset" title={soonest(w.nextReset)}>
-          <span className="ap-report-reset-when">Next reset in <span className="ap-report-num">{reset}</span> · </span>
+          <span className="ap-report-reset-when">Next reset in <span className="ap-report-num">{reset}</span></span>
+          <span aria-hidden>·</span>
           <span className="ap-report-who">{w.nextReset.name}</span>
           {w.nextReset.more > 0 && <span className="ap-report-more">+{w.nextReset.more}</span>}
           {/* The rest of it, for the reader a hover never reaches. */}
@@ -175,12 +171,9 @@ export function UsageReportBody({ accounts, nowSec, held }: {
       {/* The question a reader brings, answered first and loudest: how many
           accounts can be worked on now. The same count as the rows that say
           Ready, by construction. */}
-      <div className="ap-report-ready">
-        <p className="ap-report-lead">
-          <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} ready
-        </p>
-        <p className="ap-report-lead-sub">Available in both usage windows</p>
-      </div>
+      <p className="ap-report-lead">
+        <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} ready
+      </p>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
