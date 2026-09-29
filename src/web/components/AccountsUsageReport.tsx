@@ -54,16 +54,11 @@ function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
  */
 function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   const id = `ap-report-${w.id}`;
-  const stale = w.included - w.reporting;
+  // Only the one exclusion there is: an account never read, which has no
+  // number to count. A stale one counts at its last reading and its row says
+  // so, so the card does not say it again.
   const never = w.total - w.included;
-  const basis = (stale > 0 || never > 0) && (
-    <p className="ap-report-basis">
-      {[
-        stale > 0 && `Includes ${plural(stale, "stale account", "stale accounts")} at the last reading`,
-        never > 0 && `${never} never read`,
-      ].filter(Boolean).join(" · ")}
-    </p>
-  );
+  const basis = never > 0 && <p className="ap-report-basis">{never} never read</p>;
   if (w.used == null) {
     return (
       <section className="ap-report-sum" aria-labelledby={id}>
@@ -83,9 +78,16 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
         <i style={{ width: `${available}%` }} />
       </div>
       {reset && w.nextReset && (
+        // WHOSE, ON THE LINE. Each account keeps its own window and its own
+        // clock, so this is one account's reset, not the window's: "Resets in
+        // 25m" under 88% read as all of it coming back then. The name is the
+        // one part that may be cut; the rest stays whole.
         <p className="ap-report-reset" title={soonest(w.nextReset)}>
-          Resets in <span className="ap-report-num">{reset}</span>
-          {/* Whose, for the reader a hover never reaches. */}
+          <span>Next reset in <span className="ap-report-num">{reset}</span></span>
+          <span aria-hidden>·</span>
+          <span className="ap-report-who">{w.nextReset.name}</span>
+          {w.nextReset.more > 0 && <span className="ap-report-more">+{w.nextReset.more}</span>}
+          {/* The rest of it, for the reader a hover never reaches. */}
           <span className="vis-hidden">. {soonest(w.nextReset)}</span>
         </p>
       )}
@@ -124,10 +126,10 @@ const STATE_WORD: Record<Status, string> = {
   stale: "Stale",
 };
 
-/** What the row can do now, as a mark and a word; a stale row also says why,
- *  quietly, in the words its reading gave. */
+/** What the row can do now, as a mark and a word; a row judged on readings
+ *  that are not current also says so, quietly, in the words they gave. */
 function StateCell({ row }: { row: ReportRow }) {
-  const why = row.status === "stale" ? staleReason(row.cells) : null;
+  const why = staleReason(row.cells);
   return (
     <td className="ap-report-state" data-status={row.status}>
       <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
@@ -169,12 +171,9 @@ export function UsageReportBody({ accounts, nowSec, held }: {
       {/* The question a reader brings, answered first and loudest: how many
           accounts can be worked on now. The same count as the rows that say
           Ready, by construction. */}
-      <div className="ap-report-ready">
-        <p className="ap-report-lead">
-          <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} ready
-        </p>
-        <p className="ap-report-lead-sub">Available in both usage windows</p>
-      </div>
+      <p className="ap-report-lead">
+        <b>{report.roomInBoth}</b> of {plural(total, "account", "accounts")} ready
+      </p>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
@@ -214,15 +213,12 @@ export function UsageReportBody({ accounts, nowSec, held }: {
         <summary><InfoMark />How usage is calculated</summary>
         <div className="ap-report-how-body">
           <p>
-            Each account is one full window, and <b>used</b> is their average; <b>remaining</b> is the
-            rest. A stale account counts at its last reading, and a window that has reset since as
-            unused; an account never read is left out. The deck is never told a limit, so there is no
-            total in tokens or dollars.
+            Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is
+            the rest.
           </p>
           <p>
-            <b>Ready</b> has room in both windows. <b>Limited</b> has reached the limit of one,
-            and <b>Exhausted</b> of both. <b>Stale</b> has a reading that is not current, so it is
-            dimmed and never called ready.
+            <b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of
+            both. <b>Stale</b> was never read, or is signed out.
           </p>
         </div>
       </details>

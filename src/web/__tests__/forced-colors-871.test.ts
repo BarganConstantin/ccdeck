@@ -47,10 +47,10 @@ const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
 // that accent would stand in for Highlight under a Contrast theme.
 const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar .brand button.v .v-dot", ".topbar .brand button.v.ready .v-dot"];
 const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".session-summary .ss-tt-bar-fill"];
-// `.ap-report-state-word i` keeps its own colour, and its own colour is
-// currentColor: the state word beside it, which the theme forces to CanvasText
-// (#1713). So it is drawn in the text colour without a rule to say so.
-const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".ap-report-state-word i", ".uh-bar-seg", ".uh-agent-seg", ".uh-model-bar-fill", ".uh-legend-dot", ".cost-bar .cb-seg"];
+// Account capacity's state marks (#1713) are not here on purpose: they are
+// drawn as borders, which a Contrast theme repaints in CanvasText with no rule
+// of this block's, a filled mark staying filled and a hollow one hollow.
+const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-model-bar-fill", ".uh-legend-dot", ".cost-bar .cb-seg"];
 const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".session-summary .ss-tt-bar", ".uh-model-bar", ".uh-agent-bar", ".cost-bar", ".ap-report-meter"];
 
 describe("the deck under a Windows Contrast theme (#871)", () => {

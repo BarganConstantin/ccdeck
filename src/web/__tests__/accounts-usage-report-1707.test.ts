@@ -125,8 +125,9 @@ describe("what is left out, and why — never as 0%", () => {
     for (const w of r.windows) expect(w.used).toBeCloseTo((20 + 80 + 0) / 3, 10);
     // Only the account never read is out; it is never a 0% it was not given.
     expect(r.rows[3].cells.five_hour).toMatchObject({ counted: false, estimate: null });
-    // And being in the total does not make a stale row ready.
-    expect(r.rows.map(x => x.status)).toEqual(["ready", "stale", "stale", "stale"]);
+    // And the rows are judged on the same numbers the total takes; only the
+    // account never read is Stale.
+    expect(r.rows.map(x => x.status)).toEqual(["ready", "ready", "ready", "stale"]);
   });
 });
 
@@ -139,7 +140,7 @@ describe("room that cannot be used", () => {
 
   it("leads with how many accounts have room in both windows", () => {
     const r = usageReport([acct(1, 12, 100), acct(2, 50, 40), acct(3, 30, 30), acct(4, null, 10), acct(5, 10, 10, { stale: true })], NOW);
-    expect(r.roomInBoth).toBe(2);
+    expect(r.roomInBoth).toBe(3);
   });
 });
 
@@ -158,20 +159,23 @@ describe("what each account can do now (#1713)", () => {
     expect(stateOf(acct(1, 100, 100))).toBe("exhausted");
   });
 
-  it("is Stale whenever a reading is not current, whatever its last numbers were", () => {
-    // Fine-looking numbers the report would not count are never called Ready.
-    expect(stateOf(acct(1, 10, 10, { stale: true }))).toBe("stale");
-    expect(stateOf(acct(1, 10, 10, { fetchedAt: NOW * 1000 - REPORT_STALE_MS - 1000 }))).toBe("stale");
+  it("judges an old reading on its last numbers, since an idle account spends nothing between reads", () => {
+    expect(stateOf(acct(1, 10, 10, { stale: true }))).toBe("ready");
+    expect(stateOf(acct(1, 10, 10, { fetchedAt: NOW * 1000 - REPORT_STALE_MS - 1000 }))).toBe("ready");
+    expect(stateOf(acct(1, 100, 40, { stale: true }))).toBe("limited");
+    expect(stateOf(acct(1, 100, 100, { stale: true }))).toBe("exhausted");
+    // A window that has reset since it was read is taken as unused.
+    expect(stateOf(acct(1, 100, 10, {}, [NOW - 60]))).toBe("ready");
+  });
+
+  it("is Stale only where the numbers cannot speak: never read, or behind a login", () => {
     expect(stateOf(acct(1, null, 10))).toBe("stale");
-    expect(stateOf(acct(1, 10, 10, {}, [NOW - 60]))).toBe("stale");
     expect(stateOf(acct(1, 10, 10, { error: "invalid_grant", alive: false }))).toBe("stale");
-    // A spent window that cannot be trusted is not a known limit either.
-    expect(stateOf(acct(1, 100, 100, { stale: true }))).toBe("stale");
   });
 
   it("draws a lead that matches the rows that say Ready", () => {
     const out = renderToStaticMarkup(createElement(UsageReportBody, {
-      accounts: [acct(1, 0, 0), acct(2, 95, 50), acct(3, 100, 50), acct(4, 10, 10, { stale: true }), acct(5, 30, 30)],
+      accounts: [acct(1, 0, 0), acct(2, 95, 50), acct(3, 100, 50), acct(4, 10, 10, { stale: true }), acct(5, 30, null)],
       nowSec: NOW, held: null,
     }));
     const lead = Number(/<b>(\d+)<\/b> of \d+ accounts? ready/.exec(out)?.[1]);
@@ -184,9 +188,9 @@ describe("what each account can do now (#1713)", () => {
       acct(1, 0, 0), acct(2, 95, 50), acct(3, 100, 50), acct(4, 100, 100),
       acct(5, 10, 10, { stale: true }), acct(6, null, 10), acct(7, 30, 30),
     ], NOW);
-    expect(r.rows.map(x => x.status)).toEqual(["ready", "ready", "limited", "exhausted", "stale", "stale", "ready"]);
+    expect(r.rows.map(x => x.status)).toEqual(["ready", "ready", "limited", "exhausted", "ready", "stale", "ready"]);
     expect(r.roomInBoth).toBe(r.rows.filter(x => x.status === "ready").length);
-    expect(r.roomInBoth).toBe(3);
+    expect(r.roomInBoth).toBe(4);
   });
 
   it("never prints 100% on a window that has room, nor 0% remaining on one", () => {
@@ -249,7 +253,8 @@ describe("the report, drawn", () => {
   it("leads with how many accounts are ready, then what each window has remaining", () => {
     const out = html([acct(1, 20, 40, { active: true }), acct(2, 40, null)]);
     expect(out).toContain("<b>1</b> of 2 accounts ready");
-    expect(out).toContain("Available in both usage windows");
+    // One line: what "ready" means is in the disclosure, not under the count.
+    expect(out).not.toContain("ap-report-lead-sub");
     expect(out).toContain('<p class="ap-report-left"><b>70%</b> remaining</p>');
     expect(out).toContain('<p class="ap-report-left"><b>60%</b> remaining</p>');
     expect(out.indexOf("accounts ready")).toBeLessThan(out.indexOf("remaining"));
@@ -257,10 +262,10 @@ describe("the report, drawn", () => {
     expect(out).not.toMatch(/available<|% used</);
   });
 
-  it("says a card counts stale accounts at their last reading, and which were never read", () => {
+  it("says only which accounts a card leaves out: the ones never read", () => {
     expect(html([acct(1, 20, 40), acct(2, 40, 40)])).not.toContain("ap-report-basis");
-    const stale = html([acct(1, 20, 40), acct(2, 40, 40, { stale: true }), acct(3, 40, 40, { stale: true })]);
-    expect(stale.match(/Includes 2 stale accounts at the last reading/g)).toHaveLength(2);
+    // Stale ones are in the total, and their rows say how old they are.
+    expect(html([acct(1, 20, 40), acct(2, 40, 40, { stale: true })])).not.toContain("ap-report-basis");
     const never = html([acct(1, 20, 40), acct(2, 40, null)]);
     expect(never.match(/ap-report-basis/g)).toHaveLength(1);
     expect(never).toContain('<p class="ap-report-basis">1 never read</p>');
@@ -273,9 +278,13 @@ describe("the report, drawn", () => {
     expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="width:25%"></i></div>');
   });
 
-  it("says when the soonest reset comes, and whose it is on hover", () => {
+  it("names whose reset comes next on the line, since each account keeps its own window", () => {
+    // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)">Resets in <span class="ap-report-num">1h 0m</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).not.toMatch(/>Resets in /);
+    const two = html([acct(1, 12, 10, { alias: "a" }, [NOW + HOUR]), acct(2, 10, 10, { alias: "b" }, [NOW + HOUR + 20])]);
+    expect(two).toContain('<span class="ap-report-who">a</span><span class="ap-report-more">+1</span>');
   });
 
   it("labels the rows' numbers as used, beside a state for each", () => {
@@ -286,7 +295,8 @@ describe("the report, drawn", () => {
   it("dims a left-out reading's last number, and says once, in its state, why", () => {
     const out = html([acct(1, 33, 40, { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]);
     expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, not counted</span>');
-    expect(out).toMatch(/<td class="ap-report-state" data-status="stale"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Stale<\/span><span class="ap-report-why">Updated [^<]+<\/span><\/td>/);
+    // Judged on its last numbers, and saying how old they are (#1713).
+    expect(out).toMatch(/<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Ready<\/span><span class="ap-report-why">Updated [^<]+<\/span><\/td>/);
     expect(out.match(/ap-report-why/g)).toHaveLength(1);
     // No number at all: a dash for the eye, words for a screen reader.
     const none = html([acct(1, 20, null)]);
@@ -331,8 +341,10 @@ describe("the report, drawn", () => {
 
   it("names no absolute limit it was never told", () => {
     const out = html([acct(1, 10, 10)]);
+    // The deck is never told a limit, so it prints no amount of one. The
+    // sentence saying so was cut from the disclosure for length (#1713); the
+    // guarantee is this line.
     expect(out).not.toMatch(/\$\d|tokens? (?:left|remaining)/i);
-    expect(out).toContain("there is no total in tokens or dollars");
   });
 
   it("folds how it is worked out, and what each state means, into a disclosure", () => {
@@ -409,7 +421,9 @@ describe("where it opens from", () => {
 describe("the sheet", () => {
   const css = sheetText();
   it("registers the account marks for contrast themes", () => {
-    expect(css).toMatch(/\.ap-lane-fill,\s*\.ap-report-meter i,\s*\.ap-report-state-word i,/);
+    expect(css).toMatch(/\.ap-lane-fill,\s*\.ap-report-meter i,/);
+    // The state marks are borders, which a Contrast theme repaints on its own.
+    expect(css).toMatch(/\.ap-report-state-word i \{[^}]*border: 3px solid currentColor;/);
   });
 
   it("keeps the column names in view while the rows scroll", () => {
