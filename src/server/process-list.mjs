@@ -504,6 +504,22 @@ export async function readProcesses(platform = process.platform, detail = false,
 }
 
 /**
+ * What /api/system/processes answers for one reading.
+ *
+ * An empty reading is a failed one, by the rule readProcesses already keeps: no
+ * machine has nothing running on it, and every failure inside the reader — a
+ * spawn that never started, a non-zero exit, the deadline — resolves to an
+ * empty list. It went out as `{ ok: true, procs: [] }`, which is a claim that
+ * the machine was read and found empty, and the dialog believed it: one slow
+ * `ps` swapped a working table for a sentence blaming the platform (#1770).
+ * So a failure says it is one, and the dialog keeps what it was showing.
+ */
+export function processesReply(read) {
+  if (!read?.procs?.length) return { ok: false, reason: "read_failed" };
+  return { ok: true, ...read };
+}
+
+/**
  * The one-liner the Windows process list is read with.
  *
  * Threads and StartTime ride along on the call that was already being made —
