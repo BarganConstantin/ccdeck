@@ -81,24 +81,37 @@ export interface ReportRow {
 /**
  * What an account can do now, from its two readings (#1713).
  *
- * Two questions, kept apart: can the readings be trusted, and then how many
- * windows are spent. A reading that is not current — none, too old, a window
- * reset since, a login no switch gets past — makes the row `stale`, whatever
- * its last numbers were: an account is never called ready on a reading the
- * report would not count. Otherwise it is `ready` with room in both windows,
+ * FROM THE LAST NUMBER, HOWEVER OLD. Inactive accounts are read on
+ * claude-swap's own plan, often slower than the report's fifteen minutes, and
+ * an account nobody is using spends nothing between two reads — so its last
+ * reading is its reading, near enough. A window that has reset since it was
+ * read is taken as unused. The row still says the reading is old; it is not
+ * held back from Ready for it.
+ *
+ * Stale is left for an account the numbers cannot speak for: one never read in
+ * a window, or one behind a login no switch gets past, whose room cannot be
+ * used whatever it shows. Otherwise it is `ready` with room in both windows,
  * `limited` with one at 100%, and `exhausted` with both. Near a limit is not a
  * state of its own; the row's number wears the warning ink instead.
  */
 export type Status = "ready" | "limited" | "exhausted" | "stale";
 
+/** The number a window is taken at — the current reading, or the estimate
+ *  for one that is not — or null when there is none to take. */
+function takenAt(c: Cell): number | null {
+  if (c.counted) return c.pct;
+  return c.why === "login" ? null : c.estimate;
+}
+
 export function statusOf(cells: Record<WindowId, Cell>): Status {
-  const f = cells.five_hour, s = cells.seven_day;
-  if (!f.counted || !s.counted) return "stale";
-  const spent = Number(f.pct >= 100) + Number(s.pct >= 100);
+  const f = takenAt(cells.five_hour), s = takenAt(cells.seven_day);
+  if (f == null || s == null) return "stale";
+  const spent = Number(f >= 100) + Number(s >= 100);
   return spent === 0 ? "ready" : spent === 1 ? "limited" : "exhausted";
 }
 
-/** Why a stale row is stale, in the words its first unread reading gives. */
+/** Why a row's readings are not current — why it is stale, or how old the
+ *  numbers it was judged on are — in its first unread reading's words. */
 export function staleReason(cells: Record<WindowId, Cell>): string | null {
   for (const w of REPORT_WINDOWS) {
     const c = cells[w.id];

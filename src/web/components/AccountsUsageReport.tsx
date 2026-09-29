@@ -124,10 +124,10 @@ const STATE_WORD: Record<Status, string> = {
   stale: "Stale",
 };
 
-/** What the row can do now, as a mark and a word; a stale row also says why,
- *  quietly, in the words its reading gave. */
+/** What the row can do now, as a mark and a word; a row judged on readings
+ *  that are not current also says so, quietly, in the words they gave. */
 function StateCell({ row }: { row: ReportRow }) {
-  const why = row.status === "stale" ? staleReason(row.cells) : null;
+  const why = staleReason(row.cells);
   return (
     <td className="ap-report-state" data-status={row.status}>
       <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
@@ -221,8 +221,9 @@ export function UsageReportBody({ accounts, nowSec, held }: {
           </p>
           <p>
             <b>Ready</b> has room in both windows. <b>Limited</b> has reached the limit of one,
-            and <b>Exhausted</b> of both. <b>Stale</b> has a reading that is not current, so it is
-            dimmed and never called ready.
+            and <b>Exhausted</b> of both, judged on the last reading however old it is, since an
+            account nobody is using spends nothing between two reads. <b>Stale</b> is an account never
+            read, or behind a login, whose room cannot be used.
           </p>
         </div>
       </details>

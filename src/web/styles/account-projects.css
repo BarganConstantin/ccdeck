@@ -253,10 +253,12 @@
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-/* What remains, as one quiet bar: neutral while there is room, and in the
-   rows' warning inks only once the window has used 70% and 90%. */
+/* What remains, as one thin bar in the inks every quota bar in the deck uses —
+   the Usage panel's and the accounts panel's lanes: the accent while there is
+   room, then the warning and the error inks once the window has used 70% and
+   90%. */
 .ap-report-meter { height: 4px; overflow: hidden; border-radius: 999px; background: var(--line); }
-.ap-report-meter i { display: block; height: 100%; border-radius: inherit; background: var(--muted); }
+.ap-report-meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .ap-report-meter[data-level="mid"] i { background: var(--warn); }
 .ap-report-meter[data-level="hi"] i { background: var(--err); }
 .ap-report-reset,
@@ -311,25 +313,26 @@
   font-variant-numeric: tabular-nums;
 }
 .ap-report-cell[data-uncounted] .ap-report-pct { color: var(--muted); }
-/* A mark and a word for each state, the mark in the word's own ink. Ready is
-   the resting state and stays neutral, so a panel with nothing wrong on it has
-   no colour in this column; Limited and Exhausted wear the warning and the
-   error inks, and Stale is a hollow mark in the muted one. The mark reads
-   currentColor, so under a Contrast theme it follows the word to CanvasText
-   with nothing to override. */
+/* A mark and a word for each state. Ready's mark is the settled green and its
+   word stays neutral, so a column of ready accounts is quiet; Limited and
+   Exhausted wear the warning and the error inks, mark and word; Stale is a
+   hollow mark in the muted one, the only grey here that means anything. The
+   marks are drawn as borders, which a Contrast theme repaints in CanvasText on
+   its own — a filled mark stays filled and a hollow one hollow. */
 .ap-report-state-word { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--report-meta); }
 .ap-report-state-word i {
   flex: none;
   box-sizing: border-box;
   width: 6px;
   height: 6px;
+  border: 3px solid currentColor;
   border-radius: 50%;
-  background: currentColor;
 }
+.ap-report-state[data-status="ready"] .ap-report-state-word i { border-color: var(--ok); }
 .ap-report-state[data-status="limited"] .ap-report-state-word { color: var(--warn); }
 .ap-report-state[data-status="exhausted"] .ap-report-state-word { font-weight: 600; color: var(--err); }
 .ap-report-state[data-status="stale"] .ap-report-state-word { color: var(--muted); }
-.ap-report-state[data-status="stale"] .ap-report-state-word i { border: 1.5px solid; background: none; }
+.ap-report-state[data-status="stale"] .ap-report-state-word i { border-width: 1.5px; }
 .ap-report-why { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--report-meta); }
 
 /* How it is worked out, folded away: it matters once, not on every glance. */
