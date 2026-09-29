@@ -58,6 +58,11 @@ export function frameValue(from: number, to: number, elapsedMs: number, duration
   return from + (to - from) * easeOutQuint(elapsedMs / durationMs);
 }
 
+/** Whether the reader has asked the OS for less motion, asked now. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export interface CountUpDeps {
   now?: () => number;
   raf?: (cb: (t: number) => void) => number;
@@ -86,8 +91,7 @@ export function countTo(
   const now = deps.now ?? (() => performance.now());
   const raf = deps.raf ?? (cb => requestAnimationFrame(cb));
   const cancel = deps.cancel ?? (id => cancelAnimationFrame(id));
-  const reduced = deps.reducedMotion
-    ?? (() => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const reduced = deps.reducedMotion ?? prefersReducedMotion;
   // A HIDDEN TAB LANDS IMMEDIATELY. `requestAnimationFrame` does not fire in a
   // background tab, so a count started there would emit no frames at all and
   // leave the OLD number on screen until the tab came forward — the one state

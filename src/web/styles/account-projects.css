@@ -256,7 +256,22 @@
    room, then the warning and the error inks once the window has used 70% and
    90%. */
 .ap-report-meter { height: 4px; overflow: hidden; border-radius: 999px; background: var(--line); }
-.ap-report-meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.ap-report-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  /* Scaled, never resized — the Usage panel's `.qb-fill` does the same, for
+     the same reason: a new reading is a compositor move, not a relayout. */
+  transform-origin: left center;
+  transition: transform 400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* Grown in from the left as the dialog opens, in the time its figures take to
+   count up (count-up.ts's COUNT_MS is 420ms), so the bar and the number above
+   it arrive together (#1713). */
+@starting-style {
+  .ap-report-meter i { transform: scaleX(0); }
+}
 .ap-report-meter[data-level="mid"] i { background: var(--warn); }
 .ap-report-meter[data-level="hi"] i { background: var(--err); }
 .ap-report-reset,
@@ -295,6 +310,17 @@
   color: var(--report-meta);
 }
 .ap-report-acct { overflow: hidden; font-weight: 400; color: var(--text); }
+/* The rows come in one after another as the dialog opens: a few pixels up and
+   into view, 30ms apart and never more than ten steps, so twenty-five accounts
+   still land inside the time the figures above take. Once, when a row is
+   first drawn — a poll re-renders a row, it does not re-insert it. */
+@keyframes ap-report-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
+.ap-report-table tbody tr {
+  animation: ap-report-row-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(min(var(--row, 0), 10) * 30ms);
+}
 .ap-report-acct-in { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ap-report-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-report-current,
@@ -363,6 +389,16 @@
 }
 .ap-report-how-body p { margin: 0; }
 .ap-report-how-body b { font-weight: 600; color: var(--text); }
+/* Less motion, asked for: the figures appear (use-count-up.ts), the bars stand
+   at their reading — with no transition, the starting style above draws
+   nothing — and the rows only fade in: no movement, still an arrival. */
+@keyframes ap-report-row-fade {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-report-meter i { transition: none; }
+  .ap-report-table tbody tr { animation: ap-report-row-fade 160ms ease both; animation-delay: 0ms; }
+}
 /* One total a row at a phone's width, so each keeps its number whole. */
 @media (max-width: 480px) {
   .ap-report-sums { grid-template-columns: 1fr; }
