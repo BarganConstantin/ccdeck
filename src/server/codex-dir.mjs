@@ -129,8 +129,8 @@ export const STOP = Symbol("stop-rollout-walk");
  * blocks and differed only in the last few lines: find the file carrying a
  * given session id (now codex-enrichment.mjs), collect everything in the newest
  * two day directories (codex-watch.mjs, for the watcher), and collect
- * everything whose filename timestamp falls inside a rolling window
- * (codex-usage.mjs). The walk is the part that has to agree — a deck that tails
+ * everything whose filename timestamp falls inside a rolling window, or whose
+ * mtime does (codex-usage.mjs). The walk is the part that has to agree — a deck that tails
  * one set of files and reports usage from another is reporting on a session it
  * is not showing.
  *
@@ -141,10 +141,12 @@ export const STOP = Symbol("stop-rollout-walk");
  * is a reason to stop reading the other 364 days. A missing sessions/ directory
  * is not an error at all — it is simply a machine where Codex has not run yet.
  *
- * `onYear` exists for the one caller that can rule out a whole year without
- * opening it. Years arrive newest-first, so returning STOP from it ends the
- * walk rather than skipping a year, which is what the caller wants: once the
- * years are older than the window, so is everything after them.
+ * `onYear` exists for a caller that can rule out a whole year without opening
+ * it. Years arrive newest-first, so returning STOP from it ends the walk rather
+ * than skipping a year: once the years are older than what is wanted, so is
+ * everything after them. codex-usage.mjs used it to stop at the first year too
+ * old to hold a name inside its window, and no longer does — a resumed session
+ * writes into the rollout it started in, however old that is (#1731).
  */
 export async function walkRolloutDays(onDay, { sessionsDir = CODEX_SESSIONS_DIR, onYear = null } = {}) {
   let years;

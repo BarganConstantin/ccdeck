@@ -11,7 +11,7 @@ import { createReadStream } from "node:fs";
 // single line of this module runs and takes the whole deck down with it. Caught
 // by the timezone probe, which spawns a child that imports this file.
 import zlib from "node:zlib";
-import { STOP, walkRolloutDays } from "./codex-dir.mjs";
+import { walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 // The shape of a token_count record, read where the translation reads it — see
 // codex-translate.mjs.
@@ -401,7 +401,14 @@ function parseRolloutTime(filename) {
   return dt.getTime();
 }
 
-// List rollout files whose start times fall within the given window.
+// How many rollouts named before the window are statted at once, to learn
+// whether one of them was written to inside it. A stat holds no descriptor
+// past its own call, so this can sit well above MAX_PARALLEL_READS; it is a
+// bound on the fan-out over a history that grows by a file per session.
+const MAX_PARALLEL_STATS = 16;
+
+// List rollout files whose sessions started within the given window — and the
+// ones that started before it but were written to inside it.
 //
 // The walk over $CODEX_HOME/sessions is shared with the rollout lookup in
 // codex-enrichment.mjs and the watcher in codex-watch.mjs (codex-dir.mjs) rather
@@ -410,40 +417,70 @@ function parseRolloutTime(filename) {
 // verbatim copies of the same four nested readdirs over two verbatim copies of
 // the same CODEX_SESSIONS_DIR — which is how one of them came to resolve a
 // relative CODEX_HOME differently from the other (#375).
+//
+// THE NAME IS WHEN A SESSION STARTED, NOT WHEN IT LAST SPENT (#1731). `codex
+// resume` appends to the rollout the session started in — codex-enrichment.mjs
+// leans on the same fact — so a session begun twenty days ago and resumed an
+// hour ago has all of this hour's tokens in a file whose name says twenty days.
+// This used to stop there, and to end the walk at the first year too old to
+// hold a name inside the window, so that file was never opened and those
+// tokens counted toward neither window. Now every plain rollout named before
+// the window is statted, and one whose mtime lies inside the window is read
+// with the rest; windowDelta, not the mtime, judges how much of it counts, so a
+// file whose mtime moved without a token being spent — a restore, a sync —
+// contributes nothing. The walk therefore reads the whole tree, one readdir per
+// day directory, which the minute-long floor in front of every scan rations.
+//
+// Plain `.jsonl` only, for that second test. A `.jsonl.zst` is one Codex has
+// already judged cold and rewritten, and the rewrite is itself what moves its
+// mtime: counting the compression as activity would reopen, and decompress,
+// every compressed rollout in the history on the scan after Codex compressed
+// them.
 async function listRolloutFiles(sinceMs) {
   const out = [];
+  const before = [];
   const nowMs = Date.now();
-  // Years arrive newest-first, so the first one that cannot hold a file in the
-  // window ends the walk: everything after it is older still. The extra day of
-  // slack covers a session that started just before the window.
-  //
-  // It used to also claim to cover "a filename timestamp that is UTC while the
-  // year directory is local time", which asserted the opposite of what the
-  // files say — see parseRolloutTime. Both are local now and `getFullYear()`
-  // here is local too, so the two sides of this comparison finally speak the
-  // same clock. What the day of slack still earns, beyond the session that
-  // started just before the window: an ambiguous local time on the day the
-  // clocks go back happens twice, V8 resolves it to the first of the two, and
-  // a session started during the second is dated an hour early. That is a
-  // one-hour error on one or two days a year against a seven-day window,
-  // where the old bug was an offset-wide error on every day of it.
-  const oldestYear = new Date(nowMs - sinceMs - 86400000).getFullYear();
-  await walkRolloutDays(
-    (dir, files) => {
-      for (const f of files) {
-        // Both spellings. A cold rollout is `rollout-….jsonl.zst` and its name
-        // still carries the timestamp parseRolloutTime reads, so nothing else
-        // in this function has to know.
-        if (!f.endsWith(".jsonl") && !f.endsWith(COMPRESSED)) continue;
-        const t = parseRolloutTime(f);
-        if (t != null && nowMs - t <= sinceMs) {
-          out.push({ path: join(dir, f), startMs: t });
-        }
-      }
-    },
-    { onYear: y => (parseInt(y, 10) < oldestYear ? STOP : undefined) },
-  );
+  await walkRolloutDays((dir, files) => {
+    for (const f of files) {
+      // Both spellings. A cold rollout is `rollout-….jsonl.zst` and its name
+      // still carries the timestamp parseRolloutTime reads, so nothing else
+      // in this function has to know.
+      if (!f.endsWith(".jsonl") && !f.endsWith(COMPRESSED)) continue;
+      const t = parseRolloutTime(f);
+      if (t == null) continue;
+      if (nowMs - t <= sinceMs) out.push({ path: join(dir, f), startMs: t });
+      else if (f.endsWith(".jsonl")) before.push({ path: join(dir, f), startMs: t });
+    }
+  });
+  await forEachLimited(before, MAX_PARALLEL_STATS, async (file) => {
+    let st;
+    try { st = await stat(file.path); } catch { return; }
+    if (nowMs - st.mtimeMs <= sinceMs) out.push({ ...file, mtimeMs: st.mtimeMs, size: st.size });
+  });
   return out;
+}
+
+// What was read out of each rollout named before the window and written to
+// inside it, the last time it was read, by path: the file's mtime and size then,
+// and the part of its series a later scan can still need. A scan re-reads such a file only when either has
+// moved. Without it, a restore or a sync that brushed every old rollout's mtime
+// would have every one of them read in full once a minute for a week; with it,
+// each is read once. Rebuilt on every scan from the files that scan kept, so a
+// file that is deleted or drifts out of the window leaves with it.
+let _beforeWindowReads = new Map();
+
+// The tail of `series` that windowDelta can still need for any window opening
+// at `startMs` or later: from the last snapshot before `startMs` onward. Every
+// snapshot ahead of that one is older still, and a later window's baseline is
+// that one or a snapshot after it — so what is dropped can never be the answer.
+function seriesSince(series, startMs) {
+  let from = 0;
+  for (let i = 0; i < series.length; i++) {
+    const ts = series[i].ts;
+    if (ts != null && ts < startMs) from = i;
+    else if (ts != null) break;
+  }
+  return series.slice(from);
 }
 
 function emptyWindow() {
@@ -484,22 +521,36 @@ async function scanCodexUsage(now) {
   };
 
   try {
-    // Files whose session *started* within 7d. A long session that started up
-    // to 7d ago but is still active is captured here too, and its share of the
-    // 5h window is recovered via the cumulative delta below — so bucketing no
-    // longer drops active-but-old sessions or over-counts the pre-window tail.
+    // Files whose session *started* within 7d, and files that started before
+    // it and were written to inside it (#1731). A long or resumed session is
+    // captured either way, and its share of each window is recovered via the
+    // cumulative delta below — so bucketing no longer drops active-but-old
+    // sessions or over-counts the pre-window tail.
     const files = await listRolloutFiles(WINDOW_7D_MS);
+    const kept = new Map();
 
     // Bounded fan-out: a week of rollouts is an open-ended list, and opening
     // every one of them at once also risked EMFILE, which readTokenSeries
     // swallows into a silent undercount.
-    await forEachLimited(files, MAX_PARALLEL_READS, async ({ path }) => {
-      const series = await readTokenSeries(path);
+    await forEachLimited(files, MAX_PARALLEL_READS, async ({ path, mtimeMs, size }) => {
+      let series;
+      if (mtimeMs == null) series = await readTokenSeries(path);
+      else {
+        const was = _beforeWindowReads.get(path);
+        series = was && was.mtimeMs === mtimeMs && was.size === size
+          ? was.series
+          : await readTokenSeries(path).then(s => (s ? seriesSince(s, start7d) : null));
+        // A null is not kept: readTokenSeries answers null for a read that
+        // failed as well as for a file with nothing in it, and keeping the first
+        // would carry one bad read forward for as long as the file sat still.
+        if (series) kept.set(path, { mtimeMs, size, series });
+      }
       if (!series) return;
       // Same series feeds both windows; baseline differs per window start.
       addTo(w5h, windowDelta(series, start5h));
       addTo(w7d, windowDelta(series, start7d));
     });
+    _beforeWindowReads = kept;
   } catch (err) {
     console.error(`${PRODUCT} codex-usage: scan failed:`, err?.message ?? err);
     const result = { ok: false, fetchedAt: now };
