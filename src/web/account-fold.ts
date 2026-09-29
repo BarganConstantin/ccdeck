@@ -12,15 +12,23 @@ import { laneKey } from "./lane-open";
 import { type Peer } from "./other-accounts";
 
 /** The accounts behind the fold, each as the fold's row counts it. */
+/**
+ * Whether the reader could switch to this account now: the same pair of
+ * refusals the row's own `Switch` is withheld for, so the fold's count, the
+ * button and the list's order (#1579) can never disagree about who can be
+ * reached.
+ */
+export function reachable(a: Account, nowSec: number): boolean {
+  return !a.disabled && !accountIssue(a, nowSec)?.blocksSwitch;
+}
+
 export function peersOf(rest: readonly Account[], nowSec: number): Peer[] {
   return rest.map(a => {
     const issue = accountIssue(a, nowSec);
     return {
       key: laneKey(a),
       name: a.alias ?? a.email ?? `account ${a.num}`,
-      // The same pair of refusals the row's own `Switch` is withheld for, so
-      // the count and the button can never disagree about who can be reached.
-      ready: !a.disabled && !issue?.blocksSwitch,
+      ready: reachable(a, nowSec),
       why: a.disabled ? "held out" : issue?.blocksSwitch ? issue.text : null,
       warn: issue?.tone === "warn",
       headroom: a.headroom,

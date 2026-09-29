@@ -374,6 +374,9 @@ const PRESSES: Press[] = [
   // like `.up-disclose`. Both are labelled controls, so 0.97.
   [".sm-file:active", "0.97", "transform"],
   [".sm-voice summary:active", "0.97", "transform"],
+  // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
+  // labelled control by its name, like the header's icon buttons — 0.97.
+  [".ap-rest-all:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -454,6 +457,10 @@ const EXEMPT: string[] = [
   // their own 0.97.
   ".ap-row-open",
   ".ap-nav",
+  // The Other accounts list's order (#1579), a native select. Its press is
+  // answered by the platform's own list opening over it; scaling the control
+  // in the same instant would shift the words the list is drawn against.
+  ".ap-rest-sort select",
   // The appearance menu's Claude FM row: a <label> round the switch, the same
   // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
   // answer the press, and a scaled row would slide the words out from under it.

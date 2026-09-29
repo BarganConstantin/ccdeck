@@ -71,9 +71,11 @@ export function laneKey(a: LaneOwner): string {
   return `acct:${email}${SEP}${org}`;
 }
 
-/** The expanded set after the disclosure on this row is pressed. */
-export function toggleLane(open: string[], a: LaneOwner): string[] {
-  const key = laneKey(a);
+/** The expanded set after the disclosure on this row is pressed. `keyOf` is
+ *  laneKey unless the caller stores a derivation of it — other-accounts-order.ts
+ *  keeps a hash, since #1579 writes the set to the browser's store. */
+export function toggleLane(open: string[], a: LaneOwner, keyOf: (a: LaneOwner) => string = laneKey): string[] {
+  const key = keyOf(a);
   return open.includes(key) ? open.filter(k => k !== key) : [...open, key];
 }
 

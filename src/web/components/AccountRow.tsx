@@ -23,6 +23,7 @@ import { type Account, type Lane } from "../claude-accounts";
 import { laneSplit } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
+import { laneName } from "../other-accounts-order";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -33,7 +34,7 @@ function fullness(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
-function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?: boolean }) {
+function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: number; frozen?: boolean; sortedBy?: boolean }) {
   const capped = Math.min(100, Math.max(0, lane.pct));
   // A reading that cannot move is drawn as a record rather than a reading: one
   // ink, no warning colours, the fill at half strength. The row says how old.
@@ -41,7 +42,7 @@ function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?
   // And a reset from a reading that old has most likely happened already.
   const reset  = lane.resetAt && !frozen ? resetCountdown(lane.resetAt, nowSec) : null;
   return (
-    <div className="ap-lane">
+    <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
       <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
       <div className="ap-lane-track">
         <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || frozen ? 0.4 : 1 }} />
@@ -84,13 +85,23 @@ interface Props {
   /** This row's warning has its explanation open. */
   issueExpanded: boolean;
   onOpenIssue: (num: number, anchor: string) => void;
+  /** What the list behind the fold is ordered by (#1579) — a window's name,
+   *  "room", or null — so the row can mark the number it was placed by. */
+  sortKey?: string | null;
 }
 
 export default function AccountRow({
   a, nowSec, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
-  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue,
+  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
 }: Props) {
   const { shown, fuller } = laneSplit(a.lanes);
+  // THE NUMBER THIS ROW WAS PLACED BY (#1579), marked in the shut line and on
+  // the bars, so a sorted list says what it is sorted by at the numbers
+  // themselves rather than only in the control that sorted it. Under "room"
+  // it is the tightest window: the one the room is measured from.
+  const keyLane = sortKey === "room"
+    ? a.lanes.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
+    : sortKey ? a.lanes.find(l => laneName(l) === sortKey) ?? null : null;
   const issue = accountIssue(a, nowSec);
   // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
   // The live account is the one whose windows are being spent, so
@@ -276,7 +287,7 @@ export default function AccountRow({
         <p className="ap-quota" id={`ap-quota-${a.num}`}>
           {quick.length
             ? quick.map(l => (
-                <span key={l.id} className="ap-q">
+                <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
                   <span className="ap-q-label">{l.label}</span>{" "}
                   <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>
                 </span>
@@ -298,7 +309,7 @@ export default function AccountRow({
         <div className="ap-detail" id={`ap-detail-${a.num}`}>
           <div className="ap-lanes">
             {a.lanes.length
-              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} frozen={frozen} />)
+              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} frozen={frozen} sortedBy={l.id === keyLane?.id} />)
               : <div className="ap-hint">No usage recorded yet.</div>}
           </div>
           <div className="ap-meta">

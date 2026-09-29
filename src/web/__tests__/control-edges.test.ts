@@ -594,6 +594,13 @@ const CONTROLS: Control[] = [
   { at: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
     fillFrom: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
     states: [".ap-lan-who .ap-manage-btn:focus-visible"], beds: ACCOUNTS },
+  // The Other accounts list's two controls (#1579), on the same terms: no
+  // boundary at rest — the order is its words and the other is named — and the
+  // edge they draw under the pointer and the keyboard measured on the column.
+  { at: ".ap-rest-sort select:hover", fillFrom: ".ap-rest-sort select:hover",
+    states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
+  { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
+    states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
   { at: ".ap-lan-who .ap-manage-btn.danger:hover:not(:disabled)",
     fillFrom: ".ap-lan-who .ap-manage-btn.danger:hover:not(:disabled)",
     states: [
@@ -789,7 +796,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // they were made secondary, which is a control gaining an edge rather than
     // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
-    expect(EDGED_CONTROLS.length).toBeLessThan(96);
+    // The ceiling moved from 96 to 100 with #1579's two quiet controls, which
+    // are controls gaining an edge under the pointer, four rules between them.
+    expect(EDGED_CONTROLS.length).toBeLessThan(100);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
