@@ -40,8 +40,9 @@ describe("the deck's modals", () => {
     // and every assertion below then applies to it unchanged.
     // The sixteenth is the guide — the two picture tours share one dialog —
     // and the seventeenth is a deck's own dialog, opened from its row in
-    // Local network.
-    expect(MODALS.length).toBe(18);
+    // Local network. The nineteenth is the accounts panel's Usage report
+    // (#1707), which adds every account's 5h and 7d up.
+    expect(MODALS.length).toBe(19);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

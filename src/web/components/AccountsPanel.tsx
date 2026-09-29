@@ -13,6 +13,7 @@ import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
+import AccountsUsageReport from "./AccountsUsageReport";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
@@ -67,6 +68,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
   const [addOpen, setAddOpen] = useState(false);
+  // The Usage report (#1707): every account's 5h and 7d added up, and the
+  // order the panel listed them in when it was opened — its rows keep that
+  // order through the polls, as the panel's own list does under a reader.
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportOrder, setReportOrder] = useState<string[]>([]);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
   // account to somebody else. Its own dialog, so the row keeps its one-click
@@ -431,7 +437,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
-          onAdd={() => setAddOpen(true)} onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
+          // Two or more: one account's report is the row above it again. And
+          // kept while the report is open, so a poll that empties the roster
+          // does not take away the control focus goes back to.
+          canReport={(data?.accounts?.length ?? 0) > 1 || reportOpen}
+          onAdd={() => setAddOpen(true)}
+          onReport={() => { setReportOrder([...head, ...rest].map(laneKey)); setReportOpen(true); }}
+          onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
           pressProps={pressProps} reloading={reloading} closeButton={closeBtn} />
       )}
 
@@ -672,6 +684,16 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           />
         );
       })()}
+      {/* The Usage report (#1707) — components/AccountsUsageReport.tsx. The
+          panel's roster, handed in on every poll, in the order the panel had
+          when it opened, and read on the panel's clock: an open report moves
+          with the panel and starts no poll. A reload that failed is said
+          there too, because the report stands over the line that says it. */}
+      {reportOpen && (
+        <AccountsUsageReport accounts={data?.accounts ?? null} order={reportOrder}
+          failed={failure?.reload ? failure.text : null}
+          nowSec={nowSec} onClose={() => setReportOpen(false)} />
+      )}
     </aside>
   );
 }
