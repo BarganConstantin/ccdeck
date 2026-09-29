@@ -129,6 +129,18 @@ const COMMAND_EMOJI: Record<string, string> = {
   "ConvertTo-Json": "🪺", "ConvertFrom-Json": "🪺",
 };
 
+/** Whether one word of a shell's command line is the flag that hands the next
+ *  word to it as its script: PowerShell's `-Command`, a POSIX shell's `-c` — and
+ *  a short-option cluster that ends in one, such as the `-lc` a login shell is
+ *  started with. Codex's argv `shell` tool sends `["bash", "-lc", "git status"]`
+ *  (`zsh -lc` on macOS), and matching only a bare `-c` joined the whole argv and
+ *  named every such call `bash` (#1733). The cluster is lowercase only, which is
+ *  how every such spelling seen from Codex or a Claude Bash call is written;
+ *  `-Command` and `-c` stay case-insensitive, as they always were. */
+function isScriptFlag(word: string): boolean {
+  return /^-(?:Command|c)$/i.test(word) || /^-[a-z]+c$/.test(word);
+}
+
 /** Pull the primary executable name out of a shell command string. Tries
  *  hard enough to be useful — strips `env VAR=val`, `sudo`, and unwraps a
  *  `bash -c "..."` shell — but doesn't pretend to be a real parser. */
@@ -138,9 +150,14 @@ function parseShellCommand(input: string): string | null {
   if (!s) return null;
 
   // bash -c "git status"  /  sh -c '...'  /  powershell -Command "..."  →
-  // recurse into the inner command so we get the real verb.
-  const wrap = s.match(/^(?:bash|sh|zsh|fish|powershell|pwsh)(?:\.exe)?\s+(?:-c|-Command|-NoProfile|-NonInteractive|\s)+["']([^"']+)["']/i);
-  if (wrap) return parseShellCommand(wrap[1]);
+  // recurse into the inner command so we get the real verb. The flags between
+  // the shell and the quoted script are captured and then judged one by one,
+  // by the same test the argv form below uses, so `bash -lc '…'` unwraps as
+  // `bash -c '…'` does (#1733).
+  const wrap = s.match(/^(?:bash|sh|zsh|fish|powershell|pwsh)(?:\.exe)?((?:\s+-[A-Za-z]+)+)\s*["']([^"']+)["']/i);
+  if (wrap && wrap[1].trim().split(/\s+/).every(f => isScriptFlag(f) || /^-(?:NoProfile|NonInteractive)$/i.test(f))) {
+    return parseShellCommand(wrap[2]);
+  }
 
   // env VAR=val VAR2=val2 cmd  →  strip leading var assignments.
   while (true) {
@@ -215,9 +232,10 @@ function commandStringOf(input: unknown): string | null {
   if (Array.isArray(obj.command) && obj.command.every(x => typeof x === "string")) {
     const arr = obj.command as string[];
     // If first element is a known shell interpreter, look for -Command/-c flag
-    // and return the argument that follows it as the real command.
+    // (or a cluster ending in it, like -lc) and return the argument that
+    // follows it as the real command.
     if (/powershell|cmd|bash|sh(\.exe)?$/i.test(arr[0] ?? "")) {
-      const flagIdx = arr.findIndex(a => /^(-Command|-c)$/i.test(a));
+      const flagIdx = arr.findIndex(isScriptFlag);
       if (flagIdx >= 0 && flagIdx + 1 < arr.length) {
         return arr[flagIdx + 1];
       }
