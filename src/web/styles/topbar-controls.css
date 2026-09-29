@@ -219,6 +219,11 @@
 @media (prefers-reduced-motion: reduce) {
   .topbar .waiting-stat:active { transform: none; }
 }
+/* INSIDE ITS OWN EDGE (#1706). `.readout` clips what overflows it and is
+   exactly as tall as this chip, so the global ring, drawn 2px outside, lost
+   its top and bottom and showed as two brackets. An inset ring is the one the
+   focus rule allows a component to move. */
+.topbar .waiting-stat:focus-visible { outline-offset: -3px; }
 
 /* A provider's own incident (#1311), while its status page reports one. NOT
    the waiting chip's colour: --warn is reserved for "blocked on you", and an
