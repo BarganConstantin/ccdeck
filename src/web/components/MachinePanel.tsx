@@ -169,10 +169,10 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
  * and it is unreadable without the core count the strip is drawing; together
  * they answer "is this box coping" in one glance, which neither does alone.
  *
- * Two controls rather than one, because there are two charts: the strip opens
- * what every core did, the figures open what the queue did. The alternative —
- * one button over both — would open one of the two and leave the other
- * unreachable from the block it belongs to.
+ * Two controls rather than one, because there are two charts: the CPU heading
+ * opens what every core did, the Load average heading what the queue did. The
+ * alternative — one button over both — would open one of the two and leave the
+ * other unreachable from the block it belongs to.
  */
 function CpuSection({ cpu, perCore, loadavg, cores }: {
   cpu: number | null;
@@ -418,8 +418,9 @@ function Processes({ sys }: {
            what is behind it, and a native tooltip repeating that in other words
            lands ON the line it is repeating — it covers the sub-line, which is
            the one thing here a reader has not seen before. The accessible name
-           stays, because a screen reader gets no plate. */
-        aria-label="Show every process the deck is watching"
+           stays, because a screen reader gets no plate — and it starts with the
+           words on the plate, so "click Busiest processes" finds it (#1771). */
+        aria-label="Busiest processes: show every process the deck is watching"
       >
         <span className="sd-door-plate">
           <span className="sd-door-name">
