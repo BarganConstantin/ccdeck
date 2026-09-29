@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { wrapShare, unwrapShare, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const PREFIX = "ccdeck2:";
 
@@ -105,7 +106,7 @@ describe("what the accounts panel says a share is", () => {
   });
 
   it("puts the warning colour on the warning rather than on the timer", () => {
-    const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const css = sheetText();
     expect(panel).toMatch(/className="ap-share-warn"/);
     expect(css).toMatch(/\.ap-share-warn\s*\{[^}]*color:\s*var\(--warn\)/);
   });

@@ -1,0 +1,402 @@
+/* ── Thermal history (#738) ──────────────────────────────────────────────────
+   A chart of what the machine did with its heat, opened from a row in the
+   machine panel. Every series is stacked on one time axis and each keeps its
+   own unit: degrees and a percentage share nothing but a range, and one axis
+   for both would invite a comparison of shapes that means nothing. */
+.hist-modal { width: min(620px, 92vw); }
+.hist-since {
+  margin-left: auto;
+  margin-right: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hist-body { padding: 14px 16px 16px; overflow-y: auto; }
+.hist-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* Space, not a line. The gap already groups them, and a rule on top of it is
+   two separators doing one job in a dialog that holds two things. */
+.hist-series + .hist-series { margin-top: 26px; }
+.hist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.hist-label { font-size: 12px; font-weight: 600; }
+.hist-stats { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
+.hist-stats b { font-size: 16px; font-weight: 600; }
+.hist-stats b.warn { color: var(--warn); }
+.hist-stats b.hot { color: var(--err); }
+/* `<i>` for the unit and the word, which are not emphasis but the caption a
+   figure needs; the sheet un-italicises it because the slant would be the only
+   slanted text in the panel. */
+.hist-stats i { font-style: normal; font-size: 10px; color: var(--muted); margin-right: 8px; }
+
+.hist-plot { position: relative; }
+.hist-chart { display: block; width: 100%; overflow: visible; touch-action: none; }
+.hist-area { fill: var(--accent); opacity: 0.14; }
+.hist-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.hist-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
+.hist-floor { stroke: var(--line); stroke-width: 1; }
+/* Dashed, and behind the line, so a threshold reads as a mark on the scale
+   rather than as another reading. */
+/* The dash tells them apart as well as the hue does. Measured rendered in the
+   light theme, --warn (#ad4e08) and --err (#b91c1c) at this weight are nearly
+   the same line, and a threshold a reader cannot name is an annotation that
+   costs ink and returns nothing. Long dashes for "uncomfortable", short ones
+   for "the chip will act". */
+.hist-rule, .pl-rule { stroke-width: 1; opacity: 0.6; vector-effect: non-scaling-stroke; }
+.hist-rule.warn, .pl-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }
+.hist-rule.hot, .pl-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }
+.hist-rule-tag { font-size: 9px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.hist-rule-tag.warn { fill: var(--warn); }
+.hist-rule-tag.hot { fill: var(--err); }
+.hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+/* Where the network's route changed. Solid and quieter than the crosshair, so
+   the two never read as one thing: a mark is a fact about the past, the
+   crosshair is the pointer. */
+.hist-mark { stroke: var(--text-dim); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
+
+.hist-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  /* Held open so the strip does not collapse when the pointer leaves and the
+     reading is replaced by two clock labels of a different width. */
+  min-height: 13px;
+}
+/* Inherits `.hist-axis`'s --muted deliberately. --text-secondary is the tier for
+   sentences a reader reads; this is a clock and a figure they glance at, and
+   text-tiers.test.ts is the rule that says so. */
+.hist-at b { color: var(--text); font-weight: 600; }
+.hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+/* A run of route notes sits tight under the chart, one line per change. */
+.hist-note.hist-route + .hist-note.hist-route { margin-top: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* `popIn` scales and lifts the card, which is movement rather than a fade,
+     so both of this feature's dialogs drop it. The backdrop's `fadeIn` stays:
+     a fade is the recommended answer under this preference, not the thing being
+     escaped from. `.pl-modal` was missed here at first and found by rendering
+     with the preference emulated rather than by reading the sheet. */
+  .hist-modal,
+  .pl-modal { animation: none; }
+}
+
+/* ── The whole candidate list (#738) ─────────────────────────────────────────
+   What the panel's eight rows cannot answer: "is my vitest still running". Same
+   reading and the same ordering rules, every candidate instead of eight, plus
+   the pid and the untruncated name the panel has no width for. */
+/* 880, up from 680. The table carries seven columns now instead of four, and
+   the five fixed ones take 300px of the row before the name has any — a name
+   plus the arguments that identify it needs the rest, and at 680 it had 340. */
+.pl-modal { width: min(880px, 94vw); }
+/* The box that holds the table and the band. In the default layout it is what
+   the modal already was — a column whose table scrolls and whose band does not
+   — and it exists so one media query can turn that column on its side. */
+.pl-split { display: flex; flex-direction: column; min-height: 0; }
+
+/* THE MACHINE BESIDE THE LIST, once there is room for both.
+   
+   The band had outgrown its place: throttling appears the moment the machine
+   has actually been held back, and a seventh cell wraps to a second row where
+   it sits alone and takes 53px out of the table. Standing the readings in a
+   column fixes that and gives each sparkline 184px instead of 116.
+
+   1120px, from the arithmetic and not from taste. The table needs the 848px it
+   has today or the process column starts losing the part of a command line a
+   person reads — measured, the median row wants 519px of it and it has 504. A
+   216px chart column plus 32px of modal padding is 248, and 1120 - 248 = 872,
+   which leaves the table 24px BETTER off than it is now. 1080 was the first
+   guess and it was wrong: it would have left the process column at 488.
+
+   The breakpoint is the viewport width at which the modal can actually be
+   1120 wide: `min(1120px, 94vw)` reaches 1120 at 1192px, so 1200 with a little
+   room. Below it, every rule above stands untouched — the band under the list,
+   the modal at 880 — which is the layout every measurement in this file was
+   taken against.
+
+   `order: -1` rather than putting the band first in the markup. The DOM keeps
+   the order it has, so a screen reader hears the list and then the machine at
+   EVERY width, which is what it hears today: the wide layout changes where the
+   pixels are and nothing about the reading. */
+@media (min-width: 1200px) {
+  .pl-modal { width: 1120px; }
+  .pl-split { flex-direction: row; align-items: stretch; }
+  .pl-split .pl-body { flex: 1 1 auto; min-width: 0; }
+  .pl-split .pl-strip {
+    order: -1;
+    flex: 0 0 216px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 12px;
+    /* The rule moves with the band: it separated the band from the table when
+       it was underneath, and it separates them now that it is beside. */
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    padding: 10px 16px 12px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* The cell was 116px because that was the widest head a ROW could hold. In a
+     column it has the column, and the sparkline takes all of it — 180px of the
+     same hour, half again the horizontal resolution.
+
+     And twice the height. 24px was chosen for a band where height was the
+     scarce thing, and at 24px a ten-point swing is 2.4 pixels: the shape is
+     there and nobody can see it. At 48 it is 4.8 and readable.
+
+     NOT the height that would fill the column. Seven readings stretched over
+     804px would be 86px each, and at that size these stop being a supporting
+     glance beside the list and become the dialog's subject. About half the
+     column stays empty, which is what having seven readings looks like. */
+  .pl-split .pl-cell-head { width: auto; }
+  .pl-split .pl-spark { width: 100%; height: 48px; }
+}
+.pl-count {
+  margin-left: auto;
+  margin-right: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* THE SAME AIR AROUND EVERY RULE. This dialog is four bands separated by three
+   identical 1px lines, and the space around them was 22px, 14px, 10px — not a
+   cadence but a decay, each band having chosen its own padding locally. The
+   further down you read, the more cramped it got, and the last rule sat closest
+   to the densest text in the dialog.
+
+   20px between peer bands, 22px under the title because a title is not a peer,
+   12px at the outer edge top and bottom. */
+.pl-body { padding: 10px 16px; overflow-y: auto; font-size: 11px; }
+.pl-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
+/* The header row sticks, because a fifty-row table you scroll is a table whose
+   column you forget. */
+/* A STICKY HEADER NEEDS A BOTTOM. It was opaque and edgeless, so a scrolled row
+   did not stop at the labels — it went under them and vanished, and two rows
+   are mid-disappearance at any scroll position (measured, and the gap between
+   the header and the first row is -0.8px: they touch).
+
+   `inset` box-shadow rather than `border-bottom`, because a border on a sticky
+   cell is drawn by the table and not by the stuck box in more than one engine,
+   which is how a rule ends up scrolling away from the header it belongs to.
+
+   The extra 3px of padding under the labels is the other half: a rule tight
+   against its own text reads as an underline on the word rather than as the
+   floor of the header. */
+.pl-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.pl-body .pl-table thead th { padding-bottom: 6px; }
+/* No `padding-right` here. It carried `8px !important` — one of only three
+   !important declarations in this sheet, and the one that could never apply:
+   pid is the sixth column, so `.pl-body .pl-table th:nth-child(6)` below sets
+   `padding-right: 18px !important` at (0,3,1) against this rule's (0,1,0), and
+   two !importants are settled by specificity like anything else. It read as the
+   pid column's own padding and was never the pid column's padding. */
+.pl-pid-h {
+  width: 72px;
+  text-align: right;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pl-pid { width: 72px; }
+
+/* THE COLUMN WIDTHS, and the first two are an override rather than a new rule.
+   `:is(.sysdetail, .pl-body) .sd-procs th:first-child, th:nth-child(2)` pins
+   both to 40px — right in a 280px panel whose second column is a percentage,
+   wrong here, where the second column reads "1.29 GB". Restated at a higher
+   specificity for this table only, so the panel keeps the geometry it was
+   measured on. */
+/* WHERE THE CONTENT CHANGES KIND, and only there.
+
+   The first version of this widened the gap after `threads` and after `pid` to
+   group the columns three ways. Measured across every row, it did not work and
+   made one boundary worse: the ink gap between two RIGHT-ALIGNED columns is
+   whatever the shorter value leaves over, not what the padding says. Column to
+   column the gaps run 14-23, 43-57, 18-28, 8, 13-70, 18 — and `memory →
+   threads`, two numbers inside what should be the tightest group, is the widest
+   gap in the table because `threads` is a 3-digit column under a 7-letter
+   heading. Padding cannot fix that, and right alignment is not a mistake: it is
+   what lets a column be compared DOWN, which is the whole reason to read one.
+
+   What padding does govern is the two boundaries where a right-aligned number
+   meets left-aligned text, and those are constant to the pixel. They are also
+   exactly the two places the reading changes kind — numbers to a name, name to
+   the command line — and one of them was 8px, the tightest gap in the table, at
+   the point a gap helps most. Both are 18px now. */
+.pl-body .pl-table th:nth-child(4),
+.pl-body .pl-table td:nth-child(4),
+.pl-body .pl-table th:nth-child(6),
+.pl-body .pl-table td:nth-child(6) { padding-right: 18px !important; }
+/* `.sd-procs` IS ON THIS TABLE ALREADY, and naming it here is what makes this
+   override an override. Without it this selector is (0,3,1) and so is the
+   panel's `:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) { width: 40px }`
+   — `:is()` takes the specificity of its most specific argument — so the 66px
+   this line exists to set won on SOURCE ORDER alone. Sorting this sheet into
+   sections, which changes no rule, would have silently dropped the modal's
+   memory column to the 40px measured for a 280px panel. (0,4,1) now, and the
+   order is no longer load-bearing. */
+.pl-body .pl-table.sd-procs th:nth-child(2) { width: 66px; }
+.pl-body .pl-table th:nth-child(3) { width: 54px; }
+.pl-body .pl-table th:nth-child(4) { width: 52px; }
+.pl-body .pl-table th:nth-child(5) { width: 92px; }
+/* The four numeric columns sort the way the first two already did — label,
+   then the arrow's reserved slot, ending on the same right edge the digits do.
+   `.sd-sort`'s base rule puts the arrow first, which is what a left-aligned
+   column wants and not what these do. */
+.pl-body .pl-table th:nth-child(3) .sd-sort,
+.pl-body .pl-table th:nth-child(4) .sd-sort {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  padding-right: 8px;
+}
+/* The user cell is a name, so it reads left like the process does, and it
+   truncates rather than widening the column for one long system account. */
+.pl-user {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* No truncation here, unlike the panel: there is width for the tail of a name,
+   and the tail is what tells one `node` from another.
+   --text rather than --muted, which is a change and is the arguments' fault.
+   The cell holds two things now and they have to read as two; the token note
+   at the top of this sheet says the dark ramp has no third readable tier below
+   --muted, so the step had to be taken from the OTHER end. Name 12.95:1 on
+   --panel in dark and 18.92:1 in light, arguments 4.70:1 and 7.87:1 — both
+   above 4.5:1, which --muted-dim's 2.35:1 is not, and it is a decorative tint
+   this cell is explicitly not allowed to use for copy anyone reads. */
+.pl-name {
+  padding-left: 2px;
+  color: var(--text);
+  max-width: 0;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The arguments sit behind the name in the same cell and a step quieter, so
+   the column still scans as a list of names with detail after them rather than
+   as a wall of flags. The full string is on the cell's own title. */
+.pl-cmd { color: var(--text-dim); }
+/* The row hover lifts every cell to --text, which would flatten the two halves
+   of this one back together. It keeps its step, and gains what the light ramp
+   has room for. */
+.pl-body tbody tr:hover .pl-cmd { color: var(--muted); }
+.pl-body tbody tr:hover td { color: var(--text); }
+/* THE MACHINE, UNDER THE LIST IT EXPLAINS. See MachineStrip: this dialog covers
+   the panel that carries these readings, so the footer carries them back.
+
+   Wraps rather than scrolls. The cell count is what the machine publishes — six
+   here, four on a Windows box with no load average and no sensor — and a
+   horizontal scroller would hide a reading behind a gesture nobody makes in a
+   footer. Two rows of three is a worse shape than one row of six and a better
+   one than a reading you never find. */
+.pl-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  /* 12px at the bottom and not 10: with the footnote band gone this is the
+     last thing in the dialog, so its bottom edge is the modal's outer frame and
+     matches the 12px above the title. */
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--line);
+  /* One cell's worth, held from the first paint. Buckets are a minute wide, so
+     a deck younger than that has cells to draw and no lines to put in them, and
+     without this the band would be 12px of border and padding until the first
+     bucket lands and then jump to its full height. Measured: 41.3px of cell
+     inside 10px + 12px of padding, and `box-sizing: border-box` above means
+     this covers the padding too.
+
+     `flex-shrink: 0` says the structural thing this dialog needs said: THE
+     TABLE IS WHAT GIVES. Both this band and the footer are fixed bands in a
+     column flex box at its max height, and with the default shrink the browser
+     took the room out of them instead — measured with the sparklines hanging
+     9px below their own band and into the footer's space. */
+  flex-shrink: 0;
+  min-height: 64px;
+}
+.pl-cell { display: flex; flex-direction: column; gap: 2px; }
+/* 116px, from the worst head this can be asked to draw rather than from the
+   one on screen when it was written. The longest label measured 67px
+   (`Swap memory`) and the widest reading is a load average under load —
+   `123.45`, about 33px, where an idle `5.24` is 26. 67 + 8 + 33 = 108, and at
+   the first width of 104 the label this exists to show read `Queued wo…`
+   exactly when the machine was busy enough to look at it. Re-measured after
+   the labels grew nouns: `Busiest core` was the longest at 59.7px until
+   `Physical` became `Physical RAM`.
+
+   NOWRAP is the part that is not about this machine at all. Thermal labels come
+   from the chip — a Linux hwmon box publishes `Package id 0` where this one
+   says `GPU` — and a head that wraps drops its own sparkline half a line below
+   every other cell's, measured at 13.6px of misalignment. */
+.pl-cell-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 116px;
+  white-space: nowrap;
+}
+/* The label yields and the number does not: a truncated `Package id 0` is still
+   findable — the cell's title has it in full — where a number pushed out of its
+   own cell is the reading itself going missing. */
+.pl-cell-label {
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pl-cell-now {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+/* The one moving part in a 24px box, so it moves and nothing else does: a value
+   crossing into warn recolours the number and the line together, and the label
+   stays where it was. */
+.pl-cell.warn .pl-cell-now { color: var(--warn); }
+.pl-cell.hot .pl-cell-now { color: var(--err); }
+/* The box IS the scale, which is the panel's own grammar for these readings —
+   `.sd-track` holds a `.sd-fill` against the same 0-100. Without it a line at
+   4px and a line at 15px in a 24px box are two positions with nothing to be
+   positions against, and `Swap 90%` looks like `All cores 31%`. */
+.pl-spark {
+  display: block;
+  background: var(--line-soft);
+  border-radius: 2px;
+}
+.pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* Quieter than the full chart's, and deliberately so: .hist-line is the subject
+   of its own dialog and this is a reading under a list. Same hue, half the
+   presence — 0.9 of a pixel reads as a line at this height where 1.5 reads as a
+   band. */
+.pl-spark-area { fill: var(--accent); opacity: 0.10; }
+.pl-spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  /* The box is stretched to whatever the layout gives it — 116px wide in the
+     band, 180 and twice as tall in the column — and `preserveAspectRatio="none"`
+     would drag the stroke with it, so a line that is 0.9px in one place would
+     be 1.8 in the other. This pins the stroke to the screen instead of to the
+     drawing. */
+  vector-effect: non-scaling-stroke;
+}
+.pl-cell.warn .pl-spark-area { fill: var(--warn); }
+.pl-cell.warn .pl-spark-line { stroke: var(--warn); }
+.pl-cell.hot .pl-spark-area { fill: var(--err); }
+.pl-cell.hot .pl-spark-line { stroke: var(--err); }
+

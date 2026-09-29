@@ -1,0 +1,730 @@
+/* ───────── context breakdown modal ───────── */
+/* The entrance is .modal-backdrop's and .modal's, to the millisecond (#356).
+   Three centred dialogs over a dimmed backdrop are reached from this canvas —
+   this one, the usage history and the tool inspector — through one
+   useModalDismiss and one Escape key. Two of them used to be simply present on
+   the next frame while the third arrived, which made the same interaction feel
+   like two different ones depending on which button opened it. popIn's
+   transform-origin stays centre: a modal is the documented exception to
+   origin-awareness, and nothing here is anchored to its trigger. */
+/* On the shared shell since #874: the markup is `modal-backdrop` and
+   `modal ctx-modal`, so the scrim and its light answer, the blur, the surface,
+   the edge, the shadow, the entrance and its reduced-motion answer are .modal's
+   — one set of rules, where #875 had to fix a copy of them. What is left here
+   is what this dialog is not like the others in: narrower, a padded block
+   rather than a head-and-body column, and it scrolls as a whole. Two classes,
+   so it outranks .modal wherever the two sit in the sheet. */
+.modal.ctx-modal {
+  display: block;
+  width: min(560px, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 18px 20px 24px;
+  color: var(--text);
+}
+.ctx-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+/* 14px/600, the size the deck's other two modal titles are already set in —
+   `.uh-title` and `.modal-tool-name`. This one wrote 15px, and 15 against 14 is
+   a 7% step: below anything a reader can resolve, so it was not saying that this
+   modal outranks those, it was only the third spelling of one decision. It was
+   also the last live rule at 15px, so the size retires with it. */
+.ctx-modal-title { font-size: 14px; font-weight: 600; }
+.ctx-modal-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+/* The context modal's × — a header close like the other five, and the last one
+   still drawing its own 28px bordered box. `.glyph-btn` now, which takes the
+   edge, the fill, the 28px square and the 18px glyph with it; the header this
+   sits in already has a title, a subtitle and a panel edge saying where it is.
+   The easing stays on this selector for the reason spelled out at `.uh-close`. */
+.ctx-modal-close {
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ctx-modal-close:hover { color: var(--text); }
+.ctx-window-row { margin-bottom: 16px; }
+.ctx-window-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+/* Full width and scaled from the left, like the quota fills (#863). Flat
+   --accent, like the machine panel's and the quota's meters: it ran --accent
+   to --inflight until #1649, and a context window's fill is a quantity, not a
+   thing running. */
+.ctx-window-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: left center;
+  transition: transform 400ms ease;
+}
+.ctx-window-meta {
+  display: flex; justify-content: space-between;
+  font-size: 11px; margin-top: 6px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+.ctx-window-pct { color: var(--text); font-weight: 600; }
+.ctx-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 18px 0 8px;
+  font-weight: 600;
+}
+.ctx-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+}
+.ctx-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 12px;
+  border-bottom: 1px dashed var(--line);
+}
+.ctx-row.accent .ctx-row-val { color: var(--accent); font-weight: 600; }
+.ctx-row-label { color: var(--muted); }
+.ctx-row-val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.ctx-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 0;
+}
+.ctx-md-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ctx-md-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 12px;
+}
+/* Deliberately no `direction: rtl`. It used to buy a left-side ellipsis so the
+   end of the path survived, but an RTL paragraph leaves the leading '/' of a
+   POSIX path a bidi-neutral at the boundary, so the bidi algorithm reorders it
+   to the far end: /Users/x/CLAUDE.md drew as Users/x/CLAUDE.md/ — wrong on
+   screen and wrong when copied, and invisible on Windows because a drive
+   letter is a strong-LTR first character. The head is cut in
+   truncatePathStart() instead; the ellipsis here is only the backstop for a
+   modal narrower than the character budget. */
+.ctx-md-path {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ctx-md-size {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.agent-node .title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.agent-node .title .label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.agent-node .time {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.state-pill.state-active {
+  color: var(--inflight);
+  border-color: rgba(240,171,252,0.4);
+  background: rgba(240,171,252,0.08);
+}
+.state-pill.state-active::before {
+  content: "";
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--inflight);
+  /* No halo. A 5px dot at 10.29:1 that is already pulsing is found. */
+  margin-right: 5px;
+  animation: pulse var(--pulse-live) infinite;
+}
+.state-pill.state-done {
+  color: var(--ok);
+  border-color: rgba(134,239,172,0.35);
+  background: rgba(134,239,172,0.08);
+}
+.state-pill.state-err {
+  color: var(--err);
+  border-color: rgba(252,165,165,0.4);
+  background: rgba(252,165,165,0.08);
+}
+
+/* Blocked on a human (#337). A row of its own, under the identity line and
+   above the numbers: the header is 232px of content and already spends it on
+   the state pill, the workspace name and the elapsed clock, so a fourth chip
+   there truncated the label and still overflowed the card.
+   It does not replace the state pill above it and must not read as if it did —
+   a permission prompt lands on a session that is still live, an idle prompt on
+   one that has finished, and both facts stay on the card.
+   The SENTENCE is what separates the two chores, and it is CC's own; the hue
+   reinforces it, the 1.4.1 argument the three state pills already make. Both
+   hues are the sheet's: --warn is how this app says "this one is on you",
+   --accent how it says "for information". No wash under either — 8% of --warn
+   over the node's lower stop puts its own text at 4.47:1, a third of a point
+   under AA, so the words sit straight on the gradient where control-edges
+   already holds both tokens to 4.5:1 at both stops in both themes. */
+.agent-node .waiting-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 0;
+}
+.agent-node .waiting-row.permission {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 85%, transparent);
+}
+.agent-node .waiting-row.idle {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 85%, transparent);
+}
+/* The sentence yields first — the duration beside it is the number that decides
+   whether the user gets up, and the whole sentence is on the tooltip anyway. */
+.agent-node .waiting-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-node .waiting-row b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The still twin of .ap-pulse's emitter — same 5px dot, no ping. A session
+   that finished and is resting has not earned motion; the one that cannot
+   proceed without you has, and it borrows .ap-pulse outright so the app keeps
+   one idiom for "still asking" and one reduced-motion answer for it. */
+.waiting-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* The ※ pin: the one mark a resting card carries when Claude Code has left it
+   a recap. The glyph button's own hit area and focus ring, in the session's
+   colour — a graphic, held to 3:1, which the card's --accent clears as text.
+   Held down while its note is open, so the card says which note is its own. */
+.agent-node .recap-pin {
+  flex: none;
+  color: var(--accent);
+}
+.agent-node .recap-pin[aria-expanded="true"] {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* The recap itself: a node of its own beside the session root, open by itself
+   once the session comes to rest (RecapNoteNode). A node like the cards — laid
+   out by the same pass, moved by the same drags, fitted by the same fit — so it
+   takes a card's depth and radius, with the panel's plate and a hairline of the
+   session's colour. It is not inside the card, so it rebuilds the card's
+   --accent from the hue it is handed. */
+.recap-note {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  position: relative;
+  width: 300px;
+  padding: 10px 12px 12px;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: var(--r-node);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-size: 12px;
+  cursor: grab;
+}
+/* The tie to the card (RecapTieEdge): a thread with beads on it. A hairline in
+   the session's colour, at the lightness the live session edges are held to on
+   the canvas; round dots strung along it; a bead where it is fastened at each
+   end. Beads, where the canvas's other edges are solid or dashed — those mean a
+   call, this means "said by". Decoration, so it takes no pointer. */
+.recap-tie {
+  --tie: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  pointer-events: none;
+}
+.recap-tie-thread {
+  fill: none;
+  stroke: var(--tie);
+  stroke-width: 1;
+  stroke-opacity: 0.35;
+}
+.recap-tie-beads {
+  fill: none;
+  stroke: var(--tie);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 0 7;
+}
+.recap-tie-end {
+  fill: var(--tie);
+}
+/* Below the full card the note does what a card does: it keeps its box, so
+   nothing under it moves, stops painting its own rows and chrome — which draw
+   at the canvas's scale, a 3px "recap" in an empty frame — and draws its face
+   instead (RecapNoteNode), in screen pixels. */
+.canvas-wrap[data-lod="compact"] .recap-note > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face) {
+  visibility: hidden;
+}
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.canvas-wrap[data-lod="compact"] .lod-face.recap-face,
+.canvas-wrap[data-lod="overview"] .lod-face.recap-face {
+  display: flex;
+  justify-content: flex-start;
+  padding: 5px 8px;
+  background: var(--panel);
+  --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+/* A note has no stripe: its hue is its edge, as it is at the full size. */
+.lod-face.recap-face::before { display: none; }
+.recap-face .recap-note-mark { flex: none; font-size: 11px; }
+.recap-face-age {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* As many lines of the recap as the face has room for, read off its content
+   box: the mark row is 15px and a line of the text 14px after a 2px gap. */
+.recap-face-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+@container lod (max-height: 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
+@container lod (max-height: 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
+@container lod (max-height: 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
+@container lod (max-height: 30px) { .recap-face-text { display: none; } }
+.recap-note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.recap-note-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.recap-note-age {
+  font-size: 11px;
+  color: var(--muted);
+}
+.recap-note-close {
+  margin-left: auto;
+  margin-right: -6px;
+}
+.recap-note-text {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  /* Eight lines hold every recap measured here — 305 characters at most, about
+     seven lines at this width. The clamp is for the one that does not fit,
+     which keeps its whole text in the note's tooltip and the detail panel. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  overflow: hidden;
+}
+
+/* The "this deck cannot see approval prompts on this session" row (#398).
+   Same geometry as .waiting-row so the two occupy the slot identically, and
+   deliberately the QUIETEST styling of the three: --muted, no border, a hollow
+   dot and no pulse. The other two rows report something that happened to the
+   session; this one reports a limit of the program, which is worth saying once
+   and worth never competing with a real alarm for attention. It borrows
+   .waiting-said for truncation rather than restating it, so the sentence yields
+   the same way. */
+.agent-node .approval-blind-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+.agent-node .approval-blind-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Hollow, where .waiting-dot is filled: the deck has no signal here, and the
+   mark says so in the same channel the other two rows use. */
+.approval-blind-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  flex-shrink: 0;
+}
+
+.agent-node .sub {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* What Claude Code calls the session, under the meta row — its agent-name when
+   it has one and its ai-title when it does not, which on the transcripts here is
+   the title 96% of the time.
+
+   11px monospace is .sub's own type, not a new step — the type ladder holds at
+   eleven sizes and a name does not earn a twelfth. Hierarchy comes from colour
+   instead: --text where .sub takes --muted, because this row is content the user
+   reads to tell two sessions apart, where the row above it is chrome. That is
+   also why it sits below .sub rather than inside it — sharing that row would
+   have put a 29-character slug in front of the model chip, and .sub ellipsises
+   at the container, so the chip would have been the part that vanished.
+
+   Monospace, and it stays monospace now the row usually holds a sentence rather
+   than a kebab slug. #520 justified the face by the slug it drew, which was
+   already only half true — five of the ten distinct agent-names on this machine
+   are sentences too. The reason that survives is the column: NAME_COLUMNS in
+   cluster-header.ts is 32 because 210px of text at this size is 31.7 monospace
+   columns, and that is what lets the cluster header promise never to show more
+   of the field than this row does. A proportional face makes that promise
+   unmeasurable, for a legibility gain a 240px card at 11px will not show. */
+.agent-node .session-name {
+  margin-top: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tool-rate sparkline — tools-per-second over the last 60s. Most recent
+   bucket is on the right; brighter for the live one. */
+.tool-spark-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  height: 14px;
+}
+.tool-spark {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+/* The idle tier is --muted here and --muted-dim in light, which is the whole of
+   the fix and needs the reason spelled out. --muted-dim is 2.45:1 against the
+   node's lower gradient stop in dark, under the 3:1 that 1.4.11 asks of a meter
+   with no printed equivalent: the per-second counts live in a title and the
+   visible label says `60s` and nothing more, so unlike .qb-pct, .ss-tt-count,
+   .uh-model-cost or .up-tokens-row this bar cannot fall back on its own number,
+   and 1.4.11's redundancy exception does not reach it. --muted is 4.91:1 and
+   leaves the ramp pointing the right way (idle 4.91 < active 6.30 < latest
+   10.73). Light is NOT lifted with it: --muted-dim already measures 3.44:1 on
+   that stop, and --muted's 7.21:1 there would make the bar that means "nothing
+   ran" the loudest one in the chart, above both active (4.10:1) and latest
+   (6.39:1) — a meter reading backwards to buy a floor it already cleared. */
+.tool-spark-bar {
+  fill: var(--muted);
+  transition: fill 200ms;
+}
+.tool-spark-bar.active { fill: var(--accent); opacity: 0.72; }
+/* THE ONE MOMENT IN THIS CHART WORTH AUTHORING: a mark landing.
+   Everything else the chart does is the window sliding left, which is time
+   passing rather than anything happening — and animating that would be a fifth
+   resting animation on a canvas that just had three glows taken off it. This
+   fires on the event and on nothing else, so an idle card is still.
+
+   It rises FROM the baseline it already occupied rather than from nothing: the
+   1.5px rule is drawn for every empty bucket, so scaling from 0 would invent a
+   bar appearing where a line already was. 180ms is feedback, not choreography,
+   and the curve is the sheet's own confident-arrival ease-out.
+
+   The remount that plays it is keyed in AgentNode — see the note there for why
+   only the leading bar gets that treatment. */
+.tool-spark-bar.latest {
+  fill: var(--inflight);
+  /* A glow on a 5.5px rectangle. The fill is already the loudest of the three
+     tiers; the tiers are what the reader is reading. */
+  opacity: 1;
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: spark-land 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes spark-land {
+  from { transform: scaleY(0.14); }
+  to { transform: scaleY(1); }
+}
+.tool-spark-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* Keeps the idle tier where it measured fine — see the note on .tool-spark-bar.
+   The two rules below carry an extra class each, so they out-specify this one
+   whatever the order: the active and latest bars stay theirs in light. */
+:root[data-theme="light"] .tool-spark-bar { fill: var(--muted-dim); }
+:root[data-theme="light"] .tool-spark-bar.active { fill: var(--accent); opacity: 0.85; }
+:root[data-theme="light"] .tool-spark-bar.latest {
+  fill: var(--inflight);
+  filter: drop-shadow(0 0 3px rgba(126, 34, 206, 0.45));
+}
+
+/* IT WRAPS BEFORE IT OVERLAPS. A flex item shrinks below its content by
+   default, so at the top of the ranges this row carries — four figures and a
+   cost on one 232px line — every span was squeezed to about two thirds of its
+   own text and the five of them printed over one another, inside a card that
+   clips. Unreadable, and silently: the row kept its height while its contents
+   collided. Wrapping costs a second line on a card that has genuinely run out
+   of room and nothing at all on every other card, which is the right way round
+   for a failure this rare. */
+.agent-node .meta {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  /* 9px rather than 12. A busy card carries five items — tools, errors,
+     in-flight, tokens, cost — and at 12 that measured 248px against 230 of
+     box, so the commonest interesting card in the deck wrapped. Ten was not
+     quite enough either: a session past a million tokens measured 231 against
+     the same 230 and wrapped for ONE pixel, which reads as a defect rather
+     than as the graceful degradation it is. Nine clears it with room, and the
+     wrap still waits for the genuine extremes it was added for. The row reads
+     as five groups either way, because each is a bold figure against a muted
+     word — a stronger boundary than the three pixels given up. */
+  gap: 2px 10px;
+}
+.agent-node .meta > * { flex: 0 0 auto; }
+.agent-node .meta b { color: var(--text); font-weight: 600; }
+.agent-node .meta .inflight-meta { color: var(--inflight); }
+.agent-node .meta .inflight-meta b { color: var(--inflight); }
+/* TWO COLOURS IN THIS ROW, NOT FOUR — and the two that went were the two that
+   meant nothing.
+
+   The token count read var(--accent), which inside this card is the SESSION
+   HUE: hsl(h 70% 60%) where h is a hash of the session id. Across the hue
+   circle that measures 3.14:1 at its worst and 12.89:1 at its best, so the
+   same metric swung more than fourfold in loudness depending on a number
+   nobody chose — and at its worst it is under the 4.5:1 floor its own size
+   asks for. It was also the eighth site painting session identity, inside a
+   frame whose entire job is to say which session this is. A count is a value;
+   it reads from the value tier.
+
+   The cost read var(--ok), which is this app's word for DONE — the state pill,
+   the node border, the burst mark, the connector and the status dot all use it
+   to mean that. So a live card drew a green figure sixty pixels under a
+   magenta LIVE pill while four green ticks sat to its right meaning something
+   else. Its luminance is also --text's to three decimals, so it was tied for
+   the loudest text on the card. Money is important because it is money.
+
+   What keeps a colour: the in-flight count, because --inflight means `running`
+   in ten other places here and that count is literally about running, and it
+   is silent when it is zero. */
+.agent-node .meta .tokens-meta { margin-left: auto; }
+.agent-node .meta .cost-meta { display: inline-flex; align-items: baseline; gap: 4px; }
+/* The one thing in this row somebody has to act on, in the one semantic colour
+   it has never been allowed to use. Silent at zero. */
+.agent-node .meta .failed-meta { color: var(--err); }
+.agent-node .meta .failed-meta b { color: var(--err); }
+/* The card's version of the same marker: there is no figure to print, said in
+   the annotation tier because that is what it is. (It used to explain that it
+   avoided .cost-meta so as not to be painted green; .cost-meta no longer
+   paints anything green.) */
+.agent-node .meta .cost-unpriced {
+  color: var(--muted);
+  font-style: italic;
+}
+/* `.cost-rate` was the burn figure on the card's face. It was the fifth item in
+   a no-wrap row inside `overflow: hidden` that only fits four, so it was the
+   one that fell off the right edge of every live card — and it is derived from
+   two numbers printed twenty pixels away. It lives in the cost tooltip, where
+   it always did. */
+
+.tokens-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.tokens-grid > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.tokens-grid .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.tokens-grid b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The dashed edge is the whole difference. It also faded the card to 0.92,
+   which took the "?" — the only word on the card for "this start was
+   synthesised" — under AA in dark: 4.17:1 (#878). */
+.agent-node.synthetic {
+  border-style: dashed;
+}
+.agent-node .synth-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.spawn-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--accent);
+  background: var(--bg-soft);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* Model chip — tiny pill next to "session"/"subagent" with a family tint,
+   keyed on `data-family` (below). */
+.model-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: var(--bg-soft);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+/* KEYED ON THE MODEL, NOT ON THE TOOLTIP.
+   These used to read `[title*="opus"]`, four rules at equal specificity, so
+   source order decided which one won. Since #686 the tooltip carries every
+   model the card's spend covers — `${model}\nspend on this card also covers:…`
+   — so a session that ran on Sonnet and switched to Opus matched two of them
+   and took the LAST: a chip reading "Opus 5 +1" painted Sonnet blue, in both
+   themes, on the card, in the cluster area and in the detail hero. Add a Fable
+   turn and it went yellow. `data-family` is one value from one function
+   (modelFamily), so a chip cannot be painted as a model it does not name.
+   THE HUE IS THE CHART'S (#1285). These were eight literals, and they
+   disagreed with the usage band beside them: Opus was pink on the dark chip
+   and violet on the chart — and pink is --inflight, so every resting Opus chip
+   wore the colour that means "running right now" (#1283) — and Fable and
+   Mythos wore --warn's amber and had no band at all. Each family now names its
+   --model-* token and nothing else; how a chip draws that hue is the rule after
+   this one, per theme. `gpt` is a family modelFamily() knows but the chip does
+   not tint: the chart splits GPT-5 from the GPTs before it, and one chip tint
+   for both would disagree with one of them. */
+.model-chip[data-family="opus"]   { --chip-hue: var(--model-opus); }
+.model-chip[data-family="sonnet"] { --chip-hue: var(--model-sonnet); }
+.model-chip[data-family="haiku"]  { --chip-hue: var(--model-haiku); }
+.model-chip[data-family="fable"],
+.model-chip[data-family="mythos"] { --chip-hue: var(--model-fable); }
+/* The word in the hue itself, a 40% edge and a 6% wash — the weights the dark
+   literals carried. Listed rather than `[data-family]`, because modelFamily()
+   also writes "gpt" and "" and neither has a hue to read. */
+.model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+  color: var(--chip-hue);
+  border-color: color-mix(in srgb, var(--chip-hue) 40%, transparent);
+  background: color-mix(in srgb, var(--chip-hue) 6%, transparent);
+}
+/* On white the wash is 14% and the edge 55% — the alphas the light literals
+   carried to clear AA — and the word is the hue a fifth of the way to --text,
+   which is where every light literal's ink already sat (#6b21a8 against the
+   band's #7e22ce, #075985 against #0369a1): a band colour dark enough for a
+   3:1 bar is not dark enough for 10px words on its own wash. The sweep in
+   usage-series-contrast.test.ts measures the word on every bed. */
+:root[data-theme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+  color: color-mix(in srgb, var(--chip-hue) 80%, var(--text));
+  border-color: color-mix(in srgb, var(--chip-hue) 55%, transparent);
+  background: color-mix(in srgb, var(--chip-hue) 14%, transparent);
+}
+
+/* React Flow edge label background — match theme */
+.react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }
+.react-flow__edge-text { font-family: var(--font-mono); font-size: 10px; fill: var(--text); }
+

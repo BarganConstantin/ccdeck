@@ -46,6 +46,7 @@ import {
   type Board, type Delta, type Landed, type UsageRange,
 } from "../usage-from-ccusage";
 import { distinctSessionLabels } from "../usage-session-join";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
@@ -65,7 +66,7 @@ const prefs = read("../usage-prefs.ts");
 /** The panel's small decisions — rows worth a line, the unpriced note, the ↻'s
  *  name — lifted out of its render. */
 const rules = read("../usage-panel-rules.ts");
-const css = read("../styles.css");
+const css = sheetText();
 
 /** A ccusage answer, in the shape the route really returns: `totals` is what
  *  `rangeTotals` reads first, and the numbers are the ones a reader would see. */

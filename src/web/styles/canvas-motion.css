@@ -1,0 +1,160 @@
+/* ── displaced by a growing session ──────────────────────────────────────── */
+/*
+ * When a session fans out subagents it takes more room, and its neighbours are
+ * moved aside to make it. Jumping them there reads as the canvas glitching;
+ * carrying them there reads as one thing pushing another, which is what
+ * actually happened. The class is on for the length of the move only, so
+ * dragging a node never fights a transition.
+ *
+ * The curve settles without overshoot — cards that spring past their mark and
+ * come back look bouncy on one node and chaotic on eight at once.
+ */
+.canvas-wrap.bubbling .react-flow__node {
+  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* The session's drag handle is a node too, and the rule above carries it with
+   its cards. It used to ease its width and height here as well (#865): a layout
+   pass on every frame of every push, for an element that paints nothing — the
+   handle is transparent, and the box a reader sees is `.cluster-card`, which
+   follows on its own easing. The handle only has to be the right size to be
+   grabbed, so it takes its new size at once and travels on the transform. */
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-wrap.bubbling .react-flow__node,
+  .canvas-wrap.bubbling .react-flow__node.react-flow__node-sessionGroup {
+    transition: none;
+  }
+}
+
+/* The node under the cursor follows it exactly. React Flow writes the drag
+   transform every pointer move, and a transition on top of that renders the
+   card trailing the cursor by the transition's length. */
+.canvas-wrap.bubbling .react-flow__node.dragging {
+  transition: none;
+}
+
+/*
+ * Nothing animates during a drag.
+ *
+ * Must come after the .bubbling rules above: same specificity, so source order
+ * decides, and a gesture always wins over an animation. .dragging alone is not
+ * enough — React Flow only sets it on the node the pointer grabbed, while a
+ * session drag moves that session's cards through state.
+ */
+.canvas-wrap.dragging-any .react-flow__node,
+.canvas-wrap.dragging-any .react-flow__node.react-flow__node-sessionGroup {
+  transition: none;
+}
+
+/* The tinted box drawn around a session gets the same answer for the same
+   reason: dragging a session moves its members through state, so the box's
+   bounds are rewritten once per pointer move, and the 320ms it eases them over
+   is 320ms of the box trailing the cursor — measured at 78px behind on a
+   twelve-move drag (#353).
+   `.cluster-card.dragging` used to say this and never once said it to anything:
+   SessionClusters renders `className="cluster-card"` as a literal string, so
+   the class the rule waited for is added by nobody, and a live deck reports
+   `"cluster-card"` on every card on every frame of every drag. The flag on the
+   pane is the one React actually sets, for every gesture, which is why the
+   nodes above are already answered by it. The cursor half of the dead rule went
+   with it rather than moving here: hit-testing every point over a card on a
+   live deck returns the session-group handle, an agent node, a tool bubble or
+   the pane and never the card, so a cursor declared on the card is a cursor
+   nobody can produce.
+   The fade stays. Opacity is not travel, and it is what a card entering or
+   leaving the canvas is made of. */
+.canvas-wrap.dragging-any .cluster-card {
+  transition: opacity 200ms ease;
+}
+
+/* ── reduced motion, on the canvas itself ─────────────────────────────────── */
+/*
+ * The blocks above cover the relayout easing and nothing else, so a user who
+ * asked the OS for less motion still got three spinning orbits, marching dashes
+ * down every live edge, a wobbling emoji per in-flight tool and a bubble flying
+ * out of an agent for every tool call. The canvas is the whole product, so the
+ * answer is not to switch animation off across it — a bubble that materialises
+ * with no change at all reads as a rendering fault, and the deck loses the cue
+ * that says something arrived.
+ *
+ * What goes is travel: rotation, scaling, dashes marching down a line, wobble,
+ * shake, and anything that carries a node or a session box across the viewport.
+ * What stays is opacity, which is not motion, plus every static colour, border
+ * and shadow the status classes already set — in flight still reads pink with a
+ * dot, done still reads green with a ✓.
+ *
+ * Entrances collapse to a 140ms fade. Exits keep their 600ms, because
+ * ToolBursts and the reducer both drop the element on a wall-clock timer of
+ * exactly that length; a bubble that vanished at 140ms would sit invisible
+ * while its connector was still drawn, which is the desync .tool-burst-wrap
+ * was just fixed for.
+ */
+@media (prefers-reduced-motion: reduce) {
+  /* A node appears and leaves. It never slides: the base transition is the
+     easing every non-drag layout move goes through. */
+  .react-flow__node {
+    transition: none;
+    animation: fadeIn 140ms ease both;
+  }
+  .react-flow__node.rf-exiting .agent-node,
+  .react-flow__edge.rf-edge-exiting .react-flow__edge-path {
+    animation: canvas-fade-out 600ms linear forwards;
+  }
+
+  /* Dashflow is a loop of pure travel down the full length of an edge, and on a
+     busy canvas there are a dozen of them at once. The dash pattern and the
+     in-flight stroke stay, so a live connection still looks different. */
+  .react-flow__edge.animated .react-flow__edge-path,
+  .react-flow__edge.rf-edge-selected .react-flow__edge-path,
+  .tool-conn.status-inflight { animation: none; }
+
+  /* The session box tracks nodes that no longer travel, so neither does it. */
+  .cluster-card { transition: opacity 200ms ease; }
+
+  /* Small, but still a scale under the pointer. */
+  .ctx-donut { transition: filter 120ms ease; }
+  .ctx-donut:hover { transform: none; }
+
+  /* Bubbles: the spawn arc, the done flash and the error shake all become the
+     fade. Their status classes keep the colour that carried the meaning. */
+  .tool-burst,
+  .tool-burst.sub,
+  .tool-burst.status-done,
+  .tool-burst.status-err,
+  .tool-burst.sub.status-done,
+  .tool-burst.sub.status-err { animation: fadeIn 140ms ease both; }
+  .tool-burst.fading,
+  .tool-burst.sub.fading { animation: canvas-fade-out 600ms linear forwards; }
+  /* The rail's two panels arrive without travelling. The fade is the arrival
+     and it stays; the 8px is the part that moves, and it is the part that
+     goes. Their exit is opacity only already, so it needs no answer here. */
+  .sysdetail,
+  .usage-panel { animation: fadeIn 140ms ease both; }
+  /* The panel arrives and leaves without travelling. Its width is a layout
+     property and the whole point of the animation is the 288px the canvas
+     moves, so reduced motion takes the movement and keeps the arrival: the
+     panel is simply there, and simply gone. */
+  .accounts-panel { animation: fadeIn 140ms ease both; }
+  .accounts-panel.leaving { animation: canvas-fade-out var(--side-exit) linear both; }
+  /* The bar is the feedback and it stays; only the rise goes. Reduced motion
+     means gentler, not blind. */
+  .tool-spark-bar.latest { animation: none; }
+  .tool-burst .tb-spin,
+  .tool-burst .tb-mark,
+  .tool-burst.status-inflight .tb-emoji,
+  .state-pill.state-active::before { animation: none; }
+  .tool-burst.clickable { transition: box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease; }
+  .tool-burst.clickable:hover { translate: none; }
+
+  /* Three rings turning under a pulsing core is the largest continuous motion
+     in the app and the only one with no state to report. Same diagram, still. */
+  .empty-hero .orbit.r1,
+  .empty-hero .orbit.r2,
+  .empty-hero .orbit.r3,
+  .empty-hero .core,
+  .empty-hero .core::after { animation: none; }
+
+  @keyframes canvas-fade-out { to { opacity: 0; } }
+}
+

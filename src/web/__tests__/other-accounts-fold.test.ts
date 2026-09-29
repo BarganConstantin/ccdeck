@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { FOLD_NAMES, foldPeek, restLine, type Peer } from "../other-accounts";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
@@ -24,7 +25,7 @@ const panel = read("../components/AccountsPanel.tsx");
  *  runs them. */
 const accountFold = read("../account-fold.ts");
 const fold = read("../components/OtherAccounts.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 const peer = (name: string, headroom: number | null, over: Partial<Peer> = {}): Peer =>
   ({ key: name, name, ready: true, why: null, warn: false, headroom, ...over });

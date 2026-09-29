@@ -48,9 +48,10 @@ import { join } from "node:path";
 import { gradientStops } from "./gradient-stops";
 import { clientText } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
+const cssRaw = sheetText();
 /** Comments quote the declarations they explain — including the ones this file
  *  asserts are gone — so every read of the sheet goes through the stripped copy. */
 const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, "");

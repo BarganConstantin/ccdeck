@@ -1,0 +1,357 @@
+/* ---------------- usage history modal (ccusage) ---------------- */
+/* On the shared shell since #874, like the context dialog: `modal-backdrop`
+   and `modal uh-modal`, so the scrim, surface, shadow and entrance are .modal's
+   and only the size and this dialog's own padding are written here. */
+.modal.uh-modal {
+  display: block;
+  width: min(760px, 92vw);
+  max-height: 84vh;
+  overflow: auto;
+  padding: 16px 18px 20px;
+  color: var(--text);
+}
+.uh-head {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px;
+}
+.uh-titlewrap { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+.uh-title { font-size: 14px; font-weight: 600; }
+.uh-sub { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
+.uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.uh-range-btn {
+  font: inherit; font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 2px 10px; border: none; border-radius: 999px;
+  color: var(--muted); background: transparent; cursor: pointer;
+  transition: background 120ms, color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.uh-range-btn:hover { color: var(--text); }
+.uh-range-btn:active { transform: scale(0.97); }
+/* #583's second half. The selected range used to add exactly two declarations
+   to the rest state — an --accent-dim wash and a lift from --muted to --text —
+   and neither of them reached 3:1 against what it sits on. The wash is 1.392:1
+   over the --bg-soft track in light and 1.895:1 in dark; the word's step is
+   2.403:1 and 2.752:1. There was no third channel: no border, no weight, no
+   geometry. So the modal opened on 30d, you pressed 90d, and nothing on the
+   strip could tell you afterwards which of the four the chart was showing.
+   Both of those numbers had already been priced and refused elsewhere in this
+   sheet. #370 replaced a 1.37:1 hue shift on the topbar toggles, and
+   toggle-state.test.ts holds .cat-filter's 2.40:1 / 2.75:1 colour step to be
+   insufficient on its own — which is why `off` also gets a line-through. This
+   strip got neither fix, only the wash.
+   The answer is #370's, unchanged: polarity, not a louder tint. The fill goes
+   to the accent itself and the label inverts with it — 5.93:1 light and
+   11.33:1 dark for the chip against the bare track, with the label at 5.24:1
+   and 11.72:1 on top of it. A luminance inversion is the one channel that
+   survives greyscale, every colour vision deficiency, and a later re-tune of
+   whichever hue --accent happens to be, because it does not depend on the two
+   colours differing in hue at all.
+   Keyed on aria-pressed rather than on the `on` class it used to carry, for the
+   reason the icon-button rule gives: the pixels and the accessibility tree are
+   then the same fact, and a chip cannot look selected while announcing nothing.
+   The class is gone from the markup with it. */
+.uh-range-btn[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+/* `.uh-range-btn:hover` repaints the label in --text, which on the accent fill
+   is 1.72:1 in dark — so the pressed chip has to out-specify the hover it
+   inherits, the same way the topbar's pressed toggle does. It buys no lift of
+   its own: the strip is 2px of padding around 2px-gapped chips, so the halo
+   that rule uses would collide with both neighbours, and the pressed chip is
+   already the loudest thing in the group. The press still answers through
+   `:active`, which scales every chip in the strip. */
+.uh-range-btn[aria-pressed="true"]:hover { color: var(--bg); }
+/* #380 deleted a 13px font-size here that `button.btn.icon-btn`'s 14px had
+   always beaten, and left the width, height and padding standing as dead by the
+   same arithmetic. The class set is `glyph-btn uh-reload` now and all three are
+   live — which is the whole of what changes in this header's geometry, because
+   24 x 24 with no padding is the box `.glyph-btn` would have given it anyway.
+   What the reader sees is the 30px bordered square this actually rendered as
+   becoming the 24px square it always said it was, with the edge gone. */
+.uh-reload { width: 24px; height: 24px; padding: 0; }
+/* A ccusage run is seconds long and the button is the only thing on the header
+   that moves while it lasts, so it has to read as busy rather than as ignored. */
+.uh-reload:disabled { opacity: var(--dim-off); cursor: default; }
+/* Already borderless, already 24 x 24, already 16px and already --muted — this
+   × was the standard before there was a name for it, and everything it used to
+   say is `.glyph-btn`'s now. The one thing that was NOT the standard was the
+   hover: a --ctl-fill wash under the glyph, which is a box appearing under the
+   pointer on a control whose whole point is that it has no box. The colour step
+   to --text is the whole hover, here as everywhere else.
+   The easing stays on this selector rather than being left to the shared rule,
+   because canvas-motion.test.ts asks this button and `.ctx-modal-close` by name
+   whether each property their hover moves is one their own rule eases. Same
+   values as `.glyph-btn`; that rule is still where the decision lives. */
+.uh-close {
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.uh-close:hover { color: var(--text); }
+
+.uh-status { padding: 40px 0; text-align: center; color: var(--muted); font-size: 12px; }
+/* The wait, standing in the room the answer will need.
+   184px is `.uh-chart`'s own 168 plus the 16 it reserves for date labels — the
+   two numbers are read off that rule rather than guessed, so this box and the
+   chart it precedes cannot drift apart. It is not the whole 429px the loaded
+   modal stands at; the totals and the legend are content and reserving THEM
+   would mean drawing four plausible empty cards, which is a skeleton standing
+   in for numbers nobody has. This takes the largest single piece and leaves the
+   rest to arrive. */
+.uh-status-wait {
+  display: flex;
+  flex-direction: column;
+  min-height: 184px;
+  padding: 0 0 16px;
+}
+/* `margin: auto` rather than `justify-content: center` on the column: the axis
+   has to sit on the floor and the word has to centre in whatever is left above
+   it, and centring the whole column would have shared the free space with the
+   axis instead of giving it all to the word. */
+.uh-wait-word { margin: auto; }
+/* The chart's baseline, drawn where the chart will draw it: the same
+   --line-soft hairline at the same y, so nothing about the axis moves when the
+   columns land on it.
+   The travelling light is a gradient position, which is a paint on one 1px
+   strip and costs no layout at any width. Indeterminate — see the markup for
+   why a fill would be a claim. */
+.uh-wait-axis {
+  height: 1px;
+  border-radius: 1px;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--accent) 55%, transparent) 50%,
+      transparent 100%) no-repeat,
+    var(--line-soft);
+  background-size: 34% 100%, 100% 100%;
+  animation: uh-wait-sweep 1600ms cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+@keyframes uh-wait-sweep {
+  from { background-position: -40% 0, 0 0; }
+  to   { background-position: 140% 0, 0 0; }
+}
+.uh-status.uh-err { color: var(--err); max-width: 46ch; margin: 0 auto; line-height: 1.5; }
+/* The recovery belongs where the failure is. The header's ↻ is on screen in
+   every branch, but nothing there says it is the fix for what the box says. */
+.uh-retry { margin-top: 14px; }
+.uh-retry:disabled { opacity: var(--dim-off); cursor: default; }
+
+/* The chart the selected range answered, dimmed while a newer run for that same
+   range is still going. --dim-stale rather than --dim-off: these numbers are not
+   unusable, they are one refresh out of date, and the reader is meant to keep
+   reading them until the new ones land — which is why it is the MARKS that dim
+   and not the answer (#1289). This used to fade the whole wrapper, every total
+   and label in it, to 3.55:1 at best. The day bars, the by-CLI strip, the
+   day-detail meters and the legend swatches recede; every word stays at full
+   contrast, and the header's subtitle says "running ccusage…" in words. Each
+   of the four is a childless element, which contrast-floors.test.ts checks. */
+.uh-stale .uh-bar-seg,
+.uh-stale .uh-agent-seg,
+.uh-stale .uh-model-bar-fill,
+.uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity 120ms; }
+
+.uh-totals {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; margin-bottom: 14px;
+}
+.uh-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px; background: var(--bg-soft);
+  border: 1px solid var(--line-soft); border-radius: 8px;
+}
+.uh-stat-val { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.uh-stat-val.accent { color: var(--ok); }
+.uh-stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Cost by CLI, between the range totals and the daily chart (#431). Only drawn
+   when ccusage reported two or more agents, so a machine running one CLI has
+   this row absent rather than empty.
+   Nothing here can overflow the modal: the bar is a block at the content
+   width, its segments are percentages of that, and the key wraps like
+   .uh-legend does — which matters because ccusage reads sixteen sources and
+   nothing bounds the entry count at two. */
+.uh-agents { margin-bottom: 12px; }
+.uh-agent-bar {
+  display: flex; height: 6px; border-radius: 3px;
+  background: var(--line); overflow: hidden; margin-bottom: 7px;
+}
+/* The same cut, turned ninety degrees — this bar stacks sideways (#583). Its
+   segments meet edge to edge exactly as the day bars' do, and Claude's purple
+   against Codex's orange is the 1.10:1 pair, so the split this row was built
+   for needs the same hairline to be a split at all. `-1px 0 0` puts it on the
+   leading edge, and .uh-agent-bar's `overflow: hidden` swallows the first
+   segment's copy against the rounded end. */
+.uh-agent-seg { height: 100%; box-shadow: -1px 0 0 var(--panel); }
+.uh-agent-keys { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--muted); }
+.uh-agent-key { display: inline-flex; align-items: center; gap: 5px; }
+.uh-agent-cost { color: var(--text); font-variant-numeric: tabular-nums; }
+/* Dimmer than the cost beside it: the money is the answer and the share is the
+   scale for it, and they sit close enough together to be read as one figure if
+   they carried the same weight. */
+.uh-agent-share { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* A day is 24px wide and the chart is what scrolls (#539).
+   Every day in here is a real <button> — `onClick`, `aria-pressed`, its own tab
+   stop — so every day is a pointer target and owes SC 2.5.8 a 24px short side.
+   It was not paying it. `.uh-modal` is `min(760px, 100%)` and `*` is
+   `box-sizing: border-box`, so the modal's content box is 760 less 18px of
+   padding a side: 724px, the same figure UsageHistoryModal's own width comment
+   already works in. Each column's `flexBasis` is `100 / days.length %` of that
+   and `min-width: 0` let flex shrink it to whatever the gaps left over:
+
+     7d    (724 - 6)  / 7  = 102.57px
+     14d   (724 - 13) / 14 =  50.79px
+     30d   (724 - 29) / 30 =  23.17px   ← the preset this modal OPENS on
+     90d   (724 - 89) / 90 =   7.06px
+
+   The bottom two are under the floor, and the spacing exception cannot excuse
+   them because the next day's button begins 1px away. At 90d that is ninety
+   7px buttons in a row: a pointer aimed at a day lands on its neighbour, and
+   the breakdown panel below then answers for a date nobody chose — plausibly,
+   with nothing on screen to say it is the wrong one.
+
+   Two levers, and both are needed to leave the default preset exactly where it
+   was. `min-width: 24px` on the column is the floor. The `gap: 1px` goes,
+   because the gap is precisely what pushes 30d over the edge: 30 × 24 is 720
+   and fits inside 724, 720 plus 29px of gap is 749 and does not. Nothing is
+   lost with it — `.uh-bar` is `78%` of its column, so a column already carries
+   11% of empty space on each side, which is 2.6px at the floor and 11px at 7d
+   against the single pixel the gap was contributing.
+
+   So: 7d, 14d and 30d still fit their columns edge to edge inside 724px and
+   nothing about the view this modal opens on moves, while 90d becomes 2160px of
+   chart scrolled inside a 724px box — thirty legible days at a time instead of
+   ninety unaimable slivers. The floor is a floor at any width, which matters
+   because `min(760px, 100%)` shrinks on a narrow window and every preset
+   reaches it sooner there.
+
+   `overflow-x` on the chart rather than left to spill, for the reason #369
+   wrote out at `.usage-panel .cost-bar`: `.uh-modal` declares `overflow: auto`,
+   so an unclaimed overflow in here would have made the DIALOG the sideways
+   scroller — title, totals strip and legend sliding out from under the pointer
+   on the way to the far end of a chart. */
+.uh-chart {
+  display: flex; align-items: flex-end;
+  height: 168px; margin-bottom: 10px;
+  padding-bottom: 16px; /* room for date labels */
+  border-bottom: 1px solid var(--line-soft);
+  overflow-x: auto;
+}
+.uh-bar-col {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  height: 100%; position: relative;
+  background: none; border: none; padding: 0; cursor: pointer;
+  min-width: 24px;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The ring goes inside, because the box it would otherwise be drawn outside of
+   is now the edge of a scroll container. `overflow-x: auto` computes
+   `overflow-y` to `auto` as well and both clip at the padding box, so the
+   shared `button:focus-visible` ring — 2px at `outline-offset: 1px` — would
+   lose its top edge on every column and its outer edge on the first and the
+   last. `.canvas-wrap:focus-visible` inset its ring for exactly this reason.
+   -1px puts the whole 2px band between 1px and 3px inside the column, which is
+   the gutter `.uh-bar`'s 78% leaves free, and it is the offset that changes —
+   the ring is still the deck's one ring, drawn by the global rule. */
+.uh-bar-col:focus-visible { outline-offset: -1px; }
+.uh-bar-col:hover .uh-bar { filter: brightness(1.15); }
+/* The column is the target, not the bar drawn inside it — a press on the empty
+   space above a short day still selects that day, so the whole column moves. */
+.uh-bar-col:active { transform: scale(0.97); }
+.uh-bar-col.sel .uh-bar { outline: 1px solid var(--accent); outline-offset: 1px; }
+.uh-bar {
+  width: 78%; min-height: 1px;
+  display: flex; flex-direction: column;
+  border-radius: 2px 2px 0 0; overflow: hidden;
+  transition: height 300ms ease;
+  /* THE DAYS RISE FROM THE AXIS THEY ARE MEASURED AGAINST, which is what the
+     wait's hairline was holding the place of. `scaleY` from the bottom rather
+     than a height: it is compositor-only, it squashes the stacked bands with
+     the column so a day's mix is right in every frame of the growth, and it
+     cannot fight the `height` transition above — that one belongs to a range
+     that CHANGES while the chart is up, and this one belongs to a chart that
+     was not there a moment ago.
+     `both` so the first frame is already flat: without it the whole chart
+     paints at full height for one frame and then drops, which is the jump this
+     replaces, arriving 16ms later. */
+  transform-origin: bottom;
+  animation: uh-bar-rise 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--uh-i, 0) * var(--uh-step, 10ms));
+}
+@keyframes uh-bar-rise {
+  from { transform: scaleY(0); opacity: 0.4; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+/* A cut between stacked bands, in the modal's own paper (#583).
+   The palette above can make every band visible against the panel; what it
+   cannot do is make eight bands 3:1 from each other, because the arithmetic
+   forbids it past three. So the day with Sonnet and a Codex model drew two
+   segments 1.01:1 apart with nothing in between — one band, and the split the
+   chart exists to show simply gone, for anyone reading it in greyscale, on a
+   projector, or with achromatopsia. That is 1.4.1 and not 1.4.11: the defect is
+   that colour was the ONLY channel, not that any one colour was too quiet.
+   A shadow rather than a border, because the height of a segment is a
+   percentage of a day's cost and `box-sizing: border-box` would have taken the
+   hairline out of that height — on a $0.01 band inside a $600 day the border
+   IS the band, and the segment would have been drawn as a line of panel colour
+   instead of as its own hue. `0 -1px 0` is outside the box and costs the
+   segment nothing; it is the neighbour above that gives up the pixel. The
+   topmost band paints its cut over the bar's own top edge, where .uh-bar's
+   `overflow: hidden` clips it away, so no bar grows a lid.
+   In --panel on purpose: every series colour clears 3:1 against --panel in both
+   themes, so the same floor that makes a band visible makes this line visible
+   against whichever two bands it lands between. One measurement, two jobs. */
+.uh-bar-seg { width: 100%; box-shadow: 0 -1px 0 var(--panel); }
+/* 9px, the sheet's floor, not the 8px this was alone in writing. It was the one
+   declaration in the file below the smallest size anything else is set in, and
+   an 8px monospace date under a chart is the label that says which bar you are
+   reading — so the exception was being spent on the one place a floor is for.
+   Nothing else moves: the label is absolutely positioned under the column and
+   already ellipsises, so a 1px lift changes what it can say, not where it sits. */
+.uh-bar-label {
+  position: absolute; bottom: -15px;
+  font-size: 9px; color: var(--text-dim);
+  font-family: var(--font-mono);
+  white-space: nowrap; transform: rotate(0deg);
+  overflow: hidden; max-width: 100%; text-overflow: ellipsis;
+}
+
+.uh-legend {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 12px; font-size: 11px; color: var(--muted);
+}
+.uh-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.uh-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
+.uh-legend-cost { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.uh-detail {
+  background: var(--bg-soft); border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel); padding: 12px 14px;
+}
+.uh-detail-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.uh-detail-date { font-size: 12px; font-weight: 600; }
+.uh-detail-cost { font-size: 12px; color: var(--ok); font-variant-numeric: tabular-nums; }
+/* `min-width: 0` and the ellipsis are #462's lesson applied before it bites:
+   this cell prints named CLIs and their cost since #431, so it is no longer a
+   two-word list, and an unbounded flex item in a baseline row pushes the date
+   and the cost out rather than truncating. The whole text is on a `title`. */
+.uh-detail-agents {
+  margin-left: auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);
+}
+.uh-detail-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+.uh-ministat { display: flex; flex-direction: column; gap: 1px; }
+.uh-ministat-val { font-size: 12px; font-variant-numeric: tabular-nums; }
+.uh-ministat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.uh-detail-models { display: flex; flex-direction: column; gap: 5px; }
+.uh-model-row { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 8px; }
+.uh-model-name { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; min-width: 0; }
+/* The 130px column above is the narrowest place a model label is printed, and
+   since #462 a label carries the variant that tells two rows of one family
+   apart. `min-width: 0` lets the flex item shrink below its content and the
+   ellipsis lands on the text rather than on the dot. */
+.uh-model-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uh-model-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.uh-model-bar-fill { display: block; height: 100%; border-radius: 3px; }
+.uh-model-cost { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
+
+

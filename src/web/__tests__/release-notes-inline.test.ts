@@ -16,10 +16,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseInline, plainOf, type Inline } from "../inline-markdown";
 import { RELEASE_NOTES } from "../release-notes";
+import { sheetText } from "./sheet-source";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const modal = readFileSync(at("../components/ReleaseNotesModal.tsx"), "utf8");
-const css = readFileSync(at("../styles.css"), "utf8");
+const css = sheetText();
 
 const everyNote = RELEASE_NOTES.flatMap(v => v.notes.map(n => ({ version: v.version, ...n })));
 

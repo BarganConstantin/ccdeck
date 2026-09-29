@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { deckRows, oneRowPerMachine, rowSource } from "../lan-roster";
+import { sheetText } from "./sheet-source";
 
 const NOW = 1_700_000_000_000;
 const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
@@ -18,7 +19,7 @@ const MODAL = code("../components/LanPeerModal.tsx");
 const PEER_UNPAIR = code("../use-peer-unpair.ts");
 /** The folded decks' list, which moved out of the dialog into its own. */
 const TWINS = code("../components/LanPeerTwins.tsx");
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const CSS = sheetText();
 
 const peer = (fp: string, over: Record<string, unknown> = {}) => ({
   fp, peerFp: fp, name: "Petrus-MacBook-Pro", paired: true,

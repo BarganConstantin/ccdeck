@@ -6,10 +6,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const sheet = read("../components/KeyboardHelp.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("the keyboard sheet's note (#852)", () => {
   it("is the one thing to do, not how focus works", () => {

@@ -1,0 +1,104 @@
+/* ---------------- touch (#884) ----------------
+   A deck opened from a phone or a touch laptop on the LAN (#849) is where the
+   24px floor stops being enough: a fingertip is not a pointer. Under a coarse
+   pointer every target the panel draws around a small control grows to 32px,
+   the two controls that carry their own height take 32px as their floor, and
+   the LAN dialog's two switches move apart so their grown targets meet rather
+   than overlap. Nothing here changes for a mouse. */
+@media (pointer: coarse) {
+  .ap-manage-btn,
+  .ap-switch,
+  .ap-field select { min-height: 32px; }
+  /* The popover's rows sit flush against each other, so a fingertip gets the
+     height a touch list needs rather than the 32px floor; its form controls
+     stand at the same height as each other, a step over it. */
+  .ap-menu-item { min-height: 40px; }
+  .ap-pop button.btn,
+  .ap-pop .ap-field select,
+  .ap-pop .ap-manage-input { min-height: 36px; }
+  .switch::after,
+  .ap-fix::after,
+  .ap-issue::after { width: max(100%, 32px); height: 32px; }
+  .ap-failure-x::after { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
+  .lan-switches { gap: 14px; }
+}
+
+/* ---------------- forced colours (#871) ----------------
+   A Windows Contrast theme repaints every background colour as Canvas and drops
+   background images and shadows, so state this sheet paints as a fill (a status
+   dot, a meter, a switch's knob) is painted over and gone. These opt out of
+   that one adjustment and redraw in the theme's own system colours:
+   CanvasText where a word beside the mark carries the state, Highlight for
+   something live or on, GrayText for something resting. Marks whose colour IS
+   the information (a model's or an agent's band, matched to a legend, or a
+   quota fill tinted by how close it is to the limit) keep their own colour
+   instead. Every meter's track gets a hairline, so the empty part of a bar is
+   still a length. No !important: each selector is spelled as the rule it
+   answers, and this block comes last. */
+@media (forced-colors: active) {
+  .topbar .status .pill.live::before,
+  .topbar .status .pill.paused::before,
+  .topbar .status .pill.dead::before,
+  .conn-banner .conn-dot,
+  .waiting-dot,
+  .ap-dot { forced-color-adjust: none; background: CanvasText; }
+
+  .sl-dot::before,
+  .bw-dot,
+  .bw-mode-dot,
+  .bw-prof-dot { forced-color-adjust: none; background: GrayText; }
+  .sl-dot.state-active::before,
+  .state-pill.state-active::before,
+  .bw-mode-dot.on,
+  .topbar .brand button.v .v-dot,
+  .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
+  /* An open toolbar button keeps a boundary in the theme's own highlight, so
+     open and closed still differ once every fill has been painted Canvas. A
+     system colour is honoured as written here, so nothing opts out. */
+  .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* The count keeps its bubble, so the digits stay a badge on the corner
+     rather than a stray number over the button's edge. */
+  .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+
+  .sysdetail .sd-fill,
+  .sysdetail .sd-core-fill,
+  .ctx-window-fill,
+  .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
+  .qb-fill,
+  .ap-lane-fill,
+  .uh-bar-seg,
+  .uh-agent-seg,
+  .uh-model-bar-fill,
+  .uh-legend-dot,
+  .cost-bar .cb-seg { forced-color-adjust: none; }
+  .qb-track,
+  .ap-lane-track,
+  .sd-track,
+  .sd-core,
+  .session-summary .ss-tt-bar,
+  .uh-model-bar,
+  .uh-agent-bar,
+  .cost-bar { outline: 1px solid CanvasText; outline-offset: -1px; }
+  /* The notch in a thermal track is the panel's ground showing through, and a
+     Contrast theme repaints that ground: it takes Canvas so the gap stays a
+     gap, against a fill that is now Highlight and a track that is outlined. */
+  .sd-mark { forced-color-adjust: none; background: Canvas; }
+
+  /* The track keeps its forced border either way; the knob is what moves, so
+     it is what has to survive, and the track fills when the switch is on. */
+  .switch-knob,
+  .switch:hover:not(:disabled) .switch-knob { forced-color-adjust: none; background: CanvasText; }
+  .switch[aria-checked="true"],
+  .switch[aria-checked="true"]:hover:not(:disabled),
+  .switch[data-tone="warn"][aria-checked="true"],
+  .ver-banner .switch[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
+  .switch[aria-checked="true"] .switch-knob,
+  .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
+
+  /* A preview is a picture of a palette, and a palette repainted in system
+     colours is two identical grey boxes: it keeps its own. The chosen frame
+     takes Highlight, the way an on switch fills with it. */
+  .appearance-preview svg { forced-color-adjust: none; }
+  .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
+}
+

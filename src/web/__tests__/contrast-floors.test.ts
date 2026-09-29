@@ -25,8 +25,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops as readStops } from "./gradient-stops";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 const agentNode = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
 /** The card's words, stateLabel among them, lifted out of AgentNode.tsx. */
 const agentCopy = readFileSync(fileURLToPath(new URL("../agent-copy.ts", import.meta.url)), "utf8");

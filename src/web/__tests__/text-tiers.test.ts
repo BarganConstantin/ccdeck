@@ -16,8 +16,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
-const SHEET = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const SHEET = sheetText();
 
 type Rgb = [number, number, number];
 const hex = (h: string): Rgb => {

@@ -46,11 +46,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (name: string) => readFileSync(join(web, name), "utf8");
 
-const rawCss = read("styles.css");
+const rawCss = sheetText();
 const rawTsx = read("components/SessionClusters.tsx");
 /** Where the box's and the label's inline styles are built since they left the
  *  component's render. */

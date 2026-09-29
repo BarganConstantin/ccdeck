@@ -22,6 +22,7 @@ import {
 } from "../accounts-reload";
 import { COMMAND_REASONS } from "../admin-failure";
 import { ACCOUNTS_FILES, accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const ok = { ok: true, status: 200, body: null };
 
@@ -135,7 +136,7 @@ const header = readFileSync(`${web}components/AccountsHeader.tsx`, "utf8");
 const roster = readFileSync(`${web}use-account-roster.ts`, "utf8");
 /** The busy state is half in the markup and half in the sheet now — the button
  *  wears `aria-busy` and the rule is what makes it turn. */
-const css = readFileSync(`${web}styles.css`, "utf8");
+const css = sheetText();
 
 /** The reload callback, from its declaration to the dependency list that
  *  closes it — so what the cases below find, they find inside the reload. Its

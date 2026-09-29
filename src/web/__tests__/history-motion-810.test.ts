@@ -24,9 +24,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { withoutComments } from "./tsx-scan";
 import { usageHistorySurface } from "./usage-history-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const css = read("../styles.css");
+const css = sheetText();
 const modal = read("../components/UsageHistoryModal.tsx");
 /** The markup with its prose gone. This file's own comments say the words its
  *  "appears nowhere" assertions look for — "not a skeleton of grey bars" is a

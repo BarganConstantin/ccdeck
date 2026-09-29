@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
@@ -25,7 +26,7 @@ const menuPopover = strip(read("../components/AccountMenuPopover.tsx"));
  *  name field and one slot picker in the whole of it, wherever they live. */
 const surface = strip(accountsSurface());
 const popover = strip(read("../components/AnchoredPopover.tsx"));
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Top-level rules only: a reduced-motion override is not the resting look. */
 const topLevel = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");

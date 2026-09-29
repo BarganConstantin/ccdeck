@@ -1,0 +1,284 @@
+/* ---------------- search ---------------- */
+
+/* Keeps --bg-soft for the reason .selected-ribbon does: the placeholder is
+   --muted, and the control fill would take it to 4.05:1 in dark. */
+/* The ring every other input on this deck draws, which this field was the only
+   one missing. `outline: none` above sits at (0,1,1) on a rule that also
+   carries the field's layout, so it beat the global :focus-visible at (0,1,0)
+   on specificity AND on source order, and the companion line up there restores
+   only outline-offset — nothing put the outline back. What was left to confirm
+   focus was the border stepping --ctl-edge → --accent, 2.74:1 in dark and
+   1.67:1 in light, over an --accent-dim glow at 1.89:1 / 1.37:1. `/` focuses
+   this field, so in light that tint was a keyboard user's entire answer.
+   Declared exactly as .ap-manage-input:focus-visible and .aa-field
+   input:focus-visible declare it — one focus language, not a second one — and
+   `outline: none` stays for the pointer. */
+/* Result count. In flow after the field rather than absolutely placed like the
+   × and the / hint, which share the input's right inset — this has to take
+   width of its own or a two-digit total would sit under them. */
+
+
+/* ---------------- connection banner ---------------- */
+.conn-banner {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  background: var(--conn-wash);
+  border-bottom: 1px solid rgba(252,165,165,0.30);
+  color: var(--err);
+  font-size: 12px;
+  font-weight: 500;
+  animation: fadeIn 200ms ease;
+}
+.conn-banner .conn-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--err);
+  box-shadow: 0 0 8px var(--err);
+  animation: pulse 1.2s infinite;
+}
+/* The sentence that used to be reachable only by hovering the status pill
+   (#510), rendered here because this banner already announces and already
+   stays. Drawn as the version banner draws its own second clause: the alarm
+   colour belongs to the dot and to the headline, and the explanation under it
+   is running text. --text rather than --muted for the same reason .ver-banner
+   gives — this is the row that tells the user what to do about an outage, and
+   it is the worst place in the deck to make somebody squint. Measured on the
+   banner's own wash at both ends of its gradient: 11.54:1 / 13.99:1 dark,
+   13.25:1 / 16.72:1 light. */
+.conn-banner .conn-sub {
+  color: var(--text);
+  font-weight: 400;
+}
+
+/* ---------------- version-drift banner ---------------- */
+/* Same slot and shape as .conn-banner, one step calmer: this is important but
+   it is not an outage, so it takes --warn and a slower pulse. */
+.ver-banner {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 13%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  /* The accent stays in the dot, the rule and the button; the running text is
+     --text. --warn on its own 13% wash is 3.74:1 in the light theme, and this
+     row is the one that asks the user to restart — the worst place in the app
+     to make someone squint. Dark was fine either way. */
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  animation: fadeIn 200ms ease;
+}
+/* STILL AT REST, and it pulses only while a restart is actually counting down.
+   `pulse` is this deck's word for "running right now" — the live pill, the
+   tools in flight, the outage dot — and a version notice is an inert fact that
+   can sit here for days. It was spending the chrome's one moving channel on the
+   one thing in the bar that will not change, and spending it identically
+   whether or not the deck was thirty seconds from killing itself. Armed, it
+   says the fuse is burning, which is a fact about right now and is the only
+   thing here that ever was. */
+.ver-banner .ver-dot {
+  flex: none;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
+.ver-banner .ver-dot.armed { animation: pulse 2.4s infinite; }
+.ver-banner strong { font-weight: 600; }
+/* The consequence, in the voice of the person who has to act on it. Dimmer
+   than the headline so the two read in order rather than competing. */
+.ver-banner strong, .ver-banner .ver-sub { white-space: nowrap; }
+.ver-banner .ver-sub {
+  color: var(--muted);
+  font-weight: 400;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ver-banner .ver-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 5px 3px 10px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 130ms, background 130ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ver-banner .ver-cmd:hover { border-color: var(--text); background: var(--panel); }
+.ver-banner .ver-cmd:active { transform: scale(0.97); }
+.ver-banner .ver-cmd code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  /* Stated, not assumed: if the copy button ever fails, selecting this by hand
+     is the fallback, and it must survive any future user-select:none above. */
+  user-select: text;
+}
+/* --text, not --muted, for the reason .up-quota-hint code is: a dim foreground
+   sized for --panel, re-bedded on --line, is 4.14:1 in dark — under AA at 10px
+   uppercase, which is the least forgiving type in this banner. 11.39:1 now. */
+.ver-banner .ver-cmd-hint {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+/* Sits directly after the message, not pinned to the far edge: the Usage panel
+   is position:fixed at z-index 20 and covers the right end of this row, so a
+   right-anchored × would be unclickable whenever that panel is open. */
+/* Restart landed. Same shape, --ok instead of --warn, and it removes itself
+   after a few seconds — a confirmation that outstayed its welcome would be
+   just another thing to dismiss. */
+.ver-banner.done {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 13%, transparent), transparent);
+  border-bottom-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  /* No colour override: --ok on its own 13% wash is the same 3.75:1 trap the
+     --warn variant fell into, and the tint plus the dot already say "done". */
+}
+.ver-banner.done .ver-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
+
+/* A note about something the reader just did, not a warning. Remove from board
+   is undoable, so its row keeps the banner's shape and drops the amber the
+   restart rows use: the dot goes quiet and Undo is an ordinary control. */
+.ver-banner.note {
+  background: var(--bg-soft);
+  border-bottom-color: var(--line);
+}
+.ver-banner.note .ver-dot { background: var(--muted); box-shadow: none; }
+
+/* The one action in the row. Filled, because everything else here is text. */
+.ver-banner .ver-act {
+  padding: 3px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  /* THE LABEL IS NOT AMBER, and it used to be. Measured on the real render:
+     --warn on this button's own 16% fill over the banner's wash comes to
+     7.41:1 in dark and 3.39:1 in light — under AA at 11px/600, on the most
+     consequential control in the deck. It is also POSITIONAL: the wash is a
+     gradient that only reaches 0% at the bar's right edge, so the figure gets
+     worse the wider the window and the shorter the sentence in front of it.
+     The sheet had already diagnosed this exact trap for the running text a few
+     rules up and not carried the fix to the button.
+     The warn identity is unhurt: the border is 85% warn and the fill is 16%,
+     which is what makes this read as the banner's own button — the ink is just
+     no longer the same hue as the thing it sits on. */
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 130ms, border-color 130ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ver-banner .ver-act:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--warn) 26%, transparent);
+  border-color: var(--warn);
+}
+/* The most consequential control in the deck — it restarts the process — sat in
+   a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
+   alone did not. */
+.ver-banner .ver-act:active:not(:disabled) { transform: scale(0.97); }
+.ver-banner.note .ver-act { border-color: var(--ctl-edge); background: transparent; }
+.ver-banner.note .ver-act:hover:not(:disabled) { border-color: var(--text); background: var(--panel); }
+.ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
+/* A failed install is not a warning, it is a failure, and the command beside it
+   is now the only way forward — so it reads in the error colour. */
+.ver-banner .ver-sub.fail { color: var(--err); }
+
+/* Reads as a sentence continuing the button: "Restart now · auto when idle".
+   The switch is the shared one (#886), where this was a pill with a dot in it,
+   and the word beside it still carries the state — `off` against `when idle` /
+   `in 18s` — which is what keeps the control that arms a process kill out of
+   1.4.1. The word is --text for the reason the pill gave: --muted and --warn
+   each measured under AA on this wash in one theme (4.32:1 dark, 4.20:1
+   light). A <label>, so pressing the word throws the switch. */
+.ver-banner .ver-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 11px;
+}
+/* Armed means a restart is coming, so this switch fills with the banner's own
+   warning colour rather than the accent every other switch fills with. After
+   the shared hover rule, so an armed switch keeps it under the pointer. */
+.ver-banner .switch[aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
+
+/* A <button> now, so the element brings its own border and background to strip.
+   24px is the floor SC 2.5.8 sets and this was 18: the exception for an
+   undersized target needs 24px of clear space around it, and margin-left: 2px
+   puts this well inside the neighbouring .ver-cmd. The glyph stays at 14px —
+   the box grew, the × did not. */
+.ver-banner .ver-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  flex: none;
+  width: 24px; height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms, color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ver-banner .ver-close:hover { background: var(--line); color: var(--text); }
+.ver-banner .ver-close:active { transform: scale(0.94); }
+
+/* dim nodes that don't match search */
+
+/* Spotlight: when an agent is selected, non-lineage nodes fade further.
+   Reinforces "follow the chain you clicked" attention. Restores on hover. */
+.react-flow__node.rf-spotlit-out { opacity: 0.16; filter: saturate(0.3) blur(0.3px); transition: opacity 200ms ease, filter 200ms ease; }
+.react-flow__node.rf-spotlit-out:hover { opacity: 0.55; filter: saturate(0.7); }
+
+/* Selected edge: thicker, with a flowing dash so the connection stands
+   out even when the edge is far away on a busy canvas. */
+.react-flow__edge.rf-edge-selected .react-flow__edge-path {
+  stroke-dasharray: 6 3;
+  animation: dashflow 0.8s linear infinite;
+  /* No drop-shadow, for the reason at `.tool-conn.status-inflight` (#882). */
+}
+
+/* exit animation when a done subagent is being retired for a new turn.
+   Apply on inner .agent-node so React Flow's translate transform on the
+   outer .react-flow__node element is not clobbered. */
+.react-flow__node.rf-exiting { pointer-events: none; }
+.react-flow__node.rf-exiting .agent-node {
+  animation: nodeExit 600ms cubic-bezier(0.55, 0, 0.55, 1) forwards;
+  /* Promoted for the exit only (#881). This was `will-change: transform` on
+     every `.agent-node`, a compositor layer per card for the life of the board,
+     and the only transform a card ever runs is this 600ms leaving — React Flow
+     moves the wrapper, not the card. */
+  will-change: transform, opacity, filter;
+}
+@keyframes nodeExit {
+  0%   { opacity: 1; filter: blur(0) saturate(1); transform: scale(1); }
+  60%  { opacity: 0.4; filter: blur(2px) saturate(0.4); }
+  100% { opacity: 0; filter: blur(6px) saturate(0); transform: scale(0.85); }
+}
+.react-flow__edge.rf-edge-exiting .react-flow__edge-path {
+  animation: edgeExit 600ms ease forwards;
+}
+@keyframes edgeExit {
+  to { opacity: 0; stroke-dashoffset: 40; }
+}
+

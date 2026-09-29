@@ -25,9 +25,10 @@ import { liveNodeIds, measuredNodeIds } from "../prune";
 import { clusterBounds } from "../cluster-bounds";
 import { buildRows } from "../components/SessionList";
 import type { HookEnvelope, HookPayload, SessionRecap } from "../types";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const SHEET = read("../styles.css");
+const SHEET = sheetText();
 
 const T0 = Date.parse("2026-09-14T11:09:28.646Z");
 const MIN = 60_000;

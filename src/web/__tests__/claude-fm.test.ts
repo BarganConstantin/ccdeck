@@ -36,6 +36,7 @@ import {
 import {
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
 } from "../claude-fm-dance";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -53,7 +54,7 @@ function withoutProse(src: string): string {
     .replace(/^\s*\/\/.*$/gm, "");
 }
 
-const css = code("../styles.css");
+const css = withoutProse(sheetText());
 // The component and the files lifted out of it (the player is use-fm-player.ts,
 // the character's errands use-fm-scene.ts, its drawing components/FmSprite.tsx),
 // read as one, so a negative asked of "the component" still sees all of it.

@@ -24,9 +24,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const raw = read("../styles.css");
+const raw = sheetText();
 /** Blanked rather than cut, so a reported line points at its rule. */
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
 const lineOf = (at: number) => css.slice(0, at).split("\n").length;

@@ -32,9 +32,10 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
 import { gradientStops } from "./gradient-stops";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** WCAG 1.4.3 for the words, 1.4.11 for a control's own boundary. */
 const BODY = 4.5;

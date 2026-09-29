@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { agentAriaLabel } from "../agent-copy";
 import type { AgentNodeData } from "../types";
+import { sheetText } from "./sheet-source";
 
 const card = (over: Partial<AgentNodeData> = {}): AgentNodeData => ({
   id: "s1", sessionId: "s1", label: "agents-deck", kind: "root", state: "active",
@@ -79,7 +80,7 @@ describe("the canvas wiring (#853)", () => {
     // disableKeyboardA11y stops nodes pointing at React Flow's description,
     // but the text itself is still rendered, and a screen reader browsing the
     // page would read "Press delete to remove it" out of nowhere.
-    const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8")
+    const css = sheetText()
       .replace(/\/\*[\s\S]*?\*\//g, "");
     expect(css).toMatch(/\[id\^="react-flow__node-desc"\],\s*\[id\^="react-flow__edge-desc"\]\s*\{\s*display:\s*none;\s*\}/);
   });

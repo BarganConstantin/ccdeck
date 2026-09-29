@@ -44,9 +44,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const rawCss = readFileSync(join(web, "styles.css"), "utf8");
+const rawCss = sheetText();
 
 /** Comments quote the values they retired — the ladder note names 9.5 and 10.5
  *  while explaining where they went — so every read below is of stripped text.

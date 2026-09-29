@@ -47,6 +47,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(name, import.meta.url)), "utf8");
@@ -58,7 +59,7 @@ const read = (name: string) =>
 const strip = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n");
 
-const css = strip(read("../styles.css"));
+const css = strip(sheetText());
 const accounts = strip(read("../components/AccountsPanel.tsx"));
 /** The policy row, which holds the switch and the title it is named by. */
 const policy = strip(read("../components/AutoSwitchPolicy.tsx"));

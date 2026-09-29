@@ -43,6 +43,7 @@ import {
 } from "../canvas-keys";
 import { ownsKeystroke, type FocusTarget } from "../shortcuts";
 import { escapeOutcome } from "../modal-dismiss";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
@@ -59,7 +60,7 @@ const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(joi
 // Which element is a card's wrapper is canvas-node-element.ts's now.
 const nodeElement = readFileSync(join(web, "canvas-node-element.ts"), "utf8");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
-const css = readFileSync(join(web, "styles.css"), "utf8");
+const css = sheetText();
 
 /** The same source with its comments gone, for the assertions that say a
  *  pattern appears NOWHERE. This repo explains every non-obvious decision in

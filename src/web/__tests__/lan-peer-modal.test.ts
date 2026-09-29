@@ -11,6 +11,7 @@ import { exchangeLanes, offerLine, versionOrder } from "../lan-exchange";
 import { deckRows, rowSource, withAliases } from "../lan-roster";
 import { peerView } from "../lan-peer";
 import { lanPeerSurface } from "./lan-peer-surface";
+import { sheetText } from "./sheet-source";
 
 const NOW = 1_700_000_000_000;
 /** A file with its comments taken out, so a rule cannot be satisfied by a
@@ -34,7 +35,7 @@ const PEER_UNPAIR = code("../use-peer-unpair.ts");
 /** The dialog's foot — the row's one verb and the check — which moved out of
  *  the dialog into its own. */
 const FOOT = code("../components/LanPeerFoot.tsx");
-const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const CSS = sheetText();
 
 describe("LAN warning visibility", () => {
   it("shows the warning without marking a healthy peer link as failed", () => {

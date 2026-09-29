@@ -27,11 +27,12 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { prefersLight, resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
 import { sourceOf } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const html = read("../index.html");
 const app = read("../App.tsx");
-const css = read("../styles.css");
+const css = sheetText();
 
 /** The bootstrap's body, and where it sits. A `<script>` with no attributes at
  *  all is the whole point: Vite rewrites only the tags carrying a `src` or a

@@ -14,9 +14,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { usageSurface } from "./usage-surface";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 // The usage panel's bars are QuotaBar.tsx, lifted out of it.
 const quotaBar = read("../components/QuotaBar.tsx");
 const ctx = read("../components/ContextModal.tsx");

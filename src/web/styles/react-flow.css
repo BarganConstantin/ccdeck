@@ -1,0 +1,155 @@
+/* ---------------- React Flow overrides ---------------- */
+
+.react-flow__renderer { background: transparent; }
+
+/* Smooth layout transitions on every node move EXCEPT during user drag. */
+.react-flow__node {
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: nodeSpawn 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* No terminal keyframe, and that is the whole rule for entrances on this canvas.
+   The animation is declared on the base class, so it stays attached for the
+   node's whole life, and `both` keeps it filling its last keyframe forever —
+   a filling animation outranks every author declaration under it. A `to` that
+   restated the resting opacity and blur would therefore pin both properties,
+   and .rf-spotlit-out fades with exactly those two: a selection would
+   match, the class would land, and nothing on screen would change. Leaving a
+   property out of the last keyframe hands it back to the cascade — the
+   animation interpolates towards whatever the element's own rules say, so an
+   unfiltered node still arrives at opacity 1 with no blur, a dimmed one arrives
+   at 0.22 and stays there, and a class added after the spawn is over is picked
+   up on the next frame. */
+@keyframes nodeSpawn {
+  from { opacity: 0; filter: blur(2px); }
+}
+.react-flow__node.dragging,
+.react-flow__node:active {
+  transition: none;
+}
+
+.react-flow__edge-path {
+  stroke: var(--accent-dim);
+  stroke-width: 1.5;
+  transition: stroke 200ms ease;
+}
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke: var(--inflight);
+  stroke-dasharray: 5;
+  animation: dashflow 0.8s linear infinite;
+}
+/* Parent→child edges, in the session's hue. Two classes deep on purpose: this
+   has to outrank .animated above and the light-theme .react-flow__edge-path
+   further down, both of which land on 0-3-0, and an inline stroke is what used
+   to do that. It cannot go back to being inline — App would then be choosing
+   the lightness again, which is the whole defect #330 names.
+   A stroke is not text. 1.4.11 asks 3:1 of a graphic that carries meaning, and
+   these carry the one thing no label repeats — which agent spawned which — so
+   3:1 is the floor they are tuned to, not 4.5:1. Chasing 4.5 would have cost
+   ~24.5% lightness at S=80, a near-black hairline that reads as ink rather
+   than as a session's colour, and the hue is the only thing telling two
+   overlapping trees apart. The canvas is the only bed they are measured on:
+   nodes paint over edges, so an edge is never read against a node's panel. */
+.react-flow__edge.sess-edge.sess-live .react-flow__edge-path {
+  stroke: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+}
+.react-flow__edge.sess-edge.sess-idle .react-flow__edge-path {
+  stroke: hsl(var(--session-hue, 200) 50% var(--session-edge-idle-l));
+}
+@keyframes dashflow { to { stroke-dashoffset: -10; } }
+.react-flow__attribution { display: none; }
+/* ---------------- canvas chrome: the control stack and the minimap ---------
+   Two instruments that sit ON the canvas and have to stay under it, because
+   the sessions are what the eye is for. They share one surface and one edge
+   (--chrome-bg and --chrome-edge, most of the way back toward the canvas
+   where a floating panel stands on --panel and --line), one radius (--r-ctl,
+   a step under the panels' --r-panel) and no elevation. Quiet, not hidden:
+   the edge still says where each one stops. */
+.react-flow__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  box-shadow: none;
+}
+/* No box per button. Each one is a --ctl-h target around a 14px glyph in
+   --muted, named by the glyph, which is what 1.4.11 asks for when a boundary
+   is absent, so the 1px rules that used to fence every glyph are gone. Hover
+   brings up the control fill and the foreground, the toolbar's own answer.
+   React Flow's stylesheet sizes these at 16px plus 5px of padding with a 12px
+   cap on the icon; both are overridden here, not added to. */
+.react-flow__controls-button {
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--muted);
+  transition: background 120ms, color 120ms;
+}
+.react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
+.react-flow__controls-button:hover { background: var(--ctl-fill); color: var(--text); }
+.react-flow__controls-button:disabled { opacity: var(--dim-off); }
+/* The groups, by what each control acts on: the view (zoom in, zoom out,
+   recenter), the canvas's own state (pause, re-arrange), the one that empties
+   it (clear), and help. A group starts 6px further down, on a short hairline
+   centred in that gap: a rhythm and a mark, not a box per group. */
+.react-flow__controls-button[data-group-start] {
+  position: relative;
+  margin-top: 6px;
+}
+.react-flow__controls-button[data-group-start]::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 6px;
+  right: 6px;
+  height: 1px;
+  background: var(--line);
+}
+/* Recenter while auto-fit is off: the press would do something, so the glyph
+   steps up to the foreground, and the canvas's own "Auto-fit off · Resume"
+   chip says why. Not the accent: this is a hint, not data or focus. */
+.react-flow__controls-button[data-nudge] { color: var(--text); }
+/* Clear asks before it destroys anything, so at rest it is as neutral as its
+   neighbours and only the pointer warms it. */
+.react-flow__controls-button[data-danger]:hover { color: var(--err); }
+/* Pause, the one toggle in a stack of commands. Every other button here
+   reports nothing between presses because there is nothing to report; Pause is
+   a setting that stays on, so it needs a resting look for each state. Amber
+   rather than the accent, because amber is what "the canvas is frozen" is
+   drawn in everywhere else on this deck, and the topbar's paused pill says the
+   same thing in words. It used to be a solid amber block with the glyph
+   inverted, the loudest object on the canvas while nothing needed anyone; it
+   is an amber tint and an amber glyph now, plain about the state (the glyph
+   leaves the resting --muted for --warn) without shouting it.
+   Keyed on the ARIA attribute, so the pixels and the accessibility tree are one
+   fact. No `cursor` and no `:active`: this is React Flow's own button class
+   with a state added, which keeps it out of the five obligations
+   canvas-motion.test.ts enumerates for a pressable name. */
+.react-flow__controls-button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+/* A pressed Pause still answers the pointer: the tint deepens. */
+.react-flow__controls-button[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--warn) 24%, transparent);
+}
+/* The minimap, on the control stack's surface and edge (see the top of this
+   block). React Flow gives it a white slab; this replaces it, and replaces the
+   inline style built from the palette that used to. The edge comes up to
+   --line under the pointer, the one moment it is being looked for, and
+   `overflow: hidden` clips the drawing's square corners to the radius. */
+.react-flow__minimap {
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+  transition: border-color 120ms;
+}
+.react-flow__minimap:hover { border-color: var(--line); }
+

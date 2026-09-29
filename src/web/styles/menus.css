@@ -1,0 +1,1018 @@
+/* ---------------- the sound menu (#711) ---------------- */
+
+/* The deck's first popover, and the only thing in the topbar that hangs
+   something off a button. The slot is what gives the menu something to be
+   absolute against; it adds no box and no gap of its own, so the run's 8px
+   rhythm is unchanged and the button sits exactly where it always did. */
+.sound-slot, .appearance-slot { position: relative; display: flex; }
+
+/* Right-aligned to the button rather than centred on it, because this button is
+   near the right edge of a bar it can never overhang. 268px is the width the
+   longest row needs — a label, a range that can still be dragged, and a reading
+   wide enough for "100%" — and it is a fixed number rather than a min/max
+   because a popover that resizes as its own values change would move under the
+   pointer that is changing them.
+   z-index 40 sits above the canvas and its controls (the highest of those is
+   20) and below every dialog and its scrim (100), which is the honest order: a
+   modal opening over this must cover it, and it must cover the canvas.
+   Surface, edge and shadow are .modal's, one tier softer — 10px and --shadow-2
+   rather than 12px and the accent hairline — because a popover is attached to
+   something and a dialog is not. */
+.sound-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  /* Custom sounds (#1207) made the menu taller than a short window, and a
+     popover whose bottom is off-screen has controls no one can reach. It
+     scrolls rather than widening: 268px is the width the comment above
+     defends, and the appearance menu beside it keeps. */
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  /* Two layers rather than one. The tight, nearly opaque first line is what a
+     surface sitting ON something reads as; the wide soft second is the height
+     it sits at. One 24px blur alone had to be dark enough to do both jobs and
+     ended up reading as a drop shadow on a sticker. They are --shadow-3. */
+  box-shadow: var(--shadow-3);
+  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
+  text-align: left;
+}
+/* 268px, the sound menu's width: two popovers hung off one bar are one family,
+   and two theme previews side by side need the room 224px did not have. The
+   clamp keeps a phone-width window's 16px gutter; the grid inside gives. */
+.appearance-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-3);
+  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
+  text-align: left;
+}
+.modal.appearance-modal {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  width: min(560px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+/* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
+   open, and sections under the uppercase caption their sections use
+   (.up-section-title: 11px, 600, 0.06em, --muted — 4.70:1 dark, 7.87:1 light).
+   One 4px scale: 8 between a caption and what it names, 12 under the header,
+   16 between sections. Spacing is the only separator below the header. */
+.appearance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -12px 12px;
+  padding: 2px 16px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.appearance-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 22px;
+}
+.appearance-heading { min-width: 0; }
+.appearance-subtitle {
+  margin: 3px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appearance-close {
+  width: 26px;
+  height: 26px;
+  margin: -4px -4px -4px 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+.appearance-close:hover { color: var(--text); }
+.appearance-section + .appearance-section { margin-top: 20px; }
+.appearance-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.appearance-caption h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.appearance-section-note {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+/* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
+   where the panels put a caption's one piece of metadata. */
+.appearance-key {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
+   so it is recognised before it is read. The -4px bleed gives each choice a
+   4px plate to hover in while the previews stay on the text edge above them.
+   THE CHOSEN ONE: its frame goes to --text and doubles to 2px with a ring
+   rather than a wider border, so nothing shifts; a check stands at the end of
+   its name; the name comes up from --muted to --text. The frame is 3.16:1
+   dark / 5.32:1 light against the --ctl-edge the other one rests on, so the
+   state holds without the check or the colour. The accent stays the focus
+   ring's, which is drawn round the whole plate.
+   HOVER lifts the plate and the name, never the frame, so a pointer resting on
+   the other theme cannot pass for choosing it. No press-scale: at 118px a
+   3% shrink is a lurch, not a click. */
+.appearance-themes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.appearance-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.appearance-theme[aria-checked="true"] { color: var(--text); }
+.appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.appearance-preview {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--ctl-edge);
+  border-radius: calc(var(--r-ctl) + 2px);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.appearance-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
+.appearance-theme-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  line-height: 16px;
+}
+.appearance-check {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
+
+/* Each swatch's palette is its theme's tokens, copied: --bg for the canvas,
+   --panel for the bar, the column and the card (the bar's gradient drawn flat),
+   --line for every rule, --muted-dim for the session's tag, --accent for
+   the one bar. appearance-swatch.test.ts fails the day a token moves and its
+   copy here does not. */
+.appearance-preview[data-swatch="dark"] {
+  --tp-canvas: #0b0c10;
+  --tp-surface: #14161b;
+  --tp-rule: #1f2229;
+  --tp-mark: #50535b;
+  --tp-accent: #7dd3fc;
+}
+.appearance-preview[data-swatch="light"] {
+  --tp-canvas: #eef1f6;
+  --tp-surface: #ffffff;
+  --tp-rule: #c8cdd6;
+  --tp-mark: #7c8493;
+  --tp-accent: #0369a1;
+}
+.tp-canvas { fill: var(--tp-canvas); }
+.tp-surface { fill: var(--tp-surface); }
+.tp-rule { fill: var(--tp-rule); }
+.tp-accent { fill: var(--tp-accent); }
+/* A session is a card with its name tag sitting on its top edge, as the
+   canvas draws one; the tag is the outline in --muted-dim. */
+.tp-card, .tp-tag { stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
+.tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
+
+/* One control, the width of the card. The <label> is the target (see
+   AppearanceMenu.tsx); the -8px bleed lets its hover fill reach the card's
+   padding while the words stay on the text edge. The switch sits in the
+   label's grid row, so it centres on the label's line and not on the pair of
+   lines, and the note spans under both. */
+.appearance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 0;
+  padding: 10px 0 2px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+.appearance-row:hover { background: var(--ctl-fill); }
+.appearance-row-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-row-note {
+  grid-column: 1 / -1;
+  /* Also used on a bare <p> under the volume row, outside the grid — so the
+     margin is reset here rather than left to the UA's paragraph default. */
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appearance-source-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--bg) 34%, var(--panel));
+}
+.appearance-source-row > label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+/* A grid, so the trigger stretches to the column like a field rather than
+   shrinking to a short name ("Mix") and reading as one more button. */
+.appearance-source-picker { position: relative; min-width: 0; display: grid; }
+/* A station name is whatever somebody typed, up to 80 characters with no space
+   in them. A button sizes to its content, so that name made the trigger 532px
+   in a 323px dialog and the whole dialog scrolled sideways. Capped at its
+   column here, the label gives way with an ellipsis — the list below shows
+   the full name. */
+.appearance-source-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--sm-fill);
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+}
+.appearance-source-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appearance-source-trigger:hover,
+.appearance-source-picker.is-open .appearance-source-trigger {
+  background: var(--sm-fill);
+  border-color: var(--text);
+}
+.appearance-source-trigger svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  transition: transform 120ms ease-out;
+}
+.appearance-source-picker.is-open .appearance-source-trigger svg { transform: rotate(180deg); }
+.appearance-source-list {
+  max-height: min(196px, 24vh);
+  margin-top: 5px;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  /* The deck's popover shadow (.anchored-popover): a tight line for sitting on
+     something over --shadow-2 for its height. Its own black 0.22 stayed black
+     on the white page, the thing #876 took off the menus beside it. Both layers
+     are tokens now, so neither is said twice (#1287). */
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  scrollbar-color: var(--muted) transparent;
+}
+.appearance-source-group {
+  padding: 6px 8px 3px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.appearance-source-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease-out;
+}
+/* The name wraps rather than widening the list; `anywhere` rather than
+   `break-word`, because only `anywhere` lowers the min-content width a flex
+   row is sized from. The tick keeps its own width beside it. */
+.appearance-source-option > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.appearance-source-option > span + span { flex: none; }
+.appearance-source-option:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.appearance-source-option[aria-selected="true"] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* THE KEYBOARD'S PLACE IN THE LIST IS A RING, not a tint. Focus stays on the
+   trigger (aria-activedescendant), so this is the only focus indicator the
+   arrows have — and as the hover tint it measured 1.28:1 dark and 1.19:1
+   light against the list, and about 1.1:1 against the selected row's tint.
+   The focus ring's own 2px --accent, drawn inside so the list's clip keeps
+   it; the tint stays the selected row's. */
+.appearance-source-option[data-highlighted="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* Still a choice — picking it retries it — but dimmed, beside the word that
+   says why. */
+.appearance-source-option[data-unavailable] { color: var(--text-dim); }
+.appearance-source-trigger:active,
+.appearance-source-option:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .appearance-source-trigger:active,
+  .appearance-source-option:active { transform: none; }
+}
+/* The custom-station controls (#1208). Layout only: the buttons are
+   `button.btn` and the fields `.ap-manage-input`, so their edges, focus ring
+   and press are the ones already swept rather than a third copy of each. */
+/* Why the chosen station is silent, under the picker that chose it and
+   aligned with it rather than with the Station label. Empty, it takes no room. */
+.appearance-fm-status {
+  margin: -6px 0 0 60px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.appearance-fm-status:empty { display: none; }
+/* The station's own verbs, under the picker and in its column (48px label
+   plus the row's 12px gap): Add on the left, and Rename and Remove, which
+   only a custom station has, pushed to the right edge, away from Add. Trimmed
+   like `.sm-custom-action`, so they read as the field's secondary actions
+   rather than as a row of equal buttons competing with it. */
+.appearance-station-manage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0 60px;
+}
+.appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
+button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
+.appearance-station-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  /* The buttons sit on the fields' line, not level with their labels. */
+  align-items: end;
+  gap: 8px;
+}
+/* A field and the words over it that name it, in the Station label's own
+   type: named on screen rather than by a placeholder that typing erases. */
+.appearance-station-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* On the words and not the <label>: the field sets `font: inherit`, and would
+   have taken the label's weight with it. */
+.appearance-station-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-station-form .appearance-station-field:first-child { grid-column: 1 / -1; }
+.appearance-station-form.is-rename .appearance-station-field:first-child { grid-column: 1; }
+.appearance-station-form.is-rename { grid-template-columns: minmax(0, 1fr) auto auto; }
+.appearance-station-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--err);
+  font-size: 11px;
+  line-height: 16px;
+}
+/* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
+   one group and the tone sections below are two others — the gap is what says
+   so now that the boxes are gone. */
+/* ONE CADENCE. The card ran 12 / 12 / 10 / 8 / 10, which is five numbers none
+   of which meant anything against the others. Now: 5px binds a line to the
+   control it belongs to, 9px separates rows inside a group, 14px separates
+   groups. Nothing new is drawn — the spacing is the grouping. */
+.sm-switches { display: flex; flex-direction: column; gap: 12px; }
+
+/* A row that is entirely a target: the <label> wraps the name and the switch,
+   so the name is clickable and the accessible name comes from the element the
+   eye reads, rather than from an aria-label nobody can check against the
+   screen. `cursor: default` and not `pointer` — the pointer belongs to the
+   control inside it, which is where the press animation is too, and a row-wide
+   pointer over a 268px popover would claim the whole width answers a click. */
+.sm-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 20px;
+}
+/* 500, not 600. These two are the loudest words in the card and they are also
+   the ones a reader finds without looking — the weight was buying nothing and
+   costing the hierarchy under them. */
+.sm-switch-label { font-weight: 500; }
+
+/* ONE SWITCH (#886). There were four: `.ap-auto-state` (the accounts panel's
+   and the LAN dialog's five), `.sm-toggle` (the sound menu's two), `.bw-toggle`
+   (Browser Watch) and `.ver-auto` (the version banner's pill with a dot) — 35
+   rules between them, so every fix to a switch, its focus ring or its
+   reduced-motion answer had to land four times, and the geometry had drifted:
+   30x18 with a 12px knob in one, 30x17 with an 11px knob in two, the knob at
+   rest in --muted in two and --text in one.
+   One now. The element carrying `role="switch"` is the track and the
+   `.switch-knob` span inside it is the knob. The state is `aria-checked`, read
+   straight off the attribute, so the sheet and the accessibility tree cannot
+   disagree — the `.live` and `.on` classes that restated it are gone. 30x18
+   with a 12px knob leaves two pixels of air all round it, the proportion every
+   platform's own switch uses, and keeps the LAN dialog's switches 24px apart
+   centre to centre at their 6px gap, which is what SC 2.5.8 asks of a target
+   under 24px. */
+.switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 120ms, background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.switch-knob {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transform: translateY(-50%);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+}
+/* On: the track fills, and the knob goes dark on it rather than light — on
+   --accent a pale knob is a pale shape on a pale ground, and the one thing a
+   switch has to say at a glance is which end its knob is at. */
+.switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
+.switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateY(-50%) translateX(12px); }
+.switch:hover:not(:disabled) { border-color: var(--text); }
+.switch:hover:not(:disabled) .switch-knob { background: var(--text); }
+.switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--bg); }
+.switch:active:not(:disabled) { transform: scale(0.97); }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.switch:disabled { cursor: default; opacity: var(--dim-off); }
+/* The track stays 30x18, the size its proportions and the LAN dialog's spacing
+   were argued from above; the target around it is 24px tall (#884), drawn the
+   way .ap-failure-x draws its own, so no row moves to make room for it. */
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+/* A switch whose on gives something away (#828: saying yes to every deck that
+   asks). It fills with --warn rather than the accent, so the one switch in the
+   dialog that hands something to another machine does not look like the one
+   beside it that does not. The armed edge that used to go with it is gone: the
+   setting ships on, and a second press only ever stood between a reader and the
+   state their deck was already in. After the shared hover rules, so a pointer
+   resting on it does not wash the warning back out. */
+.switch[data-tone="warn"][aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
+
+/* A setting and the line that says what it covers. 4px, not the group's 10px:
+   the note belongs TO the switch above it, and the gap is the only thing left
+   saying so now that the boxes are gone. */
+.sm-setting { display: flex; flex-direction: column; gap: 5px; }
+
+/* ONE OF THE TWO WAYS NOTIFICATIONS REACH YOU — a capability report, not a
+   setting and not an event group. Sentence case and --text-dim, because ALL
+   CAPS in this menu belongs to TURN FINISHED and CLAUDE IS ASKING: those are
+   what structure it, and a third caps heading here would claim their rank for
+   something the user configures in the browser rather than here.
+   `min-height` and not padding: the head holds a 30px button in one state and
+   the word that replaces it in the other, and without a floor the section
+   shortens under the very press that granted the permission. */
+.sm-channel { display: flex; flex-direction: column; gap: 5px; }
+.sm-channel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--ctl-h);
+}
+.sm-channel-name {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+/* Sized like `.sm-hear` and named for itself. They are the same small button in
+   the same slot, but "hear" is what one of them does and a permission prompt is
+   not it — a shared class here would be the generic name unstyled-class.test.ts
+   was written about, and it would also make every `.sm-hear` query in a test or
+   a console return a button that plays nothing. */
+button.btn.sm-channel-action {
+  padding: 0 10px;
+  font-size: 11px;
+  border-color: var(--sm-edge);
+  background: var(--sm-fill);
+}
+
+
+/* The break between the two subjects this menu holds: above, whether the deck
+   interrupts you at all and whether it can; below, what each interruption
+   sounds like. The caps headings alone were not enough — they separate the two
+   event groups from each other, not the whole set of them from what precedes. */
+.sm-tones {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* One tone: a heading with its preview beside it, two rows of controls, and the
+   line saying which turns it covers. */
+.sm-tone { display: flex; flex-direction: column; gap: 10px; }
+.sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The caption the shortcuts sheet's group headings already are, restated for a
+   heading that is not in that grid. */
+/* Uppercase stays — it is what structures the card — but 600 at 0.08em is the
+   setting a terminal uses for a section banner. Lighter and wider reads as a
+   caption instead: the same job, without the shout. */
+.sm-tone-name {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  /* A step off --muted, not a new tier. Wider tracking does part of the
+     softening on its own — letters further apart read quieter at the same
+     colour — so the colour only has to move the rest of the way. */
+  color: color-mix(in srgb, var(--muted) 88%, var(--panel));
+  font-weight: 500;
+}
+/* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
+   is a lot for two words on a caption line, so that is trimmed and the gap
+   between the ▶ and the word is stated — but --ctl-h is not touched: this deck
+   has one button height and panel-rhythm.test.ts keeps it that way, refusing
+   any rule that could put a second one back. A 30px button beside an 11px
+   caption looked wrong in the drafting and turned out to be the caption's
+   fault; the row is centred, so the two align on their middles and the height
+   never reads as oversized. */
+/* MADE SECONDARY. It wore `btn` at full outline weight, which is what a page's
+   one primary action wears — and counting the selects there are four of those
+   in a 268px card. A faint fill plus the quieter edge says pressable at a
+   fraction of the ink.
+   Written at `button.btn.sm-hear` and not scoped under `.sound-menu`, which
+   would be one specificity step higher and would therefore beat
+   `button.btn:hover`'s accent border — leaving a control that got quieter under
+   the pointer. Same weight, declared earlier, so hover still wins. */
+button.btn.sm-hear {
+  padding: 0 8px;
+  gap: 4px;
+  font-size: 11px;
+  border-color: var(--sm-edge);
+  background: var(--sm-fill);
+  /* The label a step off --text. The boundary is untouched — that is the
+     affordance, and 1.4.11 holds it to 3:1 either way — so what comes down is
+     the ink inside it, which is the part that was competing with the two switch
+     labels above. Hover still takes the whole thing to --accent. */
+  color: color-mix(in srgb, var(--text) 88%, var(--panel));
+}
+/* What the browser has already answered, in the slot the button would take.
+   A word rather than a control, because there is nothing here to press: a
+   refusal cannot be re-raised by any page and a granted permission has nothing
+   to grant. The tick is drawn rather than typed — a glyph in the text would be
+   an icon system made of Unicode, which the sheet does not have anywhere else.
+   Only the good state takes a colour. "Blocked" and "Unavailable" stay in the
+   annotation tier: the sentence under them carries the remedy, and a red word
+   beside a heading would be the panel shouting about something the user cannot
+   fix from here. */
+.sm-channel-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* Mixed toward the text rather than taken straight. --ok at full strength is
+   a signal colour meant for a dot on a dark canvas; beside two accent switches
+   it competed with them for the same glance. This still reads unmistakably
+   green and stops being the brightest thing in the card. */
+.sm-channel-state[data-ok] { color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
+
+.sm-row { display: flex; align-items: center; gap: 10px; }
+.sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }
+/* Native, and left native on purpose. A custom track and thumb would have to
+   re-earn the arrow keys, Home and End, the drag, the announced percentage and
+   the focus ring — all of which the browser gives for nothing, and #620 is what
+   this deck's record on dropped focus is worth.
+
+   `accent-color` is the whole of the theming: it paints the filled half and the
+   thumb from the same token every other control here is drawn with, and it
+   answers data-theme because the token does. The unfilled half is the UA's own
+   widget colour, which follows `color-scheme` — declared in both theme blocks
+   at the top of this file — so it is dark on the dark canvas and light on the
+   white one with no rule of its own.
+
+   Deliberately no `cursor: pointer`. On this deck that declaration is a PROMISE
+   — canvas-motion.test.ts sweeps every rule carrying it and requires something
+   to give back under `:active`, eased, and neutralised under reduced motion. A
+   slider is not pressed, it is dragged, and squashing it under the thumb would
+   fight the gesture. What it gives back instead is more than any of those
+   controls do: the thumb moves, the fill follows it, the reading beside it
+   steps, and 160ms later the tone itself plays. */
+.sm-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* A THINNER TRACK AND A SMALLER THUMB, without giving up anything native.
+   The paragraph above argues against re-implementing a slider and still does:
+   the arrow keys, Home and End, the drag, the announced percentage and the
+   focus ring are the browser's and must stay the browser's. None of them live
+   in the track or the thumb, which is all this repaints — the element is still
+   `input[type=range]`, and the deck's own `:focus-visible` ring sits on the
+   INPUT rather than on the thumb, so it survives `appearance: none` where a
+   UA thumb ring would not.
+   What `appearance: none` does cost is `accent-color`, and with it the filled
+   half — so the fill is painted here from `--sm-level`, which SoundMenu.tsx
+   sets on the same render that sets `value`. Behind `@supports` on the
+   pseudo-element itself: a browser that does not style the track keeps the
+   native widget and `accent-color`, rather than being handed a bare bar with
+   nothing filled. Firefox is answered by its own two pseudo-elements below.
+   3px against Chrome's 4, and an 11px thumb against its 14 — the fill still
+   reads across a 138px row, and the row stops being the loudest thing in a
+   card whose other controls have all just come down. */
+@supports selector(input::-webkit-slider-runnable-track) {
+  .sm-row input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+  .sm-row input[type="range"]::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--sm-level, 0%),
+      color-mix(in srgb, var(--text) 14%, transparent) var(--sm-level, 0%) 100%
+    );
+  }
+  .sm-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 11px;
+    height: 11px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+}
+@supports selector(input::-moz-range-track) {
+  .sm-row input[type="range"] { appearance: none; background: transparent; }
+  .sm-row input[type="range"]::-moz-range-track {
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
+  .sm-row input[type="range"]::-moz-range-progress {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  .sm-row input[type="range"]::-moz-range-thumb {
+    width: 11px;
+    height: 11px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+}
+/* The number is a READING, not a label, and it was set in --text at the weight
+   of one. Dim and tabular: it stops competing with the two words above it, and
+   it stops shuffling by a pixel as the thumb moves through 8, 9, 10. Wide
+   enough, too, that "100%" does not push the slider narrower than "0%" did.
+
+   ONE RULE, because two of them seven lines apart argued the opposite cases and
+   only one of them shipped. A bare `.sm-read` sat under this and restated
+   `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
+   so both declarations were dead and its comment described a span that has
+   never been drawn that way. Reading either rule alone gave the wrong answer
+   about what ships. Descendant-scoped on purpose, and now to TWO menus: the
+   span is rendered in SoundMenu.tsx's subtree and, since the Claude FM volume
+   row, in AppearanceMenu.tsx's — the same reading in the same shape, so the
+   same rule. */
+.sound-menu .sm-read,
+.appearance-menu .sm-read {
+  min-width: 34px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+/* The one control here the platform draws entirely: only the box it sits in is
+   ours, and `accent-color` tints the open list where the platform honours it. */
+/* Was `--bg` — DARKER than the panel it sits on, so each of the two read as a
+   hole cut in the card with a bright rim around it. A surface a hair above the
+   panel needs far less rim to be found, and two of them stop being the first
+   thing the eye lands on. */
+.sm-select {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0 6px;
+  background: var(--sm-fill);
+  color: var(--text);
+  /* The same edge as the buttons beside it, and NOT the softer one this pass
+     tried to give it. Measured: on --panel in dark, 33% of --text lands at
+     2.76:1, 34% at 2.84 and 35% at 2.92 — every step under the current 36%
+     falls through 1.4.11's 3:1, and control-edges.test.ts sweeps this selector
+     by name and says so. The box is already as quiet as a visible boundary
+     gets on this surface; the softening that was available here was the fill,
+     and that was spent last pass. */
+  border: 1px solid var(--sm-edge);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  accent-color: var(--accent);
+}
+.sm-select:hover { border-color: var(--text); }
+
+/* Custom sounds and voices (#1207), under the tones they can stand in for.
+   Built from parts that already exist wherever one fits — the heading is a
+   tone's caption, the voice picker is `.sm-select`, the text and number fields
+   are the deck's `.ap-manage-input` (as the appearance menu's station fields
+   are), every button a plain `.btn` — so the section reads as more of the menu
+   rather than a form dropped into it, and the edge, focus and height sweeps
+   already know every control in it. */
+.sm-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sm-custom-head span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* At the ceiling the controls that add a sound stay in the tab order and say
+   aria-disabled, never `disabled` — two of them hold focus at the moment the
+   library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
+   looks like every other control that cannot act, and a press that does
+   nothing does not give under the finger either. */
+.sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
+/* Import and record side by side as two cards of one shape: a name, a line
+   saying what it takes, and the one verb. At 268px each card is ~120px, which
+   holds "Choose file" and "Stop & save" on one line. */
+.sm-custom-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sm-custom-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  color: var(--text);
+  background: var(--sm-fill);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sm-custom-card-copy strong { font-size: 11px; font-weight: 600; color: var(--text); }
+.sm-custom-card-copy > span { font-size: 10px; line-height: 1.35; color: var(--muted); }
+/* The import card is a <label>, so the whole card is the file picker's target
+   and it answers a press as the other labelled controls do. Only this card
+   takes a hover: the record card's target is its button, and a card that lit up
+   under the pointer would promise a click it does not take. */
+.sm-file {
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.sm-file:hover { border-color: var(--sm-edge); }
+.sm-file:active { transform: scale(0.97); }
+/* The input carries aria-disabled while the library is full, but it is drawn
+   at 1px and invisible, so the refusal has to show on the card it stands for. */
+.sm-file:has(input[aria-disabled="true"]) { opacity: var(--dim-off); cursor: default; }
+.sm-file:has(input[aria-disabled="true"]):hover { border-color: var(--line); }
+.sm-file:has(input[aria-disabled="true"]):active { transform: none; }
+.sm-file input[type="file"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+/* focus-visible rather than focus-within: a mouse click on the label focuses
+   the hidden input too, and that must not draw a keyboard ring. */
+.sm-file:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sm-voice {
+  color: var(--text-dim);
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.sm-voice summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.sm-voice summary:active { transform: scale(0.97); }
+.sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
+.sm-voice summary:focus-visible { outline-offset: -2px; }
+.sm-voice summary::-webkit-details-marker { display: none; }
+/* Turns rather than swaps, like the usage panel's chevron. */
+.sm-voice summary::after {
+  content: '›';
+  color: var(--muted);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.sm-voice[open] summary::after { transform: rotate(90deg); }
+.sm-voice summary > span:first-child { font-weight: 600; }
+.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: 10px; }
+.sm-voice-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+}
+/* One label column, so Name, Text and Voice line their fields up on one edge. */
+.sm-voice-fields label {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.sm-voice-fields .ap-manage-input,
+.sm-voice-fields .sm-select { width: 100%; min-width: 0; }
+.sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sm-voice-pair label { grid-template-columns: auto minmax(0, 1fr); }
+/* Trimmed like `.sm-hear` and exactly as tall as every other button: the
+   height is --ctl-h's, which panel-rhythm.test.ts keeps to one value. */
+button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: 11px; }
+@media (prefers-reduced-motion: reduce) {
+  .sm-file:active,
+  .sm-voice summary:active { transform: none; }
+  .sm-voice summary::after { transition: none; }
+}
+.sm-custom-list { display: flex; flex-direction: column; gap: 6px; }
+.sm-custom-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.sm-custom-item > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: 10px; }
+/* Armed is the second press of the one act here nothing can undo, and it
+   takes the error colour for the four seconds it waits — the LAN unpair's. */
+button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
+.sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
+
+/* Which turns each tone covers. The asymmetry #394 is about — Codex has no
+   Notification — said next to the control it applies to rather than only in a
+   tooltip on the button that opened this. */
+.sm-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+/* The key, kept visible inside the menu it no longer lives on. The topbar
+   button stopped toggling when it started opening this, so the sentence that
+   says where the toggle went belongs where the user is looking. */
+.sm-foot {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  /* The quietest line in the card, and the only one that is neither a setting
+     nor an answer about one — it is a note about a key. */
+  color: color-mix(in srgb, var(--text-dim) 88%, var(--panel));
+}
+/* The shortcuts sheet's cap, without the 38px column width that sheet's grid
+   needs — inline in a sentence, a letter box that wide reads as a button. */
+.sm-foot kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 7px;
+}
+

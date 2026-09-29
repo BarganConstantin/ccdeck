@@ -29,10 +29,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 // Comments carry braces and selectors of their own, and this file scans rules.
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const app = readFileSync(join(web, "App.tsx"), "utf8");
 
 /** Selector / body for every rule in the sheet. A nested at-rule's wrapper has a

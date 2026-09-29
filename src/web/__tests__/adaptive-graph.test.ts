@@ -21,6 +21,7 @@ import { branchLong, branchShort, branchSummaries, faceSignal, stateMarkKind, ty
 import { focusViewport, unionBox } from "../focus-camera";
 import { hidePeek, peekedId, showPeek } from "../components/SessionPeek";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
+import { sheetText } from "./sheet-source";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
@@ -33,7 +34,7 @@ const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" 
 const flow = read("../canvas-flow.ts");
 const node = read("../components/AgentNode.tsx");
 const clusters = read("../components/SessionClusters.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("which card is drawn is decided by what it measures on screen", () => {
   const detailEnter = DETAIL_ENTER_PX / CARD_BODY_PX;

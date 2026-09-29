@@ -1,0 +1,825 @@
+/* ── Browser watch ────────────────────────────────────────────────────────
+   The topbar control is an outline like the seven beside it and gains nothing
+   at rest. #720 took a resting pill OUT of this bar for saying nothing all
+   day; a second control that reported "no findings" would be the same mistake
+   wearing an eye. The badge is the only thing that ever appears, and only when
+   an episode nobody has read exists.
+   It is a count, not an alarm, so it is --muted and not --warn. Amber in this
+   bar belongs to the blocked-session chip, the one thing the deck exists to
+   raise, and an eye that went amber with a filled amber bubble for unread
+   browser history was the loudest object in the bar while nothing needed
+   anyone. --bg on --muted is 5.08:1 in dark and 6.95:1 in light, and the
+   bubble stands 4.70:1 or better off either end of the bar in dark and 6.95:1
+   or better in light. The button's own glyph and word stay at
+   rest in every state: the pupil or the slash carries watching, see App.tsx. */
+.bw-btn { position: relative; }
+.bw-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  /* A ring of the bar's own colour, so the badge sits cut out of the corner it
+     overlaps rather than on top of the button's edge. */
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+.bw-modal { width: min(860px, 94vw); }
+/* `flex: none` on every child, and it is not cosmetic. `.modal-body` is a
+   column flex container with a bounded height, so a child that overflows it
+   gets SHRUNK rather than scrolled — the state rows collapsed to a four-pixel
+   sliver and read as if they had not rendered at all. The body is the thing
+   that scrolls; its children keep the height their content asks for. */
+.bw-body {
+  container: bw / inline-size; display: flex; flex-direction: column; gap: 16px; }
+.bw-body > * { flex: none; }
+
+
+
+
+/* The dashed centred card that used to live here is gone. It was a second
+   `.bw-empty` from a superseded version of this panel, 770 lines above the one
+   that replaced it — so it won on source order and put a boxed, centre-aligned
+   card into a panel where everything else is flush left. Its `.bw-empty p` was
+   also beating `.bw-empty-note` on specificity, which quietly undid that
+   string's move to --text-secondary. */
+
+.bw-day { display: flex; flex-direction: column; gap: 8px; }
+.bw-day h4 {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.bw-ep { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+/* Two controls side by side, not one inside the other. The disclosure takes
+   the row; the dismiss is a fixed square at its end. */
+.bw-ep-row { display: flex; align-items: stretch; }
+.bw-ep-row .bw-ep-head { flex: 1 1 auto; min-width: 0; }
+/* Dim at rest and legible on focus. Always drawn rather than revealed on
+   hover: a control that only exists under a pointer does not exist for a
+   keyboard, and this one removes a row for good. */
+.bw-ep-x {
+  flex: none;
+  align-self: center;
+  margin-right: 6px;
+  color: var(--text-dim);
+  transition: color 120ms ease;
+}
+.bw-ep-x:hover, .bw-ep-x:focus-visible { color: var(--warn); }
+.bw-ep.open { border-color: var(--ctl-edge); }
+.bw-ep-head {
+  display: grid;
+  /* FOUR columns: chevron, host, span, count. It was three, from before the
+     chevron joined the row — so the chevron took the `1fr` meant for the host,
+     the host and its times were pushed to the right, and the count wrapped to
+     a line of its own and centred. The whole card read as centre-aligned in a
+     panel that is flush left everywhere else. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: baseline;
+  /* A <button> shrinks to its content even as a grid container, so without this
+     the host and the meta collapse together on the left instead of sitting at
+     the two ends of the row. */
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease;
+}
+.bw-ep-head:hover { background: var(--bg-soft); }
+/* Joins the press convention rather than taking the exemption, for the reason
+   #355 gave the control before it. A full-width row presses at 0.97 the way
+   `.session-list .sl-row` does — the same tier, the same number. */
+.bw-ep-head:active { transform: scale(0.97); }
+.bw-ep-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Episodes reads like Activity: the same disclosure chevron, the same right-
+   aligned tabular count, so the two views are two modes of one product rather
+   than two screens that share a dialog. */
+.bw-ep-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-ep-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bw-ep-head:hover .bw-ep-count { color: var(--text); }
+
+.bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 4px; }
+/* Wide enough for a 12-hour clock with its AM/PM, which is what an en-US
+   locale renders and what wrapped "08:03 PM" onto two lines at 44px. The
+   column is sized for the widest form rather than the current one, because the
+   locale here belongs to whoever opened the deck. */
+.bw-urls li { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
+.bw-url-time { color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-url { color: var(--muted); word-break: break-all; }
+
+/* A STATUS BAR, not debug text appended to the panel. Fixed height, always the
+   same sentence in the same place, and it is where the switch lives — beside a
+   label saying what it controls, which an unlabelled toggle in a toolbar never
+   did. */
+/* THE STATE AND ITS CONTROL, ONE BAND. The mode had a row of its own holding
+   one word and one link — a whole band of the panel for two small things, with
+   the readout at the top and the switch it describes at the bottom. */
+.bw-status {
+  display: flex;
+  align-items: center;
+  /* Wraps rather than overflows. At 320px the state and the two controls do
+     not fit on one line, and measured before this the bar ran 74px past the
+     panel — a status bar that is off the edge is worse than one on two lines. */
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 48px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+/* Shrinks first: it is the one part of this bar that is prose rather than a
+   control or a state word, so it is the one that can give. */
+.bw-status-text {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* One `auto` in the row, on the first of the two controls: it pushes the pair
+   to the far end together, so the state reads from the left edge and the gear
+   and the switch sit side by side at the right. Two of them would have split
+   the slack between them and left the gear stranded mid-row. */
+.bw-gear { margin-left: auto; }
+.bw-gear.on { color: var(--accent); }
+
+/* The panel's primary control, and the whole label operates it. Padded so the
+   band a pointer has to hit is 32px tall rather than the switch's own 17 —
+   the size of the target, not of the drawing, is what a hand has to find. */
+.bw-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.bw-switch-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.bw-switch:hover .bw-switch-label { color: var(--text); }
+
+.bw-prof-name { font-weight: 600; }
+.bw-note { margin: 0; font-size: 11px; color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
+
+
+/* ── Browser watch: the two state rows ────────────────────────────────────
+   One row each, not one card each. The panel's content is the list of
+   episodes, and two paragraphs of prose above it pushed that list a full
+   screen down — a reader had to scroll past the explanation to reach the
+   thing being explained. */
+.bw-state { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.bw-row {
+  display: grid;
+  grid-template-columns: 8px auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--panel);
+  padding: 10px 14px;
+}
+.bw-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-dim); }
+.bw-row.err .bw-dot { background: var(--err); }
+.bw-row.ok  .bw-dot { background: var(--ok); }
+.bw-row.on  .bw-dot { background: var(--accent); }
+.bw-row-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.bw-row.err .bw-row-label { color: var(--err); }
+.bw-row-detail { font-size: 12px; color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* THE FAILED WRITE (#803). Same row shape as the read error, a border that
+   says it is not part of the flow it sits between, and its own dismiss —
+   nothing else clears it, by design. */
+.bw-write-err { border-color: var(--err); }
+.bw-write-err .bw-row-detail { white-space: normal; overflow: visible; }
+.bw-write-err-x { color: var(--err); }
+.bw-row .btn { white-space: nowrap; }
+
+
+.bw-why {
+  background: none;
+  border: 0;
+  padding: 0 0 0 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.bw-why:hover { color: var(--text); }
+
+/* ── The watch switch ─────────────────────────────────────────────────────
+   A real switch rather than a button labelled with the action: "turn off"
+   asked the reader to infer the current state from the verb on offer. It is
+   the shared `.switch` since #886, where its own track and knob used to be
+   written out a third time. */
+
+/* ── Browser watch: the two views ─────────────────────────────────────────
+   The list answers what happened; the log answers whether anything is looking.
+   A watch whose only output is an empty list cannot tell "I checked and found
+   nothing" from "I am not checking" — the shell tool this descends from was
+   trusted largely because it said the first one out loud every few minutes. */
+/* The accounts dialog's tab shape, not a second one. A design system's whole
+   job is that the second tab strip in an app looks like the first, and the
+   pill also carries a resting boundary — which an underline does not, and
+   which control-edges.test.ts is right to require of anything it is told is a
+   control. */
+/* No padding, and the rows carry their own: a negative margin bleeding into a
+   container's padding is two numbers that have to stay equal, and when they
+   drifted by six pixels the log grew a horizontal scrollbar with nothing to
+   scroll to. The row is exactly the container's width instead. */
+.bw-log { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+/* 66px fits `06:28:55` with room to spare. It was 60 against a 12-hour clock
+   whose "06:28:55 PM" is four characters wider than that, so the stamp ran into
+   the text beside it — the column is sized for the string it now renders. */
+/* THE FEED HEADER, so the column starts with what it is rather than with an
+   event, and has somewhere to grow a filter later. */
+.bw-feed { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+/* Tighter to the rows it describes than the 12px the section uses between its
+   own parts — it belongs to the log, not beside it. */
+.bw-feed-note { margin-bottom: -4px; max-width: 68ch; }
+/* One head row, used by Findings and by Live activity — the name says
+   what it is rather than which section first needed it. */
+.bw-head-row { align-items: baseline; }
+/* A count, not a label. It sat inside the section head and inherited its
+   uppercase, so "4 ENTRIES" shouted a number nobody needs shouted. */
+.bw-feed-count {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* COLUMNS, NOT A SENTENCE. `Brave/Default — read 27 visits` reads once; read
+   sixteen times down a column it makes somebody re-parse the same sentence to
+   reach the two things they came for, and the count lands wherever the
+   browser's name leaves it. Fixed grid: the answer is in the same place on
+   every row. The columns collapse rather than scroll — a long profile name
+   truncates with its full text on hover. */
+.bw-log-line {
+  display: grid;
+  /* Every column but the stamp can give: a browser name and a profile name
+     truncate with their full text on hover, and the count keeps its own width
+     because it is the reason anybody reads this column. Fixed minimums here
+     were what made the row wider than what held it. */
+  grid-template-columns: 66px minmax(0, 96px) minmax(0, 1fr) max-content;
+  gap: 8px;
+  font-size: 11px;
+  align-items: baseline;
+  /* Its own padding and no negative margin — see .bw-log. The hover has a body
+     to fill and the row cannot be wider than what holds it. */
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 0;
+  transition: background 140ms ease;
+}
+/* A transcript is scanned by running a finger down it, and until now the
+   finger had nothing to land on: sixteen near-identical rows, no way to hold
+   your place between the stamp on the left and the text on the right. The
+   hover is that place. Background only — the row must not move, or the next
+   line arrives under a cursor that was pointing at this one. */
+.bw-log-line:hover { background: var(--bg-soft); }
+.bw-log-line:hover .bw-log-time,
+.bw-log-line:hover .bw-log-profile,
+.bw-log-line:hover .bw-log-sys { color: var(--text); }
+.bw-log-time, .bw-log-profile, .bw-log-sys, .bw-log-browser { transition: color 140ms ease; }
+
+/* Arrival. The log is the panel's transcript and a new line in it is the one
+   thing here that means something JUST happened — it should be seen landing,
+   not discovered on the next glance. Keyed by content in the component, so
+   this fires on the line that is new and not on the fifteen that shifted down
+   to make room for it. */
+@media (prefers-reduced-motion: no-preference) {
+  .bw-log-line { animation: bw-line-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@keyframes bw-line-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+/* A finding is the reason the panel exists, so it arrives differently: the
+   accent washes out of the row rather than the row sliding in. One authored
+   moment, spent on the one line anybody is meant to catch. */
+@media (prefers-reduced-motion: no-preference) {
+  .bw-log-line.find { animation: bw-find-in 900ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@keyframes bw-find-in {
+  from { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  to { background: transparent; }
+}
+.bw-log-time {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* MONO FOR THE DATA, SANS FOR EVERYTHING ELSE. The panel was mono throughout,
+   and everything being mono removes hierarchy rather than creating character —
+   a title, a label and a timestamp all looked like the same kind of thing.
+   Here the row's own values stay mono because they are values; the section
+   heads, the counts' captions and the status bar are the panel's voice and
+   inherit the deck's sans. */
+.bw-log-line {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* FOUR LEVELS, READ AS THREE WEIGHTS PLUS ONE COLOUR.
+   `find` is the only line that means something happened, so it is the only one
+   that takes a hue — and it takes the accent rather than a warning colour,
+   because a program driving the browser is usually the reader's own agent doing
+   what they asked. Dressing it as an error would teach them to ignore the log,
+   which costs it the day it is right.
+   `ok` is the deck working and sits at full text weight; `info` is the deck
+   deciding NOT to work and recedes; `warn` is the only true fault here. */
+.bw-log-line.find .bw-log-browser,
+.bw-log-line.find .bw-log-value { color: var(--accent); font-weight: 600; }
+/* The reader's own hand. These are the only lines in the file a person put
+   there, and they are what somebody scans for when asking "what did I change
+   and when" — so they read as a different KIND of line rather than a louder
+   one: full text weight, and a switch glyph in the gutter instead of a dot. */
+.bw-log-line.act .bw-log-sys { color: var(--text); font-style: normal; }
+.bw-log-line.warn .bw-log-sys,
+.bw-log-line.warn .bw-log-browser,
+.bw-log-line.warn .bw-log-value { color: var(--warn); }
+
+/* THE DECK TALKING, NOT AN EVENT. "still watching 2 profiles — nothing new"
+   is a different KIND of statement from "read 27 visits", and rendered
+   identically the two flatten into one texture with no rhythm to scan. A
+   system row spans the columns and recedes; events keep their weight. */
+.bw-log-sys { grid-column: 2 / -1; color: var(--text-dim); font-style: italic; }
+/* No opacity. The italic and the dim colour already say "the deck talking",
+   and opacity multiplies whatever contrast the text had — it was the only
+   thing on this panel pushing a string toward the 4.5:1 floor, to repeat a
+   distinction that was already made. */
+
+.bw-log-browser { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bw-log-profile {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Right-aligned and tabular: a column of counts is only scannable if the digits
+   line up, and these are the reason anybody looks at this column. */
+.bw-log-value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-log-flag { color: var(--accent); }
+
+
+/* Every browser the deck knows how to look at, installed or not — the absent
+   ones dimmed rather than dropped, because "not installed" and "installed and
+   never opened" are different answers and a list of only what was found cannot
+   tell them apart. */
+/* The browsers with nothing to report, as one sentence rather than six rows.
+   Sized and coloured like the panel's other explanatory prose, because that is
+   what it is. */
+/* Behind a press. Six names of browsers that are not installed is
+   implementation inventory, and it was three lines of it standing at the same
+   weight as the profiles that are actually being read. */
+.bw-rest { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
+.bw-rest-head { align-self: flex-start; }
+.bw-chev { color: var(--text-dim); font-size: 9px; }
+/* NEUTRAL, AND THAT IS THE POINT. This was amber, which made it one of the
+   strongest accents on the panel — for a fact the probe cannot actually
+   establish. The relay shares an address with claude.ai and api.anthropic.com,
+   so an open tab is indistinguishable from an agent channel, and what a tool
+   cannot distinguish must not be the loudest thing on its screen. It states
+   what was seen; the qualification is on its title, and the help cursor says
+   there is one. Amber comes back the day the probe can tell them apart. */
+/* PLAIN STATUS TEXT. It was amber, which made it one of the strongest accents
+   on the panel for a fact the probe cannot establish; then it was dotted and
+   `cursor: help`, which promised an affordance a keyboard could not reach. It
+   is neither now — the caveat is a real disclosure on the section head, where
+   everyone can get to it. */
+.bw-relay { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
+
+/* The first read copies a History database and classifies tens of thousands of
+   rows, so the panel is briefly empty on open. A header over nothing reads as
+   broken rather than busy. */
+.bw-loading { display: flex; flex-direction: column; gap: 8px; padding: 18px 0; }
+.bw-loading p { margin: 0; font-size: 12px; color: var(--text-secondary); }
+/* A fixed track with a moving sliver, rather than a moving gradient. Reduced
+   motion then needs only `animation: none` — the bar keeps its own colours and
+   still reads as a progress track, where restyling it inside the media block
+   would have made "less motion" mean "a different look". */
+.bw-loading-bar { position: relative; height: 2px; border-radius: 1px; background: var(--line); overflow: hidden; }
+.bw-loading-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32%;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: bw-sweep 1.4s ease-in-out infinite;
+}
+@keyframes bw-sweep { from { transform: translateX(-110%); } to { transform: translateX(320%); } }
+@media (prefers-reduced-motion: reduce) {
+  .bw-loading-bar::after { animation: none; }
+}
+
+/* The log's path. `user-select: all` so one click takes the whole of it — the
+   next thing anybody does with this string is paste it into a terminal. */
+.bw-path { user-select: all; word-break: break-all; }
+
+/* ── Browser watch: one bar, then the content ─────────────────────────────
+   The panel had a settings row, a tab strip, a count and a disclosure all
+   standing at the same weight above the thing they describe. One bar now: the
+   views on the left, the state and its switch on the right, and every setting
+   behind a press — they are chosen once and then left alone, and they were
+   taking the top of the panel from the findings that are its reason. */
+.bw-mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex: none;
+  align-self: center;
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+.bw-mode-dot.on { background: var(--accent); }
+/* A slow breath while armed, so "running" is legible without reading a word —
+   the same claim the sweep makes on the disc, made where the disc is not. */
+@media (prefers-reduced-motion: no-preference) {
+  .bw-mode-dot.on { animation: bw-pulse 2.6s ease-in-out infinite; }
+}
+@keyframes bw-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.bw-mode-word {
+  flex: none;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 600;
+  animation: bw-state-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Fires when the MEANING changes — the mode word is keyed on the kind, so a
+   render that leaves the state where it was does not restart it. Opacity and a
+   hair of travel: the word is being replaced, not moved. */
+@keyframes bw-state-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bw-state-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Opens rather than appears. This block pushes the whole panel down when it
+   arrives, and a shove with no motion behind it reads as a glitch — the eye
+   has to re-find everything below it. The entrance explains where the space
+   came from. */
+.bw-settings {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  transform-origin: top;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bw-settings { animation: bw-settings-in 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@keyframes bw-settings-in {
+  from { opacity: 0; transform: translateY(-6px) scaleY(0.96); }
+  to { opacity: 1; transform: none; }
+}
+/* The chevron on the press that owns it, so the control says which way it is
+   about to go before it is pressed. */
+.bw-why[aria-expanded="true"] { color: var(--text); }
+.bw-settings label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.bw-settings select {
+  background: var(--ctl-fill);
+  border: 1px solid var(--ctl-edge);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+.bw-settings select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+.bw-settings select:active:not(:disabled) { transform: scale(0.97); }
+.bw-settings-note {
+  margin: 0;
+  flex: 1 1 30ch;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 66ch;
+}
+/* Emphasis inside a --text-secondary paragraph, so it takes the tier above
+   rather than the one the paragraph left behind. */
+.bw-settings-note strong { color: var(--text); font-weight: 600; }
+
+/* The watch as the thing it is: a sweep over the browsers it visits. Not
+   decoration — a log answers "what happened" well and "is this alive, and over
+   what" badly, and that second question is the one somebody opens this view to
+   ask. Every mark carries a fact; see WatchRadar.tsx. */
+/* No plate under it. At 176px square the surface read as a chart's canvas; at
+   88, sitting inline beside two figures, it read as a box drawn around a
+   circle — a rectangle with nothing in its corners. The disc is a mark on the
+   panel, so it sits on the panel. */
+.bw-radar {
+  display: block;
+  width: 100%;
+  height: 168px;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The sweep already freezes itself; nothing here needs to change colour. */
+  .bw-radar { opacity: 1; }
+}
+
+/* Radar left, transcript right. Each was wasting the other's space: the disc is
+   bounded by height and left the width beside it empty, while the lines are
+   short and left a field of nothing to their right. Read together, the picture
+   answers "is this alive" and the lines answer "what exactly happened".
+
+   The radar takes a fixed column and the log takes the rest, because the disc
+   has an intrinsic size and text does not — a fraction each would shrink the
+   circle on a narrow panel to keep a column of wrapped log lines company. */
+/* 340px, deliberately. At 210 the disc read as a chart that happened to occupy
+   whatever was left; at this width the column is plainly a sidebar with two
+   named sections in it, and the feed beside it is plainly the subject. */
+/* `stretch`, not `start`: the sidebar carries two sections and runs taller
+   than seven log rows, and with the columns sized independently the feed
+   stopped mid-panel and left a field of nothing under it. Stretched, the log
+   takes that room as scroll space, which is the one thing here that can always
+   use more. */
+/* 280, not 340. The sidebar is secondary and should look it: at 340 it read
+   as a co-equal column, and its content then had to be stretched to fill a
+   width it did not need. The feed is the workspace and takes what is left. */
+.bw-work { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 32px; align-items: stretch; }
+.bw-side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.bw-sec { display: flex; flex-direction: column; gap: 12px; }
+/* A section label, so each region says what it is instead of leaving the
+   reader to infer it from the shapes inside. */
+/* One label treatment for every section on both views, so Activity and
+   Episodes read as two modes of one product rather than two screens. */
+.bw-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* The one place this panel spends a glyph that is not already a deck
+   convention, and it is a question mark rather than an icon — it has a name a
+   screen reader can read and needs no legend of its own. */
+.bw-help {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+/* The circle stays 16px because it is a mark beside a label, not a button in a
+   row of buttons — but a 16px hit target is a miss for anyone without a mouse
+   they can place exactly. The pointer target is 24, matching every glyph
+   control in the deck, without the drawing changing size. */
+.bw-help { position: relative; }
+.bw-help::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+.bw-help:hover { color: var(--text); border-color: var(--text); }
+.bw-help:active { transform: scale(0.94); }
+.bw-help[aria-expanded="true"] { color: var(--text); border-color: var(--text); background: var(--ctl-fill); }
+
+/* THE NUMBERS THE PANEL NEVER HAD. Between "is this alive" and "what exactly
+   happened" there was no answer to "how much", which for a monitoring tool is
+   the first question. */
+/* THE DISC IS A SIGNATURE, NOT A CHART. At 176px it was the largest thing on
+   the panel, and most of what it said — which browsers, running or not — was
+   already in Watched Profiles under it and in the feed beside it. What it
+   alone gives is the glance: something is sweeping, so something is alive.
+   That is worth 88px next to the numbers, not 176 above them. */
+.bw-glance { display: flex; align-items: center; gap: 16px; }
+.bw-counts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Baseline-aligned so the figures sit on one line with their names, and
+   right-aligned in a fixed box so a 1 and a 1,024 share an edge. */
+.bw-counts li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.bw-count-n {
+  min-width: 3ch;
+  text-align: right;
+  font-size: 18px;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.bw-count-of {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* What the figures ARE, said once under them rather than guessed at. They are
+   rows in the browser's own history newer than this deck's start — not visits
+   a person made, and not findings. */
+.bw-since { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
+.bw-since + .bw-since { margin-top: -8px; }
+/* The quiet gate, beside the numbers it decides. */
+.bw-gate { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* The disc's key, behind the `?` on the section label. Three pairs, which is
+   the whole of what the drawing means — as permanent prose it was three lines
+   of documentation standing in a column that has real work to do. */
+.bw-key {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+}
+.bw-key dt { font-size: 10px; font-weight: 600; color: var(--muted); }
+.bw-key dd { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
+
+/* REMOTE CONTROL (#799). The verdict carries the only colour in this block, and
+   only when it is bad news: `protected` and `nothing-exposed` are the ordinary
+   state, and a panel that paints "you are fine" in green on every render is one
+   its reader learns to skip — the same rule `.bw-trouble` follows two hundred
+   lines up. */
+.bw-rc-verdict {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.bw-rc-verdict.exposed { color: var(--warn); }
+.bw-rc-foreign {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.bw-rc-body { display: flex; flex-direction: column; gap: 8px; }
+.bw-rc-note { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
+/* The command is the thing a person is about to run as root, so it is
+   selectable by hand whatever the copy button does — `user-select: all` is the
+   same affordance `.bw-path` gives every other path on this panel. */
+.bw-rc-cmd {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+}
+.bw-rc-cmd code {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+  color: var(--text);
+}
+button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
+
+/* WHAT THE MARKS MEAN, in text. Every mark on the disc encodes something and
+   none of it was written where a reader could see — a visualization whose
+   legend is a source comment is one nobody can read. */
+
+
+.bw-profiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+/* One height for every row, badge or no badge. `flex-wrap` let a row with a
+   relay note grow taller than its neighbours, and a list whose rows are
+   different heights reads as a list of different things. */
+.bw-profiles li { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 12px; min-width: 0; }
+.bw-prof-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bw-prof-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex: none; }
+.bw-prof-dot.on { background: var(--accent); }
+.bw-prof-state { font-size: 11px; color: var(--muted); margin-left: auto; flex: none; }
+/* Both columns hold the same box, so the row does not grow as lines arrive and
+   the disc does not sit in a taller frame than the text beside it. */
+/* A square, and bounded. Given the sidebar's full 340px the canvas drew a
+   190px disc in the middle of a 340px box, so most of what the eye read as
+   "the visualization" was empty canvas. It is the size it needs and no
+   larger. */
+.bw-work .bw-radar { width: 88px; height: 88px; flex: none; }
+/* BOUNDED AGAIN. `max-height: none` came in when the columns were made to
+   stretch, and it let the feed grow without limit: at 200 rows the status bar
+   — which holds the switch — sat 6000px down the page, so the panel's primary
+   control left the screen on exactly the long session this feed is built for.
+   It still fills its column, and scrolls inside itself past that. */
+.bw-work .bw-log { flex: 1 1 auto; min-height: 220px; max-height: min(42vh, 360px); }
+/* THE PANEL'S OWN WIDTH DECIDES, NOT THE WINDOW'S. Measured: below about
+   230px of feed column the log's four columns stop fitting and it overflows by
+   as much as 196px. The viewport is the wrong thing to ask, because this is a
+   dialog whose width is its own — a container query asks the box that actually
+   holds it. The media query below stays as the fallback for an engine without
+   them, where the viewport is at least correlated. */
+@container bw (max-width: 720px) {
+  .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .bw-work .bw-radar { width: 88px; height: 88px; }
+}
+@media (max-width: 640px) {
+  .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+}
+
+
+
+/* BROWSER WATCH UNDER REDUCED MOTION, in one place and after every rule it
+   answers — the census reads position, and an answer above the declaration it
+   answers is not one.
+
+   Reduced motion means gentler, not blind. Every entrance here keeps its
+   opacity and loses its travel: the state still cross-fades when its MEANING
+   changes, because that fade is the feedback that the press landed; the count
+   still lands; the settings block still arrives rather than materialising. What
+   goes is the movement, which is the part that costs somebody something. */
+@media (prefers-reduced-motion: reduce) {
+  .bw-mode-word,
+  .bw-log-line,
+  .bw-settings { animation: bw-state-fade 220ms ease; }
+}
+
+/* THE STATES THAT ARE NOT THE HAPPY PATH. A monitoring tool is judged on these,
+   because they are when somebody actually looks at it — and each of these
+   existed in the data with no designed form: a profile the deck could not read
+   said so in a log line and nowhere else, and a machine with no browser open
+   looked exactly like a quiet one. */
+.bw-trouble {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text);
+}
+/* Only the one the deck cannot work around takes the warning colour. "No
+   browser is running" is a fact about the machine, not a fault. */
+.bw-trouble.unreadable {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+/* What the panel touches, as a definition list — the shape the content already
+   has, and one a screen reader reads as pairs rather than as prose. */
+.bw-access { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; }
+.bw-access dt {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.bw-access dd { margin: 0; font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
+
+/* The Episodes view, which is the panel whether or not it has contents. The
+   tabpanel role and the id the tabs point at used to ride on the first day
+   section, so a machine that had found nothing rendered no panel at all. */
+/* The main column: findings above, the feed below, each bounded so neither
+   pushes the other — or the status bar — off the panel. */
+.bw-main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.bw-findings { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.bw-eps { display: flex; flex-direction: column; gap: 16px; max-height: min(30vh, 260px); overflow-y: auto; }
+.bw-empty { display: flex; flex-direction: column; gap: 8px; max-width: 62ch; }
+.bw-empty-head { margin: 0; font-size: 13px; color: var(--text); }
+/* An empty list here is the ORDINARY result — most machines go weeks without
+   one — so the note says so rather than leaving the reader to wonder whether
+   the panel is broken. */
+.bw-empty-note { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
+

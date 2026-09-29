@@ -51,8 +51,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isBoxOnPane, shouldRefit, type NodeBox, type PaneSize, type Viewport } from "../drift";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
 
 /** App.tsx with its comments stripped. The prose in this repo quotes the shapes

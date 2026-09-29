@@ -42,9 +42,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sheetText } from "./sheet-source";
 
 const read = (name: string) => readFileSync(fileURLToPath(new URL(name, import.meta.url)), "utf8");
-const css = read("../styles.css");
+const css = sheetText();
 const historySrc = read("../components/UsageHistoryModal.tsx");
 
 /** The rule comments quote the declarations they retired — `gap: 1px` and

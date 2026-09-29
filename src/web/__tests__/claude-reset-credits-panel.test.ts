@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { resetCreditsLine } from "../reset-credits";
 import { sourceOf } from "./client-source";
 import { USAGE_FILES } from "./usage-surface";
+import { sheetText } from "./sheet-source";
 
 // Midday UTC, so the printed date is the same in every timezone a CI runner or
 // a contributor's machine might be in.
@@ -68,7 +69,7 @@ describe("the Claude card", () => {
 });
 
 describe("the row's type", () => {
-  const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+  const css = sheetText();
 
   it("takes its colour from a token and sets its numbers in tabular figures", () => {
     const rule = css.match(/\.up-reset-credits \{([^}]*)\}/)?.[1] ?? "";

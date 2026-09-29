@@ -66,6 +66,7 @@ import type { HookEnvelope, HookPayload, TokenUsage } from "../types";
 import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "../board-limits";
 import { clientSources } from "./client-source";
 import { usageSurface } from "./usage-surface";
+import { sheetText } from "./sheet-source";
 
 // Sandboxed before anything can read a real one, the way api-events-streaming
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
@@ -420,7 +421,7 @@ describe("every surface that prints one of these figures prints the shared label
     expect(panelSurface).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
     // And the sheet lost its rules with it — a selector nothing emits is the
     // shape unstyled-class.test.ts and dead-css.test.ts both exist to prevent.
-    expect(read("styles.css"), "the rule outlived its markup").not.toContain(".up-live");
+    expect(sheetText(), "the rule outlived its markup").not.toContain(".up-live");
   });
 
   it("has no board-scoped figure left in the topbar", () => {

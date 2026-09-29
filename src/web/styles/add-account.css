@@ -1,0 +1,257 @@
+/* ---------------- add-account dialog ---------------- */
+/* On the shared .modal shell. Narrower than a tool inspector — this is a form,
+   and a form the width of a log dump reads as a mistake. */
+.aa-modal { width: min(560px, 92vw); }
+.aa-body { gap: 18px; display: flex; flex-direction: column; }
+
+.aa-tabs { display: inline-flex; gap: 4px; }
+.aa-tab {
+  padding: 4px 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.aa-tab:hover { color: var(--text); }
+.aa-tab:active { transform: scale(0.97); }
+.aa-tab.on {
+  color: var(--text);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.aa-step { display: flex; flex-direction: column; gap: 8px; }
+.aa-step h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.aa-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.aa-err { margin: 0; color: var(--err); font-size: 12px; line-height: 1.5; }
+/* The link is long and unbreakable; letting it decide the dialog's width would
+   push everything else off screen. */
+.aa-link {
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 8px;
+  background: var(--ctl-fill);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  text-decoration: none;
+  user-select: all;
+}
+.aa-link:hover { border-color: var(--text); text-decoration: underline; }
+
+.aa-field { display: flex; align-items: center; gap: 8px; }
+.aa-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 8px;
+  /* --bg-soft, not --ctl-fill: the placeholder here is --text-dim. */
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+.aa-field input::placeholder { color: var(--text-dim); }
+.aa-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.aa-field input:disabled { opacity: var(--dim-off); }
+
+/* ── add-account: the primer and the success state ──────────────────────────
+   Adding an account happens a handful of times in a deck's life, which is the
+   only reason anything here is allowed to celebrate. The rule elsewhere in this
+   app still holds: what you see hundreds of times a day does not animate. */
+.aa-primer .aa-note { max-width: 46ch; }
+.aa-actions { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+
+.aa-done {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 2px;
+  text-align: center;
+  /* From 0.97, never from 0 — nothing in the real world appears from nothing. */
+  animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.aa-done h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.aa-done .aa-note { max-width: 44ch; }
+
+/* The qualification on a success (#951): the account was added, and the machine
+   is still signed in as it. Amber rather than red because nothing failed — the
+   sign-in worked — and 85% of --warn on the boundary for the reason the topbar's
+   stale chip carries the same number: a third of --warn is 3.05:1 on this canvas
+   and 1.81:1 on white, so every --warn boundary in this sheet is 85% and every
+   --err boundary 65%. Text on --warn itself, not on a tint, since this is a
+   sentence to read rather than a control to aim at. */
+.aa-warn {
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+@keyframes aa-done-in {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The mark draws itself: the ring sweeps, then the tick follows it. Drawing is
+   what makes it read as "this just happened" rather than "this was always so". */
+.aa-mark { width: 44px; height: 44px; overflow: visible; }
+.aa-mark-ring, .aa-mark-tick {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.aa-mark-ring {
+  opacity: 0.45;
+  stroke-dasharray: 126;
+  stroke-dashoffset: 126;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  animation: aa-draw 380ms cubic-bezier(0.23, 1, 0.32, 1) 40ms forwards;
+}
+.aa-mark-tick {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: aa-draw 260ms cubic-bezier(0.23, 1, 0.32, 1) 200ms forwards;
+}
+@keyframes aa-draw { to { stroke-dashoffset: 0; } }
+
+/* ── confetti ───────────────────────────────────────────────────────────────
+   Fixed and portalled to <body>, because the dialog clips: .modal is
+   overflow:hidden and .modal-body is overflow:auto, so a burst rendered inside
+   them is either invisible or the reason a scrollbar appears. Pointer-events
+   off, and the component unmounts it when the burst ends. transform and opacity
+   only, both GPU properties. */
+.confetti {
+  position: fixed;
+  width: 0;
+  height: 0;
+  z-index: 101;         /* one above .modal-backdrop */
+  pointer-events: none;
+}
+.confetti-bit {
+  position: absolute;
+  top: 0; left: 0;
+  width: 6px;
+  height: 9px;
+  margin: -4px 0 0 -3px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  /* Two animations, not one: a single timing function governs every property
+     in a keyframe set, so the strong ease-out that makes the throw feel thrown
+     also raced the opacity ramp to zero — measured 0.05 at the halfway frame,
+     which is why the first version looked like nothing happened. Movement keeps
+     the ease-out; the fade runs linear on its own clock. */
+  animation:
+    aa-burst-move 900ms cubic-bezier(0.16, 0.9, 0.3, 1) both,
+    aa-burst-fade 900ms linear both;
+}
+.confetti-bit.round { width: 6px; height: 6px; border-radius: 50%; }
+.confetti-bit[data-hue="1"] { background: var(--ok); }
+.confetti-bit[data-hue="2"] { background: var(--warn); }
+.confetti-bit[data-hue="3"] { background: color-mix(in srgb, var(--accent) 55%, var(--ok)); }
+
+@keyframes aa-burst-move {
+  0%   { transform: translate3d(0, 0, 0) scale(calc(var(--s, 1) * 0.6)) rotate(0deg); }
+  /* Out to the full throw, then a little fall back: a burst that stops dead
+     reads as a sprite sheet rather than something thrown. */
+  70%  { transform: translate3d(var(--dx), var(--dy), 0) scale(var(--s, 1)) rotate(var(--rot)); }
+  100% { transform: translate3d(calc(var(--dx) * 1.08), calc(var(--dy) * 0.82 + 16px), 0) scale(calc(var(--s, 1) * 0.9)) rotate(var(--rot)); }
+}
+@keyframes aa-burst-fade {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  62%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Comprehension stays, movement goes: the mark still appears, it just does
+     not draw, and the panel does not travel. Confetti is removed in JS. */
+  .aa-done { animation: aa-done-fade 160ms ease both; }
+  .aa-mark-ring, .aa-mark-tick { animation: none; stroke-dashoffset: 0; }
+  @keyframes aa-done-fade { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* The bar yields to whatever is under it. Panning is the user's decision and
+   nothing re-frames a viewport they chose, so a card or a tool bubble can end
+   up beneath this bar and stay there — reported with a screenshot of a Bash
+   bubble half-eaten by it.
+   What yields is the SLAB, not the group. `opacity: 0.2` on .cat-filter-bar
+   made a stacking context and took every chip's label down with the fill: the
+   on-chips composited to 1.55:1 on white and 1.67:1 in dark, the off-chips to
+   1.37:1 and 1.29:1, against the 4.5:1 SC 1.4.3 asks of 11px text (#622). The
+   bar stays clickable while it is faded — `.cat-filter` keeps its handler, its
+   aria-pressed and its tab stop throughout — so the exception 1.4.3 makes for
+   an inactive component does not apply to any of those numbers.
+   No fade of the group would have worked, which is what decides the shape of
+   this fix rather than its size. --muted clears AA on this bar by 0.20 at FULL
+   strength in dark (4.70:1), so the arithmetic runs out before the floor: 0.8
+   is 3.46:1 and 0.9 is 4.05:1, both under. That is the same wall the
+   `.cat-filter.off` note six thousand lines up hit when it measured
+   `opacity: 0.38` at 1.72:1 / 1.87:1 and deleted it, and quiet-signals.test.ts
+   has been asserting since that no alpha rescues these labels. This rule was
+   spending the one channel the sheet had already ruled out for this element.
+   So what fades is what was actually complained about — the opaque slab. The
+   fill drops from 0.78 alpha to 0.35, the blur behind it goes (an 8px backdrop
+   blur is most of why the bubble underneath was unreadable), and the border and
+   the drop shadow that draw its outline go with them. The chips stay at full
+   opacity and keep the contrast they have at rest: 12.95:1 / 18.92:1 for an
+   on-chip over a card, 4.70:1 / 7.87:1 for an off-chip. Enough fill is left to
+   bed the labels rather than float them over arbitrary canvas — it pulls
+   whatever is underneath a third of the way back to the bar's own colour, which
+   is what keeps that 4.70:1 a floor and not a coincidence of what drifted under.
+   Restoring on hover or focus is written as a :not() on the faded rule instead
+   of two rules that re-declare the slab, which also drops the
+   `(hover: hover) and (pointer: fine)` guard the restore used to sit behind. A
+   coarse pointer never reached that guard, so the bar had exactly one way back
+   for touch — tapping a chip, which toggles the category it was trying to read.
+   A sticky :hover on touch now leaves the bar solid until the next tap
+   elsewhere, which is the state it would have been in anyway. */
+.cat-filter-bar {
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.cat-filter-bar.occluded:not(:hover):not(:focus-within) {
+  background: rgba(20, 22, 27, 0.35);
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Four class-weight compounds against the base light rule's three, so only the
+   fill has to be said twice — the border and shadow above already outrank
+   it on both canvases. */
+:root[data-theme="light"] .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
+  background: rgba(255, 255, 255, 0.35);
+}
+

@@ -41,9 +41,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clusterLabelStyle, labelMaxWidth, type Cluster } from "../cluster-bounds";
+import { sheetText } from "./sheet-source";
 
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-const css = at("../styles.css");
+const css = sheetText();
 const component = at("../components/SessionClusters.tsx");
 
 /** The narrowest cluster there is: one 240px card plus GROUP_PAD on both sides. */

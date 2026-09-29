@@ -1,0 +1,146 @@
+/* ---------------- detail panel ---------------- */
+
+.detail {
+  position: relative;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  padding: 18px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Close (×) button — top-right of the detail panel. `.glyph-btn` for its whole
+   appearance, which this one was already most of the way to: transparent fill,
+   a border that was transparent at rest, --muted, 24 x 24. What it drew that
+   the standard does not is a hover that faded a box IN — a --ctl-fill wash and a
+   --ctl-edge border arriving together under the pointer — so the control read as
+   boxed exactly when it was being aimed at. Only the corner it is pinned to is
+   this panel's own business, and that is all that is left here.
+   It is the one control in this group that is not in a header row; it is the
+   detail panel's close all the same, and leaving it as the last × on the deck
+   with a hover box would have been the split this change is removing. */
+.detail-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  /* `.glyph-btn` hands its vertical padding back as a negative margin so a
+     header ROW stays the height of the glyph written in it. There is no row
+     here — this is pinned to a corner, and `top` is measured to the margin
+     edge, so the same two declarations would have quietly lifted the × four
+     pixels up the panel instead. The target is unchanged; only the reason for
+     the margin does not apply. */
+  margin-top: 0;
+  margin-bottom: 0;
+}
+/* When the detail panel is closed, drop its 360px column so the canvas
+   reclaims the space. Keyed off the panel's own absence now. It used to be
+   keyed off `.detail-reopen`, the tab that rendered only while it was closed —
+   which worked, and stopped working the moment that tab came off the canvas.
+   `:not(:has(.detail))` says the thing the layout actually depends on rather
+   than a proxy for it, and it is what makes the panel's absence with nothing
+   selected cost nothing extra. */
+.app:not(:has(.detail)) { grid-template-columns: 1fr; }
+.app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
+.app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: auto 1fr; }
+
+/* The panel's captions, at both of the levels they now sit at (#381): the
+   empty state's own title became this panel's h2 when the document gained an
+   h1, and the sections under a selected agent stay h3. The child combinator is
+   load-bearing — `.detail-hero .hero-title` is an h2 too, and it is the
+   agent's name rather than a caption, so a plain `.detail h2` would try to set
+   it in 11px uppercase grey. */
+.detail > h2,
+.detail h3 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.detail .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+.detail .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+  gap: 12px;
+}
+.detail .row:last-child { border-bottom: none; }
+.detail .row .k { color: var(--muted); }
+.detail .row .v {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  white-space: nowrap;
+}
+.detail .tool {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 0;
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.detail .tool:last-child { border-bottom: none; }
+.detail .tool .name { display: inline-flex; align-items: center; gap: 8px; }
+/* Until #373 these three were one 6px circle in three hues, and the hue was the
+   whole of it. Each one clears 1.4.11 against the panel it is drawn on —
+   12.89:1 done, 9.54:1 err and 10.29:1 in-flight in dark, 5.42 / 6.47 / 6.98:1
+   in light — so nothing here was ever a boundary failure. What none of it did
+   is tell the three states apart from EACH OTHER: --ok against --err is 1.35:1
+   in dark and 1.19:1 in light, --inflight against --err 1.08:1 in both. In
+   greyscale, and to a deuteranope or a protanope, a call that failed and a call
+   that finished are the same mark — and a failed tool call is the one row in
+   this list worth finding at a glance.
+   The second channel is the mark itself, and it is the deck's own mark rather
+   than a new one: ✓ and × are what a tool bubble on the canvas has drawn for
+   done and err since the bursts existed (.tb-mark below). The list says what
+   the canvas says. #370 answered the same question for the topbar toggles with
+   a polarity flip; this is that answer in the one channel a 6px dot has room
+   for — geometry, not a louder hue — and like the flip it survives greyscale,
+   every colour vision deficiency, and a palette this sheet may re-tune later.
+   in-flight keeps the dot. The canvas has no mark for it either (it spins),
+   and "neither a ✓ nor an ×" is itself the difference that matters; the pulse
+   is a third channel on top and not the one carrying the state, which is why
+   the shape still separates all three with motion turned off.
+   The slot is a fixed 10px for all three so the tool names stay in a column —
+   a glyph that sized itself would move every name in the list by however wide
+   its own mark happened to be. */
+.detail .tool .name .status-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px; height: 10px;
+  flex: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* The dot, drawn in the state's own colour so the mark and the dot are one
+   declaration apart rather than two rules with two colours to keep in step. */
+.detail .tool .name .status-dot::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.detail .tool .name .status-dot.inflight { color: var(--inflight); }
+.detail .tool .name .status-dot.inflight::before { animation: pulse var(--pulse-live) infinite; }
+.detail .tool .name .status-dot.done { color: var(--ok); }
+.detail .tool .name .status-dot.done::before { content: "✓"; width: auto; height: auto; background: none; }
+.detail .tool .name .status-dot.err { color: var(--err); }
+.detail .tool .name .status-dot.err::before { content: "×"; width: auto; height: auto; background: none; }
+

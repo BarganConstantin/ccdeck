@@ -19,6 +19,7 @@ import { nextShared, sameKeys, settlePending } from "../lan-share";
 import { faultText, roundLabel } from "../lan-round";
 import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
 import { writeFailure } from "../use-lan-section";
+import { sheetText } from "./sheet-source";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
@@ -560,7 +561,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
 });
 
 describe("the list is quiet until it is not", () => {
-  const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+  const CSS = sheetText();
   /** The body of the first rule with this exact selector, comments stripped. */
   function rule(selector: string): string {
     const at = CSS.indexOf(selector + " {");

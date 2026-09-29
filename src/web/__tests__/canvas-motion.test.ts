@@ -56,10 +56,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 /** Comments quote declarations while explaining them; strip before reading. */
-const css = readFileSync(join(web, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const bursts = readFileSync(join(web, "components/ToolBursts.tsx"), "utf8");
 
 type Rule = { selector: string; body: string; reduced: boolean; at: number };

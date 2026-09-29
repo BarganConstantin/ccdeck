@@ -50,11 +50,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { releasePointerFocus } from "../canvas-pointer-focus";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
 const main = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8");
 const focus = readFileSync(fileURLToPath(new URL("../canvas-pointer-focus.ts", import.meta.url)), "utf8");
-const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+const css = sheetText();
 
 /** The same text with its comments gone — the only form an "appears nowhere"
  *  assertion may read. */

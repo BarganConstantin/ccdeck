@@ -1,0 +1,103 @@
+/* ---------------- the bare glyph a panel header closes with ----------------
+   The third kind of button on this deck, and the one it had been drawing five
+   different ways. A panel or dialog header offers to shut itself, hide itself
+   or re-read itself, and it offers that as a single character sitting at the
+   end of a titled, bordered box — × or ‹ or ↻. Until now most of those
+   characters were wearing `btn icon-btn`, which is a 30px square with its own
+   1px edge: a control box drawn INSIDE a control box, one hairline in from a
+   panel edge that is already saying where the panel stops. The machine panel's
+   × never wore it and is the shape the rest have come to.
+
+   1.4.11 asks a control to be identifiable, not to be boxed. The identification
+   here is the glyph plus the header it sits in — nothing floats on a canvas —
+   which is the same reading that lets `.detail .tool` and `.react-flow__controls-button`
+   go unbordered, and control-edges.test.ts stops sweeping these the moment they
+   stop declaring an edge.
+
+   What removing the box does NOT get to remove is the target. The glyph's own
+   line box is 16px tall and, for ×, 9.34px wide — measured, not estimated —
+   which is well under the 24px SC 2.5.8 asks for and which this sheet argues
+   for at `.ver-close` and `.ap-more`. So the box stays 24px
+   in both directions, as padding around a glyph that is drawn small: the
+   pointer gets the square, the reader gets the character.
+
+   The vertical half of that padding is handed straight back as a negative
+   margin — the technique the topbar's own machine meter used, for the same
+   reason: a header row should be the height of what is written in it, not of
+   the invisible area around it. The HORIZONTAL half is deliberately NOT handed
+   back. These controls come in runs of two and three (`.up-header-right`,
+   `.ap-header-right`, `.modal-actions`, `.uh-head`), and a negative margin
+   between two neighbours would slide their 24px targets into each other — one
+   accessible target eating the next is not a fix, it is the same defect with
+   the numbers moved around. Where a run needs to sit tighter, the container's
+   `gap` says so; nothing here overlaps anything.
+
+   A bare class rather than `button.glyph-btn`, deliberately. At (0,1,0) it ties
+   with the per-control rules below and loses the tie on source order, which is
+   what lets `.uh-reload`, `.ap-refresh` and `.up-refresh-btn` keep saying their
+   own padding out loud. Written with an element name it would have outranked
+   all three and quietly killed them — which is the exact defect #380 spent an
+   issue removing from this sheet, reintroduced from the other side. */
+.glyph-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+  margin-top: -4px;
+  margin-bottom: -4px;
+  background: none;
+  border: 0;
+  /* Round, and it is the focus ring that wants it rather than anything drawn at
+     rest — nothing here paints a box. These glyphs were 13x16 before they were
+     given a 24x24 hit area, and at that size the shared `:focus-visible` ring
+     read as a soft blob hugging the glyph. On a 24px square the same ring reads
+     as a hard-edged box, which is a bigger visual change than the target growth
+     that caused it. A circle keeps the ring honest about where you can press
+     while restoring what it looked like. Squared corners belong to the bordered
+     `.btn`s, which are boxes on purpose. */
+  border-radius: 50%;
+  color: var(--muted);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* THE TARGET IS A RECTANGLE, NOT THE CIRCLE. The radius above does not only
+   round the ring: browsers hit-test against the rounded border edge, so the
+   24px square promised above was measured as a 24px circle — 12px of reach
+   straight out from a 13px glyph, 9px on the diagonal, and four dead corners.
+   People aiming at these said they had to find the exact pixel. An invisible
+   `::after` carries the target now: 4px more above and below, where no run of
+   these has a neighbour, and 2px more each side, which is half the 4px gap of
+   the tightest run (`.ap-header-right`, `.up-header-right`). Two neighbours'
+   targets meet at the middle of the gap and never overlap, which is the line
+   the comment above draws. Nothing moves and nothing is painted; the ring keeps
+   its circle, and the hover colour arrives wherever the pointer turns.
+   `position` goes on at zero specificity so a control pinned to a corner
+   (`.detail-close`) keeps its `absolute` wherever in the sheet it says so. */
+:where(.glyph-btn) { position: relative; }
+.glyph-btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
+}
+/* The shared ring sits 2px out, which is right for a rectangle it has to clear
+   the corners of. A circle has no corners to clear and 2px leaves a visible gap,
+   so this one hugs. */
+.glyph-btn:focus-visible { outline-offset: 1px; }
+.glyph-btn:hover { color: var(--text); }
+/* 0.94, not the 0.97 a labelled button gets. The sheet's own rule is written at
+   `.detail-close` — on a box this size three percent is under a pixel of travel
+   and reads as nothing having happened — and three of the four bare closes that
+   already existed were at 0.94 while the machine panel's was at 0.97 on a 16px
+   box, where it was invisible. One box, one number, and the number is the one
+   that can be seen.
+   Guarded, because three of the controls wearing this class can be disabled —
+   `.up-refresh-btn`, `.ap-refresh` and `.uh-reload` all go inert while the run
+   they started is out. `button.btn:active` was guarded and they used to inherit
+   that; the guard comes with them rather than being left behind. */
+.glyph-btn:active:not(:disabled) { transform: scale(0.94); }
+

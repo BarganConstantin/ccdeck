@@ -28,6 +28,7 @@ import { manifestFor } from "../../server/lan-sync.mjs";
 import { accountIssue, collectorText, staleCopyText } from "../account-issue";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -493,7 +494,7 @@ describe("what claude-swap says, in its own words", () => {
 
 describe("which half of the row is allowed to be loud", () => {
   const panel = src("../components/AccountsPanel.tsx");
-  const css = src("../styles.css");
+  const css = sheetText();
 
   it("draws a broken account at the rank of the other faults, and a repairing one below them", () => {
     // `staleCopy` is quiet on purpose: #721 means the collector cannot read an

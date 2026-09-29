@@ -1,0 +1,473 @@
+/* ---------------- tool detail modal ---------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* No backdrop blur (#882): the scrim is already 55% opaque, and the blur sat
+     over a canvas whose dashes and spinners never stop, re-rasterising under
+     every dialog for as long as it was open. */
+  background: rgba(5,6,9,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 140ms ease-out;
+}
+.appearance-backdrop { z-index: 101; }
+:root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
+
+.modal {
+  width: min(820px, 92vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-2), 0 0 0 1px rgba(125,211,252,0.10);
+  overflow: hidden;
+  animation: popIn 180ms cubic-bezier(0.22,1,0.36,1);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.modal-title .status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.modal-title .status-dot.inflight { background: var(--inflight); animation: pulse var(--pulse-live) infinite; }
+.modal-title .status-dot.done { background: var(--ok); }
+.modal-title .status-dot.err  { background: var(--err); }
+.modal-tool-name {
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--font-mono);
+}
+.modal-tool-id {
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-dur {
+  color: var(--muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.modal-body {
+  padding: 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-section h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-section .err-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--err);
+  background: rgba(252,165,165,0.10);
+  border: 1px solid rgba(252,165,165,0.30);
+}
+.modal-note {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+/* The keyboard sheet's one line under its keys (#852): a footnote, not a box. */
+.kh-foot { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.modal-section pre {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+/* One tool call, the way it reads (#816). The copy button sits on its section
+   heading's own line; a labelled value that fits on one line is drawn as one,
+   and a well holds the rest — a change coloured by side, with the side in a
+   character as well so it reads without the colour. */
+.tm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.tm-head h4 { margin: 0; }
+/* Both are the one button, at the one button height the sheet allows (see
+   panel-rhythm.test.ts): the copy keeps its width beside the heading, and show
+   all sits a step under the well it opens. */
+.tm-copy { flex: none; }
+.tm-more { margin-top: 6px; }
+.tm-block,
+.tm-inline { margin: 0 0 8px; }
+.tm-block:last-child,
+.tm-inline:last-child { margin-bottom: 0; }
+.tm-label { display: block; margin: 0 0 3px; font-size: 10px; color: var(--muted); }
+.tm-inline { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12px; color: var(--text); }
+.tm-inline .tm-label { display: inline; margin: 0; flex: none; }
+.tm-inline code { min-width: 0; font-family: var(--font-mono); word-break: break-all; }
+.tm-del { color: var(--err); }
+.tm-add { color: var(--ok); }
+.tm-ctx { color: var(--muted); }
+.modal-section pre.tm-err { color: var(--err); }
+
+/* Also the reduced-motion entrance for every node and bubble on the canvas, and
+   there with `both` — so no `to { opacity: 1 }`, which would fill over .tool-burst.dim,
+   .rf-spotlit-out and .tool-burst.dim and leave a reduced-motion user with a
+   search that never dims anything. Fading to the cascade's own opacity is what
+   every caller wanted anyway. */
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn  { from { opacity: 0; transform: translateY(4px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* ---------------- clear confirmation ---------------- */
+
+/* One sentence and two buttons, so it wants none of .modal's 820px. */
+.modal.clear-confirm { width: min(440px, 92vw); }
+/* Cancel comes first in the DOM, so it is what focus and the first Tab find;
+   the destructive answer is never the default one. */
+.clear-confirm .cc-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* What goes and what stays, as two labelled groups rather than one sentence
+   (#843): the facts clearCopy always computed, sorted, one to a line. */
+.cc-plan {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cc-plan dt { color: var(--muted); font-weight: 600; }
+.cc-plan dd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  color: var(--text);
+}
+.cc-final { margin: 0; color: var(--text); font-size: 12px; font-weight: 500; }
+
+/* ---------------- keyboard shortcuts sheet ---------------- */
+
+/* A reference rather than an inspector: two narrow columns of cap and sentence,
+   so it wants none of .modal's 820px and rather more than the clear prompt's
+   440. Everything else it needs — the entrance, the dim behind it, the fade
+   that replaces both under reduced motion — is .modal-backdrop's and .modal's
+   already, which is the whole reason this sheet is built out of them. */
+.modal.key-help { width: min(560px, 92vw); }
+/* The caption over each group of rows. The tool inspector says the same thing
+   with `.modal-section h4` and keeps it: h4 belongs to the three dialogs that
+   already had one, so this sheet's groups are h3 and bring their own rule
+   rather than joining that selector list and changing what it means. */
+.kh-group {
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+/* The first caption is already 16px under the note, which is .modal-body's own
+   gap; the margin above is the air BETWEEN groups and there is nothing above
+   this one to be between. */
+.kh-group:first-child { margin-top: 0; }
+
+/* ---------------- what's new (#712) ---------------- */
+
+/* Prose, so it wants a measure rather than the inspector's 820px: at 620 the
+   body below runs about 75 characters, which is inside the band a paragraph is
+   comfortable to read at. Wider than the shortcuts sheet's 560 because that
+   sheet is a two-column table and this is sentences. */
+.modal.release-notes { width: min(620px, 92vw); }
+/* The app's verified update and what became of the last press of its button
+   (#1187), held as ONE item of the body's column, so the body's 16px gap does
+   not open between a button and the sentence about it — or open at all while
+   that sentence is empty, which it is until a press fails. The line stays on
+   the page while empty because it is a live region; only its margin goes, the
+   way .ap-lan-status's does. Amber because it reports that nothing happened,
+   which is a warning about the press and not an error in the deck. */
+.release-notes .rn-update { display: flow-root; }
+.release-notes .rn-update-said {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.release-notes .rn-update-said:empty { margin: 0; }
+/* The release a run of notes belongs to. Monospace and quiet: it is a label on
+   the group, not a heading competing with the note titles under it, and the
+   version chip it echoes in the topbar is set the same way. */
+.release-notes .rn-version {
+  margin: 0 0 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.release-notes .rn-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* A hairline down the left of each note, which is what makes two notes in one
+   release read as two things rather than as four paragraphs. Cheaper than a
+   card: this dialog is read once and then dismissed, and boxing every entry
+   would make a short list look like an inventory. */
+.release-notes .rn-note {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+.release-notes .rn-note-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+/* The side bearing a colour emoji does not have (#715).
+   Reported as "🔊Pick a volume". The space is in the JSON, survives the bundle
+   and reaches the DOM: Chrome measures it at 3.332px here against a 3.324px
+   word space at the same size, so nothing is stripping anything. What is
+   missing is what a letter brings with it. A colour glyph is drawn edge to edge
+   inside its advance, so a word space after one is ALL the white between it and
+   the next word, where "Aa Bb" gets that space plus two bearings — and the eye
+   is calibrated on the second thing.
+   0.15em rather than a px so it tracks the 13px type if that ever moves, and on
+   the icon rather than as `word-spacing` on the title, which would have pushed
+   every other word in the sentence apart to fix the first gap. The space itself
+   stays in the text: splitNoteTitle keeps it, so what this margin adds is the
+   bearing and nothing else. */
+.release-notes .rn-note-icon {
+  margin-right: 0.15em;
+}
+/* 1.65 rather than the 1.5 the rest of the sheet uses. Everything else set at
+   this size in the deck is a label or a number; this is the only place a user
+   is asked to read three or four sentences, and the extra leading is what makes
+   that possible in a dialog they did not open on purpose. */
+.release-notes .rn-note-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+  /* The blank lines in release-notes.json are paragraphs, and until now they
+     were not. Every entry in that file separates its thoughts with `\n\n` —
+     what changed, then what to do about it — and the component renders the
+     string into a bare <p>, where HTML's own whitespace collapsing turns the
+     break into one space. So all three releases written so far shipped as a
+     single wall of text, saying something the data had explicitly structured.
+     `pre-line` collapses runs of spaces the way normal text does and keeps the
+     line breaks, which is exactly the split the file's authors were making. */
+  white-space: pre-line;
+}
+
+/* THE MARKS INSIDE THAT TEXT, which were printed as themselves until now. The
+   body is `--muted`, so emphasis has to be a step UP in colour and not only in
+   weight — bold at the same tone as its paragraph is a difference you have to
+   already know is there. */
+.release-notes .rn-strong { color: var(--text); font-weight: 600; }
+/* `pre-wrap`, not the paragraph's inherited `pre-line`: a code span says
+   exactly what to type, and `pre-line` collapses runs of spaces inside it. It
+   still wraps, because `{"command":"rm -rf node_modules"}` is 34 characters and
+   `nowrap` would push it out of the dialog. */
+.release-notes .rn-code {
+  background: var(--line);
+  color: var(--text);
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+/* ---------------- session-end summary modal ---------------- */
+
+.session-summary { width: min(720px, 92vw); }
+
+.session-summary .ss-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 24px;
+  padding: 18px 18px 20px;
+  background: linear-gradient(180deg, rgba(134,239,172,0.05), transparent);
+  border-bottom: 1px solid var(--line);
+}
+.session-summary .ss-hero-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.session-summary .ss-cost-label {
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.session-summary .ss-cost {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.session-summary .ss-models { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.session-summary .ss-hero-right { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; }
+.cost-bar.cost-bar-lg { height: 14px; border-radius: 999px; }
+.session-summary .ss-cost-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+.session-summary .ssl { display: inline-flex; align-items: baseline; gap: 5px; }
+.session-summary .ssl b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.session-summary .ssl::before {
+  content: "";
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  margin-right: 1px;
+}
+/* The key to the bar above, and it moves with it — the four hsl() literals here
+   were the same four the bar declared, so a swatch that stayed behind would key
+   the wrong colour. These sit on the hero's 5% green wash rather than on bare
+   --panel; they measured 2.69, 2.81, 1.79 and 1.83 against it on white and now
+   measure 5.83, 6.86, 5.37 and 4.90 (#619, and #1284 for the cache pair). */
+.session-summary .ssl-in::before  { background: var(--usage-blue); }
+.session-summary .ssl-out::before { background: var(--usage-purple); }
+.session-summary .ssl-cr::before  { background: var(--usage-teal); }
+.session-summary .ssl-cw::before  { background: var(--usage-lime); }
+
+.session-summary .ss-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.session-summary .ss-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.session-summary .ss-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.session-summary .ss-stat-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.session-summary .ss-stat.tone-err .ss-stat-value { color: var(--err); }
+
+@media (max-width: 640px) {
+  .session-summary .ss-hero { grid-template-columns: 1fr; }
+  .session-summary .ss-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.session-summary .ss-top-tools { display: flex; flex-direction: column; gap: 6px; }
+.session-summary .ss-tt {
+  display: grid;
+  grid-template-columns: 130px 1fr 36px;
+  gap: 10px;
+  align-items: center;
+}
+.session-summary .ss-tt-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-summary .ss-tt-bar {
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+/* Counts of finished tool calls, so --accent and not the --accent-to-
+   --inflight gradient it drew until #1649. */
+.session-summary .ss-tt-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+.session-summary .ss-tt-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* A plain inset block (#862). It wore a 3px accent stripe down its left edge
+   on top of this hairline, which spent the accent on a static quote; the
+   soft ground and the border are enough to say "this is what was typed". */
+.session-summary .ss-prompt {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+

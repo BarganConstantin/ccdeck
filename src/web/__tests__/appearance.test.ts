@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_OPTIONS, resolveCharacterEnabled } from "../appearance";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => readFileSync(join(here, "..", name), "utf8");
@@ -41,7 +42,7 @@ describe("character appearance preference", () => {
 
   it("uses a dismissible, accessible centered modal for the two appearance settings", () => {
     const menu = read("components/AppearanceMenu.tsx");
-    const styles = read("styles.css");
+    const styles = sheetText();
     expect(menu).toContain("useModalDismiss");
     expect(menu).toContain('role="dialog"');
     expect(menu).toContain('aria-modal="true"');
@@ -81,7 +82,7 @@ describe("character appearance preference", () => {
 
   it("keeps the whole Claude FM row one control, and Space and T working inside the menu", () => {
     const menu = read("components/AppearanceMenu.tsx");
-    const styles = read("styles.css");
+    const styles = sheetText();
     expect(menu).toContain('aria-haspopup="listbox"');
     expect(menu).toContain("aria-activedescendant");
     expect(menu).toContain('role="listbox"');

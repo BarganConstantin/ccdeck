@@ -1,0 +1,1134 @@
+/* ---------------- local network setup ----------------
+   The dialog behind the panel's `setup…`. Every DECISION about LAN sync lives
+   here: the panel had grown to nine controls in a 288px column, all of them on
+   screen every time somebody opened it to look at a quota. Configuration is
+   done twice; looking is done every day.
+
+   It borrows the shared `.modal-*` shell and the panel's own `.ap-lan-*` rows,
+   rather than inventing a second look for the same settings — a reader who has
+   used the section knows this dialog already. What is new here is only what a
+   288px column could not hold. */
+/* ONE COLUMN, AND ONE SUBJECT. The dialog carried two — this machine on the
+   left, everybody else on the right — and the right half moved into the panel,
+   where a list of machines belongs. What is left is what this deck IS: the name
+   it appears under, and the logins it offers. Two sections, both short, so the
+   980px the token and the address rows needed is 980px of empty space now. */
+.lan-modal { width: min(520px, 92vw); }
+.lan-modal .modal-body { display: flex; flex-direction: column; gap: 20px; }
+/* The account rows bleed 4px past their own box, which is right in the panel:
+   the hover bed reaches the panel's inset there and the row reads as full
+   width. In a dialog there is no inset to reach, so the same rule pushed four
+   pixels of horizontal overflow through three ancestors — measured. The bleed
+   is paid for here instead of leaking. */
+.lan-modal .ap-lan-picks { padding: 0 4px; }
+/* h3 inside the dialog, which names itself with aria-labelledby rather than
+   with a heading — so these are the first level of structure inside it. `margin: 0`
+   because the UA sheet's 1em would fight the section gap that is doing the work. */
+.lan-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* The sentence under a control, explaining the thing the control cannot say
+   about itself. --text-dim rather than --muted: it is prose a reader reads
+   rather than a figure they glance at, which is the distinction the two tokens
+   exist to hold. */
+.lan-note {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+/* THE TWO HALVES OF ONE QUESTION, drawn as one shape. Who this deck reaches and
+   who reaches it are the same decision seen from two ends, so they are two rows
+   of one block rather than two sections — and the switch is the panel's own,
+   because a second kind of on is a second thing to learn. `.ap-auto-state`
+   carries `margin-left: auto`, which is what puts both of them on one right
+   edge with no rule here. */
+.lan-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lan-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* --text-dim rather than --muted: this is the sentence the switch is about, not
+   a label beside a figure — the same distinction `.lan-note` is written to. */
+.lan-switch-what {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+/* The one fact a switch's label cannot say, under it in the quiet ink: whose
+   devices "my devices" means, and how many of them are there. */
+.lan-switch-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* The one switch that is about the list above it, set a step below its rows. */
+.ap-lan-picks + .lan-switch { margin-top: 10px; }
+/* INVITE-ONLY, above the pair it holds, set off by the same step: it is the
+   answer that overrides them, not a third row of the same question. */
+.lan-switches-lead + .lan-switches { margin-top: 10px; }
+/* The automatic switches as one group under the switch that governs them:
+   set apart by a rule, and named by a caption in the heading's quiet ink. */
+.lan-auto {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.lan-sub {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lan-sub-state { font-weight: 400; }
+/* A switch invite-only is holding. The label steps down with the knob, so the
+   row reads as paused rather than as a live sentence beside a dead control.
+   --muted rather than --text-dim: this line is on --panel, where --muted still
+   clears 4.5:1. */
+.lan-switches[data-paused] .lan-switch-what,
+.lan-switch[data-paused] .lan-switch-what { color: var(--muted); }
+
+/* The one paragraph in the dialog that is a warning rather than an explanation,
+   above the only control that cannot be undone. It takes --warn, which is what
+   this panel already means by "this is the part that bites". */
+.lan-warn {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+
+/* ── why nothing can reach this deck ────────────────────────────────────────
+   Set apart from the pairing controls it sits above, because it is a finding
+   about the machine rather than a thing to press. The rule down its left is
+   the same device the failure rows use: it says "read this first" without
+   taking a colour that would make it look like an error, which it is not —
+   every control below it still works. */
+.ap-lan-reach {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  /* The shape `.ap-failure` already uses for "read this before you go on": a
+     wash of the tone it is about, at a weight that stays under the text. It
+     began as a 2px rule down the left edge, which is the stock callout costume
+     and a heavier mark than anything else in this dialog wears. */
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+/* IN THE PANEL IT HANGS OFF THE SWITCH, which is the one difference the two
+   surfaces have in the sheet. In the dialog it is the first thing in a body
+   that supplies its own top edge; here it follows a control row, and a finding
+   pressed against the thing it is about reads as part of that control rather
+   than as the answer underneath it. One step, the same one the status line
+   below it keeps. */
+.ap-lan > .ap-lan-reach { margin-top: 10px; }
+.ap-lan-reach .lan-warn { margin: 0; }
+/* SECONDARY TEXT ON A TINTED SURFACE IS TINTED, NOT GREY. Measured, because it
+   was wrong first: `--text-dim` clears 4.5:1 against the panel and only against
+   the panel — the 10% wash above lifts the ground under it, and the same ink
+   fell to 3.79:1 in dark. Mixing the surface's own hue into the foreground
+   instead of reaching for a lighter grey keeps the block reading as one object
+   and puts both themes back over the bar. */
+.ap-lan-reach .lan-note,
+.ap-lan-reach-fix > summary {
+  color: color-mix(in srgb, var(--warn) 22%, var(--text));
+}
+/* Folded away by default. The way out is the paragraph above it and needs no
+   administrator at all; this is the other answer, for somebody who wants the
+   discovery half working rather than a deck that dials. A reader who does not
+   need it should not have to read past a block of shell to reach the field
+   they came for. */
+.ap-lan-reach-fix { margin: 8px 0 0; }
+.ap-lan-reach-fix > summary {
+  font-size: 10px;
+  cursor: pointer;
+  list-style: revert;
+  /* 14.5px of line box was the smallest target in the dialog by a clear margin
+     — every button here is 22.5. The padding costs nothing and is the whole of
+     the difference, since the row is full width already. */
+  padding: 4px 0;
+}
+.ap-lan-reach-fix > summary:hover { color: var(--text); }
+/* A command is read before it is run, and one that wraps mid-flag is one
+   nobody can check. It scrolls in its own box rather than widening the
+   dialog. */
+.ap-lan-cmd {
+  margin: 6px 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  white-space: pre;
+}
+
+/* ── a control that is working says so ──────────────────────────────────────
+   `selfPressProps` and `pressProps` have set `aria-busy` on every primary
+   control in this app since #518, and nothing in 8700 lines of sheet ever
+   painted it. The consequence was measured rather than guessed: `check now`
+   fires a request that takes a second or two and the button did not move, so
+   the reported behaviour was pressing it three times.
+
+   The label swap answers this where there is a label to swap — `copy`→`copied`,
+   `check now`→`checking…`. This is for the rest, and for the moment before a
+   swapped label re-renders. It borrows the vocabulary the panel already uses
+   for "this one is live" (the accent that `.ap-auto-state:hover` takes) rather
+   than inventing a second one, and it deliberately does not dim: dim is what
+   `:disabled` means here, and a working control is the opposite of inert.
+
+   `cursor: progress` is the browser surface half. It costs nothing and it is
+   the one signal that arrives before any repaint. */
+[aria-busy="true"] { cursor: progress; }
+button[aria-busy="true"]:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── the surfaces nobody drew ───────────────────────────────────────────────
+   Selection and the caret ship with a browser default that belongs to no
+   design system, and on a dark deck the UA's blue-on-blue selection is the one
+   place the palette stops. Both take the accent the rest of the app already
+   uses for "this is the live one", at a weight that leaves the text readable
+   rather than reversing it. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+}
+input, textarea { caret-color: var(--accent); }
+
+/* ── the pair request, in front ─────────────────────────────────────────────
+   A dialog that arrives on its own and asks one question, so it is sized to
+   the question rather than to the 820px the inspectors need. Everything in it
+   is one column: who is asking, what saying yes costs, the fingerprint worth
+   comparing, and the two answers. */
+.modal.lan-ask { width: min(460px, 92vw); }
+.modal.lan-ask .modal-body { display: flex; flex-direction: column; gap: 10px; }
+/* The emitter is the accent here for the same reason it is on a live roster
+   row: this is the one thing on the screen that is happening now. */
+.lan-ask .modal-title .ap-pulse { color: var(--accent); }
+.lan-ask-who { margin: 0; font-size: 12px; color: var(--text); line-height: 1.5; }
+.lan-ask-name { font-weight: 600; }
+/* Secondary text on the panel ground, so it is dimmed rather than shouted, and
+   still over the 4.5 bar — the ground here is --panel, not a tinted wash. */
+.lan-ask-fp, .lan-ask-more { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.lan-ask-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+/* Both answers are the same size, because neither is the one the dialog wants
+   pressed — a bigger Accept is a dialog with an opinion about somebody else's
+   machine. The accent on it says which one is the forward move, and that is
+   all it says. */
+.lan-ask-acts .btn { min-width: 92px; justify-content: center; }
+
+/* ── one machine, opened from its row ───────────────────────────────────────
+   Everything the row's tooltip used to carry, the name this deck gives that
+   one, and the logins it offers. An inspector for one thing, so it is narrow —
+   the measure of a label and a value, not of a table — and it is built out of
+   the same parts as the section it opens from: the `.lan-h` captions, the
+   `.ap-lan-code` monospace for the two values that are data, the row's own
+   traffic-light mark. */
+/* 520, not the 480 a label and a value needed: the lanes are the widest thing
+   in it now, and every pixel taken from them is taken from the address on
+   each one. */
+.modal.lan-peer { width: min(520px, 92vw); }
+.lan-peer-head {
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 10px;
+}
+/* The mark, a size up from the row's and centred on the NAME's line rather
+   than on the two-line block beside it. Same three colours, same reasons. */
+.lan-peer-head > .ap-pulse,
+.lan-peer-head > .ap-dot { flex: none; width: 7px; height: 7px; margin-top: 7px; }
+.lan-peer-head > .ap-pulse { color: var(--ok); }
+.lan-peer-head > .ap-dot { color: var(--muted); }
+.lan-peer[data-tone="bad"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
+.lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
+.lan-peer[data-tone="wait"] .lan-peer-head > .ap-pulse { color: var(--accent); }
+.lan-peer-id { flex: 1 1 auto; min-width: 0; }
+/* Baseline, not centre: a name that has wrapped to two lines would otherwise
+   hang the pencil halfway down the pair, pointing at neither line. */
+.lan-peer-title { display: flex; align-items: baseline; gap: 2px; min-width: 0; }
+/* The machine's name, in the interface's own face: it is a name somebody
+   chose, not a value to be copied, and `.modal-tool-name`'s monospace is for
+   the tool calls that are. */
+/* IT WRAPS RATHER THAN TRUNCATES. A hostname is what this whole dialog is
+   about, and when no alias is set this is the only place it appears — an
+   ellipsis put the end of a long one out of reach entirely, since the file's
+   own rule is that a tooltip is mouse-only and silent to a screen reader, so
+   there was nowhere to recover it from. Two lines is the ceiling: past that a
+   pasted string is not a name and must not push the dialog's body down. */
+.lan-peer-name {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+/* Right after the name rather than at the far edge: it edits THAT word, and a
+   control across the header from the thing it changes is one somebody has to
+   go looking for. Quiet until pointed at, like the section's three icons. */
+.lan-peer-rename { flex: none; color: var(--muted); }
+.lan-peer-rename:hover:not(:disabled) { color: var(--text); }
+.lan-peer-edit { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lan-peer-input { flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.lan-peer-sub {
+  margin: 1px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* The name it gives itself, a step brighter than the words around it: it is
+   the second answer to "who is this", not a caption. */
+.lan-peer-self { color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.lan-peer-restore { margin-left: 8px; padding: 0; min-height: 0; }
+.lan-peer[data-tone="ok"] .lan-peer-state { color: var(--ok); }
+.lan-peer[data-tone="bad"] .lan-peer-state { color: var(--warn); }
+.lan-peer[data-tone="warn"] .lan-peer-state { color: var(--warn); }
+.lan-peer[data-tone="wait"] .lan-peer-state { color: var(--accent); }
+
+.lan-peer-body { gap: 20px; }
+
+/* ── the picture: two machines, the network, a lane per login ──────────────
+   This deck on the left and that one on the right, as the Local network guide
+   draws them, so a reader who has seen the guide has seen this. Everything
+   docks on two rails dropped from the machines: the network across the top,
+   then each login as a lane between the rails with a mark at each end for the
+   copy that machine holds. Which side a mark is on says whose copy it is, so
+   the words `here` and `there` are no longer printed on every row.
+
+   Every line is 1.5px and every mark sits on the rail's centre, 8px in from
+   the edge, so the grid under all of it is three columns — rail, lane, rail —
+   and the rows only ever differ in height. */
+.lan-map {
+  --wire: color-mix(in srgb, var(--text) 34%, transparent);
+  --rail: var(--line);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lan-ends {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+/* A name and what it runs, hugging its own edge. Neither may take more than
+   half, so a long hostname on one side wraps instead of shoving the other. */
+.lan-end { display: flex; flex-direction: column; min-width: 0; max-width: 48%; margin: 0; }
+.lan-end[data-side="there"] { align-items: flex-end; text-align: right; }
+.lan-end-name {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.lan-end-runs { font-size: 10px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+
+.lan-link,
+.lan-lane {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  column-gap: 6px;
+  align-items: center;
+}
+.lan-machine { display: block; color: color-mix(in srgb, var(--muted) 35%, var(--text)); }
+.lan-span,
+.lan-track {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 18px;
+}
+/* The line itself. The label on it is set on the panel's own ground, so the
+   line stops at the words and starts again after them, the way a label sits
+   on a diagram's edge. */
+.lan-wire {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  /* Clipped at its two ends and nowhere else: a light leaves the lane at the
+     machine it reaches, and the copy's dot stands above and below the line.
+     `overflow-x: clip` is what does the clipping for LAYOUT: clip-path only
+     stops the paint, so a light waiting to enter from that deck's end — moved
+     one whole lane to the right — still counted as content past the dialog's
+     edge, and the body grew a horizontal scrollbar for the first part of every
+     run: the dialog 11px taller, then not, over and over. The clip-path stays
+     for the lanes drawing in, which animate it. */
+  overflow-x: clip;
+  clip-path: inset(-4px 0);
+  border-radius: 1px;
+  background: var(--wire);
+}
+.lan-link-label,
+.lan-lane-email {
+  position: relative;
+  max-width: calc(100% - 24px);
+  padding: 0 8px;
+  background: var(--panel);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.lan-link-label { font-size: 10px; line-height: 1.5; color: var(--text); }
+.lan-lane-email { font-size: 11px; line-height: 1.45; color: var(--text); }
+
+/* The network, in the row mark's own three states. */
+.lan-map[data-link="up"] .lan-link .lan-wire { background: color-mix(in srgb, var(--ok) 60%, transparent); }
+.lan-map[data-link="bad"] .lan-link .lan-wire {
+  background: repeating-linear-gradient(90deg, var(--warn) 0 4px, transparent 4px 8px);
+}
+.lan-map:is([data-link="down"], [data-link="loose"]) .lan-link .lan-wire {
+  background: var(--wire-dashed);
+}
+/* Under the network: how it was found and how the last round went, then
+   anything the machine said in its own words. Centred on the line it is
+   about, in the column between the rails so the rails never cross it. */
+.lan-link-sub,
+.lan-link > .lan-done,
+.lan-link-note {
+  grid-column: 2;
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.lan-link > .lan-done { align-items: center; }
+.lan-round[data-tone="bad"] { color: var(--warn); }
+.lan-round[data-tone="warn"] { color: var(--warn); }
+.lan-link-sub .lan-fact-raw { margin-top: 2px; }
+
+/* THE RAILS. Each row draws its own stretch — from under the machine on the
+   network row, and a little past its own edges on every lane — so the rails
+   stay whole whatever height a wrapped address makes a row, and end on the
+   last lane's marks rather than hanging past them. */
+.lan-map[data-bus] .lan-link::before,
+.lan-map[data-bus] .lan-link::after,
+.lan-lane::before,
+.lan-lane::after {
+  content: "";
+  position: absolute;
+  width: 1px;
+  background: var(--rail);
+}
+.lan-map[data-bus] .lan-link::before, .lan-lane::before { left: 7.5px; }
+.lan-map[data-bus] .lan-link::after, .lan-lane::after { right: 7.5px; }
+.lan-map[data-bus] .lan-link::before,
+.lan-map[data-bus] .lan-link::after { top: 18px; bottom: -12px; }
+.lan-lane::before, .lan-lane::after { top: -5px; bottom: -5px; }
+.lan-lane:last-child::before, .lan-lane:last-child::after { bottom: auto; height: 14px; }
+
+.lan-lanes {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lan-lane { row-gap: 1px; }
+.lan-lane > .lan-pip[data-end="here"] { grid-column: 1; grid-row: 1; }
+.lan-lane > .lan-track { grid-column: 2; grid-row: 1; }
+.lan-lane > .lan-pip[data-end="there"] { grid-column: 3; grid-row: 1; }
+/* ANCHORED TO THE ADDRESS'S FIRST LINE, not to the middle of the row. A long
+   login wraps at phone width, and centred on a two-line row the marks, the
+   line and the arrows all dropped to the gap between the lines — while the
+   rail, which cannot know the row's height, still stopped where a one-line
+   row keeps its mark, and left the last lane's mark floating under it. On the
+   first line's centre, 9px down, every one of them is where it always is. */
+.lan-lane > .lan-pip { align-self: start; margin-top: 5px; }
+.lan-track > .lan-wire,
+.lan-track > .lan-chev { top: 9px; }
+
+/* A COPY, at the end of the machine that holds it. Filled is a copy that
+   works — the ok ink, or the warning ink for an expired one here, which is
+   the one mark somebody at this machine can do something about. A ring is no
+   copy to speak of: not on this deck, or not offered by that one. A ring
+   struck through is a copy that is there and broken. The panel-coloured
+   ring round every mark cuts the rail behind it, so the mark sits ON it. */
+.lan-pip {
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  box-shadow: 0 0 0 3px var(--panel);
+}
+.lan-pip[data-state="works"] { background: var(--ok); border-color: var(--ok); }
+.lan-pip[data-state="expired"] { background: var(--warn); border-color: var(--warn); }
+.lan-pip[data-state="broken"] {
+  background: linear-gradient(135deg, transparent 38%, var(--muted) 38% 62%, transparent 62%);
+}
+/* A copy on its way is drawn waiting for it, in the ink the caption uses. */
+.lan-lane[data-tone="wait"] .lan-pip[data-state="missing"] { border-color: var(--accent); }
+
+/* THE ACCOUNT THAT MACHINE IS ON. Its address takes the accent, and the mark at
+   that machine's end carries the slow ring the machine rows already use for
+   "live" — so the colour says which login and the ring says whose. The ring
+   goes around the mark, never instead of it: an expired copy somebody is
+   working on is still an expired copy, and still says so.
+
+   ONLY THEIRS. This deck's own account is not marked: its owner sees it in
+   the accounts panel's switcher, and a second mark here was a second answer
+   to a question nobody opening this dialog asks.
+
+   `inset: 0` is the mark's inside, 5px across — the size of a row's dot — so
+   the ring grows to the same 16px the rows' does rather than past the lane. */
+.lan-lane[data-used-there] .lan-lane-email { color: var(--accent); }
+.lan-lane[data-used-there] .lan-pip[data-end="there"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+/* Less motion keeps the ring, still — the way `.ap-pulse` keeps its own. */
+@media (prefers-reduced-motion: reduce) {
+  .lan-lane[data-used-there] .lan-pip[data-end="there"]::after { animation: none; opacity: 0.35; transform: scale(2.2); }
+}
+/* What a machine said about the account it is on, under its name, when that is
+   not a lane to mark: "current account hidden" when its owner switched the
+   telling off, "on another account" when it is on one it does not share. The
+   annotation tier, like what it runs. */
+.lan-end-note { font-size: 10px; line-height: 1.5; color: var(--muted); }
+
+/* A dashed lane is a login with no copy that can move either way. */
+.lan-wire[data-flow="cut"] {
+  background: var(--wire-dashed);
+}
+.lan-chev {
+  position: absolute;
+  top: 50%;
+  margin-top: -4px;
+  z-index: 1;
+  color: color-mix(in srgb, var(--muted) 35%, var(--text));
+}
+.lan-chev[data-dir="in"] { left: -1px; }
+.lan-chev[data-dir="out"] { right: -1px; }
+.lan-lane[data-tone="wait"] .lan-chev[data-dir="in"] { color: var(--accent); }
+.lan-chev[data-gate] { color: var(--warn); }
+
+/* The lane's words: only what the marks cannot say, between the rails. */
+.lan-lane-note {
+  grid-column: 2;
+  grid-row: 2;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.lan-lane[data-tone="bad"] .lan-lane-note { color: var(--warn); }
+.lan-lane[data-tone="wait"] .lan-lane-note { color: var(--accent); }
+.lan-lane-done[data-ok="false"] { color: var(--warn); }
+
+/* The sentences under the picture, each a step below the one above. */
+.lan-map > :is(.lan-spent, .lan-empty, .lan-stale) { margin: 10px 0 0; }
+
+/* The key to the two arrows, drawn with the lane's own line and chevron, and
+   the door to this deck's half beside the arrow that is this deck's. */
+.lan-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin-top: 14px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lan-key { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.lan-key-wire { position: relative; flex: none; width: 18px; height: 8px; }
+.lan-key-wire::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: var(--wire);
+}
+.lan-legend-act { margin-left: auto; }
+
+/* A LIGHT RUNS WHERE A COPY CAN. Hidden until it runs, so a reader who asked
+   for less motion sees the chevrons alone and nothing half-drawn. It is the
+   lane's own line, as wide as the lane, with its bright end at one edge; the
+   line clips it, and moving it by its own width carries that end from one
+   machine to the other. Green for a copy that can cross, the accent for one
+   that will cross on the next round — and on the network, the accent while a
+   check is asking. */
+.lan-glint { position: absolute; inset: 0; opacity: 0; --glint: var(--ok); }
+.lan-glint[data-tone="wait"] { --glint: var(--accent); }
+/* On the network the light is the question itself, run over a line already
+   in the accent — so it is drawn in the text's own ink, which reads on it. */
+.lan-link .lan-glint { --glint: var(--text); }
+.lan-glint[data-dir="out"] {
+  background: linear-gradient(90deg, transparent calc(100% - 44px), var(--glint) calc(100% - 2px), transparent);
+}
+.lan-glint[data-dir="in"] {
+  background: linear-gradient(270deg, transparent calc(100% - 44px), var(--glint) calc(100% - 2px), transparent);
+}
+/* THE COPY ITSELF, at the head of its light: a tail alone read as a shimmer
+   on the line, a dot at its head reads as something being carried. The line
+   clips sideways only — see `.lan-wire` — so the dot can stand taller than
+   the 1.5px it rides on. */
+.lan-glint::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--glint);
+}
+.lan-glint[data-dir="out"]::after { right: 0; }
+.lan-glint[data-dir="in"]::after { left: 0; }
+@keyframes lan-run-out {
+  0% { transform: translateX(-100%); opacity: 0; }
+  8% { opacity: 1; }
+  42% { transform: translateX(0); opacity: 1; }
+  50%, 100% { transform: translateX(0); opacity: 0; }
+}
+@keyframes lan-run-in {
+  0% { transform: translateX(100%); opacity: 0; }
+  8% { opacity: 1; }
+  42% { transform: translateX(0); opacity: 1; }
+  50%, 100% { transform: translateX(0); opacity: 0; }
+}
+@keyframes lan-draw-both { from { clip-path: inset(0 50%); } }
+@keyframes lan-draw-in { from { clip-path: inset(0 0 0 100%); } }
+@keyframes lan-draw-out { from { clip-path: inset(0 100% 0 0); } }
+@media (prefers-reduced-motion: no-preference) {
+  /* THE PICTURE MOVES WHERE A COPY CAN, and only while that deck answers: a
+     light on a lane to a deck that has gone quiet would be a promise nothing
+     is keeping. Each lane draws itself from the machine its copies leave —
+     from the middle when they leave both — once when the dialog opens and
+     again when a check comes back, so the answer to the press is visibly a
+     new picture. Then one light per way a copy can travel, a lane apart and
+     half a beat apart each way, so an exchange reads as two turns rather
+     than as traffic. */
+  .lan-lane .lan-wire {
+    animation: lan-draw-both 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+  }
+  .lan-lane[data-draw="in"] .lan-wire {
+    animation: lan-draw-in 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+  }
+  .lan-lane[data-draw="out"] .lan-wire {
+    animation: lan-draw-out 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+  }
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"] {
+    animation: lan-run-out 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 0.7s) infinite;
+  }
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"] {
+    animation: lan-run-in 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 2.8s) infinite;
+  }
+  /* A check is a question and its answer: out along the network and back. */
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"] {
+    animation: lan-run-out 1.3s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] {
+    animation: lan-run-in 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.65s infinite;
+  }
+}
+/* Named again for less motion, where none of them can run — they exist only
+   inside the block above — so the sweep that holds every travelling animation
+   to an answer finds this one, and the lights stay hidden. */
+@media (prefers-reduced-motion: reduce) {
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"],
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"],
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"],
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] { animation: none; }
+}
+/* A check is a question, and while it is asked the network takes the accent
+   — for every reader. The light running out and back is motion on top of the
+   fact, never the only sign of it. */
+.lan-map[data-asking] .lan-link .lan-wire { background: var(--accent); }
+/* A label and a value, one line each where one line will do. `max-content`
+   sizes the label column by the longest label rather than by a guess, so every
+   value starts on one left edge. `display: contents` lets each dt/dd pair keep
+   its <div> — which is what a <dl> allows around a pair — while the pair's two
+   halves stay items of the grid. */
+.lan-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 16px;
+  row-gap: 8px;
+  margin: 0;
+}
+.lan-fact { display: contents; }
+.lan-fact dt { font-size: 10px; line-height: 1.6; color: var(--muted); }
+.lan-fact dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+/* TWO REASONS TO BE QUIET, one tier. `quiet` is what is not known, drawn as
+   not known. `meta` is known and minor — a date, a version, an operating
+   system: the stamps and system lines that are what the annotation tier is
+   for, and that were drawing at 12.95:1 while the sentence saying a login is
+   broken drew at 4.70 two sections below. Nothing is hidden and nothing moves;
+   the three rows nobody opens this dialog to read stop shouting over the rows
+   they do. The fingerprint keeps full strength — it is read ACROSS machines,
+   matched against what the other screen says. The address and the last round
+   moved into the picture, and with them the only row that was ever warned. */
+.lan-fact[data-tone="quiet"] dd,
+.lan-fact[data-tone="meta"] dd { color: var(--muted); }
+.lan-fp { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+/* Inline in a line of text, where SC 2.5.8 exempts a target from the 24px
+   floor — so the word does not push the row it sits in to twice its height. */
+.lan-fp .lan-copy { padding: 0; min-height: 0; }
+/* The sentence the row translated, whole and in the monospace it was written
+   in: `not listening` is what a row can fit, and the errno and the address
+   are what somebody fixing it needs. */
+.lan-fact-raw {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.lan-done {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.lan-done-what { color: var(--muted); }
+.lan-done li[data-ok="false"] .lan-done-what { color: var(--warn); }
+
+/* EVERY DECK AT ONE ADDRESS, when a machine runs more than one. One grid for
+   all of them, so the ports and the fingerprints start on one x and two decks
+   are compared by running an eye down them — the only reason anybody opens
+   this list. The identity on the first line: the dot, the address and port, the
+   fingerprint, and the verb on the far edge. What it runs, when it was paired
+   and how it is doing on the second, in the annotation tier, because those are
+   read after the identity and never instead of it.
+
+   `display: contents` on the row, as `.lan-offer` does, is what puts the cells
+   on this grid; the explicit roles in the markup keep it a list while it does.
+   Every cell names its column, so a row without a verb — the first, which the
+   dialog above already describes — still lands its second line under the
+   address rather than wherever auto-placement would drop it. */
+.lan-twins {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 5px max-content minmax(0, 1fr) max-content;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.lan-twin { display: contents; }
+.lan-twin > i { grid-column: 1; align-self: center; }
+.lan-twin-at { grid-column: 2; color: var(--text); }
+/* Full strength on the address, one step down on the fingerprint: the port is
+   what tells two decks on one machine apart at a glance, and the fingerprint is
+   what gets matched against the other screen once somebody is sure. */
+.lan-twin-fp { grid-column: 3; min-width: 0; color: var(--text-dim); overflow-wrap: anywhere; }
+/* A key the machine held before and dropped: paired, and nothing to dial. Said
+   in words in the address's own column, in the annotation tier, rather than as
+   an empty cell that reads like a rendering fault. */
+.lan-twin-none { font-size: 10px; color: var(--muted); }
+/* Both lines tall, centred on the entry it ends: the verb is about the whole
+   deck, not about either line of it. */
+.lan-twin-do { grid-column: 4; grid-row: span 2; align-self: center; }
+.lan-twin-meta {
+  grid-column: 2 / 4;
+  margin-bottom: 9px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lan-twin:last-child .lan-twin-meta { margin-bottom: 0; }
+/* The row's own dot, in the row's own ink — see `.ap-lan-who .ap-pulse`. */
+.lan-twin .ap-pulse { color: var(--ok); opacity: 1; }
+.lan-twin[data-tone="bad"] .ap-pulse { color: var(--warn); }
+.lan-twin[data-tone="wait"] .ap-pulse { color: var(--accent); }
+
+/* The lanes are a fossil and say so under themselves — in the muted ink,
+   because the warning is already under the deck's name, and an old picture is
+   not a second alarm. */
+.lan-stale {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lan-empty { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+/* The fix for this deck's expired logins, said once under them. It was the
+   same sentence under every one of them, in the warning ink each time. */
+.lan-spent {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+/* A bar with something to say instead of a bar with nothing in it. */
+.lan-foot-note {
+  margin: 0 auto 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* The two acts, apart: `check now` on the left, the row's own verb on the far
+   right where every dialog on this deck keeps its answer — and where unpair,
+   the one that cannot be undone from here, is furthest from the press somebody
+   makes most. */
+.lan-peer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.lan-peer-foot > .btn:not(.lan-peer-verb) { margin-right: auto; }
+.lan-peer-foot .btn { min-width: 92px; justify-content: center; }
+/* TWO ACTS, TWO WEIGHTS. Both were pills of the same size, and the rare
+   irreversible one carried the louder ink — error text on an error edge —
+   while the safe one somebody presses every day was plain. The row two panels
+   away already disagrees: there, unpair is invisible until the row is pointed
+   at. This is the same verb, so it holds the same line. It keeps its word and
+   its place, loses the border it did not need to be found, and takes the
+   error colour only once it has been armed, which is the moment the colour is
+   actually about something. Never hidden: it is reachable by tab, reads its
+   own name to a screen reader, and answers hover and focus alike. */
+.lan-peer-foot .btn.danger:not(.armed) {
+  border-color: transparent;
+  color: var(--muted);
+}
+.lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled),
+.lan-peer-foot .btn.danger:not(.armed):focus-visible {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
+/* Armed is the second press of the only irreversible act here, and it keeps
+   the error colour without being pointed at — as the row's does. */
+.lan-peer-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
+
+/* The alert carries a panel's own inset — 14px, sized for the 288px column it
+   was written for — and inside a dialog's 16px padding that put it 30px from
+   the edge while every sibling started at 16. It is the one thing on the
+   surface that must line up with what it is about. The top margin goes with
+   it: `.modal-body` is a flex column with its own gap, so the 8px was a
+   second helping of the same space. */
+.modal-body > .ap-failure { margin: 0; }
+
+/* The setup dialog's foot: why there is no Save on the left, the one button
+   on the right, on the same ground and rule as a deck's own dialog so the two
+   read as one family. */
+.lan-setup-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.lan-foot-note { margin-right: auto; font-size: 10px; line-height: 1.45; color: var(--muted); }
+.lan-setup-foot .btn { min-width: 92px; justify-content: center; }
+
+/* ── the panel's one list of machines ───────────────────────────────────────
+   Every deck on the network is a row now — paired, nearby, asking, or already
+   answered — and what differs between them is the sentence on the right and the
+   verb on the end. So the verb needs a size that does not turn a list into a
+   column of buttons: the small pill the manage block already uses, held to the
+   right edge and kept off the name by the sentence between them. */
+/* THE VERB ON A ROW IS NOT THE ROW. `unpair` wore the error colour and an
+   error border, once per paired deck, which made the loudest repeated element
+   in the section the one action nobody presses — while the press somebody came
+   for was a half-width pill below. Nothing is added to fix that: a colour is
+   deferred. At rest the verb is a muted word on a transparent border; the
+   danger treatment arrives on hover and on focus, where the decision is.
+
+   9px went back to 10px and the box to 24px: this was the smallest target in
+   the panel at 19px, under the 24px floor, in a list that can run to six rows
+   of it. */
+.ap-lan-do {
+  align-self: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 10px;
+}
+/* UNPAIR IS NOT PART OF READING THE LIST. It is the one act in this section
+   that cannot be undone from this section, it is done about twice in a deck's
+   life, and it drew on every paired row at once — a column of identical
+   destructive verbs down the right edge of the thing a reader scans for a
+   machine's name. The panel's own doctrine already puts a row's destructive
+   verb behind something: an account's `remove` is two presses inside the
+   manage block, not on the row.
+
+   So it arrives with the pointer or with focus, and it holds its width at rest
+   — `opacity`, never `display` — so the name's column does not resize under
+   the cursor and the row does not jump. Armed, it stays whatever the pointer
+   does: a control that asks `sure?` and then vanishes when the mouse slips is
+   a control that cannot be answered.
+
+   The other three verbs are NOT hidden. `ask`, `allow` and `stop` are the
+   reason their rows are on the list at all — a deck nearby exists to be asked —
+   and hiding the point of a row is not the same act as hiding its management. */
+/* At once, like the tone it arrives with: a fade out was the other half of the
+   trail a sweeping pointer left, a half-lit `unpair` on the row just passed.
+   And on KEYBOARD focus only — `:focus-within` held it up after a mouse closed
+   the deck's dialog and focus came back to the row, a destructive verb left
+   showing where nobody was pointing. */
+.ap-lan-who .ap-lan-do.danger {
+  opacity: 0;
+}
+.ap-lan-who:hover .ap-lan-do.danger,
+.ap-lan-who:has(:focus-visible) .ap-lan-do.danger,
+.ap-lan-who .ap-lan-do.danger.armed { opacity: 1; }
+.ap-lan-who .ap-manage-btn {
+  color: var(--muted);
+  border-color: transparent;
+  background: none;
+  /* The tone's corners rather than a pill's — one radius in the row. */
+  border-radius: 4px;
+}
+/* A lit row lifts the ground under its verbs as it does under its sentence,
+   so they are mixed toward the foreground there too: a step under the name,
+   which stays the brightest thing in the row, and clear of 4.5:1 on the tone. */
+.ap-lan-who:is(:hover, :has(:focus-visible)) .ap-manage-btn {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+.ap-lan-who .ap-manage-btn:hover:not(:disabled),
+.ap-lan-who .ap-manage-btn:focus-visible {
+  color: var(--text);
+  /* --ctl-edge, which is what a control's own boundary is made of here.
+     --line is the token for a rule BETWEEN things and is deliberately fainter
+     than 3:1 — borrowing it for an edge would draw a boundary nobody with
+     ordinary eyes can find. */
+  border-color: var(--ctl-edge);
+  background: var(--ctl-fill);
+}
+.ap-lan-who .ap-manage-btn.danger:hover:not(:disabled),
+.ap-lan-who .ap-manage-btn.danger:focus-visible {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  /* The word and a hairline, no fill: the verb's own answer when it is the
+     thing pointed at, and small enough that the row around it does not read
+     as destructive. */
+  background: none;
+}
+/* Armed is the one state that keeps the colour without being pointed at: the
+   press has already happened once and the next one is the irreversible half. */
+.ap-lan-who .ap-manage-btn.danger.armed {
+  color: var(--bg);
+  border-color: var(--err);
+  background: var(--err);
+}
+/* THE ROUND, BESIDE THE SWITCH. It was a full-width button at the foot of the
+   section — under the list it refreshes, and under the tooltip of the control
+   below it — and this is the panel's own idiom for the act: the accounts header
+   has carried a `↻` since it was written. The line under the title says when
+   the last round ran, so most readers never press this at all. */
+/* The half-pixel nudge went with the glyph that needed it: a text arrow sits
+   where its font's baseline puts it, and an SVG sits where the flex box centres
+   it, which is the middle. */
+.ap-lan-check { color: var(--muted); }
+.ap-lan-check:hover:not(:disabled) { color: var(--text); }
+/* A ROUND IS A NETWORK ROUND, and it takes as long as the slowest deck. The
+   only sign it had started was a word three lines below the glyph that was
+   pressed, which is not where the eye is. It turns while it works, at the one
+   speed in this app that means "still going" rather than "something happened". */
+/* It turns while it asks: a broadcast sweeping round reads as asking. #838
+   gave it a glyph of its own; the motion stays the one "working" has here —
+   pulse is the live-traffic tempo, and a busy control is not live traffic. */
+.ap-lan-check[aria-busy="true"] { color: var(--accent); animation: spin 900ms linear infinite; }
+/* The sheet's own `spin` does this already — see the empty-hero orbits. A
+   second set of keyframes spelling `rotate(360deg)` is a second thing to keep
+   in step with the first. */
+/* When the last round ran, under the state it dates. Dim, because it is a
+   figure somebody glances at rather than a sentence they read — and it sits
+   tight under the line above, which it belongs to. */
+/* The far end of that row, opposite the fold. `margin-left: auto` is the same
+   trick the switch uses in the header: separation by distance, with no rule and
+   no colour spent on it. */
+.ap-lan-checked {
+  margin: 0 0 0 auto;
+  align-self: center;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* And the two things somebody does twice, at the size of things somebody does
+   twice: words on the section's own ground, no border, no fill, no pill. They
+   are still 24px of target and still take the focus ring. */
+/* The section's last line: what is folded away on the left, when it was last
+   asked on the right. Both are facts about the LIST rather than about any deck
+   on it, which is why they share a row — and it sits tight under the list for
+   the same reason, because the fold is the rest of that list. */
+.ap-lan-tail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.ap-lan-word {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  min-height: 24px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms ease, transform 120ms ease;
+}
+.ap-lan-word:hover:not(:disabled) { color: var(--text); }
+/* THE THREE ARE ONE FAMILY, so what each rule carries is only its ink — and
+   the ink is the same for all three.
+   Each had a font-size before — 14 on the plus, 12 on the other two — and that
+   was not typography, it was three fonts being talked into looking one size.
+   The icons are drawn at one spec now, so the sizes went with the glyphs they
+   were correcting.
+
+   The plus had `--text-dim` under a comment claiming it was a shade brighter
+   than the other two. It is not: in dark this token and `--muted` are the same
+   six hex digits, so the rule painted nothing — and in light `--text-dim` is
+   the DIMMER of the two, so the one theme where it did anything did the
+   opposite of what it said. A hierarchy that renders as no hierarchy in one
+   theme and an inverted one in the other is worse than none. The plus leads by
+   being first and by being the only one of the three that opens something. */
+.ap-lan-plus { color: var(--muted); }
+.ap-lan-plus:hover:not(:disabled) { color: var(--text); }
+/* The cog, between the round and the switch. Quiet as the round is quiet — both
+   are things you may press, against a switch that is a state you read — and a
+   pixel smaller than the plus, which is a stroke where this is a shape. */
+.ap-lan-set { color: var(--muted); }
+.ap-lan-set:hover:not(:disabled) { color: var(--text); }
+
+/* The fold under the list: how many decks are not on, and whether any of them
+   is a problem. It sits at the list's own left edge rather than at the foot's,
+   because it belongs to the list — the row above it is the last thing it
+   summarises. */
+.ap-lan-more {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+/* A chevron that turns, which is the whole of the animation budget here: it
+   says "this opens downward" before the press and "it is open" after, and it
+   is the one moving thing in a section whose job is to be read. */
+.ap-lan-chev {
+  display: inline-block;
+  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: rotate(0deg);
+  opacity: 0.7;
+}
+.ap-lan-chev.open { transform: rotate(90deg); }
+/* A count in the ink of the thing it counts. Folding a deck that cannot be
+   reached would undo the tone the list exists for, so the fold says how many
+   of them are behind it — in the colour that makes it worth opening. */
+.ap-lan-more-bad { color: var(--warn); }
+/* The same 0.97 every pressable thing in this app gives back. A word without a
+   box still has to answer a press. */
+.ap-lan-word:active:not(:disabled) { transform: scale(0.97); }
+.ap-lan-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ap-lan-word:disabled { cursor: default; opacity: var(--dim-off); }
+/* BOTH OF THESE ANSWER A RULE BELOW THEM IN THE SHEET, WHICH IS WHY THEY ARE
+   HERE. The panel's reduced-motion block is 1700 lines further up, and both of
+   these selectors carry the same specificity as the rule they switch off — put
+   there, the later declaration would have won and the motion would have stayed
+   on for exactly the readers who asked for it off. reduced-motion-reach.test.ts
+   is the sweep that says so. */
+@media (prefers-reduced-motion: reduce) {
+  /* The round's glyph stops turning and keeps its colour: what the spin says is
+     "still going", and the accent it takes with `aria-busy` says the same thing
+     without moving. The word under the title says it a third time. */
+  .ap-lan-check[aria-busy="true"], .ap-refresh[aria-busy="true"] { animation: none; }
+  /* The unpair that arrives with the pointer arrives at once. It is a reveal,
+     not an entrance — the control has to be there the instant the row is
+     hovered, and 120ms of fade is the only part of that anybody can lose. */
+  .ap-lan-who .ap-lan-do.danger { transition: none; }
+}
+
+/* ── the dialog that reaches a deck the network could not offer ─────────────
+   It was a drawer in the 288px column and everything in it is the wrong shape
+   for that: an address is monospace, an invite is a 140-character token, and
+   the firewall block is a paragraph plus a shell command. Unfolded, the section
+   stopped being a list of machines and became a form with a list on top. */
+.modal.lan-add { width: min(520px, 92vw); }
+/* TWO OF A KIND, DRAWN THE SAME WAY. Each method is heading, field, one
+   sentence — identical rhythm twice, which is what says "there are two ways in"
+   without a card, a rule or a word spent on saying it. The gap between them is
+   the only thing larger than the gaps inside them, so the eye groups on
+   distance alone; at 20px it was barely over the 14px a heading and its field
+   already sit apart, and the two methods ran together. */
+.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 24px; }
+/* The field is the row: one input and the verb that commits it, with nothing
+   to the left, because the section heading above already says which of the two
+   ways in this is. */
+.lan-add .ap-lan-row { gap: 8px; }
+/* Both heading rows are one height, because one of them carries a verb and the
+   other does not — and a rhythm that is only identical in the section without
+   an action is not a rhythm. */
+.lan-add .lan-h { min-height: 24px; margin-bottom: 6px; }
+/* THE OTHER DIRECTION OF THE INVITE, and the reason it is up here. It was a
+   full-width bordered button under the paste field's help: the heaviest mark in
+   the dialog, in the position a form puts its submit, for the one action that
+   does not add a deck. On the heading's own row it reads as what it is — the
+   second thing this method can do — and it takes no border to say so.
+   The heading's own case and tracking are undone: it is a verb, not a label. */
+.lan-h-act {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+

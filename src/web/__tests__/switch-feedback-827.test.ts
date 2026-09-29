@@ -11,12 +11,13 @@ import { fileURLToPath } from "node:url";
 import { nextFailure, type Failure } from "../accounts-reload";
 import { ACCOUNTS_FILES } from "./accounts-surface";
 import { clientText } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
 /** The row, which says both answers, from the file that draws it. */
 const row = read("../components/AccountRow.tsx");
-const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The switch, which lives in the switching hook with the confirmation it sets. */
 const switching = read("../use-account-switching.ts");
