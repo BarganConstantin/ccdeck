@@ -83,9 +83,15 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
         <i style={{ width: `${available}%` }} />
       </div>
       {reset && w.nextReset && (
+        // WHOSE, ON THE LINE. Each account keeps its own window and its own
+        // clock, so this is one account's reset, not the window's: "Resets in
+        // 25m" under 88% read as all of it coming back then. The name is the
+        // one part that may be cut; the rest stays whole.
         <p className="ap-report-reset" title={soonest(w.nextReset)}>
-          Resets in <span className="ap-report-num">{reset}</span>
-          {/* Whose, for the reader a hover never reaches. */}
+          <span className="ap-report-reset-when">Next reset in <span className="ap-report-num">{reset}</span> · </span>
+          <span className="ap-report-who">{w.nextReset.name}</span>
+          {w.nextReset.more > 0 && <span className="ap-report-more">+{w.nextReset.more}</span>}
+          {/* The rest of it, for the reader a hover never reaches. */}
           <span className="vis-hidden">. {soonest(w.nextReset)}</span>
         </p>
       )}

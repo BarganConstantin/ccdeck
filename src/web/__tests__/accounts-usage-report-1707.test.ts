@@ -277,9 +277,13 @@ describe("the report, drawn", () => {
     expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="width:25%"></i></div>');
   });
 
-  it("says when the soonest reset comes, and whose it is on hover", () => {
+  it("names whose reset comes next on the line, since each account keeps its own window", () => {
+    // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)">Resets in <span class="ap-report-num">1h 0m</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span class="ap-report-reset-when">Next reset in <span class="ap-report-num">1h 0m</span> · </span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).not.toMatch(/>Resets in /);
+    const two = html([acct(1, 12, 10, { alias: "a" }, [NOW + HOUR]), acct(2, 10, 10, { alias: "b" }, [NOW + HOUR + 20])]);
+    expect(two).toContain('<span class="ap-report-who">a</span><span class="ap-report-more">+1</span>');
   });
 
   it("labels the rows' numbers as used, beside a state for each", () => {
