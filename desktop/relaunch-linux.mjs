@@ -44,9 +44,19 @@ const PATH_LISTS = ["PATH", "LD_LIBRARY_PATH", "XDG_DATA_DIRS", "GSETTINGS_SCHEM
  * a mount that is about to disappear, and the lists would grow by one version
  * per update. Entries under APPDIR are dropped and repeats removed; a list left
  * empty is unset. Pure, so it can be checked without an AppImage.
+ *
+ * So are entries under an OLDER mount of the same AppImage, which relaunches
+ * from before this cleaning left behind and nothing took out since: an app
+ * seen after a few self-updates still carried two mounts that no longer
+ * existed in XDG_DATA_DIRS, LD_LIBRARY_PATH and GSETTINGS_SCHEMA_DIR (#1630).
+ * The runtime names every mount `.mount_` plus six characters of the file's
+ * name plus six random ones, so all of this AppImage's mounts share all but
+ * the last six.
  */
 export function relaunchEnv(env = process.env) {
   const appDir = env.APPDIR;
+  const stem = appDir ? /^(.*\/\.mount_[^/]*?)[^/]{6}$/.exec(appDir)?.[1] : null;
+  const olderMount = stem ? new RegExp(`^${stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^/]{6}(/|$)`) : null;
   const out = { ...env };
   for (const name of APPIMAGE_VARS) delete out[name];
   for (const name of PATH_LISTS) {
@@ -55,6 +65,7 @@ export function relaunchEnv(env = process.env) {
     for (const entry of out[name].split(":")) {
       if (!entry) continue;
       if (appDir && (entry === appDir || entry.startsWith(`${appDir}/`))) continue;
+      if (olderMount?.test(entry)) continue;
       if (!kept.includes(entry)) kept.push(entry);
     }
     if (kept.length) out[name] = kept.join(":");
