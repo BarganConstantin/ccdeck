@@ -144,3 +144,39 @@ export function exitRequest(
   if (state === "done") return null;
   return { action: "login-cancel" };
 }
+
+// ── which branch the Sign in tab draws (#1795) ──────────────────────────────
+
+/** The Sign in tab's branches, in the order they are tried. */
+export type LoginTabView = "done" | "code" | "ended" | "asking" | "primer";
+
+/**
+ * Which branch the Sign in tab draws, from the sign-in's own state alone.
+ *
+ * THE PASTE TAB'S STATE IS NOT AN INPUT. Both tabs used to share one error and
+ * one busy flag, so an import's error became the sign-in's "Sign-in failed"
+ * reason, and a successful import cleared the error a failed start had left —
+ * which dropped a started sign-in with no login from the server onto "Asking
+ * the claude CLI for a sign-in link…", with no button and no poll to move it
+ * on. Only closing the dialog got out.
+ *
+ * So the placeholder is drawn only while something can still change it: a
+ * sign-in request is out, or the server's flow is still moving and being
+ * polled. A started sign-in with neither and no verdict — which the dialog no
+ * longer reaches — falls to the primer, which can start one again: a dead end
+ * is the one answer this must never give.
+ */
+export function loginTabView(
+  { login, started, loginError, loginBusy }: {
+    login: { state: string; account: unknown } | null;
+    started: boolean;
+    loginError: string | null;
+    loginBusy: boolean;
+  },
+): LoginTabView {
+  if (login?.state === "done" && login.account) return "done";
+  if (login?.state === "awaiting_code" || login?.state === "registering") return "code";
+  if (isLoginOver(login?.state) || (Boolean(loginError) && started && !loginBusy)) return "ended";
+  if (loginBusy || shouldPollLogin(login?.state)) return "asking";
+  return "primer";
+}
