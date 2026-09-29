@@ -42,6 +42,8 @@ import DeckBanner from "./components/DeckBanner";
 import DeckDialogs from "./components/DeckDialogs";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
+import { useProviderStatus } from "./use-provider-status";
+import { incidentsOf } from "./provider-status";
 import { useDeckUpgrade } from "./use-deck-upgrade";
 import { useBrowserWatchBadge } from "./use-browser-watch-badge";
 import { useAppearance } from "./use-appearance";
@@ -244,6 +246,13 @@ function Inner() {
 
   // The deck's 250ms clock, and the sweeps that run on it — use-board-tick.ts.
   const now = useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setContextFor, setSummaryFor });
+
+  // What the providers' status pages report (#1311): use-provider-status.ts
+  // asks, provider-status.ts decides which lines are an incident. Read against
+  // the board's clock, so an answer the page is still holding expires on
+  // screen even while the deck itself has stopped answering.
+  const providerStatus = useProviderStatus(providers.claude || providers.codex);
+  const incidents = incidentsOf(providerStatus, now);
 
   // Restarting the deck: the auto-update switch, the press behind the banner's
   // Restart, the idle stretch an automatic one waits for, and what the banner
@@ -546,6 +555,7 @@ function Inner() {
           versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause} monthly={monthly}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
+          incidents={incidents}
         />
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
@@ -674,6 +684,7 @@ function Inner() {
           state={stateRef.current}
           now={now}
           providers={providers}
+          incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
           onClose={() => setUsagePanelOpen(false)}

@@ -25,7 +25,7 @@ import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
-import { statusLine, trayMenuItems } from "./tray-menu.mjs";
+import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -56,6 +56,8 @@ let model = null;             // TrayModel from dist/lib/tray-model.mjs
 let chimeFiles = {};          // CHIME_FILES from dist/lib/chime-wav.mjs
 let snapshot = { icon: "offline", waiting: 0, running: 0, title: "ccdeck", blocked: [] };
 let notifyOn = null;          // the deck's own switch, read from /api/prefs
+let providerStatus = null;    // the deck's last /api/provider-status answer (#1311)
+let incidentsOf = null;       // the page's reading of it, from dist/lib/provider-status.mjs
 let redraw = null;
 let ownDeck = null;           // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
@@ -85,6 +87,9 @@ function buildMenu() {
     openAtLogin: app.getLoginItemSettings().openAtLogin,
     appVersion: app.getVersion(),
     update: updater?.state ?? { status: "idle" },
+    // Read against now, so an answer held past its expiry leaves the menu on
+    // the next redraw rather than at the next ask.
+    incidents: incidentsOf?.(providerStatus, Date.now()) ?? [],
   }, TRAY_ACTIONS));
 }
 
@@ -97,6 +102,9 @@ const TRAY_ACTIONS = {
   restartToUpdate: () => updater.restartNow(),
   checkForUpdates: () => updater?.check(),
   restartDeck: () => restartDeck(),
+  // incidentsOf has already held the link to https on one of the two status
+  // hosts, so this opens a status page and nothing else.
+  openStatusPage: href => shell.openExternal(href),
   quit: () => app.quit(),
 };
 
@@ -125,6 +133,7 @@ async function loadModel() {
   const { createTrayModel } = await import(pathToFileURL(join(here, "dist", "lib", "tray-model.mjs")).href);
   model = createTrayModel();
   ({ CHIME_FILES: chimeFiles } = await import(pathToFileURL(join(here, "dist", "lib", "chime-wav.mjs")).href));
+  ({ incidentsOf } = await import(pathToFileURL(join(here, "dist", "lib", "provider-status.mjs")).href));
 }
 
 async function refreshPrefs() {
@@ -133,6 +142,18 @@ async function refreshPrefs() {
     const { json } = await deckJson(deck, "/api/prefs");
     notifyOn = json?.prefs?.notifications === true;
   } catch { notifyOn = null; }
+  scheduleRedraw();
+}
+
+/** What the status pages say, asked of the deck (#1311), which reads them at
+ *  most once every three minutes whoever asks. Twelve seconds: the deck may
+ *  have to read a page first, and a page read has eight of its own. */
+async function refreshProviderStatus() {
+  if (!deck) return;
+  try {
+    const { json } = await deckJson(deck, "/api/provider-status", { timeoutMs: 12_000 });
+    if (json?.ok) providerStatus = json;
+  } catch { /* the last answer stays, and incidentsOf expires it by its own clock */ }
   scheduleRedraw();
 }
 
@@ -154,6 +175,8 @@ function attach(found) {
   stream?.close();
   stream = null;
   deck = found ?? null;
+  // Another deck's answer is not this one's, and no deck has none.
+  providerStatus = null;
   model?.reset();
   model?.setConnected(false);
   scheduleRedraw();
@@ -161,7 +184,7 @@ function attach(found) {
   stream = openTrayStream(deck, {
     connected: () => { model.reset(); model.setConnected(true); scheduleRedraw(); },
     hook: env => { model.apply(env); scheduleRedraw(); },
-    live: () => { refreshPrefs(); publishUpdateState(); },
+    live: () => { refreshPrefs(); publishUpdateState(); refreshProviderStatus(); },
     notify: n => showNotification(n),
     restartUpdate: request => {
       const version = request?.version;
@@ -668,6 +691,9 @@ app.whenReady().then(async () => {
   // that came up while none was running.
   setInterval(() => { model?.tick(); scheduleRedraw(); updateWhenQuiet(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
+  // The status pages, every five minutes while there is work going on — see
+  // statusWorthAsking.
+  setInterval(() => { if (statusWorthAsking(snapshot)) refreshProviderStatus(); }, 5 * 60_000);
   // Nobody asked for this one — see openWindow's own doc on `steal`.
   if (deck) openWindow(false);
   await firstRun();

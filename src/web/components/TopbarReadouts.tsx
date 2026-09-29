@@ -23,6 +23,8 @@ import type { PauseControls } from "../use-pause-gate";
 import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import { waitingSentence } from "../agent-copy";
+import type { Incident } from "../provider-status";
+import { IncidentChips } from "./ProviderIncidents";
 import VersionChip from "./VersionChip";
 
 type MonthlyUsage = ReturnType<typeof useMonthlyUsage>;
@@ -175,7 +177,7 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
 
 export function ReadoutGroup({
   versionCheck, welcome, desktopUpdate, pause, monthly, announcements, notify,
-  waitingSessions, waitingCursorRef, focusSession, live, now,
+  waitingSessions, waitingCursorRef, focusSession, live, now, incidents,
 }: {
   versionCheck: ReturnType<typeof useVersionCheck>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -192,6 +194,8 @@ export function ReadoutGroup({
   /** Whether the event stream is connected right now. */
   live: boolean;
   now: number;
+  /** What the providers' status pages report, incidents only (#1311). */
+  incidents: Incident[];
 }) {
   const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
   const { chipVersion, openReleaseNotes } = welcome;
@@ -323,6 +327,13 @@ export function ReadoutGroup({
       {waitingSessions.length > 0 && (
         <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
       )}
+      {/* A provider's own incident, when its status page reports one (#1311)
+          — components/ProviderIncidents.tsx. AFTER the blocked count, which is
+          the deck's alarm and the reason it is open: an outage upstream is
+          context for a diagnosis, so it takes the next place in the readout
+          and never moves the chip the user acts on. Nothing at all while the
+          providers are fine, or while their pages cannot be reached. */}
+      <IncidentChips incidents={incidents} />
       {/* The ask, and it lives HERE rather than in a settings panel.
           Every browser requires a user gesture to raise the permission
           prompt, so this button is not decoration — without it the feature

@@ -289,5 +289,11 @@
   .topbar .brand button.v:not(.stale):not(.ready),
   .topbar .waiting-stat .ws-word { display: none; }
   .topbar .waiting-stat { padding: 3px 8px; }
+  /* A provider's incident chip (#1311) goes the same way: its dot and the
+     provider's name stay, the state's words go, and its accessible name
+     keeps the whole of it. */
+  .topbar .provider-incident .pi-words,
+  .topbar .provider-incident .pi-asof { display: none; }
+  .topbar .provider-incident { padding: 3px 8px; }
 }
 
