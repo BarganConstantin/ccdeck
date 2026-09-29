@@ -81,7 +81,10 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
           reading moves it on the compositor, and it grows in from the left
           when the dialog opens (see the sheet). */}
       <div className="ap-report-meter" data-level={level(used)} aria-hidden>
-        <i style={{ transform: `scaleX(${available / 100})` }} />
+        {/* The fraction as a variable the sheet scales by, not an inline
+            transform: an inline one outranks the sheet's starting style, and
+            the bar would stand at its reading from the first frame. */}
+        <i style={{ "--left": available / 100 } as CSSProperties} />
       </div>
       {reset && w.nextReset && (
         // WHOSE, ON THE LINE. Each account keeps its own window and its own

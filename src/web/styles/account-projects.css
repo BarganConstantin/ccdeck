@@ -263,6 +263,7 @@
   background: var(--accent);
   /* Scaled, never resized — the Usage panel's `.qb-fill` does the same, for
      the same reason: a new reading is a compositor move, not a relayout. */
+  transform: scaleX(var(--left, 1));
   transform-origin: left center;
   transition: transform 400ms cubic-bezier(0.23, 1, 0.32, 1);
 }

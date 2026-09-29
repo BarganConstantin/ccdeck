@@ -272,11 +272,12 @@ describe("the report, drawn", () => {
   });
 
   it("draws one quiet bar of what remains, in the warning ink only once the window runs low", () => {
-    // A transform rather than a width, as the Usage panel's bars (#1713).
-    expect(html([acct(1, 20, 40)])).toContain('<div class="ap-report-meter" aria-hidden="true"><i style="transform:scaleX(0.8)"></i></div>');
+    // A scale rather than a width, as the Usage panel's bars, by a variable
+    // the sheet's starting style can outrank (#1713).
+    expect(html([acct(1, 20, 40)])).toContain('<div class="ap-report-meter" aria-hidden="true"><i style="--left:0.8"></i></div>');
     const low = html([acct(1, 95, 75)]);
-    expect(low).toContain('<div class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="transform:scaleX(0.05)"></i></div>');
-    expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="transform:scaleX(0.25)"></i></div>');
+    expect(low).toContain('<div class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="--left:0.05"></i></div>');
+    expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="--left:0.25"></i></div>');
   });
 
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
