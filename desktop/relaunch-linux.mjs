@@ -83,3 +83,15 @@ export function relaunchOnExit({ pid, appImage, env = process.env }) {
   });
   child.unref();
 }
+
+/**
+ * Quit and start again for a reason other than an update — a tray icon the
+ * panel has lost (tray-presence.mjs). The AppImage goes through
+ * relaunchOnExit, for everything said above; any other build through
+ * Electron's own relaunch, which starts it once this one has quit.
+ */
+export function restartApp(app, { env = process.env, pid = process.pid, relaunch = relaunchOnExit } = {}) {
+  if (env.APPIMAGE) relaunch({ pid, appImage: env.APPIMAGE, env });
+  else app.relaunch();
+  app.quit();
+}

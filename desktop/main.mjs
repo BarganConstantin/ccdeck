@@ -26,6 +26,8 @@ import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
+import { canRestartForTray, MISSES_BEFORE_RESTART, trayMissesNext, trayPresence } from "./tray-presence.mjs";
+import { restartApp } from "./relaunch-linux.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -133,6 +135,27 @@ function scheduleRedraw() {
     tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
     tray.setContextMenu(buildMenu());
   }, 150);
+}
+
+/**
+ * Linux: every half minute, ask the panel whether it still holds this app's
+ * icon (#1630). A registration that fails once leaves the app with an icon
+ * only it can see for as long as it runs, and only a new process registers
+ * again — so a lost icon is counted here, and updateWhenQuiet restarts the app
+ * at its next quiet spell. See tray-presence.mjs.
+ */
+let trayMisses = 0;
+let trayRestartAt = null;     // the last restart for the icon's sake, from desktop-state.json
+function watchTray() {
+  if (process.platform !== "linux") return;
+  trayRestartAt = desktopState.read().trayRestartAt ?? null;
+  setInterval(async () => {
+    const before = trayMisses;
+    trayMisses = trayMissesNext(trayMisses, await trayPresence());
+    if (before < MISSES_BEFORE_RESTART && trayMisses >= MISSES_BEFORE_RESTART) {
+      trace("the panel holds no tray icon of this app's; restarting at the next quiet spell");
+    }
+  }, 30_000);
 }
 
 // ── the deck ────────────────────────────────────────────────────────────────
@@ -678,6 +701,7 @@ app.whenReady().then(async () => {
   tray.setContextMenu(buildMenu());
   // Windows and Linux: a left click opens the window, the menu is on the right.
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
+  watchTray();
   updater = createUpdater({
     app,
     onChange: s => {
@@ -728,10 +752,32 @@ function updateWhenQuiet() {
     now: Date.now(),
   };
   quietSince = quietSinceNext(quietSince, where);
-  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", quietSince, ...where })) return;
+  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", quietSince, ...where })) {
+    restartForTrayWhenQuiet(where);
+    return;
+  }
   trace(`installing ${updater.state.version} by itself after a quiet spell`);
   quietSince = null;
   updater.restartNow();
+}
+
+/** The same quiet, spent on a tray icon the panel has lost (#1630): a restart
+ *  is the one thing that registers it again — see watchTray. An update that
+ *  is ready goes first, above, and brings the icon back on its own way. */
+function restartForTrayWhenQuiet(where) {
+  if (!canRestartForTray({ misses: trayMisses, lastRestartAt: trayRestartAt, quietSince, ...where })) return;
+  trayRestartAt = where.now;
+  // Written down before going, or the next process would not know about this
+  // restart and the six hours between two would not hold across them.
+  try {
+    desktopState.merge({ trayRestartAt });
+  } catch (err) {
+    trace(`not restarting for the tray icon: ${err?.message ?? err}`);
+    return;
+  }
+  trace("restarting by itself after a quiet spell, to put the tray icon back");
+  quietSince = null;
+  restartApp(app);
 }
 
 app.on("activate", () => { if (primary) openWindow(); });
