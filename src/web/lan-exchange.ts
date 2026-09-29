@@ -44,11 +44,18 @@ export function versionOrder(a: string, b: string): number | null {
  * `note` is what HAPPENS NEXT, and it is null for every state where the
  * answer is "nothing". So the note exists on exactly the rows worth reading,
  * and it is the note — not the state — that carries the ink.
+ *
+ * `takesAdds` is false for a deck the accept switch paired rather than a
+ * person: the engine takes a login this deck lacks from such a deck only when
+ * it is ticked here, the way a heal is (see roundWith), so "arrives next
+ * round" would be a promise the round does not keep. Pairing with it by
+ * invite is a person choosing it, and that is what lifts it.
  */
 export function offerLine(
   theirs: OfferedAccount,
   mine: LanAccount | null,
   sharedHere: boolean,
+  takesAdds = true,
 ): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
   const here = !mine ? "not on this deck" : mine.alive
     ? mine.shareable === false ? "cannot share here" : "works here"
@@ -70,7 +77,11 @@ export function offerLine(
   // `here` stays what IS, and the note says what WILL BE. The old string put
   // `arrives here next round` in the state slot, which left a reader unable to
   // tell the present from the promise.
-  if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
+  if (!mine) {
+    return takesAdds || sharedHere
+      ? { there: "works there", here, note: "arrives next round", tone: "wait" }
+      : { there: "works there", here, note: "paired automatically — pair by invite to take it", tone: "bad" };
+  }
   if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false ? "idle" : "ok" };
   return sharedHere
     ? { there: "works there", here, note: "repairs next round", tone: "wait" }
@@ -124,6 +135,8 @@ export function exchangeLanes(
   /** The key that deck said it is on, or null. The engine only keeps one that
    *  is in the same list, so it can only ever land on a lane it offers. */
   current: string | null = null,
+  /** False for a deck the accept switch paired — see offerLine. */
+  takesAdds = true,
 ): Lane[] {
   // Two slots for one login read as the live one, as the engine's onePerKey
   // picks it (lan-copies.mjs): an expired duplicate after it must not paint this
@@ -138,7 +151,7 @@ export function exchangeLanes(
     seen.add(theirs.key);
     const mine = byKey.get(theirs.key) ?? null;
     const giving = sharedHere.has(theirs.key);
-    const said = offerLine(theirs, mine, giving);
+    const said = offerLine(theirs, mine, giving, takesAdds);
     const here = !mine ? "missing" : !mine.alive ? "expired"
       : mine.shareable === false ? "unavailable" : "works";
     // Both copies gone is the one note that already names both ends.

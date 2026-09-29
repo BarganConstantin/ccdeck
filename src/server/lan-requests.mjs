@@ -5,7 +5,44 @@
 // key, or putting an address on the dial list — stays the engine's accept;
 // this decides who is on which list and when that accept is pressed.
 
-import { pairable } from "./lan-sync.mjs";
+import { pairable, PRESENT_MS } from "./lan-sync.mjs";
+
+/**
+ * The most decks the heard list keeps at once (#1738).
+ *
+ * A beacon is one UDP packet, its source address can be anything, and every
+ * new fingerprint used to be a row kept for as long as the process lived: 52 MB
+ * of heap for 200,000 forged ones, and every panel poll sorting all of them.
+ * The panel draws eight (see pairable) and collapses one machine's keys into
+ * one row, so a few hundred is room for an office of decks each restarted a
+ * few times inside the presence window, and small enough that the sort every
+ * poll does is nothing. The deck heard longest ago goes first; a real one is
+ * heard again within thirty seconds and comes straight back.
+ */
+export const MAX_STRANGERS = 256;
+
+/**
+ * The most requests kept at once (#1738).
+ *
+ * Each is a row in the panel with an accept on it, and all of them are drawn:
+ * one host handshaking with fresh keys put two hundred there in a second. The
+ * same thirty-two the accept switch may pin (MAX_AUTO_PINS in lan-engine.mjs),
+ * which is well past one person's own machines and still a list somebody can
+ * read. The request asked longest ago goes first — a deck that is really
+ * waiting asks again every round, so it is never the one that has.
+ */
+export const MAX_PENDING = 32;
+
+/**
+ * How long a request stands after its deck last asked (#1738).
+ *
+ * A deck waiting on an answer dials again every round — every few seconds while
+ * it waits (ASKING_MS), once a minute at the slowest (SYNC_MS) — and each dial
+ * that finds no pin here asks again. Ten minutes is ten of its slowest rounds
+ * without a word, which is a deck that stopped asking; if it starts again it
+ * is a request again on its next dial.
+ */
+export const REQUEST_MS = 10 * 60_000;
 
 /**
  * The two permissions that answer for one route.
@@ -63,6 +100,26 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
   const declined = new Map();
 
   /**
+   * Take off both lists what has stopped being true (#1738): a heard deck quiet
+   * for longer than presence lasts — the window strangerRows already drew by,
+   * so this forgets only what nobody could see — and a request whose deck has
+   * not asked for REQUEST_MS. Run before each list is written or read, so what
+   * is kept and what is shown agree.
+   *
+   * The heard list is kept in the order decks were last heard (heardStranger
+   * moves a deck to the end each time), so its quiet ones are at the front and
+   * this stops at the first that is not. The requests are few enough to walk.
+   */
+  const forget = () => {
+    const t = now();
+    for (const [fp, p] of strangers) {
+      if (t - (p.at ?? 0) <= PRESENT_MS) break;
+      strangers.delete(fp);
+    }
+    for (const [fp, p] of pending) if (t - (p.lastAt ?? p.at ?? 0) > REQUEST_MS) pending.delete(fp);
+  };
+
+  /**
    * A real deck nobody here has accepted: draw it as a row with an accept on it.
    *
    * ONE HELPER FOR BOTH DIRECTIONS, because the evidence is the same either
@@ -85,7 +142,17 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
   const askToAccept = entry => {
     const cfg = settings();
     if (cfg.pairingMode === "invite" || declined.has(entry.fp)) return;
+    forget();
     const had = pending.get(entry.fp);
+    // A NEW ONE PAST THE CAP MAKES ROOM (#1738) — see MAX_PENDING. The one
+    // asked longest ago goes, not the newcomer: refusing new ones would let
+    // whoever filled the list first keep it, and a real deck asking later
+    // would never be drawn.
+    if (!had && pending.size >= MAX_PENDING) {
+      let oldest = null;
+      for (const [fp, p] of pending) if (!oldest || p.lastAt < oldest[1].lastAt) oldest = [fp, p];
+      if (oldest) pending.delete(oldest[0]);
+    }
     // WHICH SWITCH ANSWERS depends on where the deck is. A request from the
     // tailnet is answered by the Tailscale pair, and only for a machine on this
     // person's own Tailscale account; anything else on the tailnet waits for a
@@ -94,9 +161,11 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     const via = route ? "tailscale" : "lan";
     const own = !!route?.own;
     pending.set(entry.fp, { ...entry, via, own, at: had?.at ?? now(), lastAt: now() });
+    // An accept the switch pressed that did not pin — the switch's own budget
+    // is spent, see MAX_AUTO_PINS in lan-engine.mjs — leaves the request as it
+    // would be with the switch off: a row, drawn, for somebody to answer.
     if (!wasUnpaired(entry.fp) && saysYesOn(cfg, via) && (via === "lan" || own)) {
-      engineNow()?.accept(entry.fp, { byHand: false });
-      return;
+      if (engineNow()?.accept(entry.fp, { byHand: false })) return;
     }
     if (!had) onChange?.();
   };
@@ -105,6 +174,7 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
    *  can accept, and — when the ask switch for its route is on — asked. */
   const heardStranger = entry => {
     const cfg = settings();
+    forget();
     const had = strangers.get(entry.fp);
     // KEYED BY MACHINE WHEN IT SAYS WHICH ONE IT IS. A computer that took
     // a fresh key — a second deck sharing one config directory does, by
@@ -112,7 +182,16 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     // one of them drew a row offering to pair with the same machine.
     if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
     const own = entry.via === "tailscale" && !!routeTo(entry.addr)?.own;
+    // To the END, so the list stays in the order decks were last heard — which
+    // is what lets `forget` stop at the first one still present, and what
+    // makes the first one here the one to drop when the list is full.
+    strangers.delete(entry.fp);
     strangers.set(entry.fp, { ...entry, own });
+    // AND NEVER PAST ITS SIZE (#1738) — see MAX_STRANGERS.
+    for (const fp of strangers.keys()) {
+      if (strangers.size <= MAX_STRANGERS) break;
+      strangers.delete(fp);
+    }
     // ASK IT, which is what the `ask` verb on its row does and nothing
     // more: the address goes on the dial list and the next round sends a
     // request that somebody over there still has to answer. A beacon
@@ -171,6 +250,7 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
 
   /** The heard decks status() offers to pair with — see its `strangers`. */
   const strangerRows = () => {
+    forget();
     // A deck that was told no is not somebody to offer pairing with. It
     // has its own row, with the one control that undoes the decision.
     const heard = [...strangers.values()].filter(p => !declined.has(p.fp));
@@ -193,7 +273,7 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     isDeclined: fp => declined.has(fp),
     /** The row a deck is waiting on: its request when it asked, its beacon
      *  when it was only heard, or null. */
-    seen: fp => (pending.get(fp) ?? null) ?? (strangers.get(fp) ?? null),
+    seen: fp => { forget(); return (pending.get(fp) ?? null) ?? (strangers.get(fp) ?? null); },
     /** It was answered: off both lists. */
     drop(fp) {
       pending.delete(fp);
@@ -242,7 +322,10 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
       return had;
     },
     /** The rows status() draws for each list. */
-    pendingRows: () => [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at, via: p.via ?? "lan", own: !!p.own })),
+    pendingRows: () => {
+      forget();
+      return [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at, via: p.via ?? "lan", own: !!p.own }));
+    },
     strangerRows,
     declinedRows: () => [...declined.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
   };
