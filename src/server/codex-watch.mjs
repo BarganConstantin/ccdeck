@@ -67,11 +67,16 @@ import { pushEvent } from "./event-sink.mjs";
 // broadcasts them exactly like a hook event, and persists them when this deck is
 // the one elected to log this rollout — see writesCodexLog. This path is
 // entirely additive — the Claude hook flow is untouched.
-// path -> { offset, sid, cwd, skip, sawBeginning, rootOpened, seenAt }
+// path -> { offset, sid, cwd, skip, sawBeginning, rootOpened, seenAt, mtimeMs }
 const codexFileState = new Map();
-// How long a rollout's tail cursor is kept after it stops showing up in the
-// listing. The listing covers two day-directories, so anything missing from it
-// is at least a day old and will never be appended to again.
+// How long a rollout's tail cursor is kept once nothing has moved it: not
+// listed, and its mtime not changing. Leaving the listing is NOT the end of a
+// rollout (#1730). `codex resume` appends to the file the session started in,
+// in whatever day folder that was, and a session that runs across two later
+// calendar days is still writing when its folder drops out of the newest two.
+// So a cursor outside the listing is statted every tick and kept while its
+// mtime moves, and one that is swept hands its offset to codexOlderRollouts
+// below, which is how a rollout that falls silent and then resumes is found.
 const CODEX_STATE_TTL_MS = 10 * 60 * 1000;
 // Every rollout path this PROCESS has ever held a cursor for, which the TTL
 // sweep deliberately does not clear — that is the whole of its job.
@@ -100,6 +105,49 @@ function rememberCodexPath(path) {
     codexSeenEver.delete(codexSeenEver.values().next().value);
   }
 }
+// Every rollout outside the newest two day directories that holds no cursor,
+// by path, with the size it had when last looked at — null before the first
+// look. The listing below reads two day directories a tick and must stay that
+// cheap; this is how the rest of the tree is watched without walking it every
+// tick (#1730).
+//
+// The whole tree is walked for it once at boot and again once per
+// CODEX_STATE_TTL_MS, a readdir per day directory, which adds the paths it has
+// not got. Each tick then stats at most CODEX_OLDER_STATS_PER_TICK of them, in
+// turn, and a rollout that has GROWN since its last look is opened joined late
+// from the size it had then: no SessionStart, since the deck did not watch the
+// session begin, and nothing before that size, which the deck had either
+// already drawn or had never been going to. A path whose first look is still
+// to come has no size to grow from, so what is appended before that look is
+// skipped, the trade the boot catalog already makes. A directory's mtime would
+// be cheaper to watch and says nothing here: an append to a file leaves the
+// directory holding it as it was.
+//
+// A cursor the sweep drops outside the listing hands its offset over, so a
+// session that sat idle past the window resumes where the deck stopped reading.
+// A path that cannot be statted leaves; a path the listing shows is the
+// listing's.
+const codexOlderRollouts = new Map();
+let codexOlderTurn = null;
+let codexOlderWalkedAt = null;
+// About three seconds of stats per thousand old rollouts on a slow disk, spread
+// over ticks: a resumed session in a history of N rollouts is found within
+// ceil(N / 128) ticks, which is ~12s for a thousand and ~2 minutes for ten.
+const CODEX_OLDER_STATS_PER_TICK = 128;
+
+/** The next old rollout due a look, round-robin; null when there are none. The
+ *  Map's own iterator is the turn: it survives deletions and ends after the
+ *  newest key, and a fresh one starts the round again. */
+function nextOlderRollout() {
+  for (let pass = 0; pass < 2; pass++) {
+    codexOlderTurn ??= codexOlderRollouts.keys();
+    const next = codexOlderTurn.next();
+    if (!next.done) return next.value;
+    codexOlderTurn = null;
+  }
+  return null;
+}
+
 // The scan in flight, if any, as its promise. A tick that lands while one is
 // still reading joins it rather than starting a second over the same cursors,
 // and scanCodexNow can wait it out.
@@ -109,17 +157,21 @@ let codexWorkspace = "";
 
 // List rollout files from the newest 2 day-directories. New sessions always
 // land in today's dir, so this captures live activity without scanning years
-// of history every tick.
-async function listRecentCodexRollouts() {
+// of history every tick. With `all`, the rest of the tree is listed too, as
+// `older` — the walk codexOlderRollouts is filled from.
+async function listRecentCodexRollouts(all = false) {
   const out = [];
+  const older = [];
   let dayDirs = 0;
   await walkRolloutDays((dir, files) => {
-    for (const f of files) if (f.endsWith(".jsonl")) out.push(join(dir, f));
+    const into = dayDirs < 2 ? out : older;
+    for (const f of files) if (f.endsWith(".jsonl")) into.push(join(dir, f));
     // Two day-directories deep is the whole point of this listing: it runs every
-    // tick, and anything older than that is a session no process will append to.
-    if (++dayDirs >= 2) return STOP;
+    // tick. Anything older is still watched, by codexOlderRollouts, at a
+    // bounded number of stats a tick rather than a readdir of every day.
+    if (++dayDirs >= 2 && !all) return STOP;
   });
-  return out;
+  return { files: out, older };
 }
 
 /** Which of the two ways a rollout can fail to say whose it is has been printed
@@ -359,16 +411,68 @@ function emitCodexLines(state, consume, persist) {
 }
 
 /**
- * Rollout files fall out of the newest-2-days listing and never come back,
- * but their tail cursors used to live as long as the process did. Expire by
- * "not seen for a while" rather than "absent from this listing": a single
- * unreadable directory mid-scan would otherwise drop a live file's cursor,
- * and re-adding it at offset 0 replays that entire rollout as fresh events.
+ * Rollout files fall out of the newest-2-days listing, but their tail cursors
+ * used to live as long as the process did. Expire by "not seen for a while"
+ * rather than "absent from this listing": a single unreadable directory
+ * mid-scan would otherwise drop a live file's cursor, and re-adding it at
+ * offset 0 replays that entire rollout as fresh events. "Seen" is listed, or
+ * its mtime moved (#1730).
+ *
+ * What a swept cursor had read is not forgotten with it: its offset goes to
+ * codexOlderRollouts, so a rollout written to again — a `codex resume` of it,
+ * or a session that sat idle past the window — is read from where this deck
+ * stopped, joined late. The listing takes the entry back if the path is listed.
  */
 function sweepCodexCursors(now) {
   for (const [p, s] of codexFileState) {
-    if (now - (s.seenAt ?? 0) > CODEX_STATE_TTL_MS) codexFileState.delete(p);
+    if (now - (s.seenAt ?? 0) > CODEX_STATE_TTL_MS) {
+      codexFileState.delete(p);
+      codexOlderRollouts.set(p, s.offset);
+    }
   }
+}
+
+/**
+ * Take the old rollouts a whole-tree walk found into codexOlderRollouts, each
+ * without a size until its first look. A path already held keeps the size it
+ * has: that is the one fact about it the walk cannot supply. Nothing is removed
+ * here — a walk that could not read a directory answers as though it were
+ * empty — so a path leaves only when it cannot be statted.
+ */
+function catalogOlderRollouts(older) {
+  for (const p of older) {
+    if (!codexOlderRollouts.has(p) && !codexFileState.has(p)) codexOlderRollouts.set(p, null);
+  }
+}
+
+/**
+ * Look at up to CODEX_OLDER_STATS_PER_TICK old rollouts, and return a cursor
+ * for each that has grown since its last look, opened joined late from the
+ * size it had then. See codexOlderRollouts.
+ */
+async function openGrownOlderRollouts(now) {
+  const opened = [];
+  const due = Math.min(CODEX_OLDER_STATS_PER_TICK, codexOlderRollouts.size);
+  for (let i = 0; i < due; i++) {
+    const path = nextOlderRollout();
+    if (path == null) break;
+    const was = codexOlderRollouts.get(path);
+    let st;
+    try { st = await stat(path); } catch { codexOlderRollouts.delete(path); continue; }
+    if (was == null || st.size <= was) { codexOlderRollouts.set(path, st.size); continue; }
+    const header = await readCodexHeader(path);
+    if (!header || !header.sid) continue; // the size it grew from is kept; next round
+    codexOlderRollouts.delete(path);
+    const skip = !codexCwdInWorkspace(header.cwd, codexWorkspace);
+    // Never `sawBeginning`, whatever this process read of the file before: the
+    // lines before `was` are ones this deck has either drawn already or joined
+    // too late for, and either way a SessionStart now would be a false one.
+    const state = { offset: skip ? st.size : was, sid: header.sid, cwd: header.cwd, skip, sawBeginning: false, rootOpened: false, seenAt: now, mtimeMs: st.mtimeMs };
+    codexFileState.set(path, state);
+    rememberCodexPath(path);
+    opened.push({ path, st, state });
+  }
+  return opened;
 }
 
 function codexScanOnce(firstRun) {
@@ -399,8 +503,20 @@ async function scanRollouts(firstRun) {
     // listing for the answer to a question nothing is asking.
     let decksRead = null;
     const liveDecks = () => (decksRead ??= readLiveDecks());
-    const files = await listRecentCodexRollouts();
+    // The whole tree at boot and once per CODEX_STATE_TTL_MS after, for
+    // codexOlderRollouts; the newest two day directories on every other tick.
+    // `null` rather than 0 for "never", so a clock that starts near the epoch,
+    // or a faked one, cannot make boot look recent.
+    const walkAll = codexOlderWalkedAt == null || Math.abs(now - codexOlderWalkedAt) >= CODEX_STATE_TTL_MS;
+    const { files, older } = await listRecentCodexRollouts(walkAll);
+    if (walkAll) { codexOlderWalkedAt = now; catalogOlderRollouts(older); }
+    const listed = new Set(files);
+    // Every rollout this tick has a reason to read, with its stat and cursor:
+    // the listed ones, then the cursors outside the listing, then the old
+    // rollouts found grown. One pass reads them all below.
+    const due = [];
     for (const path of files) {
+      codexOlderRollouts.delete(path); // listed, so the listing's
       let st;
       try { st = await stat(path); } catch { continue; }
       let state = codexFileState.get(path);
@@ -410,7 +526,23 @@ async function scanRollouts(firstRun) {
         state = await openCodexCursor(path, st, now, firstRun);
         if (!state) continue;
       }
+      state.mtimeMs = st.mtimeMs;
+      due.push({ path, st, state });
+    }
+    // A cursor whose file has left the listing is still read, and kept for as
+    // long as its mtime keeps moving (#1730). One that cannot be statted is left
+    // for the sweep, as a listed file that cannot be is.
+    for (const [path, state] of codexFileState) {
+      if (listed.has(path)) continue;
+      let st;
+      try { st = await stat(path); } catch { continue; }
+      if (st.mtimeMs !== state.mtimeMs) state.seenAt = now;
+      state.mtimeMs = st.mtimeMs;
+      due.push({ path, st, state });
+    }
+    due.push(...await openGrownOlderRollouts(now));
 
+    for (const { path, st, state } of due) {
       if (state.skip) { state.offset = st.size; continue; }
       // A cursor sitting PAST the end of the file is a different thing from
       // "nothing new", and the two used to collapse into one `continue` — where
@@ -480,7 +612,7 @@ export function startCodexWatcher(workspace) {
   // starts — and rollout tailing is the only Codex capture path there is, so
   // bailing out here meant a fresh install had to restart the deck before any
   // Codex agent ever showed up, while the banner claimed to be watching.
-  // listRecentCodexRollouts returns [] while the directory is missing, so the
+  // listRecentCodexRollouts lists nothing while the directory is missing, so the
   // poll below is a cheap no-op that doubles as the existence re-check. A
   // filesystem watch is no help: fs.watch on a missing path throws, and
   // watching the parent recursively is macOS/Windows-only.
