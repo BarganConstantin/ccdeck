@@ -30,10 +30,11 @@
    that one adjustment and redraw in the theme's own system colours:
    CanvasText where a word beside the mark carries the state, Highlight for
    something live or on, GrayText for something resting. Marks whose colour IS
-   the information (a model's or an agent's band, matched to a legend, or a
-   quota fill tinted by how close it is to the limit) keep their own colour
-   instead. Every meter's track gets a hairline, so the empty part of a bar is
-   still a length. No !important: each selector is spelled as the rule it
+   the information (a model's, an agent's or a project's band, matched to a
+   legend or to the row it stands for, a legend's own swatch, or a quota fill
+   tinted by how close it is to the limit) keep their own colour instead.
+   Every meter's track gets a hairline, so the empty part of a bar is still a
+   length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
   .topbar .status .pill.live::before,
@@ -75,12 +76,34 @@
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
+  .ap-live::before,
   .topbar .brand button.v .v-dot,
   .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
   /* An open toolbar button keeps a boundary in the theme's own highlight, so
      open and closed still differ once every fill has been painted Canvas. A
      system colour is honoured as written here, so nothing opts out. */
   .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
+     the theme paints every fill Canvas, so each looked like its neighbours:
+     they fill with the highlight, the way an on switch does, and keep it
+     under the pointer, where their own hover would outrank this. */
+  .uh-range-btn[aria-pressed="true"],
+  .uh-range-btn[aria-pressed="true"]:hover,
+  .react-flow__controls-button[aria-pressed="true"],
+  .react-flow__controls-button[aria-pressed="true"]:hover,
+  .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The usage panel's period strip is the same chip with no fill of its own:
+     it hands the adjustment back, so its word is the theme's text like its
+     neighbours', and the mark under the word takes the highlight. */
+  .up-period .uh-range-btn[aria-pressed="true"],
+  .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
+  .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
+  /* Every session row's edge is repainted in the text colour, the chosen
+     one's accent with them: it takes the highlight, twice as heavy. The edge
+     is a term in the row's side padding, so the words stay put, and what it
+     grows by above and below comes out of the row's 10px, so the row keeps
+     its height. */
+  .session-list .sl-row.selected { --sl-card-edge: 2px; padding-block: calc(10px - (var(--sl-card-edge) - 1px)); border-color: Highlight; }
   /* The order's caret takes the select's own system colour rather than the
      --muted it rests in, which a contrast theme does not repaint (#1579). */
   .ap-rest-sort svg { color: ButtonText; }
@@ -99,7 +122,12 @@
   .uh-agent-seg,
   .uh-model-bar-fill,
   .uh-legend-dot,
-  .cost-bar .cb-seg { forced-color-adjust: none; }
+  .cost-bar .cb-seg,
+  .session-summary .ssl::before,
+  .ap-proj-seg,
+  .ap-proj-fill,
+  .ap-proj-colseg,
+  .ap-proj-dot { forced-color-adjust: none; }
   .qb-track,
   .ap-lane-track,
   .sd-track,
@@ -108,7 +136,16 @@
   .uh-model-bar,
   .uh-agent-bar,
   .cost-bar,
-  .ap-report-meter { outline: 1px solid CanvasText; outline-offset: -1px; }
+  .ap-report-meter,
+  .ap-proj-bar,
+  .ap-proj-track { outline: 1px solid CanvasText; outline-offset: -1px; }
+  /* A day of the Projects report's chart is a button with no edge, and a quiet
+     day's column is a pixel tall: each gets the edge a button has, so the
+     targets can be found. The chosen day's accent ring is a shadow, which the
+     theme drops, so it comes back as an outline in the highlight: an outline
+     because account-projects.css, later in the sheet, owns that shadow. */
+  .ap-proj-day { outline: 1px solid ButtonBorder; outline-offset: -1px; }
+  .ap-proj-day.selected .ap-proj-col { outline: 2px solid Highlight; }
   /* The notch in a thermal track is the panel's ground showing through, and a
      Contrast theme repaints that ground: it takes Canvas so the gap stays a
      gap, against a fill that is now Highlight and a track that is outlined. */

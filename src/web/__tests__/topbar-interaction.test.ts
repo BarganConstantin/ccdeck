@@ -81,6 +81,9 @@ function collect(src: string, reduced: boolean, out: Rule[]): Rule[] {
     const [inner, end] = block(src, open);
     if (prelude.startsWith("@keyframes")) {
       // not a rule
+    } else if (/forced-colors\s*:\s*active/.test(prelude)) {
+      // A Contrast theme's redraw, which forced-colors-871.test.ts holds: not
+      // the deck's own look, which is what every reading here is of.
     } else if (prelude.startsWith("@")) {
       collect(inner, reduced || /prefers-reduced-motion\s*:\s*reduce/.test(prelude), out);
     } else if (prelude) {
