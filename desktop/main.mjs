@@ -26,7 +26,7 @@ import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
-import { canRestartForTray, MISSES_BEFORE_RESTART, selfRestartHeld, trayCheck, trayMissesNext, trayRestartOutcome, watcherOnBusNow } from "./tray-presence.mjs";
+import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -149,8 +149,11 @@ function scheduleRedraw() {
 let trayMisses = 0;
 let trayRestartAt = null;         // the last restart for the icon's sake, from desktop-state.json
 let trayRestartOutcomeSaid;       // what it came to: tray-presence.mjs trayRestartOutcome, or "pending"
+let trayOutcomeToRead = false;    // this process is the one that restart started
 let trayWatcherSeen = false;      // the watcher has been on the bus in this run
+let trayWatcherLast = null;       // and whether it was at the last check
 let trayStartedWithWatcher = null;
+let leaving = false;              // a restart the app made by itself is under way
 function watchTray() {
   if (process.platform !== "linux") return;
   const state = desktopState.read();
@@ -159,25 +162,33 @@ function watchTray() {
   // not read yet.
   trayRestartOutcomeSaid = state.trayRestartOutcome
     ?? (state.trayBackAfterRestart === true ? "back" : state.trayBackAfterRestart === false ? "pending" : undefined);
+  trayOutcomeToRead = trayRestartOutcomeSaid === "pending";
   // Asked as the tray is made: whether this process had a watcher to register
   // with, which tells a restart that failed from one the lock screen explains.
   trayCheck().then(({ watcher }) => {
     trayStartedWithWatcher = watcher;
+    trayWatcherLast = watcher;
     if (watcher) trayWatcherSeen = true;
   });
   setInterval(async () => {
+    if (leaving || quitting) return;
     const { watcher, registered } = await trayCheck();
     if (watcher) trayWatcherSeen = true;
+    // Back after a locked screen: the quiet is measured from here, so the app
+    // does not restart in the first seconds of somebody sitting down again.
+    if (watcher === true && trayWatcherLast === false) quietSince = null;
+    trayWatcherLast = watcher;
     const before = trayMisses;
     trayMisses = trayMissesNext(trayMisses, registered);
     if (before < MISSES_BEFORE_RESTART && trayMisses >= MISSES_BEFORE_RESTART) {
       trace("the panel holds no tray icon of this app's; restarting at the next quiet spell");
     }
-    const outcome = trayRestartOutcomeSaid === "pending" ? trayRestartOutcome({ startedWithWatcher: trayStartedWithWatcher, registered }) : null;
+    const outcome = trayOutcomeNext({ said: trayRestartOutcomeSaid, toRead: trayOutcomeToRead, startedWithWatcher: trayStartedWithWatcher, registered });
     if (outcome) {
       try {
         desktopState.merge({ trayRestartOutcome: outcome, trayBackAfterRestart: undefined });
         trayRestartOutcomeSaid = outcome;
+        trayOutcomeToRead = false;
         trace(`the restart for the tray icon came to: ${outcome}`);
       } catch { /* read again at the next check */ }
     }
@@ -185,13 +196,16 @@ function watchTray() {
 }
 
 /**
- * Linux: has the panel that shows tray icons gone from the bus since this app
- * saw it? GNOME takes it away while the screen is locked, and a version
- * started then never shows its icon — so no restart the app makes by itself
- * goes ahead until it is back. Asked of the bus at the moment of restarting.
+ * Linux: has the panel that shows tray icons gone from the bus, under a locked
+ * screen, since this app saw it? GNOME takes it away while the screen is
+ * locked, and a version started then never shows its icon — so no restart the
+ * app makes by itself goes ahead until it is back. Asked of the bus at the
+ * moment of restarting; the lock only when the watcher is gone.
  */
 function panelAway() {
-  return process.platform === "linux" && selfRestartHeld({ watcherSeen: trayWatcherSeen, watcherNow: watcherOnBusNow() });
+  if (process.platform !== "linux" || !trayWatcherSeen) return false;
+  const watcherNow = watcherOnBusNow();
+  return selfRestartHeld({ watcherSeen: trayWatcherSeen, watcherNow, locked: watcherNow === false ? screenLockedNow() : null });
 }
 
 // ── the deck ────────────────────────────────────────────────────────────────
@@ -835,6 +849,7 @@ function restartForTrayWhenQuiet(where) {
   }
   trace("restarting by itself after a quiet spell, to put the tray icon back");
   quietSince = null;
+  leaving = true;
   restartApp(app);
 }
 

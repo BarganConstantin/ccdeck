@@ -23,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 // @ts-expect-error — plain .mjs, no types
-import { itemBusName, trayRegistered, trayCheck, watcherOnBusNow, selfRestartHeld, trayRestartOutcome, trayMissesNext, canRestartForTray, MISSES_BEFORE_RESTART, TRAY_RESTART_GAP_MS } from "../../../desktop/tray-presence.mjs";
+import { itemBusName, trayRegistered, trayCheck, watcherOnBusNow, screenLockedNow, selfRestartHeld, trayRestartOutcome, trayOutcomeNext, trayMissesNext, canRestartForTray, MISSES_BEFORE_RESTART, TRAY_RESTART_GAP_MS } from "../../../desktop/tray-presence.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { QUIET_MS } from "../../../desktop/auto-update.mjs";
 // @ts-expect-error — plain .mjs, no types
@@ -127,16 +127,32 @@ describe("asking the session bus", () => {
 });
 
 describe("a restart the app makes by itself, under a locked screen", () => {
-  it("waits while a watcher it has seen is gone", () => {
-    expect(selfRestartHeld({ watcherSeen: true, watcherNow: false })).toBe(true);
-    expect(selfRestartHeld({ watcherSeen: true, watcherNow: true })).toBe(false);
+  it("waits while a watcher it has seen is gone under a locked screen", () => {
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: false, locked: true })).toBe(true);
+    // A lock logind cannot report is taken as one.
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: false, locked: null })).toBe(true);
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: true, locked: true })).toBe(false);
+  });
+
+  it("does not wait for a panel that went with the screen unlocked, so updates are not held all session", () => {
+    // The extension switched off, or the bar stopped.
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: false, locked: false })).toBe(false);
   });
 
   it("does not wait when busctl cannot say, or on a desktop that never had a watcher", () => {
     // GNOME without the AppIndicator extension: there is no icon to lose, and
     // its updates must not wait for a panel that never comes.
-    expect(selfRestartHeld({ watcherSeen: true, watcherNow: null })).toBe(false);
-    expect(selfRestartHeld({ watcherSeen: false, watcherNow: false })).toBe(false);
+    expect(selfRestartHeld({ watcherSeen: true, watcherNow: null, locked: true })).toBe(false);
+    expect(selfRestartHeld({ watcherSeen: false, watcherNow: false, locked: true })).toBe(false);
+  });
+
+  it("asks logind whether this session's screen is locked", () => {
+    const asked: string[][] = [];
+    const locked = screenLockedNow({ runSync: (args: string[]) => { asked.push(args); return JSON.stringify({ type: "b", data: true }); } });
+    expect(locked).toBe(true);
+    expect(asked).toEqual([["--json=short", "get-property", "org.freedesktop.login1", "/org/freedesktop/login1/session/auto", "org.freedesktop.login1.Session", "LockedHint"]]);
+    expect(screenLockedNow({ runSync: () => JSON.stringify({ type: "b", data: false }) })).toBe(false);
+    expect(screenLockedNow({ runSync: () => { throw new Error("no session"); } })).toBeNull();
   });
 });
 
@@ -180,15 +196,31 @@ describe("when the app restarts for its icon", () => {
     expect(trayRestartOutcome({ startedWithWatcher: false, registered: true })).toBe("back");
     // No icon with a watcher there to take it: the restart did not help.
     expect(trayRestartOutcome({ startedWithWatcher: true, registered: false })).toBe("failed");
-    expect(trayRestartOutcome({ startedWithWatcher: null, registered: false })).toBe("failed");
     // No icon, but the process started under a locked screen: that explains it.
     expect(trayRestartOutcome({ startedWithWatcher: false, registered: false })).toBe("explained");
+    // No icon, and the check at startup could not say: not held against it.
+    expect(trayRestartOutcome({ startedWithWatcher: null, registered: false })).toBe("unclear");
     expect(trayRestartOutcome({ startedWithWatcher: true, registered: null })).toBeNull();
+  });
+
+  it("is read only by the process the restart started, never by the one still shutting down", () => {
+    // The restarting process checks while its deck stops, sees its own lost
+    // icon, and must not write that down as the restart having failed.
+    expect(trayOutcomeNext({ said: "pending", toRead: false, startedWithWatcher: true, registered: false })).toBeNull();
+    expect(trayOutcomeNext({ said: "pending", toRead: true, startedWithWatcher: true, registered: false })).toBe("failed");
+    expect(trayOutcomeNext({ said: "pending", toRead: true, startedWithWatcher: true, registered: true })).toBe("back");
+    expect(trayOutcomeNext({ said: "pending", toRead: true, startedWithWatcher: true, registered: null })).toBeNull();
+  });
+
+  it("lifts a failed one once the icon is seen, after a restart the person made", () => {
+    expect(trayOutcomeNext({ said: "failed", toRead: false, startedWithWatcher: true, registered: true })).toBe("back");
+    expect(trayOutcomeNext({ said: "failed", toRead: false, startedWithWatcher: true, registered: false })).toBeNull();
+    expect(trayOutcomeNext({ said: "back", toRead: false, startedWithWatcher: true, registered: true })).toBeNull();
   });
 
   it("restarts at most once in six hours after one that brought the icon back", () => {
     expect(TRAY_RESTART_GAP_MS).toBe(6 * 60 * 60_000);
-    for (const lastOutcome of ["back", undefined]) {
+    for (const lastOutcome of ["back", "unclear", undefined]) {
       const after = { ...ripe, lastOutcome };
       expect(canRestartForTray({ ...after, lastRestartAt: NOW - TRAY_RESTART_GAP_MS + 1 }), String(lastOutcome)).toBe(false);
       expect(canRestartForTray({ ...after, lastRestartAt: NOW - TRAY_RESTART_GAP_MS }), String(lastOutcome)).toBe(true);
@@ -243,6 +275,12 @@ describe("the app", () => {
     // Whether a watcher has been seen, at startup and at every check.
     expect(body.match(/if \(watcher\) trayWatcherSeen = true;/g)).toHaveLength(2);
     expect(body).toContain("trayStartedWithWatcher = watcher;");
+    // Nothing is checked once a restart or a Quit is under way.
+    expect(body).toContain("if (leaving || quitting) return;");
+    // Back from a locked screen, the quiet is measured from there.
+    expect(body).toContain("if (watcher === true && trayWatcherLast === false) quietSince = null;");
+    // Including a watcher that was missing when the app started.
+    expect(body).toMatch(/trayStartedWithWatcher = watcher;\n\s+trayWatcherLast = watcher;/);
     expect(main).toMatch(/tray\.on\("click", \(\) => openWindow\(\)\);\n\s+watchTray\(\);/);
   });
 
@@ -254,14 +292,17 @@ describe("the app", () => {
 
   it("writes down what a restart came to, read against how this process started", () => {
     const body = fn("watchTray");
-    expect(body).toContain('const outcome = trayRestartOutcomeSaid === "pending" ? trayRestartOutcome({ startedWithWatcher: trayStartedWithWatcher, registered }) : null;');
+    expect(body).toContain('trayOutcomeToRead = trayRestartOutcomeSaid === "pending";');
+    expect(body).toContain("const outcome = trayOutcomeNext({ said: trayRestartOutcomeSaid, toRead: trayOutcomeToRead, startedWithWatcher: trayStartedWithWatcher, registered });");
     expect(body).toContain("desktopState.merge({ trayRestartOutcome: outcome, trayBackAfterRestart: undefined });");
     // 3.32.1 wrote a boolean: true was an icon back, false a restart not read yet.
     expect(body).toContain('?? (state.trayBackAfterRestart === true ? "back" : state.trayBackAfterRestart === false ? "pending" : undefined);');
   });
 
   it("holds every restart it makes by itself while the panel it has seen is away, asking the bus at that moment", () => {
-    expect(fn("panelAway")).toContain('return process.platform === "linux" && selfRestartHeld({ watcherSeen: trayWatcherSeen, watcherNow: watcherOnBusNow() });');
+    const away = fn("panelAway");
+    expect(away).toContain('if (process.platform !== "linux" || !trayWatcherSeen) return false;');
+    expect(away).toContain("selfRestartHeld({ watcherSeen: trayWatcherSeen, watcherNow, locked: watcherNow === false ? screenLockedNow() : null })");
     // The quiet self-update: after it is found installable, before anything is
     // written or restarted — and the quiet starts again after the unlock.
     const quiet = fn("updateWhenQuiet");
@@ -299,6 +340,7 @@ describe("the app", () => {
     expect(written).toBeGreaterThan(-1);
     expect(body.indexOf("return;", written)).toBeLessThan(body.indexOf("restartApp(app);"));
     expect(body.indexOf("restartApp(app);")).toBeGreaterThan(written);
+    expect(body).toMatch(/leaving = true;\n\s+restartApp\(app\);/);
   });
 
   it("packs the module into the app", () => {

@@ -115,14 +115,32 @@ export function watcherOnBusNow({ runSync = args => execFileSync("busctl", args,
 }
 
 /**
- * Hold a restart the app would make by itself? Yes while a watcher it has
- * seen in this run is gone from the bus — a locked GNOME screen — because
- * the version it starts would find none and never show its icon. A desktop
- * where no watcher has been seen at all has no icon to lose, and holds
- * nothing: its updates are not kept waiting for a panel that never comes.
+ * Is this session's screen locked? logind's LockedHint, which GNOME and KDE
+ * both set, asked of the session busctl runs under — `auto` is the user's
+ * graphical session even from the app's own systemd scope.
+ * @returns {boolean|null} null when logind cannot say
  */
-export function selfRestartHeld({ watcherSeen, watcherNow }) {
-  return watcherSeen === true && watcherNow === false;
+export function screenLockedNow({ runSync = args => execFileSync("busctl", args, { timeout: 2000, windowsHide: true, encoding: "utf8" }) } = {}) {
+  try {
+    const data = JSON.parse(runSync(["--json=short", "get-property", "org.freedesktop.login1", "/org/freedesktop/login1/session/auto", "org.freedesktop.login1.Session", "LockedHint"]))?.data;
+    return typeof data === "boolean" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Hold a restart the app would make by itself? Yes while a watcher it has
+ * seen in this run is gone from the bus under a locked screen, because the
+ * version it starts would find none and never show its icon. A screen known
+ * to be unlocked means the panel went for another reason — the extension
+ * switched off, the bar stopped — and holding would keep updates waiting for
+ * the rest of the session, so nothing is held; a lock logind cannot report
+ * is taken as one. A desktop where no watcher has been seen at all has no
+ * icon to lose, and holds nothing either.
+ */
+export function selfRestartHeld({ watcherSeen, watcherNow, locked }) {
+  return watcherSeen === true && watcherNow === false && locked !== false;
 }
 
 /** Checks in a row that must find no icon before it counts as lost: an icon
@@ -141,12 +159,28 @@ export function trayMissesNext(misses, present) {
  * What a restart for the icon's sake came to, as the process it started
  * reads it at its first check that can tell: the icon is `back`; or it is
  * not, and that is `explained` when this process started with no watcher on
- * the bus (see above) and `failed` when there was one to register with.
- * @returns {"back"|"explained"|"failed"|null} null when it cannot tell yet
+ * the bus (see above), `failed` when there was one to register with, and
+ * `unclear` when the check at startup could not say.
+ * @returns {"back"|"explained"|"failed"|"unclear"|null} null when it cannot
+ *   tell yet
  */
 export function trayRestartOutcome({ startedWithWatcher, registered }) {
   if (registered === true) return "back";
-  if (registered === false) return startedWithWatcher === false ? "explained" : "failed";
+  if (registered !== false) return null;
+  if (startedWithWatcher === false) return "explained";
+  return startedWithWatcher === true ? "failed" : "unclear";
+}
+
+/**
+ * The outcome to write down after one check, or null for none. Only the
+ * process a restart STARTED reads it (`toRead`: "pending" when it came up):
+ * the one that restarted is still checking while its deck shuts down, and
+ * its own lost icon would read as the restart having failed. And a `failed`
+ * is lifted by an icon seen later — after a restart the person made.
+ */
+export function trayOutcomeNext({ said, toRead, startedWithWatcher, registered }) {
+  if (toRead) return trayRestartOutcome({ startedWithWatcher, registered });
+  if (said === "failed" && registered === true) return "back";
   return null;
 }
 
@@ -161,7 +195,8 @@ export function trayRestartOutcome({ startedWithWatcher, registered }) {
  *     restart the person made lifts it;
  *   - `pending` — not read yet: not now;
  *   - `explained` — that process started with no watcher: again, now;
- *   - `back`, or a restart from before these were written: six hours after.
+ *   - `back`, `unclear`, or a restart from before these were written: six
+ *     hours after.
  */
 export function canRestartForTray({ misses, lastRestartAt, lastOutcome, updateStatus, windowFocused, busy, quietSince, now }) {
   if (misses < MISSES_BEFORE_RESTART) return false;
