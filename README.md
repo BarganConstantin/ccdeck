@@ -401,7 +401,7 @@ Being told to restart after an upgrade is local only — no network involved —
 npx ccdeck --uninstall
 ```
 
-Removes every hook entry ccdeck injected from `~/.claude/settings.json`, and `~/.codex/hooks.json` if present — and the login item, if this machine had one. That one exception to the narrowness below is deliberate: a login item left behind would keep starting a deck whose hooks had just been removed.
+Removes every hook entry ccdeck injected from `~/.claude/settings.json`, and `~/.codex/hooks.json` if present — and the login item, if this machine had one — and then stops every deck still running, with a line for each. Those two exceptions to the narrowness below are deliberate: a login item left behind would keep starting a deck whose hooks had just been removed, and a deck left running would put them back itself on its next update. A deck that cannot be stopped makes the command exit 1.
 
 It removes the hook entries and nothing else. The forwarder script
 (`~/.claude/agent-dag/hook.js`), the discovery directory around it, the events
