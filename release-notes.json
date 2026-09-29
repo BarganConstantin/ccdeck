@@ -59,6 +59,12 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.32.0": [
+    {
+      "title": "🗺️ A map of your network",
+      "body": "A new button on the Local network row, and in its view's header, opens a map of every deck around this one. This deck is at the centre and the paired decks that are on stand around it. Further out are the quiet ones, the machines nearby and any deck asking to pair. Wires are solid on your local network and dashed over Tailscale. Pointing at a deck says how it is reached, what it runs and which logins the two share, and pressing it opens that deck's own dialog."
+    }
+  ],
   "3.31.0": [
     {
       "title": "📊 Account capacity",
