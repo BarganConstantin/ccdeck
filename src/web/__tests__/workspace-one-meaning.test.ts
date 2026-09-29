@@ -33,6 +33,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cliSurface } from "./cli-surface";
+import { endStdin } from "./child-stdin";
 
 // Everything the modules below read at import time is pointed inside a temp
 // tree, so nothing here can reach — or be answered by — the developer's own
@@ -584,7 +585,7 @@ async function runHook(decks: Array<Record<string, unknown>>, event: Record<stri
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
     stdio: ["pipe", "ignore", "ignore"],
   });
-  child.stdin.end(JSON.stringify(event));
+  endStdin(child, JSON.stringify(event));
   await new Promise<void>((done, fail) => {
     child.on("error", fail);
     child.on("exit", () => done());

@@ -74,6 +74,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
+import { endStdin } from "./child-stdin";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HERE, "..", "..", "..", "hook", "hook.js");
@@ -205,9 +206,8 @@ async function fireHook(home: string, preload: string, payload: Record<string, u
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", c => { stderr += c; });
   // A hook that ends with a body still going out leaves this end of the pipe
-  // with nobody reading it.
-  child.stdin.on("error", () => {});
-  child.stdin.end(JSON.stringify(payload));
+  // with nobody reading it: see child-stdin.ts.
+  endStdin(child, JSON.stringify(payload));
   return new Promise<Run>((done, fail) => {
     child.on("error", fail);
     child.on("exit", (code, signal) => {

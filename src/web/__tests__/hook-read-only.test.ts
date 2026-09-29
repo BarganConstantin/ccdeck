@@ -33,6 +33,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
+import { endStdin } from "./child-stdin";
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "hook", "hook.js");
 const SRC = readFileSync(HOOK, "utf8");
@@ -151,7 +152,7 @@ async function runHook(
   child.stdout.on("data", c => { stdout += c; });
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", c => { stderr += c; });
-  child.stdin.end(input);
+  endStdin(child, input);
   const code = await new Promise<number | null>((done, fail) => {
     child.on("error", fail);
     child.on("exit", c => done(c));
@@ -423,7 +424,7 @@ describe("a registry holding something that is not a deck record", () => {
       let stderr = "";
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", c => { stderr += c; });
-      child.stdin.end(JSON.stringify({
+      endStdin(child, JSON.stringify({
         hook_event_name: "PreToolUse", session_id: "s1", cwd: dir,
         tool_name: "Bash", tool_use_id: "t1",
       }));

@@ -15,6 +15,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { endStdin } from "./child-stdin";
 
 // Two separate temp directories: the home the process thinks it has, and the
 // config dir the override points at. Keeping them apart is what lets the tests
@@ -134,7 +135,7 @@ describe("hook.js discovery under CLAUDE_CONFIG_DIR", () => {
         env: { ...process.env, CLAUDE_CONFIG_DIR: FAKE_CONFIG, HOME: FAKE_HOME, USERPROFILE: FAKE_HOME },
         stdio: ["pipe", "ignore", "ignore"],
       });
-      child.stdin.end(JSON.stringify({ cwd: process.cwd(), hook_event_name: "SessionStart" }));
+      endStdin(child, JSON.stringify({ cwd: process.cwd(), hook_event_name: "SessionStart" }));
       await new Promise<void>((done, fail) => {
         child.on("error", fail);
         child.on("exit", () => done());
