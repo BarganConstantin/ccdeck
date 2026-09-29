@@ -564,8 +564,7 @@ async function offerReadyUpdate() {
 }
 
 async function firstRun() {
-  const state = desktopState.read();
-  if (state.askedLogin) return;
+  if (desktopState.read().askedLogin) return;
   const { checkboxChecked } = await ask({
     type: "question",
     message: "ccdeck lives in the menu bar",
@@ -575,7 +574,11 @@ async function firstRun() {
     buttons: ["OK"],
   });
   app.setLoginItemSettings({ openAtLogin: checkboxChecked });
-  desktopState.write({ ...state, askedLogin: true });
+  // Merged into the file as it is NOW (#1695). The question stays up for as
+  // long as nobody answers it, and the update notice can be dismissed in the
+  // meantime — writing back the copy read before asking put that version's
+  // notice in front of the person again at the next launch.
+  desktopState.merge({ askedLogin: true });
 }
 
 /**

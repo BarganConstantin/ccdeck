@@ -45,6 +45,17 @@ describe("the desktop app's memory", () => {
     }, null, 2));
   });
 
+  it("keeps a notice dismissed while the first-run question was open (#1695)", () => {
+    const state = createDesktopState(() => file);
+    // First launch: nothing remembered yet, and the question goes up.
+    expect(state.read().askedLogin).toBeUndefined();
+    // Still open when an update is ready and its notice is answered Later.
+    state.merge({ readyUpdateNoticeVersion: "3.30.0" });
+    // Then the question is answered.
+    state.merge({ askedLogin: true });
+    expect(state.read()).toEqual({ readyUpdateNoticeVersion: "3.30.0", askedLogin: true });
+  });
+
   it("asks for the path on every use, never before the app is ready", () => {
     let asked = 0;
     const state = createDesktopState(() => { asked++; return file; });
@@ -72,7 +83,20 @@ describe("the app's wiring", () => {
     // The three writers.
     expect(main).toContain("desktopState.merge({ readyUpdateNoticeVersion: version });");
     expect(main).toContain("desktopState.merge({ askedReplaceService: true });");
-    expect(main).toMatch(/desktopState\.(?:write|merge)\(\{[^}]*askedLogin: true/);
+    expect(main).toContain("desktopState.merge({ askedLogin: true });");
+  });
+
+  it("records the first-run answer without writing back a copy read before the question (#1695)", () => {
+    // The question stays up until it is answered, and while it does the
+    // update notice can be dismissed — which writes readyUpdateNoticeVersion.
+    // Spreading the state read before asking put that version's notice back
+    // in front of the person at the next launch.
+    const from = main.indexOf("async function firstRun() {");
+    expect(from, "firstRun is gone or renamed").toBeGreaterThan(-1);
+    const body = main.slice(from, main.indexOf("\n}\n", from));
+    expect(body).toContain("desktopState.merge({ askedLogin: true });");
+    expect(body).not.toMatch(/desktopState\.write\(/);
+    expect(body).not.toMatch(/\.\.\.state\b/);
   });
 
   it("ships inside the app", () => {
