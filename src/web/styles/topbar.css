@@ -261,20 +261,28 @@
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
   .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 8px; }
 }
+/* Two providers in an incident at once (#1311). The readout gives from the
+   left, so two chips in full — Claude's and Codex's, about 280px — cost the
+   wordmark on a 1440px screen with a session waiting, and the stream pill
+   next. With two, each chip says its state in one word ("outage", "degraded",
+   "maint.") and the rest in its title; one chip, the usual case, keeps its
+   words at every width above the narrow breakpoint. Past 1680px there is room
+   for both in full. */
+@media (max-width: 1679px) {
+  .topbar .readout:has(.provider-incident + .provider-incident) :is(.pi-words, .pi-asof) { display: none; }
+  .topbar .readout:has(.provider-incident + .provider-incident) .pi-short { display: inline; }
+}
+/* At a phone's width the incident chips leave the bar altogether (#1311):
+   the blocked count and the stream pill are what 320px can hold, and the
+   incident is still said in the usage panel, over the quota it explains, and
+   aloud. `.readout` in the selector outweighs the chip's own `display`, which
+   comes later in the cascade. */
+@media (max-width: 480px) {
+  .topbar .readout .provider-incident { display: none; }
+}
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
    controls still do not shrink; the bar spends less on padding and gaps so all
    of them fit down to a 320px screen. */
-/* Two providers in an incident at once, on a bar that is showing its words
-   (#1311). The readout gives from the left, so two full chips — Claude's and
-   Codex's, about 280px — would cost the wordmark on a 1440px screen with a
-   session waiting, and the stream pill next. With two, each chip keeps its dot
-   and its name and says the rest in its title and its accessible name; one
-   chip, the usual case, keeps its words at every width above the narrow
-   breakpoint. Past 1680px there is room for both in full. */
-@media (min-width: 1440px) and (max-width: 1679px) {
-  .topbar .readout:has(.provider-incident + .provider-incident) .pi-words,
-  .topbar .readout:has(.provider-incident + .provider-incident) .pi-asof { display: none; }
-}
 @media (max-width: 640px) {
   .topbar { gap: 12px; padding: 0 10px; }
   .topbar .actions { gap: 8px; }
@@ -300,11 +308,12 @@
   .topbar .brand button.v:not(.stale):not(.ready),
   .topbar .waiting-stat .ws-word { display: none; }
   .topbar .waiting-stat { padding: 3px 8px; }
-  /* A provider's incident chip (#1311) goes the same way: its dot and the
-     provider's name stay, the state's words go, and its accessible name
-     keeps the whole of it. */
-  .topbar .provider-incident .pi-words,
-  .topbar .provider-incident .pi-asof { display: none; }
-  .topbar .provider-incident { padding: 3px 8px; }
+  /* A provider's incident chip (#1311) keeps its dot, its name and its state
+     in one word — a mark with no word beside it read as the provider being
+     offline. The title keeps the whole of it. `.readout` in the selectors
+     because the chip's own rules come later in the cascade, in
+     topbar-controls.css, and at equal weight they would win. */
+  .topbar .readout .provider-incident :is(.pi-words, .pi-asof) { display: none; }
+  .topbar .readout .provider-incident .pi-short { display: inline; }
 }
 

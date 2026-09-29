@@ -499,7 +499,7 @@ function Inner() {
   useTabAmbient({ stateRef, waitingSessions, live });
   // Said aloud for a screen reader: that a session is waiting on you, and that
   // Browser Watch has something unread — in use-live-announcements.ts.
-  const announcements = useLiveAnnouncements({ waitingSessions, watchUnseen });
+  const announcements = useLiveAnnouncements({ waitingSessions, watchUnseen, incidents });
 
   // OS notifications for a session that is waiting on you: the permission, the
   // switch, asking for it, and what has already been raised — in

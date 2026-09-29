@@ -58,6 +58,7 @@ let snapshot = { icon: "offline", waiting: 0, running: 0, title: "ccdeck", block
 let notifyOn = null;          // the deck's own switch, read from /api/prefs
 let providerStatus = null;    // the deck's last /api/provider-status answer (#1311)
 let incidentsOf = null;       // the page's reading of it, from dist/lib/provider-status.mjs
+let safeStatusPage = null;    // and the page's rule for which links are status pages
 let redraw = null;
 let ownDeck = null;           // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
@@ -103,8 +104,10 @@ const TRAY_ACTIONS = {
   checkForUpdates: () => updater?.check(),
   restartDeck: () => restartDeck(),
   // incidentsOf has already held the link to https on one of the two status
-  // hosts, so this opens a status page and nothing else.
-  openStatusPage: href => shell.openExternal(href),
+  // hosts, and it is asked again here, at the one call that hands a URL to the
+  // operating system: two checks in two files cost nothing, and this one is
+  // beside the call it guards.
+  openStatusPage: href => { if (safeStatusPage?.(href)) shell.openExternal(href); },
   quit: () => app.quit(),
 };
 
@@ -133,7 +136,7 @@ async function loadModel() {
   const { createTrayModel } = await import(pathToFileURL(join(here, "dist", "lib", "tray-model.mjs")).href);
   model = createTrayModel();
   ({ CHIME_FILES: chimeFiles } = await import(pathToFileURL(join(here, "dist", "lib", "chime-wav.mjs")).href));
-  ({ incidentsOf } = await import(pathToFileURL(join(here, "dist", "lib", "provider-status.mjs")).href));
+  ({ incidentsOf, safeStatusPage } = await import(pathToFileURL(join(here, "dist", "lib", "provider-status.mjs")).href));
 }
 
 async function refreshPrefs() {
@@ -149,10 +152,13 @@ async function refreshPrefs() {
  *  most once every three minutes whoever asks. Twelve seconds: the deck may
  *  have to read a page first, and a page read has eight of its own. */
 async function refreshProviderStatus() {
-  if (!deck) return;
+  const asked = deck;
+  if (!asked) return;
   try {
-    const { json } = await deckJson(deck, "/api/provider-status", { timeoutMs: 12_000 });
-    if (json?.ok) providerStatus = json;
+    const { json } = await deckJson(asked, "/api/provider-status", { timeoutMs: 12_000 });
+    // Only for the deck it was asked of: a restart can land while this is out,
+    // and attach() has cleared the old deck's answer for a reason.
+    if (json?.ok && asked === deck) providerStatus = json;
   } catch { /* the last answer stays, and incidentsOf expires it by its own clock */ }
   scheduleRedraw();
 }

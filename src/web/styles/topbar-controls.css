@@ -226,46 +226,55 @@
 .topbar .waiting-stat:focus-visible { outline-offset: -3px; }
 
 /* A provider's own incident (#1311), while its status page reports one. NOT
-   the waiting chip's colour: --warn is reserved for "blocked on you", and an
-   outage upstream is nothing the user can answer. So the chip is a neutral
-   control — the resting --ctl-edge, the neutral hover every control in this bar
-   has, --muted words because a chip is glanced at rather than read — and the
-   state is carried by a mark and a word: the dot below, and the state said
-   after the provider's name. An outage, partial or major, earns the
-   --err edge .btn.danger uses; degraded performance and maintenance do not. */
+   the waiting chip's colour and NOT its shape: --warn and the pill are the
+   alarm's, and an outage upstream is nothing the user can answer, so this is a
+   neutral control with a --r-tag corner — the resting --ctl-edge, the neutral
+   hover every control in this bar has — and a ↗, because the press leaves the
+   deck for the provider's page. The state is carried by a mark and a word: the
+   dot below, and the state said after the provider's name, both at full
+   contrast, since the state is what the chip is for. An outage, partial or
+   major, earns the --err edge .btn.danger uses; degraded performance and
+   maintenance do not. */
 .topbar .provider-incident {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 24px;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 3px 8px;
+  border-radius: var(--r-tag);
   border: 1px solid var(--ctl-edge);
-  color: var(--muted);
+  color: var(--text);
   font-size: 11px;
   text-decoration: none;
   white-space: nowrap;
-  transition: border-color 120ms, background 120ms, color 120ms,
+  transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .topbar .provider-incident[data-state$="outage"] { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
-.topbar .provider-incident:hover { border-color: var(--text); color: var(--text); background: var(--ctl-fill); }
+.topbar .provider-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
 .topbar .provider-incident:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .provider-incident:active { transform: none; }
 }
-.topbar .provider-incident .pi-name { font-weight: 600; color: var(--text); }
-/* The last thing a page said before it stopped answering, dated in the words
-   ("as of 14:05") and drawn dashed, so it reads as held rather than live before
-   the words are read. No opacity: this is text, and --dim-stale never goes over
-   text. */
+/* Inside its own edge, for the reason the waiting chip's is (#1706). */
+.topbar .provider-incident:focus-visible { outline-offset: -3px; }
+.topbar .provider-incident .pi-name { font-weight: 600; }
+.topbar .provider-incident .pi-go { color: var(--text-dim); }
+/* One word, for a bar with no room for the state in full — see topbar.css,
+   which says when. Hidden with display, so it leaves the link's name with it. */
+.topbar .provider-incident .pi-short { display: none; }
+/* The last thing a page said before it stopped being renewed, dated in the
+   words ("as of 14:05") and drawn dashed, so it reads as held rather than live
+   before the words are read. No opacity: this is text, and --dim-stale never
+   goes over text. */
 .topbar .provider-incident-stale { border-style: dashed; }
 
-/* The incident's mark, in the topbar chip and in the usage panel's line. A
+/* The incident's mark, in the topbar chip and in the usage panel's line. Three
+   shapes for three states, so they differ for a reader who cannot tell the
+   hues apart and in a contrast theme that repaints them all one colour: a
    filled --err dot is an outage; a ring in the same colour is degraded
-   performance, a slowdown rather than a failure; --muted is maintenance, which
-   was planned and said so. Shape as well as colour, so the three differ for a
-   reader who cannot tell the hues apart, and the word beside it says which. */
+   performance, a slowdown rather than a failure; a --muted square is
+   maintenance, which was planned and said so. The word beside it says which. */
 .pi-dot {
   flex: none;
   width: 7px;
@@ -274,7 +283,7 @@
   background: var(--err);
 }
 [data-state="degraded"] > .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }
-[data-state="maintenance"] > .pi-dot { background: var(--muted); }
+[data-state="maintenance"] > .pi-dot { background: var(--muted); border-radius: 1px; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.35; }

@@ -24,6 +24,10 @@ export interface ProviderStatus {
   /** The latest ask got no answer: what is here is the last thing it said. */
   stale: boolean;
   statusPageUrl: string;
+  /** "page" when the state is the page's overall status rather than a named
+   *  component's — the server's fallback for a page whose components were
+   *  renamed away. */
+  scope?: "components" | "page";
 }
 
 export interface ProviderStatusReport {
@@ -42,13 +46,22 @@ const STATE_WORDS: Record<string, string> = {
 };
 
 /** The same states as the topbar chip says them, where every pixel is spent
- *  twice: "degraded performance" is the one that does not fit, and "degraded"
- *  is the start of it, so the chip's name still contains what it shows. */
+ *  twice: "degraded performance" is the one that does not fit. */
 const CHIP_WORDS: Record<string, string> = {
   degraded: "degraded",
   partial_outage: "partial outage",
   major_outage: "major outage",
   maintenance: "maintenance",
+};
+
+/** And in one word, for a bar with no room for two: the narrow breakpoint, or
+ *  two chips at once. A mark with no word beside it was the alternative, and a
+ *  hollow ring beside "Codex" read as Codex being offline. */
+const SHORT_WORDS: Record<string, string> = {
+  degraded: "degraded",
+  partial_outage: "outage",
+  major_outage: "outage",
+  maintenance: "maint.",
 };
 
 const PROVIDER_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex" };
@@ -65,6 +78,17 @@ const STATUS_HOSTS = new Set(["status.claude.com", "status.openai.com"]);
  */
 export const INCIDENT_EXPIRE_MS = 30 * 60_000;
 
+/**
+ * How old an answer may be and still be drawn as current. The page asks every
+ * three minutes and the server reads the page when it is asked, so an answer
+ * this far past its reading has not been renewed — the deck is down, the tab
+ * slept, or the tray stopped asking because nothing is running — and it is
+ * drawn as what it is, the last thing the page said, dated. The server's own
+ * `stale` covers the other way an answer ages: the page was asked and did not
+ * answer.
+ */
+export const INCIDENT_STALE_MS = 10 * 60_000;
+
 /** One incident, ready to draw. */
 export interface Incident {
   provider: "claude" | "codex";
@@ -77,6 +101,8 @@ export interface Incident {
   words: string;
   /** The chip's shorter form of `words`: "degraded" for degraded performance. */
   chipWords: string;
+  /** One word, for a bar with no room: "outage", "degraded", "maint.". */
+  shortWords: string;
   /** "14:05" when the answer is stale — the time it was last true — else null. */
   asOf: string | null;
   /** The incident's title, or failing that the affected components; null when the page gave neither. */
@@ -99,9 +125,10 @@ export function safeStatusPage(url: unknown): URL | null {
   } catch { return null; }
 }
 
-/** "14:05", in the reader's own clock. */
+/** "14:05", in the reader's own clock — and a 24-hour one, because "11:47 AM"
+ *  is three characters more on a chip that has none to spare. */
 function clock(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 
 /** "just now", "4 min ago", "2 h ago". */
@@ -118,6 +145,7 @@ function age(ms: number): string {
  * INCIDENT_EXPIRE_MS, or a link to anywhere but a status page.
  */
 export function incidentOf(s: ProviderStatus, now: number): Incident | null {
+  if (!s || typeof s !== "object") return null;
   // Both asked of the tables' own rows: the words arrive over the wire.
   const words = ownRow(STATE_WORDS, s.state);
   const name = ownRow(PROVIDER_NAMES, s.provider);
@@ -126,17 +154,21 @@ export function incidentOf(s: ProviderStatus, now: number): Incident | null {
   const page = safeStatusPage(s.statusPageUrl);
   if (!page) return null;
   const components = Array.isArray(s.components) ? s.components : [];
+  // Stale two ways: the page was asked and did not answer (the server's flag),
+  // or nobody has asked since — see INCIDENT_STALE_MS.
+  const stale = s.stale === true || now - s.checkedAt > INCIDENT_STALE_MS;
   const lines = [
     `${name}: ${words}${s.summary ? ` — ${s.summary}` : ""}`,
     components.length > 0 ? `Affected: ${components.join(", ")}` : null,
+    s.scope === "page" ? `The page's overall status: it names none of ${name}'s components` : null,
     // Said in words, because a stale incident is still drawn: it is the last
     // thing the page said, and the reader should know that is all it is.
-    s.stale
-      ? `${page.hostname} has not answered since ${clock(s.checkedAt)}; this is the last thing it said`
+    stale
+      ? `Last read from ${page.hostname} at ${clock(s.checkedAt)}; this is the last thing it said`
       : `Reported by ${page.hostname}, checked ${age(now - s.checkedAt)}`,
     "Opens the status page",
   ];
-  const asOf = s.stale ? clock(s.checkedAt) : null;
+  const asOf = stale ? clock(s.checkedAt) : null;
   return {
     provider: s.provider,
     state: s.state as Incident["state"],
@@ -144,11 +176,12 @@ export function incidentOf(s: ProviderStatus, now: number): Incident | null {
     label: `${name} · ${words}${asOf ? ` · as of ${asOf}` : ""}`,
     words,
     chipWords: ownRow(CHIP_WORDS, s.state) ?? words,
+    shortWords: ownRow(SHORT_WORDS, s.state) ?? words,
     asOf,
     what: s.summary || (components.length > 0 ? components.join(", ") : null),
     href: page.href,
     host: page.hostname,
-    stale: s.stale === true,
+    stale,
     detail: lines.filter(Boolean).join("\n"),
   };
 }
@@ -158,3 +191,18 @@ export function incidentsOf(report: ProviderStatusReport | null, now: number): I
   if (!report?.ok || report.disabled || !Array.isArray(report.providers)) return [];
   return report.providers.map(p => incidentOf(p, now)).filter((i): i is Incident => i !== null);
 }
+
+/**
+ * What the deck says aloud about incidents (#1311): one sentence naming each
+ * provider in one and its state, or "" for none. Keyed on the state and never
+ * on the age, so a report going stale is not news, and fed through the same
+ * reducer the blocked-session announcement uses (nextAnnouncement), which is
+ * what makes the end of an incident a sentence too.
+ */
+export function incidentSentence(incidents: readonly Incident[]): string {
+  // "a partial outage", but "degraded performance" and "maintenance".
+  return incidents.map(i => `${i.name}'s status page reports ${i.state.endsWith("outage") ? `a ${i.words}` : i.words}.`).join(" ");
+}
+
+/** The sentence after the last incident clears. */
+export const INCIDENTS_CLEAR = "The providers' status pages report no incident.";

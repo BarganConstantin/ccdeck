@@ -43,7 +43,7 @@
   .waiting-dot,
   .ap-dot,
   .pi-dot { forced-color-adjust: none; background: CanvasText; }
-  /* The incident mark keeps its shape: a ring for degraded, grey for
+  /* The incident mark keeps its shape: a ring for degraded, a grey square for
      maintenance (#1311). */
   [data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
   [data-state="maintenance"] > .pi-dot { background: GrayText; }

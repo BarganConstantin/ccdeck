@@ -202,7 +202,7 @@ export function ReadoutGroup({
   const { readyAppUpdate } = desktopUpdate;
   const { paused, pauseGate } = pause;
   const { monthlyUsage, monthlyUsageUnavailable, monthUsageRef } = monthly;
-  const { blockedSaid, watchSaid } = announcements;
+  const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
   return (
     /* Three groups now, not two, and this is the observation one.
@@ -304,6 +304,9 @@ export function ReadoutGroup({
           guilty of. */}
       <div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>
       <div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>
+      {/* A provider's incident, said when it begins and when it ends (#1311)
+          — use-live-announcements.ts. Mounted always, for the reason above. */}
+      <div className="vis-hidden" role="status" aria-atomic="true">{incidentSaid}</div>
       {/* Outside the .status strip and inside .readout, which are two
           separate placements and only one of them still has the reason it
           was given.
@@ -324,16 +327,19 @@ export function ReadoutGroup({
           turn "we have no signal" into "they are fine". It carries no live
           region of its own; the div above is where the speaking happens,
           for the mounting reason given there. */}
+      {/* A provider's own incident, when its status page reports one (#1311)
+          — components/ProviderIncidents.tsx. Nothing at all while the
+          providers are fine, or while their pages cannot be reached.
+          BEFORE the blocked count, and that is the order of what gives. The
+          readout packs to its END when it runs out of room, so its last child
+          is the last thing clipped — which has to be the alarm, the reason the
+          deck is open. After it, a pair of incident chips pushed the count
+          off the bar at 700px. An outage upstream is context for a
+          diagnosis; the count is the thing the user acts on. */}
+      <IncidentChips incidents={incidents} />
       {waitingSessions.length > 0 && (
         <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
       )}
-      {/* A provider's own incident, when its status page reports one (#1311)
-          — components/ProviderIncidents.tsx. AFTER the blocked count, which is
-          the deck's alarm and the reason it is open: an outage upstream is
-          context for a diagnosis, so it takes the next place in the readout
-          and never moves the chip the user acts on. Nothing at all while the
-          providers are fine, or while their pages cannot be reached. */}
-      <IncidentChips incidents={incidents} />
       {/* The ask, and it lives HERE rather than in a settings panel.
           Every browser requires a user gesture to raise the permission
           prompt, so this button is not decoration — without it the feature

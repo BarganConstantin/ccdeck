@@ -14,6 +14,7 @@ const css = sheetText();
 describe("the topbar chips' focus rings", () => {
   it("are drawn inside the chip, where the readout cannot clip them", () => {
     expect(css).toContain(".topbar .waiting-stat:focus-visible { outline-offset: -3px; }");
+    expect(css).toContain(".topbar .provider-incident:focus-visible { outline-offset: -3px; }");
   });
 
   it("move only the offset, never the ring's colour or width", () => {
