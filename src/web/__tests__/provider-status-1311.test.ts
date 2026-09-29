@@ -10,7 +10,7 @@
 // and that the opt-outs ask nobody anything.
 import { describe, expect, it } from "vitest";
 import {
-  createProviderStatus, EXPIRE_MS, FRESH_MS, providerStatusReport, readSummary, RETRY_MS, statusChecksOff,
+  cappedText, createProviderStatus, EXPIRE_MS, FRESH_MS, providerStatusReport, readSummary, RETRY_MS, statusChecksOff,
   // @ts-expect-error — plain JS module, no types
 } from "../../server/provider-status.mjs";
 
@@ -130,12 +130,41 @@ describe("reading a status summary", () => {
     expect(readSummary("codex", body).components).toEqual(["Codex API"]);
   });
 
-  it("falls back to the page-wide indicator only when no named component is listed", () => {
+  it("falls back to Anthropic's page-wide indicator only when no named component is listed", () => {
     const body = { page: {}, status: { indicator: "minor", description: "Minor Service Outage" }, components: [{ id: "x", name: "Something renamed", status: "partial_outage" }] };
-    expect(readSummary("codex", body)).toMatchObject({ state: "degraded", summary: "Minor Service Outage", components: [], scope: "page" });
+    expect(readSummary("claude", body)).toMatchObject({ state: "degraded", summary: "Minor Service Outage", components: [], scope: "page" });
     for (const [indicator, state] of [["none", "operational"], ["major", "partial_outage"], ["critical", "major_outage"], ["maintenance", "maintenance"]]) {
       expect(readSummary("claude", { status: { indicator } }).state, indicator).toBe(state);
     }
+  });
+
+  it("never reads OpenAI's page-wide indicator as Codex's state", () => {
+    // Codex's components renamed away, and a ChatGPT outage lighting the page:
+    // the deck cannot say anything about Codex, and says so.
+    const body = openaiPage({}, "major");
+    body.components = body.components.filter(c => !/codex|^cli$|vs code/i.test(c.name));
+    expect(readSummary("codex", body)).toMatchObject({ state: "unknown", summary: null, components: [], scope: "page" });
+  });
+
+  it("does not count a component group, or a status it does not know, against the ones it does", () => {
+    const body = claudePage({ code: "degraded_performance" });
+    body.components.push({ id: "grp", name: "Claude Code", status: "major_outage", group: true });
+    body.components.push({ id: "odd", name: "Claude API (beta)", status: "on_fire" });
+    expect(readSummary("claude", body)).toMatchObject({ state: "degraded", components: ["Claude Code"] });
+  });
+
+  it("borrows no title from a maintenance that is only scheduled, or from a component at a lesser state", () => {
+    const body = claudePage({ code: "major_outage", api: "under_maintenance" }, {
+      scheduled_maintenances: [
+        { name: "Next week's upgrade", status: "scheduled", components: [{ id: "yyzkbfz2thpt" }] },
+        { name: "Database upgrade", status: "in_progress", components: [{ id: "k8w3r06qmzrp" }] },
+      ],
+    });
+    const r = readSummary("claude", body);
+    expect(r.state).toBe("major_outage");
+    // The API's maintenance is real, and still not the name of Claude Code's outage.
+    expect(r.summary).toBeNull();
+    expect(r.components).toEqual(["Claude API (api.anthropic.com)", "Claude Code"]);
   });
 
   it("reads nothing out of a body that is not a summary", () => {
@@ -160,6 +189,7 @@ function fakeFetch(answer: () => unknown) {
     const a = answer();
     if (a instanceof Error) throw a;
     if (typeof a === "number") return { ok: false, status: a, headers: new Map(), text: async () => "" };
+    if (a && typeof a === "object" && "raw" in (a as object)) return (a as { raw: unknown }).raw;
     return { ok: true, status: 200, headers: new Map(), text: async () => (typeof a === "string" ? a : JSON.stringify(a)) };
   };
   return { calls, fetchImpl };
@@ -243,6 +273,33 @@ describe("the cache in front of the pages", () => {
     answer = claudePage();
     t += RETRY_MS;
     expect(await status.read("claude")).toMatchObject({ state: "operational", stale: false, checkedAt: t });
+  });
+
+  it("refuses a body past a megabyte, by its header or while it arrives", async () => {
+    const big = { raw: { ok: true, status: 200, headers: new Map([["content-length", String(5 << 20)]]), text: async () => "{}" } };
+    const streamed = {
+      raw: {
+        ok: true, status: 200, headers: new Map(),
+        body: new ReadableStream({
+          pull(c) { c.enqueue(new Uint8Array(256 * 1024).fill(32)); },
+        }),
+      },
+    };
+    for (const answer of [big, streamed]) {
+      const { fetchImpl } = fakeFetch(() => answer);
+      const status = createProviderStatus({ fetchImpl, now: () => 50_000_000 });
+      expect(await status.read("claude")).toMatchObject({ state: "unknown", checkedAt: null });
+    }
+  });
+
+  it("reads a body that fits, streamed or whole, and counts bytes rather than characters", async () => {
+    const json = JSON.stringify(claudePage());
+    const res = { body: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(json)); c.close(); } }) };
+    expect(await cappedText(res, 1 << 20)).toBe(json);
+    // 400 characters, 1200 bytes.
+    const wide = "€".repeat(400);
+    await expect(cappedText({ text: async () => wide }, 1000)).rejects.toThrow("body too large");
+    await expect(cappedText({ text: async () => wide }, 1200)).resolves.toBe(wide);
   });
 
   it("never rejects, whatever the fetch does", async () => {

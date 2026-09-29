@@ -38,6 +38,9 @@ export const PROVIDERS = {
     // out: an incident that reaches Claude Code lists Claude Code, and one that
     // only reaches the web app does not stop a session.
     components: [/^Claude Code$/i, /^Claude API\b/i],
+    // Every product on this page is Claude, so its overall status is still
+    // about the sessions if the components above are ever renamed.
+    pageFallback: true,
   },
   codex: {
     summaryUrl: "https://status.openai.com/api/v2/summary.json",
@@ -45,12 +48,20 @@ export const PROVIDERS = {
     // Codex Web and Codex API by name; the CLI and the editor extension are
     // listed on that page without the word.
     components: [/\bCodex\b/i, /^CLI$/i, /^VS Code extension$/i],
+    // Not this page's overall status: it is mostly ChatGPT, and a ChatGPT
+    // outage drawn as "Codex · partial outage" is the false alarm this module
+    // exists to avoid. Components renamed away is "unknown" here.
+    pageFallback: false,
   },
 };
 
 /** How long an answer is the answer. Status pages are served from a CDN that
- *  caches for about a minute, so asking more often buys nothing. */
-export const FRESH_MS = 3 * 60_000;
+ *  caches for about a minute, so asking more often buys nothing. A little
+ *  UNDER the page's three-minute poll, and that is deliberate: an answer is
+ *  stamped when it arrives, so the next poll lands a few seconds short of
+ *  three minutes after it, and a cache of exactly three minutes handed every
+ *  other poll the previous answer — an incident took six minutes to show. */
+export const FRESH_MS = 150_000;
 
 /** How long a failed read waits before the next one may go out, so a page
  *  that asks on every poll cannot turn an offline machine into a retry loop. */
@@ -123,9 +134,13 @@ export function readSummary(provider, body) {
       if (SEVERITY.indexOf(s) > SEVERITY.indexOf(state)) state = s;
     }
     const hit = ours.filter(c => c.status !== "operational");
+    // The title is looked for among the components at the WORST state only: a
+    // maintenance window on one component is not the name of an outage on
+    // another.
+    const worst = hit.filter(c => COMPONENT_STATES[c.status] === state);
     return {
       state,
-      summary: state === "operational" ? null : incidentName(body, new Set(hit.map(c => c.id))),
+      summary: state === "operational" ? null : incidentName(body, new Set(worst.map(c => c.id))),
       // Names, deduplicated — OpenAI's page lists two components as "Login",
       // and a page may list one twice in a group and out of it.
       components: [...new Set(hit.map(c => words(c.name)).filter(Boolean))],
@@ -136,6 +151,11 @@ export function readSummary(provider, body) {
 
   const indicator = body.status?.indicator;
   if (!own(PAGE_INDICATORS, indicator)) return null;
+  // A page that answered, whose overall status is not about this provider's
+  // sessions: a reading, and the honest one is that the deck cannot say.
+  if (!spec.pageFallback) {
+    return { state: "unknown", summary: null, components: [], scope: "page", updatedAt };
+  }
   const state = PAGE_INDICATORS[indicator];
   return {
     state,
@@ -175,9 +195,34 @@ async function fetchSummary(fetchImpl, url) {
   });
   if (!res.ok) throw new Error(`http ${res.status}`);
   if (Number(res.headers?.get?.("content-length")) > MAX_BODY_BYTES) throw new Error("body too large");
-  const text = await res.text();
-  if (text.length > MAX_BODY_BYTES) throw new Error("body too large");
-  return JSON.parse(text);
+  return JSON.parse(await cappedText(res, MAX_BODY_BYTES));
+}
+
+/**
+ * The body as text, refused past `max` BYTES while it is still arriving. A
+ * page that sends no Content-Length would otherwise be read whole before its
+ * size could be checked, and `text.length` counts UTF-16 units, not bytes.
+ */
+export async function cappedText(res, max) {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const text = await res.text();
+    if (Buffer.byteLength(text, "utf8") > max) throw new Error("body too large");
+    return text;
+  }
+  const chunks = [];
+  let bytes = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > max) {
+      reader.cancel().catch(() => {});
+      throw new Error("body too large");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map(c => Buffer.from(c.buffer, c.byteOffset, c.byteLength))).toString("utf8");
 }
 
 /**

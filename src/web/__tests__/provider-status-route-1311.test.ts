@@ -71,6 +71,19 @@ function call(path: string): Promise<{ status: number; body: any }> {
 }
 
 describe("GET /api/provider-status", () => {
+  // FIRST, while nothing has been asked yet — so "asked nobody" is a claim the
+  // retry floor could not be making for it.
+  it("asks nobody while the opt-out is set", async () => {
+    process.env.AGENTS_DECK_NO_STATUS = "1";
+    try {
+      const { body } = await call("/api/provider-status");
+      expect(body).toEqual({ ok: true, disabled: true, providers: [] });
+      expect(asked).toEqual([]);
+    } finally {
+      delete process.env.AGENTS_DECK_NO_STATUS;
+    }
+  });
+
   it("answers unknown for an unreachable page, and only for the CLIs the deck watches", async () => {
     const { status, body } = await call("/api/provider-status");
     expect(status).toBe(200);
@@ -90,16 +103,5 @@ describe("GET /api/provider-status", () => {
     await call("/api/provider-status");
     await call("/api/provider-status");
     expect(asked).toHaveLength(1);
-  });
-
-  it("asks nobody once the opt-out is set", async () => {
-    process.env.AGENTS_DECK_NO_STATUS = "1";
-    try {
-      const { body } = await call("/api/provider-status");
-      expect(body).toEqual({ ok: true, disabled: true, providers: [] });
-      expect(asked).toHaveLength(1);
-    } finally {
-      delete process.env.AGENTS_DECK_NO_STATUS;
-    }
   });
 });
