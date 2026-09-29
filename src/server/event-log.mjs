@@ -268,8 +268,8 @@ let _landedAtProbe = 0;
  *
  * No syscall is added anywhere for it. The probe stays the one at boot, the
  * episode is the one #1062 keeps, and what an event pays is one counter
- * increment in log-writer's landing handler, beside the episode lookup that
- * handler already makes.
+ * increment in the landing handler (append-failures.mjs), beside the episode
+ * lookup that handler already makes.
  */
 function logWritableNow() {
   if (!persistPath) return false;

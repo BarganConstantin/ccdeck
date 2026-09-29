@@ -44,6 +44,8 @@ import { machinePanelSurface } from "./machine-panel-surface";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const server = read("../../server/process-list.mjs");
+// The command column's rules, lifted out of process-list.mjs.
+const command = read("../../server/process-command.mjs");
 const route = read("../../server/index.mjs");
 const modal = read("../components/ProcessListModal.tsx");
 
@@ -101,7 +103,7 @@ describe("what the command column may carry", () => {
     // secret usually takes and cannot catch one that looks like a word, so the
     // footer says "a filter and not a guarantee" and this pins that it does.
     expect(modal).toMatch(/which is a filter and not a guarantee/);
-    expect(server).toMatch(/THIS IS A BLOCKLIST AND A BLOCKLIST LEAKS/);
+    expect(command).toMatch(/THIS IS A BLOCKLIST AND A BLOCKLIST LEAKS/);
   });
 
   it("runs on the server, so a leaked value never reaches the wire at all", () => {
