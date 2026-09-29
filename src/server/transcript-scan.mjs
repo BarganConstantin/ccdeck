@@ -532,17 +532,22 @@ function scanTranscript(path) {
   const inFlight = transcriptScanInFlight.get(path);
   if (inFlight) return inFlight;
   const run = (async () => {
+    // The file is looked at BEFORE it is given a slot. The cache is capped in
+    // sessions and a new slot can evict another session's cursors, which costs
+    // that session a re-read of its whole transcript from byte 0 — the cost the
+    // cursor exists to remove. A path that cannot be stat-ed, or is not a file,
+    // has nothing to fold, so it answers with what it already had and takes no
+    // slot.
+    const s = await stat(path).catch(() => null);
+    if (!s || !s.isFile()) return transcriptScans.get(path) ?? newTranscriptState();
     let state = transcriptScans.get(path);
     if (!state) state = newTranscriptState();
     touchTranscriptScan(path, state);
     try {
-      const s = await stat(path);
       // Shorter than the cursor means the file was truncated, rotated or
       // replaced — the offset now points at unrelated bytes, so start over.
       if (s.size < state.offset) {
         state = newTranscriptState();
-        // Touch again rather than set: the await above yielded, and another
-        // path's scan may have re-ordered or evicted this entry meanwhile.
         touchTranscriptScan(path, state);
       }
       if (s.size <= state.offset) return state;
