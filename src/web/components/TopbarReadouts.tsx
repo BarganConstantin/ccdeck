@@ -158,6 +158,22 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
   );
 }
 
+/** What each answer means, for the chip's title and the region's sentence. */
+const NOTIFY_SAID_MEANS = {
+  on: "The deck will raise a system notification when a session blocks on you and this tab is in the background",
+  blocked: "Notifications are blocked for this page. Only your browser can undo that — its site settings for this address",
+} as const;
+
+/** What the always-mounted region says about the browser's answer, or nothing
+ *  (#1763). The whole of it rather than the chip's two words: what they mean
+ *  is on the chip only as a hover title, which a screen reader cannot be
+ *  relied on to reach — and for a refusal, the remedy is that half. */
+export function notifySaidSentence(notifySaid: "on" | "blocked" | null): string {
+  if (notifySaid === "on") return `Notifications on. ${NOTIFY_SAID_MEANS.on}.`;
+  if (notifySaid === "blocked") return `${NOTIFY_SAID_MEANS.blocked}.`;
+  return "";
+}
+
 export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
   return (
     <span
@@ -167,10 +183,11 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
       // costs the one check that catches a class with no styling behind
       // it — which is exactly how a warn colour goes missing silently.
       className={notifySaid === "on" ? "notify-said" : "notify-said notify-said-blocked"}
-      role="status"
-      title={notifySaid === "on"
-        ? "The deck will raise a system notification when a session blocks on you and this tab is in the background"
-        : "Notifications are blocked for this page. Only your browser can undo that — its site settings for this address"}
+      // Seen, not heard: the region beside the other three says it (#1763).
+      // A status role here arrived with its own text, which a screen reader
+      // routinely never announces.
+      aria-hidden
+      title={NOTIFY_SAID_MEANS[notifySaid]}
     >{notifySaid === "on" ? "notifications on" : "notifications blocked"}</span>
   );
 }
@@ -307,6 +324,10 @@ export function ReadoutGroup({
       {/* A provider's incident, said when it begins and when it ends (#1311)
           — use-live-announcements.ts. Mounted always, for the reason above. */}
       <div className="vis-hidden" role="status" aria-atomic="true">{incidentSaid}</div>
+      {/* What the browser answered the notification prompt (#1763). The chip
+          at the end of the group says it on screen, and comes and goes; this
+          is mounted always, for the reason above, and says the same. */}
+      <div className="vis-hidden" role="status" aria-atomic="true">{notifySaidSentence(notifySaid)}</div>
       {/* Outside the .status strip and inside .readout, which are two
           separate placements and only one of them still has the reason it
           was given.
@@ -369,8 +390,9 @@ export function ReadoutGroup({
           So the grant gets a short acknowledgement and the refusal gets a
           longer one carrying the only thing that can be done about it,
           which is a switch in the browser's own site settings that no page
-          is allowed to touch. `role="status"` rather than an alert: this is
-          the outcome of something they just did, not an interruption. */}
+          is allowed to touch. A status rather than an alert: this is the
+          outcome of something they just did, not an interruption — and it is
+          spoken by the always-mounted region above, not by this chip. */}
       {notifySaid && <NotifySaid notifySaid={notifySaid} />}
     </div>
   );

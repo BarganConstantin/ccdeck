@@ -98,6 +98,7 @@ export default function SoundMenu({
   const showChannel = notifyOn && !notifyVetoed && !inApp;
   const sharedCustomId = sameCustomSelection(customSelections);
   const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
+  const sharedNote = sharedCustomId ? `Both tones use “${sharedCustomName}”. They may be harder to tell apart.` : "";
 
   // A popover, so the canvas letters stay live under it — V and M included,
   // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
@@ -265,11 +266,12 @@ export default function SoundMenu({
       ))}
       </div>
 
-      {sharedCustomId && (
-        <p className="sm-note" role="status">
-          Both tones use “{sharedCustomName}”. They may be harder to tell apart.
-        </p>
-      )}
+      {/* The note is seen here while both tones share a custom sound, and
+          heard from the region under it, which is mounted always (#1763): a
+          status paragraph mounted together with its own text is routinely
+          never announced. */}
+      {sharedNote && <p className="sm-note" aria-hidden>{sharedNote}</p>}
+      <p className="vis-hidden" role="status">{sharedNote}</p>
 
       <CustomSoundsSection
         customAssets={customAssets}
