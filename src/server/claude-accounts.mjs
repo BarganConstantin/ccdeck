@@ -140,19 +140,29 @@ let _generation = 0;
 /**
  * Whether we may go to disk for the roster again.
  *
- * The same shape and the same minute as quota.mjs's `maySelfPoll`, and exported
- * for the same reason it is: this is the rule, it is pure, and it belongs
- * somewhere a test can point at it.
+ * The same shape as quota.mjs's `maySelfPoll`, and exported for the same reason
+ * it is: this is the rule, it is pure, and it belongs somewhere a test can
+ * point at it.
  *
- * Two intervals, like `maySelfPoll`'s. A forced read may beat the cache, but not
- * turn into a poll loop when the button is held down, so it takes the minute the
- * other four forcible routes use. An unforced read takes the cache's own
- * interval — it is the panel's ordinary poll, the cache above has already
- * answered it, and measuring from the START of the last read rather than from
- * its end is the only difference between the two rules.
+ * An unforced read takes the cache's own interval — it is the panel's ordinary
+ * poll, the cache above has already answered it, and measuring from the START
+ * of the last read rather than from its end is the only difference between the
+ * two rules.
+ *
+ * A forced read takes the SHORTER of the minute the other forcible routes use
+ * and that same interval, which is the cache's (#1798). It had the minute on its
+ * own, and the panel's fifteen-second poll stamps `_lastReadAt` every time, so
+ * while the panel was open ↻ was always inside its floor and was handed the held
+ * reading — even at a moment when an ordinary poll would have gone to disk. The
+ * deck's own mutations got past that by invalidating; a `cswap switch` typed in
+ * a terminal, or the user's own engine moving the account, has nothing to
+ * invalidate with, and the press did nothing exactly when it was wanted. What
+ * #604 was protecting still holds: a button held down or a page looping on
+ * `?refresh=1` costs one pair of small JSON reads per five seconds, which is
+ * what the unforced poll was already allowed.
  */
 export function mayReadAccounts({ now, force, lastReadAt }) {
-  return now - lastReadAt >= (force ? FORCE_POLL_MS : CACHE_MS);
+  return now - lastReadAt >= (force ? Math.min(FORCE_POLL_MS, CACHE_MS) : CACHE_MS);
 }
 
 /**
