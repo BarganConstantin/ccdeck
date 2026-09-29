@@ -1,0 +1,502 @@
+/* ---------------- the network map ----------------
+   Every deck this one knows, drawn around it — see LanNetworkMap.tsx for what
+   the picture is for, and lan-network-map.ts for where each deck stands.
+
+   After lan-setup.css in the cascade on purpose: the map reuses that file's
+   fact grid (`.lan-facts`) in its side panel and trims it here, and a trim has
+   to come later to win a tie.
+
+   The motion vocabulary is the house one and nothing else: 120–200ms for
+   feedback with the house ease-out, the lane curve for a wire drawing itself,
+   and one ambient loop — the round — that only runs on a wire whose deck is
+   paired and on. */
+
+/* THE DIALOG. Wider and taller than any other here, because it is the one
+   that is a picture: the rings need the width, and the side panel beside them
+   is the list's own row in long form. A fixed height rather than a maximum, so
+   the stage does not jump each time a deck arrives or leaves. */
+.modal.nm-modal {
+  --nm-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --nm-draw: cubic-bezier(0.16, 1, 0.3, 1);
+  --nm-wire: color-mix(in srgb, var(--text) 26%, transparent);
+  --nm-wire-quiet: color-mix(in srgb, var(--text) 12%, transparent);
+  width: min(1160px, 92vw);
+  height: min(740px, 86vh);
+  max-height: 86vh;
+}
+.nm-head { gap: 16px; }
+.nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nm-title { margin: 0; font-size: 14px; font-weight: 600; }
+.nm-sub {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+}
+
+/* THE STAGE. The canvas's own ground — its dot grid, fading out toward the
+   edge so the rings read as the thing in the middle of it — and one soft
+   light behind this deck, in the accent at a strength that is a tint rather
+   than a colour. */
+/* The picture and its key, one column: the key has a strip of its own under
+   the stage rather than a corner of it, because the corner was where the
+   lowest deck's name landed. */
+.nm-view { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.nm-stage {
+  --nm-move: 520ms;
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(closest-side, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%) center / 58% 70% no-repeat,
+    var(--bg);
+}
+.nm-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(var(--grid-line) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%);
+  pointer-events: none;
+}
+
+/* THE RINGS: solid where the decks are on, dashed on the outside where they
+   are not — the strokes the legend and the wires use, so the ring a deck
+   stands on already says what it is before its mark does. */
+.nm-orbits { position: absolute; inset: 0; pointer-events: none; }
+.nm-orbit {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; }
+
+/* A WIRE from this deck's edge to that deck's, laid out from the centre of the
+   stage and turned to its deck's angle. Its length and its turn ease when a
+   deck changes ring — a paired deck going quiet steps out along its own ray
+   rather than disappearing from one place and appearing in another. */
+.nm-wire {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--len);
+  height: 1.5px;
+  margin-top: -0.75px;
+  transform-origin: 0 50%;
+  rotate: var(--a);
+  transform: translateX(var(--from));
+  background: var(--nm-wire);
+  pointer-events: none;
+  transition:
+    width var(--nm-move) var(--nm-ease),
+    rotate var(--nm-move) var(--nm-ease),
+    opacity 160ms var(--nm-ease),
+    background-color 160ms var(--nm-ease);
+}
+.nm-wire[data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 4px, transparent 4px 8px); }
+.nm-wire[data-tier="loose"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 1.5px, transparent 1.5px 6px); }
+/* Over the tailnet, dashed — the legend's own stroke. The line is the same
+   ink; only its rhythm says which network it crosses. */
+.nm-wire[data-via="tailscale"] { background: repeating-linear-gradient(90deg, var(--nm-wire) 0 6px, transparent 6px 10px); }
+.nm-wire[data-via="tailscale"][data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 6px, transparent 6px 10px); }
+.nm-wire[data-on] { --nm-wire: color-mix(in srgb, var(--text) 70%, transparent); --nm-wire-quiet: color-mix(in srgb, var(--text) 45%, transparent); height: 2px; margin-top: -1px; }
+
+/* THE ROUND. A light leaves this deck, reaches that one, and comes back in
+   that deck's green — a question and its answer, which is what a round between
+   two paired decks is. Hidden until it runs, so with less motion there is no
+   light half-drawn on a line. */
+.nm-glint {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--text);
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes nm-round {
+  0%   { transform: translateX(0); opacity: 0; background: var(--text); }
+  5%   { opacity: 0.9; }
+  40%  { transform: translateX(calc(var(--len) - 5px)); opacity: 0.9; background: var(--text); }
+  46%  { transform: translateX(calc(var(--len) - 5px)); opacity: 0.9; background: var(--ok); }
+  82%  { transform: translateX(0); opacity: 0.9; background: var(--ok); }
+  88%, 100% { transform: translateX(0); opacity: 0; background: var(--ok); }
+}
+
+/* THIS DECK. The empty canvas's own orb, because it is the same idea — the
+   deck itself, before and around everything it draws — and a second symbol
+   for "here" would be a second thing to learn. */
+.nm-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.nm-core-orb {
+  position: absolute;
+  left: -26px;
+  top: -26px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--hero-core);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 28px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+/* THE BEACON. A deck on the network announces itself on a slow interval, and
+   this is that, drawn: one ring leaving the orb and fading, then a long rest.
+   The same emission the list's live dots make, at the centre's size. */
+.nm-core-orb::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  opacity: 0;
+}
+@keyframes nm-beacon {
+  0%   { transform: scale(1); opacity: 0.55; }
+  45%  { transform: scale(2.3); opacity: 0; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+/* On a plate of the stage's own ground, because every wire to a deck under
+   the centre runs straight through where this name is set. */
+.nm-core-label {
+  position: absolute;
+  z-index: 1;
+  top: 32px;
+  left: 0;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 8px 4px;
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  white-space: nowrap;
+  text-align: center;
+}
+.nm-core-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.nm-core-what { font-size: 10px; color: var(--muted); }
+
+/* A DECK. The button is the disc; its mark, its name and its caption hang off
+   it. It is anchored at its own centre and moved there with `translate`, which
+   eases when the deck changes ring — `transform` is left free for the
+   entrance and the press. */
+.nm-ring { position: absolute; inset: 0; pointer-events: none; }
+.nm-node {
+  appearance: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  translate: var(--x) var(--y);
+  box-shadow: var(--shadow-contact);
+  transition:
+    translate var(--nm-move) var(--nm-ease),
+    opacity 160ms var(--nm-ease),
+    border-color 140ms var(--nm-ease),
+    color 140ms var(--nm-ease),
+    box-shadow 160ms var(--nm-ease),
+    transform 140ms var(--nm-ease);
+}
+.nm-node .lan-machine { color: inherit; }
+.nm-node[data-tier="online"] { color: var(--text-secondary); border-color: color-mix(in srgb, var(--ok) 38%, var(--line)); }
+.nm-node[data-tier="loose"] { border-style: dashed; border-color: color-mix(in srgb, var(--text) 22%, transparent); background: var(--bg-soft); }
+.nm-node:hover,
+.nm-node[data-on] { color: var(--text); border-color: color-mix(in srgb, var(--text) 55%, var(--line)); box-shadow: var(--shadow-contact), var(--shadow-2); }
+/* The deck the side panel is describing keeps a ring while the pointer is
+   elsewhere, so what the panel says can be matched to where it is. */
+.nm-node[data-shown] { box-shadow: var(--shadow-contact), 0 0 0 3px color-mix(in srgb, var(--text) 14%, transparent); }
+.nm-node[data-shown][data-on] { box-shadow: var(--shadow-contact), var(--shadow-2), 0 0 0 3px color-mix(in srgb, var(--text) 14%, transparent); }
+.nm-node:active { transform: scale(0.97); }
+.nm-node:focus-visible { outline-offset: 3px; border-radius: 50%; }
+
+/* EVERYTHING ELSE STEPS BACK while one deck is looked at, so its wire can be
+   followed to the centre. Opacity only — nothing moves. */
+.nm-stage[data-focus] .nm-node:not([data-on]) { opacity: 0.34; }
+.nm-stage[data-focus] .nm-wire:not([data-on]) { opacity: 0.22; }
+
+/* THE MARK, at four o'clock on the disc: a shape as well as a colour, so the
+   state survives a reader who cannot tell green from grey. Filled is on,
+   hollow is quiet, dashed is not paired, and a deck asking to pair wears the
+   list's own emission in the accent. */
+.nm-mark {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  box-shadow: 0 0 0 2px var(--panel);
+  background: var(--panel);
+  border: 1.5px solid var(--muted);
+}
+.nm-node[data-tier="online"] .nm-mark { background: var(--ok); border-color: var(--ok); }
+.nm-node[data-tier="loose"] .nm-mark { border-style: dashed; border-color: var(--muted); }
+.nm-node[data-kind="asks"] .nm-mark { background: var(--accent); border-color: var(--accent); }
+.nm-node[data-kind="asks"] .nm-mark::after {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+}
+
+/* THE NAME, under the deck, or over it along the top of the map so it is not
+   set on its own wire — see LabelSide. */
+.nm-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: max-content;
+  max-width: 116px;
+  pointer-events: none;
+}
+.nm-node[data-side="top"] .nm-label { bottom: calc(100% + 7px); left: 50%; translate: -50% 0; align-items: center; text-align: center; }
+.nm-node[data-side="bottom"] .nm-label { top: calc(100% + 7px); left: 50%; translate: -50% 0; align-items: center; text-align: center; }
+.nm-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text);
+}
+.nm-node[data-tier="offline"] .nm-name,
+.nm-node[data-tier="loose"] .nm-name { color: var(--text-secondary); }
+.nm-cap {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.nm-node[data-kind="asks"] .nm-cap { color: var(--accent); }
+/* A crowded ring sets its names a step down, so thirty decks still fit. */
+.nm-stage[data-dense] .nm-name { font-size: 11px; }
+.nm-stage[data-dense] .nm-label { max-width: 100px; }
+
+.nm-empty {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 78px);
+  translate: -50% 0;
+  width: min(320px, 80%);
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* THE KEY, under the picture. */
+.nm-legend {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin: 0;
+  padding: 9px 16px 10px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg);
+  list-style: none;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.nm-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.nm-key-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--muted);
+}
+.nm-key-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
+.nm-key-mark[data-tier="loose"] { border-style: dashed; }
+.nm-key-wire { width: 18px; height: 1.5px; background: var(--nm-wire); }
+.nm-key-wire[data-via="tailscale"] { background: repeating-linear-gradient(90deg, var(--nm-wire) 0 6px, transparent 6px 10px); }
+.nm-key-glint {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: -7px 0 0 -1px color-mix(in srgb, var(--text) 50%, transparent);
+  margin-left: 7px;
+}
+
+/* THE SIDE PANEL: the list's row in long form. The ground one step off the
+   stage, a rule between them, and the dialog's own fact grid. */
+.nm-side {
+  min-height: 0;
+  overflow: hidden auto;
+  border-left: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.nm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px var(--panel-inset) 18px;
+  animation: nm-swap 180ms var(--nm-ease) both;
+}
+@keyframes nm-swap { from { opacity: 0; transform: translateY(3px); } }
+.nm-panel-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.nm-panel-name .ap-pulse { color: var(--ok); }
+.nm-panel-name .ap-dot { color: var(--muted); }
+.nm-panel-self { margin: -6px 0 0; font-size: 11px; color: var(--muted); }
+.nm-panel-state { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.nm-panel-state[data-kind="asks"] { color: var(--accent); }
+.nm-panel-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.nm-back { align-self: flex-start; margin: -4px 0 0 -2px; font-size: 11px; }
+
+.nm-facts { row-gap: 7px; column-gap: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.nm-facts dd { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.nm-addrs { display: flex; flex-direction: column; gap: 2px; }
+
+.nm-counts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line-soft);
+  list-style: none;
+}
+.nm-counts li { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.nm-count-n {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.nm-counts li[data-count="online"] .nm-count-n { color: var(--ok); }
+.nm-counts li[data-count="asks"] .nm-count-n { color: var(--accent); }
+.nm-count-words { font-size: 11px; color: var(--text-secondary); }
+
+.nm-logins { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.nm-logins-title { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.nm-lanes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.nm-lane { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; }
+.nm-lane-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.nm-lane[data-tone="ok"] .nm-lane-dot { background: var(--ok); }
+.nm-lane[data-tone="wait"] .nm-lane-dot { background: var(--accent); }
+.nm-lane[data-tone="bad"] .nm-lane-dot { background: var(--warn); }
+.nm-lane-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+.nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); }
+.nm-lanes-more { margin: 0; font-size: 10px; color: var(--muted); }
+.nm-open { align-self: flex-start; margin-top: 4px; }
+
+/* NARROW: the panel goes under the picture rather than beside it. */
+@media (max-width: 860px) {
+  .nm-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 38%); }
+  .nm-side { border-left: 0; border-top: 1px solid var(--line); }
+}
+
+/* THE ENTRANCE, and the loops, only for a reader who has not asked for less
+   motion. The rings open out from the middle, each wire draws itself outward
+   clockwise, and each deck lands on its ring from the direction of the centre
+   as its wire reaches it — about three quarters of a second for a network of
+   fifteen. The round starts once the network is drawn. */
+@keyframes nm-orbit-in { from { opacity: 0; transform: scale(0.9); } }
+@keyframes nm-wire-in { from { clip-path: inset(0 100% 0 0); } }
+@keyframes nm-node-in { from { opacity: 0; transform: translate(var(--in-x), var(--in-y)) scale(0.6); } }
+@keyframes nm-core-in { from { opacity: 0; transform: scale(0.82); } }
+@keyframes nm-fade-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .nm-orbit { animation: nm-orbit-in 620ms var(--nm-ease) calc(var(--ring, 0) * 90ms + 60ms) both; }
+  .nm-wire { animation: nm-wire-in 520ms var(--nm-draw) calc(min(var(--i, 0) * 38ms, 460ms) + 160ms) both; }
+  .nm-node { animation: nm-node-in 440ms var(--nm-ease) calc(min(var(--i, 0) * 38ms, 460ms) + 300ms) both; }
+  .nm-core-orb { animation: nm-core-in 420ms var(--nm-ease) both; }
+  .nm-core-label, .nm-legend { animation: nm-fade-in 320ms var(--nm-ease) 180ms both; }
+  .nm-glint { animation: nm-round 5.2s cubic-bezier(0.65, 0, 0.35, 1) calc(1.1s + var(--phase, 0s)) infinite; }
+  .nm-core[data-listening] .nm-core-orb::after { animation: nm-beacon 3.6s cubic-bezier(0.22, 0.61, 0.36, 1) 0.6s infinite; }
+  .nm-node[data-kind="asks"] .nm-mark::after { animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite; }
+  .nm-stage[data-paused] .nm-glint,
+  .nm-stage[data-paused] .nm-core-orb::after,
+  .nm-stage[data-paused] .nm-mark::after { animation-play-state: paused; }
+}
+/* Less motion: the whole picture fades in at once, a deck that changes ring
+   crossfades in place, and nothing loops. Every state is still drawn — the
+   rings, the strokes and the marks carry it without the lights. */
+@media (prefers-reduced-motion: reduce) {
+  .nm-orbit,
+  .nm-wire,
+  .nm-node,
+  .nm-core-orb,
+  .nm-core-label,
+  .nm-legend { animation: nm-fade-in 160ms ease-out both; }
+  .nm-wire { transition: opacity 160ms ease-out, background-color 160ms ease-out; }
+  .nm-node { transition: opacity 160ms ease-out, border-color 140ms, color 140ms, box-shadow 160ms; }
+  .nm-node:active { transform: none; }
+  .nm-glint,
+  .nm-core[data-listening] .nm-core-orb::after,
+  .nm-node[data-kind="asks"] .nm-mark::after { animation: none; }
+  .nm-node[data-kind="asks"] .nm-mark::after { opacity: 0.35; transform: scale(1.8); }
+  .nm-panel { animation: nm-fade-in 120ms ease-out both; }
+}

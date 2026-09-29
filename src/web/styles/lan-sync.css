@@ -88,6 +88,41 @@
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+/* THE MAP, over the way-in row's right side, just short of its chevron — see
+   LanEntryRow. Edgeless at rest like the fold's own controls, and the row
+   keeps its tone while the pointer is on the map, because the map is still
+   this row's: leaving the row for its own control should not look like
+   leaving it. The row's words stop short of the glyph. */
+.ap-nav-wrap { position: relative; }
+.ap-nav-wrap:has(.ap-lan-map) .ap-nav-text { padding-right: 30px; }
+.ap-nav-wrap:has(.ap-lan-map:hover) .ap-nav { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.ap-lan-map {
+  appearance: none;
+  position: absolute;
+  top: calc(50% + 2px);
+  right: 19px;
+  translate: 0 -50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lan-map:hover,
+.ap-lan-map:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+.ap-lan-map:active { transform: scale(0.97); }
+.ap-lan-map:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  .ap-lan-map:active { transform: none; }
+}
 /* A ROW THAT UNFOLDS RATHER THAN LEADS turns its chevron down, which is the one
    thing that tells the two `.ap-nav` rows in this column apart before either is
    pressed: Local network goes somewhere, the fold opens here. The turn wins
