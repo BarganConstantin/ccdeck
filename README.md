@@ -85,10 +85,10 @@ The deck opens on these eight pictures the first time it runs — they are the w
 | | |
 |---|---|
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
-| **Live DAG** | Nodes are agents, edges are spawns and tool calls. In-flight edges animate, settled ones fade. |
+| **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
-| **Click to inspect** | Any node opens its prompt, tool calls, token usage and timing. |
+| **Double-click to inspect** | Any node opens its prompt, tool calls, token usage and timing in the side panel. A single click selects it and frames its session. |
 | **Survives restarts** | Events are appended to this platform's log directory (see `--history` below) and replayed on open. |
 | **Accounts without a terminal** | Sign a new Claude account in, move one or your whole set to another machine, rename, reorder, remove — from the panel. |
 | **Logins that repair each other** | A Claude login that expires on one of your machines is copied back from another machine on the same network that still has it — see [Local network](#local-network). |
@@ -116,7 +116,7 @@ What the deck does write, and the short list of what does leave the machine, is 
 
 ### Desktop app
 
-The same deck as an app: it starts the deck itself, puts an icon in the menu bar (the tray on Windows and Linux) with the number of sessions waiting on you, and, with the window closed, sends a notification wherever an open page would have played a sound, with the deck's own tone on macOS. It needs no Node.js. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
+The same deck as an app: it starts the deck itself and puts an icon in the menu bar (the tray on Windows and Linux) that counts the Claude Code sessions stopped on a permission prompt or a question — the number sits beside the icon on macOS, and in the icon's tooltip and menu on Windows and Linux. With **Notifications while closed** ticked in that menu, which starts off, it also sends a notification while the window is closed wherever an open page would have played a sound, with the deck's own tone on macOS. It needs no Node.js. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
 
 | System | Download |
 | --- | --- |
@@ -129,7 +129,7 @@ The same deck as an app: it starts the deck itself, puts an icon in the menu bar
 - **Windows** — installs for your user, with no admin prompt. It is not signed yet, so SmartScreen asks once: More info, then Run anyway.
 - **Linux** — on Debian and Ubuntu take the **.deb**: it installs with a double click and puts ccdeck in the applications menu. The AppImage is one file for every other distribution, and a browser saves it without the permission to run, so it does nothing at all until you give it one back — `chmod +x ccdeck-linux-x86_64.AppImage`, then open it. The icon also needs a tray to sit in: KDE and waybar have one, and GNOME needs the AppIndicator extension.
 
-The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, never under a running session. On the .deb, where installing asks for your password, it installs only when you choose Restart to update.
+The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, or by itself once the app has been left alone for a minute — its window closed or not in focus, and no deck starting — and restarts into the new version. That does not wait for your agents to go idle: the deck is gone for a second or two, which can leave a gap in the drawing of a turn, and the agents carry on. On the .deb, where installing asks for your password, it installs only when you choose Restart to update.
 
 ## Requirements
 
@@ -209,20 +209,20 @@ The Accounts panel reads the store [claude-swap](https://pypi.org/project/claude
 
 The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
-**`+` → Sign in** runs `claude auth login`, shows you the link, takes the code your browser gives back, and hands the result to `cswap add`. The account you were using **stays active** — signing in replaces the live credentials, so the previous one is switched back the moment the new one is recorded. The code goes straight into the CLI's stdin on this machine; it is never stored, logged, or sent anywhere else.
+**`+` → Sign in** runs `claude auth login`, shows you the link, and hands the result to `cswap add`. The sign-in usually completes by itself once you approve it in the browser; only when the page shows a code — as it does on a deck opened from another machine — is there one to paste back into the dialog. The account you were using **stays active** — signing in replaces the live credentials, so the previous one is switched back the moment the new one is recorded. A pasted code goes straight into the CLI's stdin on this machine; it is never stored, logged, or sent anywhere else.
 
 **`share`** on an account produces a `ccdeck2:…` blob to paste into another deck's **`+` → Paste a share**.
 
 **`↗`** in the panel header does the same for a set of them, which is what moving your accounts from home to work actually is. Tick the ones to send — all of them to start — and one blob carries the set. The dialog counts sign-in tokens rather than rows, and an account that cannot be exported is named rather than quietly dropped, so the number on the copy button is always the number in the blob.
 
-**On macOS, the login itself lives in the Keychain.** If ccdeck is running from SSH, a LaunchAgent, or another session that cannot open that Keychain, the account may still be valid while this process cannot read or share it. ccdeck shows that state as **cannot share here** instead of calling the login expired, refuses clipboard and LAN exports from it, and tells you to start ccdeck from a Terminal window on the Mac itself. Once claude-swap can read the Keychain again, the account becomes shareable normally.
+**On macOS, the login itself lives in the Keychain.** If ccdeck is running from SSH, a LaunchAgent, or another session that cannot open that Keychain, the account may still be valid while this process cannot read or share it. ccdeck does not call that login expired: the account's row says **Keychain unreadable**, and Local network says **cannot share here**. It refuses clipboard and LAN exports from it, and tells you to start ccdeck from a Terminal window on the Mac itself. Once claude-swap can read the Keychain again, the account becomes shareable normally.
 
-An import adds what is missing and leaves a working account exactly as it is. The one it does rewrite unasked is a slot claude-swap has itself quarantined as refresh-token-dead, which is what heals a machine whose login stopped working. The result names every account in the paste — imported, already here, healed, or refused — and an account it skipped can be overwritten one at a time with **update anyway**.
+An import adds what is missing and leaves a working account exactly as it is. The one it does rewrite unasked is a slot claude-swap has itself quarantined as refresh-token-dead, which is what heals a machine whose login stopped working. The result names every account in the paste — imported, already here, dead token replaced, or not imported — and an account it skipped can be overwritten one at a time with **update anyway**.
 
 > [!WARNING]
 > A share carries the **live login of every account in it, in the clear** — claude-swap's export format has no encryption, and five ticked boxes is five passwords on your clipboard. It expires ten minutes after it is made and imports refuse it after that. While it lives, treat it as those passwords: anything that can read your clipboard can read the accounts.
 
-Renaming, reordering and removing are on the same row menu. Removal takes two clicks and cannot be undone.
+**Rename**, **Move to slot…** and **Remove** are on the same row menu. Removal takes two clicks and cannot be undone.
 
 ## Local network
 
@@ -368,7 +368,7 @@ them, the other one's hooks, installs and panels are skipped rather than shown
 empty — the boot banner says which way it went, and `--claude` / `--codex`
 override it if the guess is wrong.
 
-`--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session, so a machine-wide deck and one scoped to `~/proj` both show the agents working inside `~/proj`. It reads the same way on all three paths a session can reach the canvas by — Claude Code's hook, Codex's rollout files, and the boot replay of the events log — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so every path scopes to the same tree. The log is machine-wide by default and shared by every deck on the box, so a scoped deck replays only the part of it that is inside its own workspace: it comes up showing what it will go on to capture, and nothing else.
+`--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session. That is not a way to keep a machine-wide deck and one scoped to `~/proj` side by side: in one Claude config directory the second start stops the first and takes its place, as above. The filter reads the same way on all three paths a session can reach the canvas by — Claude Code's hook, Codex's rollout files, and the boot replay of the events log — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so every path scopes to the same tree. The log is machine-wide by default and shared by every deck on the box, so a scoped deck replays only the part of it that is inside its own workspace: it comes up showing what it will go on to capture, and nothing else.
 
 That one events log is also the reason Clear is not quite the per-deck button it looks like. The decks elect a single writer for each log file, and only that deck may empty it: Clear on any other deck wipes its own canvas and leaves the file to the deck that writes it. The confirmation says which of the two you are about to do, and how many decks share the log when it is yours to empty — so `--history` or `--no-persist` gives a deck a log of its own if you want Clear to answer to nobody else.
 
@@ -471,9 +471,9 @@ It restarts on its own only after 30 seconds with nothing running, because hook 
 ## Design
 
 - Node = agent (root session or subagent)
-- Edge = parent → child (spawn), or agent → tool (call)
+- Edge = parent → child (spawn); tool calls sit beside their agent's node
 - In-flight animates; settled dims
-- Click a node for the full story
+- Double-click a node for the full story
 
 ## Names
 
