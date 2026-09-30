@@ -60,6 +60,20 @@
     "3.29.9",
     "3.33.1"
   ],
+  "3.34.0": [
+    {
+      "title": "🗺️ The network map shows who you are connected to",
+      "body": "Paired decks that are on stand closest to this one, and a light runs along their wires. Paired decks that are away come next, in a colour of their own, with how long they have been gone, and machines that are not paired stand outside in grey. Decks reached over Tailscale sit together in their own shaded slice instead of on dashed wires. Pointing at a deck opens its details beside the map: whether it is there, what to do next if anything, its address and what it runs, and every login the two share, the ones that need a look first."
+    },
+    {
+      "title": "🔑 A login that expired everywhere says so",
+      "body": "When a shared login expired on this deck and every paired deck that is on held an expired copy too, the row said \"Login expired\" and waited for a repair that could never come. It now says \"Login expired on all online decks\". Claude retires a login's other copies each time one machine refreshes it, so shared copies expire together: sign in again on any one machine and the others repair from it on their next round."
+    },
+    {
+      "title": "💬 Send feedback from inside the deck",
+      "body": "Appearance settings has a \"Send feedback…\" button: pick what kind it is, write a title and a few lines, and add a way to reach you if you want an answer. It goes to the people who make ccdeck, who may open a public issue from it, never with your contact in it. If it cannot be sent, the form stays filled in and says why."
+    }
+  ],
   "3.33.0": [
     {
       "title": "🪝 Hooks you add in Claude Code are no longer removed",
