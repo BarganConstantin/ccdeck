@@ -62,7 +62,7 @@ export default function DeckDialogs({
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
-          setKeyHelpOpen, feedbackOpen, setFeedbackOpen } = dialogs;
+          setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill } = dialogs;
   const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion } = welcome;
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, askDesktopUpdateRestart } = desktopUpdate;
   const { version } = versionCheck;
@@ -108,7 +108,13 @@ export default function DeckDialogs({
         </Suspense>
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
-      {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
+      {feedbackOpen && (
+        <FeedbackDialog
+          initialKind={feedbackPrefill?.initialKind}
+          initialBody={feedbackPrefill?.initialBody}
+          onClose={() => { setFeedbackOpen(false); setFeedbackPrefill(null); }}
+        />
+      )}
       {summaryFor && (
         <SessionSummary
           state={stateRef.current}

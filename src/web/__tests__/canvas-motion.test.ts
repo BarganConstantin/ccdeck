@@ -312,6 +312,9 @@ const PRESSES: Press[] = [
   // like the labelled buttons it sits among.
   [".ap-lan-intro:active:not(:disabled)", "0.97", "transform"],
   [".ap-fix:active", "0.97", "transform"],
+  // The quiet "Report this" on a warning's popover (#1853): a text button, so it
+  // takes the press the way the Projects report's Copy does rather than an edge.
+  [".ap-issue-report:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
   // Every switch in the deck — one control since #886, where this list named
   // four: the accounts panel's, Browser Watch's, the sound menu's and the
