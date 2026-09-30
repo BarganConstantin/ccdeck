@@ -11,12 +11,15 @@
 // same issue. The owner chose on-by-default on 2026-09-30, which is why the
 // cases about a saved `false` matter more than they look: an upgrade must never
 // turn back on what somebody turned off.
+import { Readable } from "node:stream";
 import { describe, it, expect } from "vitest";
 import { DEFAULTS, normalise, publicPrefs, reportsVetoed } from "../../server/deck-prefs.mjs";
 import {
   createReporter, installFacts, reportsOn, scrub,
   // @ts-expect-error — plain JS module, no types
 } from "../../server/reports.mjs";
+// @ts-expect-error — plain JS module, no types
+import { handleFeedback } from "../../server/reports-routes.mjs";
 
 type Call = { method: string; url: string; body: Record<string, unknown> | undefined };
 
@@ -377,5 +380,65 @@ describe("what an install says about itself", () => {
     const facts = installFacts({ version: "3.32.2", platform: "darwin", arch: "arm64", versions: { node: "22.18.0" }, env: { CCDECK_APP: "1" } });
     expect(facts).toEqual({ version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0" });
     expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {} })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
+  });
+});
+
+// Feedback is stored by the API and read by the people who make ccdeck, who may
+// open a public issue from it. It used to become an issue by being sent, and the
+// deck's server handed the page that issue's link; there is no link to hand now,
+// and the page must not be given one the API happens to answer with.
+describe("the feedback dialog's route", () => {
+  function post(body: unknown) {
+    const req = Readable.from([JSON.stringify(body)]);
+    const res = {
+      headersSent: false,
+      status: 0,
+      text: "",
+      writeHead(status: number) { res.status = status; res.headersSent = true; },
+      end(text: string) { res.text = text; },
+    };
+    return { req, res, answer: () => ({ status: res.status, body: JSON.parse(res.text) }) };
+  }
+  const MESSAGE = { kind: "idea", title: "A quieter chime", body: "The done chime is loud at night.", contact: " bob@example.org " };
+
+  it("passes the message on with the version and the system, and answers that it arrived", async () => {
+    const upstream: { url: string; body: Record<string, unknown> }[] = [];
+    const fetchImpl = async (url: string, init: { body: string }) => {
+      upstream.push({ url, body: JSON.parse(init.body) });
+      // An API that still answered with a link must not get one to the page.
+      return { status: 202, json: async () => ({ id: "fb_1", issue: "https://github.com/BarganConstantin/ccdeck/issues/1" }) };
+    };
+    const { req, res, answer } = post(MESSAGE);
+
+    await handleFeedback(req, res, { fetchImpl, env: {} });
+
+    expect(answer()).toEqual({ status: 200, body: { ok: true } });
+    expect(upstream.length).toBe(1);
+    expect(upstream[0].url).toBe("https://api.ccdeck.dev/v1/feedback");
+    expect(upstream[0].body).toEqual({
+      kind: "idea", title: "A quieter chime", body: "The done chime is loud at night.", contact: "bob@example.org",
+      appVersion: installFacts({ env: {} }).version, platform: `${process.platform}-${process.arch}`,
+    });
+  });
+
+  it("sends nothing from a deck started with AGENTS_DECK_NO_INSTALL=1", async () => {
+    let asked = 0;
+    const fetchImpl = async () => { asked++; return { status: 202, json: async () => ({}) }; };
+    const { req, res, answer } = post(MESSAGE);
+
+    await handleFeedback(req, res, { fetchImpl, env: { AGENTS_DECK_NO_INSTALL: "1" } });
+
+    expect(answer()).toEqual({ status: 403, body: { ok: false, reason: "vetoed" } });
+    expect(asked).toBe(0);
+  });
+
+  it("says so when the API is over its limit or cannot be reached", async () => {
+    const busy = post(MESSAGE);
+    await handleFeedback(busy.req, busy.res, { fetchImpl: async () => ({ status: 429, json: async () => ({}) }), env: {} });
+    expect(busy.answer()).toEqual({ status: 429, body: { ok: false, reason: "too_many" } });
+
+    const down = post(MESSAGE);
+    await handleFeedback(down.req, down.res, { fetchImpl: async () => { throw new Error("offline"); }, env: {} });
+    expect(down.answer()).toEqual({ status: 502, body: { ok: false, reason: "unavailable" } });
   });
 });

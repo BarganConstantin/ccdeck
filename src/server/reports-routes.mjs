@@ -38,6 +38,11 @@ export async function handleClientError(req, res, { report = reporter } = {}) {
 /**
  * `POST /api/feedback` `{ kind, title, body, contact? }`: the feedback dialog.
  *
+ * The API stores it, and the people who make ccdeck read it there. They may
+ * open a public issue from it, never with the contact; nothing becomes public
+ * by being sent, which is why the answer to the page is a plain "it arrived"
+ * and carries no link.
+ *
  * Not gated on the reports switch: pressing Send is its own decision, for this
  * one message. AGENTS_DECK_NO_INSTALL=1 still wins, because the README promises
  * that it "turns off everything but the quota reads", and a launch script's
@@ -60,7 +65,7 @@ export async function handleFeedback(req, res, { fetchImpl = globalThis.fetch, e
       signal: AbortSignal.timeout(20_000),
     });
     const answer = await upstream.json().catch(() => null);
-    if (upstream.status === 202) return send(res, 200, { ok: true, issue: answer?.issue ?? null });
+    if (upstream.status === 202) return send(res, 200, { ok: true });
     if (upstream.status === 400) return send(res, 400, { ok: false, reason: "invalid", errors: answer?.errors ?? {} });
     if (upstream.status === 429) return send(res, 429, { ok: false, reason: "too_many" });
     return send(res, 502, { ok: false, reason: "unavailable" });
