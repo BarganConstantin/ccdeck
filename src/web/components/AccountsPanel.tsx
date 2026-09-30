@@ -8,6 +8,7 @@
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
+import type { LanStatus } from "../lan-types";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
@@ -20,7 +21,7 @@ import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
-import { lanAccounts } from "../account-lan";
+import { lanAccounts, noCopyWorksNearby } from "../account-lan";
 import { laneKey } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
@@ -187,8 +188,14 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   useEffect(() => { saveOpenness(openness); }, [openness]);
   useEffect(() => { saveOrder(order); }, [order]);
 
+  // WHAT LOCAL NETWORK KNOWS about each account's copies elsewhere, from the
+  // status its own section already polls: a dead login no paired deck can
+  // repair says so on its row, rather than waiting in silence for a copy
+  // that will not come. See noCopyWorksNearby.
+  const [lanStatus, setLanStatus] = useState<LanStatus | null>(null);
+  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopyWorksNearby(lanAccounts([a])[0].key, lanStatus) });
   const activeAcct = data?.accounts?.find(a => a.active);
-  const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec) : null;
+  const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
 
   // ── the fold ──
   // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
@@ -391,7 +398,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const displaced = swapped ? roster.find(x => x.num === swapped.displaced) : undefined;
   const issueExpanded = issueOpen?.anchor === `ap-issue-${a.num}`;
     return (
-      <AccountRow key={a.num} a={a} nowSec={nowSec}
+      <AccountRow key={a.num} a={a} nowSec={nowSec} lan={lanFor(a)}
         opened={opened} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
@@ -598,7 +605,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
               })()}
               {issueOpen && (() => {
                 const a = data.accounts?.find(x => x.num === issueOpen.num);
-                const issue = a ? accountIssue(a, nowSec) : null;
+                const issue = a ? accountIssue(a, nowSec, lanFor(a)) : null;
                 if (!a || !issue) return null;
                 return (
                   <AccountIssuePopover
@@ -640,6 +647,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           // account-lan.ts.
           accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
+          onStatus={setLanStatus}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}

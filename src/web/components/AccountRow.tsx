@@ -62,6 +62,8 @@ function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: numbe
 interface Props {
   a: Account;
   nowSec: number;
+  /** What Local network knows about this account's copies on other decks. */
+  lan?: { noCopyWorksNearby?: boolean };
   /** The reader has opened this row's detail. */
   opened: boolean;
   /** Open this row's detail, or shut it. */
@@ -91,7 +93,7 @@ interface Props {
 }
 
 export default function AccountRow({
-  a, nowSec, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
+  a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
   refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
 }: Props) {
   const { shown, fuller } = laneSplit(a.lanes);
@@ -102,7 +104,7 @@ export default function AccountRow({
   const keyLane = sortKey === "room"
     ? a.lanes.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
     : sortKey ? a.lanes.find(l => laneName(l) === sortKey) ?? null : null;
-  const issue = accountIssue(a, nowSec);
+  const issue = accountIssue(a, nowSec, lan);
   // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
   // The live account is the one whose windows are being spent, so
   // its bars, resets and freshness are the reading this column is
