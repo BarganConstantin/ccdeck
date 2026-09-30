@@ -147,6 +147,15 @@ function forgetSession(sid) {
   forgetCodexSession(sid);
 }
 
+/** How many sessions the deck is still tracking — the size of the LRU the watch
+ *  polls, which is the coarse "how many sessions" the anonymous "active" report
+ *  counts (reports.mjs). Reused, not new state: the Map is already the deck's
+ *  own answer to which sessions it still holds anything for. Never a session id,
+ *  a name or a path — only the count. */
+function trackedSessionCount() {
+  return sessionTouchedAt.size;
+}
+
 function touchSession(sid) {
   if (!sid || typeof sid !== "string") return;
   // Re-insert so the Map's own insertion order *is* the LRU order and eviction
@@ -239,4 +248,4 @@ async function handleForget(req, res) {
 // What index.mjs calls besides HARD_TRACKED_SESSIONS. Listed rather than
 // marked at each declaration, so the declarations read as they did where they
 // came from.
-export { handleForget, outputWatch, startOutputWatch, touchSession };
+export { handleForget, outputWatch, startOutputWatch, touchSession, trackedSessionCount };
