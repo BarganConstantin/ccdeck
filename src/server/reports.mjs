@@ -29,7 +29,7 @@ import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { inApp } from "./app-host.mjs";
 import { reportsVetoed } from "./deck-prefs.mjs";
-import { heldPrefs } from "./prefs-state.mjs";
+import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
@@ -96,6 +96,7 @@ export function scrub(text, home = homedir()) {
  * @param {NodeJS.ProcessEnv} [deps.env]
  * @param {ReturnType<typeof installFacts>} [deps.facts]
  * @param {string} [deps.home]
+ * @param {Promise<unknown>} [deps.ready] what start() waits for: the prefs read at import
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -104,6 +105,7 @@ export function createReporter({
   env = process.env,
   facts = installFacts({ env }),
   home = homedir(),
+  ready = prefsRead,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -208,9 +210,10 @@ export function createReporter({
     return call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack });
   }
 
-  /** Check in now and every few hours after, on a timer that never holds the process open. */
+  /** Check in once the prefs are read, and every few hours after, on a timer
+   *  that never holds the process open. */
   function start() {
-    void checkIn();
+    Promise.resolve(ready).catch(() => {}).then(checkIn);
     if (!timer) {
       timer = setInterval(() => void checkIn(), CHECK_IN_EVERY_MS);
       timer.unref?.();
