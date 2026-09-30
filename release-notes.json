@@ -60,6 +60,12 @@
     "3.29.9",
     "3.33.1"
   ],
+  "3.34.1": [
+    {
+      "title": "🗂️ The tray menu stays open while you read it",
+      "body": "On Linux the menu behind the tray icon could close by itself while agents were working, often before the row you pressed took the click, so it had to be opened and pressed again. It now changes only when something it says has changed, and stays open while you choose."
+    }
+  ],
   "3.34.0": [
     {
       "title": "🗺️ The network map shows who you are connected to",

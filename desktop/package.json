@@ -1,7 +1,7 @@
 {
   "name": "ccdeck-desktop",
   "private": true,
-  "version": "3.34.0",
+  "version": "3.34.1",
   "description": "Desktop app for ccdeck, the local dashboard for Claude Code and Codex CLI: a tray count of Claude Code sessions stopped on a prompt or question, notifications, cost and quota.",
   "desktopName": "ccdeck-desktop",
   "license": "AGPL-3.0-only",
