@@ -20,12 +20,20 @@ interface PaceInfo {
   runsOutIn?: string;   // set when deficit and ETA < window remaining
 }
 
-export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number): PaceInfo | null {
+export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number, limitReached = false): PaceInfo | null {
   const remainSec  = Math.max(0, resetAtSec - nowSec);
   const elapsedSec = Math.max(0, windowSec - remainSec);
   if (elapsedSec < 120) return null; // too early to judge
   const expectedPct = Math.min(100, (elapsedSec / windowSec) * 100);
   const delta = pct - expectedPct;
+
+  // A window at its limit has nothing left to run out of (#1805). What is left
+  // was measured as `100 - pct`, so a full one "ran out" in zero seconds and
+  // the note under a full red bar read "runs out in 0m" — or "on pace", near
+  // the end of the window. Said before either, in the over-pace colours.
+  if (limitReached || pct >= 100) {
+    return { label: "used up", color: "var(--warn)", expectedPct, isDeficit: true };
+  }
 
   if (Math.abs(delta) < 3) {
     return { label: "on pace", color: "var(--ok)", expectedPct, isDeficit: false };
@@ -83,7 +91,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const fillW    = underOne ? 2 : capped;
 
   const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
-  const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
+  const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
   // The note opens the number it is measured against (#856).
   const [why, setWhy] = useState(false);
   const whyId = useId();
