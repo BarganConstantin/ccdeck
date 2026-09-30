@@ -388,6 +388,10 @@ const PRESSES: Press[] = [
   // labelled control by its name under it, so the same 0.97.
   [".ap-lan-map:active", "0.97", "transform"],
   [".nm-node:active", "0.97", "transform"],
+  // The feedback dialog's three kinds (#1853): a <label> the size of a card
+  // round its radio, the import card's shape, and pressed as that card is —
+  // a labelled control, so 0.97.
+  [".fb-kind:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

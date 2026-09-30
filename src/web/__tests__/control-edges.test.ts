@@ -562,6 +562,11 @@ const CONTROLS: Control[] = [
   // choice is a borderless button; the frame is its boundary, and choosing it
   // redraws the frame in --text.
   { at: ".appearance-preview", states: ['.appearance-theme[aria-checked="true"] .appearance-preview'], beds: ["--panel"] },
+  // The feedback dialog's three kinds (#1853): <label> cards round a 1px radio,
+  // so no scan of button and input tags finds them, and they are named here.
+  // The frame is the card's boundary at rest; choosing one redraws it in the
+  // accent. They sit on the dialog's panel.
+  { at: ".fb-kind", states: [".fb-kind:has(input:checked)"], beds: ["--panel"] },
   { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
@@ -778,6 +783,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
+      // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
+      // so the card it stands for draws the ring, as the import card does.
+      ".fb-kind:has(input:focus-visible)",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
