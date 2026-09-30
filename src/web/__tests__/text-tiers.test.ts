@@ -200,6 +200,10 @@ describe("what was migrated to the secondary tier", () => {
       // undone, on the zone's red tint, where --muted is 3.42:1 in dark
       // (#1788).
       ".drag-trash-zone.over .drag-trash-hint",
+      // What happens to a piece of feedback, said before Send is pressed: it
+      // goes to the people who make ccdeck, who may open a public issue from
+      // it, never with the contact (#1853). Read once, to decide.
+      ".fb-note",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
       ".sa-why",

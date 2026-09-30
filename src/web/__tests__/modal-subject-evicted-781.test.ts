@@ -118,8 +118,11 @@ describe("what App.tsx does about it", () => {
     // Three links: the gate is use-modal-gate.ts's, use-dialogs.ts hands it the
     // ids, and App.tsx calls use-dialogs.ts with the two dialogs it does not own.
     expect(gate).toContain("modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null");
-    expect(gate).toContain("|| summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;");
-    expect(dialogs).toMatch(/useModalGate\(\{\s*openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,\s*\}\)/);
+    // The feedback dialog joined in #1853. It is one of use-dialogs.ts's own,
+    // opened by the reader, so App.tsx still hands over only the two it does
+    // not own.
+    expect(gate).toMatch(/\|\| summaryFor != null \|\| browserWatchOpen \|\| keyHelpOpen \|\| releaseNotes != null\s*\|\| feedbackOpen;/);
+    expect(dialogs).toMatch(/useModalGate\(\{\s*openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,\s*feedbackOpen,\s*\}\)/);
     expect(app).toMatch(/useDialogs\(\{ stateRef, tourOpen, releaseNotes \}\)/);
   });
 });

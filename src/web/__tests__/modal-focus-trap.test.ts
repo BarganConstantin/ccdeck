@@ -275,7 +275,8 @@ describe("the deck's ten overlays", () => {
     // Local network. The nineteenth is the accounts panel's Usage report
     // (#1707), which adds every account's 5h and 7d up. The twentieth is the
     // network map, opened from Local network's row and its view's header.
-    expect(MODALS.length).toBe(20);
+    // The twenty-first is the feedback dialog, opened from Appearance (#1853).
+    expect(MODALS.length).toBe(21);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -319,6 +320,9 @@ describe("the deck's ten overlays", () => {
       // press.
       "AccountsUsageReport.tsx",
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
+      // Feedback names its title field: it was opened to write in, and the
+      // row of kinds above it already holds a sensible answer (#1853).
+      "FeedbackDialog.tsx",
       // A guide names Next, because it is read forwards: a reader who opened
       // it with Enter can keep pressing Enter to the end, and the × is still
       // one Shift+Tab away and Escape closes it from any step.

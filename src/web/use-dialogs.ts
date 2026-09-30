@@ -1,8 +1,9 @@
-// The six dialogs the reader opens: the tool inspector, the context breakdown,
-// the session recap, the shortcuts sheet, Usage history and Browser Watch.
+// The seven dialogs the reader opens: the tool inspector, the context breakdown,
+// the session recap, the shortcuts sheet, Usage history, Browser Watch and the
+// feedback dialog (#1853).
 // Whether each is open, and on what; the two callbacks the canvas opens them
 // through; what the two that name an agent resolve to on the board; and the
-// modal gate, which reads all six.
+// modal gate, which reads all seven.
 //
 // Moved out of App.tsx's `Inner` unchanged. The flags were in three places a
 // hundred lines apart: four near the top, the two toolbar dialogs beside the
@@ -48,6 +49,8 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
+  /** The feedback dialog, opened from the Appearance menu (#1853). */
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // The tool the modal is showing, found without building a list of the ones it
   // is not (#997). In the render body and not skippable — the modal gate below
@@ -64,6 +67,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // is the shortcuts sheet — use-modal-gate.ts.
   const { keyHelpOpenRef, modalOpenRef } = useModalGate({
     openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
+    feedbackOpen,
   });
   return {
     setOpenedToolKey, openTool, openedTool,
@@ -72,6 +76,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
     keyHelpOpen, setKeyHelpOpen,
     usageHistoryOpen, setUsageHistoryOpen,
     browserWatchOpen, setBrowserWatchOpen,
+    feedbackOpen, setFeedbackOpen,
     keyHelpOpenRef, modalOpenRef,
   };
 }

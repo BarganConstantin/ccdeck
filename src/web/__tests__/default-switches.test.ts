@@ -78,7 +78,9 @@ describe("what counts as an answer in the prefs file", () => {
   it("leaves every switch on its default when a hand edit wrote strings", () => {
     // Each switch the file holds, set to the string of the opposite of its
     // default: none of them may move.
-    const top = ["notifications", "tourSeen", "autoUpdate"] as const;
+    // `reports` joined with #1853: on by default, so the string "false" a hand
+    // edit wrote must not switch it off, and only a real `false` does.
+    const top = ["notifications", "tourSeen", "autoUpdate", "reports"] as const;
     const lan = ["enabled", "autoAsk", "autoAccept", "shareActive", "tailscale", "tailscaleAsk", "tailscaleAccept"] as const;
     const raw = {
       ...Object.fromEntries(top.map(k => [k, String(!DEFAULTS[k])])),

@@ -867,7 +867,7 @@ describe("how App.tsx wires it up", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
     // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's;
     // use-dialogs.ts hands it the notes, which App.tsx hands use-dialogs.ts.
-    expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
+    expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null\s*\|\| feedbackOpen;/);
     expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\breleaseNotes\b/);
     expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\breleaseNotes\b/);
   });
