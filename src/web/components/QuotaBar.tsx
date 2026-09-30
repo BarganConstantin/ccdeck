@@ -73,9 +73,14 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const isErr    = limitReached || capped >= 90;
   const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
-  const pctLabel = !known ? "no reading" : capped === 0 ? "< 1%" : `${capped}%`;
-  // minimum 2% visual fill so a 0% bar is still visible as a thin sliver
-  const fillW    = capped === 0 ? 2 : capped;
+  // A whole percentage, the way Claude's readings already arrive (clampPct).
+  // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
+  // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
+  // 0.25% of the track is a fill nobody can see.
+  const underOne = capped < 1;
+  const pctLabel = !known ? "no reading" : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
+  const fillW    = underOne ? 2 : capped;
 
   const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
@@ -93,7 +98,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
         <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
       </div>
       <div className="qb-track">
-        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />}
+        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}
