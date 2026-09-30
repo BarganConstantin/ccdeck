@@ -22,9 +22,15 @@ export function reachable(a: Account, nowSec: number): boolean {
   return !a.disabled && !accountIssue(a, nowSec)?.blocksSwitch;
 }
 
-export function peersOf(rest: readonly Account[], nowSec: number): Peer[] {
+export function peersOf(
+  rest: readonly Account[],
+  nowSec: number,
+  /** What Local network knows about each account's copies elsewhere, so a
+   *  folded row says what its unfolded row does. */
+  lanFor?: (a: Account) => { noCopyWorksNearby?: boolean },
+): Peer[] {
   return rest.map(a => {
-    const issue = accountIssue(a, nowSec);
+    const issue = accountIssue(a, nowSec, lanFor?.(a));
     return {
       key: laneKey(a),
       name: a.alias ?? a.email ?? `account ${a.num}`,
