@@ -25,14 +25,28 @@
 
 .ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
 .ap-proj-error { color: var(--text); }
-/* Switching windows keeps the last report up, dimmed, until the next lands. */
-.ap-proj-body > * { transition: opacity 140ms ease; }
-.ap-proj-body.refreshing > * { opacity: 0.55; }
+/* Switching windows keeps the last report up until the next lands, its marks
+   dimmed and its words saying "updating…". The dim was on every child of the
+   body at 0.55, which took --muted to 2.29:1 in dark and --text to 4.18:1 in
+   light (#1787), so it is on the bar, the meters, the day columns and the dots
+   now — elements that hold no word — at --dim-stale, as the usage history's
+   stale chart is. */
+.ap-proj-seg,
+.ap-proj-fill,
+.ap-proj-colseg,
+.ap-proj-dot { transition: opacity 140ms ease; }
+.ap-proj-body.refreshing .ap-proj-seg,
+.ap-proj-body.refreshing .ap-proj-fill,
+.ap-proj-body.refreshing .ap-proj-colseg,
+.ap-proj-body.refreshing .ap-proj-dot { opacity: var(--dim-stale); }
 /* The way out of an empty window: the next wider one, one press away, drawn
    as the report's own Copy control. */
 .ap-proj-widen-wrap { margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) {
-  .ap-proj-body > * { transition: none; }
+  .ap-proj-seg,
+  .ap-proj-fill,
+  .ap-proj-colseg,
+  .ap-proj-dot { transition: none; }
 }
 .ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
 

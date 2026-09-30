@@ -132,15 +132,58 @@ const TOK: Record<Theme, Record<string, string>> = { dark: tokens("dark"), light
  *
  *  All the way down since #1290: --ctl-edge is itself that color-mix(), so a
  *  rule reading `var(--ctl-edge)` is two steps from a colour, and a resolver
- *  that took one step handed parseColor() the color-mix() text and threw. */
+ *  that took one step handed parseColor() the color-mix() text and threw.
+ *
+ *  And a mix of two colours since #1787: the Sessions list's guessed tool is
+ *  --warn mixed 75% with --panel, which a reader that only knew the
+ *  transparent form handed to parseColor() and threw on. */
 function resolve(value: string, theme: Theme): Rgba {
   const mix = /color-mix\(in srgb,\s*var\((--[\w-]+)\)\s*([\d.]+)%,\s*transparent\)/.exec(value);
   if (mix) {
     const base = resolve(TOK[theme][mix[1]], theme);
     return [base[0], base[1], base[2], +mix[2] / 100];
   }
+  const two = mixOperands(value);
+  if (two) return mixed(two, theme);
   const v = /^var\((--[\w-]+)\)$/.exec(value.trim());
   return v ? resolve(TOK[theme][v[1]], theme) : parseColor(value);
+}
+
+/** The two operands of a `color-mix(in srgb, A [p%], B [q%])`, split at the
+ *  comma between them rather than at one inside a nested mix. Null for any
+ *  other value. */
+function mixOperands(value: string): Array<{ colour: string; pct: number | null }> | null {
+  const m = /^color-mix\(\s*in srgb\s*,([\s\S]*)\)$/.exec(value.trim());
+  if (!m) return null;
+  const parts: string[] = [];
+  let depth = 0, from = 0;
+  for (let i = 0; i < m[1].length; i++) {
+    const c = m[1][i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "," && depth === 0) { parts.push(m[1].slice(from, i)); from = i + 1; }
+  }
+  parts.push(m[1].slice(from));
+  if (parts.length !== 2) return null;
+  return parts.map(p => {
+    const pm = /^([\s\S]*?)\s+([\d.]+)%$/.exec(p.trim());
+    return pm ? { colour: pm[1].trim(), pct: +pm[2] } : { colour: p.trim(), pct: null };
+  });
+}
+
+/** CSS Color 5's color-mix() in srgb: the percentages normalised to 100 (a
+ *  missing one is the rest, two missing are half each), premultiplied by each
+ *  operand's alpha, and a sum under 100 kept as alpha. */
+function mixed([a, b]: Array<{ colour: string; pct: number | null }>, theme: Theme): Rgba {
+  const pa = a.pct ?? (b.pct === null ? 50 : 100 - b.pct);
+  const pb = b.pct ?? 100 - pa;
+  const sum = pa + pb;
+  const [ca, cb] = [a, b].map(o => (o.colour === "transparent" ? [0, 0, 0, 0] as Rgba : resolve(o.colour, theme)));
+  const wa = (pa / sum) * ca[3];
+  const wb = (pb / sum) * cb[3];
+  const alpha = wa + wb;
+  const rgb = [0, 1, 2].map(i => (alpha === 0 ? 0 : (ca[i] * wa + cb[i] * wb) / alpha));
+  return [rgb[0], rgb[1], rgb[2], alpha * Math.min(1, sum / 100)];
 }
 
 /** The colour stops of a gradient token, in order — and a failure naming the
@@ -1410,6 +1453,138 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
         const colours = paintsOf(sel, theme);
         if (colours.length) far(sel, colours, theme);
       }
+    }
+  });
+});
+
+// ── #1787: an opacity is a colour too, even written as a number ────────────
+//
+// #1289 proved that an opacity over words is a contrast ratio, and then policed
+// the one token that spells it. Three rules spelled it as a literal, each over
+// text already near a readable tier's floor:
+//   the empty canvas's capture hints, --muted at 0.75 — 3.33:1 in dark and
+//     3.83:1 in light, on the first screen a new install shows;
+//   the guessed tool after "waiting 6m ·" in the Sessions list, --warn at 0.75
+//     — 3.41:1 on the light panel;
+//   a Projects report switching windows, every child of its body at 0.55 —
+//     --muted at 2.29:1 in dark and even --text at 4.18:1 in light, for as long
+//     as the load is out.
+// So each is measured as what it composites to: the ink the element paints or
+// inherits, through whatever opacity the sheet still gives it, on the bed it is
+// drawn on, in both themes.
+
+/** `prop` as the cascade hands it to `theme`: in light, a rule for the same
+ *  selector under `:root[data-theme="light"]` outranks the base one. */
+const themed = (selector: string, prop: string, theme: Theme) =>
+  (theme === "light" ? declFor(`:root[data-theme="light"] ${selector}`, prop) : null) ?? declFor(selector, prop);
+
+/** The colour an element's words are drawn in: its own, else the nearest rule
+ *  up `chain` that sets one — the inheritance the markup gives it. */
+function inkOf(theme: Theme, ...chain: string[]): Rgba {
+  for (const sel of chain) {
+    const v = themed(sel, "color", theme);
+    if (v) return resolve(v, theme);
+  }
+  throw new Error(`${theme}: nothing in ${chain.join(" < ")} sets a colour`);
+}
+
+/** The opacity a rule gives, 1 when it gives none. */
+const opacityOf = (selector: string) => Number(declFor(selector, "opacity") ?? "1");
+
+/** Words in `ink` through `opacity`, on an opaque `bed`. */
+const through = (ink: Rgba, opacity: number, bed: Rgba) =>
+  contrastRatio(over([ink[0], ink[1], ink[2], ink[3] * opacity], bed), bed);
+
+/** A rule's own background composited on what is under it. */
+const bedOf = (selector: string, theme: Theme, under: Rgba) => {
+  const fill = themed(selector, "background", theme);
+  if (fill === null) throw new Error(`${theme}: ${selector} paints no background to measure on`);
+  return over(resolve(fill, theme), under);
+};
+
+describe("words quietened with an opacity, measured as what they composite to (#1787)", () => {
+  const HINT = ".empty-hero .hint-row";
+  const TOOL = ".session-list .sl-waiting-tool";
+  const RELOADING = ".ap-proj-body.refreshing > *";
+  const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
+
+  it("reproduces the ratios #1787 measured, at the opacities that shipped", () => {
+    const tier = (t: string, theme: Theme) => parseColor(TOK[theme][t]);
+    const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+    expect(through(tier("--muted", "dark"), 0.75, canvas("dark"))).toBeCloseTo(3.33, 2);
+    expect(through(tier("--muted", "light"), 0.75, canvas("light"))).toBeCloseTo(3.83, 2);
+    expect(through(tier("--warn", "light"), 0.75, panel("light"))).toBeCloseTo(3.41, 2);
+    expect(through(tier("--muted", "dark"), 0.55, panel("dark"))).toBeCloseTo(2.29, 2);
+    expect(through(tier("--muted", "light"), 0.55, panel("light"))).toBeCloseTo(2.63, 2);
+    expect(through(tier("--text", "light"), 0.55, panel("light"))).toBeCloseTo(4.18, 2);
+  });
+
+  it("reads the empty canvas's capture hints at 4.5:1 on the canvas, in both themes", () => {
+    for (const theme of themes) {
+      const r = through(inkOf(theme, HINT, ".empty-hero"), opacityOf(HINT), canvas(theme));
+      expect(r, `${theme} ${HINT} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+
+  it("reads the waiting tool at 4.5:1 on a row at rest, hovered and selected, in both themes", () => {
+    for (const theme of themes) {
+      const list = bedOf(".session-list", theme, parseColor(TOK[theme]["--bg"]));
+      const beds: Array<[string, Rgba]> = [
+        ["at rest", list],
+        ["hovered", bedOf(".session-list .sl-row:hover", theme, list)],
+        ["selected", bedOf(".session-list .sl-row.selected", theme, list)],
+      ];
+      const ink = inkOf(theme, TOOL, ".session-list .sl-waiting");
+      for (const [state, bed] of beds) {
+        const r = through(ink, opacityOf(TOOL), bed);
+        expect(r, `${theme} ${TOOL} ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+
+  it("still sets the guessed tool quieter than the duration it qualifies", () => {
+    // The duration is measured and the tool is inferred (BlockedTool in
+    // types.ts), so the two must not read with the same confidence.
+    const weight = (sel: string) => Number(declFor(sel, "font-weight"));
+    expect(weight(TOOL)).toBeLessThan(weight(".session-list .sl-waiting"));
+    for (const theme of themes) {
+      const panel = parseColor(TOK[theme]["--panel"]);
+      const tool = through(inkOf(theme, TOOL, ".session-list .sl-waiting"), opacityOf(TOOL), panel);
+      const duration = through(inkOf(theme, ".session-list .sl-waiting"), opacityOf(".session-list .sl-waiting"), panel);
+      expect(tool, theme).toBeLessThanOrEqual(duration);
+    }
+  });
+
+  it("keeps a reloading Projects report's words at full strength, on the panel and on its insets", () => {
+    // Every ink a rule of the report writes, since a group opacity takes all of
+    // them down at once.
+    const inks = new Set(SHEET
+      .filter(r => !r.at && r.selectors.some(s => s.startsWith(".ap-proj-")))
+      .map(r => decl(r.body, "color"))
+      .filter((v): v is string => v !== null && v.startsWith("var(")));
+    expect([...inks], "the report's inks").toEqual(expect.arrayContaining(["var(--text)", "var(--muted)", "var(--text-dim)"]));
+    for (const theme of themes) {
+      for (const surface of ["--panel", "--bg-soft"] as const) {
+        const bed = parseColor(TOK[theme][surface]);
+        for (const ink of inks) {
+          const r = through(resolve(ink, theme), opacityOf(RELOADING), bed);
+          expect(r, `${theme} ${ink} in a reloading report on ${surface} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
+  });
+
+  it("fades only the report's marks while it reloads — the bar, the meters, the day columns and the dots", () => {
+    const fading = SHEET
+      .filter(r => !r.at && decl(r.body, "opacity") !== null)
+      .flatMap(r => r.selectors)
+      .filter(s => s.startsWith(".ap-proj-body.refreshing"));
+    for (const mark of [".ap-proj-seg", ".ap-proj-fill", ".ap-proj-colseg", ".ap-proj-dot"]) {
+      expect(fading, mark).toContain(`.ap-proj-body.refreshing ${mark}`);
+    }
+    for (const sel of fading) {
+      expect(declFor(sel, "opacity"), sel).toBe("var(--dim-stale)");
+      expect(dimsOnlyMarks(sel), `${sel} dims something that can hold a word`).toBe(true);
     }
   });
 });
