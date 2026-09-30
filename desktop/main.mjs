@@ -26,6 +26,7 @@ import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
+import { createMenuSwap } from "./tray-menu-swap.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
@@ -70,6 +71,7 @@ let providerStatus = null;    // the deck's last /api/provider-status answer (#1
 let incidentsOf = null;       // the page's reading of it, from dist/lib/provider-status.mjs
 let safeStatusPage = null;    // and the page's rule for which links are status pages
 let redraw = null;
+let menuSwap = null;          // tray-menu-swap.mjs, once the tray exists
 const ownDeck = createOwnDeck(); // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
@@ -84,11 +86,12 @@ function trayImage(icon) {
   return nativeImage.createFromPath(join(icons, name));
 }
 
-/** The menu for the state the app is in now — see tray-menu.mjs, which owns
- *  its rows. What each row does is below, and reads this file's variables
- *  when it is clicked rather than when the menu was drawn. */
+/** The menu's template for the state the app is in now — see tray-menu.mjs,
+ *  which owns its rows, and tray-menu-swap.mjs, which decides when the tray
+ *  is handed a new one. What each row does is below, and reads this file's
+ *  variables when it is clicked rather than when the menu was drawn. */
 function buildMenu() {
-  return Menu.buildFromTemplate(trayMenuItems({
+  return trayMenuItems({
     now: Date.now(),
     snapshot,
     deck,
@@ -102,7 +105,7 @@ function buildMenu() {
     // Read against now, so an answer held past its expiry leaves the menu on
     // the next redraw rather than at the next ask.
     incidents: incidentsOf?.(providerStatus, Date.now()) ?? [],
-  }, TRAY_ACTIONS));
+  }, TRAY_ACTIONS);
 }
 
 const TRAY_ACTIONS = {
@@ -143,7 +146,9 @@ function scheduleRedraw() {
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
     tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
-    tray.setContextMenu(buildMenu());
+    // Only when what it says has changed, and not while it is open: a new
+    // menu closes the one somebody is reading (tray-menu-swap.mjs).
+    menuSwap?.refresh();
   }, 150);
 }
 
@@ -768,7 +773,16 @@ app.whenReady().then(async () => {
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
-  tray.setContextMenu(buildMenu());
+  menuSwap = createMenuSwap({
+    build: buildMenu,
+    install: (template, { opened, closed }) => {
+      const menu = Menu.buildFromTemplate(template);
+      menu.on("menu-will-show", opened);
+      menu.on("menu-will-close", closed);
+      tray.setContextMenu(menu);
+    },
+  });
+  menuSwap.refresh();
   // Windows and Linux: a left click opens the window, the menu is on the right.
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
   watchTray();
