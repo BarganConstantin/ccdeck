@@ -559,8 +559,11 @@ describe("the dialog's type", () => {
     expect(modalSrc).not.toContain("pl-foot");
     expect(css).not.toContain(".pl-foot");
     // And the header is what carries them. SortHead moved into this file with
-    // the rest of the process code when the panel stopped drawing rows.
-    expect(modalSrc).toContain("note ? `Sort by ${label}");
+    // the rest of the process code when the panel stopped drawing rows, and on
+    // into SortHead.tsx when the account report's columns sorted too: the
+    // note is handed to it here and worded into the tooltip there.
+    expect(modalSrc).toMatch(/<SortHead[^>]*\bnote=/);
+    expect(readFileSync(at("../components/SortHead.tsx"), "utf8")).toContain("note ? `Sort by ${label}");
   });
 });
 

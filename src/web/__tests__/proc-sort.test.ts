@@ -176,20 +176,24 @@ describe("the header is a control a keyboard can reach", () => {
   // No DOM in this suite, so the markup is read rather than rendered — the same
   // way control-defects-546.test.ts reads the controls it pins.
   const src = readFileSync(fileURLToPath(new URL("../components/ProcessListModal.tsx", import.meta.url)), "utf8");
+  // The header itself is SortHead.tsx's, shared with the account report since
+  // its rows could be ordered too; this table hands it the note and its rule.
+  const head = readFileSync(fileURLToPath(new URL("../components/SortHead.tsx", import.meta.url)), "utf8");
 
   it("puts a real button inside a real column header", () => {
-    expect(src).toMatch(/<th scope="col" aria-sort=\{state\}>/);
-    expect(src).toMatch(/<button\s+type="button"\s+className="sd-sort"/);
+    expect(head).toMatch(/<th scope="col" aria-sort=\{state\} className=\{className\}>/);
+    expect(head).toMatch(/<button\s+type="button"\s+className="sd-sort"/);
+    expect(src).toMatch(/<ColumnSortHead \{\.\.\.props\} next=\{\(current, col\) => nextSort\(current \?\? SORT_DEFAULT, col\)\} \/>/);
   });
 
   it("names itself with the word in the column, and describes the press in a title", () => {
     // The accessible name comes from the contents, so a voice-control user says
     // the word they can see. The tooltip is the description.
-    expect(src).toMatch(/title=\{note \? `Sort by \$\{label\}/);
+    expect(head).toMatch(/title=\{note \? `Sort by \$\{label\}/);
   });
 
   it("hides the arrow from the reading, because aria-sort has already said it", () => {
-    expect(src).toMatch(/className="sd-sort-dir" aria-hidden/);
+    expect(head).toMatch(/className="sd-sort-dir" aria-hidden/);
   });
 
   it("holds the sort in the dialog rather than in storage", () => {
