@@ -14,7 +14,7 @@
 
 import { bareModelId } from "./model-id";
 import type { TokenUsage } from "./types";
-import { RATES } from "./rate-table";
+import { FAST_RATES, RATES } from "./rate-table";
 
 export interface ModelRates {
   input: number;       // $/Mtok
@@ -58,18 +58,41 @@ function isCodexModel(modelId: string | undefined): boolean {
  *  them and every Claude model on Bedrock or Mantle priced out at `null` —
  *  which is not a wrong number but no number at all, on every cost surface, for
  *  the whole session. See model-id.ts for why this is a strip rather than
- *  thirty looser patterns. A first-party or Vertex id is unchanged by it. */
+ *  thirty looser patterns. A first-party or Vertex id is unchanged by it.
+ *
+ *  `speed` is the usage object's `speed`, and it picks the table: the standard
+ *  one unless a request ran fast (#754). A Map rather than an object literal,
+ *  because the value is read out of a transcript and `"constructor"` is a key
+ *  every object literal already has. */
 export function ratesForModel(
   modelId: string | undefined,
   now: number = Date.now(),
+  speed: string = STANDARD_SPEED,
 ): ModelRates | null {
   if (!modelId) return null;
+  const table = RATES_BY_SPEED.get(speed);
+  if (!table) return null;
   const bare = bareModelId(modelId);
-  for (const r of RATES) {
+  for (const r of table) {
     if (r.match.test(bare)) return typeof r.rates === "function" ? r.rates(now) : r.rates;
   }
   return null;
 }
+
+/** The speed a request is billed at when its usage names no other: every
+ *  Codex request, every Claude request Claude Code wrote before it recorded
+ *  `usage.speed`, and every one that says `"standard"`. */
+export const STANDARD_SPEED = "standard";
+
+/** Which table prices each speed a usage object can name (#754). A speed with
+ *  no entry here is one this build has never read a price for, and
+ *  `ratesForModel` answers it with null rather than the standard rate: a
+ *  premium tier priced at the standard rate is a confident figure that is
+ *  wrong by the premium. */
+const RATES_BY_SPEED: ReadonlyMap<string, typeof RATES> = new Map([
+  [STANDARD_SPEED, RATES],
+  ["fast", FAST_RATES],
+]);
 
 export interface CostBreakdown {
   input: number;
@@ -175,13 +198,39 @@ export function billedInputTokens(
  *  must ask ratesForModel as well and carry the unpriced tokens beside its
  *  total, or the total reads as complete when it is a floor. agentUnpricedTokens
  *  does this for the board and the reconciliation does it for the Projects
- *  report, which is where it was missing (#1330). */
+ *  report, which is where it was missing (#1330).
+ *
+ *  Each speed share of `usage` is priced at its own speed's rates (#754), and a
+ *  share whose speed has no rate for this model is the same kind of zero: the
+ *  standard share of a session can be priced while its fast share is not, and
+ *  agentUnpricedTokens counts that share with the rest. */
 export function costForUsage(
   usage: TokenUsage,
   modelId: string | undefined,
   now: number = Date.now(),
 ): CostBreakdown {
-  const rates = ratesForModel(modelId, now);
+  const out: CostBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+  for (const share of speedShares(usage)) {
+    const c = costAtSpeed(share.usage, modelId, share.speed, now);
+    out.input += c.input;
+    out.output += c.output;
+    out.cacheRead += c.cacheRead;
+    out.cacheWrite += c.cacheWrite;
+    out.total += c.total;
+  }
+  return out;
+}
+
+/** `usage` priced at one speed's rate card, `usage.bySpeed` ignored. The
+ *  tooltip prints one of these per share, so its rows add up to the total
+ *  costForUsage builds from the same shares. */
+export function costAtSpeed(
+  usage: TokenUsage,
+  modelId: string | undefined,
+  speed: string,
+  now: number = Date.now(),
+): CostBreakdown {
+  const rates = ratesForModel(modelId, now, speed);
   if (!rates) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
   const input      = usdAt(billedInputTokens(usage, modelId, now), rates.input);
@@ -190,6 +239,49 @@ export function costForUsage(
   const cw = cacheWriteBreakdown(usage, rates);
   const cacheWrite = cw.usd5m + cw.usd1h;
   return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
+}
+
+/** One speed's share of a usage object. */
+export interface SpeedShare {
+  speed: string;
+  usage: TokenUsage;
+}
+
+/** `usage` split by the speed each token was billed at: the standard share
+ *  first, then every share `usage.bySpeed` names, in its own order.
+ *
+ *  The named shares are a SUBSET of the counts they sit on, the way the TTL
+ *  split is a subset of `cacheCreateTokens`, so the standard share is what they
+ *  leave, clamped at zero per field. A usage with no `bySpeed` is one share, the
+ *  object itself, so everything that has never run fast prices exactly as it
+ *  always did. */
+export function speedShares(usage: TokenUsage): SpeedShare[] {
+  const named = usage.bySpeed ? Object.entries(usage.bySpeed) : [];
+  if (named.length === 0) return [{ speed: STANDARD_SPEED, usage }];
+  return [
+    { speed: STANDARD_SPEED, usage: withoutShares(usage, named.map(([, u]) => u)) },
+    ...named.map(([speed, u]) => ({ speed, usage: u })),
+  ];
+}
+
+/** `usage` less every share in `shares`, per field and never below zero. */
+function withoutShares(usage: TokenUsage, shares: readonly TokenUsage[]): TokenUsage {
+  const sum = (pick: (u: TokenUsage) => number | undefined) =>
+    shares.reduce((n, u) => n + (pick(u) ?? 0), 0);
+  const less = (pick: (u: TokenUsage) => number | undefined) =>
+    Math.max(0, (pick(usage) ?? 0) - sum(pick));
+  const out: TokenUsage = {
+    inputTokens: less(u => u.inputTokens),
+    outputTokens: less(u => u.outputTokens),
+    cacheReadTokens: less(u => u.cacheReadTokens),
+    cacheCreateTokens: less(u => u.cacheCreateTokens),
+  };
+  if (usage.cacheCreate1hTokens !== undefined || usage.cacheCreate5mTokens !== undefined) {
+    out.cacheCreate1hTokens = less(u => u.cacheCreate1hTokens);
+    out.cacheCreate5mTokens = less(u => u.cacheCreate5mTokens);
+  }
+  if (usage.reasoningOutputTokens !== undefined) out.reasoningOutputTokens = usage.reasoningOutputTokens;
+  return out;
 }
 
 /** What a surface prints in the slot a dollar figure would occupy when the deck
