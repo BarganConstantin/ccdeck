@@ -152,6 +152,50 @@ describe("where a deck stands", () => {
   });
 });
 
+describe("the tailnet's own slice of the map", () => {
+  /** Where a deck stands round the map, as the slice's own angles count. */
+  const param = (n: { x: number; y: number }, rings: { rx: number; ry: number }) =>
+    (Math.atan2(n.y / rings.ry, n.x / rings.rx) * 180) / Math.PI;
+  const within = (deg: number, from: number, to: number) => {
+    const d = (((deg - from) % 360) + 360) % 360;
+    return d <= to - from;
+  };
+
+  it("stands every tailnet deck inside one slice, and every other deck outside it", () => {
+    const rows = [
+      ...Array.from({ length: 5 }, () => row({})),
+      row({ via: "tailscale" }), row({ via: "tailscale", here: false }),
+      ...Array.from({ length: 4 }, () => row({ here: false })),
+      row({ kind: "nearby", via: "tailscale" }),
+    ];
+    const { nodes, rings, zone } = mapLayout(rows, W, H);
+    expect(zone).not.toBeNull();
+    for (const n of nodes) {
+      const ring = rings.find(r => r.ring === n.ring)!;
+      const inside = within(param(n, ring), zone!.from, zone!.to);
+      expect(`${n.row.via ?? "lan"}: ${inside}`).toBe(`${n.row.via ?? "lan"}: ${n.row.via === "tailscale"}`);
+    }
+  });
+
+  it("keeps the rings' meaning inside the slice", () => {
+    const rows = [row({}), row({ via: "tailscale" }), row({ via: "tailscale", here: false }), row({ kind: "nearby", via: "tailscale" })];
+    const ts = mapLayout(rows, W, H).nodes.filter(n => n.row.via === "tailscale");
+    expect(ts.map(n => n.ring)).toEqual([0, 1, 2]);
+  });
+
+  it("draws no slice without a tailnet deck, or when every deck is on the tailnet", () => {
+    expect(mapLayout([row({}), row({ here: false })], W, H).zone).toBeNull();
+    expect(mapLayout([row({ via: "tailscale" }), row({ via: "tailscale", here: false })], W, H).zone).toBeNull();
+  });
+
+  it("gives one tailnet deck a slice wide enough to read, and a mostly-tailnet network room for the rest", () => {
+    const one = mapLayout([...Array.from({ length: 9 }, () => row({})), row({ via: "tailscale" })], W, H).zone!;
+    expect(one.to - one.from).toBeGreaterThanOrEqual(64);
+    const most = mapLayout([row({}), ...Array.from({ length: 9 }, () => row({ via: "tailscale" }))], W, H).zone!;
+    expect(most.to - most.from).toBeLessThanOrEqual(150);
+  });
+});
+
 describe("the line under a deck's name", () => {
   it("says what a live deck runs, never what its last round moved", () => {
     const troubled = row({ state: "online · 0 of 1 logins arrived", tone: "bad" });

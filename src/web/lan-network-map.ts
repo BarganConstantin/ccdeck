@@ -29,9 +29,16 @@
 // every time it opens and a deck never wanders between two polls. Rings of
 // one or two keep their exact places: two decks are a line, not a scatter.
 //
-// Within a ring the order is the list's own, with the decks over the tailnet
-// gathered into one arc, so a reader who knows the list finds the same
-// machine in the same place.
+// THE TAILNET HAS A ZONE OF ITS OWN. A deck reached over Tailscale is on
+// another network — often another building — and a dashed wire among the
+// solid ones said so to nobody who had not read the key. So every tailnet
+// deck, whatever ring it is on, stands in one slice of the map at its lower
+// right, and the slice is drawn: a faint ground, an edge, and its name along
+// the outside. The rings still say the relationship inside it. Without a
+// tailnet deck, or with nothing else, there is no slice.
+//
+// Within a ring the order is the list's own, so a reader who knows the list
+// finds the same machine in the same place.
 //
 // A layout with a closed form needs no engine. React Flow is already in the
 // bundle, but what it adds is pan, zoom and drag, and none of that belongs in
@@ -87,9 +94,20 @@ export interface MapNode {
 
 export interface MapRing { ring: number; rx: number; ry: number; count: number }
 
+/** The tailnet's slice: between two angles, clockwise from three o'clock in
+ *  the rings' own parameter, and between an inner and an outer ellipse. */
+export interface MapZone {
+  from: number;
+  to: number;
+  inner: { rx: number; ry: number };
+  outer: { rx: number; ry: number };
+  count: number;
+}
+
 export interface MapLayout {
   nodes: MapNode[];
   rings: MapRing[];
+  zone: MapZone | null;
   /** A ring that could not give each deck its minimum room, so every other
    *  deck on it stands a step out. The stylesheet reads it to set names a
    *  size smaller, because a zig-zag ring is a crowded one. */
@@ -133,6 +151,26 @@ const NAME_CH_W = 6.6;
 const EASE_STEP = 1.5;
 const EASE_ROUNDS = 80;
 const NEIGHBOUR_KEEP = 0.45;
+/** Where the tailnet's slice is centred — the lower right, clockwise from
+ *  three o'clock — and how wide it may be: its share of the decks, held
+ *  between the two so one tailnet deck still gets a slice worth reading and
+ *  a mostly-tailnet network still leaves the room its own decks need. */
+const ZONE_AT = 40;
+const ZONE_MIN = 64;
+const ZONE_MAX = 150;
+/** The slice's inner and outer edges, as shares of the stage's usable half:
+ *  clear of this deck's name at the centre, and a little outside the last
+ *  ring, where the slice's own name runs. */
+const ZONE_INNER = 0.3;
+/** Past the slice's furthest deck by a name's depth and then the slice's own
+ *  name, in pixels: its decks' names hang below them, and the slice's name
+ *  runs along its outer edge, and the two must not meet. Nothing else stands
+ *  out there — no deck off the tailnet is ever placed inside the slice. */
+const ZONE_OUTER_PAD_PX = 84;
+/** A tailnet deck's room in its slice, as a share over the least gap a ring
+ *  gives any deck: a slice's decks sit at its edges' mercy as well as each
+ *  other's. */
+const ZONE_ROOM = 1.3;
 /** The step out a crowded ring's every other deck takes, as a share of the
  *  distance to the next ring out. */
 const ZIG = 0.16;
@@ -223,6 +261,9 @@ interface Placed {
   count: number;
   theta: number;
   reach: number;
+  /** The arc it may not leave while it is eased: its slice, or the rest. */
+  lo: number;
+  hi: number;
 }
 
 const pointOf = (p: Placed): [number, number] => {
@@ -270,7 +311,7 @@ function easeApart(placed: Placed[]): void {
         const ahead = mates[(mover.index + 1) % mover.count];
         const behind = mates[(mover.index - 1 + mover.count) % mover.count];
         const clear = dir > 0 ? turnBetween(ahead.theta, next) >= keep : turnBetween(next, behind.theta) >= keep;
-        if (!clear) continue;
+        if (!clear || next < mover.lo || next > mover.hi) continue;
         mover.theta = next;
         moved = true;
       }
@@ -297,6 +338,25 @@ export function mapLayout(rows: DeckRow[], width: number, height: number): MapLa
     ring, rx: ax * spread[i], ry: ay * spread[i], count: byRing.get(ring)!.length,
   }));
 
+  // THE SLICE, when there is one to draw: its share of the decks on the map,
+  // or the arc its busiest ring needs to give each of its decks a name's
+  // room, whichever is wider — between the two bounds, centred on the lower
+  // right. A share alone gave two tailnet decks on one ring a slice too
+  // narrow for two names side by side.
+  const onMap = rings.reduce((n, r) => n + r.count, 0);
+  const isTailnet = (m: { row: DeckRow }) => m.row.via === "tailscale";
+  const overTailnet = [...byRing.values()].flat().filter(isTailnet).length;
+  const needed = Math.max(0, ...rings.map(ring => {
+    const k = byRing.get(ring.ring)!.filter(isTailnet).length;
+    const around = ellipsePerimeter(ring.rx, ring.ry);
+    return k > 0 && around > 0 ? ((k * MAP_MIN_GAP * ZONE_ROOM) / around) * 360 : 0;
+  }));
+  const zoneWidth = overTailnet > 0 && overTailnet < onMap
+    ? Math.min(ZONE_MAX, Math.max(ZONE_MIN, (overTailnet / onMap) * 360, needed))
+    : 0;
+  const zoneFrom = ZONE_AT - zoneWidth / 2;
+  const zoneTo = ZONE_AT + zoneWidth / 2;
+
   const placed: Placed[] = [];
   let dense = false;
   rings.forEach((ring, r) => {
@@ -308,21 +368,39 @@ export function mapLayout(rows: DeckRow[], width: number, height: number): MapLa
     // since outside it is the edge.
     const outer = r === rings.length - 1;
     const zig = outer ? -ZIG * (spread[r] - (spread[r - 1] ?? 0)) : ZIG * (spread[r + 1] - spread[r]);
-    const turn = 360 / n;
-    const start = startAngle(n, r);
-    const scattered = n > 2;
-    members.forEach(({ row, tier }, j) => {
-      const key = machineKey(row);
-      const off = scattered ? scatter(key, 1) * SCATTER_TURN * turn : 0;
-      const zigged = crowded && j % 2 === 1 ? 1 + zig / spread[r] : 1;
-      // Inward only on the outer ring, where outward is the edge of the stage.
-      const drift = scattered ? scatter(key, 2) * SCATTER_REACH : 0;
-      placed.push({
-        row, tier, ring, index: j, count: n,
-        theta: start + turn * j + off,
-        reach: zigged * (1 + (outer ? -Math.abs(drift) : drift)),
+    // Two arcs when there is a slice — the local network's, clockwise from
+    // the slice's far edge round to its near one, then the slice — and one
+    // whole ring when there is not.
+    const groups = zoneWidth > 0
+      ? [
+        { members: members.filter(m => m.row.via !== "tailscale"), from: zoneTo, width: 360 - zoneWidth },
+        { members: members.filter(m => m.row.via === "tailscale"), from: zoneFrom + 360, width: zoneWidth },
+      ]
+      : [{ members, from: null as number | null, width: 360 }];
+    let j = 0;
+    for (const group of groups) {
+      const count = group.members.length;
+      if (count === 0) continue;
+      const turn = group.width / count;
+      const scattered = count > 2;
+      group.members.forEach(({ row, tier }, k) => {
+        const key = machineKey(row);
+        const even = group.from == null ? startAngle(count, r) + turn * k : group.from + turn * (k + 0.5);
+        const off = scattered ? scatter(key, 1) * SCATTER_TURN * turn : 0;
+        const zigged = crowded && j % 2 === 1 ? 1 + zig / spread[r] : 1;
+        // Inward only on the outer ring, where outward is the edge of the stage.
+        const drift = scattered ? scatter(key, 2) * SCATTER_REACH : 0;
+        const margin = turn * 0.3;
+        placed.push({
+          row, tier, ring, index: j, count: n,
+          theta: even + off,
+          reach: zigged * (1 + (outer ? -Math.abs(drift) : drift)),
+          lo: group.from == null ? -Infinity : group.from + margin,
+          hi: group.from == null ? Infinity : group.from + group.width - margin,
+        });
+        j++;
       });
-    });
+    }
   });
   easeApart(placed);
 
@@ -336,7 +414,23 @@ export function mapLayout(rows: DeckRow[], width: number, height: number): MapLa
       order,
     };
   });
-  return { nodes, rings, dense };
+  // Out only as far as its own decks: a slice reaching the stage's last ring
+  // for two decks on the first is a large empty shape saying nothing.
+  const reached = rings.reduce((far, ring, i) =>
+    (byRing.get(ring.ring)!.some(isTailnet) ? Math.max(far, spread[i]) : far), 0);
+  const zone: MapZone | null = zoneWidth > 0
+    ? {
+      from: zoneFrom,
+      to: zoneTo,
+      inner: { rx: ax * ZONE_INNER, ry: ay * ZONE_INNER },
+      outer: {
+        rx: Math.min(width / 2 - 8, ax * reached + ZONE_OUTER_PAD_PX),
+        ry: Math.min(height / 2 - 8, ay * reached + ZONE_OUTER_PAD_PX),
+      },
+      count: overTailnet,
+    }
+    : null;
+  return { nodes, rings, zone, dense };
 }
 
 function normalised(angle: number): number {

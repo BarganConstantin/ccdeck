@@ -25,7 +25,7 @@ import { createPortal } from "react-dom";
 
 import {
   continuousAngle, machineKey, mapHeadline, mapLayout, mapSummary, nodeCaption, ownAddresses, presenceLine,
-  type MapLayout, type MapNode,
+  type MapLayout, type MapNode, type MapZone,
 } from "../lan-network-map";
 import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from "../lan-peer";
 import { rowSource, type DeckRow } from "../lan-roster";
@@ -47,6 +47,11 @@ const LEAVE_GRACE_MS = 90;
 /** One round, out and back. The lights are spread over it by the golden
  *  ratio, so no two wires ever pulse together however many there are. */
 const ROUND_TRIP_S = 5.2;
+/** How far inside the tailnet slice's outer edge its name runs. */
+const ZONE_LABEL_INSET = 6;
+
+/** How the side panel arrives — see `entrance` in the map. */
+type Entrance = "full" | "swap" | "none";
 const GOLDEN = 0.618_033_988_75;
 
 export default function LanNetworkMap({ status, rows, accounts, now, covered, onOpenDeck, onClose }: {
@@ -115,13 +120,28 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   // because a machine running two decks leads with whichever answered last.
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const [shownKey, setShownKey] = useState<string | null>(null);
+  // HOW THE PANEL ARRIVES, which depends on what was there before it. The
+  // first deck after the network's summary unfolds — its parts rise out of a
+  // blur one after another, because that is the panel opening. Every deck
+  // after it only crossfades through a slight blur, because a pointer
+  // sweeping the ring sees this tens of times and a cascade each time would
+  // be the map making it wait. And a deck reached by the keyboard arrives at
+  // once: a key held down on the ring must never queue animations behind it.
+  const [entrance, setEntrance] = useState<Entrance>("full");
+  const shownRef = useRef<string | null>(null);
+  const showKey = useCallback((key: string | null, how: Entrance) => {
+    if (shownRef.current === key) return;
+    shownRef.current = key;
+    setEntrance(how);
+    setShownKey(key);
+  }, []);
   const leaveTimer = useRef<number | null>(null);
-  const hold = useCallback((key: string) => {
+  const hold = useCallback((key: string, via: "pointer" | "keyboard") => {
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
     leaveTimer.current = null;
     setFocusKey(key);
-    setShownKey(key);
-  }, []);
+    showKey(key, via === "keyboard" ? "none" : shownRef.current ? "swap" : "full");
+  }, [showKey]);
   const release = useCallback(() => {
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
     leaveTimer.current = window.setTimeout(() => setFocusKey(null), LEAVE_GRACE_MS);
@@ -136,8 +156,8 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   // And a machine that left while the panel described it hands the panel back
   // to the network rather than describing a machine that is gone.
   useEffect(() => {
-    if (shownKey && !shownRow) setShownKey(null);
-  }, [shownKey, shownRow]);
+    if (shownKey && !shownRow) showKey(null, "swap");
+  }, [shownKey, shownRow, showKey]);
 
   // ONE TAB STOP FOR THE WHOLE RING, and the arrows inside it. Fifteen decks
   // as fifteen Tab presses between the title and the close would make the
@@ -176,7 +196,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
 
   const on = status?.enabled === true;
   const headline = !status ? "checking…" : !on ? "Local network is off" : mapHeadline(summary);
-  const toNetwork = () => { setShownKey(null); setFocusKey(null); };
+  const toNetwork = () => { showKey(null, "swap"); setFocusKey(null); };
   // The deck panel's way back takes itself away with the panel, so focus goes
   // to the ring button of the deck it was showing — the ring's own tab stop —
   // rather than falling to the page (#1748). First, because focusing a deck on
@@ -212,7 +232,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
             onClick={e => { if (e.target === e.currentTarget) toNetwork(); }}>
             {size && layout && (
               <>
-                <Orbits layout={layout} w={size.w} h={size.h} />
+                <Orbits layout={layout} w={size.w} h={size.h} tailnetAddr={status?.tailscale?.addr ?? null} />
                 {nodes.map(n => {
                   const key = machineKey(n.row);
                   return <Wire key={key} node={n} angle={angles.get(key) ?? n.angle} lit={litKey === key} />;
@@ -231,7 +251,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
                           if (el) nodeRefs.current.set(key, el);
                           else nodeRefs.current.delete(key);
                         }}
-                        onHold={() => { setCursorKey(key); hold(key); }}
+                        onHold={via => { setCursorKey(key); hold(key, via); }}
                         onRelease={release}
                         onOpen={() => onOpenDeck(n.row.fp)} />
                     );
@@ -247,8 +267,9 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
           <aside className="nm-side" aria-label="Details">
             {shownRow && status
               ? <DeckDetails key={machineKey(shownRow)} row={shownRow} status={status} accounts={accounts} now={now}
+                  entrance={entrance}
                   onOpen={() => onOpenDeck(shownRow.fp)} onBack={backToNetwork} />
-              : <NetworkDetails status={status} summary={summary} />}
+              : <NetworkDetails status={status} summary={summary} entrance={entrance} />}
           </aside>
         </div>
       </div>
@@ -272,17 +293,74 @@ export function MapGlyph() {
   );
 }
 
-/** The two rings, where each has a deck on it. Drawn once, in the stage's
- *  own pixels, and never animated past their entrance. */
-function Orbits({ layout, w, h }: { layout: MapLayout; w: number; h: number }) {
+/** The rings, where each has a deck on it, and the tailnet's slice. Drawn
+ *  once, in the stage's own pixels, and never animated past their entrance. */
+function Orbits({ layout, w, h, tailnetAddr }: {
+  layout: MapLayout;
+  w: number;
+  h: number;
+  /** This deck's own address on the tailnet, named along the slice's edge. */
+  tailnetAddr: string | null;
+}) {
+  const { zone } = layout;
   return (
     <svg className="nm-orbits" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
+      {zone && (
+        <>
+          <defs>
+            <path id="nm-zone-arc" d={zoneArc(zone, w / 2, h / 2)} />
+            {/* Darkest at its outer edge and clear toward the centre, so the
+                slice reads as a region the decks stand in rather than a
+                wedge cut out of the map. */}
+            <radialGradient id="nm-zone-fill" gradientUnits="userSpaceOnUse"
+              cx={w / 2} cy={h / 2} r={Math.max(zone.outer.rx, zone.outer.ry)}>
+              <stop className="nm-zone-stop" offset="0.2" data-at="in" />
+              <stop className="nm-zone-stop" offset="1" data-at="out" />
+            </radialGradient>
+          </defs>
+          <path className="nm-zone" d={zonePath(zone, w / 2, h / 2)} fill="url(#nm-zone-fill)" />
+          <text className="nm-zone-label">
+            <textPath href="#nm-zone-arc" startOffset="50%" textAnchor="middle">
+              {tailnetAddr ? `Tailscale · ${tailnetAddr}` : "Tailscale"}
+            </textPath>
+          </text>
+        </>
+      )}
       {layout.rings.map((r, i) => (
         <ellipse key={r.ring} className="nm-orbit" data-ring={r.ring} cx={w / 2} cy={h / 2} rx={r.rx} ry={r.ry}
           style={{ "--ring": i } as CSSProperties} />
       ))}
     </svg>
   );
+}
+
+/** A point on an ellipse centred at (cx, cy), at a parameter angle in degrees. */
+function onEllipse(e: { rx: number; ry: number }, cx: number, cy: number, deg: number): string {
+  const rad = (deg * Math.PI) / 180;
+  return `${(cx + Math.cos(rad) * e.rx).toFixed(1)},${(cy + Math.sin(rad) * e.ry).toFixed(1)}`;
+}
+
+/** The slice itself: out along its near edge, round the outside, in along
+ *  its far edge and back round the inside. */
+function zonePath(z: MapZone, cx: number, cy: number): string {
+  const large = z.to - z.from > 180 ? 1 : 0;
+  return [
+    `M${onEllipse(z.inner, cx, cy, z.from)}`,
+    `L${onEllipse(z.outer, cx, cy, z.from)}`,
+    `A${z.outer.rx.toFixed(1)},${z.outer.ry.toFixed(1)} 0 ${large} 1 ${onEllipse(z.outer, cx, cy, z.to)}`,
+    `L${onEllipse(z.inner, cx, cy, z.to)}`,
+    `A${z.inner.rx.toFixed(1)},${z.inner.ry.toFixed(1)} 0 ${large} 0 ${onEllipse(z.inner, cx, cy, z.from)}`,
+    "Z",
+  ].join(" ");
+}
+
+/** The line the slice's name runs along: just inside its outer edge, and
+ *  drawn from the far end back to the near one, so that at the lower right
+ *  the words read upward rather than upside down. */
+function zoneArc(z: MapZone, cx: number, cy: number): string {
+  const e = { rx: z.outer.rx - ZONE_LABEL_INSET, ry: z.outer.ry - ZONE_LABEL_INSET };
+  const large = z.to - z.from > 180 ? 1 : 0;
+  return `M${onEllipse(e, cx, cy, z.to)} A${e.rx.toFixed(1)},${e.ry.toFixed(1)} 0 ${large} 0 ${onEllipse(e, cx, cy, z.from)}`;
 }
 
 /** A wire from this deck's edge to that one's. A light runs out along it and
@@ -332,7 +410,7 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
   shown: boolean;
   tabbable: boolean;
   register: (el: HTMLButtonElement | null) => void;
-  onHold: () => void;
+  onHold: (via: "pointer" | "keyboard") => void;
   onRelease: () => void;
   onOpen: () => void;
 }) {
@@ -355,9 +433,11 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
         "--in-x": `${(-Math.cos(rad) * 14).toFixed(1)}px`,
         "--in-y": `${(-Math.sin(rad) * 14).toFixed(1)}px`,
       } as CSSProperties}
-      onPointerEnter={e => { if (e.pointerType === "mouse") onHold(); }}
+      onPointerEnter={e => { if (e.pointerType === "mouse") onHold("pointer"); }}
       onPointerLeave={onRelease}
-      onFocus={onHold}
+      // A keyboard's focus, not every focus: a press focuses the button too,
+      // and that is the pointer arriving, not the keyboard.
+      onFocus={e => onHold(e.currentTarget.matches(":focus-visible") ? "keyboard" : "pointer")}
       onBlur={onRelease}
       onClick={onOpen}>
       <i className="nm-halo" data-tier={node.tier} aria-hidden />
@@ -412,7 +492,11 @@ function Facts({ facts }: { facts: Array<{ label: string; value: ReactNode; quie
 }
 
 /** The panel with nothing pointed at: this deck, and the network in numbers. */
-function NetworkDetails({ status, summary }: { status: LanStatus | null; summary: ReturnType<typeof mapSummary> }) {
+function NetworkDetails({ status, summary, entrance }: {
+  status: LanStatus | null;
+  summary: ReturnType<typeof mapSummary>;
+  entrance: Entrance;
+}) {
   const addresses = ownAddresses(status);
   const runs = runsLine(status?.about);
   const facts: Array<{ label: string; value: ReactNode; quiet?: boolean }> = [];
@@ -437,7 +521,7 @@ function NetworkDetails({ status, summary }: { status: LanStatus | null; summary
     ["declined", summary.declined, "declined, not drawn"],
   ];
   return (
-    <div className="nm-panel" data-view="network">
+    <div className="nm-panel" data-view="network" data-entrance={entrance}>
       <h3 className="nm-panel-name">{status?.name ?? "…"}</h3>
       <p className="nm-panel-self">this deck, at the centre of the map</p>
       <Facts facts={facts} />
@@ -457,8 +541,9 @@ function NetworkDetails({ status, summary }: { status: LanStatus | null; summary
 /** The panel while a deck is pointed at, or was last: what its own dialog says
  *  about it, in the order somebody reads a machine — is it there, how is it
  *  reached, what does it run, and what the two decks share. */
-function DeckDetails({ row, status, accounts, now, onOpen, onBack }: {
+function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   row: DeckRow;
+  entrance: Entrance;
   status: LanStatus;
   accounts: LanAccount[];
   now: number;
@@ -487,7 +572,8 @@ function DeckDetails({ row, status, accounts, now, onOpen, onBack }: {
   const more = view.lanes.length - lanes.length;
 
   return (
-    <div className="nm-panel" data-view="deck" data-tier={row.kind === "paired" ? (row.here ? "online" : "offline") : "loose"}>
+    <div className="nm-panel" data-view="deck" data-entrance={entrance}
+      data-tier={row.kind === "paired" ? (row.here ? "online" : "offline") : "loose"}>
       <button type="button" className="ap-lan-word nm-back" onClick={onBack}>
         <span aria-hidden>‹ </span>the whole network
       </button>
@@ -508,16 +594,14 @@ function DeckDetails({ row, status, accounts, now, onOpen, onBack }: {
           </p>
           {lanes.length > 0 && (
             <ul className="nm-lanes">
-              {lanes.map(l => (
-                <li key={l.key} className="nm-lane" data-tone={l.tone}>
+              {lanes.map((l, k) => (
+                <li key={l.key} className="nm-lane" data-tone={l.tone} style={{ "--k": k } as CSSProperties}>
                   <i className="nm-lane-dot" aria-hidden />
-                  <span className="nm-lane-text" aria-hidden>
-                    <span className="nm-lane-email">{l.email}</span>
-                    {/* A mark and a word: the steady state says nothing, and
-                        every other says which end is wrong or what comes next,
-                        in the lane's own caption. */}
-                    {laneWords(l) && <span className="nm-lane-said">{laneWords(l)}</span>}
-                  </span>
+                  <span className="nm-lane-email" aria-hidden>{l.email}</span>
+                  {/* A mark and a word, on the email's own line: the steady
+                      state says nothing, and every other says which end is
+                      wrong or what comes next, in the lane's own caption. */}
+                  {laneWords(l) && <span className="nm-lane-said" aria-hidden>{laneWords(l)}</span>}
                   {l.usedThere && <span className="nm-lane-used" aria-hidden>in use there</span>}
                   <span className="vis-hidden">{l.email}: {laneSaid(l)}</span>
                 </li>

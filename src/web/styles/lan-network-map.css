@@ -110,6 +110,25 @@
 }
 .nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; stroke: color-mix(in srgb, var(--nm-away) 38%, transparent); }
 .nm-orbit[data-ring="2"] { stroke-dasharray: 1.5 5; stroke-linecap: round; }
+/* THE TAILNET'S SLICE: a ground a step off the stage's, in this deck's own
+   accent, an edge of fine dots, and its name running along the outside in the
+   micro-label voice. Quiet on purpose — it says where, and the decks in it
+   say everything else. */
+.nm-zone {
+  stroke: color-mix(in srgb, var(--accent) 28%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 1.5 4;
+  stroke-linecap: round;
+}
+.nm-zone-stop { stop-color: var(--accent); stop-opacity: 0; }
+.nm-zone-stop[data-at="out"] { stop-opacity: 0.09; }
+.nm-zone-label {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
 /* A WIRE from this deck's edge to that deck's, laid out from the centre of the
    stage and turned to its deck's angle. Its length and its turn ease when a
@@ -495,11 +514,15 @@
   flex-direction: column;
   gap: 10px;
   padding: 16px var(--panel-inset) 18px;
-  animation: nm-swap 120ms var(--nm-ease) both;
 }
-/* Seen every time the pointer crosses a deck, so it is barely there: the
-   panel does not slide, it settles. */
-@keyframes nm-swap { from { opacity: 0; transform: translateY(1px); } }
+/* HOW THE PANEL ARRIVES — see `entrance` in LanNetworkMap.tsx. The first
+   deck unfolds, its parts rising a few pixels out of a blur one after
+   another; a deck after that crossfades through a lighter blur, because the
+   blur is what lets two panels read as one panel changing rather than one
+   replacing another; and the keyboard's never animates. Blur on a panel this
+   size is cheap, and it is off the stage, where the lights run. */
+@keyframes nm-rise { from { opacity: 0; transform: translateY(4px); filter: blur(3px); } }
+@keyframes nm-swap { from { opacity: 0; filter: blur(2px); } }
 .nm-panel-name {
   display: flex;
   align-items: center;
@@ -548,9 +571,10 @@
 .nm-logins { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .nm-logins-title { margin: 0; font-size: 11px; font-weight: 600; color: var(--text); }
 .nm-lanes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+/* One line each: the mark, the email, and whatever is wrong with it at the
+   end of the same line — the email gives way first, the state never does. */
 .nm-lane { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 11px; }
-.nm-lane-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.nm-lane-said { font-size: 10px; color: var(--muted); }
+.nm-lane-said { flex: none; margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
 .nm-lane[data-tone="bad"] .nm-lane-said { color: var(--warn); }
 .nm-lane[data-tone="wait"] .nm-lane-said { color: var(--accent); }
 .nm-lane-dot { flex: none; align-self: center; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
@@ -565,7 +589,8 @@
   font-family: var(--font-mono);
   color: var(--text);
 }
-.nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); }
+.nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); white-space: nowrap; }
+.nm-lane-said + .nm-lane-used { margin-left: 0; }
 .nm-lanes-more { margin: 0; font-size: 10px; color: var(--muted); }
 .nm-open { align-self: flex-start; margin-top: 4px; }
 
@@ -598,6 +623,16 @@
   .nm-node { animation: nm-node-in 440ms var(--nm-ease) calc(min(var(--i, 0) * 38ms, 460ms) + 300ms) both; }
   .nm-core-orb { animation: nm-core-in 420ms var(--nm-ease) both; }
   .nm-core-label, .nm-legend { animation: nm-fade-in 320ms var(--nm-ease) 180ms both; }
+  .nm-zone, .nm-zone-label { animation: nm-fade-in 600ms var(--nm-ease) 240ms both; }
+  .nm-panel[data-entrance="full"] > *,
+  .nm-panel[data-entrance="full"] .nm-lane { animation: nm-rise 240ms var(--nm-ease) both; }
+  .nm-panel[data-entrance="full"] > :nth-child(2) { animation-delay: 30ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(3) { animation-delay: 60ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(4) { animation-delay: 90ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(5) { animation-delay: 120ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(n + 6) { animation-delay: 150ms; }
+  .nm-panel[data-entrance="full"] .nm-lane { animation-delay: calc(160ms + min(var(--k, 0), 5) * 22ms); }
+  .nm-panel[data-entrance="swap"] { animation: nm-swap 150ms var(--nm-ease) both; }
   .nm-glint { animation: nm-round 5.2s cubic-bezier(0.65, 0, 0.35, 1) calc(1.1s + var(--phase, 0s)) infinite; }
   .nm-glint::after { animation: nm-answer 5.2s linear calc(1.1s + var(--phase, 0s)) infinite; }
   .nm-core[data-listening] .nm-core-orb::after { animation: nm-beacon 3.6s cubic-bezier(0.22, 0.61, 0.36, 1) 0.6s infinite; }
@@ -617,13 +652,17 @@
   .nm-node,
   .nm-core-orb,
   .nm-core-label,
-  .nm-legend { animation: nm-fade-in 160ms ease-out both; }
+  .nm-legend,
+  .nm-zone,
+  .nm-zone-label { animation: nm-fade-in 160ms ease-out both; }
   .nm-wire { transition: opacity 160ms ease-out, background-color 160ms ease-out; }
   .nm-node { transition: opacity 160ms ease-out, border-color 140ms, color 140ms, box-shadow 160ms; }
   .nm-node:active { transform: none; }
   .nm-glint,
   .nm-glint::after,
-  .nm-core[data-listening] .nm-core-orb::after,
+  .nm-core[data-listening] .nm-core-orb::after { animation: none; }
   .nm-mark[data-kind="asks"]::after { animation: none; opacity: 0.35; transform: scale(1.8); }
-  .nm-panel { animation: nm-fade-in 120ms ease-out both; }
+  .nm-panel[data-entrance="full"] > *,
+  .nm-panel[data-entrance="full"] .nm-lane,
+  .nm-panel[data-entrance="swap"] { animation: nm-fade-in 120ms ease-out both; }
 }

@@ -61,6 +61,9 @@
   .nm-mark[data-kind="asks"]::after { border-color: Highlight; }
   .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; --nm-live-from: Highlight; --nm-live-to: Highlight; --nm-live-glow: transparent; --nm-away: CanvasText; --nm-away-ink: GrayText; }
   .nm-halo[data-tier="online"] { forced-color-adjust: none; box-shadow: 0 0 0 2px Highlight; }
+  .nm-zone { forced-color-adjust: none; stroke: GrayText; }
+  .nm-zone-stop { forced-color-adjust: none; stop-opacity: 0; }
+  .nm-zone-label { forced-color-adjust: none; fill: CanvasText; }
   .nm-wire[data-on] { --nm-wire: Highlight; --nm-wire-quiet: Highlight; }
   .nm-wire,
   .nm-key-wire { forced-color-adjust: none; }
