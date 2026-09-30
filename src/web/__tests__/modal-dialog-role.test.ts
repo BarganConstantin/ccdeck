@@ -43,7 +43,11 @@ describe("the deck's modals", () => {
     // Local network. The nineteenth is the accounts panel's Usage report
     // (#1707), which adds every account's 5h and 7d up. The twentieth is the
     // network map, opened from Local network's row and its view's header.
-    expect(MODALS.length).toBe(20);
+    // The twenty-first is the feedback dialog, opened from Appearance (#1853).
+    // The same issue had a twenty-second for a week, a one-time question about
+    // anonymous reports; it went when reports became on by default, with a
+    // switch in place of the question.
+    expect(MODALS.length).toBe(21);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

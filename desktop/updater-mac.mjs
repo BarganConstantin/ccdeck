@@ -10,9 +10,11 @@
 //
 //   1. the manifest names a version newer than this one, for this CPU
 //   2. the zip's SHA-256 and size match the manifest
-//   3. the zip carries an Ed25519 signature by ccdeck's update key, whose
-//      public half is compiled into this file — a download from anywhere else,
-//      or altered on the way, stops here
+//   3. the zip carries two Ed25519 signatures by ccdeck's update key, whose
+//      public half is compiled into this file: one over its bytes, and one
+//      over its bytes, name and the version the manifest offers it as — a
+//      download from anywhere else, altered on the way, or not released as
+//      that version, stops here
 //   4. the unpacked app satisfies the RUNNING app's designated requirement:
 //      same app id, same signing certificate. A dev build (ad-hoc, requirement
 //      = its own hash) can therefore never be updated over, which is correct
@@ -27,7 +29,7 @@ import { createHash, createPublicKey, verify } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -70,6 +72,35 @@ export function verifyZip(bytes, file, publicKeyPem = UPDATE_PUBLIC_KEY) {
   if (sha !== file.sha256) return false;
   try {
     return verify(null, bytes, createPublicKey(publicKeyPem), Buffer.from(String(file.signature), "base64"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What a release signature covers: the version a file is published as, its
+ * name and its SHA-256, in one message.
+ *
+ * The first signature (`signature` in latest-mac.json, `ed25519` in the ymls)
+ * covers the file's bytes, while the version the app compares sits beside it
+ * as plain text. This second one, `ed25519Release`, signs the three together,
+ * so a file installs only as the version it was released as.
+ *
+ * CI writes both. Apps released before `ed25519Release` existed verify only
+ * the first and must go on updating, which is why it stays; apps released
+ * after it require both.
+ */
+export function releaseMessage(version, name, bytes) {
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  return Buffer.from(`ccdeck-update\0${version}\0${name}\0${sha}`, "utf8");
+}
+
+/** Is `signatureB64` ccdeck's release signature for these bytes, published as
+ *  `version` under `name`? */
+export function verifyRelease(bytes, { version, name, signature }, publicKeyPem = UPDATE_PUBLIC_KEY) {
+  if (!Buffer.isBuffer(bytes) || !version || !name || !signature) return false;
+  try {
+    return verify(null, releaseMessage(version, name, bytes), createPublicKey(publicKeyPem), Buffer.from(String(signature), "base64"));
   } catch {
     return false;
   }
@@ -118,6 +149,9 @@ export async function stageUpdate(update, { runningApp, fetchImpl = fetch, execF
   if (!res.ok) throw new Error(`download ${res.status}`);
   const bytes = Buffer.from(await res.arrayBuffer());
   if (!verifyZip(bytes, update.file, publicKeyPem)) throw new Error("the download failed its hash or signature check");
+  if (!verifyRelease(bytes, { version: update.version, name: basename(String(update.file.url)), signature: update.file.ed25519Release }, publicKeyPem)) {
+    throw new Error(`the download is not signed as ccdeck ${update.version}`);
+  }
 
   const dir = await mkdtemp(join(tmpdir(), "ccdeck-update-"));
   try {

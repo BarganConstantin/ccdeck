@@ -131,9 +131,11 @@ describe("the desktop build", () => {
     expect(pack.body).toContain("--publish never");
   });
 
-  it("signs the updates after packaging, on every OS, whenever it has the key", () => {
+  it("signs the updates after packaging, on every OS, on a tag and nowhere else", () => {
     const sign = step("desktop", "Sign the updates");
-    expect(conditionOf(sign)).toBe("env.HAS_SIGNING == 'true'");
+    // Only a release should carry the key's signature: every file that does
+    // is one every installed app accepts as ccdeck's.
+    expect(conditionOf(sign)).toBe("env.HAS_SIGNING == 'true' && startsWith(github.ref, 'refs/tags/v')");
     expect(sign.body).toContain("CCDECK_UPDATE_KEY: ${{ secrets.CCDECK_UPDATE_KEY }}");
     expect(sign.body).toContain("working-directory: desktop");
     // The manifest's version is the one the app is packaged with.
@@ -144,6 +146,18 @@ describe("the desktop build", () => {
     const order = names("desktop");
     expect(order.indexOf("Sign the updates")).toBeGreaterThan(order.indexOf("Package"));
     expect(order.indexOf("Sign the updates")).toBeLessThan(order.indexOf("Upload the installers"));
+  });
+
+  it("checks the signed updates as an installed app would, before any of them is uploaded", () => {
+    const check = step("desktop", "Check the updates as an installed app would");
+    // Whenever something was signed, and only then.
+    expect(conditionOf(check)).toBe(conditionOf(step("desktop", "Sign the updates")));
+    expect(check.body).toContain("working-directory: desktop");
+    expect(check.body).toContain(VERSION_FROM_ROOT);
+    expect(check.body).toContain('node scripts/verify-updates.mjs dist/app "$VERSION"');
+    const order = names("desktop");
+    expect(order.indexOf("Check the updates as an installed app would")).toBe(order.indexOf("Sign the updates") + 1);
+    expect(order.indexOf("Check the updates as an installed app would")).toBeLessThan(order.indexOf("Upload the installers"));
   });
 
   it("uploads every manifest an installed app reads, and fails when one is missing", () => {

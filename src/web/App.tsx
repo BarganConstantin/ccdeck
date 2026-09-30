@@ -67,6 +67,7 @@ import { usePresenceBeacon } from "./use-presence-beacon";
 import { usePrefsRead } from "./use-prefs-read";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
+import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { initialState } from "./reducer";
 import { useMonthlyUsage } from "./use-monthly-usage";
@@ -214,6 +215,10 @@ function Inner() {
   const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
+  // Anonymous reports (#1853): whether they are on — they are unless somebody
+  // switched them off — the switch in Appearance that changes it, and the
+  // page's own errors, forwarded while they are on: use-reports.ts.
+  const reports = useReports();
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
   // the reader last looked — lives in use-browser-watch-badge.ts.
   const watchBadge = useBrowserWatchBadge();
@@ -508,7 +513,7 @@ function Inner() {
   const { loadNotifyPrefs } = notify;
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
-  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs });
+  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
 
   return (
     <div className="app">
@@ -600,6 +605,7 @@ function Inner() {
           <SettingsRun
             providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
             chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
+            reports={reports} onFeedback={() => dialogs.setFeedbackOpen(true)}
           />
         </div>
       </header>

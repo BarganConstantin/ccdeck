@@ -10,9 +10,11 @@
 //   electron-builder publishes. With no paid signature on the installer it
 //   checks only a SHA-512 that sits in the same release as the file — anyone
 //   able to replace one could replace both — so every download must ALSO carry
-//   an Ed25519 signature by ccdeck's update key (the `ed25519` field CI writes
-//   into the yml, scripts/sign-yml.mjs). It is verified here before the update
-//   is allowed to install, with the key compiled into updater-mac.mjs.
+//   two Ed25519 signatures by ccdeck's update key, which CI writes into the yml
+//   (scripts/sign-yml.mjs): `ed25519` over the file's bytes, and
+//   `ed25519Release` over its bytes, name and version. Both are verified here
+//   before the update is allowed to install, with the key compiled into
+//   updater-mac.mjs.
 //
 // Updates install on Quit (or "Restart to update"), after the app has stopped
 // the deck it started — never under a running deck, and never mid-session
@@ -23,7 +25,7 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
-import { bundleOf, checkForUpdate, discard, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY } from "./updater-mac.mjs";
+import { bundleOf, checkForUpdate, discard, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY, verifyRelease } from "./updater-mac.mjs";
 import { relaunchOnExit } from "./relaunch-linux.mjs";
 
 /** Where releases are published. `releases/latest/download/<file>` is
@@ -56,10 +58,20 @@ export function verifyFileSignature(bytes, signatureB64, publicKeyPem = UPDATE_P
 }
 
 /** The `ed25519` signature the yml lists for a downloaded file, by name. */
-export function signatureFor(info, file) {
+export function signatureFor(info, file, field = "ed25519") {
   const name = basename(file);
   const entry = (info?.files ?? []).find(f => f && typeof f.url === "string" && basename(f.url) === name);
-  return entry?.ed25519 ?? (info?.path && basename(info.path) === name ? info.ed25519 : null) ?? null;
+  return entry?.[field] ?? (info?.path && basename(info.path) === name ? info[field] : null) ?? null;
+}
+
+/**
+ * Both of ccdeck's signatures on a downloaded file: `ed25519` over its bytes,
+ * and `ed25519Release` over its bytes, its name and the version the yml offers
+ * it as, so it installs only as the version it was released as.
+ */
+export function verifyDownload(bytes, info, file, publicKeyPem = UPDATE_PUBLIC_KEY) {
+  return verifyFileSignature(bytes, signatureFor(info, file), publicKeyPem)
+    && verifyRelease(bytes, { version: info?.version, name: basename(file), signature: signatureFor(info, file, "ed25519Release") }, publicKeyPem);
 }
 
 /**
@@ -105,8 +117,8 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         // Only ever forward: the version this app already is, or one it has
         // passed, is not an update.
         if (!isNewer(info.version, app.getVersion())) throw new Error(`${info.version} is not newer than the running ${app.getVersion()}`);
-        const ok = verifyFileSignature(await readFile(file), signatureFor(info, file));
-        if (!ok) throw new Error("the download is not signed by ccdeck's update key");
+        const ok = verifyDownload(await readFile(file), info, file);
+        if (!ok) throw new Error(`the download is not signed by ccdeck's update key as ${info.version}`);
         set({ status: "ready", version: info.version });
       } catch (err) {
         log(`update refused: ${err.message}`);

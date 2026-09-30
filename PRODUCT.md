@@ -56,8 +56,8 @@ Two properties a first-party vendor dashboard structurally cannot copy:
 
 - **Cross-provider.** Claude Code and Codex on one canvas, told apart by the model
   chip.
-- **Local and private.** No account, no telemetry, nothing about a session leaves
-  the machine.
+- **Local and private.** No account, and nothing about a session leaves the
+  machine.
 
 And one nobody else has built: **the wait is the metric.** The scarce resource is
 the operator's attention, not tokens.
@@ -112,14 +112,24 @@ UI copy claiming the deck looks only at agents would be false.
   and therefore *cannot* allow, deny, defer or rewrite a tool call. Pinned by
   `src/web/__tests__/hook-read-only.test.ts` against both the source and the real
   script.
-- **No telemetry.** Nothing about a session is reported anywhere.
+- **Anonymous reports, on by default (#1853).** Nothing about a session is
+  reported anywhere. What is: installs, updates, one "active" a day and the
+  errors the deck runs into, scrubbed of folders, addresses and keys, under a
+  random id tied to nothing on the machine. Nobody is asked; one switch under
+  Appearance turns it off and deletes what was sent, and
+  `AGENTS_DECK_NO_REPORTS=1` keeps it off from the first start. The owner chose
+  on-by-default on 2026-09-30, over a one-time question built for the same issue.
+  "No telemetry" is therefore a claim this product can no longer make, and copy
+  must not make it: the claim it can make is about sessions.
 - **The web server binds loopback.** LAN discovery and pairing are a separate
   surface and are **on unless switched off**: the deck announces itself over UDP
   45317 and pairs with the decks that answer. Outbound traffic is the README's list
   in *What it touches* — a version check, the managed installs and their daily
   checks, `macmon` on a silent Apple Silicon Mac, the desktop app's own update
-  check, and quota reads to Anthropic and OpenAI signed with the user's own
-  credentials. Privacy copy written against "loopback only" would overclaim.
+  check, quota reads to Anthropic and OpenAI signed with the user's own
+  credentials, and, to `api.ccdeck.dev`, anonymous reports unless they are
+  switched off and feedback when the user presses Send. Privacy copy written
+  against "loopback only" would overclaim.
 - **Three platforms** from one codebase; macOS, Windows and Linux are peers.
 - Licensed `AGPL-3.0-only`, sole copyright holder, contributions under the same
   licence. Not dual-licensed. See `LICENSING.md`.

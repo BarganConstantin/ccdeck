@@ -100,11 +100,19 @@ describe("the disclosures the README must keep, and keep in one place", () => {
   });
 
   it("leaves the three-beat line under the install command, and a way through to the rest", () => {
-    // "No config file. No account. No telemetry." is the one claim on the page
-    // most tools in this category cannot honestly make. Moving the detail out
-    // from under it is only an improvement while the line itself stays put.
+    // "No config file. No account. Nothing about your sessions is reported
+    // anywhere." is the claim on the page most tools in this category cannot
+    // honestly make. The third beat has changed twice, both times in #1853. It
+    // read "No telemetry" until anonymous reports existed, which made that
+    // false; then "Nothing sent without your yes", while the reports sat
+    // behind a question; and the owner chose on-by-default on 2026-09-30, which
+    // made that false too. What is pinned is the sentence that stayed true
+    // through all three, and the README says the rest of it beside it: that
+    // the reports exist, that they are on, and where the switch is. Moving the
+    // detail out from under it is only an improvement while the line itself
+    // stays put.
     const quick = at("## Quick start");
-    const three = readme.indexOf("No config file. No account. No telemetry —");
+    const three = readme.indexOf("No config file. No account. Nothing about your sessions is reported anywhere —");
     expect(three).toBeGreaterThan(quick);
     expect(three).toBeLessThan(at("## Requirements"));
     expect(readme).toContain("[What it touches](#what-it-touches)");
@@ -235,11 +243,13 @@ describe("the first two lines, which are the whole first impression (#461)", () 
     // naming a missing line instead of the claim that was added.
     const heroBlock = readme.slice(0, readme.indexOf("</div>"));
     const scan = heroBlock.split("\n").map(l => l.trim())
-      .find(l => l.includes(" · ") && l.includes("no telemetry") && !l.startsWith("["));
+      .find(l => l.includes(" · ") && l.includes("sessions never leave") && !l.startsWith("["));
     expect(scan, "the README no longer carries the noun line under the hero image").toBeTruthy();
     expect(scan).not.toMatch(/subagent/i);
     // The claims it does make are each answered by a row in the table below.
-    for (const noun of ["cost", "quota", "blocked on you", "no telemetry"]) {
+    // The last one read "no telemetry" until #1853 gave the deck anonymous
+    // reports, on by default; what it can still say is what never leaves.
+    for (const noun of ["cost", "quota", "blocked on you", "sessions never leave"]) {
       expect(scan).toContain(noun);
     }
   });
