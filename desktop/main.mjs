@@ -12,13 +12,14 @@
 // The tray icon is the favicon of a closed tab: the same four marks, the same
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from "electron";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream, restartAsked } from "./deck-link.mjs";
 import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
 import { navigationFor } from "./nav.mjs";
+import { overFullScreen, windowsOnScreen } from "./fullscreen-space.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
@@ -79,6 +80,7 @@ let updater = null;           // updater.mjs, created once the app is ready
 let quietSince = null;        // since when nothing is running, waiting or open (#1187)
 let updateNoticeVersion = null; // last version whose ready notice was shown (#1182)
 let updateNoticePrompting = false;
+let asking = 0;                // questions from ask() on screen now
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -547,6 +549,29 @@ function openWindow(steal = true) {
   win.loadURL(`${origin}/`);
 }
 
+/** How long after macOS says the app let go before looking: the app's own
+ *  switch from accessory to regular can take the keyboard away for a moment
+ *  and hand it straight back, and a look taken then would be wrong. */
+const RESIGN_SETTLE_MS = 250;
+
+/** macOS: the window closes when another app takes the keyboard while the
+ *  window stands over that app's full-screen Space, where it cannot step back
+ *  and would only stay in front (#1214, fullscreen-space.mjs). The menu bar
+ *  opens it again over wherever the person is then. On a desktop it steps
+ *  back like any window, and nothing here happens. Never with a question on
+ *  screen: a sheet closed with its window is a question nobody answered. */
+async function stepAsideFromFullScreen() {
+  if (process.platform !== "darwin" || !win || win.isDestroyed() || !win.isVisible()) return;
+  await new Promise(resolve => setTimeout(resolve, RESIGN_SETTLE_MS));
+  const here = win;
+  if (!here || here.isDestroyed() || here.isFocused() || updateNoticePrompting || asking > 0) return;
+  const display = screen.getDisplayMatching(here.getBounds()).bounds;
+  if (!overFullScreen(await windowsOnScreen(), process.pid, display)) return;
+  if (here !== win || here.isDestroyed() || here.isFocused()) return;
+  trace("close: another app took the keyboard over its full-screen Space");
+  here.close();
+}
+
 // ── first run ───────────────────────────────────────────────────────────────
 // What this app remembers between launches — see desktop-state.mjs.
 const desktopState = createDesktopState(() => join(app.getPath("userData"), "desktop-state.json"));
@@ -618,7 +643,12 @@ function windowOnScreen(within) {
  *  macOS floats above every other app until it is answered. */
 async function ask(options) {
   const parent = await windowOnScreen(ON_SCREEN_WAIT_MS);
-  return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+  asking += 1;
+  try {
+    return await (parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options));
+  } finally {
+    asking -= 1;
+  }
 }
 
 /**
@@ -888,6 +918,7 @@ function restartForTrayWhenQuiet(where) {
 }
 
 app.on("activate", () => { if (primary) openWindow(); });
+app.on("did-resign-active", () => { stepAsideFromFullScreen(); });
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
