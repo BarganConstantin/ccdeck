@@ -25,7 +25,7 @@
 // visit falls within `quietMs` of it on either side, so one read's rows on their
 // own are not enough to judge it: the person's visits may have arrived in the
 // read before, or arrive in the read after.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mkdtempSync, readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,6 +36,15 @@ import { msToChromeTime } from "../../server/browser-history.mjs";
 import { appendLog, logPath, logSize, rolledLogPath } from "../../server/browser-watch-log.mjs";
 import { logBytesLabel } from "../browser-watch-model";
 import { fmtBytes } from "../byte-format";
+import { guardThisMachine } from "./browser-watch-guard";
+import { linuxMachine } from "./linux-browser-fixture";
+
+// The snapshot ends in the browser survey, which reads the machine
+// linux-browser-fixture.ts holds in memory and never this one (#1847): see
+// browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const FROM_API = 0x08000000;
 const PROFILE = {
@@ -56,6 +65,7 @@ const MIN = 60_000;
  *  starts survive a cache invalidation on purpose. */
 let seq = 0;
 const baseDeps = () => ({
+  ...linuxMachine().deps,
   readFileSync: () => { throw new Error("ENOENT"); },
   readStore: async () => ({
     settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },

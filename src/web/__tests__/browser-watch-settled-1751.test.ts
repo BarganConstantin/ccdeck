@@ -9,9 +9,16 @@
 // Driven through the snapshot with an in-memory store, a reader that honours
 // its floor (floored-reader.ts), and a clock each poll is handed. `react` is a
 // counter: nothing here can reach a browser, a notification or a process.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { flooredReader, type Visit } from "./floored-reader";
 import { browserWatchSnapshot, invalidateBrowserWatchCache } from "../../server/browser-watch.mjs";
+import { guardThisMachine } from "./browser-watch-guard";
+
+// The survey is stubbed below; the guard is what fails the file if a case ever
+// reaches past the stubs to this machine (#1847): see browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const FROM_API = 0x08000000;
 const MIN = 60_000;

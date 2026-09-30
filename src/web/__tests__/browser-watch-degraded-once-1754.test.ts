@@ -8,8 +8,15 @@
 //
 // Every dependency that could reach the machine is stubbed: no browser profile,
 // hosts file, store or process list is read.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { browserWatchSnapshot, invalidateBrowserWatchCache, noteWatchSetting } from "../../server/browser-watch.mjs";
+import { guardThisMachine } from "./browser-watch-guard";
+
+// The survey is stubbed below; the guard is what fails the file if a case ever
+// reaches past the stubs to this machine (#1847): see browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 let seq = 0;
 /** One profile, read through `readVisitsSince`, whose History file has the
