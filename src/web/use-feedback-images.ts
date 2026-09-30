@@ -96,6 +96,9 @@ export function useFeedbackImages(): FeedbackImages {
   }, [setShots]);
 
   const addAll = useCallback(async (files: readonly File[]) => {
+    // Cleared first, so the same refusal twice is said twice: an alert whose
+    // text did not change is not read again.
+    setProblem("");
     const problems: string[] = [];
     let leftOut = 0;
     let added = 0;

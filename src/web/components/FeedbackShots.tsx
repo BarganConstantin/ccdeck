@@ -10,7 +10,7 @@
 // what a screenshot can show. A refusal — the wrong format, too many, too big —
 // is said beside them, and every change is said to a screen reader through a
 // live region drawn from the first render, since a paste makes no sound.
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { ADD_HINT, ADD_LABEL, MAX_IMAGES, SHOTS_NOTE, focusAfterRemove, shotsSummary } from "../feedback-images";
 import type { FeedbackImages, Shot } from "../use-feedback-images";
 
@@ -51,7 +51,10 @@ export function AddScreenshot({ images, buttonRef }: AddProps) {
         <ImageGlyph />
         {ADD_LABEL}
       </button>
-      <span id="fb-attach-hint" className="vis-hidden">{ADD_HINT}</span>
+      {/* Hidden, and still the button's description: a description is read
+          from a hidden element, and this way it is not read a second time as
+          text after the button. */}
+      <span id="fb-attach-hint" hidden>{ADD_HINT}</span>
       <input ref={pickRef} type="file" accept="image/png,image/jpeg" multiple hidden
         onChange={e => {
           images.add(Array.from(e.target.files ?? []));
@@ -74,6 +77,7 @@ interface StripProps {
 
 export default function FeedbackShots({ images, addRef }: StripProps) {
   const removeRefs = useRef(new Map<number, HTMLButtonElement>());
+  const problemRef = useRef<HTMLParagraphElement>(null);
   const [focusNext, setFocusNext] = useState<number | "add" | null>(null);
   const { shots } = images;
   const summary = shotsSummary(shots.length, shots.filter(shot => shot.resized).length);
@@ -83,6 +87,12 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
     (focusNext === "add" ? addRef.current : removeRefs.current.get(focusNext))?.focus();
     setFocusNext(null);
   }, [focusNext, addRef]);
+
+  // Said below the images, which on a short window is below the fold of the
+  // dialog's scroll: brought into view, so a refusal is seen as well as heard.
+  useEffect(() => {
+    if (images.problem) problemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [images.problem]);
 
   function removeShot(id: number) {
     setFocusNext(focusAfterRemove(shots.map(shot => shot.id), id) ?? "add");
@@ -98,7 +108,7 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
             <ul className="fb-shots-list">
               {shots.map((shot, index) => (
                 <li key={shot.id} className="fb-shot" data-fitting={shot.blob ? undefined : true}>
-                  <img className="fb-shot-img" src={shot.url} alt={shotName(shot, index)} title={shotName(shot, index)} />
+                  <img className="fb-shot-img" src={shot.url} alt={shotName(shot, index)} />
                   {!shot.blob && <span className="fb-shot-busy" aria-hidden="true">Resizing…</span>}
                   <button
                     ref={button => {
@@ -108,7 +118,7 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
                     type="button"
                     className="glyph-btn fb-shot-remove"
                     aria-label={`Remove image ${index + 1}`}
-                    title="Remove"
+                    title={`Remove image ${index + 1}`}
                     onClick={() => removeShot(shot.id)}
                   >
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4"
@@ -124,7 +134,7 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
           <p className="fb-hint">{SHOTS_NOTE}</p>
         </div>
       )}
-      {images.problem && <p className="fb-error" role="alert">{images.problem}</p>}
+      {images.problem && <p ref={problemRef} className="fb-error" role="alert">{images.problem}</p>}
     </>
   );
 }

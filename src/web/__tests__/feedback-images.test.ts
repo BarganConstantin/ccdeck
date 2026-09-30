@@ -146,8 +146,10 @@ function fakeEncoder(perPixel: Record<ImageFormat, number>) {
   const calls: { size: Size; format: ImageFormat; quality: number | undefined }[] = [];
   const encode: Encoder = async (size, format, quality) => {
     calls.push({ size, format, quality });
-    const bytes = Math.round(size.width * size.height * perPixel[format]);
-    return new Blob([new Uint8Array(bytes)], { type: format === "png" ? "image/png" : "image/jpeg" });
+    // Only the size and type are read, so no bytes are made: at 500 bytes a
+    // pixel a real Blob of that size would be gigabytes.
+    const size_ = Math.round(size.width * size.height * perPixel[format]);
+    return { size: size_, type: format === "png" ? "image/png" : "image/jpeg" } as Blob;
   };
   return { calls, encode };
 }
@@ -227,7 +229,8 @@ describe("preparing a dropped or pasted file", () => {
     const prepared = await prepareImage(file, 5 * MB, decode);
     expect(prepared.ok && prepared.resized).toBe(null);
     if (!prepared.ok) return;
-    expect(new Uint8Array(await prepared.blob.arrayBuffer())).toEqual(bytes);
+    // The file itself, not a copy drawn from it.
+    expect(prepared.blob).toBe(file);
     expect(counts().decoded).toBe(0);
   });
 
@@ -447,13 +450,30 @@ describe("the dialog takes an image three ways", () => {
   });
 
   it("names what went wrong beside the images", () => {
-    expect(shotsView).toMatch(/\{images\.problem && <p className="fb-error" role="alert">\{images\.problem\}<\/p>\}/);
+    expect(shotsView).toMatch(/\{images\.problem && <p ref=\{problemRef\} className="fb-error" role="alert">\{images\.problem\}<\/p>\}/);
+    // And brought into view, since on a short window it lands below the fold.
+    expect(shotsView).toMatch(/if \(images\.problem\) problemRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\);/);
   });
 
   it("finishes every fit before it sends, and sends the fitted images", () => {
     expect(flatDialog).toMatch(/const attached = await images\.ready\(\);/);
     expect(flatDialog).toMatch(/feedbackRequest\(\{ kind, title: sentTitle, body: body\.trim\(\), contact: contact\.trim\(\) \|\| undefined \}, attached\)/);
     expect(hook).toMatch(/prepareImage\(/);
+  });
+
+  it("says the same refusal twice when the same file is refused twice", () => {
+    // Found in the browser: a second GIF pasted left the alert's text as it
+    // was, so nothing was read out and nothing scrolled into view. The problem
+    // is cleared as each add begins, before anything is awaited.
+    const addAll = hook.slice(hook.indexOf("const addAll = useCallback(async"), hook.indexOf("}, [addOne]);"));
+    expect(addAll).toMatch(/^const addAll = useCallback\(async \(files: readonly File\[\]\) => \{ setProblem\(""\);/);
+  });
+
+  it("describes the add button once, not again as text after it", () => {
+    // A visually hidden hint is still read in browse mode, straight after the
+    // description that already said it.
+    expect(shotsView).toMatch(/<span id="fb-attach-hint" hidden>\{ADD_HINT\}<\/span>/);
+    expect(shotsView).toMatch(/aria-describedby="fb-attach-hint"/);
   });
 
   it("gives every object URL back", () => {
