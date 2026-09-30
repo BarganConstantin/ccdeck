@@ -99,9 +99,13 @@ function rateCardTooltip(usage: TokenUsage, modelId: string | undefined, speed: 
  *  change is about. */
 export function agentCostTooltip(a: UsageBearing): string {
   const entries = usageByModelEntries(a);
-  // The entry's usage rather than `a.usage`: the counts are the same, and only
-  // the entry carries the speed split the chip's figure was priced with.
-  if (entries.length <= 1) return costBreakdownTooltip(entries[0]?.usage ?? a.usage, a.model);
+  // The entry rather than the agent: its counts are the agent's, but only the
+  // entry carries the speed split the chip's figure was priced with, and its
+  // model is the one that produced the tokens. A card that has switched model
+  // since has one entry under the old model, and the agent's current model
+  // printed that model's rates beside the old model's figure.
+  const [only] = entries;
+  if (entries.length <= 1) return costBreakdownTooltip(only.usage, only.model);
   return [
     ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
     `═════════════════════════════════════════`,

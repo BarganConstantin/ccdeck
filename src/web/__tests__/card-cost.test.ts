@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { agentCostTooltip, costChip } from "../card-cost";
-import { fmtCostRate } from "../pricing";
+import { fmtCost, fmtCostRate } from "../pricing";
 import { agentCost } from "../usage-models";
 import type { AgentNodeData, TokenUsage } from "../types";
 
@@ -65,6 +65,22 @@ describe("the card's cost slot", () => {
     // already spent, and a card that switched to an unlisted model keeps them.
     const data = card({ model: UNLISTED, usageByModel: { "claude-sonnet-5": SPENT } });
     expect(costChip(data)?.kind).toBe("spent");
+  });
+
+  it("multiplies out the model the tokens came from, not the one the card is on", () => {
+    // Every token is Sonnet 5's and the card has since switched model, so the
+    // one section the tooltip prints is Sonnet 5's. It printed the card's
+    // current model instead: "no published rate in this build" beside a
+    // priced figure, and for a priced current model, a total that was not the
+    // chip's.
+    const unlisted = costChip(card({ model: UNLISTED, usageByModel: { "claude-sonnet-5": SPENT } }));
+    expect(unlisted?.tt).toContain("model: claude-sonnet-5\n");
+    expect(unlisted?.tt).not.toMatch(/no published rate/);
+
+    const data = card({ model: "claude-opus-5", usageByModel: { "claude-sonnet-5": SPENT } });
+    const chip = costChip(data);
+    expect(chip?.tt).toContain("model: claude-sonnet-5\n");
+    expect(chip?.tt.trimEnd().split("\n").pop()).toBe(`total                                 = ${fmtCost(agentCost(data).total)}`);
   });
 
   it("adds the burn rate to the tooltip of a live card, as of the render", () => {
