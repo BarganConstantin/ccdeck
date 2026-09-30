@@ -191,6 +191,56 @@ describe("the split survives the trip from transcript to agent", () => {
       .toBe(totals.cache_creation_input_tokens);
   });
 
+  it("counts the split once when the usage block restates it under `iterations`", async () => {
+    // The shape Claude Code has written on most assistant lines since at least
+    // 2026-07: after `cache_creation` comes an `iterations` array, one entry per
+    // model iteration, and each entry carries a `cache_creation` sub-object of
+    // its own. Measured on this machine's transcripts, 141,066 of 192,917
+    // assistant lines carry one. Matching every `cache_creation` on the line
+    // counted the split once per copy, so the 1-hour and 5-minute tokens summed
+    // to twice `cache_creation_input_tokens` and every cache write was billed
+    // twice — on five real sessions the ratio was 2.000 exactly.
+    const path = sandboxed("ttl-iterations.jsonl");
+    const message = {
+      model: "claude-opus-5",
+      usage: {
+        input_tokens: 2,
+        cache_creation_input_tokens: 10_000,
+        cache_read_input_tokens: 50_000,
+        output_tokens: 300,
+        output_tokens_details: { thinking_tokens: 0 },
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: "standard",
+        cache_creation: { ephemeral_1h_input_tokens: 9_000, ephemeral_5m_input_tokens: 1_000 },
+        inference_geo: "not_available",
+        iterations: [{
+          input_tokens: 2,
+          output_tokens: 300,
+          cache_read_input_tokens: 50_000,
+          cache_creation_input_tokens: 10_000,
+          cache_creation: { ephemeral_1h_input_tokens: 9_000, ephemeral_5m_input_tokens: 1_000 },
+          type: "message",
+        }],
+        speed: "standard",
+      },
+    };
+    writeFileSync(path, JSON.stringify({ type: "assistant", message }) + "\n");
+
+    const totals = await readUsageFromTranscript(path);
+    expect(totals.cache_creation_input_tokens).toBe(10_000);
+    expect(totals.ephemeral_1h_input_tokens).toBe(9_000);
+    expect(totals.ephemeral_5m_input_tokens).toBe(1_000);
+
+    // In dollars, at Opus 5's $10 (1-hour) and $6.25 (5-minute) write rates:
+    // $0.09625, where the double count made it $0.1925.
+    const cacheWrite = costForUsage(usage({
+      cacheCreateTokens: totals.cache_creation_input_tokens,
+      cacheCreate1hTokens: totals.ephemeral_1h_input_tokens,
+      cacheCreate5mTokens: totals.ephemeral_5m_input_tokens,
+    }), "claude-opus-5").cacheWrite;
+    expect(cacheWrite).toBeCloseTo(9_000 * 10 / 1e6 + 1_000 * 6.25 / 1e6, 10);
+  });
+
   it("stamps the split onto the root agent and prices it", () => {
     let state = applyEvent(initialState(), env({
       hook_event_name: "SessionStart",

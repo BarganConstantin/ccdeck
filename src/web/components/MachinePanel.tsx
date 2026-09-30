@@ -169,8 +169,9 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
  * and it is unreadable without the core count the strip is drawing; together
  * they answer "is this box coping" in one glance, which neither does alone.
  *
- * Two controls rather than one, because there are two charts: the CPU heading
- * opens what every core did, the Load average heading what the queue did. The
+ * Two controls rather than one, because there are two charts: the strip opens
+ * what every core did, the figures open what the queue did — each from its
+ * heading, which is the control, or from anywhere in its block. The
  * alternative — one button over both — would open one of the two and leave the
  * other unreachable from the block it belongs to.
  */

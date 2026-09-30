@@ -98,6 +98,13 @@ export interface TokenUsage {
    *  models. Carried separately so the UI can surface it without polluting
    *  Claude usage math (Claude doesn't emit this bucket). */
   reasoningOutputTokens?: number;
+  /** Claude-only: the share of these tokens billed at a speed other than
+   *  standard, keyed by the transcript's `usage.speed` (`"fast"`). A subset of
+   *  the counts above, never an addition to them, the way the TTL split is a
+   *  subset of `cacheCreateTokens`. Present only on a per-model bucket whose
+   *  transcript ran at such a speed; pricing.ts prices each share at its own
+   *  speed's rates (#754). */
+  bySpeed?: Record<string, TokenUsage>;
 }
 
 export interface PromptEntry {

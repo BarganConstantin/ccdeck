@@ -1,5 +1,5 @@
 // The versions of the Claude Code and Codex CLIs this machine has, for the
-// anonymous "which CLIs, at which version" count the reporter sends (reports.mjs).
+// "which CLIs, at which version" count the reporter sends (reports.mjs).
 //
 // SPAWNED, BUT NEVER ON THE BOOT PATH. claude-dir.mjs measured a Claude Code
 // child at ~3.0s and says out loud that boot is the wrong place to spend one, so

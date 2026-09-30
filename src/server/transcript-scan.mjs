@@ -104,6 +104,19 @@ const USAGE_FIELD_RE = {
 // `server_tool_use`, several fields earlier. Match the sub-object on the raw
 // line instead of on the extracted blob.
 const CACHE_CREATION_BLOCK_RE = /"cache_creation"\s*:\s*\{([^}]*)\}/g;
+// Claude Code writes an `iterations` array into the usage block, one entry per
+// model iteration of the request, and every entry carries a `cache_creation`
+// sub-object of its own. The request's split is the top-level one; the entries
+// restate it. Matching every `cache_creation` on the line counted the split once
+// per copy — 141,066 of 192,917 assistant lines on one machine carry the array,
+// and on each of them the 1-hour and 5-minute tokens summed to twice the flat
+// `cache_creation_input_tokens`, so every cache write was billed twice. The
+// array is cut out before the split is read. Its entries hold only numbers and
+// sub-objects, never a bracket inside a string, so one level of nesting is the
+// whole of what the pattern has to span; a key quoted inside a message reaches
+// the line as `\"iterations\"` and is not matched, for the reason
+// TOOL_USE_RESULT_KEY_RE gives below.
+const ITERATIONS_ARRAY_RE = /"iterations"\s*:\s*\[(?:[^[\]]|\[[^[\]]*\])*\]/g;
 // A finished `Task`/`Agent` call is written into the PARENT's transcript as a
 // top-level `toolUseResult`, and that object carries a `usage` block of its own
 // — the subagent's LAST API turn, restated on the parent's line. Those same
@@ -149,6 +162,50 @@ function grabUsageField(blob, key) {
 // model — the behaviour the whole deck had before #686.
 const MAX_TRANSCRIPT_USAGE_MODELS = 32;
 
+// A request's `usage.speed` (#754). Claude Code's fast mode runs the same model
+// id at `speed: "fast"`, and Anthropic bills it at a premium, so the speed is
+// part of which rate card a token is billed against, the way the model is. The
+// API documents the value as "fast" or "standard", and Claude Code writes the
+// usage object into the transcript verbatim — `speed` is on every final
+// assistant line it writes today, "standard" on all 140,532 of them on one
+// machine. Absent, null and "standard" are all the standard speed and add
+// nothing here, so a session that never ran fast has buckets of exactly the
+// shape it always had.
+//
+// Anything else is kept as a share of its model's bucket, under `speeds`, and
+// the client prices each share at its own speed's rates or not at all. The
+// value is bytes this process was handed, so it is held to a short token and a
+// few distinct values per model, the same reason MAX_TRANSCRIPT_USAGE_MODELS
+// caps the models; whatever fails either test is kept under
+// UNRECOGNISED_SPEED, which no rate table names, so it is counted and left
+// unpriced rather than priced at the standard rate.
+const STANDARD_SPEED = "standard";
+const UNRECOGNISED_SPEED = "unrecognised";
+const SPEED_VALUE_RE = /^[a-z][a-z0-9_-]{0,31}$/i;
+const MAX_SPEEDS_PER_MODEL = 4;
+
+/** The speed a line's request was billed at, or null for the standard one.
+ *  `record` is the line parsed, or null when it names no model — and a line
+ *  that names no model is billed at the standard speed, as every line was. */
+function billedSpeed(record) {
+  const speed = record?.message?.usage?.speed;
+  if (speed === undefined || speed === null || speed === STANDARD_SPEED) return null;
+  return typeof speed === "string" && SPEED_VALUE_RE.test(speed) ? speed : UNRECOGNISED_SPEED;
+}
+
+/** The share of `bucket` billed at `speed`, created on first sight. Null for
+ *  the standard speed or a bucket we could not attribute. `Object.hasOwn`
+ *  rather than a plain read, because `constructor` passes SPEED_VALUE_RE and
+ *  every object already answers it. */
+function speedBucketFor(bucket, speed) {
+  if (!bucket || !speed) return null;
+  const speeds = bucket.speeds ?? (bucket.speeds = {});
+  if (Object.hasOwn(speeds, speed)) return speeds[speed];
+  const key = Object.keys(speeds).length < MAX_SPEEDS_PER_MODEL ? speed : UNRECOGNISED_SPEED;
+  if (!Object.hasOwn(speeds, key)) speeds[key] = newUsageTotals();
+  return speeds[key];
+}
+
 /** The per-model usage bucket for `model`, created on first sight. Null for a
  *  line whose tokens we cannot attribute — no model seen yet in this file, or
  *  the cap above already reached. */
@@ -166,17 +223,38 @@ function usageBucketFor(state, model) {
  *  `cache_creation` sub-object splits cache writes into by TTL. */
 const USAGE_BLOCK_FIELDS = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"];
 const CACHE_SPLIT_FIELDS = ["ephemeral_1h_input_tokens", "ephemeral_5m_input_tokens"];
+const USAGE_TOTAL_FIELDS = [...USAGE_BLOCK_FIELDS, ...CACHE_SPLIT_FIELDS];
 
 /** Charge `fields` of one usage blob to the file's flat totals and, when the
  *  tokens can be attributed, to their model's bucket too — the same number
  *  into both, read once, so the split and the total it splits go on summing
- *  to each other. */
-function chargeUsage(state, bucket, blob, fields) {
+ *  to each other. A request billed at a speed other than standard is charged
+ *  to that speed's share of the bucket as well, which is a subset of the
+ *  bucket and not an addition to it. */
+function chargeUsage(state, bucket, blob, fields, speedBucket) {
   for (const k of fields) {
     const n = grabUsageField(blob, k);
     state.usage[k] += n;
     if (bucket) bucket[k] += n;
+    if (speedBucket) speedBucket[k] += n;
   }
+}
+
+/** Add one bucket's counters, and its speed shares, into `dst`. */
+function addUsageBucket(dst, src) {
+  for (const k of USAGE_TOTAL_FIELDS) dst[k] += src[k] ?? 0;
+  if (!src.speeds) return dst;
+  for (const [speed, share] of Object.entries(src.speeds)) {
+    const into = speedBucketFor(dst, speed);
+    for (const k of USAGE_TOTAL_FIELDS) into[k] += share[k] ?? 0;
+  }
+  return dst;
+}
+
+/** A bucket's counters and speed shares, sharing no object with the scan state
+ *  it was read from. */
+function copyUsageBucket(u) {
+  return addUsageBucket(newUsageTotals(), u);
 }
 
 /** Add `src`'s per-model buckets into `dst`, key for key, and return `dst`.
@@ -191,7 +269,7 @@ function mergeUsageByModel(dst, src) {
       bucket = newUsageTotals();
       dst[model] = bucket;
     }
-    for (const k of Object.keys(bucket)) bucket[k] += u[k] ?? 0;
+    addUsageBucket(bucket, u);
   }
   return dst;
 }
@@ -394,11 +472,12 @@ function foldUsageLine(state, line, record) {
   // and the two would stop summing to each other.
   const billed = billedUsageText(line);
   const bucket = usageBucketFor(state, state.lastModel);
+  const speedBucket = speedBucketFor(bucket, billedSpeed(record));
   for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
-    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS);
+    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS, speedBucket);
   }
-  for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
-    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS);
+  for (const m of billed.replace(ITERATIONS_ARRAY_RE, "").matchAll(CACHE_CREATION_BLOCK_RE)) {
+    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS, speedBucket);
   }
 }
 
@@ -580,5 +659,5 @@ function scanTranscript(path) {
 // rather than marked at each declaration so that every declaration above reads
 // exactly as it did where it came from.
 export {
-  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, repeatsRequestUsage,
+  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket, repeatsRequestUsage,
 };

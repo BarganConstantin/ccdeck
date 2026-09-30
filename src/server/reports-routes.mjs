@@ -18,7 +18,7 @@ async function readJson(req, res, limit) {
   }
 }
 
-/** `POST /api/reports` `{ on }`: Appearance's "Send anonymous reports" switch. */
+/** `POST /api/reports` `{ on }`: Appearance's "Send usage reports" switch. */
 export async function handleReportsWrite(req, res, { report = reporter } = {}) {
   const body = await readJson(req, res, 1_000);
   if (typeof body?.on !== "boolean") return send(res, 400, { ok: false, reason: "bad_request" });

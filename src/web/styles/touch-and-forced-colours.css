@@ -21,6 +21,9 @@
   .ap-issue::after { width: max(100%, 32px); height: 32px; }
   .ap-failure-x::after { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
   .lan-switches { gap: 14px; }
+  /* The feedback dialog's ⌘ Enter hint (#1853): a fingertip has no key to
+     press, so there is no key to name. */
+  .fb-shortcut { display: none; }
 }
 
 /* ---------------- forced colours (#871) ----------------

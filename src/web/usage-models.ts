@@ -27,7 +27,7 @@
 // session on one model, a session on three, a Codex session that reports no
 // split at all, a server too old to send one), and a rule that lives inside a
 // .tsx is a rule the suite cannot reach — the test environment is plain Node.
-import { costForUsage, ratesForModel, type CostBreakdown } from "./pricing";
+import { costForUsage, ratesForModel, speedShares, type CostBreakdown } from "./pricing";
 import type { TokenUsage } from "./types";
 
 /** The shape every cost surface needs off an agent, and no more of one than
@@ -68,6 +68,17 @@ function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
   }
   if (a.reasoningOutputTokens !== undefined || b.reasoningOutputTokens !== undefined) {
     out.reasoningOutputTokens = (a.reasoningOutputTokens ?? 0) + (b.reasoningOutputTokens ?? 0);
+  }
+  // A speed share is a subset of the counts it sits on (#754), so the sum of two
+  // usages carries the sum of their shares, speed by speed; tokens neither side
+  // named a speed for stay standard.
+  if (a.bySpeed || b.bySpeed) {
+    const bySpeed = new Map(Object.entries(a.bySpeed ?? {}));
+    for (const [speed, share] of Object.entries(b.bySpeed ?? {})) {
+      const prior = bySpeed.get(speed);
+      bySpeed.set(speed, prior ? addUsage(prior, share) : share);
+    }
+    out.bySpeed = Object.fromEntries(bySpeed);
   }
   return out;
 }
@@ -182,11 +193,19 @@ export function agentCost(a: UsageBearing, now: number = Date.now()): CostBreakd
  * last line. Now the priced half prints its dollars and the unpriced half prints
  * as the floor marker beside them, which is what the "+" on the session row has
  * always meant.
+ *
+ * Per speed as well (#754): a fast turn on a model with no published fast rate,
+ * or a turn at a speed this build has never read a price for, is counted here
+ * even though the model's standard share is priced.
  */
 export function agentUnpricedTokens(a: UsageBearing, now: number = Date.now()): number {
   let n = 0;
   for (const e of usageByModelEntries(a)) {
-    if (ratesForModel(e.model, now) == null) n += e.usage.inputTokens + e.usage.outputTokens;
+    for (const share of speedShares(e.usage)) {
+      if (ratesForModel(e.model, now, share.speed) == null) {
+        n += share.usage.inputTokens + share.usage.outputTokens;
+      }
+    }
   }
   return n;
 }

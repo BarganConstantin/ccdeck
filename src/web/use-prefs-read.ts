@@ -1,7 +1,7 @@
 // One read of the deck's server-side prefs answers three switches, and each
 // hook is handed its part: auto-update to loadAutoRestartPrefs
 // (use-auto-restart.ts), notifications to loadNotifyPrefs
-// (use-os-notifications.ts), and anonymous reports to loadReportsPrefs
+// (use-os-notifications.ts), and usage reports to loadReportsPrefs
 // (use-reports.ts, #1853). Split, it would be three requests for one answer.
 //
 // Moved out of App.tsx unchanged, and called there where it was, once the

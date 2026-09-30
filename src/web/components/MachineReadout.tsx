@@ -5,7 +5,7 @@
 // of these three, and each says in its own comment why it is drawn the way it
 // is; which readings a section draws, and in what order, stays with the
 // section.
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 import type { Tone } from "../machine-readings";
 import SectionHistoryModal from "./SectionHistoryModal";
@@ -55,6 +55,16 @@ export function Fig({ value, unit, cap }: { value: string; unit?: string; cap: s
  * Claude". The rows follow the button now as ordinary content, and
  * `.sd-reading` keeps the box the button had so nothing on screen moves.
  *
+ * AND THE BLOCK STILL TAKES THE PRESS. Moving the readings out took the block's
+ * press with them, and the press was the part people used: a click on the
+ * figures, or on the sentence under them, is where the eye already is, and it
+ * had opened the chart since the panel shipped. So `.sd-reading` answers a
+ * pointer the way the button did, and forwards it rather than becoming a second
+ * control: no role, no Tab stop, nothing for a screen reader to meet twice. The
+ * heading stays the one control, and a keyboard's press on it reaches the same
+ * handler by bubbling. The per-core and figure tooltips keep working, which an
+ * overlay stretched from the button over the block would have covered.
+ *
  * The name starts with the heading it shows — "Memory: show history" — so a
  * voice-control user who says the word on screen reaches it (SC 2.5.3). The
  * heading inside keeps its `aria-hidden` for that reason: the name already says
@@ -85,10 +95,22 @@ export function OpensHistory({ group, title, action, label, value, hint, childre
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const heading = useRef<HTMLButtonElement>(null);
+  // Two things the block does that a press on the heading does for itself.
+  // It hands the heading the focus a click on the button used to give it, so
+  // the dialog gives it back there on close instead of to the page. And the
+  // readings are text a reader can select now, so the click that ends a drag
+  // across a figure is left as a selection rather than taken as a press.
+  const pressBlock = () => {
+    if (window.getSelection()?.isCollapsed === false) return;
+    heading.current?.focus({ preventScroll: true });
+    setOpen(true);
+  };
   return (
     <>
-      <div className="sd-reading">
+      <div className="sd-reading" onClick={pressBlock}>
         <button
+          ref={heading}
           type="button"
           className="sd-open"
           onClick={() => setOpen(true)}

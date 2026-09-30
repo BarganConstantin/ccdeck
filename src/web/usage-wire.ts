@@ -78,9 +78,26 @@ export function usageByModelFromWire(raw: unknown): Record<string, TokenUsage> |
   const out: Record<string, TokenUsage> = {};
   for (const [model, u] of Object.entries(raw as Record<string, unknown>)) {
     if (!model || !u || typeof u !== "object") continue;
-    out[model] = usageFromWire(u as Record<string, unknown>);
+    const bucket = u as Record<string, unknown>;
+    out[model] = usageFromWire(bucket);
+    const bySpeed = speedSharesFromWire(bucket.speeds);
+    if (bySpeed) out[model].bySpeed = bySpeed;
   }
   return Object.keys(out).length ? out : undefined;
+}
+
+/** A per-model bucket's `speeds` — the share of its tokens the transcript
+ *  billed at each speed other than standard (#754) — or undefined when it has
+ *  none. Left off rather than set empty, so a bucket that never ran fast is the
+ *  object it always was. */
+function speedSharesFromWire(raw: unknown): Record<string, TokenUsage> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const shares = Object.entries(raw as Record<string, unknown>)
+    .filter(([speed, u]) => speed && u && typeof u === "object")
+    .map(([speed, u]) => [speed, usageFromWire(u as Record<string, unknown>)] as const);
+  // fromEntries defines each key as its own property, so a speed spelled
+  // `__proto__` is a share like any other rather than a prototype assignment.
+  return shares.length ? Object.fromEntries(shares) : undefined;
 }
 
 /** Recursively look for a `usage` object with numeric token fields in any

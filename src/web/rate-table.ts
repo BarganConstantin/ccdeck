@@ -3,7 +3,9 @@
 //
 // Rates sourced from platform.claude.com/docs/en/about-claude/pricing on
 // 2026-06-13. All values are USD per million tokens of the base API
-// (no Batch discount, no fast-mode premium, no data-residency multiplier).
+// (no Batch discount, no data-residency multiplier). RATES is the standard
+// speed. The fast-mode premium is FAST_RATES at the end of this file, and it
+// applies only to the tokens whose usage says they ran fast (#754).
 //
 // Moved out of pricing.ts, which keeps the arithmetic: ratesForModel's
 // lookup over this table, the cache-write split, what Codex bills its input
@@ -191,9 +193,11 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   // to the board's cost. These are the short-context standard rates, as every
   // row here is. The >272K tier ($20 / $75) is left out for the reason given
   // at the long-context note in pricing.ts. So is the Fast tier: the model page
-  // prices it at "2x the applicable rates", this file's header excludes
-  // fast-mode premiums, and whether a rollout records the tier at all is the
-  // question #754 keeps open.
+  // prices it at "2x the applicable rates", but a Codex session's cost is
+  // priced from its running total, which carries no tier. The tier lives in a
+  // separate `thread_settings_applied` event, as the setting requested, and
+  // Codex names the Fast tier both "fast" and "priority". See FAST_RATES at the
+  // end of this file.
   //
   // #688's named-sibling guard from the first day rather than after a
   // mispricing: an `-astra-mini` or `-astra-pro` nobody has read a rate for
@@ -426,4 +430,46 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   // o3 — $2.00 / $8  (cached $0.50)
   { match: /^o3\b/i,
     rates: { input: 2.00, output: 8, cacheRead: 0.50, cacheWrite: 0 } },
+];
+
+// ── Fast mode ──────────────────────────────────────────────────────────────
+// The rates for a Claude request that ran at `speed: "fast"` (#754). Read
+// 2026-09-30 from platform.claude.com/docs/en/about-claude/pricing, "Fast mode
+// pricing": "Claude Opus 5.5 | $8 / MTok | $40 / MTok" and "Claude Opus 5 /
+// Claude Opus 4.8 | $10 / MTok | $50 / MTok", "across the full context window",
+// and "Prompt caching multipliers apply on top of fast mode pricing". So the
+// cache columns are the page's own multipliers on the fast input rate: 1.25x
+// for a 5-minute write, 2x for a 1-hour one, and 0.1x for a hit, which the
+// same page puts at 0.05x on Opus 5.5. Claude Code's fast-mode page quotes the
+// same two pairs.
+//
+// WHY A SECOND TABLE AND NOT A MULTIPLIER. Fast mode runs the same model id, so
+// nothing in the id can pick the row; the speed is on each request's usage
+// object instead. The API documents `usage.speed` as "fast" or "standard", and
+// Claude Code writes that object into the transcript verbatim. A separate table
+// keeps what is priced explicit: only the three models Anthropic lists, each
+// with the #688 version guard its standard row carries, so an Opus 5.6 nobody
+// has read a fast price for reaches no row here and is not priced at all.
+// Opus 4.6 is left out because it runs a fast request at standard speed and
+// reports `"standard"`; Opus 4.7 rejects the request.
+//
+// Codex has no rows here. OpenAI publishes a Fast column (gpt-6-astra
+// $20 / $100, "2x the applicable rates"), but the deck prices a Codex session
+// from the rollout's running total, which carries no tier, so there is no
+// share of it to apply the column to. Pricing it would mean splitting that
+// total request by request at the tier each `thread_settings_applied` event
+// set, which is a change to how Codex usage is read, not to this table.
+export const FAST_RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelRates) }> = [
+  // Opus 5.5 fast — $8 / $40, cache read $0.40 (0.05x). Above Opus 5, the
+  // order the standard table keeps.
+  { match: /^claude[-_]opus[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10, cacheWrite1h: 16 } },
+
+  // Opus 5 fast — $10 / $50
+  { match: /^claude[-_]opus[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 } },
+
+  // Opus 4.8 fast — $10 / $50
+  { match: /^claude[-_]opus[-_]4[-_.]8\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 } },
 ];

@@ -207,6 +207,10 @@ describe("what was migrated to the secondary tier", () => {
       // What happens to a piece of feedback, said before Send is pressed: it
       // goes to the people who make ccdeck, who may open a public issue from
       // it, never with the contact (#1853). Read once, to decide.
+      // And the one line under each kind's name, which says what the kind
+      // covers: read to choose between the three, on a card whose hover fill
+      // is mixed from the foreground, where --muted is 4.05:1 in dark.
+      ".fb-kind-hint",
       ".fb-note",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.

@@ -223,7 +223,7 @@ function Inner() {
   const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
-  // Anonymous reports (#1853): whether they are on — they are unless somebody
+  // Usage reports (#1853): whether they are on — they are unless somebody
   // switched them off — the switch in Appearance that changes it, and the
   // page's own errors, forwarded while they are on: use-reports.ts.
   const reports = useReports();

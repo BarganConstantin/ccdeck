@@ -5,7 +5,10 @@
 // AgentNode.tsx, so the suites that check the rows multiply out imported a
 // React Flow component to reach it. It is here, beside nothing but the
 // pricing it reads.
-import { billedInputTokens, cacheWriteBreakdown, costForUsage, fmtCost, fmtCostRate, ratesForModel } from "./pricing";
+import {
+  STANDARD_SPEED, billedInputTokens, cacheWriteBreakdown, costAtSpeed, costForUsage, fmtCost,
+  fmtCostRate, ratesForModel, speedShares,
+} from "./pricing";
 // Tokens are priced at the model that produced them. See usage-models.ts for
 // what the last-wins multiplication this replaces was measured to cost (#686).
 import { agentCost, agentUnpricedTokens, usageByModelEntries, type UsageBearing } from "./usage-models";
@@ -19,7 +22,28 @@ import type { AgentNodeData, TokenUsage } from "./types";
  *  must sum to the total: this tooltip exists only to be checked by hand, so a
  *  row whose operands don't produce its own result is worse than no row. */
 export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefined): string {
-  const rates = ratesForModel(modelId);
+  if (!usage.bySpeed) return rateCardTooltip(usage, modelId, STANDARD_SPEED);
+  // A session that ran fast has two rate cards on one model (#754), so one
+  // multiplication cannot reproduce its total. One block per speed, the same
+  // way agentCostTooltip gives one per model, and a standard share that holds
+  // nothing is left out rather than printed as a block of zeros.
+  const shares = speedShares(usage).filter(s => s.speed !== STANDARD_SPEED || hasTokens(s.usage));
+  if (shares.length === 1) return rateCardTooltip(shares[0].usage, modelId, shares[0].speed);
+  return [
+    ...shares.map(s => rateCardTooltip(s.usage, modelId, s.speed)),
+    `═════════════════════════════════════════`,
+    `all speeds                            = ${fmtCost(costForUsage(usage, modelId).total)}`,
+  ].join("\n");
+}
+
+function hasTokens(u: TokenUsage): boolean {
+  return u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreateTokens > 0;
+}
+
+/** One rate card's multiplication: `usage` at `speed`'s rates. */
+function rateCardTooltip(usage: TokenUsage, modelId: string | undefined, speed: string): string {
+  const rates = ratesForModel(modelId, Date.now(), speed);
+  const heading = speed === STANDARD_SPEED ? `model: ${modelId}` : `model: ${modelId} · ${speed}`;
   // This branch was unreachable until #400: the only element carrying this
   // tooltip was gated on the same ratesForModel call that returns null here, so
   // the graceful answer existed and could never be read. It names the model now
@@ -27,11 +51,11 @@ export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefi
   // sentence is otherwise a claim about nothing, and the id is what goes in the
   // issue asking for the row.
   if (!rates) {
-    return `model: ${modelId}\nno published rate in this build — the tokens are counted, the dollars are not`;
+    return `${heading}\nno published rate in this build — the tokens are counted, the dollars are not`;
   }
   const fmtN = (n: number) => n.toLocaleString();
   const fmtR = (r: number) => `$${r}/MTok`;
-  const c = costForUsage(usage, modelId);
+  const c = costAtSpeed(usage, modelId, speed);
   const cw = cacheWriteBreakdown(usage, rates);
   // Cache writes are billed per TTL — 2× input for a 1-hour entry, 1.25× for a
   // 5-minute one — so once a transcript reports both, one multiplication can't
@@ -52,7 +76,7 @@ export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefi
   const inputTokens = billedInputTokens(usage, modelId);
   const inputLabel = inputTokens === usage.inputTokens ? "input" : "uncached";
   return [
-    `model: ${modelId}`,
+    heading,
     `${inputLabel.padEnd(9)}${fmtN(inputTokens).padStart(14)}  × ${fmtR(rates.input).padEnd(11)} = ${fmtCost(c.input)}`,
     `output   ${fmtN(usage.outputTokens).padStart(14)}  × ${fmtR(rates.output).padEnd(11)} = ${fmtCost(c.output)}`,
     `cache r  ${fmtN(usage.cacheReadTokens).padStart(14)}  × ${fmtR(rates.cacheRead).padEnd(11)} = ${fmtCost(c.cacheRead)}`,
@@ -75,7 +99,13 @@ export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefi
  *  change is about. */
 export function agentCostTooltip(a: UsageBearing): string {
   const entries = usageByModelEntries(a);
-  if (entries.length <= 1) return costBreakdownTooltip(a.usage, a.model);
+  // The entry rather than the agent: its counts are the agent's, but only the
+  // entry carries the speed split the chip's figure was priced with, and its
+  // model is the one that produced the tokens. A card that has switched model
+  // since has one entry under the old model, and the agent's current model
+  // printed that model's rates beside the old model's figure.
+  const [only] = entries;
+  if (entries.length <= 1) return costBreakdownTooltip(only.usage, only.model);
   return [
     ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
     `═════════════════════════════════════════`,
