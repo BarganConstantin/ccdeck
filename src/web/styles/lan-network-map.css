@@ -29,9 +29,22 @@
   --nm-draw: cubic-bezier(0.16, 1, 0.3, 1);
   --nm-wire: color-mix(in srgb, var(--text) 26%, transparent);
   --nm-wire-quiet: color-mix(in srgb, var(--text) 12%, transparent);
+  /* A CONNECTED LINK'S INKS: this deck's accent where it leaves the centre,
+     the green its deck wears where it arrives, and the light around it. */
+  --nm-live-from: color-mix(in srgb, var(--accent) 55%, transparent);
+  --nm-live-to: color-mix(in srgb, var(--ok) 90%, transparent);
+  --nm-live-glow: var(--live-bloom);
+  /* AWAY: a paired deck that is not on. This deck's own accent, stilled
+     toward the muted grey — still yours, not live — so the middle ring reads
+     as a different kind of thing from the grey strangers outside it, without
+     borrowing the amber this app keeps for a session waiting on you. */
+  --nm-away: color-mix(in srgb, var(--accent) 50%, var(--muted));
+  --nm-away-ink: color-mix(in srgb, var(--nm-away) 60%, transparent);
+  /* The stage's own ground under a name that has to read over a wire. */
+  --nm-plate: color-mix(in srgb, var(--bg) 88%, transparent);
   width: min(1160px, 92vw);
-  height: min(740px, 86vh);
-  max-height: 86vh;
+  height: min(800px, 88vh);
+  max-height: 88vh;
 }
 .nm-head { gap: 16px; }
 .nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -97,7 +110,30 @@
   transform-box: fill-box;
   transform-origin: center;
 }
-.nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; }
+.nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; stroke: color-mix(in srgb, var(--nm-away) 38%, transparent); }
+.nm-orbit[data-ring="2"] { stroke-dasharray: 1.5 5; stroke-linecap: round; }
+/* The folded ring holds away and unpaired decks together, so it wears
+   neither's stroke; each deck's own mark and wire says which it is. */
+.nm-orbit[data-folded] { stroke: var(--line); stroke-dasharray: 2 6; }
+/* THE TAILNET'S SLICE: a ground a step off the stage's, in this deck's own
+   accent, a solid hairline edge — a region, where the dotted stroke means not
+   paired — and what stands in it named along the outside in the micro-label
+   voice. Quiet on purpose — it says where, and the decks in it say everything
+   else. */
+.nm-zone {
+  stroke: color-mix(in srgb, var(--accent) 22%, transparent);
+  stroke-width: 1;
+}
+.nm-zone-stop { stop-color: var(--accent); stop-opacity: 0; }
+.nm-zone-stop[data-at="mid"],
+.nm-zone-stop[data-at="out"] { stop-opacity: 0.08; }
+.nm-zone-label {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
 /* A WIRE from this deck's edge to that deck's, laid out from the centre of the
    stage and turned to its deck's angle. Its length and its turn ease when a
@@ -119,24 +155,62 @@
   transition:
     --nm-a var(--nm-move) var(--nm-ease),
     --nm-d var(--nm-move) var(--nm-ease),
-    opacity 160ms var(--nm-ease),
-    background-color 160ms var(--nm-ease);
+    opacity var(--nm-fade) var(--nm-ease),
+    background-color 160ms var(--nm-ease),
+    box-shadow 160ms var(--nm-ease);
 }
-.nm-wire[data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 4px, transparent 4px 8px); }
-.nm-wire[data-tier="loose"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 1.5px, transparent 1.5px 6px); }
-/* Over the tailnet, dashed — the legend's own stroke. The line is the same
-   ink as its neighbours; only its rhythm says which network it crosses. The
-   ink is read where the stroke is drawn, so a wire that is looked at, and
-   brightens its own ink, brightens its dashes with it — and a wire to a deck
-   that is not on keeps the quiet ink under the tailnet's rhythm. */
+.nm-wire[data-tier="offline"],
+.nm-key-wire[data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-away-ink) 0 4px, transparent 4px 8px); }
+.nm-wire[data-tier="loose"],
+.nm-key-wire[data-tier="loose"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 1.5px, transparent 1.5px 6px); }
+/* A WIRE KEEPS ITS RING'S STROKE whatever network it crosses. It was dashed
+   over the tailnet, and a dashed green line to a connected deck read as the
+   dashed line to one that is away — the one question this picture exists to
+   answer, answered wrong. The tailnet is said by where its decks stand: in
+   the slice. */
 .nm-wire,
-.nm-key-wire {
-  --nm-tailnet-ink: var(--nm-wire);
-  --nm-wire-tailnet: repeating-linear-gradient(90deg, var(--nm-tailnet-ink) 0 6px, transparent 6px 10px);
+.nm-key-wire { --nm-live: linear-gradient(90deg, var(--nm-live-from), var(--nm-live-to)); }
+/* THE LIVE SPOKES OWN THE CENTRE. A wire to a deck that is away or not paired
+   fades out before it reaches the hub, so the lines meeting at this deck are
+   the ones actually live; looked at, it is drawn all the way in so it can be
+   followed. */
+.nm-wire[data-tier="offline"],
+.nm-wire[data-tier="loose"] {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 45%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 45%);
 }
-.nm-wire:not([data-tier="online"]) { --nm-tailnet-ink: var(--nm-wire-quiet); }
-.nm-wire[data-via="tailscale"] { background: var(--nm-wire-tailnet); }
-.nm-wire[data-on] { --nm-wire: color-mix(in srgb, var(--text) 70%, transparent); --nm-wire-quiet: color-mix(in srgb, var(--text) 45%, transparent); height: 2px; margin-top: -1px; }
+/* CONNECTED, AND IT SHOWS. Every wire used to be the same neutral ink, so the
+   only thing that told a paired deck that is on from one that is not was a
+   10px dot at the far end — findable, not visible. A connected link is the
+   one thing on this picture that is actually live, so it is drawn as live:
+   a line twice as heavy, running from this deck's accent into the green its
+   deck wears, with a little of that green around it. A zero-offset halo in a
+   state colour, which DESIGN.md allows as a mark; nothing moves that did not
+   move before. */
+.nm-wire[data-tier="online"],
+.nm-key-wire[data-tier="online"] {
+  height: 2px;
+  background: var(--nm-live);
+  box-shadow: 0 0 6px var(--nm-live-glow);
+}
+.nm-wire[data-tier="online"] { margin-top: -1px; }
+.nm-wire[data-tier="offline"][data-on] { --nm-away-ink: var(--nm-away); }
+.nm-wire[data-on] {
+  --nm-wire: color-mix(in srgb, var(--text) 70%, transparent);
+  --nm-wire-quiet: color-mix(in srgb, var(--text) 45%, transparent);
+  height: 2px;
+  margin-top: -1px;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* Looked at, a connected link lights all the way from the centre. */
+.nm-wire[data-tier="online"][data-on] {
+  --nm-live-from: color-mix(in srgb, var(--accent) 90%, transparent);
+  --nm-live-to: var(--ok);
+  height: 2.5px;
+  margin-top: -1.25px;
+  box-shadow: 0 0 12px var(--nm-live-glow), 0 0 3px var(--nm-live-glow);
+}
 
 /* THE ROUND. A light leaves this deck, reaches that one, and comes back in
    that deck's green — a question and its answer, which is what a round between
@@ -150,7 +224,11 @@
   height: 5px;
   margin-top: -2.5px;
   border-radius: 50%;
-  background: var(--text);
+  background: var(--glint);
+  /* A ring of the stage's ground around the light, so it separates from the
+     line it runs on — the accent at the centre, the green at the far end —
+     in both themes. */
+  box-shadow: 0 0 0 1px var(--bg), 0 0 6px color-mix(in srgb, var(--glint) 50%, transparent);
   opacity: 0;
   pointer-events: none;
 }
@@ -164,18 +242,22 @@
   inset: 0;
   border-radius: 50%;
   background: var(--ok);
+  box-shadow: 0 0 0 1px var(--bg);
   opacity: 0;
 }
+/* Out in 800ms, a 200ms hold at the far deck, back in 720ms, and then a long
+   rest: on screen under a quarter of the time, so a map of ten live decks has
+   a light or two moving rather than ten. */
 @keyframes nm-round {
-  0%   { transform: translateX(0); opacity: 0; }
-  5%   { opacity: 0.9; }
-  40%, 46% { transform: translateX(calc(var(--len) - 5px)); opacity: 0.9; }
-  82%  { transform: translateX(0); opacity: 0.9; }
-  88%, 100% { transform: translateX(0); opacity: 0; }
+  0% { transform: translateX(0); opacity: 0; }
+  1.5% { opacity: 0.9; }
+  10%, 12.5% { transform: translateX(calc(var(--len) - 5px)); opacity: 0.9; }
+  21.5% { transform: translateX(0); opacity: 0.9; }
+  23%, 100% { transform: translateX(0); opacity: 0; }
 }
 @keyframes nm-answer {
-  0%, 41% { opacity: 0; }
-  45%, 100% { opacity: 1; }
+  0%, 10.5% { opacity: 0; }
+  12%, 100% { opacity: 1; }
 }
 
 /* THIS DECK. The empty canvas's own orb, because it is the same idea — the
@@ -229,7 +311,7 @@
   gap: 1px;
   padding: 3px 8px 4px;
   border-radius: var(--r-ctl);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  background: var(--nm-plate);
   white-space: nowrap;
   text-align: center;
 }
@@ -264,17 +346,37 @@
   transition:
     --nm-a var(--nm-move) var(--nm-ease),
     --nm-d var(--nm-move) var(--nm-ease),
-    opacity 160ms var(--nm-ease),
+    opacity var(--nm-fade) var(--nm-ease),
     border-color 140ms var(--nm-ease),
     color 140ms var(--nm-ease),
+    background-color 140ms var(--nm-ease),
     box-shadow 160ms var(--nm-ease),
     transform 140ms var(--nm-ease);
 }
+/* FAST IN, SLOW OUT. A transition takes its timing from the state it lands
+   in, so looking at a deck — and the rest stepping back — takes 120ms, and the
+   network coming back when the pointer leaves takes 200ms: the eye is still
+   on the deck it left, and the restore should not snap under it. */
+.nm-node,
+.nm-wire { --nm-fade: 200ms; }
+.nm-node[data-on],
+.nm-wire[data-on],
+.nm-stage[data-focus] .nm-node:not([data-on]),
+.nm-stage[data-focus] .nm-wire:not([data-on]) { --nm-fade: 120ms; }
 .nm-node .lan-machine { color: inherit; }
+/* The one being looked at stands over its neighbours and the centre's name. */
+.nm-node[data-on],
+.nm-node:focus-visible { z-index: 2; }
 .nm-node[data-tier="online"] { color: var(--text); }
 /* Not paired: the disc's edge is dashed and it sits a step back on the ground,
    the ring's own stroke carried onto the machine. */
-.nm-node[data-tier="loose"] { border-style: dashed; background: var(--bg-soft); }
+.nm-node[data-tier="loose"] {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-style: dashed;
+  background: var(--bg-soft);
+}
 /* Looked at — by the pointer, which the map turns into `data-on` itself, or by
    the keyboard. The edge goes to the text's own ink and the disc lifts. */
 .nm-node[data-on] { color: var(--text); border-color: var(--text); box-shadow: var(--shadow-contact), var(--shadow-2); }
@@ -287,10 +389,39 @@
 .nm-node:active { transform: scale(0.97); }
 .nm-node:focus-visible { outline-offset: 3px; border-radius: 50%; }
 
+/* CONNECTED, ON THE DECK ITSELF: a green edge laid over the disc's own, a
+   faint ring outside it and a soft light, so a connected deck reads as lit
+   before its mark or its name is read. A layer of its own rather than the
+   disc's border or shadow — the disc's edge is the control's boundary and the
+   contrast sweep measures it, and this is a state, not a boundary. */
+.nm-halo {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.nm-halo[data-tier="offline"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--nm-away) 55%, transparent); }
+.nm-halo[data-tier="online"] {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ok) 72%, transparent),
+    0 0 16px var(--nm-live-glow);
+}
+
 /* EVERYTHING ELSE STEPS BACK while one deck is looked at, so its wire can be
-   followed to the centre. Opacity only — nothing moves. */
-.nm-stage[data-focus] .nm-node:not([data-on]) { opacity: 0.34; }
+   followed to the centre — but the names stay readable: the discs, their
+   marks and their light fade, and the names drop to the muted ink, which
+   still clears the contrast floor. Nothing moves, and nothing in the corner
+   of the eye keeps moving: the lights on the dimmed wires hide, keeping
+   their clocks. */
+.nm-stage[data-focus] .nm-node:not([data-on]) :is(.lan-machine, .nm-addr-dot, .nm-halo, .nm-mark) { opacity: 0.34; }
+.nm-stage[data-focus] .nm-node:not([data-on]) { background: var(--bg); box-shadow: none; }
+.nm-stage[data-focus] .nm-node:not([data-on]) .nm-name { color: var(--muted); }
+.nm-node :is(.lan-machine, .nm-addr-dot, .nm-halo, .nm-mark) { transition: opacity var(--nm-fade) var(--nm-ease); }
 .nm-stage[data-focus] .nm-wire:not([data-on]) { opacity: 0.22; }
+.nm-stage[data-focus] .nm-wire:not([data-on]) .nm-glint { visibility: hidden; }
+.nm-zone,
+.nm-zone-label { transition: opacity 200ms var(--nm-ease); }
+.nm-stage[data-focus]:not([data-focus-via="tailscale"]) :is(.nm-zone, .nm-zone-label) { opacity: 0.4; }
 
 /* THE MARK, at four o'clock on the disc: a shape as well as a colour, so the
    state survives a reader who cannot tell green from grey. Filled is on,
@@ -309,6 +440,8 @@
   border: 1.5px solid var(--muted);
 }
 .nm-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
+.nm-mark[data-tier="offline"],
+.nm-key-mark[data-tier="offline"] { border-color: var(--nm-away); }
 .nm-mark[data-tier="loose"] { border-style: dashed; }
 .nm-mark[data-kind="asks"] { background: var(--accent); border-color: var(--accent); }
 .nm-mark[data-kind="asks"]::after {
@@ -329,7 +462,22 @@
   width: max-content;
   max-width: 116px;
   pointer-events: none;
+  /* A knockout in the stage's own ground, so a name reads where it crosses a
+     wire and shows nothing where it does not. */
+  text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg), 0 0 4px var(--bg);
 }
+/* The looked-at name, whole and on a plate over its neighbours. The negative
+   margin takes back the padding, so the words do not jump. */
+.nm-node[data-on] .nm-label,
+.nm-node:focus-visible .nm-label {
+  max-width: none;
+  padding: 2px 6px;
+  margin-block: -2px;
+  border-radius: var(--r-ctl);
+  background: var(--nm-plate);
+}
+.nm-node[data-on] .nm-name,
+.nm-node:focus-visible .nm-name { overflow: visible; text-overflow: clip; }
 .nm-node[data-side="top"] .nm-label { bottom: calc(100% + 7px); left: 50%; translate: -50% 0; align-items: center; text-align: center; }
 .nm-node[data-side="bottom"] .nm-label { top: calc(100% + 7px); left: 50%; translate: -50% 0; align-items: center; text-align: center; }
 .nm-name {
@@ -344,6 +492,11 @@
 }
 .nm-node[data-tier="offline"] .nm-name,
 .nm-node[data-tier="loose"] .nm-name { color: var(--muted); }
+.nm-name { transition: color var(--nm-fade) var(--nm-ease); }
+/* An address nothing has answered at: named by its host in the data voice,
+   and drawn as a point rather than a machine, because it is not one yet. */
+.nm-node[data-kind="dialling"] .nm-name { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nm-addr-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
 .nm-cap {
   max-width: 100%;
   overflow: hidden;
@@ -359,7 +512,7 @@
 /* A crowded ring sets its names a step down and drops the line under them,
    so thirty decks still fit; the side panel has every caption in full. */
 .nm-stage[data-dense] .nm-name { font-size: 11px; }
-.nm-stage[data-dense] .nm-cap { display: none; }
+.nm-stage[data-dense] .nm-node:not([data-kind="asks"]) .nm-cap { display: none; }
 .nm-stage[data-dense] .nm-label { max-width: 100px; }
 
 .nm-empty {
@@ -393,24 +546,29 @@
   color: var(--muted);
 }
 .nm-legend li { display: inline-flex; align-items: center; gap: 6px; }
+/* A key entry is the end of a wire and the mark it meets, exactly as a deck
+   on that ring is drawn. */
+.nm-key { display: inline-flex; align-items: center; gap: 0; }
 .nm-key-mark {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   box-sizing: border-box;
   border: 1.5px solid var(--muted);
 }
-.nm-key-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
+/* Online is drawn as the deck is: a lit edge, not a dot. */
+.nm-key-mark[data-tier="online"] { background: var(--panel); border-color: var(--ok); box-shadow: 0 0 6px var(--nm-live-glow); }
 .nm-key-mark[data-tier="loose"] { border-style: dashed; }
-.nm-key-wire { width: 18px; height: 1.5px; background: var(--nm-wire); }
-.nm-key-wire[data-via="tailscale"] { background: var(--nm-wire-tailnet); }
-.nm-key-glint {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ok);
-  box-shadow: -7px 0 0 -1px color-mix(in srgb, var(--text) 50%, transparent);
-  margin-left: 7px;
+.nm-key-mark[data-kind="asks"] { background: var(--accent); border-color: var(--accent); border-style: solid; }
+.nm-key-wire { width: 14px; height: 1.5px; background: var(--nm-wire); }
+/* The slice, as a quarter-disc opening to the lower right like the slice. */
+.nm-key-zone {
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-bottom-right-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 /* THE SIDE PANEL: the list's row in long form. The ground one step off the
@@ -426,11 +584,21 @@
   flex-direction: column;
   gap: 10px;
   padding: 16px var(--panel-inset) 18px;
-  animation: nm-swap 120ms var(--nm-ease) both;
 }
-/* Seen every time the pointer crosses a deck, so it is barely there: the
-   panel does not slide, it settles. */
-@keyframes nm-swap { from { opacity: 0; transform: translateY(1px); } }
+/* HOW THE PANEL ARRIVES — see `entrance` in LanNetworkMap.tsx. The first
+   deck unfolds, its parts rising a few pixels out of a blur one after
+   another; a deck after that crossfades through a lighter blur, because the
+   blur is what lets two panels read as one panel changing rather than one
+   replacing another; and the keyboard's never animates. Blur on a panel this
+   size is cheap, and it is off the stage, where the lights run. */
+@keyframes nm-rise { from { opacity: 0; transform: translateY(4px); filter: blur(2px); } }
+/* Between two decks the frame stays where it is and what it says arrives
+   again: a few pixels up out of a blur, top to bottom in a quick cascade.
+   Quick, because a pointer sweeping the ring sees it tens of times — all of
+   it lands inside a quarter of a second — and visible, because a swap that
+   started at a third of its opacity with a pixel and a half of blur was
+   measured running on every deck and seen on none. */
+@keyframes nm-swap { from { opacity: 0; transform: translateY(3px); filter: blur(3px); } }
 .nm-panel-name {
   display: flex;
   align-items: center;
@@ -444,14 +612,24 @@
 }
 .nm-panel-name .ap-pulse { color: var(--ok); }
 .nm-panel-name .ap-pulse[data-kind="asks"] { color: var(--accent); }
+/* The panel's live dot keeps still: on the map the round is the one loop, and
+   a ring pinging beside a name the reader is already reading adds nothing.
+   The house still frame from `.ap-pulse` under less motion. A deck asking to
+   pair keeps its ping — the idiom's own use. */
+.nm-panel-name .ap-pulse:not([data-kind="asks"])::after { animation: none; opacity: 0.35; transform: scale(2.2); }
 .nm-panel-name .ap-dot { color: var(--muted); }
+/* The name and the one way further, on one row: the button stays where it
+   is from deck to deck, and the panel under it is only what to read. */
+.nm-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.nm-panel-head .nm-panel-name { flex: 1 1 auto; }
+.nm-panel-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nm-panel-self { margin: -6px 0 0; font-size: 11px; color: var(--muted); }
 .nm-panel-state { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .nm-panel-state[data-kind="asks"] { color: var(--accent); }
 .nm-panel-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .nm-back { align-self: flex-start; margin: -4px 0 0 -2px; font-size: 11px; }
 
-.nm-facts { row-gap: 8px; column-gap: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.nm-facts { row-gap: 6px; column-gap: 14px; }
 .nm-facts dd { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .nm-addrs { display: flex; flex-direction: column; gap: 2px; }
 
@@ -463,7 +641,7 @@
   border-top: 1px solid var(--line-soft);
   list-style: none;
 }
-.nm-counts li { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.nm-counts li { display: grid; grid-template-columns: 10px 24px minmax(0, 1fr); align-items: center; gap: 8px; }
 .nm-count-n {
   font-family: var(--font-mono);
   font-size: 14px;
@@ -475,13 +653,18 @@
 .nm-counts li[data-count="online"] .nm-count-n { color: var(--ok); }
 .nm-counts li[data-count="asks"] .nm-count-n { color: var(--accent); }
 .nm-count-words { font-size: 11px; color: var(--text); }
+.nm-counts-note { margin: -4px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+/* The one thing worth doing, when there is one: a sentence somebody reads,
+   so the prose tier. */
+.nm-next { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
 
 .nm-logins { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .nm-logins-title { margin: 0; font-size: 11px; font-weight: 600; color: var(--text); }
 .nm-lanes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+/* One line each: the mark, the email, and whatever is wrong with it at the
+   end of the same line — the email gives way first, the state never does. */
 .nm-lane { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 11px; }
-.nm-lane-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.nm-lane-said { font-size: 10px; color: var(--muted); }
+.nm-lane-said { flex: none; margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
 .nm-lane[data-tone="bad"] .nm-lane-said { color: var(--warn); }
 .nm-lane[data-tone="wait"] .nm-lane-said { color: var(--accent); }
 .nm-lane-dot { flex: none; align-self: center; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
@@ -496,18 +679,26 @@
   font-family: var(--font-mono);
   color: var(--text);
 }
-.nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); }
-.nm-lanes-more { margin: 0; font-size: 10px; color: var(--muted); }
-.nm-open { align-self: flex-start; margin-top: 4px; }
+/* A login that works both ways is the steady state: listed, so the panel
+   answers what comes from that deck, and a step quieter than the ones that
+   need a look, so those still lead. */
+.nm-lane[data-tone="ok"] .nm-lane-email { color: var(--muted); }
+.nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); white-space: nowrap; }
+.nm-lane-said + .nm-lane-used { margin-left: 0; }
+.btn.nm-open { flex: none; min-height: 24px; padding: 0 10px; font-size: 11px; }
 
 /* NARROW: the panel goes under the picture rather than beside it, and the
    picture keeps the height a ring of names needs — the panel scrolls
    instead. */
-@media (max-width: 860px) {
+@media (max-width: 1039px) {
   .modal.nm-modal { height: 92vh; max-height: 92vh; }
   .nm-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(440px, 1fr) minmax(0, 30%); }
   .nm-side { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* A resize moves every deck at once and none of them because the network
+   changed, so while the stage settles, geometry snaps. */
+.nm-stage[data-still] { --nm-move: 0ms; }
 
 /* THE ENTRANCE, and the loops, only for a reader who has not asked for less
    motion. The rings open out from the middle, each wire draws itself outward
@@ -517,10 +708,16 @@
 @keyframes nm-orbit-in { from { opacity: 0; transform: scale(0.9); } }
 /* Both ends written: `inset()` does not ease into `none`, so a wire drawn
    towards its resting value would snap on at the half instead of drawing. */
-@keyframes nm-wire-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes nm-wire-in { from { clip-path: inset(-8px 100% -8px -8px); } to { clip-path: inset(-8px); } }
 @keyframes nm-node-in { from { opacity: 0; transform: translate(var(--in-x), var(--in-y)) scale(0.78); } }
 @keyframes nm-core-in { from { opacity: 0; transform: scale(0.82); } }
 @keyframes nm-fade-in { from { opacity: 0; } }
+/* Opacity only, one per ring, so a deck that changes ring under less motion
+   fades in at its new place: the name of the animation changes with the
+   ring, and a changed name starts it again. */
+@keyframes nm-land-a { from { opacity: 0; } }
+@keyframes nm-land-b { from { opacity: 0; } }
+@keyframes nm-land-c { from { opacity: 0; } }
 @media (prefers-reduced-motion: no-preference) {
   .nm-orbit { animation: nm-orbit-in 620ms var(--nm-ease) calc(var(--ring, 0) * 90ms + 60ms) both; }
   /* Backwards only: held clipped until it starts, then let go of, so the
@@ -529,9 +726,33 @@
   .nm-node { animation: nm-node-in 440ms var(--nm-ease) calc(min(var(--i, 0) * 38ms, 460ms) + 300ms) both; }
   .nm-core-orb { animation: nm-core-in 420ms var(--nm-ease) both; }
   .nm-core-label, .nm-legend { animation: nm-fade-in 320ms var(--nm-ease) 180ms both; }
-  .nm-glint { animation: nm-round 5.2s cubic-bezier(0.65, 0, 0.35, 1) calc(1.1s + var(--phase, 0s)) infinite; }
-  .nm-glint::after { animation: nm-answer 5.2s linear calc(1.1s + var(--phase, 0s)) infinite; }
-  .nm-core[data-listening] .nm-core-orb::after { animation: nm-beacon 3.6s cubic-bezier(0.22, 0.61, 0.36, 1) 0.6s infinite; }
+  .nm-zone, .nm-zone-label { animation: nm-fade-in 600ms var(--nm-ease) 240ms both; }
+  .nm-panel[data-entrance="full"] > *,
+  .nm-panel[data-entrance="full"] .nm-lane { animation: nm-rise 200ms var(--nm-ease) backwards; }
+  .nm-panel[data-entrance="full"] > :nth-child(2) { animation-delay: 24ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(3) { animation-delay: 48ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(4) { animation-delay: 72ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(5) { animation-delay: 96ms; }
+  .nm-panel[data-entrance="full"] > :nth-child(n + 6) { animation-delay: 120ms; }
+  .nm-panel[data-entrance="full"] .nm-lane { animation-delay: calc(120ms + min(var(--k, 0), 5) * 20ms); }
+  /* The cascade's step is a property each part carries rather than a delay
+     rule per part: `:is()` takes the specificity of its most specific
+     argument, so a delay rule for one part lost to the shared rule and every
+     part started at once. */
+  .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open) { animation: nm-swap 180ms var(--nm-ease) var(--nm-swap-at, 0ms) backwards; }
+  .nm-panel-self,
+  .nm-panel-state { --nm-swap-at: 15ms; }
+  .nm-next { --nm-swap-at: 30ms; }
+  .nm-open { --nm-swap-at: 45ms; }
+  .nm-facts { --nm-swap-at: 60ms; }
+  .nm-logins { --nm-swap-at: 75ms; }
+  .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-swap 160ms var(--nm-ease) backwards; }
+  /* ONE CALM LOOP: the round, on the connected wires only, and most of the
+     time at rest. The centre's beacon plays once as the map opens — this
+     deck saying it is here — and the panel's own live dot keeps still. */
+  .nm-glint { animation: nm-round 8s cubic-bezier(0.65, 0, 0.35, 1) calc(1.1s + var(--phase, 0s)) infinite; }
+  .nm-glint::after { animation: nm-answer 8s linear calc(1.1s + var(--phase, 0s)) infinite; }
+  .nm-core[data-listening] .nm-core-orb::after { animation: nm-beacon 1400ms cubic-bezier(0.22, 0.61, 0.36, 1) 80ms backwards; }
   .nm-mark[data-kind="asks"]::after { animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite; }
   .nm-modal[data-paused] .nm-glint,
   .nm-modal[data-paused] .nm-glint::after,
@@ -548,13 +769,25 @@
   .nm-node,
   .nm-core-orb,
   .nm-core-label,
-  .nm-legend { animation: nm-fade-in 160ms ease-out both; }
-  .nm-wire { transition: opacity 160ms ease-out, background-color 160ms ease-out; }
-  .nm-node { transition: opacity 160ms ease-out, border-color 140ms, color 140ms, box-shadow 160ms; }
+  .nm-legend,
+  .nm-zone,
+  .nm-zone-label { animation: nm-fade-in 160ms var(--nm-ease) both; }
+  .nm-node[data-tier="online"],
+  .nm-wire[data-tier="online"] { animation: nm-land-a 200ms var(--nm-ease) backwards; }
+  .nm-node[data-tier="offline"],
+  .nm-wire[data-tier="offline"] { animation: nm-land-b 200ms var(--nm-ease) backwards; }
+  .nm-node[data-tier="loose"],
+  .nm-wire[data-tier="loose"] { animation: nm-land-c 200ms var(--nm-ease) backwards; }
+  /* Travel, redefined rather than deleted: a deck that changes ring is at its
+     new place at once, and fades in there. */
+  .nm-stage { --nm-move: 0ms; }
   .nm-node:active { transform: none; }
   .nm-glint,
   .nm-glint::after,
-  .nm-core[data-listening] .nm-core-orb::after,
+  .nm-core[data-listening] .nm-core-orb::after { animation: none; }
   .nm-mark[data-kind="asks"]::after { animation: none; opacity: 0.35; transform: scale(1.8); }
-  .nm-panel { animation: nm-fade-in 120ms ease-out both; }
+  .nm-panel[data-entrance="full"] > *,
+  .nm-panel[data-entrance="full"] .nm-lane,
+  .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open),
+  .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-fade-in 120ms var(--nm-ease) both; }
 }

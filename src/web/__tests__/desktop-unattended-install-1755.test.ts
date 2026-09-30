@@ -25,6 +25,8 @@ import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — plain .mjs, no types
 import { createUpdater } from "../../../desktop/updater.mjs";
 // @ts-expect-error — plain .mjs, no types
+import { releaseMessage } from "../../../desktop/updater-mac.mjs";
+// @ts-expect-error — plain .mjs, no types
 import { canInstallQuietly } from "../../../desktop/auto-update.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { trayMenuItems } from "../../../desktop/tray-menu.mjs";
@@ -96,7 +98,11 @@ async function ready(resourcesPath?: string) {
   fake.emit("update-downloaded", {
     version: "3.27.0",
     downloadedFile: file,
-    files: [{ url: basename(file), sha512: "x", ed25519: sign(null, bytes, h.priv).toString("base64") }],
+    files: [{
+      url: basename(file), sha512: "x",
+      ed25519: sign(null, bytes, h.priv).toString("base64"),
+      ed25519Release: sign(null, releaseMessage("3.27.0", basename(file), bytes), h.priv).toString("base64"),
+    }],
   });
   for (let i = 0; i < 200 && u.state.status !== "ready"; i++) await new Promise(r => setTimeout(r, 5));
   expect(u.state).toEqual({ status: "ready", version: "3.27.0" });

@@ -55,7 +55,7 @@ describe("the signature CI writes and the app checks", () => {
     const dir = mkdtempSync(join(tmpdir(), "ccdeck-yml-"));
     try {
       writeFileSync(join(dir, "a.AppImage"), "bytes");
-      const doc = signManifest({ files: [{ url: "a.AppImage" }] }, dir, theirs.priv);
+      const doc = signManifest({ version: "3.26.0", files: [{ url: "a.AppImage" }] }, dir, theirs.priv);
       expect(verifyFileSignature(Buffer.from("bytes"), doc.files[0].ed25519, ours.pub)).toBe(false);
     } finally {
       rmTempDir(dir);

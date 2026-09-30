@@ -16,7 +16,7 @@ import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — plain .mjs, no types
 import { createUpdater } from "../../../desktop/updater.mjs";
 // @ts-expect-error — plain .mjs, no types
-import { checkForUpdate, discard, stageUpdate } from "../../../desktop/updater-mac.mjs";
+import { checkForUpdate, discard, releaseMessage, stageUpdate } from "../../../desktop/updater-mac.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { signEntry } from "../../../desktop/scripts/sign-update.mjs";
 
@@ -70,7 +70,7 @@ describe("the macOS update", () => {
 
   /** A manifest naming `version`, over a zip genuinely signed by the key. */
   async function offered(version: string) {
-    const manifest = { version, files: [signEntry(bytes, { name: "ccdeck-mac-arm64.zip", arch: "arm64", keyPem: h.priv })] };
+    const manifest = { version, files: [signEntry(bytes, { name: "ccdeck-mac-arm64.zip", arch: "arm64", keyPem: h.priv, version })] };
     const update = await checkForUpdate({
       manifestUrl: "https://github.com/o/r/releases/latest/download/latest-mac.json",
       currentVersion: "3.32.0", arch: "arm64",
@@ -122,7 +122,11 @@ describe("the Windows and Linux update", () => {
     fake.emit("update-downloaded", {
       version,
       downloadedFile: file,
-      files: [{ url: basename(file), sha512: "x", ed25519: sign(null, installer, h.priv).toString("base64") }],
+      files: [{
+        url: basename(file), sha512: "x",
+        ed25519: sign(null, installer, h.priv).toString("base64"),
+        ed25519Release: sign(null, releaseMessage(version, basename(file), installer), h.priv).toString("base64"),
+      }],
     });
     for (let i = 0; i < 200 && (u.state.status === "checking" || u.state.status === "idle"); i++) await new Promise(r => setTimeout(r, 5));
     return u.state;

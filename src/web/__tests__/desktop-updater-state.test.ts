@@ -152,13 +152,20 @@ function updater(app = appLike()) {
   return { u, seen, until };
 }
 
-/** electron-updater's `update-downloaded`, for a file written here. */
-function downloaded(bytes: Buffer, ed25519: string | undefined) {
+/** electron-updater's `update-downloaded`, for a file written here, offered
+ *  as `version`, with whatever signatures the yml carried for it. */
+function downloaded(bytes: Buffer, signatures: Signatures | undefined, version = "3.27.0") {
   const file = join(dir, "ccdeck-win-x64.exe");
   writeFileSync(file, bytes);
-  return { version: "3.27.0", downloadedFile: file, files: [{ url: basename(file), sha512: "x", ...(ed25519 ? { ed25519 } : {}) }] };
+  return { version, downloadedFile: file, files: [{ url: basename(file), sha512: "x", ...(signatures ?? {}) }] };
 }
-const signed = (bytes: Buffer, keyPem = h.priv) => sign(null, bytes, keyPem).toString("base64");
+type Signatures = { ed25519?: string; ed25519Release?: string };
+/** Both signatures CI writes into the yml (sign-yml.mjs): over the bytes, and
+ *  over the bytes, the name and the version they were released as. */
+const signed = (bytes: Buffer, keyPem = h.priv, version = "3.27.0"): Signatures => ({
+  ed25519: sign(null, bytes, keyPem).toString("base64"),
+  ed25519Release: sign(null, mac.releaseMessage(version, "ccdeck-win-x64.exe", bytes), keyPem).toString("base64"),
+});
 
 describe("the Windows and Linux install gate", () => {
   beforeEach(() => onPlatform("linux"));
