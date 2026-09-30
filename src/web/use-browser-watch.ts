@@ -21,7 +21,8 @@ export interface BrowserWatch {
   /** Why the last WRITE failed (#803), which no read may clear. */
   writeError: string | null;
   setWriteError: (message: string | null) => void;
-  /** A read is out — the ↻ shows `…` while one is. */
+  /** A re-read somebody asked for is out — the ↻ shows `…` while it is. The
+   *  read on open and the ten-second poll never set it (#1814). */
   busy: boolean;
   /** What the quiet select shows: the stored value, or the one just picked. */
   quiet: number | null;
@@ -66,8 +67,17 @@ export function useBrowserWatch(onWatching: (on: boolean) => void): BrowserWatch
        one. Only a forced read is guarded — the ten-second poll is not somebody
        pressing anything, and must not be turned away by a press still out. */
     if (refresh && !selfPressAccepted(busyRef.current)) return;
-    busyRef.current = refresh;
-    setBusy(true);
+    /* THE PRESS'S OWN, SET AND CLEARED BY IT ALONE (#1814). Every read used to
+       set `busy`, so the ↻ turned to `…` every ten seconds with nobody pressing
+       it, and every read's `finally` cleared it with the guard — a poll that
+       finished first made a re-read still out look done and let a second press
+       through. A poll starting cleared the guard the same way. Only a forced
+       read touches either now; the guard above means at most one is out, so it
+       is the one that clears them. */
+    if (refresh) {
+      busyRef.current = true;
+      setBusy(true);
+    }
     try {
       /* NO `?quiet=`. The server treats that parameter as an override of the
          stored setting, and the panel was sending its own un-seeded default on
@@ -97,8 +107,10 @@ export function useBrowserWatch(onWatching: (on: boolean) => void): BrowserWatch
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      busyRef.current = false;
-      setBusy(false);
+      if (refresh) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
   }, [onWatching]);
 
