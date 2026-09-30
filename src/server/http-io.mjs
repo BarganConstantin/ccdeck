@@ -74,14 +74,50 @@ export function readBody(req, res = null, limit = 64_000) {
         refused = true;
         body = "";
         if (res) send(res, 413, { error: "body too large" });
-        req.resume();
-        const grace = setTimeout(() => req.destroy(), OVERSIZE_DRAIN_MS);
-        grace.unref?.();
-        req.on("close", () => clearTimeout(grace));
+        drainRefused(req);
         reject(new Error("body too large"));
       }
     });
     req.on("end", () => { if (!refused) resolve(body); });
+    req.on("error", reject);
+  });
+}
+
+/** Keep reading a refused upload and throw it away, for a bounded while — see readBody. */
+function drainRefused(req) {
+  req.resume();
+  const grace = setTimeout(() => req.destroy(), OVERSIZE_DRAIN_MS);
+  grace.unref?.();
+  req.on("close", () => clearTimeout(grace));
+}
+
+/**
+ * readBody for a body that is bytes rather than text: the feedback dialog's
+ * multipart form, whose images a utf8 decode would corrupt. The same cap in
+ * bytes, the same 413 on the wire before the hang-up and the same bounded
+ * drain. `refusal` is what the 413 says, so a page that reads a `reason` off
+ * the answer is given one.
+ */
+export function readBytes(req, res = null, limit = 64_000, refusal = { error: "body too large" }) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    let refused = false;
+    req.on("data", c => {
+      if (refused) return;
+      const chunk = typeof c === "string" ? Buffer.from(c) : c;
+      size += chunk.length;
+      if (size > limit) {
+        refused = true;
+        chunks.length = 0;
+        if (res) send(res, 413, refusal);
+        drainRefused(req);
+        reject(new Error("body too large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => { if (!refused) resolve(Buffer.concat(chunks, size)); });
     req.on("error", reject);
   });
 }
