@@ -213,8 +213,8 @@ export const UNPRICED_LABEL = "not priced";
 /** `value` rounded to `digits` places, as fmtCost prints it — or null when the
  *  rounding carries it up to `limit`, where the next tier starts. Judged on the
  *  rounded string rather than the raw value, because the string is what is
- *  printed. */
-function roundedUnder(value: number, digits: number, limit: number): string | null {
+ *  printed. fmtTokens hands its tiers over with the same rule (#1807). */
+export function roundedUnder(value: number, digits: number, limit: number): string | null {
   const text = value.toFixed(digits);
   return Number(text) < limit ? text : null;
 }

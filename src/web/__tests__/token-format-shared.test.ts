@@ -6,9 +6,9 @@
 // it printed as "2.30B".
 //
 // The four-tier copy won, so the only value that moves is one past a billion.
-// This file pins both halves of that claim: the tier boundaries and their
-// rounding carries exactly as the old copies rendered them, and a sweep against
-// the retired three-tier formula proving nothing below 1e9 changed. It also
+// This file pins both halves of that claim: the tier boundaries, and a sweep
+// against the retired three-tier formula proving nothing below 1e9 changed but
+// the rounding carries at the top of a tier, which #1807 hands to the next one. It also
 // pins the two unrelated `fmtN` helpers that a blind rename would have eaten.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -53,15 +53,17 @@ describe("the shared token formatter", () => {
     expect(fmtTokens(1_000_000_000_000)).toBe("1000.00B");
   });
 
-  it("keeps the rounding carry the old copies had at the top of each tier", () => {
-    // 999_950 rounds up into a fourth digit rather than tipping into "1.00M",
-    // and 999_999_999 does the same one tier up. Both shared by all three
-    // copies, so unifying them was never a choice between two renderings —
-    // pinned here so a future change to either is deliberate.
+  it("hands a count that rounds up to the next tier over to that tier (#1807)", () => {
+    // All three copies shared a rounding carry at the top of each tier —
+    // 999_950 printed "1000.0k" and 999_999_999 "1000.00M" — so unifying them
+    // was never a choice between two renderings, and this case pinned it so a
+    // change would be deliberate. #1807 is that change: each tier is judged on
+    // the figure it prints, the way fmtCost's are, and passes a carry on.
     expect(fmtTokens(999_949)).toBe("999.9k");
-    expect(fmtTokens(999_950)).toBe("1000.0k");
-    expect(fmtTokens(999_999)).toBe("1000.0k");
-    expect(fmtTokens(999_999_999)).toBe("1000.00M");
+    expect(fmtTokens(999_950)).toBe("1.00M");
+    expect(fmtTokens(999_999)).toBe("1.00M");
+    expect(fmtTokens(999_994_999)).toBe("999.99M");
+    expect(fmtTokens(999_999_999)).toBe("1.00B");
   });
 
   it("renders nothing a browser's locale can move", () => {
@@ -112,9 +114,11 @@ describe("the shared token formatter", () => {
     expect(fmtTokens(Infinity)).toBe("InfinityB");
   });
 
-  it("agrees with the retired three-tier copies everywhere below a billion", () => {
+  it("agrees with the retired three-tier copies everywhere below a billion but the carries", () => {
     // Collected rather than asserted per step: an expect() per iteration would
     // dominate the suite's runtime, and the list names every value that moved.
+    // The only ones are the carries #1807 hands to the next tier, which the
+    // old copies printed with four digits before the point.
     const moved: Array<{ n: number; was: string; now: string }> = [];
     const check = (n: number) => {
       const now = fmtTokens(n), was = threeTier(n);
@@ -123,7 +127,11 @@ describe("the shared token formatter", () => {
     for (let n = 0; n <= 3000; n++) check(n);
     for (let n = 0; n < 1_000_000_000; n += 9973) check(n);
     for (const n of [999, 1000, 1001, 999_999, 1_000_000, 1_000_001, 999_999_998, 999_999_999]) check(n);
-    expect(moved).toEqual([]);
+    expect(moved).toEqual([
+      { n: 999_999, was: "1000.0k", now: "1.00M" },
+      { n: 999_999_998, was: "1000.00M", now: "1.00B" },
+      { n: 999_999_999, was: "1000.00M", now: "1.00B" },
+    ]);
   });
 });
 

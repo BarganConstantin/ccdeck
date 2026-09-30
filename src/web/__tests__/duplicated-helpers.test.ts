@@ -81,9 +81,11 @@ describe("the agent card's token count", () => {
     return `${(n / 1_000_000).toFixed(2)}M`;
   }
 
-  it("renders every count below a billion exactly as the card's own copy did", () => {
+  it("renders every count below a billion exactly as the card's own copy did, but the carries", () => {
     // Collected rather than asserted per step: an expect() per iteration would
     // dominate the suite's runtime, and the list names every value that moved.
+    // The only ones are the rounding carries at the top of a tier, which the
+    // card printed "1000.0k" and "1000.00M" and #1807 hands to the next tier.
     const moved: Array<{ n: number; was: string; now: string }> = [];
     const check = (n: number) => {
       const was = fmtTok(n), now = fmtTokens(n);
@@ -92,7 +94,11 @@ describe("the agent card's token count", () => {
     for (let n = 0; n <= 3000; n++) check(n);
     for (let n = 0; n < 1_000_000_000; n += 9973) check(n);
     for (const n of [999, 1000, 1001, 999_999, 1_000_000, 1_000_001, 999_999_998, 999_999_999]) check(n);
-    expect(moved).toEqual([]);
+    expect(moved).toEqual([
+      { n: 999_999, was: "1000.0k", now: "1.00M" },
+      { n: 999_999_998, was: "1000.00M", now: "1.00B" },
+      { n: 999_999_999, was: "1000.00M", now: "1.00B" },
+    ]);
   });
 
   it("stops printing four digits of millions once the count passes a billion", () => {
@@ -691,7 +697,11 @@ describe("the shapes these helpers replaced", () => {
 
   it("appear in none of the files they were removed from", () => {
     const RETIRED: Array<[string, RegExp]> = [
-      ["the three-tier token formatter", /\(n \/ 1_000_000\)\.toFixed\(2\)\}M/],
+      // Widened to the billions tier with #1807, which prints token-format.ts's
+      // millions through roundedUnder: the shape the retired copies had now
+      // survives only in the shared formatter's last tier, where the anchor
+      // below finds it, and a private copy still matches on either tier.
+      ["the three-tier token formatter", /\(n \/ 1_000_000(?:_000)?\)\.toFixed\(2\)\}[MB]/],
       ["a private cost bar", /const seg = \(val: number, cls: string, label: string\)/],
       // The body this detector looks for changed with #976 — the comparator
       // splits the prerelease off first now, so the segmenter it carries is
@@ -716,7 +726,9 @@ describe("the shapes these helpers replaced", () => {
   it("is not a vacuous sweep — the detectors still find the shapes that stayed", () => {
     // Each pattern above is matched against a string it must hit, so a typo in
     // a regex cannot quietly turn one of these assertions into a no-op.
-    expect(/\(n \/ 1_000_000\)\.toFixed\(2\)\}M/.test(src("../token-format.ts"))).toBe(true);
+    expect(/\(n \/ 1_000_000(?:_000)?\)\.toFixed\(2\)\}[MB]/.test(src("../token-format.ts"))).toBe(true);
+    // And it still finds the millions tier a private three-tier copy carries.
+    expect(/\(n \/ 1_000_000(?:_000)?\)\.toFixed\(2\)\}[MB]/.test("return `${(n / 1_000_000).toFixed(2)}M`;")).toBe(true);
     expect(/const seg = \(val: number, cls: string, label: string\)/.test(costBarSrc)).toBe(true);
     expect(/const nums = \(s\) => s\.split\(\/\[\.\+\]\//.test(src("../../server/self-update.mjs"))).toBe(true);
     expect(/replace\(\/\\s\+\(AM\|PM\)\//.test(src("../../server/reset-label.mjs"))).toBe(true);

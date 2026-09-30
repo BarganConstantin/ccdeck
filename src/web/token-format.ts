@@ -19,6 +19,8 @@
 // land in padded table cells and a grouping separator that changes with the
 // host's locale would change the column width with it.
 
+import { roundedUnder } from "./pricing";
+
 /**
  * Token count as a short magnitude — see the note above on the four tiers.
  *
@@ -36,11 +38,23 @@
  * A non-finite input still renders as it always did: `Math.round` returns NaN
  * for NaN and ±Infinity for ±Infinity, and both fall through the comparisons to
  * exactly the strings this function has always produced for them.
+ *
+ * The same carry at the two tiers above (#1807): 999,950 is under a million,
+ * and `toFixed(1)` printed it "1000.0k" where the million after it prints
+ * "1.00M"; 999,995,000 printed "1000.00M" beside "1.00B". Each tier is judged
+ * on the figure it would print, as fmtCost's are, and hands a figure that
+ * rounds up to a thousand of its unit on to the next.
  */
 export function fmtTokens(raw: number): string {
   const n = Math.round(raw);
   if (n < 1000) return `${n}`;
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n < 1_000_000) {
+    const k = roundedUnder(n / 1000, 1, 1000);
+    if (k !== null) return `${k}k`;
+  }
+  if (n < 1_000_000_000) {
+    const m = roundedUnder(n / 1_000_000, 2, 1000);
+    if (m !== null) return `${m}M`;
+  }
   return `${(n / 1_000_000_000).toFixed(2)}B`;
 }
