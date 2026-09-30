@@ -8,10 +8,12 @@
 import { useEffect } from "react";
 import type { useAutoRestart } from "./use-auto-restart";
 import type { useOsNotifications } from "./use-os-notifications";
+import type { useReports } from "./use-reports";
 
-export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs }: {
+export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs }: {
   loadAutoRestartPrefs: ReturnType<typeof useAutoRestart>["loadAutoRestartPrefs"];
   loadNotifyPrefs: ReturnType<typeof useOsNotifications>["loadNotifyPrefs"];
+  loadReportsPrefs: ReturnType<typeof useReports>["loadReportsPrefs"];
 }): void {
   useEffect(() => {
     let alive = true;
@@ -19,6 +21,7 @@ export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs }: {
       if (!alive || !d?.ok) return;
       loadAutoRestartPrefs(d);
       loadNotifyPrefs(d);
+      loadReportsPrefs(d);
     }).catch(() => {});
     return () => { alive = false; };
   }, []);

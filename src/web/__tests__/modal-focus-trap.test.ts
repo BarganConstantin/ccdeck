@@ -275,7 +275,7 @@ describe("the deck's ten overlays", () => {
     // Local network. The nineteenth is the accounts panel's Usage report
     // (#1707), which adds every account's 5h and 7d up. The twentieth is the
     // network map, opened from Local network's row and its view's header.
-    expect(MODALS.length).toBe(20);
+    expect(MODALS.length).toBe(22);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -319,6 +319,9 @@ describe("the deck's ten overlays", () => {
       // press.
       "AccountsUsageReport.tsx",
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
+      // Feedback names its title field: it was opened to write in, and the
+      // row of kinds above it already holds a sensible answer (#1853).
+      "FeedbackDialog.tsx",
       // A guide names Next, because it is read forwards: a reader who opened
       // it with Enter can keep pressing Enter to the end, and the × is still
       // one Shift+Tab away and Escape closes it from any step.
@@ -338,6 +341,10 @@ describe("the deck's ten overlays", () => {
       // first control is the pencil that renames the machine, which a stray
       // Enter should not reach.
       "LanPeerModal.tsx",
+      // The reports question names No thanks, for the pair request's reason: a
+      // dialog that arrives on its own must not put the answer that sends
+      // anything under whatever key is pressed next (#1853).
+      "ReportsQuestion.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.

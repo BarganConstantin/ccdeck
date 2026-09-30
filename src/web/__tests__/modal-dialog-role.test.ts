@@ -43,7 +43,8 @@ describe("the deck's modals", () => {
     // Local network. The nineteenth is the accounts panel's Usage report
     // (#1707), which adds every account's 5h and 7d up. The twentieth is the
     // network map, opened from Local network's row and its view's header.
-    expect(MODALS.length).toBe(20);
+    // 22 since #1853: the one-time reports question and the feedback dialog.
+    expect(MODALS.length).toBe(22);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

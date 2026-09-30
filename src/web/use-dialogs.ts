@@ -23,11 +23,13 @@ import type { ToolCall } from "./types";
 import { useModalGate } from "./use-modal-gate";
 import type { useWelcomeAndNotes } from "./use-welcome-and-notes";
 
-export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
+export function useDialogs({ stateRef, tourOpen, releaseNotes, reportsQuestionOpen }: {
   stateRef: MutableRefObject<GraphState>;
   /** The two dialogs that open on their own, which the gate counts as well. */
   tourOpen: boolean;
   releaseNotes: ReturnType<typeof useWelcomeAndNotes>["releaseNotes"];
+  /** The one-time reports question (#1853), which opens on its own too. */
+  reportsQuestionOpen: boolean;
 }) {
   // Which call the tool modal shows: its agent and its id, since an id alone
   // can name two sessions' calls (#1483).
@@ -48,6 +50,8 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
+  /** The feedback dialog, opened from the Appearance menu (#1853). */
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // The tool the modal is showing, found without building a list of the ones it
   // is not (#997). In the render body and not skippable — the modal gate below
@@ -64,6 +68,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // is the shortcuts sheet — use-modal-gate.ts.
   const { keyHelpOpenRef, modalOpenRef } = useModalGate({
     openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
+    feedbackOpen, reportsQuestionOpen,
   });
   return {
     setOpenedToolKey, openTool, openedTool,
@@ -72,6 +77,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
     keyHelpOpen, setKeyHelpOpen,
     usageHistoryOpen, setUsageHistoryOpen,
     browserWatchOpen, setBrowserWatchOpen,
+    feedbackOpen, setFeedbackOpen,
     keyHelpOpenRef, modalOpenRef,
   };
 }

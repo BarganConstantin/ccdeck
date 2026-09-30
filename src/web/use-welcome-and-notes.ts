@@ -76,6 +76,9 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
   // write keeps answering "nothing stored", and without this the same dialog
   // would come back on every /api/version poll for as long as the tab is open.
   // A deck that cannot remember must show the notes at most once, not forever.
+  /** The tour and the notes have been decided — shown, held or not needed — so
+   *  a question that must not open over them (use-reports.ts) may come next. */
+  const [welcomeSettled, setWelcomeSettled] = useState(false);
   const releaseNotesDecidedRef = useRef(false);
   useEffect(() => {
     if (releaseNotesDecidedRef.current) return;
@@ -151,6 +154,7 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
       if (plan.tour) setTourOpen(true);
       if (plan.notes === "now") setReleaseNotes(notes);
       else if (plan.notes === "after") notesAfterTour.current = notes;
+      setWelcomeSettled(true);
     };
     void showWelcome();
     return () => { alive = false; };
@@ -201,5 +205,5 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
       if (held) setReleaseNotes(held);
   }, []);
 
-  return { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion, openReleaseNotes };
+  return { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion, openReleaseNotes, welcomeSettled };
 }

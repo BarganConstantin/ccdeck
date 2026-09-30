@@ -17,6 +17,7 @@ import type { useChimePlayer } from "../use-chime-player";
 import type { useClaudeFm } from "../use-claude-fm";
 import type { useCustomTones } from "../use-custom-tones";
 import type { useOsNotifications } from "../use-os-notifications";
+import type { useReports } from "../use-reports";
 import type { useSettingsMenus } from "../use-settings-menus";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
@@ -253,7 +254,7 @@ export function SourceRun({
 }
 
 /** Sound and Appearance: the two settings, each a button that opens its menu. */
-export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm }: {
+export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, reports, onFeedback }: {
   providers: Providers;
   sound: ReturnType<typeof useSoundSwitch>;
   tones: ReturnType<typeof useTonePrefs>;
@@ -265,6 +266,9 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
   menus: ReturnType<typeof useSettingsMenus>;
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
+  /** Opt-in anonymous reports, switched from the Appearance menu (#1853). */
+  reports: ReturnType<typeof useReports>;
+  onFeedback: () => void;
 }) {
   const { soundOn, toggleSound } = sound;
   const { tonePrefs, previewTone, changeTone } = tones;
@@ -414,6 +418,10 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
             onAddFmStation={addFmStation}
             onRenameFmStation={renameFmStation}
             onRemoveFmStation={removeFmStation}
+            reportsOn={reports.reportsAnswer === true && !reports.reportsVetoed}
+            reportsVetoed={reports.reportsVetoed}
+            onToggleReports={() => { void reports.answerReports(reports.reportsAnswer !== true); }}
+            onFeedback={() => { setAppearanceMenuOpen(false); onFeedback(); }}
             onClose={() => setAppearanceMenuOpen(false)}
           />
         )}

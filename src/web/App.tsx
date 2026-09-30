@@ -67,6 +67,7 @@ import { usePresenceBeacon } from "./use-presence-beacon";
 import { usePrefsRead } from "./use-prefs-read";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
+import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { initialState } from "./reducer";
 import { useMonthlyUsage } from "./use-monthly-usage";
@@ -211,7 +212,10 @@ function Inner() {
   // The six dialogs the reader opens — the tool, context and recap modals, the
   // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
   // the gate the keys ask before reaching past one: use-dialogs.ts.
-  const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
+  // Opt-in anonymous reports (#1853): the answer, and the one-time question
+  // that waits for the tour and the notes to have had their turn.
+  const reports = useReports({ welcomeSettled: welcome.welcomeSettled, tourOpen, releaseNotesOpen: releaseNotes != null });
+  const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes, reportsQuestionOpen: reports.reportsQuestionOpen });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
@@ -508,7 +512,7 @@ function Inner() {
   const { loadNotifyPrefs } = notify;
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
-  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs });
+  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
 
   return (
     <div className="app">
@@ -600,6 +604,7 @@ function Inner() {
           <SettingsRun
             providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
             chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
+            reports={reports} onFeedback={() => dialogs.setFeedbackOpen(true)}
           />
         </div>
       </header>
@@ -720,6 +725,7 @@ function Inner() {
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
         lanPairs={lanPairs} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
+        reports={reports}
       />
     </div>
   );
