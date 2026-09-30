@@ -567,6 +567,9 @@ const CONTROLS: Control[] = [
   // The frame is the card's boundary at rest; choosing one redraws it in the
   // accent. They sit on the dialog's panel.
   { at: ".fb-kind", states: [".fb-kind:has(input:checked)"], beds: ["--panel"] },
+  // And the starters over its message: pills with no fill at rest, so the
+  // frame is their one boundary; the pointer lifts it to the foreground.
+  { at: ".fb-starter", states: [".fb-starter:hover"], beds: ["--panel"] },
   { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
@@ -816,8 +819,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // are controls gaining an edge under the pointer, four rules between them,
     // and from 100 to 104 with the network map's two: its way in, which gains
     // one under the pointer and the keyboard, and its decks, which draw one at
-    // rest and a louder one while looked at.
-    expect(EDGED_CONTROLS.length).toBeLessThan(104);
+    // rest and a louder one while looked at. And from 104 to 106 with the
+    // feedback dialog's starters, a pill framed at rest and louder on hover.
+    expect(EDGED_CONTROLS.length).toBeLessThan(106);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
