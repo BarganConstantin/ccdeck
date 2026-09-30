@@ -2,6 +2,10 @@
 
 # ccdeck — a live dashboard for Claude Code and Codex
 
+ccdeck is a free, open-source (AGPL-3.0) dashboard that runs on your machine and shows every Claude Code and OpenAI Codex CLI session, including ones started in a plain terminal: which Claude Code session needs input, each Claude Code subagent and every tool call as it runs, cost and quota left. Start it with `npx ccdeck` or the desktop app.
+
+Step-by-step guides: [ccdeck.dev/guides](https://ccdeck.dev/guides/)
+
 **Know which agent is waiting on you, and for how long.**
 
 **ccdeck keeps them in one queue** — every session stopped on a human, longest wait first, and the count in the topbar is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
@@ -18,13 +22,13 @@ npx ccdeck
 
 Or the desktop app, with the waiting count in your menu bar: **[macOS](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-mac-arm64.dmg)** · **[Windows](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-win-x64.exe)** · **[Linux](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-linux-x86_64.AppImage)** — [every download](#desktop-app)
 
-[![ccdeck — live agent DAG](assets/canvas.png)](assets/canvas.png)
+[![ccdeck showing Claude Code and Codex sessions, subagents and tool calls on one canvas](assets/canvas.png)](assets/canvas.png)
 
 *A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
 
 who is blocked on you · tool calls · one canvas · cost · quota · local · sessions never leave
 
-[ccdeck.dev](https://ccdeck.dev) · [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
+[ccdeck.dev](https://ccdeck.dev) · [Guides](https://ccdeck.dev/guides/) · [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
 
 
 </div>
@@ -95,6 +99,8 @@ The deck opens on these eight pictures the first time it runs — they are the w
 | **Knows when it is stale** | Node caches modules at startup, so an upgraded-while-running deck keeps executing old code. This one says so, and can restart itself when nothing is running. |
 | **Workspace scoping** | `--scope` for the current directory, `--workspace <path>` for any subtree — for Claude Code and Codex alike. |
 
+Step by step: [See which Claude Code session is waiting for input](https://ccdeck.dev/guides/waiting-on-you/) · [See Claude Code subagents and tool calls live](https://ccdeck.dev/guides/read-a-session/)
+
 ## Quick start
 
 ```bash
@@ -114,6 +120,8 @@ No config file. No account. Nothing about your sessions is reported anywhere —
 
 What the deck does write, and the short list of what does leave the machine, is in [What it touches](#what-it-touches).
 
+Step by step: [Install ccdeck with npx and see your first session](https://ccdeck.dev/guides/first-run/). When a session does not show up: [Troubleshoot ccdeck: status, logs, port and hooks](https://ccdeck.dev/guides/troubleshooting/)
+
 ### Desktop app
 
 The same deck as an app: it starts the deck itself and puts an icon in the menu bar (the tray on Windows and Linux) that counts the Claude Code sessions stopped on a permission prompt or a question — the number sits beside the icon on macOS, and in the icon's tooltip and menu on Windows and Linux. With **Notifications while closed** ticked in that menu, which starts off, it also sends a notification while the window is closed wherever an open page would have played a sound, with the deck's own tone on macOS. It needs no Node.js. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
@@ -131,11 +139,13 @@ The same deck as an app: it starts the deck itself and puts an icon in the menu 
 
 The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, or by itself once the app has been left alone for a minute — its window closed or not in focus, and no deck starting — and restarts into the new version. That does not wait for your agents to go idle: the deck is gone for a second or two, which can leave a gap in the drawing of a turn, and the agents carry on. On the .deb, where installing asks for your password, it installs only when you choose Restart to update.
 
+Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.dev/guides/desktop-app/)
+
 ## Requirements
 
 - Node.js ≥ 18 — macOS, Linux and Windows. The floor is checked on every run: CI installs the packed release on Node 18 and boots it, so the badge is a measurement rather than a claim
 - Claude Code CLI or OpenAI Codex CLI (or both)
-- Optional: [claude-swap](https://pypi.org/project/claude-swap/) for the Accounts panel; the deck can install it for you
+- Optional: [claude-swap](https://github.com/realiti4/claude-swap) for the Accounts panel; the deck can install it for you
 - Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.
 
 ### Temperature, per machine
@@ -154,6 +164,8 @@ Apple Silicon is the one that needs a tool, and it is not an oversight. No comma
 You do not have to install it. The deck downloads the published binary into `~/.agents-deck/tools/macmon` — the same place it already keeps `uv` — verifies it against the SHA-256 the GitHub release publishes, checks that it runs, and only then uses it. Not through Homebrew, because a machine without Homebrew would need Homebrew installed first, and that is a large thing to do to somebody who asked for a dashboard. It happens in the background, after the deck is already up, and never on the first run's critical path.
 
 It is skipped entirely on a machine that already answers, on an Intel Mac — the release publishes an arm64 build and only that, so the architecture is checked before anything is fetched — and on one where you have `macmon` yourself, which is looked for on PATH and on either Homebrew prefix before the download is considered. `AGENTS_DECK_NO_DOWNLOAD=1` turns it off on its own; `AGENTS_DECK_NO_INSTALL=1` turns it off along with everything else.
+
+Step by step: [See CPU, memory and heat while your agents run](https://ccdeck.dev/guides/machine-panel/)
 
 #### Windows, and why it is often blank
 
@@ -203,9 +215,11 @@ To answer it the deck reads the browsers' own history. That means, on each poll:
 
 Only visits **after this deck started** are ever considered. Your existing history is not swept, not archived and not shown.
 
+Step by step: [Detect browser automation while you were away](https://ccdeck.dev/guides/browser-watch/)
+
 ## Accounts
 
-The Accounts panel reads the store [claude-swap](https://pypi.org/project/claude-swap/) keeps, and can drive it.
+The Accounts panel reads the store [claude-swap](https://github.com/realiti4/claude-swap) keeps, and can drive it.
 
 The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
@@ -223,6 +237,8 @@ An import adds what is missing and leaves a working account exactly as it is. Th
 > A share carries the **live login of every account in it, in the clear** — claude-swap's export format has no encryption, and five ticked boxes is five passwords on your clipboard. It expires ten minutes after it is made and imports refuse it after that. While it lives, treat it as those passwords: anything that can read your clipboard can read the accounts.
 
 **Rename**, **Move to slot…** and **Remove** are on the same row menu. Removal takes two clicks and cannot be undone.
+
+Step by step: [Switch between multiple Claude Code accounts](https://ccdeck.dev/guides/claude-accounts/) · [Copy your Claude Code login to another machine](https://ccdeck.dev/guides/move-an-account/)
 
 ## Local network
 
@@ -256,6 +272,8 @@ Four pictures, which are also the guide the section opens from `See how it works
 **What is shared, and with whom.** Nothing until you tick a login, and then only that login, and only with decks somebody at this machine accepted — the deck asks the machines it finds, and a machine that is asked waits for somebody there to press `accept` — unless its `Say yes to every deck that asks` switch, in the same dialog, is on. A paired deck can fill an *expired* slot of this deck's and nothing else: it cannot overwrite a login that still works here. What crosses the wire is the same live credential a share carries, sealed to the deck it is addressed to, so treat the pairing decision as the moment that matters. Unpairing stops future rounds; a login already copied stays where it went.
 
 On a Mac, **cannot share here** is different from **expired here**. It means this ccdeck process cannot read the Keychain copy, so that machine is not used as a credential source and another deck does not keep trying to “repair” the same healthy slot every minute. A LAN import is checked after it lands too; if the receiving Mac still cannot read the Keychain, the round reports that problem instead of claiming the login was repaired.
+
+Step by step: [Repair expired Claude Code logins across machines](https://ccdeck.dev/guides/local-network/)
 
 ## Options
 
@@ -372,6 +390,8 @@ override it if the guess is wrong.
 
 That one events log is also the reason Clear is not quite the per-deck button it looks like. The decks elect a single writer for each log file, and only that deck may empty it: Clear on any other deck wipes its own canvas and leaves the file to the deck that writes it. The confirmation says which of the two you are about to do, and how many decks share the log when it is yours to empty — so `--history` or `--no-persist` gives a deck a log of its own if you want Clear to answer to nobody else.
 
+Step by step: [Show one project's Claude Code and Codex sessions](https://ccdeck.dev/guides/one-project/)
+
 Environment:
 
 | Variable | Effect |
@@ -395,6 +415,8 @@ Environment:
 | `AGENTS_DECK_LHM_PORT` | Port of a running LibreHardwareMonitor web server, when it is not 8085 (Windows temperatures) |
 
 Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
+
+Step by step: [See Claude Code and Codex cost and quota left](https://ccdeck.dev/guides/cost-and-quota/)
 
 Being told to restart after an upgrade is local only — no network involved — and cannot be turned off, because a deck running superseded code is a bug you cannot see any other way.
 
@@ -447,6 +469,8 @@ That takes your ccdeck settings — pairings, aliases, which accounts this deck
 offered — with the key, which is the point: after an uninstall there is nothing
 left for them to configure.
 
+Step by step: [Uninstall ccdeck and remove its Claude Code hook](https://ccdeck.dev/guides/uninstall/)
+
 ## Updating
 
 The deck checks npm for a newer release at most once an hour, plus once when it starts — a ~20-byte GET to `registry.npmjs.org`, asking about the package this copy would actually install (a deck started with `npx ccdeck` asks about `ccdeck`). When that names a version it has not seen before, one more request confirms the version is really there: npm moves the dist-tag before the version itself has propagated, and a banner shown inside that window ends in `ETARGET` instead of an upgrade. So a check is one request, or two when there is something new to confirm — and a version that is tagged but not yet installable is looked at again in five minutes rather than in an hour. Click the version chip in the topbar to ask immediately.
@@ -468,6 +492,8 @@ Nothing is ever installed unless you click, the argument vector is fixed in the 
 ccdeck runs as a two-process pair: a supervisor that owns nothing but the lifecycle, and the deck itself. When newer code is found, the deck exits with code 75 and the supervisor brings it back **on the port it actually bound**, which is not always the one it asked for. Both live in their own process group since 3.20, so stdout goes to `deck.log` rather than to the terminal you started from — `ccdeck --logs` reads it back. The supervisor also puts the deck back after a crash, five times in ten minutes with the wait doubling, and then stops and says why rather than spinning.
 
 It restarts on its own only after 30 seconds with nothing running, because hook events are fire-and-forget and anything fired during the gap is lost. The toggle in the banner turns that off; the preference is per-browser. Under `--no-persist` a restart is refused outright — with no event log there is nothing to replay, and the canvas would be gone.
+
+Step by step: [Update ccdeck to the latest version](https://ccdeck.dev/guides/update-and-restart/)
 
 ## Design
 
@@ -502,7 +528,8 @@ rollout log, and the model chip tells them apart. The *blocked on you* queue is
 Claude Code only, because a rollout log is a record of what happened and the
 queue needs to know what is happening now. Codex does report it — its
 `app-server` pushes a thread status carrying `waitingOnApproval` — and reading
-that is open work, not a wall.
+that is open work, not a wall. Step by step:
+[See Codex CLI sessions, tool calls and quota live](https://ccdeck.dev/guides/codex/)
 
 **Does anything leave my machine?**
 Your sessions, never. The deck binds `127.0.0.1`. It does send anonymous usage
