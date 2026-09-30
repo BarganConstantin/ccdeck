@@ -23,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  KINDS, kindCopy, missingFields, isSendShortcut, isPlainEnter, sendShortcutCaps,
+  KINDS, kindCopy, missingFields, isSendShortcut, isPlainEnter, sendShortcutCaps, isSymbolCap,
   outcomeAnnouncement, TITLE_MIN, TITLE_MISSING, type EnterKey,
 } from "../components/FeedbackDialog";
 import { withoutComments } from "./tsx-scan";
@@ -173,6 +173,15 @@ describe("the keyboard", () => {
     expect(sendShortcutCaps("Win32")).toEqual(["Ctrl", "Enter"]);
     expect(sendShortcutCaps("Linux x86_64")).toEqual(["Ctrl", "Enter"]);
     expect(sendShortcutCaps("")).toEqual(["Ctrl", "Enter"]);
+  });
+
+  it("marks the one-symbol cap, so ⌘ is drawn as tall as the word beside it", () => {
+    // In the mono stack ⌘ was a speck beside `Enter`; the marked cap is set in
+    // the system face, a size up, in the same box.
+    expect(isSymbolCap("⌘")).toBe(true);
+    expect(isSymbolCap("Ctrl")).toBe(false);
+    expect(isSymbolCap("Enter")).toBe(false);
+    expect(flat).toMatch(/<kbd data-symbol=\{isSymbolCap\(capA\) \|\| undefined\}>\{capA\}<\/kbd><kbd>\{capB\}<\/kbd>/);
   });
 });
 

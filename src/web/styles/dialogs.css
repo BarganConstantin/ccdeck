@@ -363,18 +363,30 @@
 /* The sound menu's cap (.sm-foot kbd), on the panel so it stands off the
    foot's ground. */
 .fb-shortcut kbd {
+  /* A box with its own height, so a cap whose glyph is drawn larger stands
+     exactly as tall as its neighbour: an inline box is as tall as its font,
+     and the two caps are set in two sizes. */
+  display: inline-block;
+  min-width: 18px;
   font-family: var(--font-mono);
-  /* A step over the sound menu's 10px: the mono stack draws ⌘ small, and at
-     10px it was a speck beside the word. */
   font-size: 11px;
   font-weight: 600;
   line-height: 14px;
+  text-align: center;
   color: var(--text);
   background: var(--panel);
   border: 1px solid var(--line);
   border-bottom-width: 2px;
   border-radius: 4px;
   padding: 0 5px;
+}
+/* ⌘ in the mono stack is drawn at a fraction of a capital's height, so beside
+   `Enter` it read as a speck. The system face draws it to the height of the
+   word beside it; the cap keeps the same box. */
+.fb-shortcut kbd[data-symbol] {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
 }
 /* A touch screen has no key to press, so the foot names none there — see the
    coarse-pointer block in touch-and-forced-colours.css. */

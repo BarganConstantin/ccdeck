@@ -136,6 +136,13 @@ export function sendShortcutCaps(platform: string): [string, string] {
   return /mac|iphone|ipad/i.test(platform) ? ["⌘", "Enter"] : ["Ctrl", "Enter"];
 }
 
+/** A cap that is one symbol rather than a word — ⌘ — and is drawn a size up in
+ *  the system face, because the mono stack draws the glyph at a fraction of the
+ *  word beside it. */
+export function isSymbolCap(cap: string): boolean {
+  return [...cap].length === 1;
+}
+
 function platformName(): string {
   if (typeof navigator === "undefined") return "";
   const hinted = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
@@ -394,7 +401,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
             </section>
             <div className="fb-foot">
               <span className="fb-shortcut" aria-hidden="true">
-                <kbd>{capA}</kbd><kbd>{capB}</kbd> to send
+                <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> to send
               </span>
               <button type="button" className="btn" onClick={onClose}>Cancel</button>
               <button type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
