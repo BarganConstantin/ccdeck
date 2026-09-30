@@ -365,7 +365,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   Pair new decks only by invite
                   {inviteOnly && (
                     <span id="lan-invite-only-detail" className="lan-switch-detail">
-                      A new deck needs an invite from + in the panel. Paired decks stay paired.
+                      A new deck needs an invite from Add a deck, the link at the top of Local network. Paired decks stay paired.
                     </span>
                   )}
                 </span>

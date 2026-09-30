@@ -448,7 +448,7 @@ function pairedRow(p: Peer, fp: string, aliases: Record<string, string>, now: nu
     hint: called
       ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
           p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
-        } Add its address with the + at the top of this section to reach it either way.`
+        } Add its address through Add a deck, the link at the top of this view, to reach it either way.`
       // The whole sentence, verbatim, including the address and the code the
       // row is too narrow to carry. This is where somebody looks when the
       // short form is not enough.
