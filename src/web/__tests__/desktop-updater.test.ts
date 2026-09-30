@@ -239,7 +239,7 @@ describe("staging a download", () => {
   }
   const signedUpdate = (priv: string) => ({
     version: "3.25.4",
-    file: signEntry(bytes, { name: "ccdeck-mac-arm64.zip", arch: "arm64", keyPem: priv }),
+    file: signEntry(bytes, { name: "ccdeck-mac-arm64.zip", arch: "arm64", keyPem: priv, version: "3.25.4" }),
     url: "https://github.com/o/r/releases/latest/download/ccdeck-mac-arm64.zip",
   });
 
