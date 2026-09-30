@@ -48,13 +48,15 @@ export default function Detail({
   const hasCost = cost.total > 0;
   const totalTokens = agent.usage.inputTokens + agent.usage.outputTokens;
 
-  // Bucket tools by category for the activity strip
+  // Bucket tools by category for the activity strip — over every call, as the
+  // calls counter beside it and the recap do (#1842). Read off `tools`, the
+  // chips and the errors left out whatever had slid out of that window.
   const catCounts = new Map<DetailCategory, number>();
-  for (const t of agent.tools) {
-    const c = detailCategoryFor(t.name);
-    catCounts.set(c, (catCounts.get(c) ?? 0) + 1);
+  for (const [name, n] of agent.toolCountByName ?? []) {
+    const c = detailCategoryFor(name);
+    catCounts.set(c, (catCounts.get(c) ?? 0) + n);
   }
-  const errCount = agent.tools.filter(t => t.ok === false).length;
+  const errCount = agent.toolErrorCount ?? 0;
   const inflight = agent.tools.filter(t => !t.endedAt).length;
   const catEntries = Array.from(catCounts.entries())
     .sort((a, b) => b[1] - a[1]);
@@ -62,8 +64,9 @@ export default function Detail({
   // — ToolBursts' own answer for those calls, so the chip is named and tinted
   // by the function that named and tinted the bubbles rather than by a second
   // rule that agrees with it today. null when the calls span two servers, or
-  // when there are none, and the chip stays the generic category chip.
-  const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.tools.map(t => t.name)) : null;
+  // when there are none, and the chip stays the generic category chip. Asked
+  // of every tool the chip counts, not only the window's.
+  const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.toolCountByName?.keys() ?? []) : null;
 
   return (
     <>
