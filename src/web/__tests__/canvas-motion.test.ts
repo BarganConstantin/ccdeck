@@ -282,6 +282,10 @@ const PRESSES: Press[] = [
   // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
   // number.
   [".sysdetail .sd-open:active", "0.97", "transform"],
+  // The block under each of those headings, which takes the press the whole
+  // button took before #1771 moved the readings out of it and forwards it to
+  // the heading. The same block, so the same number.
+  [".sysdetail .sd-reading:active", "0.97", "transform"],
   // `Connection details` in the network section — the panel's one disclosure,
   // a row rather than a section, and pressed at the same 0.97 as the block
   // above it: it is a labelled control in the same panel, and a second number

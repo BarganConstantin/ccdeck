@@ -274,7 +274,7 @@
 }
 
 .sd-row + .sd-row { margin-top: 10px; }
-/* The THERMAL section is one control (#738): pressing its heading opens the
+/* The THERMAL section is one control (#738): pressing anywhere in it opens the
    chart of what the machine did with its heat. One button rather than one per
    row, because both rows opened the same dialog showing both series — a second
    control that repeated the first.
@@ -367,9 +367,23 @@
    are presentational: a screen reader heard the button's name and not one
    figure under it. So the rows follow the button, and this wrapper keeps the
    box the button had — the same 4px of padding answered by the same negative
-   margin, and its own formatting context as a button has — so every section
-   sits exactly where it sat and the figures do not move by a pixel. */
-.sysdetail .sd-reading { display: flow-root; padding: 4px 0; margin: -4px 0; }
+   margin, the same full bleed to the panel's padding box, and its own
+   formatting context as a button has — so every section sits exactly where it
+   sat and the figures do not move by a pixel.
+
+   AND THE PRESS THE BUTTON HAD. The block took a press from anywhere in it
+   before #1771 and people used it that way; from 3.33.0 only the heading row
+   answered. The wrapper forwards a press to the heading (MachineReadout.tsx),
+   so it wears the band, the pointer and the 0.97 the whole button wore. A div
+   is not a form control, so `width: auto` under the negative margin is the
+   bleed here — the calc `.sd-open` needs is a button's problem. */
+.sysdetail .sd-reading {
+  display: flow-root;
+  padding: 4px var(--pad-x);
+  margin: -4px calc(var(--pad-x) * -1);
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
 /* The heading button bleeds out of that box the way the whole section used to,
    so its band is the old band cut off under the heading. The 6px that
    `.sd-h` kept under itself moves out of the band: two of it here beyond the
@@ -381,6 +395,13 @@
 .sysdetail .sd-reading > .sd-open + .sd-note { margin-top: 0; }
 .sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .sysdetail .sd-open:active { transform: scale(0.97); }
+.sysdetail .sd-reading:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sysdetail .sd-reading:active { transform: scale(0.97); }
+/* The heading inside a block that lights and presses already: its own band
+   would lay 6% over the block's 6% on the one row under the pointer, and its
+   own press would shrink the heading twice inside a block that is shrinking. */
+.sysdetail .sd-reading > .sd-open:hover { background: none; }
+.sysdetail .sd-reading > .sd-open:active { transform: none; }
 /* The chevron that says the section opens something. --text-dim, the only dim
    tier text may take (#262), so it reads as a hint rather than as a value, and
    it brightens with the block on hover so the affordance and the target are
@@ -392,7 +413,9 @@
   transition: color 140ms ease;
 }
 .sysdetail .sd-open:hover .sd-h,
-.sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
+.sysdetail .sd-open:hover .sd-row-more,
+.sysdetail .sd-reading:hover .sd-h,
+.sysdetail .sd-reading:hover .sd-row-more { color: var(--text); }
 
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
    and its own press, and the section's handler steps aside for them. */
@@ -603,5 +626,6 @@
   .sysdetail .sd-fill { transition: none; }
   :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
   .sysdetail .sd-open:active { transform: none; }
+  .sysdetail .sd-reading:active { transform: none; }
   .sysdetail .sd-detail:active { transform: none; }
 }
