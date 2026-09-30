@@ -107,6 +107,11 @@
    #355 gave the control before it. A full-width row presses at 0.97 the way
    `.session-list .sl-row` does — the same tier, the same number. */
 .bw-ep-head:active { transform: scale(0.97); }
+/* INSIDE ITS OWN EDGE (#1815). The card clips at `overflow: hidden` and this
+   row fills it flush on three sides, so the global ring, drawn outside, kept
+   only its right edge — beside the ×, which then looked like what had focus.
+   An inset ring is the one the focus rule allows a component to move. */
+.bw-ep-head:focus-visible { outline-offset: -3px; }
 .bw-ep-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Episodes reads like Activity: the same disclosure chevron, the same right-
    aligned tabular count, so the two views are two modes of one product rather
