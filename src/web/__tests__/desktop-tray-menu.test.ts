@@ -165,7 +165,11 @@ describe("the app's wiring", () => {
 
   it("draws the menu and the tooltip from tray-menu.mjs, with the app's live state", () => {
     expect(main).toContain('import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";');
-    expect(main).toMatch(/Menu\.buildFromTemplate\(trayMenuItems\(\{[\s\S]*?\}, TRAY_ACTIONS\)\)/);
+    // buildMenu gives the template; the tray menu is built from it, and only
+    // from it, where tray-menu-swap.mjs installs a new one.
+    expect(main).toMatch(/function buildMenu\(\) \{\s*return trayMenuItems\(\{[\s\S]*?\}, TRAY_ACTIONS\);\s*\}/);
+    expect(main).toContain("build: buildMenu,");
+    expect(main).toContain("const menu = Menu.buildFromTemplate(template);");
     expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);");
     // Nothing of the menu is left written out in main.mjs to drift from it.
     expect(main).not.toMatch(/label: "(?:Restart ccdeck|Quit ccdeck|Start at login|Open in browser)"/);

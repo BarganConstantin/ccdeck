@@ -384,8 +384,19 @@ describe("the link to the site, which is how anything finds it at all", () => {
   // and `homepage` pointing at `#readme` is what npm init writes.
   const pkg = JSON.parse(read("package.json"));
 
-  it("names the site in the README, exactly once", () => {
-    expect(times("https://ccdeck.dev"), "the README no longer links ccdeck.dev").toBe(1);
+  it("names the site's front page in the README, exactly once", () => {
+    // The domain itself now appears many times, because the sections the site's
+    // guides walk through each link their guide (#1859). The front page is still
+    // one link, in the nav line.
+    expect(times("](https://ccdeck.dev)"), "the README no longer links ccdeck.dev").toBe(1);
+  });
+
+  it("links the guides at the addresses the site serves them on", () => {
+    // Each guide is a folder with a trailing slash; a link without one is a
+    // redirect on every click.
+    const links = [...readme.matchAll(/\]\((https:\/\/ccdeck\.dev[^)]*)\)/g)].map(m => m[1]);
+    expect(links).toContain("https://ccdeck.dev/guides/");
+    for (const link of links) expect(link).toMatch(/^https:\/\/ccdeck\.dev(\/guides\/([a-z-]+\/)?)?$/);
   });
 
   it("points package.json's homepage at the site, not back at this file", () => {
