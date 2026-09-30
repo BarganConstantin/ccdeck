@@ -55,6 +55,8 @@ export default function BrowserWatchModal({
     useBrowserWatch(onWatching);
   const [why, setWhy] = useState(false);
   const [access, setAccess] = useState(false);
+  /** The ↻, which the findings hand focus to once their last card is gone. */
+  const refreshRef = useRef<HTMLButtonElement>(null);
 
   // Reading the panel is what marks it read, and it is recorded on the way out
   // rather than on the way in: a dialog opened and dismissed in the same second
@@ -115,6 +117,7 @@ export default function BrowserWatchModal({
                 removes itself on press takes the focus with it, so the handler
                 refuses the second press instead. */}
             <button
+              ref={refreshRef}
               className="glyph-btn"
               onClick={() => void load(true)}
               {...selfPressProps(busy)}
@@ -168,7 +171,7 @@ export default function BrowserWatchModal({
                   the press that reached it always led to nothing. Now the
                   answer to "has anything been found" needs no press at all. */}
               <div className="bw-main">
-                <BrowserWatchFindings snap={snap} dismiss={dismiss} />
+                <BrowserWatchFindings snap={snap} dismiss={dismiss} refreshRef={refreshRef} />
 
                 <BrowserWatchFeed snap={snap} />
               </div>
