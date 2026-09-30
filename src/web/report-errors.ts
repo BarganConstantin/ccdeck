@@ -1,5 +1,5 @@
 // Errors the page caught, handed to the deck's own server, which sends them on
-// (scrubbed) unless anonymous reports are switched off or vetoed (#1853). The
+// (scrubbed) unless usage reports are switched off or vetoed (#1853). The
 // page never talks to anything but its own server; see reports-routes.mjs.
 //
 // Ten a page at most, each message once: a render loop that throws on every

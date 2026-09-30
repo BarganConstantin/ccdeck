@@ -148,7 +148,7 @@ function forgetSession(sid) {
 }
 
 /** How many sessions the deck is still tracking — the size of the LRU the watch
- *  polls, which is the coarse "how many sessions" the anonymous "active" report
+ *  polls, which is the coarse "how many sessions" the "active" report
  *  counts (reports.mjs). Reused, not new state: the Map is already the deck's
  *  own answer to which sessions it still holds anything for. Never a session id,
  *  a name or a path — only the count. */

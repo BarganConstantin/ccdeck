@@ -1,4 +1,4 @@
-// The page's side of anonymous reports (#1853): whether they are on, read with
+// The page's side of usage reports (#1853): whether they are on, read with
 // the rest of /api/prefs and changed through /api/reports by the switch in
 // Appearance; whether the machine ruled them out at launch; and the page's own
 // errors, handed to the server while they are on.

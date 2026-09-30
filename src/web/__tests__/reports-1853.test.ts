@@ -1,16 +1,20 @@
-// Anonymous reports, on unless the person switched them off (#1853).
+// Usage reports, on unless the person switched them off (#1853). They are NOT
+// anonymous: every report carries a stable hashed device id (an identifier) and
+// the server records the IP it arrives from.
 //
 // Nobody is asked, so what these pin is what the README and the switch's own
-// note say instead: a deck reports from its first check-in under an id that is
-// random and made there; switching it off forgets that id and deletes what was
-// sent (and keeps asking until the deletion lands); switching it back on is a
-// new install, not the old one recognised; the machine's veto beats the switch;
-// and what does leave names nobody — no path, no address, no key.
+// note say instead: a deck reports from its first check-in under an install id
+// that is random and made there; switching it off forgets that id and deletes
+// what was sent (and keeps asking until the deletion lands); switching it back
+// on is a new install, not the old one recognised; the machine's veto beats the
+// switch; and what does leave carries no path, no prompt, no file, no project
+// name — but a device fingerprint rides along, so the reports name a machine.
 //
-// It was opt-in, behind a one-time question, for the first four commits of the
-// same issue. The owner chose on-by-default on 2026-09-30, which is why the
-// cases about a saved `false` matter more than they look: an upgrade must never
-// turn back on what somebody turned off.
+// The fingerprint was opt-in behind AGENTS_DECK_FINGERPRINT for a few commits of
+// the same issue; the owner made it always-on on 2026-09-30, the same day the
+// reports went on by default — which is why the cases about a saved `false`
+// matter more than they look: an upgrade must never turn back on what somebody
+// turned off.
 import { Readable } from "node:stream";
 import { describe, it, expect, vi } from "vitest";
 import { DEFAULTS, normalise, publicPrefs, reportsVetoed } from "../../server/deck-prefs.mjs";
@@ -641,16 +645,11 @@ describe("what an install says about itself", () => {
     expect(bare).not.toHaveProperty("codexVersion");
   });
 
-  it("sends no device fingerprint unless AGENTS_DECK_FINGERPRINT is set", () => {
-    // Off by default: the fingerprint is not even computed, so nothing personal
-    // is transmitted until consent turns the flag on.
-    expect(installFacts({ env: {} })).not.toHaveProperty("deviceId");
-  });
-
-  it("carries a device fingerprint that is a hash-shaped token, stable, and never the machine in the clear, once the flag is on", () => {
-    const flag = { AGENTS_DECK_FINGERPRINT: "1" };
-    const a = installFacts({ env: flag });
-    const b = installFacts({ env: flag });
+  it("carries a device fingerprint that is a hash-shaped token, stable, and never the machine in the clear", () => {
+    // On by default now: installFacts computes it from the real machine — opaque,
+    // hex, and the same on two calls, so it is stable across a restart.
+    const a = installFacts({ env: {} });
+    const b = installFacts({ env: {} });
     expect(a.deviceId).toMatch(/^[0-9a-f]{16}$/);        // an opaque hex token
     expect(a.deviceId).toMatch(/^[0-9A-Za-z.+_-]+$/);    // the API's token shape
     expect(String(a.deviceId).length).toBeLessThanOrEqual(64);
