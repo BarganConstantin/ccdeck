@@ -29,8 +29,34 @@ export function shortPreview(input: any, max = 80): string {
  *  agents/sessions, so one long-lived session grew forever. The canvas only
  *  draws the last handful of bubbles and the detail panel renders one DOM row
  *  per entry, so a bounded window is all the UI can show anyway; `toolCount`
- *  keeps counting every call ever made, so the totals on the cards stay honest. */
+ *  keeps counting every call ever made, so the totals on the cards stay honest,
+ *  and `toolErrorCount` and `toolCountByName` count over the same lifetime so a
+ *  figure printed beside it does too (#1809). */
 export const MAX_TOOLS_PER_AGENT = 200;
+
+/** Write a call's outcome, and keep its agent's lifetime failure count in step
+ *  with it (#1809): counted when the call turns failed, taken back when a late
+ *  outcome overturns a failure the deck had guessed, and untouched by a write
+ *  that changes nothing. `a` is the agent whose `tools` holds the call. */
+function setOk(a: AgentNodeData | undefined, t: ToolCall, ok: boolean): void {
+  const failed = t.ok === false;
+  t.ok = ok;
+  if (a && failed === ok) a.toolErrorCount = (a.toolErrorCount ?? 0) + (ok ? -1 : 1);
+}
+
+/** The agent whose `tools` holds `t`: the one it was pushed on, since a call
+ *  never moves and `agentId` is stamped with that agent at the push. */
+function holderOf(state: GraphState, t: ToolCall): AgentNodeData | undefined {
+  return t.agentId == null ? undefined : state.agents.get(t.agentId);
+}
+
+/** One more (or, with -1, one fewer) of `a`'s calls counted under `name`. */
+function countToolName(a: AgentNodeData, name: string, delta: 1 | -1): void {
+  const byName = a.toolCountByName ??= new Map();
+  const n = (byName.get(name) ?? 0) + delta;
+  if (n > 0) byName.set(name, n);
+  else byName.delete(name);
+}
 
 /**
  * The `ToolCall` carrying `id`, searched across every agent on the board, or
@@ -234,7 +260,7 @@ export function settleUnanswered(
   state: GraphState, a: AgentNodeData, t: ToolCall, endedAt: number, cause: string,
 ): void {
   t.endedAt = endedAt;
-  t.ok = false;
+  setOk(a, t, false);
   t.errorPreview = t.outcomeGap ? DROPPED_OUTCOME_PREVIEW : cause;
   state.toolIndex.delete(toolKey(a.sessionId, t.id));
 }
@@ -288,7 +314,15 @@ export function applyPreToolUse(state: GraphState, p: HookPayload, sessionId: st
   // we already have and refresh it in place instead.
   const known = p.tool_use_id ? findTool(state, owner, p.tool_use_id) : null;
   if (known) {
-    if (p.tool_name && known.name === "?") known.name = p.tool_name;
+    if (p.tool_name && known.name === "?") {
+      known.name = p.tool_name;
+      // Recounted under the name it has now, on the agent that holds it.
+      const holder = holderOf(state, known);
+      if (holder) {
+        countToolName(holder, "?", -1);
+        countToolName(holder, known.name, 1);
+      }
+    }
     // Never reopen a call that has already settled, and never re-attach a
     // payload `trimTools` released — nothing would ever drop it again.
     if (known.endedAt == null && !known.trimmed && p.tool_input !== undefined) {
@@ -317,6 +351,7 @@ export function applyPreToolUse(state: GraphState, p: HookPayload, sessionId: st
   };
   owner.tools.push(tc);
   owner.toolCount += 1;
+  countToolName(owner, tc.name, 1);
   owner.state = "active";
   // Filed under this session's name (#1009). `owner.sessionId` rather than
   // the local `sessionId` so the write and every later read — `findTool`,
@@ -406,7 +441,7 @@ export function applyToolOutcome(state: GraphState, p: HookPayload, name: string
   // un-reaping the call when a late outcome overturns its guess.
   tc.outcomeGap = undefined;
   tc.endedAt = now;
-  tc.ok = name === "PostToolUse";
+  setOk(holderOf(state, tc), tc, name === "PostToolUse");
   // A response arriving for an already-trimmed call must not re-attach the
   // blob we just released — nothing would ever drop it again.
   if (!tc.trimmed) tc.response = p.tool_response;

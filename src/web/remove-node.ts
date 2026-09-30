@@ -115,8 +115,9 @@ interface Worker extends Lineage {
  *  neither of those is work. A subagent is only ever made by `SubagentStart`,
  *  so its start always is.
  *
- *  The newest entry of each list, never a scan: the reducer appends both in
- *  arrival order, and this runs for every hidden agent on every revision. */
+ *  The newest entry of each list, never a scan: the reducer appends tool calls
+ *  in arrival order and files prompts in time order (#1812), and this runs for
+ *  every hidden agent on every revision. */
 export function lastWorkedAt(agent: Worker): number {
   let at = agent.kind === "subagent" ? agent.startedAt : -Infinity;
   const call = agent.tools[agent.tools.length - 1];

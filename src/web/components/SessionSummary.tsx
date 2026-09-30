@@ -180,14 +180,15 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     promptCount += typed.length;
     if (!firstPrompt && typed.length > 0) firstPrompt = typed[0].text;
     tokensSum += a.usage.inputTokens + a.usage.outputTokens;
-    // Every call ever made, not just the bounded window the reducer retains.
+    // Every call ever made, not just the bounded window the reducer retains —
+    // and the errors and the ranking over the same calls (#1809). Read off
+    // `tools`, they left out whatever had slid out of that window, beside a
+    // total that counted it.
     toolCount += a.toolCount;
+    errCount += a.toolErrorCount ?? 0;
+    for (const [name, n] of a.toolCountByName ?? []) toolCounts.set(name, (toolCounts.get(name) ?? 0) + n);
     earliestStart = Math.min(earliestStart, a.startedAt);
     latestEnd = Math.max(latestEnd, a.endedAt ?? Date.now());
-    for (const t of a.tools) {
-      toolCounts.set(t.name, (toolCounts.get(t.name) ?? 0) + 1);
-      if (t.ok === false) errCount++;
-    }
   }
 
   const durationMs = Math.max(0, latestEnd - earliestStart);

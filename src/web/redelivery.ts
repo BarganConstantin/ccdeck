@@ -5,7 +5,7 @@
 // carries a fresh seq, so the seq/epoch guard lets it through. Where a payload
 // has no id of its own to compare, the reducer puts a clock on the ambiguity,
 // and these are the clocks.
-import type { AgentNodeData } from "./types";
+import type { AgentNodeData, PromptEntry } from "./types";
 
 /** How far apart two identical prompt submissions can land and still be one
  *  submission arriving twice rather than the user typing the same thing again.
@@ -17,19 +17,42 @@ import type { AgentNodeData } from "./types";
  *  the turn the first one opened has to end first. */
 export const PROMPT_REDELIVERY_WINDOW_MS = 2_000;
 
-/** True when `text` is already on this agent's prompt list from a submission
- *  close enough in time to be the same one. Walks newest-first and stops at the
- *  first entry that predates the window — the list is in arrival order, so
- *  everything before it is older still. Entries *newer* than the window are
- *  skipped rather than stopped on: a boot replay re-delivers a whole log, so
- *  the copy of an old prompt arrives after every later prompt is recorded. */
-export function promptAlreadyRecorded(a: AgentNodeData, at: number, text: string): boolean {
-  for (let i = a.prompts.length - 1; i >= 0; i--) {
-    const prev = a.prompts[i];
+/** True when `text` is already on this prompt list from a submission close
+ *  enough in time to be the same one. Walks newest-first and stops at the first
+ *  entry that predates the window — the list is kept in time order by
+ *  `recordPrompt`, so everything before it is older still. Entries *newer* than
+ *  the window are skipped rather than stopped on: a boot replay re-delivers a
+ *  whole log, so the copy of an old prompt arrives after every later prompt is
+ *  recorded. */
+function promptAlreadyRecorded(prompts: readonly PromptEntry[], at: number, text: string): boolean {
+  for (let i = prompts.length - 1; i >= 0; i--) {
+    const prev = prompts[i];
     if (prev.at < at - PROMPT_REDELIVERY_WINDOW_MS) return false;
     if (prev.text === text && prev.at <= at + PROMPT_REDELIVERY_WINDOW_MS) return true;
   }
   return false;
+}
+
+/** Record one submission on an agent's prompt list, unless the list already
+ *  has it; true when it was recorded.
+ *
+ *  FILED IN TIME ORDER, NOT APPENDED (#1812). Arrival order is not time order:
+ *  a deck that missed a prompt and is restarted without a reload re-sends the
+ *  log's tail under a new epoch, so the missed prompt arrives after newer ones
+ *  the tab already holds, followed by copies of those. Appended, it sat at the
+ *  tail, the walk above stopped on it for every copy after it, and each copy
+ *  was recorded again — "one, three, four, two, three, four". Filed in its
+ *  place, the walk's early stop is sound and the list reads the way the
+ *  session happened, whatever order the copies came in. A late prompt is the
+ *  rare case and lands a few entries from the end, so the walk back is short.
+ *  Ties go after the entries already there, so an entry's place among equals
+ *  never moves. */
+export function recordPrompt(prompts: PromptEntry[], at: number, text: string): boolean {
+  if (promptAlreadyRecorded(prompts, at, text)) return false;
+  let i = prompts.length;
+  while (i > 0 && prompts[i - 1].at > at) i--;
+  prompts.splice(i, 0, { at, text });
+  return true;
 }
 
 /** How far apart two events with no payload of their own to tell them apart can
@@ -67,10 +90,8 @@ export const HOOK_REDELIVERY_WINDOW_MS = 2_000;
  *  claiming to end a turn that had not been opened yet is out of order, and there
  *  is no jitter narrow enough to make that reading wrong. */
 export function sessionEvidenceAt(root: AgentNodeData): number {
-  // Scanned rather than read off the end: the list is in ARRIVAL order, and
-  // `promptAlreadyRecorded`'s own note records that a replay can append an old
-  // prompt after newer ones when the original copy was never seen.
-  let newest = root.startedAt;
-  for (const prompt of root.prompts) if (prompt.at > newest) newest = prompt.at;
-  return newest;
+  // Read off the end: `recordPrompt` files every prompt in time order, a late
+  // copy of an old one included, so the last entry is the newest (#1812).
+  const newest = root.prompts[root.prompts.length - 1];
+  return newest && newest.at > root.startedAt ? newest.at : root.startedAt;
 }
