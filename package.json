@@ -1,7 +1,7 @@
 {
   "name": "ccdeck",
   "version": "3.33.0",
-  "description": "Live dashboard for Claude Code and Codex — which agent is waiting on you, tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
+  "description": "Local dashboard for Claude Code and Codex CLI sessions: which Claude Code session needs input, every tool call and Claude Code subagent live, token cost and quota, several Claude accounts. Run npx ccdeck.",
   "type": "module",
   "bin": {
     "ccdeck": "bin/agent-dag.js"
@@ -44,16 +44,21 @@
     "dashboard",
     "monitor",
     "monitoring",
-    "observability",
-    "usage",
     "cost",
-    "tokens",
     "quota",
     "hooks",
     "dag",
     "visualization",
-    "cli",
-    "deck"
+    "claude-code-monitor",
+    "claude-code-sessions",
+    "session-monitor",
+    "codex-dashboard",
+    "claude-code-subagents",
+    "parallel-sessions",
+    "desktop-app",
+    "ccusage",
+    "claude-swap",
+    "local-first"
   ],
   "author": "Bargan Constantin",
   "license": "AGPL-3.0-only",
