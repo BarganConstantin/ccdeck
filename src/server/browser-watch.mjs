@@ -287,7 +287,9 @@ let surveyCache = { atMs: 0, rows: [] };
 async function surveyBrowsers(platform, env, now, deps) {
   if (deps.browserSurvey) return deps.browserSurvey();
   if (now - surveyCache.atMs < SURVEY_TTL_MS) return surveyCache.rows;
-  const rows = await browserSurvey({ relayHost: RELAY_HOST, platform, env, deps }).catch(() => []);
+  // `deps.home` for a test, as the quit reaction reads it: without it the
+  // survey looked in the real home whatever else it had been handed (#1825).
+  const rows = await browserSurvey({ relayHost: RELAY_HOST, platform, env, home: deps.home, deps }).catch(() => []);
   surveyCache = { atMs: now, rows };
   return rows;
 }

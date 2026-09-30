@@ -4,8 +4,10 @@
 // Everything asserted here is something no single reader could get wrong on its
 // own: which tabs are the deck's, when a read is worth paying for, what an
 // unreadable hosts file is allowed to claim, and what the topbar badge counts.
-import { describe, it, expect, beforeEach } from "vitest";
-import { readFileSync, statSync } from "node:fs";
+import { describe, it, expect, beforeEach, beforeAll, afterAll, afterEach, vi } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   browserWatchSnapshot,
@@ -18,6 +20,49 @@ import { unseenEpisodes, SEEN_KEY } from "../browser-watch-seen";
 import { flooredReader } from "./floored-reader";
 import { clientText } from "./client-source";
 import { watchServerSurface } from "./browser-watch-server-surface";
+import { linuxMachine } from "./linux-browser-fixture";
+import { RELAY_HOST } from "../../server/relay-guard.mjs";
+
+// NOTHING IN THIS FILE MAY RUN A PROGRAM OR LOOK AT THIS MACHINE (#1825).
+//
+// A snapshot ends in the browser survey — a `dig` for the relay name, a `pgrep`
+// per browser, an `lsof` per running one, and the profile folders, their lock
+// files and /proc behind them. The harness used to stub everything a snapshot
+// reads except that, so every case here ran the survey against the developer's
+// own browsers: results that depended on what happened to be installed and
+// running, one refactor away from acting on them. The harness now hands the
+// survey an in-memory machine, and these two guards are what fail the file if a
+// case ever reaches past it: every way of starting a process throws and is
+// written down, and the home and config directories point into a temp dir.
+const spawned = vi.hoisted(() => [] as string[]);
+vi.mock("node:child_process", async (importOriginal) => {
+  const real = await importOriginal<typeof import("node:child_process")>();
+  const trap = (name: string) => (...args: unknown[]) => {
+    spawned.push(`${name}(${JSON.stringify(args[0])}, ${JSON.stringify(args[1])})`);
+    throw new Error(`browser-watch.test.ts ran a real ${name}`);
+  };
+  const traps = Object.fromEntries(
+    ["exec", "execFile", "execFileSync", "execSync", "fork", "spawn", "spawnSync"].map(n => [n, trap(n)]));
+  return { ...real, ...traps, default: { ...real, ...traps } };
+});
+
+const NO_HOME = mkdtempSync(join(tmpdir(), "ccdeck-browser-watch-"));
+beforeAll(() => {
+  // Every name a default path on the three platforms is built from.
+  vi.stubEnv("HOME", NO_HOME);
+  vi.stubEnv("USERPROFILE", NO_HOME);
+  vi.stubEnv("XDG_CONFIG_HOME", join(NO_HOME, ".config"));
+  vi.stubEnv("LOCALAPPDATA", join(NO_HOME, "AppData", "Local"));
+  vi.stubEnv("CLAUDE_CONFIG_DIR", join(NO_HOME, ".claude"));
+});
+afterEach(() => {
+  const ran = spawned.splice(0);
+  expect(ran, "a case reached the real child_process").toEqual([]);
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+  rmSync(NO_HOME, { recursive: true, force: true });
+});
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");
@@ -44,7 +89,11 @@ const PROFILE = {
  *  a cache invalidation on purpose — a Refresh means "look again now", not
  *  "forget what you saw" — so two cases sharing one browser/profile key would
  *  inherit each other's findings. The reader honours the floor it is handed,
- *  for the reason floored-reader.ts gives. */
+ *  for the reason floored-reader.ts gives.
+ *
+ *  AND THE SURVEY GETS A MACHINE OF ITS OWN (#1825): linux-browser-fixture.ts,
+ *  a home, its locks and a /proc held in memory, with nothing installed and a
+ *  `run` that writes down what it was asked and runs none of it. */
 let identities = 0;
 function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profiles = [] as any[] } = {}) {
   const wrote: unknown[] = [];
@@ -53,7 +102,9 @@ function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profil
   const profile = { ...PROFILE, profile: `Default${nth}`, historyPath: `/p/History-${nth}` };
   if (profiles.length === 0) profiles = [profile];
   const reader = flooredReader(() => rows);
+  const machine = linuxMachine();
   const deps = {
+    ...machine.deps,
     readStore: async () => ({
       settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
       episodes: [],
@@ -72,7 +123,7 @@ function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profil
     readFileSync: () => { throw new Error("ENOENT"); },
     logSize: async () => 0,
   };
-  return { deps, calls: reader.calls, wrote, profile, advance: () => { tick++; } };
+  return { deps, calls: reader.calls, wrote, profile, machine, advance: () => { tick++; } };
 }
 
 beforeEach(() => invalidateBrowserWatchCache());
@@ -515,6 +566,33 @@ describe("what the test suite is allowed to touch", () => {
 
     expect(h.wrote.length, "the elected deck wrote nothing, so this proves nothing").toBeGreaterThan(0);
     expect([stamp(storePath()), stamp(logPath())], "a test wrote to the real store").toEqual(before);
+  });
+
+  it("surveys the harness's machine, and nothing on this one", async () => {
+    // The guards at the top fail a case that reaches past the harness. This is
+    // the other half: the survey still runs, all of it, against the machine it
+    // was handed — a Chrome installed in the fixture's home, held by a pid its
+    // /proc knows, with a connection to the relay that only the canned lsof
+    // has. A survey that quietly fell back to this machine's home would find no
+    // such Chrome.
+    const h = harness();
+    h.machine.install(".config/google-chrome");
+    h.machine.started(100, ["/opt/google/chrome/chrome"]);
+    h.machine.lock(".config/google-chrome", 100);
+    h.machine.answer("dig", { ok: true, stdout: "192.0.2.7\n", stderr: "" });
+    h.machine.answer("lsof", { ok: true, stderr: "", stdout: [
+      "COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME",
+      "chrome 100 dorin 40u IPv4 0 0t0 TCP 10.0.0.2:51000->192.0.2.7:443 (ESTABLISHED)",
+    ].join("\n") });
+
+    const snap = await browserWatchSnapshot({ platform: "linux", env: {}, deps: h.deps });
+    expect(snap.browsers.find((b: any) => b.key === "chrome")).toMatchObject({
+      installed: true, running: true, relay: { state: "live", count: 1 },
+    });
+    expect(h.machine.calls).toEqual([
+      { cmd: "dig", args: ["+short", RELAY_HOST] },
+      { cmd: "lsof", args: ["-nP", "-i", "TCP", "-a", "-c", "chrome"] },
+    ]);
   });
 });
 

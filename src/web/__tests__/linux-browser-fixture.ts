@@ -13,6 +13,10 @@
 // code builds wrongly — or a real one it reaches for by default — reads as
 // "nothing there" and never as somebody's browser. The paths are POSIX on every
 // host because `browserRoots("linux", …)` spells them that way.
+//
+// The browser survey reads the same machine (#1825): which user-data roots are
+// on disk, and what `dig`, `pgrep` and `lsof` print. So a root can be installed
+// here too, and a command can be given the output it prints.
 import { posix } from "node:path";
 
 const ROOT = "/nonexistent-ccdeck-fixture";
@@ -21,11 +25,14 @@ export const PROC = `${ROOT}/proc`;
 export const HOST = "fixture-host";
 
 type Call = { cmd: string; args: string[] };
+type Reply = { ok: boolean; stdout: string; stderr: string };
 
 export function linuxMachine() {
   const links = new Map<string, string>();
   const files = new Map<string, string>();
   const calls: Call[] = [];
+  const roots = new Set<string>();
+  const replies = new Map<string, Reply>();
   const missing = (path: string) => Object.assign(new Error(`ENOENT: no such file, '${path}'`), { code: "ENOENT" });
 
   /** A process in /proc: its `comm` and the argv it was started with. */
@@ -41,6 +48,15 @@ export function linuxMachine() {
      *  held by `pid`, on `host`. */
     lock(root: string, pid: number, host = HOST) {
       links.set(posix.join(HOME, root, "SingletonLock"), `${host}-${pid}`);
+    },
+    /** The user-data root `root` (relative to the home) is on disk, so the
+     *  survey reads that browser as installed. It holds no profile folders. */
+    install(root: string) {
+      roots.add(posix.join(HOME, root));
+    },
+    /** What `cmd` prints. A command given nothing succeeds and prints nothing. */
+    answer(cmd: string, reply: Reply) {
+      replies.set(cmd, reply);
     },
     /** Every command the code asked to run. None of them runs: this answers
      *  success for every one, and a signal is a line in `calls`. */
@@ -62,7 +78,14 @@ export function linuxMachine() {
       },
       run: async (cmd: string, args: string[] = []) => {
         calls.push({ cmd, args });
-        return { ok: true, stdout: "", stderr: "" };
+        return replies.get(cmd) ?? { ok: true, stdout: "", stderr: "" };
+      },
+      existsSync: (path: string) => roots.has(path),
+      // What the survey lists inside a root and inside a profile: nothing.
+      fs: {
+        readdirSync: (path: string) => { throw missing(path); },
+        statSync: (path: string) => { throw missing(path); },
+        existsSync: () => false,
       },
     },
   };
