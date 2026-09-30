@@ -100,11 +100,13 @@ describe("the disclosures the README must keep, and keep in one place", () => {
   });
 
   it("leaves the three-beat line under the install command, and a way through to the rest", () => {
-    // "No config file. No account. No telemetry." is the one claim on the page
-    // most tools in this category cannot honestly make. Moving the detail out
-    // from under it is only an improvement while the line itself stays put.
+    // "No config file. No account. Nothing sent without your yes." is the one
+    // claim on the page most tools in this category cannot honestly make. It
+    // read "No telemetry" until opt-in reports (#1853), which made that the
+    // wrong sentence and this one the right one. Moving the detail out from
+    // under it is only an improvement while the line itself stays put.
     const quick = at("## Quick start");
-    const three = readme.indexOf("No config file. No account. No telemetry —");
+    const three = readme.indexOf("No config file. No account. Nothing sent without your yes —");
     expect(three).toBeGreaterThan(quick);
     expect(three).toBeLessThan(at("## Requirements"));
     expect(readme).toContain("[What it touches](#what-it-touches)");
@@ -235,11 +237,11 @@ describe("the first two lines, which are the whole first impression (#461)", () 
     // naming a missing line instead of the claim that was added.
     const heroBlock = readme.slice(0, readme.indexOf("</div>"));
     const scan = heroBlock.split("\n").map(l => l.trim())
-      .find(l => l.includes(" · ") && l.includes("no telemetry") && !l.startsWith("["));
+      .find(l => l.includes(" · ") && l.includes("opt-in reports") && !l.startsWith("["));
     expect(scan, "the README no longer carries the noun line under the hero image").toBeTruthy();
     expect(scan).not.toMatch(/subagent/i);
     // The claims it does make are each answered by a row in the table below.
-    for (const noun of ["cost", "quota", "blocked on you", "no telemetry"]) {
+    for (const noun of ["cost", "quota", "blocked on you", "opt-in reports"]) {
       expect(scan).toContain(noun);
     }
   });
