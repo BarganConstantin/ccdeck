@@ -26,7 +26,7 @@ Or the desktop app, with the waiting count in your menu bar: **[macOS](https://g
 
 *A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
 
-who is blocked on you · tool calls · one canvas · cost · quota · local · sessions never leave
+which Claude Code session is blocked on you · tool calls · one canvas · cost · quota · local · sessions never leave
 
 [ccdeck.dev](https://ccdeck.dev) · [Guides](https://ccdeck.dev/guides/) · [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
 

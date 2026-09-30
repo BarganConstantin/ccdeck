@@ -230,6 +230,19 @@ describe("the first two lines, which are the whole first impression (#461)", () 
     expect(times(tree)).toBe(1);
   });
 
+  /** The noun line under the hero image.
+   *  Found by what it says, not by the word it happens to start with: an
+   *  anchored prefix would stop matching the moment a noun is prepended, which
+   *  is the exact edit the cases below exist to catch, and it would then fail
+   *  naming a missing line instead of the claim that was added. */
+  const scanLine = () => {
+    const heroBlock = readme.slice(0, readme.indexOf("</div>"));
+    const scan = heroBlock.split("\n").map(l => l.trim())
+      .find(l => l.includes(" · ") && l.includes("sessions never leave") && !l.startsWith("["));
+    expect(scan, "the README no longer carries the noun line under the hero image").toBeTruthy();
+    return scan!;
+  };
+
   it("does not let the scan line promise subagents to a Codex user", () => {
     // The noun list under the hero is read as a feature list with no provider
     // attached to any entry, which is exactly where an unqualified "subagents"
@@ -237,20 +250,31 @@ describe("the first two lines, which are the whole first impression (#461)", () 
     // no SubagentStart, so a Codex session is a root and its tools. The word
     // belongs in the tagline, where it can name the CLI, and nowhere that reads
     // as spanning both.
-    // Found by what it says, not by the word it happens to start with: an
-    // anchored prefix would stop matching the moment a noun is prepended, which
-    // is the exact edit this case exists to catch, and it would then fail
-    // naming a missing line instead of the claim that was added.
-    const heroBlock = readme.slice(0, readme.indexOf("</div>"));
-    const scan = heroBlock.split("\n").map(l => l.trim())
-      .find(l => l.includes(" · ") && l.includes("sessions never leave") && !l.startsWith("["));
-    expect(scan, "the README no longer carries the noun line under the hero image").toBeTruthy();
+    const scan = scanLine();
     expect(scan).not.toMatch(/subagent/i);
     // The claims it does make are each answered by a row in the table below.
     // The last one read "no telemetry" until #1853 gave the deck anonymous
     // reports, on by default; what it can still say is what never leaves.
     for (const noun of ["cost", "quota", "blocked on you", "sessions never leave"]) {
       expect(scan).toContain(noun);
+    }
+  });
+
+  it("does not let the scan line promise the queue to a Codex user", () => {
+    // The same reading as the case above, for the other claim that holds for
+    // one CLI only. `root.waiting` has one writer, the reducer's `Notification`
+    // case, and the Codex capture emits no Notification — codex-watch.mjs says
+    // so and codex-approval.ts holds why — so a Codex session parked on an
+    // approval prompt counts zero here however long it waits. The tagline above
+    // the image says whose the queue is; the noun line is the one line on the
+    // page built to be read, quoted and pasted without it (#461), so the noun
+    // that makes the claim has to name the CLI itself. Checked per noun rather
+    // than per line, so a "Claude Code" moved onto a neighbouring noun does not
+    // count as qualifying this one.
+    const queueNouns = scanLine().split(" · ").filter(n => /blocked|waiting/i.test(n));
+    expect(queueNouns.length, "the noun line no longer names the queue at all").toBeGreaterThan(0);
+    for (const noun of queueNouns) {
+      expect(noun, `"${noun}" reads as covering Codex, which the deck cannot see blocked`).toContain("Claude Code");
     }
   });
 });
@@ -367,6 +391,30 @@ describe("the social preview card (#441)", () => {
     expect(src).toContain("An agent session is a tree.");
     expect(src).toContain("npx ccdeck");
     expect(src).not.toMatch(/subagents ·/);
+  });
+
+  it("makes none of the claims the README has already had to take back", () => {
+    // The card is uploaded by hand and then read by every link unfurler for as
+    // long as nobody re-uploads it, so a claim that goes false on the page stays
+    // live on the card. Two did. "No telemetry" left the README when #1853 put
+    // anonymous reports on by default. And the card named both CLIs one line
+    // above "who is blocked on you", which a Codex user reads as theirs — the
+    // queue the README's noun line now scopes to Claude Code, because the Codex
+    // capture emits no Notification. What is checked is the card's visible
+    // text, noun by noun, so a "Claude Code" on a neighbouring noun does not
+    // count as qualifying this one.
+    const html = readFileSync(join(repo, "assets", "social-preview.html"), "utf8");
+    const text = html
+      .replace(/<style[\s\S]*?<\/style>/g, "")
+      .replace(/<svg[\s\S]*?<\/svg>/g, "")
+      .replace(/<[^>]+>/g, "\n")
+      .replace(/&nbsp;/g, " ");
+    const nouns = text.split(/\n|·/).map(n => n.trim()).filter(Boolean);
+    expect(nouns.length, "no visible text was read off the card — the checks below would pass on nothing").toBeGreaterThan(5);
+    expect(text, "the card still makes a telemetry claim, which #1853 made false").not.toMatch(/telemetry/i);
+    for (const noun of nouns.filter(n => /blocked|waiting/i.test(n))) {
+      expect(noun, `"${noun}" on the card reads as covering Codex, which the deck cannot see blocked`).toContain("Claude Code");
+    }
   });
 });
 
