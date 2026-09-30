@@ -13,7 +13,7 @@
 // it has to apply to the suite somebody forgets to add it to.
 process.env.AGENTS_DECK_NO_LAN = "1";
 
-// Anonymous reports (#1853) are on by default too, and for the same reason
+// Usage reports (#1853) are on by default too, and for the same reason
 // this is what keeps the suite off the network: a deck booted out of a temp
 // home has no prefs.json, so without this every one of them would make an
 // install id and tell api.ccdeck.dev about an install that is a test run. A

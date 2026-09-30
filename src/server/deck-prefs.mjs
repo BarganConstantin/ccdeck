@@ -78,7 +78,7 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
-  // ANONYMOUS REPORTS (#1853), ON unless somebody turns them off — the owner's
+  // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked, the README says what is sent, and
   // Appearance holds the switch. See reports.mjs for what is sent, and
   // reportsVetoed for the launch-time veto that wins over this.
@@ -660,7 +660,7 @@ export function notificationsVetoed(env = process.env) {
   return env[OFF_ENV] === "1";
 }
 
-/** Did the machine rule out anonymous reports (#1853), whatever the switch says?
+/** Did the machine rule out usage reports (#1853), whatever the switch says?
  *  AGENTS_DECK_NO_REPORTS=1 does, and so does AGENTS_DECK_NO_INSTALL=1, which
  *  the README promises "turns off everything but the quota reads". */
 export function reportsVetoed(env = process.env) {

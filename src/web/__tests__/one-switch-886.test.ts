@@ -35,7 +35,7 @@ describe("every switch is the one switch (#886)", () => {
     // remembered, and it sits in the Appearance menu under the character switch;
     // fifteen since invite-only pairing (#1236), which was two native radios
     // before it was made one of these.
-    // Sixteen since #1853: Appearance's "Send anonymous reports".
+    // Sixteen since #1853: Appearance's "Send usage reports".
     expect(switches, "the sixteen switches in the app").toBe(16);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);

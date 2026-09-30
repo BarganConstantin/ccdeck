@@ -78,7 +78,7 @@ function knownModelId(sid) {
 }
 
 /** How many subagents the deck has seen across the sessions it still tracks —
- *  the coarse "subagents" count the anonymous "active" report carries
+ *  the coarse "subagents" count the "active" report carries
  *  (reports.mjs). Reused, not new state: `subsSig` is already the per-session
  *  signature of the subagent models resolved for it, so its keys are the
  *  subagents. A signature that will not parse is skipped rather than guessed at.

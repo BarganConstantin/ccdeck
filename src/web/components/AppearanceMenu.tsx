@@ -65,7 +65,7 @@ interface Props {
   onAddFmStation: (station: CustomFmStation) => void;
   onRenameFmStation: (id: string, name: string) => void;
   onRemoveFmStation: (id: string) => void;
-  /** Anonymous reports (#1853): on unless switched off here or vetoed at launch. */
+  /** Usage reports (#1853): on unless switched off here or vetoed at launch. */
   reportsOn: boolean;
   reportsVetoed: boolean;
   onToggleReports: () => void;
@@ -571,7 +571,7 @@ export default function AppearanceMenu({
         </div>
         <div className="appearance-controls">
           <label className="appearance-row">
-            <span className="appearance-row-label" id="appearance-reports-label">Send anonymous reports</span>
+            <span className="appearance-row-label" id="appearance-reports-label">Send usage reports</span>
             <button
               type="button"
               className="switch"
@@ -588,7 +588,7 @@ export default function AppearanceMenu({
           <p id="appearance-reports-note" className="appearance-section-note">
             {reportsVetoed
               ? "Off: this deck was started with AGENTS_DECK_NO_REPORTS=1 or AGENTS_DECK_NO_INSTALL=1."
-              : "On by default. The deck reports installs, updates, daily use and errors under a random id, never your sessions, prompts or files. Turning it off deletes what was sent."}
+              : "On by default. The deck reports installs, updates, daily use and errors, plus your IP address and a device fingerprint (a stable hashed machine id) — no longer anonymous. Your sessions, prompts and files never leave. Turning it off deletes what was sent."}
           </p>
           <div className="appearance-improve-actions">
             <button type="button" className="btn appearance-station-action" onClick={onFeedback}>Send feedback…</button>

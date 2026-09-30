@@ -266,7 +266,7 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
   menus: ReturnType<typeof useSettingsMenus>;
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
-  /** Anonymous reports, on by default and switched off from the Appearance menu (#1853). */
+  /** Usage reports, on by default and switched off from the Appearance menu (#1853). */
   reports: ReturnType<typeof useReports>;
   onFeedback: () => void;
 }) {

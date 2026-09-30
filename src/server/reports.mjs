@@ -1,4 +1,8 @@
-// Anonymous reports, on unless the person switched them off (#1853).
+// Usage reports, on unless the person switched them off (#1853). They are NOT
+// anonymous: with reports on, every one carries a stable, hashed device id — an
+// identifier for this machine — and the server records the IP the report arrives
+// from. What never leaves is the person's sessions, prompts, files, project
+// names and paths.
 //
 // WHAT GOES OUT, to api.ccdeck.dev, while `prefs.reports` is true and the
 // machine has not vetoed it (reportsVetoed):
@@ -27,14 +31,13 @@
 // field that cannot be told is left out rather than guessed. The install id is
 // random, made at the first check-in, and tied to nothing on the machine.
 //
-// The one field that IS derived from the machine is `deviceId`, sent ONLY when
-// AGENTS_DECK_FINGERPRINT=1 (off by default, so nothing is even transmitted until
-// consent turns it on). It is a stable
-// per-machine fingerprint on install/update/active (never on ping or errors). It
+// The one field that IS derived from the machine is `deviceId`: a stable, hashed
+// device id sent with EVERY report — install, update and active — while reports
+// are on, never on the ping and never on errors. It is an identifier: it follows
+// one machine across runs, which is why the reports are no longer anonymous. It
 // is personal data, so it leaves only as a one-way hash of stable machine traits,
-// never those traits in the clear (see deviceIdToken), and the API keeps it only
-// while a server-side consent flag is on — off today — so sending it is harmless
-// now and becomes meaningful once consent is live.
+// never those traits in the clear (see deviceIdToken). It rides with the facts,
+// so it stops entirely the moment reports are switched off or vetoed.
 //
 // NOBODY IS ASKED, AND NOTHING IS HIDDEN. The owner chose on-by-default
 // (2026-09-30): the README says what is sent, Appearance holds the switch, and
@@ -135,11 +138,11 @@ function totalMemMb() {
  * (`os.hostname()`) can name a person. That is exactly why it leaves only as a
  * one-way hash, never as the traits in the clear — the traits are concatenated,
  * run through SHA-256, and only the first 16 hex characters ship, so the machine
- * details cannot be read back out of what leaves. It is precisely because it is
- * identifying that the API stores it only while a server-side consent flag is on
- * (off today) and drops it otherwise — so the reporter may always send it, and it
- * stays harmless until consent is live. The token is hex, so it matches the API's
- * `^[0-9A-Za-z.+_-]+$` shape and its 16 characters sit well under the 64 cap.
+ * details cannot be read back out of what leaves. It is identifying all the same:
+ * it is stable per machine, so it is what makes the reports no longer anonymous,
+ * and it ships with every report while reports are on. The token is hex, so it
+ * matches the API's `^[0-9A-Za-z.+_-]+$` shape and its 16 characters sit well
+ * under the 64 cap.
  * Built from traits that do not change between restarts — platform, arch, CPU
  * model and count, total RAM, and the hostname folded into the hash ONLY — and it
  * never throws: a trait that cannot be read just yields a different, still stable,
@@ -239,7 +242,7 @@ export function installFacts({
   locale = localeToken(env),
   shell = shellToken(env, platform),
   term = termToken(env),
-  deviceId = env.AGENTS_DECK_FINGERPRINT === "1" ? deviceIdToken() : undefined,
+  deviceId = deviceIdToken(),
   claudeVersion,
   codexVersion,
 } = {}) {
