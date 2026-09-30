@@ -426,6 +426,35 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           />
         )}
       </div>
+      {/* REPORT A PROBLEM, WHERE A PERSON LOOKS FOR IT (#1853). The way to tell
+          the makers something was buried in the Appearance menu — "Help improve
+          ccdeck" → "Send feedback…" — behind the theme and the radio; the owner
+          could not find it. It has a glyph in the bar now, in the utility run
+          beside the two settings, which is the corner every product keeps its
+          help and feedback in. No word: the topbar's seven words are a set, and
+          this joins the theme button as a bare glyph rather than an eighth. It
+          opens the same dialog the Appearance button does — the one door,
+          `onFeedback` — and the switch and the note stay in Appearance where
+          the deck explains what a report is. `aria-haspopup="dialog"` and no
+          aria-expanded, the shape History and Browser watch already use for a
+          button that opens a modal rather than discloses a region. */}
+      <button
+        className="btn icon-btn"
+        onClick={onFeedback}
+        title="Report a problem — tell the people who make ccdeck"
+        aria-label="Report a problem"
+        aria-haspopup="dialog"
+      >
+        {/* A speech bubble with a mark inside — say something is wrong. Drawn on
+            the topbar's one spec (#837): 13px on a 14 viewBox, a 1.4 stroke,
+            round caps and joins. The mark is a stroke and a dot, the way the
+            accounts warning glyph draws one. */}
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M2.2 3.3h9.6v5.3H6.1L3.5 10.8V8.6H2.2Z" />
+          <path d="M7 4.9v1.7" />
+          <path d="M7 7.7v.05" />
+        </svg>
+      </button>
     </div>
   );
 }

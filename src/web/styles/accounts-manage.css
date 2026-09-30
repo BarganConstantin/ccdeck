@@ -246,6 +246,30 @@
 .ap-issue-hint { color: var(--text-secondary); line-height: 1.5; }
 .ap-issue-when { color: var(--muted); }
 .ap-issue-who { color: var(--text); overflow-wrap: anywhere; }
+/* "Report this", the quiet third action of a warning's popover (#1853). No box:
+   it is subordinate to Done and the fix, a word the reader reaches for only to
+   tell the makers rather than to act. Held to the left of the row so the two
+   answers keep their place on the right; it reads in the muted tier and steps
+   up to the foreground under the pointer, the same lift the toolbar words take.
+   Its focus ring is the sheet's shared one — nothing here overrides it. */
+.ap-issue-report {
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-issue-report:hover { color: var(--text); text-decoration: underline; }
+/* The press convention every clickable control here keeps — the same 0.97 and
+   easing the Projects report's Copy takes (canvas-motion.test.ts). */
+.ap-issue-report:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .ap-issue-report:active { transform: none; }
+}
 
 /* The one thing a move ever has to announce rather than show: that it
    relocated a SECOND account. It stands in the moved row's own freshness line

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
+import type { FeedbackPrefill } from "./FeedbackDialog";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
@@ -45,9 +46,12 @@ interface Props {
   /** Asked to close, still on screen for the length of its exit. The panel
    *  keeps working while it leaves — nothing here reads this but the class. */
   leaving?: boolean;
+  /** Open the feedback dialog seeded for a caller (#1853). The issue popover
+   *  uses it for its "Report this"; absent, the popover draws no such button. */
+  onReport?: (prefill: FeedbackPrefill) => void;
 }
 
-export default function AccountsPanel({ onClose, leaving }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport }: Props) {
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
   const { busy, claim, release, pressProps } = useRequestSlot();
@@ -619,6 +623,14 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                     nowSec={nowSec}
                     onClose={closeIssue}
                     onSignIn={() => setAddOpen(true)}
+                    // The report carries the issue's own words and nothing that
+                    // names the account: what is wrong, in the product's voice,
+                    // never who it is wrong for (#1853). A warning is a bug to
+                    // report; a quiet, self-clearing state is "something else".
+                    onReport={onReport && (() => onReport({
+                      initialKind: issue.tone === "warn" ? "bug" : "other",
+                      initialBody: `Account issue: ${issue.text}. ${issue.hint}`,
+                    }))}
                   />
                 );
               })()}

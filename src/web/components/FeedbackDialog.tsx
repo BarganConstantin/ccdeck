@@ -12,7 +12,14 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 
-type Kind = "bug" | "idea" | "other";
+export type Kind = "bug" | "idea" | "other";
+/** How a caller seeds the dialog — the error boundary opens it as a filled-in
+ *  bug, the account popover as the issue it explains (#1853). Absent fields keep
+ *  the empty defaults, so an unseeded open is exactly what it always was. */
+export interface FeedbackPrefill {
+  initialKind?: Kind;
+  initialBody?: string;
+}
 const KINDS: { value: Kind; label: string }[] = [
   { value: "bug", label: "Something is wrong" },
   { value: "idea", label: "An idea" },
@@ -36,16 +43,16 @@ export function feedbackFailure(status: number, reason: unknown): string {
   return "ccdeck's server could not be reached. Nothing was sent; your text is still here, so try again in a moment.";
 }
 
-interface Props {
+interface Props extends FeedbackPrefill {
   onClose: () => void;
 }
 
-export default function FeedbackDialog({ onClose }: Props) {
+export default function FeedbackDialog({ onClose, initialKind, initialBody }: Props) {
   const titleRef = useRef<HTMLInputElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: titleRef });
-  const [kind, setKind] = useState<Kind>("bug");
+  const [kind, setKind] = useState<Kind>(initialKind ?? "bug");
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody ?? "");
   const [contact, setContact] = useState("");
   const [outcome, setOutcome] = useState<Outcome>({ state: "idle" });
   const ready = title.trim().length >= 3 && body.trim().length > 0 && outcome.state !== "sending";

@@ -40,6 +40,9 @@ interface Props {
   onClose: (refocus?: boolean) => void;
   /** Open the sign-in dialog, which is what the fix is. */
   onSignIn: () => void;
+  /** Open the feedback dialog seeded with this issue (#1853). Absent, no button
+   *  is drawn — the panel decides whether reporting is wired up at all. */
+  onReport?: () => void;
 }
 
 /**
@@ -49,7 +52,7 @@ interface Props {
  * the row used to carry as a second pill. Portalled like the ⋯ menu, so it
  * moves nothing.
  */
-export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, fetchedAt, nowSec, onClose, onSignIn }: Props) {
+export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, fetchedAt, nowSec, onClose, onSignIn, onReport }: Props) {
   return (
     <AnchoredPopover
       anchorId={anchorId}
@@ -72,6 +75,16 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
           {fetchedAt ? `last collected ${ago(fetchedAt, nowSec)}` : "never collected"}
         </p>
         <div className="ap-pop-actions">
+          {/* Subordinate to Done and the fix — a quiet word on the left, no box,
+              for the rare reader who wants to tell the makers about this rather
+              than act on it (#1853). It carries the issue's words, never the
+              account's name. `margin-right: auto` in the sheet holds it left
+              while the two answers stay right. */}
+          {onReport && (
+            <button type="button" className="ap-issue-report" onClick={() => { onClose(); onReport(); }}>
+              Report this
+            </button>
+          )}
           <button type="button" className="btn" onClick={() => onClose(true)}>Done</button>
           {issue.fix && (
             <button type="button" className="btn primary" onClick={() => { onClose(true); onSignIn(); }}
