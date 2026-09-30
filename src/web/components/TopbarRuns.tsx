@@ -426,23 +426,27 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           />
         )}
       </div>
-      {/* REPORT A PROBLEM, WHERE A PERSON LOOKS FOR IT (#1853). The way to tell
-          the makers something was buried in the Appearance menu — "Help improve
+      {/* FEEDBACK, WHERE A PERSON LOOKS FOR IT (#1853). The way to tell the
+          makers something was buried in the Appearance menu — "Help improve
           ccdeck" → "Send feedback…" — behind the theme and the radio; the owner
-          could not find it. It has a glyph in the bar now, in the utility run
-          beside the two settings, which is the corner every product keeps its
-          help and feedback in. No word: the topbar's seven words are a set, and
-          this joins the theme button as a bare glyph rather than an eighth. It
-          opens the same dialog the Appearance button does — the one door,
-          `onFeedback` — and the switch and the note stay in Appearance where
-          the deck explains what a report is. `aria-haspopup="dialog"` and no
+          could not find it. It lives in the utility run beside the two
+          settings, the corner every product keeps its help and feedback in.
+          It first came as a bare glyph, beside the theme button, so as not to
+          be an eighth word. That was the second time it could not be found:
+          at the toolbar's --muted, a 13px bubble at the end of a run of words
+          read as nothing at all. So it says its word wherever the others do,
+          and "Feedback" rather than "Report a problem", because the dialog
+          takes an idea or anything else as readily as a fault. It opens the
+          same dialog the Appearance button does — the one door, `onFeedback`
+          — and the switch and the note stay in Appearance where the deck
+          explains what a report is. `aria-haspopup="dialog"` and no
           aria-expanded, the shape History and Browser watch already use for a
           button that opens a modal rather than discloses a region. */}
       <button
         className="btn icon-btn"
         onClick={onFeedback}
-        title="Report a problem — tell the people who make ccdeck"
-        aria-label="Report a problem"
+        title="Send feedback — a problem, an idea or anything else, to the people who make ccdeck"
+        aria-label="Send feedback"
         aria-haspopup="dialog"
       >
         {/* A speech bubble with a mark inside — say something is wrong. Drawn on
@@ -454,6 +458,7 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           <path d="M7 4.9v1.7" />
           <path d="M7 7.7v.05" />
         </svg>
+        <span className="tb-word">Feedback</span>
       </button>
     </div>
   );

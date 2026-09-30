@@ -254,12 +254,14 @@
    button keeps its sun or moon alone, and no word ends in an ellipsis.
    From 1440px, which is a 14" laptop at its default scale and a 1920 screen at
    125%; 1600 left every one of those on bare glyphs. The words cost about
-   440px, and the bar's common worst case at 1440 still fits: a blocked
-   session, a live stream and a selected agent come to 256 of readout, 346 of
-   ribbon at 24vw, 743 of controls and 84 of gaps and padding, 1429 in all.
-   A paused deck on top of that does not fit, and `.readout` above is why that
-   costs the wordmark rather than the alarm. Under 1440 the bar is glyphs
-   again: the readouts give first and the controls never do. */
+   500px. Feedback's is the last of them (#1853): it was a bare glyph and could
+   not be found beside the words, and its 62px were spent knowingly. A blocked
+   session, a live stream and a selected agent at 1440 come to 256 of readout,
+   346 of ribbon at 24vw, 797 of controls and 84 of gaps and padding — 1483,
+   so that case, like a paused deck on top of it, costs the left of the
+   readout, and `.readout` above is why what it costs is the wordmark rather
+   than the alarm. Under 1440 the bar is glyphs again: the readouts give first
+   and the controls never do. */
 .tb-word { display: none; }
 @media (min-width: 1440px) {
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }

@@ -47,10 +47,14 @@ const WORDS: Array<[word: string, name: RegExp]> = [
   ["Machine", /aria-label="Toggle machine detail"/],
   ["Browser watch", /aria-label=\{`Browser watch, /],
   ["Sound", /aria-label=\{`Sound settings, /],
+  // The way to tell the makers something (#1853) was the one bare glyph at the
+  // bar's end, beside the words: at the toolbar's --muted, a 13px bubble with a
+  // mark inside read as nothing at all, and the owner could not find it.
+  ["Feedback", /aria-label="Send feedback"/],
 ];
 
 describe("each topbar button can say its name (#836)", () => {
-  it("gives seven a word, inside the accessible name they already have", () => {
+  it("gives eight a word, inside the accessible name they already have", () => {
     for (const [word, name] of WORDS) {
       const button = buttonOf(word);
       expect(button, word).toMatch(/className=\{?[`"]btn icon-btn/);

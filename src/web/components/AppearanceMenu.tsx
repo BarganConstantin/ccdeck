@@ -559,9 +559,9 @@ export default function AppearanceMenu({
         </span>
       </section>
 
-      {/* The reports switch and the feedback dialog (#1853). Here rather than in
-          the topbar, whose seven words are a set, and rather than in the sound
-          menu, which is about noise. Reports are on by default and nobody is
+      {/* The reports switch and the feedback dialog (#1853). The switch is here
+          rather than in the topbar, which keeps a word for the dialog alone,
+          and rather than in the sound menu, which is about noise. Reports are on by default and nobody is
           asked, so the note is where the deck says so: what is sent, what never
           is, and that switching it off deletes what was sent — all readable
           without pressing anything. */}

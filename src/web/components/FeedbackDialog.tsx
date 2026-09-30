@@ -172,8 +172,8 @@ export function outcomeAnnouncement(outcome: Outcome["state"]): string {
 }
 
 /** The kind's glyph, on the topbar's one icon spec (#837): a 14 viewBox, a 1.4
- *  stroke, round caps and joins. Something wrong is the topbar's own Report a
- *  problem bubble, so the door and the choice it opens on look alike; something
+ *  stroke, round caps and joins. Something wrong is the topbar Feedback button's
+ *  own bubble, so the door and the choice it opens on look alike; something
  *  else is the same bubble with an ellipsis; an idea is a bulb. */
 function KindGlyph({ kind }: { kind: Kind }) {
   return (
