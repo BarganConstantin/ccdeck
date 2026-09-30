@@ -47,14 +47,10 @@ const WORDS: Array<[word: string, name: RegExp]> = [
   ["Machine", /aria-label="Toggle machine detail"/],
   ["Browser watch", /aria-label=\{`Browser watch, /],
   ["Sound", /aria-label=\{`Sound settings, /],
-  // The way to tell the makers something (#1853) was the one bare glyph at the
-  // bar's end, beside the words: at the toolbar's --muted, a 13px bubble with a
-  // mark inside read as nothing at all, and the owner could not find it.
-  ["Feedback", /aria-label="Send feedback"/],
 ];
 
 describe("each topbar button can say its name (#836)", () => {
-  it("gives eight a word, inside the accessible name they already have", () => {
+  it("gives seven a word, inside the accessible name they already have", () => {
     for (const [word, name] of WORDS) {
       const button = buttonOf(word);
       expect(button, word).toMatch(/className=\{?[`"]btn icon-btn/);
@@ -99,6 +95,83 @@ describe("each topbar button can say its name (#836)", () => {
     expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
     // The height is still the one control height (line-height is the word's).
     expect(wide).not.toMatch(/(?<!line-)height/);
+  });
+});
+
+// FEEDBACK'S WORD AGAINST THE BUSIEST BAR (#1853). The busiest bar is #737's
+// case (topbar-status.css): a blocked session, "this month" at its widest and a
+// selected node whose name fills any cap, with the ribbon's cap taking the
+// rest of the bar. #737's reserve for it no longer holds — measured on the
+// owner's deck in Chromium at 1440 on 2026-09-30, everything but the ribbon
+// comes to 1302px (the brand with its version chip 142, "this month 19.05B
+// tokens · $12.4k" 209, "1 waiting" 84, the controls with Feedback as a glyph
+// 735, gaps and padding 84), where the reserve assumes 1213 — so a word added
+// to the bar is held to the measured figure, not to the reserve. Feedback's
+// word is 62 of it: the button is 92px with the word and a 30px square
+// without. The 40px of headroom is #737's, for faces wider than the one
+// measured.
+const BUSIEST_BAR_PX = 1302;
+const FEEDBACK_WORD_PX = 62;
+const HEADROOM_PX = 40;
+
+describe("Feedback says its word only where the busiest bar still fits", () => {
+  const wordClass = /<span className="(tb-word[\w-]*)">Feedback<\/span>/.exec(app)?.[1];
+  /** Where the word is drawn from: the min-width of the block that shows it. */
+  const shownFrom = (() => {
+    const at = [...css.matchAll(/@media \(min-width: (\d+)px\) \{([^@]*)/g)]
+      .find(m => m[2].includes(`.topbar .${wordClass} { display: inline;`));
+    return at ? Number(at[1]) : null;
+  })();
+  const reserve = Number(/@media \(min-width: 1440px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css)?.[1]);
+
+  it("never draws the word where it would push the busiest bar past its width", () => {
+    expect(wordClass, "the Feedback button's word").toBeTruthy();
+    expect(shownFrom, "the breakpoint that shows it").not.toBeNull();
+    expect(reserve).toBeGreaterThan(1000);
+    for (let w = shownFrom!; w <= 2560; w++) {
+      const ribbon = Math.min(380, w - reserve);
+      expect(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + ribbon + HEADROOM_PX, `at ${w}px`).toBeLessThanOrEqual(w);
+    }
+  });
+
+  it("draws it from the first width that holds it, and no later", () => {
+    // It was drawn with the seven from 1440, where the busiest bar had no room
+    // for it. The first width that holds it is the measured bar, its own
+    // width, the ribbon's full cap and the headroom; a later breakpoint would
+    // hide the word for nothing.
+    expect(wordClass).toBe("tb-word-wide");
+    expect(shownFrom).toBe(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX);
+    expect(css).toMatch(/\n\.tb-word-wide \{ display: none; \}/);
+    const wide = media(`min-width: ${shownFrom}px`);
+    expect(wide).toMatch(/\.topbar \.tb-word-wide \{ display: inline; font-size: 12px; line-height: 1; \}/);
+    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word-wide\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
+    // Its own class, so the seven's 1440 rule never draws it early.
+    expect(app.match(/className="tb-word-wide"/g)).toHaveLength(1);
+  });
+
+  it("says a word its accessible name contains, and a tooltip that says the same", () => {
+    const at = app.indexOf('<span className="tb-word-wide">Feedback</span>');
+    const button = app.slice(app.lastIndexOf("<button", at), at);
+    expect(button).toMatch(/aria-label="Send feedback"/);
+    expect(button).toMatch(/title="Send feedback/);
+  });
+
+  it("rests, without its word, at the tone the labelled controls rest at, never a fainter one", () => {
+    // The glyph alone could not be found beside the words. Under 1784 it is
+    // the glyph alone again, so what it may not do is sink below them: it is
+    // the toolbar's own button, drawn by the rule that draws the seven, and
+    // nothing in the sheet quietens it.
+    const at = app.indexOf('<span className="tb-word-wide">Feedback</span>');
+    const button = app.slice(app.lastIndexOf("<button", at), at);
+    expect(button).toMatch(/^<button\s+className="btn icon-btn"\s/);
+    expect(button).not.toMatch(/style=/);
+    expect(body(".topbar button.btn.icon-btn")).toMatch(/color: var\(--muted\);/);
+    const aimed = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, sel]) => /tb-word-wide|Send feedback/.test(sel));
+    expect(aimed.length).toBeGreaterThan(0);
+    for (const [, sel, decls] of aimed) {
+      expect(decls, sel.trim()).not.toMatch(/(?:^|;)\s*(?:color|opacity|filter|visibility)\s*:/);
+    }
   });
 });
 

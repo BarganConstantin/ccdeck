@@ -182,9 +182,9 @@ describe("the topbar's Feedback button", () => {
     // It was a bare glyph beside the theme button, on the reasoning that the
     // bar's words were a set of seven. At the toolbar's --muted, next to
     // "Sound" and "Browser watch", the bubble read as nothing at all and the
-    // owner could not find it; it says its word now wherever the others do
-    // (topbar-words-836.test.ts), and only the theme button stays bare.
-    expect(button).toMatch(/<span className="tb-word">Feedback<\/span>/);
+    // owner could not find it. It says its word now, from the width where the
+    // busiest bar still holds it (topbar-words-836.test.ts).
+    expect(button).toMatch(/<span className="tb-word-wide">Feedback<\/span>/);
   });
 
   it("sits in the settings run, and opens the same dialog Appearance's Send feedback does", () => {

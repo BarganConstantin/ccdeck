@@ -434,9 +434,11 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           It first came as a bare glyph, beside the theme button, so as not to
           be an eighth word. That was the second time it could not be found:
           at the toolbar's --muted, a 13px bubble at the end of a run of words
-          read as nothing at all. So it says its word wherever the others do,
-          and "Feedback" rather than "Report a problem", because the dialog
-          takes an idea or anything else as readily as a fault. It opens the
+          read as nothing at all. So it says "Feedback" — rather than "Report
+          a problem", because the dialog takes an idea or anything else as
+          readily as a fault — from the width where the busiest bar still
+          holds the word (`.tb-word-wide`, topbar.css), and is the glyph alone,
+          at the same resting tone, under it. It opens the
           same dialog the Appearance button does — the one door, `onFeedback`
           — and the switch and the note stay in Appearance where the deck
           explains what a report is. `aria-haspopup="dialog"` and no
@@ -458,7 +460,7 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           <path d="M7 4.9v1.7" />
           <path d="M7 7.7v.05" />
         </svg>
-        <span className="tb-word">Feedback</span>
+        <span className="tb-word-wide">Feedback</span>
       </button>
     </div>
   );
