@@ -45,6 +45,17 @@
 .app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
 .app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: auto 1fr; }
 
+/* JUST ABOVE THE BREAKPOINT, WITH ACCOUNTS OPEN (#1840). The panel's 288px and
+   the detail column's 360px are 648px between them, so from 641 to 647px the
+   desktop row was up to 7px wider than the window: the page scrolled sideways
+   and the last topbar control sat partly off screen. Here the column gives up
+   what the window lacks, 7px at most, rather than the layout turning into the
+   sheet a few pixels early; from 648px up it is 360px again. Before the block
+   below, which outranks it at 640px and under by source order. */
+@media (max-width: 647px) {
+  .app:has(.accounts-panel) { grid-template-columns: auto 1fr minmax(0, 360px); }
+}
+
 /* A SHEET OVER THE CANVAS, NOT A COLUMN BESIDE IT, below the sheet's 640px
    breakpoint (#1790) — the move #849 made for the rails. The 360px track was
    added whatever the window's width, so on a phone or a zoomed window
@@ -58,12 +69,16 @@
    `minmax(0, 1fr)` rather than a bare `1fr`, which cannot be narrower than
    the min-content of what spans it — and the topbar spans it. With the panel
    out of the row, the bar's readouts, which #849 lets clip, held the one track
-   at 415px on a 320px window.
+   at 415px on a 320px window. With nothing selected as well (#1840):
+   `.app:not(:has(.detail))`, which drops the column, outweighs a bare `.app`,
+   so it is named here too, or the bar's own 326px held the one track on a
+   320px window. A row of two tracks does not need it — an item spanning more
+   than one track, one of them flexible, has no automatic minimum.
    On the rails' layer (20) and after them in the document, so where they meet
    the panel a selection just opened is the one on top. The desktop layout is
    untouched. */
 @media (max-width: 640px) {
-  .app { grid-template-columns: minmax(0, 1fr); }
+  .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
   .app:has(.session-list) { grid-template-columns: 240px minmax(0, 1fr); }
   .app:has(.accounts-panel) { grid-template-columns: auto minmax(0, 1fr); }
   .detail {

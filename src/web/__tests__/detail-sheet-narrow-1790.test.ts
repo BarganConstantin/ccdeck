@@ -144,7 +144,13 @@ describe("a selected session on a narrow window (#1790)", () => {
     for (const width of [641, 900, 1280]) {
       expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
       expect(layout("sessions", width)).toMatchObject({ template: "240px 1fr 360px", overlay: false });
+    }
+    // With Accounts open the panel and the column are 648px between them, so
+    // from 641 to 647px the column gives up what the window lacks (#1840) —
+    // still a column, never the sheet.
+    for (const width of [648, 900, 1280]) {
       expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
     }
+    expect(resolve("detail", "position", "accounts", 641) ?? "static").toBe("relative");
   });
 });
