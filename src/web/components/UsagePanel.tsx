@@ -472,9 +472,12 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               tokens in ccusage's "today", and the old copy told the reader to
               start a session while one was burning in front of them. The chips
               are above this block now, so the way out — month, all — is on
-              screen either way. */}
+              screen either way. On `all` there is no way out to point at, and
+              "No usage all time" is not a sentence (#1806). */}
           {fromRange
-            ? <>No usage {periodNoun}.<br />Try a longer period.</>
+            ? (shownPeriod ?? period) === "all"
+              ? <>No usage in any transcript on this machine.</>
+              : <>No usage {periodNoun}.<br />Try a longer period.</>
             : <>No usage data yet.<br />Start a Claude Code or Codex session.</>}
         </div>
       )}

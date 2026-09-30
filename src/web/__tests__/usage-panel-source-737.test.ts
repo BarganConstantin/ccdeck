@@ -448,7 +448,8 @@ describe("markup, read as source", () => {
     // control that could have reached "month".
     expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
     expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
-    expect(panel).toContain("? <>No usage {periodNoun}.<br />Try a longer period.</>");
+    // Every period but `all`, which has no longer one to offer (#1806).
+    expect(panel).toContain(": <>No usage {periodNoun}.<br />Try a longer period.</>");
   });
 
   it("reuses the history modal's chips rather than growing a second set", () => {
