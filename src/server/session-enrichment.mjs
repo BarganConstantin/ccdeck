@@ -20,7 +20,7 @@ import { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 import { RECAP_MARK } from "./session-recap.mjs";
 // The shared transcript cursor every pass below reads through — see
 // transcript-scan.mjs.
-import { hasSpend, mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-scan.mjs";
+import { copyUsageBucket, hasSpend, mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-scan.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -314,7 +314,7 @@ export async function readUsageByModelFromTranscript(path) {
   const out = {};
   for (const [model, u] of Object.entries(state.usageByModel)) {
     if (!hasSpend(u)) continue;
-    out[model] = { ...u };
+    out[model] = copyUsageBucket(u);
   }
   return Object.keys(out).length ? out : null;
 }
