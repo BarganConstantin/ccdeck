@@ -2,7 +2,7 @@
 // the Clear flow must not reach past — and, separately, whether that dialog is
 // the shortcuts sheet, which still answers the `?` that opened it.
 //
-// Moved out of App.tsx unchanged; use-dialogs.ts calls it now, with the six
+// Moved out of App.tsx unchanged; use-dialogs.ts calls it now, with the seven
 // flags it holds and the two use-welcome-and-notes.ts owns. Both are refs
 // assigned during render, the way App's nodesRef is: the keydown listener
 // (use-deck-shortcuts.ts) is registered once and must stay that way, so it reads

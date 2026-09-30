@@ -12,7 +12,7 @@
 //     scrubbed out before they leave.
 //
 // Each carries the install id, the version, the OS and CPU architecture, the
-// channel (the desktop app or npm) and the runtime. Nothing about a session, a
+// channel (the desktop app, npm, or a source checkout) and the runtime. Nothing about a session, a
 // project, a prompt, a path or a person: the install id is random, made at the
 // first check-in, and tied to nothing on the machine.
 //
@@ -31,12 +31,16 @@
 
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { inApp } from "./app-host.mjs";
 import { reportsVetoed } from "./deck-prefs.mjs";
+import { isGitCheckout } from "./install-layout.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
+const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TIMEOUT_MS = 6000;
 /** How often a long-running deck checks whether a new day wants its "active". */
 const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
@@ -61,18 +65,26 @@ export function installFacts({
   arch = process.arch,
   versions = process.versions,
   env = process.env,
+  checkout = isGitCheckout(PKG_ROOT),
 } = {}) {
   return {
     version: String(version),
     os: platform,
     arch,
-    channel: inApp(env) ? "desktop" : "npm",
+    // A deck run out of a git checkout is somebody developing ccdeck, and it
+    // says so, so the people counting installs can leave it out.
+    channel: inApp(env) ? "desktop" : checkout ? "checkout" : "npm",
     runtime: versions.electron ? `electron-${versions.electron}` : `node-${versions.node}`,
   };
 }
 
 /**
- * Take out of an error what could say who someone is. The API scrubs again;
+ * Take out of an error what could say who someone is.
+ *
+ * The catch-all for long opaque strings deliberately stops at a slash: with one
+ * in it, the pattern swallowed every long file path, and a stack whose frames
+ * read `at save (~/.<secret>.mjs:40:3)` tells nobody where the bug is.
+ * The API scrubs again;
  * this is the pass that means it never has to: this user's home folder, anyone
  * else's home folder, email addresses, and strings shaped like keys and tokens.
  */
@@ -84,7 +96,7 @@ export function scrub(text, home = homedir()) {
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
-      /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{48,})/g,
+      /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,
       "<secret>",
     );
 }

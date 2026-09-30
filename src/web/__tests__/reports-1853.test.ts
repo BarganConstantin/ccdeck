@@ -320,6 +320,9 @@ describe("errors", () => {
     expect(text).not.toContain("alice");
     expect(text).not.toContain("sk-ant");
     expect(text).not.toContain("example.com");
+    // And the frame still says where: a scrubber that ate the path would leave a
+    // stack nobody can use.
+    expect(String(sent?.body?.stack)).toContain("at save (~/.npm/_npx/1/node_modules/ccdeck/src/server/atomic-write.mjs:40:3)");
     expect(sent?.body).toMatchObject({ installId, where: "server", version: "3.32.2", os: "linux", arch: "x64", channel: "npm" });
     expect(String(sent?.body?.message)).toContain("~/.claude/settings.json");
     expect(String(sent?.body?.message)).toContain("<email>");
@@ -379,7 +382,10 @@ describe("what an install says about itself", () => {
   it("is the version, the system, the channel and the runtime, nothing else", () => {
     const facts = installFacts({ version: "3.32.2", platform: "darwin", arch: "arm64", versions: { node: "22.18.0" }, env: { CCDECK_APP: "1" } });
     expect(facts).toEqual({ version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0" });
-    expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {} })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
+    expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {}, checkout: false })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
+    // A deck run out of a git checkout is development, and says so.
+    expect(installFacts({ env: {}, checkout: true }).channel).toBe("checkout");
+    expect(installFacts({ env: { CCDECK_APP: "1" }, checkout: true }).channel).toBe("desktop");
   });
 });
 
