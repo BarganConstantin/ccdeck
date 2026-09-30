@@ -212,12 +212,13 @@ function Inner() {
   // The six dialogs the reader opens — the tool, context and recap modals, the
   // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
   // the gate the keys ask before reaching past one: use-dialogs.ts.
-  // Opt-in anonymous reports (#1853): the answer, and the one-time question
-  // that waits for the tour and the notes to have had their turn.
-  const reports = useReports({ welcomeSettled: welcome.welcomeSettled, tourOpen, releaseNotesOpen: releaseNotes != null });
-  const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes, reportsQuestionOpen: reports.reportsQuestionOpen });
+  const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
+  // Anonymous reports (#1853): whether they are on — they are unless somebody
+  // switched them off — the switch in Appearance that changes it, and the
+  // page's own errors, forwarded while they are on: use-reports.ts.
+  const reports = useReports();
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
   // the reader last looked — lives in use-browser-watch-badge.ts.
   const watchBadge = useBrowserWatchBadge();
@@ -725,7 +726,6 @@ function Inner() {
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
         lanPairs={lanPairs} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
-        reports={reports}
       />
     </div>
   );

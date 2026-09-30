@@ -13,8 +13,9 @@
 // it has to apply to the suite somebody forgets to add it to.
 process.env.AGENTS_DECK_NO_LAN = "1";
 
-// Anonymous reports (#1853) are off until a person says yes, and a temp home
-// has never said anything, so no suite should reach api.ccdeck.dev anyway.
-// This makes that a guarantee rather than a consequence: a suite that tests
-// the reporter hands it its own env and a fake fetch.
+// Anonymous reports (#1853) are on by default too, and for the same reason
+// this is what keeps the suite off the network: a deck booted out of a temp
+// home has no prefs.json, so without this every one of them would make an
+// install id and tell api.ccdeck.dev about an install that is a test run. A
+// suite that tests the reporter hands it its own env and a fake fetch.
 process.env.AGENTS_DECK_NO_REPORTS = "1";

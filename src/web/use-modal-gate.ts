@@ -16,7 +16,7 @@ import type { useWelcomeAndNotes } from "./use-welcome-and-notes";
 
 export function useModalGate({
   openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
-  feedbackOpen, reportsQuestionOpen,
+  feedbackOpen,
 }: {
   /** The call the tool modal is showing, while it is still on the board. */
   openedTool: ToolCall | null;
@@ -30,9 +30,8 @@ export function useModalGate({
   /** The shortcuts sheet. */
   keyHelpOpen: boolean;
   releaseNotes: ReturnType<typeof useWelcomeAndNotes>["releaseNotes"];
-  /** The feedback dialog, and the one-time reports question (#1853). */
+  /** The feedback dialog, opened from the Appearance menu (#1853). */
   feedbackOpen: boolean;
-  reportsQuestionOpen: boolean;
 }) {
   // The same treatment for the shortcuts sheet, because `?` is a toggle and the
   // gate below has to be able to tell "the sheet is the modal" from "a modal is
@@ -49,6 +48,6 @@ export function useModalGate({
     // caption drops focus to <body>, and from there a stray "c" reaches Clear.
     || tourOpen
     || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null
-    || feedbackOpen || reportsQuestionOpen;
+    || feedbackOpen;
   return { keyHelpOpenRef, modalOpenRef };
 }

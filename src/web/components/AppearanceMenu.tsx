@@ -65,7 +65,7 @@ interface Props {
   onAddFmStation: (station: CustomFmStation) => void;
   onRenameFmStation: (id: string, name: string) => void;
   onRemoveFmStation: (id: string) => void;
-  /** Opt-in anonymous reports (#1853): on only with a yes and no launch-time veto. */
+  /** Anonymous reports (#1853): on unless switched off here or vetoed at launch. */
   reportsOn: boolean;
   reportsVetoed: boolean;
   onToggleReports: () => void;
@@ -559,10 +559,12 @@ export default function AppearanceMenu({
         </span>
       </section>
 
-      {/* The reports answer and the feedback dialog (#1853). Here rather than in
+      {/* The reports switch and the feedback dialog (#1853). Here rather than in
           the topbar, whose seven words are a set, and rather than in the sound
-          menu, which is about noise. The note is the whole promise in one line,
-          so the switch never has to be pressed to learn what it does. */}
+          menu, which is about noise. Reports are on by default and nobody is
+          asked, so the note is where the deck says so: what is sent, what never
+          is, and that switching it off deletes what was sent — all readable
+          without pressing anything. */}
       <section className="appearance-section" aria-labelledby="appearance-improve-caption">
         <div className="appearance-caption">
           <h3 id="appearance-improve-caption">Help improve ccdeck</h3>
@@ -586,7 +588,7 @@ export default function AppearanceMenu({
           <p id="appearance-reports-note" className="appearance-section-note">
             {reportsVetoed
               ? "Off: this deck was started with AGENTS_DECK_NO_REPORTS=1 or AGENTS_DECK_NO_INSTALL=1."
-              : "Installs, updates, daily use and errors, under a random id. Never your sessions, prompts or files. Turning it off deletes what was sent."}
+              : "On by default. The deck reports installs, updates, daily use and errors under a random id, never your sessions, prompts or files. Turning it off deletes what was sent."}
           </p>
           <div className="appearance-improve-actions">
             <button type="button" className="btn appearance-station-action" onClick={onFeedback}>Send feedback…</button>

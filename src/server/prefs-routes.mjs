@@ -52,9 +52,9 @@ export async function handlePrefsWrite(req, res) {
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
-  // The reports answer has consequences a plain write would skip — an install
-  // id made, a deletion asked for — so it is changed only through
-  // /api/reports, and its state never by the page at all (#1853).
+  // The reports switch has consequences a plain write would skip — a deletion
+  // asked for — so it is changed only through /api/reports, and its state never
+  // by the page at all (#1853).
   const { reports: _reports, report: _report, ...patch } = body;
   try {
     await heldPrefs.write(patch);

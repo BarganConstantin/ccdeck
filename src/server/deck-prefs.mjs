@@ -78,18 +78,18 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
-  // ANONYMOUS REPORTS (#1853): null until the person answers the one question
-  // that asks, then their answer. Nothing is sent anywhere unless this is
-  // `true` — see reports.mjs for what "anything" is, and reportsVetoed for the
-  // launch-time veto that wins over it.
-  reports: null,
+  // ANONYMOUS REPORTS (#1853), ON unless somebody turns them off — the owner's
+  // decision, 2026-09-30: nobody is asked, the README says what is sent, and
+  // Appearance holds the switch. See reports.mjs for what is sent, and
+  // reportsVetoed for the launch-time veto that wins over this.
+  reports: true,
   // What reports.mjs keeps between runs, and the page never sees
-  // (publicPrefs). `installId` is the random id made when the answer became
-  // yes and dropped when it became no; `lastVersion` and `lastActiveDay` are
-  // what the install last said, so an update is told once and "active" at most
-  // once a day; `forget` is an id whose deletion has been asked for and not yet
-  // acknowledged, retried on the next start so an offline "no" still ends in a
-  // deletion.
+  // (publicPrefs). `installId` is the random id made at the first check-in and
+  // dropped when reports are switched off; `lastVersion` and `lastActiveDay`
+  // are what the install last said, so an update is told once and "active" at
+  // most once a day; `forget` is an id whose deletion has been asked for and
+  // not yet acknowledged, retried on the next start so switching off while
+  // offline still ends in a deletion.
   report: Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "" }),
   // LAN sync, ON unless somebody turns it off (since 3.22.7; off before).
   // `passphrase` is the only secret this file has ever held, which is why the
@@ -279,9 +279,7 @@ export function normalise(raw) {
     notifications: flagOr(src.notifications, DEFAULTS.notifications),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
-    // Three states, not a switch: "never asked" is not "no", and the question is
-    // shown only while it is null.
-    reports: typeof src.reports === "boolean" ? src.reports : null,
+    reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     lan: normaliseLan(src.lan),
   };
@@ -662,7 +660,7 @@ export function notificationsVetoed(env = process.env) {
   return env[OFF_ENV] === "1";
 }
 
-/** Did the machine rule out anonymous reports (#1853), whatever the person said?
+/** Did the machine rule out anonymous reports (#1853), whatever the switch says?
  *  AGENTS_DECK_NO_REPORTS=1 does, and so does AGENTS_DECK_NO_INSTALL=1, which
  *  the README promises "turns off everything but the quota reads". */
 export function reportsVetoed(env = process.env) {

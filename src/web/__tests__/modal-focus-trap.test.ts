@@ -275,7 +275,8 @@ describe("the deck's ten overlays", () => {
     // Local network. The nineteenth is the accounts panel's Usage report
     // (#1707), which adds every account's 5h and 7d up. The twentieth is the
     // network map, opened from Local network's row and its view's header.
-    expect(MODALS.length).toBe(22);
+    // The twenty-first is the feedback dialog, opened from Appearance (#1853).
+    expect(MODALS.length).toBe(21);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -341,10 +342,6 @@ describe("the deck's ten overlays", () => {
       // first control is the pencil that renames the machine, which a stray
       // Enter should not reach.
       "LanPeerModal.tsx",
-      // The reports question names No thanks, for the pair request's reason: a
-      // dialog that arrives on its own must not put the answer that sends
-      // anything under whatever key is pressed next (#1853).
-      "ReportsQuestion.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.

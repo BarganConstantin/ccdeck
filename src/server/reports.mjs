@@ -1,7 +1,7 @@
-// Anonymous reports, sent only when the person said yes (#1853).
+// Anonymous reports, on unless the person switched them off (#1853).
 //
-// WHAT GOES OUT, to api.ccdeck.dev, and only while `prefs.reports` is true and
-// the machine has not vetoed it (reportsVetoed):
+// WHAT GOES OUT, to api.ccdeck.dev, while `prefs.reports` is true and the
+// machine has not vetoed it (reportsVetoed):
 //
 //   - an "install" event the first time,
 //   - an "update" event, with the version it came from, when the version moves,
@@ -13,13 +13,17 @@
 //
 // Each carries the install id, the version, the OS and CPU architecture, the
 // channel (the desktop app or npm) and the runtime. Nothing about a session, a
-// project, a prompt, a path or a person: the install id is random, made the
-// moment the answer became yes, and tied to nothing on the machine.
+// project, a prompt, a path or a person: the install id is random, made at the
+// first check-in, and tied to nothing on the machine.
 //
-// SAYING NO DELETES WHAT WAS SENT. The id is forgotten here and the API is asked
-// to drop every event and error it holds for it; if that request cannot get
-// through, the id waits in `report.forget` and the ask is repeated on the next
-// start, so an offline "no" still ends in a deletion.
+// NOBODY IS ASKED, AND NOTHING IS HIDDEN. The owner chose on-by-default
+// (2026-09-30): the README says what is sent, Appearance holds the switch, and
+// AGENTS_DECK_NO_REPORTS=1 keeps it off from the first start.
+//
+// SWITCHING IT OFF DELETES WHAT WAS SENT. The id is forgotten here and the API
+// is asked to drop every event and error it holds for it; if that request
+// cannot get through, the id waits in `report.forget` and the ask is repeated
+// on the next start, so switching off while offline still ends in a deletion.
 //
 // NOTHING HERE THROWS OR WAITS FOR ANYBODY. A report that cannot be sent is
 // dropped: it is a nicety for the people who make ccdeck, and no part of the
@@ -44,10 +48,10 @@ const STACK_MAX = 4000;
 
 const EMPTY_REPORT = Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "" });
 
-/** Is this deck sending reports right now? The person's yes, the machine's
- *  consent, and an id to send them under — all three. */
+/** Is this deck sending reports right now? The switch, which is on unless
+ *  somebody turned it off, and the machine's consent. */
 export function reportsOn(prefs, env = process.env) {
-  return !reportsVetoed(env) && prefs?.reports === true && Boolean(prefs?.report?.installId);
+  return !reportsVetoed(env) && prefs?.reports !== false;
 }
 
 /** What every report says about the install, and nothing else. */
@@ -126,7 +130,7 @@ export function createReporter({
   }
 
   /** Change the reporter's state, but only while it still belongs to `installId`:
-   *  a "no" that landed in between has the last word. */
+   *  a switch-off that landed in between has the last word. */
   function remember(installId, change) {
     return prefs.update(prev =>
       prev.report.installId === installId ? { report: { ...prev.report, ...change } } : undefined,
@@ -155,7 +159,14 @@ export function createReporter({
     }
     if (!reportsOn(prefs.current(), env)) return;
 
+    // The id is made here, the first time there is something to send under it.
+    if (!prefs.current().report.installId) {
+      await prefs.update(prev =>
+        prev.reports === false || prev.report.installId ? undefined : { report: { ...prev.report, installId: randomUUID() } },
+      );
+    }
     const { installId, lastVersion, lastActiveDay } = prefs.current().report;
+    if (!installId) return;
     if (!lastVersion) {
       if (await call("POST", "/v1/app/events", { installId, kind: "install", ...facts })) {
         await remember(installId, { lastVersion: facts.version });
@@ -172,13 +183,10 @@ export function createReporter({
     }
   }
 
-  /** The person's answer. Yes makes an id (keeping one they already have) and checks in; no drops it and asks for a deletion. */
+  /** The switch. On checks in, which makes an id if there is none; off drops the id and asks for a deletion. */
   async function setReports(on) {
     if (on) {
-      await prefs.update(prev => ({
-        reports: true,
-        report: prev.report.installId ? prev.report : { ...EMPTY_REPORT, forget: prev.report.forget, installId: randomUUID() },
-      }));
+      await prefs.update(() => ({ reports: true }));
       await checkIn();
       return;
     }
@@ -196,7 +204,7 @@ export function createReporter({
    */
   async function reportError(where, error) {
     const p = prefs.current();
-    if (!reportsOn(p, env)) return false;
+    if (!reportsOn(p, env) || !p.report.installId) return false;
     const message = scrub(error?.message ?? error, home).slice(0, MESSAGE_MAX).trim();
     if (!message) return false;
     const at = now().getTime();

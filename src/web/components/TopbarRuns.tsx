@@ -266,7 +266,7 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
   menus: ReturnType<typeof useSettingsMenus>;
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
-  /** Opt-in anonymous reports, switched from the Appearance menu (#1853). */
+  /** Anonymous reports, on by default and switched off from the Appearance menu (#1853). */
   reports: ReturnType<typeof useReports>;
   onFeedback: () => void;
 }) {
@@ -418,9 +418,9 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
             onAddFmStation={addFmStation}
             onRenameFmStation={renameFmStation}
             onRemoveFmStation={removeFmStation}
-            reportsOn={reports.reportsAnswer === true && !reports.reportsVetoed}
+            reportsOn={reports.reportsOn !== false && !reports.reportsVetoed}
             reportsVetoed={reports.reportsVetoed}
-            onToggleReports={() => { void reports.answerReports(reports.reportsAnswer !== true); }}
+            onToggleReports={() => { void reports.answerReports(reports.reportsOn === false); }}
             onFeedback={() => { setAppearanceMenuOpen(false); onFeedback(); }}
             onClose={() => setAppearanceMenuOpen(false)}
           />

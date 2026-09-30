@@ -189,27 +189,7 @@
 }
 .cc-final { margin: 0; color: var(--text); font-size: 12px; font-weight: 500; }
 
-/* ---------------- reports question and feedback (#1853) ---------------- */
-
-/* The clear prompt's shape: a short text, what is sent and what never is as two
-   labelled groups, and two answers of the same weight. */
-.modal.reports-question { width: min(480px, 92vw); }
-.rq-lead, .rq-final { margin: 0 0 10px; color: var(--text); font-size: 12px; line-height: 1.5; }
-.rq-plan {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 14px;
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.rq-plan dt { color: var(--muted); font-weight: 600; }
-.rq-plan dd { display: flex; flex-direction: column; gap: 4px; margin: 0; color: var(--text); }
-.rq-actions, .fb-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* ---------------- feedback (#1853) ---------------- */
 
 /* A form of three fields under a row of three kinds. The fields are the
    accounts panel's own text field (.ap-manage-input), already swept for edge
@@ -224,6 +204,7 @@
 .fb-note { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .fb-error { margin: 0; color: var(--err); font-size: 12px; }
 .fb-done p { margin: 0 0 10px; color: var(--text); font-size: 13px; }
+.fb-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ---------------- keyboard shortcuts sheet ---------------- */
 

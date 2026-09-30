@@ -23,13 +23,11 @@ import type { ToolCall } from "./types";
 import { useModalGate } from "./use-modal-gate";
 import type { useWelcomeAndNotes } from "./use-welcome-and-notes";
 
-export function useDialogs({ stateRef, tourOpen, releaseNotes, reportsQuestionOpen }: {
+export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   stateRef: MutableRefObject<GraphState>;
   /** The two dialogs that open on their own, which the gate counts as well. */
   tourOpen: boolean;
   releaseNotes: ReturnType<typeof useWelcomeAndNotes>["releaseNotes"];
-  /** The one-time reports question (#1853), which opens on its own too. */
-  reportsQuestionOpen: boolean;
 }) {
   // Which call the tool modal shows: its agent and its id, since an id alone
   // can name two sessions' calls (#1483).
@@ -68,7 +66,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes, reportsQuestionOp
   // is the shortcuts sheet — use-modal-gate.ts.
   const { keyHelpOpenRef, modalOpenRef } = useModalGate({
     openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
-    feedbackOpen, reportsQuestionOpen,
+    feedbackOpen,
   });
   return {
     setOpenedToolKey, openTool, openedTool,

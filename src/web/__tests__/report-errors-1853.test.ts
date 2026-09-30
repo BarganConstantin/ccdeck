@@ -19,10 +19,13 @@ describe("errors the page caught", () => {
   it("go to the deck's server only while reports are on", () => {
     const target = page();
     const sent: { message: string; stack?: string }[] = [];
+    // Off is also what the page holds until it has read /api/prefs: reports are
+    // on by default, but a page that has not asked yet cannot know that nobody
+    // switched them off (use-reports.ts).
     let on = false;
     forwardPageErrors(() => on, target, body => sent.push(body));
 
-    target.fire("error", { error: new Error("before the yes") });
+    target.fire("error", { error: new Error("before the page knew") });
     on = true;
     const error = new Error("Cannot read properties of undefined (reading 'agents')");
     target.fire("error", { error });

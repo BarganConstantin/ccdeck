@@ -1,5 +1,5 @@
-// The page's three ways into reports.mjs (#1853): the person's answer to the
-// question, an error the page caught, and the feedback dialog. The page never
+// The page's three ways into reports.mjs (#1853): the switch in Appearance, an
+// error the page caught, and the feedback dialog. The page never
 // talks to api.ccdeck.dev itself — this server does, which is also why the
 // install id never has to reach the page.
 
@@ -18,7 +18,7 @@ async function readJson(req, res, limit) {
   }
 }
 
-/** `POST /api/reports` `{ on }`: the answer to "send anonymous reports?". */
+/** `POST /api/reports` `{ on }`: Appearance's "Send anonymous reports" switch. */
 export async function handleReportsWrite(req, res, { report = reporter } = {}) {
   const body = await readJson(req, res, 1_000);
   if (typeof body?.on !== "boolean") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -26,7 +26,7 @@ export async function handleReportsWrite(req, res, { report = reporter } = {}) {
   return send(res, 200, { ok: true, reports: heldPrefs.current().reports, reportsVetoed: reportsVetoed() });
 }
 
-/** `POST /api/client-error` `{ message, stack? }`: an error the page caught. Sent only if reports are on. */
+/** `POST /api/client-error` `{ message, stack? }`: an error the page caught. Sent on only while reports are on. */
 export async function handleClientError(req, res, { report = reporter } = {}) {
   const body = await readJson(req, res, 16_000);
   if (typeof body?.message !== "string") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -38,7 +38,7 @@ export async function handleClientError(req, res, { report = reporter } = {}) {
 /**
  * `POST /api/feedback` `{ kind, title, body, contact? }`: the feedback dialog.
  *
- * Not gated on the reports answer: pressing Send is its own answer, for this
+ * Not gated on the reports switch: pressing Send is its own decision, for this
  * one message. AGENTS_DECK_NO_INSTALL=1 still wins, because the README promises
  * that it "turns off everything but the quota reads", and a launch script's
  * word about the machine outranks a button on the page.

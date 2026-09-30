@@ -22,7 +22,6 @@ import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useDialogs } from "../use-dialogs";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
 import type { useLiveAnnouncements } from "../use-live-announcements";
-import type { useReports } from "../use-reports";
 import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import ClearConfirm from "./ClearConfirm";
@@ -33,7 +32,6 @@ import { WELCOME_STEPS } from "./guide-art";
 import KeyboardHelp from "./KeyboardHelp";
 import { LanPairRequests } from "./LanPairRequestModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
-import ReportsQuestion from "./ReportsQuestion";
 import SessionSummary from "./SessionSummary";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
@@ -45,7 +43,7 @@ const BrowserWatchModal = lazy(() => import("./BrowserWatchModal"));
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, reports,
+  appearance, providers, stateRef, agentCount,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -61,8 +59,6 @@ export default function DeckDialogs({
   stateRef: MutableRefObject<GraphState>;
   /** How many agents a Clear would take off the board. */
   agentCount: number;
-  /** Opt-in anonymous reports and their one-time question (#1853). */
-  reports: ReturnType<typeof useReports>;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -160,10 +156,6 @@ export default function DeckDialogs({
           machine up outranks an announcement about this one, and neither
           outranks the prompt somebody is standing in front of deciding
           whether to truncate a log. */}
-      {/* Opens on its own like the notes above, and only once they and the tour
-          have had their turn (use-reports.ts): it is a question about the deck,
-          and the deck should have been shown first. */}
-      {reports.reportsQuestionOpen && <ReportsQuestion onAnswer={on => { void reports.answerReports(on); }} />}
       <LanPairRequests {...lanPairs} />
       {/* Before the clear prompt and after everything else, which is where a
           reference belongs: it may paint over a tool inspector somebody opened

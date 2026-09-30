@@ -202,9 +202,6 @@ describe("the modals themselves", () => {
       // the four above.
       "ProcessListModal.tsx",
       "ReleaseNotesModal.tsx",
-      // The one-time reports question (#1853), which arrives on its own like
-      // the release notes and is dismissed the same way.
-      "ReportsQuestion.tsx",
       // #738's section history, named here for the same reason as the four
       // above: this is how it joins the loop below.
       "SectionHistoryModal.tsx",

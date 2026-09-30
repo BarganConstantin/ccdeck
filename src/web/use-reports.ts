@@ -1,36 +1,33 @@
-// The page's side of opt-in anonymous reports (#1853): the person's answer,
-// read with the rest of /api/prefs and changed through /api/reports; whether the
-// one-time question should be up; and the page's own errors, handed to the
-// server while the answer is yes.
+// The page's side of anonymous reports (#1853): whether they are on, read with
+// the rest of /api/prefs and changed through /api/reports by the switch in
+// Appearance; whether the machine ruled them out at launch; and the page's own
+// errors, handed to the server while they are on.
+//
+// On by default, so the only thing a page can learn from the server is that
+// somebody switched them off. Until that read lands the page does not know, and
+// not knowing is not "on": no error is forwarded before it, since the one deck
+// that must never send one is the deck whose owner said so.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { forwardPageErrors } from "./report-errors";
 
-/** null: never asked. undefined: not read yet, so nothing is asked either. */
-export type ReportsAnswer = boolean | null | undefined;
-
-export function useReports({ welcomeSettled, tourOpen, releaseNotesOpen }: {
-  /** The tour and the release notes have had their turn: the question comes after them, never over them. */
-  welcomeSettled: boolean;
-  tourOpen: boolean;
-  releaseNotesOpen: boolean;
-}) {
-  const [reportsAnswer, setReportsAnswer] = useState<ReportsAnswer>(undefined);
+export function useReports() {
+  /** undefined until /api/prefs was read; after that, on unless switched off. */
+  const [reportsOn, setReportsOn] = useState<boolean | undefined>(undefined);
   const [reportsVetoed, setReportsVetoed] = useState(false);
   const sending = useRef(false);
-  sending.current = reportsAnswer === true && !reportsVetoed;
+  sending.current = reportsOn === true && !reportsVetoed;
 
   useEffect(() => forwardPageErrors(() => sending.current), []);
 
   /** Handed the one GET /api/prefs the page makes (use-prefs-read.ts). */
   const loadReportsPrefs = useCallback((d: { prefs?: { reports?: unknown }; reportsVetoed?: unknown }) => {
-    const answer = d.prefs?.reports;
-    setReportsAnswer(typeof answer === "boolean" ? answer : null);
+    setReportsOn(d.prefs?.reports !== false);
     setReportsVetoed(d.reportsVetoed === true);
   }, []);
 
-  /** The answer, shown at once and corrected from what the server says it kept. */
+  /** The switch, shown at once and corrected from what the server says it kept. */
   const answerReports = useCallback(async (on: boolean) => {
-    setReportsAnswer(on);
+    setReportsOn(on);
     try {
       const response = await fetch("/api/reports", {
         method: "POST",
@@ -39,7 +36,7 @@ export function useReports({ welcomeSettled, tourOpen, releaseNotesOpen }: {
       });
       const d = await response.json();
       if (d?.ok) {
-        setReportsAnswer(typeof d.reports === "boolean" ? d.reports : null);
+        setReportsOn(d.reports !== false);
         setReportsVetoed(d.reportsVetoed === true);
       }
     } catch {
@@ -47,7 +44,5 @@ export function useReports({ welcomeSettled, tourOpen, releaseNotesOpen }: {
     }
   }, []);
 
-  const reportsQuestionOpen = reportsAnswer === null && !reportsVetoed && welcomeSettled && !tourOpen && !releaseNotesOpen;
-
-  return { reportsAnswer, reportsVetoed, loadReportsPrefs, answerReports, reportsQuestionOpen };
+  return { reportsOn, reportsVetoed, loadReportsPrefs, answerReports };
 }

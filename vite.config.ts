@@ -77,7 +77,8 @@ export default defineConfig({
     // one that is merely slow on Windows.
     hookTimeout: 30_000,
     // no-lan.ts keeps every deck a suite boots off the office network, now that
-    // Local network is on by default.
+    // Local network is on by default, and from reporting itself to
+    // api.ccdeck.dev as an install, now that anonymous reports are (#1853).
     setupFiles: ["./__tests__/budget.ts", "./__tests__/no-lan.ts"],
     // #702. Several suites here start a real deck out of a temp install and one
     // of them stopped only half of it — a supervisor SIGKILLed, its worker

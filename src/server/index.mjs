@@ -135,7 +135,7 @@ import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
-// Opt-in anonymous reports and the feedback dialog (#1853). The requests to
+// Anonymous reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
 import { handleClientError, handleFeedback, handleReportsWrite } from "./reports-routes.mjs";
 import { reporter } from "./reports.mjs";
@@ -218,8 +218,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // take the whole deck down — SSE stream, hook ingest and all — because one
   // background quota poll hit a network error. Answer the request instead.
   //
-  // The error also goes to reporter.reportError, which sends it (scrubbed) only
-  // for a person who said yes to reports, and never throws.
+  // The error also goes to reporter.reportError, which sends it (scrubbed)
+  // unless reports are switched off or vetoed, and never throws.
   const failed = (res, err) => {
     sendInternalError(res, err);
     reporter.reportError("server", err).catch(() => {});
@@ -481,10 +481,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // deck that had it on comes back with it on, and a launcher that only
       // asked the registry never binds a port it is about to walk away from.
       prefsRead.then(() => applyLanPrefs()).catch(() => {});
-      // Anonymous reports, for a person who said yes (#1853): what is due once
-      // the prefs are read, then a check every few hours on an unref'd timer.
-      // With no yes, or with AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL,
-      // nothing is sent.
+      // Anonymous reports (#1853): what is due once the prefs are read, then a
+      // check every few hours on an unref'd timer. Switched off in Appearance,
+      // or with AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL, nothing is sent.
       reporter.start();
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise. Its
