@@ -25,6 +25,19 @@
 // since #518 — disabling the focused button is what drops focus to <body>. When
 // the answer takes the form away, focus goes to Close (useFocusRescue, #1762)
 // and the one live region, present from the first render, says it was sent.
+//
+// THE MESSAGE IS THE ONE THING IT ASKS FOR. A required title over a required
+// body read as a chore before a word was typed, so the body comes first and
+// takes focus, and the title moved under it and became optional: left empty,
+// it is taken from the message's first line or first sentence, which is where
+// a person already puts the point (Apple Notes names a note that way), and the
+// empty title field shows that line as it is typed, so what will be sent is
+// never a guess. The API still gets the title it requires, 3 to 120
+// characters (ccdeck-api FeedbackRequest.Validate). A few starters over the
+// body — "It happened when", "I expected" — put the first words down for a
+// person who does not know how to begin; each is added on a line of its own
+// after what is typed, never over it, and through the field's own editing so
+// ⌘Z takes it back out.
 import { useRef, useState, type FormEvent } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
@@ -52,6 +65,10 @@ export interface KindCopy {
   bodyPlaceholder: string;
   /** What an empty body is told when Send is pressed. */
   bodyMissing: string;
+  /** The first words of a sentence this kind usually needs, offered over the
+   *  body. No ellipsis: the chip draws one, and the text added is these words
+   *  and a space, so typing carries straight on. */
+  starters: readonly string[];
 }
 
 export const KINDS: readonly KindCopy[] = [
@@ -63,6 +80,7 @@ export const KINDS: readonly KindCopy[] = [
     bodyLabel: "What went wrong",
     bodyPlaceholder: "What you did, what you expected, and what happened instead…",
     bodyMissing: "Say what went wrong.",
+    starters: ["It happened when", "I expected", "Instead, it"],
   },
   {
     value: "idea",
@@ -72,6 +90,7 @@ export const KINDS: readonly KindCopy[] = [
     bodyLabel: "What you would like",
     bodyPlaceholder: "What it would let you do, and when you would reach for it…",
     bodyMissing: "Say what you would like.",
+    starters: ["It would help if", "I would use it when", "Today I work around it by"],
   },
   {
     value: "other",
@@ -81,6 +100,7 @@ export const KINDS: readonly KindCopy[] = [
     bodyLabel: "What is on your mind",
     bodyPlaceholder: "Anything the people who make ccdeck should know…",
     bodyMissing: "Say what is on your mind.",
+    starters: ["I was wondering", "I noticed", "Thank you for"],
   },
 ];
 
@@ -89,21 +109,99 @@ export function kindCopy(kind: Kind): KindCopy {
   return KINDS.find(k => k.value === kind) ?? KINDS[0];
 }
 
+/** The API's limits (ccdeck-api FeedbackRequest): a title of 3 to 120
+ *  characters and a body of 1 to 10,000, both counted after a trim. */
 export const TITLE_MIN = 3;
 export const TITLE_MAX = 120;
 export const BODY_MAX = 10_000;
 const CONTACT_MAX = 200;
-export const TITLE_MISSING = "Give it a title of three characters or more.";
+export const TITLE_HINT = "Left empty, the first line of your message is used.";
+export const TITLE_MISSING = "Three characters or more, or leave it empty to use your first line.";
+/** A message too short to name itself, with no title typed: two characters
+ *  cannot make the three a title needs. */
+export const BODY_SHORT = "Say a little more: three characters or more.";
+
+/** The title a message gives itself: its first line, cut at the end of the
+ *  first sentence when that sentence can stand as a title, without the full
+ *  stop a title does not wear. A first line too short to be one gives way to
+ *  the whole message on one line. Past the API's 120 it is cut at a word and
+ *  ends in an ellipsis. Shorter than three means the message cannot name
+ *  itself, and missingFields says so. */
+export function titleFromBody(body: string): string {
+  const text = body.trim();
+  if (text === "") return "";
+  const line = oneLine(text.split(/\r?\n/, 1)[0]);
+  const sentence = /^(.+?[.!?])(?=\s|$)/.exec(line)?.[1] ?? line;
+  const lead = withoutFullStop(sentence).length >= TITLE_MIN ? withoutFullStop(sentence) : withoutFullStop(line);
+  return clipTitle(lead.length >= TITLE_MIN ? lead : oneLine(text));
+}
+
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** One full stop off the end, and never the last of three dots, a question
+ *  mark or an exclamation, which say something a full stop does not. */
+function withoutFullStop(text: string): string {
+  return /[^.]\.$/.test(text) ? text.slice(0, -1) : text;
+}
+
+/** At most TITLE_MAX, cut at the last word that fits and marked with an
+ *  ellipsis, which counts toward the limit. A word too long to leave room is
+ *  cut where it stands. Never half of a surrogate pair. */
+function clipTitle(text: string): string {
+  if (text.length <= TITLE_MAX) return text;
+  const room = text.slice(0, TITLE_MAX - 1);
+  const space = room.lastIndexOf(" ");
+  const cut = space >= TITLE_MAX / 2 ? room.slice(0, space) : room;
+  return `${cut.replace(/[\uD800-\uDBFF]$/, "").replace(/[\s,;:.\-–—]+$/, "")}…`;
+}
+
+/** What goes as the title: the one typed, or the one the message gives. A
+ *  title of spaces is no title, so the message names itself then too. */
+export function titleToSend(title: string, body: string): string {
+  return title.trim() || titleFromBody(body);
+}
+
+/** Every kind's starters, since a starter put down under one kind stays in
+ *  the message when the kind is changed. */
+const STARTERS: ReadonlySet<string> = new Set(KINDS.flatMap(k => k.starters));
+
+/** Whether the message holds a word somebody wrote, rather than only spaces
+ *  and the words a starter put down: "It would help if" on its own says
+ *  nothing, and would otherwise go out as its own title. */
+export function hasWriting(body: string): boolean {
+  return body.split(/\r?\n/).some(line => line.trim() !== "" && !STARTERS.has(line.trim()));
+}
 
 export type FeedbackField = "title" | "body";
 
 /** The fields Send cannot go without, in the order the form draws them — the
- *  first is where focus goes. Trimmed, so a line of spaces is not a title. */
+ *  first is where focus goes. The message is the one required thing; a title
+ *  is wrong only when one is typed and is under three characters. A message
+ *  too short to name itself, with no title, is the message's problem, not the
+ *  title's: the fix is a few more words. Trimmed throughout. */
 export function missingFields(title: string, body: string): FeedbackField[] {
   const missing: FeedbackField[] = [];
-  if (title.trim().length < TITLE_MIN) missing.push("title");
-  if (body.trim().length === 0) missing.push("body");
+  const typed = title.trim();
+  if (!hasWriting(body) || (typed === "" && titleFromBody(body).length < TITLE_MIN)) missing.push("body");
+  if (typed !== "" && typed.length < TITLE_MIN) missing.push("title");
   return missing;
+}
+
+/** Where a starter goes and what it adds: over a field that holds nothing but
+ *  spaces, the whole field; otherwise at the end, on a line of its own. It
+ *  never replaces a character anybody typed. */
+export function starterEdit(body: string, starter: string): { from: number; text: string } {
+  const phrase = `${starter} `;
+  if (body.trim() === "") return { from: 0, text: phrase };
+  return { from: body.length, text: body.endsWith("\n") ? phrase : `\n${phrase}` };
+}
+
+/** The body once a starter is added — what starterEdit describes, applied. */
+export function withStarter(body: string, starter: string): string {
+  const { from, text } = starterEdit(body, starter);
+  return body.slice(0, from) + text;
 }
 
 /** The keystroke fields a shortcut is read from. Structural, so a test can pass
@@ -159,7 +257,7 @@ type Outcome =
 export function feedbackFailure(status: number, reason: unknown): string {
   if (reason === "vetoed") return "This deck was started with AGENTS_DECK_NO_INSTALL=1, which keeps it off the network, so nothing was sent.";
   if (status === 429 || reason === "too_many") return "Too much feedback from this network in the last hour. Try again later; your text is still here.";
-  if (status === 400) return "The server did not accept this. Check that the title and the text are filled in.";
+  if (status === 400) return "The server did not accept the title or the text. Both are still here; check them and send again.";
   return "ccdeck's server could not be reached. Nothing was sent; your text is still here, so try again in a moment.";
 }
 
@@ -172,8 +270,8 @@ export function outcomeAnnouncement(outcome: Outcome["state"]): string {
 }
 
 /** The kind's glyph, on the topbar's one icon spec (#837): a 14 viewBox, a 1.4
- *  stroke, round caps and joins. Something wrong is the topbar's own Report a
- *  problem bubble, so the door and the choice it opens on look alike; something
+ *  stroke, round caps and joins. Something wrong is the topbar Feedback button's
+ *  own bubble, so the door and the choice it opens on look alike; something
  *  else is the same bubble with an ellipsis; an idea is a bulb. */
 function KindGlyph({ kind }: { kind: Kind }) {
   return (
@@ -214,7 +312,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const sendingRef = useRef(false);
-  const dialogRef = useModalDismiss(onClose, { focusRef: titleRef });
+  const dialogRef = useModalDismiss(onClose, { focusRef: bodyRef });
   const [kind, setKind] = useState<Kind>(initialKind ?? "bug");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(initialBody ?? "");
@@ -226,15 +324,31 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const missing = missingFields(title, body);
   const titleMissing = triedToSend && missing.includes("title");
   const bodyMissing = triedToSend && missing.includes("body");
+  const bodyError = hasWriting(body) ? BODY_SHORT : copy.bodyMissing;
+  const derivedTitle = hasWriting(body) ? titleFromBody(body) : "";
+  const sentTitle = titleToSend(title, body);
   const sending = outcome.state === "sending";
   const [capA, capB] = sendShortcutCaps(platformName());
+
+  /** Puts a starter's words down through the field's own editing, so the
+   *  field keeps it on its undo stack and ⌘Z takes it back out. Where the
+   *  browser will not insert text that way, the value is set instead. */
+  function startWith(starter: string) {
+    const field = bodyRef.current;
+    if (!field) return;
+    const { from, text } = starterEdit(field.value, starter);
+    field.focus();
+    if (from + text.length > BODY_MAX) return;
+    field.setSelectionRange(from, field.value.length);
+    if (!document.execCommand("insertText", false, text)) setBody(withStarter(field.value, starter));
+  }
 
   async function send(event: FormEvent) {
     event.preventDefault();
     if (!selfPressAccepted(sendingRef.current)) return;
     if (missing.length > 0) {
       setTriedToSend(true);
-      (missing[0] === "title" ? titleRef : bodyRef).current?.focus();
+      (missing[0] === "body" ? bodyRef : titleRef).current?.focus();
       return;
     }
     armRescue();
@@ -244,7 +358,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
       const response = await fetch("/api/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind, title: title.trim(), body: body.trim(), contact: contact.trim() || undefined }),
+        body: JSON.stringify({ kind, title: sentTitle, body: body.trim(), contact: contact.trim() || undefined }),
       });
       const d = await response.json().catch(() => null);
       setOutcome(response.ok && d?.ok
@@ -284,7 +398,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
               <p className="fb-done-note">It reached the people who make ccdeck.</p>
               <p className="fb-receipt">
                 <KindGlyph kind={kind} />
-                <span>{title.trim()}</span>
+                <span>{sentTitle}</span>
               </p>
               <button ref={closeRef} type="button" className="btn primary" onClick={onClose}>Close</button>
             </div>
@@ -331,29 +445,16 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                   twice, once as the name and once as the description. */}
               <div className="fb-fields">
                 <div className="fb-field">
-                  <label className="fb-label" htmlFor="fb-title">Title</label>
-                  <input
-                    ref={titleRef}
-                    id="fb-title"
-                    className="ap-manage-input"
-                    type="text"
-                    value={title}
-                    maxLength={TITLE_MAX}
-                    placeholder={copy.titlePlaceholder}
-                    onChange={e => setTitle(e.target.value)}
-                    onKeyDown={e => {
-                      if (!isPlainEnter(e.nativeEvent)) return;
-                      e.preventDefault();
-                      bodyRef.current?.focus();
-                    }}
-                    aria-invalid={titleMissing || undefined}
-                    aria-describedby={titleMissing ? "fb-title-error" : undefined}
-                    required
-                  />
-                  {titleMissing && <p id="fb-title-error" className="fb-error">{TITLE_MISSING}</p>}
-                </div>
-                <div className="fb-field">
                   <label className="fb-label" htmlFor="fb-body">{copy.bodyLabel}</label>
+                  {/* Before the field, so Tab from the message goes on to the
+                      title and a starter is one Shift+Tab back. */}
+                  <div className="fb-starters" role="group" aria-label="Start a sentence with">
+                    {copy.starters.map(starter => (
+                      <button key={starter} type="button" className="fb-starter" onClick={() => startWith(starter)}>
+                        {starter}…
+                      </button>
+                    ))}
+                  </div>
                   <textarea
                     ref={bodyRef}
                     id="fb-body"
@@ -367,7 +468,35 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                     aria-describedby={bodyMissing ? "fb-body-error" : undefined}
                     required
                   />
-                  {bodyMissing && <p id="fb-body-error" className="fb-error">{copy.bodyMissing}</p>}
+                  {bodyMissing && <p id="fb-body-error" className="fb-error">{bodyError}</p>}
+                </div>
+                <div className="fb-field">
+                  <label className="fb-label" htmlFor="fb-title">
+                    Title
+                    <span className="fb-optional">optional</span>
+                  </label>
+                  {/* Empty, the field shows the title the message gives, as
+                      it is typed: the one that will be sent. */}
+                  <input
+                    ref={titleRef}
+                    id="fb-title"
+                    className="ap-manage-input"
+                    type="text"
+                    value={title}
+                    maxLength={TITLE_MAX}
+                    placeholder={derivedTitle.length >= TITLE_MIN ? derivedTitle : copy.titlePlaceholder}
+                    onChange={e => setTitle(e.target.value)}
+                    onKeyDown={e => {
+                      if (!isPlainEnter(e.nativeEvent) || body.trim() !== "") return;
+                      e.preventDefault();
+                      bodyRef.current?.focus();
+                    }}
+                    aria-invalid={titleMissing || undefined}
+                    aria-describedby={titleMissing ? "fb-title-error" : "fb-title-hint"}
+                  />
+                  {titleMissing
+                    ? <p id="fb-title-error" className="fb-error">{TITLE_MISSING}</p>
+                    : <p id="fb-title-hint" className="fb-hint">{TITLE_HINT}</p>}
                 </div>
                 <div className="fb-field">
                   <label className="fb-label" htmlFor="fb-contact">

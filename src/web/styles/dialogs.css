@@ -192,7 +192,9 @@
 /* ---------------- feedback (#1853) ---------------- */
 
 /* Three groups, top to bottom, with the modal body's 16px between them: what
-   kind of feedback it is, the three fields, and what happens to it once sent.
+   kind of feedback it is, the three fields — the message, which is the one
+   thing it asks for, then an optional title and an optional way back — and
+   what happens to it once sent.
    Under them a footer that holds Send, outside the body's scroll, so a long
    message grows the body and never pushes the button off the dialog.
    The fields are the accounts panel's own text field (.ap-manage-input),
@@ -320,6 +322,36 @@
   field-sizing: content;
 }
 .fb-error { margin: 0; color: var(--err); font-size: 12px; line-height: 16px; }
+/* The line under the title: what an empty title becomes. The error takes its
+   place when there is one, on the same 16px line, so nothing under it moves. */
+.fb-hint { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 16px; }
+
+/* STARTERS. The first words of a sentence the chosen kind usually needs, over
+   the message, for a person who does not know how to begin. Pressed, they go
+   down on a line of their own after what is typed and the caret follows, so
+   typing carries on. Pills, so they read as words on offer rather than as the
+   form's own controls; a --ctl-edge frame because a pill has no other
+   boundary; the toolbar's neutral hover and the labelled controls' 0.97. No
+   motion of their own beyond that: the words appear where the caret is. */
+.fb-starters { display: flex; flex-wrap: wrap; gap: 6px; }
+.fb-starter {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fb-starter:hover { border-color: var(--text); background: var(--ctl-fill); color: var(--text); }
+.fb-starter:active { transform: scale(0.97); }
 
 /* What happens to it, in a well of its own under the fields and over Send: the
    last thing read before pressing. An eye rather than a lock, because the

@@ -396,6 +396,9 @@ const PRESSES: Press[] = [
   // round its radio, the import card's shape, and pressed as that card is —
   // a labelled control, so 0.97.
   [".fb-kind:active", "0.97", "transform"],
+  // And the starters over its message: a few words in a pill, a labelled
+  // control, so 0.97.
+  [".fb-starter:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

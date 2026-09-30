@@ -320,8 +320,9 @@ describe("the deck's ten overlays", () => {
       // press.
       "AccountsUsageReport.tsx",
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
-      // Feedback names its title field: it was opened to write in, and the
-      // row of kinds above it already holds a sensible answer (#1853).
+      // Feedback names its message field: it was opened to write in, the
+      // row of kinds above it already holds a sensible answer, and the message
+      // is the one thing it asks for — the title under it is optional (#1853).
       "FeedbackDialog.tsx",
       // A guide names Next, because it is read forwards: a reader who opened
       // it with Enter can keep pressing Enter to the end, and the × is still

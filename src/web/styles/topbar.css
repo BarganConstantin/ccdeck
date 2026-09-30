@@ -265,6 +265,22 @@
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
   .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 8px; }
 }
+/* FEEDBACK'S WORD, WHERE THE BUSIEST BAR STILL HOLDS IT (#1853). The button was
+   a bare glyph at the end of the words and could not be found, so it says
+   "Feedback" too — but not from 1440 with the others. The busiest bar is
+   #737's case (a blocked session, "this month" at its widest, a selected node
+   whose name fills any cap), and measured on a real deck it is already wider
+   than #737's reserve assumes: 1302px besides the ribbon, where the reserve
+   says 1213. Drawn from 1440, the word's 62px went straight out of the
+   wordmark. So it arrives where that bar, the word, the ribbon's full 380 and
+   #737's 40px of headroom all fit: 1784 — every 1920 screen. Under that it is
+   the glyph alone, at the toolbar's resting --muted, the tone every labelled
+   control rests at, with its name and its tooltip. */
+.tb-word-wide { display: none; }
+@media (min-width: 1784px) {
+  .topbar .tb-word-wide { display: inline; font-size: 12px; line-height: 1; }
+  .topbar button.btn.icon-btn:has(.tb-word-wide) { width: auto; gap: 6px; padding: 0 8px; }
+}
 /* Two providers in an incident at once (#1311). The readout gives from the
    left, so two chips in full — Claude's and Codex's, about 280px — cost the
    wordmark on a 1440px screen with a session waiting, and the stream pill
