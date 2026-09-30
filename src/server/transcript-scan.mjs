@@ -447,12 +447,28 @@ function foldContextLine(state, line, record) {
  *  `join`, so `C:/x/y.jsonl` and `C:\x\y\subagents\agent-1.jsonl` would
  *  otherwise be two sessions instead of one; `resolve` settles the separator
  *  on all three platforms, and leaves a backslash inside a POSIX filename
- *  alone rather than reading it as a directory break. */
+ *  alone rather than reading it as a directory break.
+ *
+ *  ANY AGENT ID, AT ANY DEPTH BELOW `subagents/` (#1749). The id is not all hex:
+ *  CC names a labelled agent `a<label>-<16 hex>` (`aextract_memories-…`), and it
+ *  writes a workflow's agents one folder further down, in
+ *  `subagents/workflows/<run>/`. Both used to fall outside the pattern and so
+ *  became sessions of their own, each evicting on its own. The session is the
+ *  directory above the nearest `subagents` folder, found in two linear passes
+ *  rather than one backtracking pattern, because the path can be a caller's. */
 export function transcriptSessionKey(path) {
   const full = resolve(path);
-  const sub = /^(.*)[\\/]subagents[\\/]agent-[0-9a-f]+\.jsonl$/i.exec(full);
-  return sub ? sub[1] : full.replace(/\.jsonl$/i, "");
+  if (SUBAGENT_TRANSCRIPT_RE.test(full)) {
+    let at = -1;
+    for (const m of full.matchAll(SUBAGENTS_DIR_RE)) at = m.index;
+    if (at >= 0) return full.slice(0, at);
+  }
+  return full.replace(/\.jsonl$/i, "");
 }
+// A subagent's transcript as CC names it — `agent-<id>.jsonl`, whatever the id —
+// and the folder it sits somewhere below. See transcriptSessionKey.
+const SUBAGENT_TRANSCRIPT_RE = /[\\/]agent-[^\\/]+\.jsonl$/i;
+const SUBAGENTS_DIR_RE = /[\\/]subagents(?=[\\/])/gi;
 
 /** Record a use of `path` and keep the cache under both caps. Re-inserting the
  *  session on every touch makes the Map's own insertion order the LRU order,
@@ -516,17 +532,22 @@ function scanTranscript(path) {
   const inFlight = transcriptScanInFlight.get(path);
   if (inFlight) return inFlight;
   const run = (async () => {
+    // The file is looked at BEFORE it is given a slot. The cache is capped in
+    // sessions and a new slot can evict another session's cursors, which costs
+    // that session a re-read of its whole transcript from byte 0 — the cost the
+    // cursor exists to remove. A path that cannot be stat-ed, or is not a file,
+    // has nothing to fold, so it answers with what it already had and takes no
+    // slot.
+    const s = await stat(path).catch(() => null);
+    if (!s || !s.isFile()) return transcriptScans.get(path) ?? newTranscriptState();
     let state = transcriptScans.get(path);
     if (!state) state = newTranscriptState();
     touchTranscriptScan(path, state);
     try {
-      const s = await stat(path);
       // Shorter than the cursor means the file was truncated, rotated or
       // replaced — the offset now points at unrelated bytes, so start over.
       if (s.size < state.offset) {
         state = newTranscriptState();
-        // Touch again rather than set: the await above yielded, and another
-        // path's scan may have re-ordered or evicted this entry meanwhile.
         touchTranscriptScan(path, state);
       }
       if (s.size <= state.offset) return state;

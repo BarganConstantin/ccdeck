@@ -127,6 +127,19 @@ vi.mock("node:child_process", () => ({
   execFile: () => { throw new Error("test: execFile blocked"); },
 }));
 
+// The Linux process read takes its CPU column from /proc/<pid>/stat as well as
+// from `ps` (#1769). Refused here, so a pid in the fixtures above that happens
+// to exist on the machine running the suite is never read; the rows simply
+// carry no CPU yet, which is what a first reading reports anyway.
+vi.mock("node:fs/promises", async importOriginal => {
+  const real = await importOriginal<typeof import("node:fs/promises")>();
+  const readFile = ((path: unknown, ...rest: unknown[]) =>
+    String(path).startsWith("/proc/")
+      ? Promise.reject(new Error("test: /proc blocked"))
+      : (real.readFile as (...a: unknown[]) => Promise<unknown>)(path, ...rest)) as typeof real.readFile;
+  return { ...real, default: { ...real, readFile }, readFile };
+});
+
 // ccusage.mjs resolves ~/.agents-deck/ccusage out of os.homedir() at import
 // time, so both home variables point into a temp directory BEFORE the module
 // loads and nothing here can see the developer's real managed install. PATH goes

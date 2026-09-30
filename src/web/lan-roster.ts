@@ -65,7 +65,11 @@ export function rosterSplit(peers: Peer[], now: number): { online: Peer[]; offli
  * reader most needs told apart.
  */
 export function sectionState(
-  s: { enabled?: boolean; running?: boolean; stalled?: string | null; peers?: Peer[]; pending?: LanStranger[] } | null,
+  s: {
+    enabled?: boolean; running?: boolean; stalled?: string | null; peers?: Peer[]; pending?: LanStranger[];
+    /** Read for the names the list folds machines by — see deckRows. */
+    aliases?: Record<string, string>;
+  } | null,
   now: number,
 ): { text: string; tone: "bad" | "idle" | "ok" | "wait" } {
   // NOT "off". Nothing has been asked yet, and a line that says the feature is
@@ -114,18 +118,27 @@ export function sectionState(
   // times every authenticated frame — held to the same window a beacon is.
   // Asked of calledLately, which is what draws that deck's row live, so the
   // line and the row cannot count one machine two ways (#1690).
-  const waiting = peers.filter(p => p.waiting);
-  const dialled = peers.filter(p => !p.waiting);
-  const calling = waiting.filter(p => calledLately(p.lastSeen, now));
-  const { online, offline: notAnswering } = rosterSplit(dialled, now);
-  const offline = [...notAnswering, ...waiting.filter(p => !calling.includes(p))];
-  const here = online.length + calling.length;
+  const present = (p: Peer) => (p.waiting ? calledLately(p.lastSeen, now) : isOnline(p, now));
   // REACHED, AND WAITING ON A PERSON. Every one of them answered — they are as
   // present as a deck can be — and none of them can move a login until somebody
   // at that machine presses accept. Neither `ready` nor `cannot reach` is true
   // of that, and the line said the second one over three healthy machines.
-  const unanswered = online.filter(p => p.last?.error === "waiting for the other deck to accept this one");
-  if (here && unanswered.length === here) {
+  const asksToBeAccepted = (p: Peer) => !p.waiting && p.last?.error === "waiting for the other deck to accept this one";
+  // AND IT COUNTS MACHINES, NOT KEYS, because the list does (#1802). One Mac
+  // paired under three keys — two deck starts and a key it held before — is
+  // one row there, and the line said `cannot reach any of its 3 decks` over
+  // it. So the decks are grouped by the list's own rule first: a machine is
+  // here when any of its decks is, and waiting on a person only when every one
+  // of its decks that is here is waiting.
+  const aliases = s.aliases ?? {};
+  let here = 0, unanswered = 0, offline = 0;
+  for (const machine of machines(peers, p => pairedName(p, p.peerFp ?? p.fp, aliases).name, p => p.addr ?? "")) {
+    const on = machine.filter(present);
+    if (!on.length) { offline++; continue; }
+    here++;
+    if (on.every(asksToBeAccepted)) unanswered++;
+  }
+  if (here && unanswered === here) {
     return {
       text: here === 1
         ? "1 deck found · waiting for them to accept"
@@ -137,14 +150,14 @@ export function sectionState(
     // Named and directional. "Not reachable" says nothing about which side
     // cannot do what, and a reader who does not know the answer cannot act.
     return {
-      text: offline.length === 1
+      text: offline === 1
         ? "this deck cannot reach the one it is paired with"
-        : `this deck cannot reach any of its ${offline.length} decks`,
+        : `this deck cannot reach any of its ${offline} decks`,
       tone: "bad",
     };
   }
   const ready = here === 1 ? "1 deck ready" : `${here} decks ready`;
-  return { text: offline.length ? `${ready} · ${offline.length} away` : ready, tone: "ok" };
+  return { text: offline ? `${ready} · ${offline} away` : ready, tone: "ok" };
 }
 
 /**
@@ -428,8 +441,7 @@ function pairedRow(p: Peer, fp: string, aliases: Record<string, string>, now: nu
   // to read. A round that MOVED something still says so, and so does every
   // failure, every wait and every machine that is not there.
   const quiet = !called && present && !p.last?.error && !(p.last?.done ?? []).length;
-  // An address nothing has answered at has no identity to hang a name on.
-  const n = p.manual && !p.met ? { name: where } : named(aliases, fp, p.name || fp);
+  const n = pairedName(p, fp, aliases);
   return {
     fp,
     ...n,
@@ -448,12 +460,19 @@ function pairedRow(p: Peer, fp: string, aliases: Record<string, string>, now: nu
     hint: called
       ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
           p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
-        } Add its address with the + at the top of this section to reach it either way.`
+        } Add its address through Add a deck, the link at the top of this view, to reach it either way.`
       // The whole sentence, verbatim, including the address and the code the
       // row is too narrow to carry. This is where somebody looks when the
       // short form is not enough.
       : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
   };
+}
+
+/** The name a paired deck's row is drawn under, which is also the name the
+ *  list folds machines by — so the line that counts them asks it too. An
+ *  address nothing has answered at has no identity to hang a name on. */
+function pairedName(p: Peer, fp: string, aliases: Record<string, string>): { name: string; self?: string } {
+  return p.manual && !p.met ? { name: p.addr ? `${p.addr}:${p.port}` : "" } : named(aliases, fp, p.name || fp);
 }
 
 /** A machine on the network that nobody here has paired with. */
@@ -535,19 +554,27 @@ function roundWords(line: RoundLine): string {
  * about; then one that holds an address; otherwise the order they came in.
  */
 export function oneRowPerMachine(rows: DeckRow[]): DeckRow[] {
-  const byName = new Map<string, DeckRow[]>();
-  for (const r of rows) {
-    const list = byName.get(r.name);
-    if (list) list.push(r); else byName.set(r.name, [r]);
+  return machines(rows, r => r.name, r => r.addr).map(fold);
+}
+
+/** oneRowPerMachine's grouping, for anything with a name and an address: the
+ *  rows the list draws, and the peers the line under the switch counts
+ *  (#1802), so the two cannot tell machines apart two ways. A deck with no
+ *  address under a name that is at two addresses is a machine of its own. */
+function machines<T>(list: T[], nameOf: (t: T) => string, addrOf: (t: T) => string): T[][] {
+  const byName = new Map<string, T[]>();
+  for (const t of list) {
+    const group = byName.get(nameOf(t));
+    if (group) group.push(t); else byName.set(nameOf(t), [t]);
   }
-  const out: DeckRow[] = [];
+  const out: T[][] = [];
   for (const group of byName.values()) {
-    const addrs = [...new Set(group.filter(r => r.addr).map(r => r.addr))];
+    const addrs = [...new Set(group.map(addrOf).filter(Boolean))];
     if (addrs.length > 1) {
-      for (const a of addrs) out.push(fold(group.filter(r => r.addr === a)));
-      out.push(...group.filter(r => !r.addr));
+      for (const a of addrs) out.push(group.filter(t => addrOf(t) === a));
+      for (const t of group) if (!addrOf(t)) out.push([t]);
     } else {
-      out.push(fold(group));
+      out.push(group);
     }
   }
   return out;

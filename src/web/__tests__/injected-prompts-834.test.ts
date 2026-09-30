@@ -80,7 +80,7 @@ describe("the surfaces that count prompts (#834)", () => {
   });
 
   it("lists the notice collapsed, by its label, and never prints its text as a prompt", () => {
-    expect(app).toMatch(/<details className="prompt-entry prompt-injected" key=\{i\}>/);
+    expect(app).toMatch(/<details className="prompt-entry prompt-injected" key=\{key\}>/);
     expect(app).toContain("{injected.label}");
     const injectedBranch = /if \(injected\) \{([\s\S]*?)\n\s{14}\}/.exec(app)![1];
     expect(injectedBranch).not.toContain("pr.text");

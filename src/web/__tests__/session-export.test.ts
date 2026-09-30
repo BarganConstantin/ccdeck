@@ -117,12 +117,12 @@ describe("exportFileName", () => {
     // A label is whatever the working directory or the first prompt made it, so
     // it holds slashes, colons and spaces. Replaced rather than stripped, so
     // two labels that differ only in punctuation still differ here.
-    expect(exportFileName("feat/x: y", "abcdef123456")).toBe(`${PRODUCT}-feat_x__y-abcdef12.json`);
+    expect(exportFileName("feat/x: y", "abcdef123456")).toBe(`${PRODUCT}-feat_x__y-ef123456.json`);
     expect(exportFileName("a b", "s")).toBe(`${PRODUCT}-a_b-s.json`);
   });
 
   it("keeps the characters a name is allowed to have", () => {
-    expect(exportFileName("Deck-1.2_x", "abcdefghij")).toBe(`${PRODUCT}-Deck-1.2_x-abcdefgh.json`);
+    expect(exportFileName("Deck-1.2_x", "abcdefghij")).toBe(`${PRODUCT}-Deck-1.2_x-cdefghij.json`);
   });
 
   it("falls back to `session` rather than leaving a gap", () => {
@@ -130,8 +130,9 @@ describe("exportFileName", () => {
     expect(exportFileName(undefined, "s1")).toBe(`${PRODUCT}-session-s1.json`);
   });
 
-  it("cuts the id to eight, so the name stays readable in a download list", () => {
-    expect(exportFileName("x", "0123456789abcdef")).toBe(`${PRODUCT}-x-01234567.json`);
+  it("cuts the id to its last eight, so the name stays readable in a download list", () => {
+    // The last, because a Codex id opens with a timestamp (#1732).
+    expect(exportFileName("x", "0123456789abcdef")).toBe(`${PRODUCT}-x-89abcdef.json`);
     // Shorter than eight is left as it is rather than padded.
     expect(exportFileName("x", "abc")).toBe(`${PRODUCT}-x-abc.json`);
   });

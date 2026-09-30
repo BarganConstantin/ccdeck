@@ -290,6 +290,16 @@ export interface AgentNodeData {
   recap?: SessionRecap;
   prompts: PromptEntry[];
   toolCount: number;
+  /** How many of the calls `toolCount` counts failed, over the same lifetime
+   *  rather than over the window `tools` keeps (#1809) — a long session's early
+   *  failures slide out of that window long before the session is recapped.
+   *  Kept by tool-calls.ts wherever a call's `ok` changes. Absent is none. */
+  toolErrorCount?: number;
+  /** The calls `toolCount` counts, by tool name, for the same reason (#1809).
+   *  One entry per tool this agent has used, however many calls, so it grows
+   *  with the tool vocabulary and not with the session. A Map because the keys
+   *  are whatever the payload named. Absent is none. */
+  toolCountByName?: Map<string, number>;
   /** Root nodes only. True when this session's node was created by something
    *  other than a `SessionStart` — the deck is drawing a session it joined
    *  after the beginning, so the start time, prompt history and early tool

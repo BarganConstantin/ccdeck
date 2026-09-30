@@ -140,6 +140,40 @@ export function startupWork({ wantClaude, installHooks, leftoverCodexHooks }) {
   return { hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks };
 }
 
+/**
+ * The one piece of startupWork a respawn still owes: the hooks, when the
+ * package under the session has changed since they were installed (#1735).
+ *
+ * A global-install update relaunches the worker from the new files with
+ * AGENTS_DECK_RESPAWN=1, and a respawn skips startupWork — which is the only
+ * caller of installHooks, and so the only code that puts this version's hook.js
+ * and its package.json beside Claude Code and rewrites the entries. The deck
+ * came back on the new version while every tool call still ran the previous
+ * version's forwarder, until the supervisor itself restarted: for a deck in the
+ * background, the next login.
+ *
+ * `bootVersion` is the version the supervisor started on, which is the one the
+ * first worker installed with. The same version is the same session continuing
+ * and installs nothing, which keeps a restart the second it is. Anything else —
+ * including no answer, which is a supervisor from before this variable and so
+ * precisely the one running on the first update after it — installs again.
+ * installHooks writes nothing that is already identical, so a second respawn on
+ * the new version costs a few reads.
+ *
+ * A failure is one line and the restart goes on: the deck is serving, and the
+ * previous forwarder, which is still in place, still reaches it.
+ */
+export async function respawnHooks({ wantClaude, installHooks, bootVersion }) {
+  if (!wantClaude || bootVersion === PKG_VERSION) return null;
+  try {
+    return await installHooks({ provider: "claude" });
+  } catch (err) {
+    const why = String(err?.message ?? err).split("\n")[0];
+    console.error(`${PRODUCT}: Claude hooks not updated to v${PKG_VERSION} ${G.dash} ${why}`);
+    return null;
+  }
+}
+
 /** The same work, said out loud, in a fixed order — a boot whose rows arrive in
  *  whatever order the network settled is a boot nobody can scan twice. */
 export async function reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR }) {

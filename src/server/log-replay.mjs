@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { PRODUCT } from "./brand.mjs";
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
-import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, payloadChars } from "./ring-bounds.mjs";
+import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, isEnrichment, payloadChars } from "./ring-bounds.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -152,27 +152,55 @@ export function replayScope(workspace, platform = process.platform, providers = 
 }
 
 /**
+ * The ring's three bounds, counted the way the ring counts them, for a reader
+ * that stages the log newest-first and has to know when to stop.
+ *
+ * MAX_BUFFER is HOOK events since #1032: the enrichment interleaved among them
+ * (LAST_VALUE_WINS) rides free, bounded only by MAX_RING_ENTRIES and
+ * MAX_BUFFER_CHARS. This used to count every line toward MAX_BUFFER, and at the
+ * ~1.6 enrichment lines a real deck logs per hook event that stopped the boot
+ * replay with about a third of the ring's window rebuilt (#1750). `add` stages
+ * one payload and answers whether the ring is now full.
+ */
+function ringBudget(maxEvents, maxEntries, maxChars) {
+  let hookEvents = 0;
+  let entries = 0;
+  let chars = 0;
+  const full = () => hookEvents >= maxEvents || entries >= maxEntries || chars >= maxChars;
+  return {
+    full,
+    add(payload) {
+      entries++;
+      if (!isEnrichment(payload)) hookEvents++;
+      chars += ENVELOPE_CHARS + payloadChars(payload);
+      return full();
+    },
+  };
+}
+
+/**
  * Can this log fill the ring on its own?
  *
  * Read from the END and bounded by the ring, so the answer costs at most one
  * ring's worth of parsing however large the file is — and on a full log it
- * stops within the first few hundred lines. Deliberately UNSCOPED: the number
+ * stops within the first few thousand lines. Deliberately UNSCOPED: the number
  * it returns is an upper bound on what any workspace predicate will admit, so
  * `false` is a certainty that the archive is needed while `true` is only the
  * absence of evidence that it is. See the order-dependent branch of replayLog
  * for why that asymmetry is the right way round.
+ *
+ * Counted by `ringBudget`, the same rule the unscoped replay stops by, so
+ * "fills the ring" means MAX_BUFFER hook events and not MAX_BUFFER lines of
+ * which most are enrichment (#1750).
  */
-async function fillsRing(filePath, maxEvents, maxChars) {
-  let n = 0;
-  let chars = 0;
+async function fillsRing(filePath, maxEvents, maxEntries, maxChars) {
+  const budget = ringBudget(maxEvents, maxEntries, maxChars);
   for await (const line of linesFromEnd(filePath)) {
     if (!line) continue;
     let evt;
     try { evt = JSON.parse(line); } catch { continue; }
     if (!evt || typeof evt !== "object" || !evt.payload) continue;
-    n++;
-    chars += ENVELOPE_CHARS + payloadChars(evt.payload);
-    if (n >= maxEvents || chars >= maxChars) return true;
+    if (budget.add(evt.payload)) return true;
   }
   return false;
 }
@@ -225,11 +253,15 @@ async function fillsRing(filePath, maxEvents, maxChars) {
  * feeding the eviction loop, on the critical path of a boot, every time.
  *
  * So the lines arrive newest-first and the loop stops the moment the ring is
- * full, which makes the cost a property of MAX_BUFFER rather than of how long
- * the user has been running the deck. Nothing is lost by it: what a forward
- * replay left in the ring was always the NEWEST admitted events that fit, and
- * that is exactly the set this collects. A young log — too few events to fill
- * the ring — is read to its start, and costs what it always did.
+ * full, which makes the cost a property of the ring's bounds rather than of how
+ * long the user has been running the deck. Nothing is lost by it: what a
+ * forward replay left in the ring was always the NEWEST admitted events that
+ * fit, and that is the set this collects — provided "full" is counted the way
+ * the ring counts it. Since #1032 that is MAX_BUFFER hook events with their
+ * enrichment riding along, and counting every line toward MAX_BUFFER instead
+ * rebuilt about a third of the window (#1750); see ringBudget. A young log —
+ * too few events to fill the ring — is read to its start, and costs what it
+ * always did.
  *
  * The order of the pushes is still oldest-first. `seq` is assigned by pushEvent
  * in the order it is called, and a ring numbered backwards would hand every
@@ -245,12 +277,12 @@ async function fillsRing(filePath, maxEvents, maxChars) {
  * that case cheap needs an index of where a workspace's lines are, which is a
  * different change from this one.
  */
-/* Exported for the suite, with both ceilings as parameters. The byte budget is
+/* Exported for the suite, with the ceilings as parameters. The byte budget is
  * 128 MiB, so a test that wanted to reach it honestly would have to write 128
  * MiB — which is why the count bound was the only one anything pinned, and why
- * the byte bound was the one that broke. Production passes neither argument. */
+ * the byte bound was the one that broke. Production passes none of them. */
 export async function replayLog(filePath, workspace = "", {
-  maxEvents = MAX_BUFFER, maxChars = MAX_BUFFER_CHARS, providers = null,
+  maxEvents = MAX_BUFFER, maxEntries = MAX_RING_ENTRIES, maxChars = MAX_BUFFER_CHARS, providers = null,
 } = {}) {
   // THE ARCHIVE IS PART OF THE HISTORY, and for two years nothing read it.
   // `maybeRotatePersistFile` renames events.jsonl to events.jsonl.1 at 50 MB;
@@ -311,7 +343,7 @@ export async function replayLog(filePath, workspace = "", {
     // what it does today. Nothing regresses; the case a rotation creates, where
     // the live log holds a handful of lines, is the one that is fixed.
     const files = [];
-    if (archiveThere && !(liveThere && await fillsRing(filePath, maxEvents, maxChars))) files.push(archivePath);
+    if (archiveThere && !(liveThere && await fillsRing(filePath, maxEvents, maxEntries, maxChars))) files.push(archivePath);
     if (liveThere) files.push(filePath);
     for (const file of files) {
       for await (const line of linesFromStart(file)) {
@@ -324,8 +356,8 @@ export async function replayLog(filePath, workspace = "", {
     }
   } else {
     // Newest first, so this is filled back to front and then walked in reverse
-    // to push. Bounded by BOTH of the ring's limits, which is what makes the
-    // memory here a property of the ring rather than of the file.
+    // to push. Bounded by ALL of the ring's limits (see ringBudget), which is
+    // what makes the memory here a property of the ring rather than of the file.
     //
     // The count alone was not enough, and the comment that used to say it was
     // predates #625. Eviction is the only thing that applies MAX_BUFFER_CHARS,
@@ -339,24 +371,23 @@ export async function replayLog(filePath, workspace = "", {
     // best-effort and its failure is only logged, and the rotation's own note
     // in event-log.mjs records logs reaching gigabytes.
     const newestFirst = [];
-    let stagedChars = 0;
+    const budget = ringBudget(maxEvents, maxEntries, maxChars);
     // Newest generation first. The second pass runs only if the first stopped
     // because it ran out of FILE rather than because it reached a bound, which
     // is the "cannot fill the ring" test stated exactly and for free — and it
     // is also why a full live log never opens the archive at all.
     for (const file of liveThere ? [filePath, archivePath] : [archivePath]) {
       if (!existsSync(file)) continue;
-      if (newestFirst.length >= maxEvents || stagedChars >= maxChars) break;
+      if (budget.full()) break;
       for await (const line of linesFromEnd(file)) {
         if (!line) continue;
         const evt = parse(line);
         if (!usable(evt) || !admits(evt.payload)) continue;
         newestFirst.push(evt);
-        stagedChars += ENVELOPE_CHARS + payloadChars(evt.payload);
         // Everything older than this would be evicted by the events already held,
         // so reading further is work whose only result is throwing it away.
-        // Either limit reaching its ceiling means exactly that.
-        if (newestFirst.length >= maxEvents || stagedChars >= maxChars) break;
+        // Any of the three limits reaching its ceiling means exactly that.
+        if (budget.add(evt.payload)) break;
       }
     }
     for (let i = newestFirst.length - 1; i >= 0; i--) replay(newestFirst[i]);

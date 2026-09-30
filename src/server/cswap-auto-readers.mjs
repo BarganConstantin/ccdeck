@@ -8,7 +8,7 @@
 // engine before every tick, and drops both readings when it writes a setting;
 // it re-exports all five names, which is where the suite reaches them.
 import { run } from "./exec.mjs";
-import { cswapBin } from "./cswap-install.mjs";
+import { cswapBin, cswapRefused } from "./cswap-install.mjs";
 
 // ── one reading at a time ──────────────────────────────────────────────────
 
@@ -34,9 +34,11 @@ import { cswapBin } from "./cswap-install.mjs";
  *
  * Two callers reach these without an attacker anywhere: AccountsPanel polls the
  * route every 15s per open tab, and runTick asks externalAutoRunning() again
- * before every tick. And it is a GET, so it passes isTrustedRead for any local
+ * before every tick. And it is a GET, so it passed isTrustedRead for any local
  * client that sends neither Origin nor Sec-Fetch-Site — curl, a shell script, a
- * sandboxed agent.
+ * sandboxed agent. It is a guarded read now (GUARDED_READS in
+ * request-gates.mjs), which refuses those callers unless they hold the token;
+ * the guard below still bounds the ones that pass.
  *
  * The fix is #544's, at the route that sweep did not reach: a minimum gap plus
  * one shared in-flight promise per reader. There is no MAX_OUTSTANDING beside it
@@ -165,7 +167,11 @@ export function readCswapConfig() {
 }
 
 async function readCswapConfigNow() {
-  const r = await run(await cswapBin(), ["config"]);
+  const bin = await cswapBin();
+  // Not a copy the deck refused (#1799): the panel's settings are no reason to
+  // run it, and null is what a tool that cannot be asked already answers.
+  if (cswapRefused()) return null;
+  const r = await run(bin, ["config"]);
   if (!r.ok) return null;
   const out = {};
   for (const line of r.stdout.split("\n")) {

@@ -25,7 +25,7 @@ import {
   networkSnapshot, notePanelPoll, probeNetwork, routeChangesSince, sampleNetwork,
   startNetworkTimers, stopNetwork,
 } from "./network-sampler.mjs";
-import { readProcesses, resetProcessList } from "./process-list.mjs";
+import { processesReply, readProcesses, resetProcessList } from "./process-list.mjs";
 import { CRIT_C, WARN_C } from "./thermal-metrics.mjs";
 import {
   lastThermal, sampleThermal, startThermalTimer, stopThermal, thermalSnapshot, THROTTLE_LABEL,
@@ -135,7 +135,7 @@ function cpuPercent() {
  * The process list, which lives in process-list.mjs: it is read on demand
  * rather than on a timer here, and index.mjs asks this module for it.
  */
-export { readProcesses };
+export { processesReply, readProcesses };
 
 /**
  * The network probe, which lives in network-sampler.mjs with the rest of that

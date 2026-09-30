@@ -33,7 +33,8 @@
 //   switch anywhere that could stop it, or crashing once the script was swept.
 //
 // Everything else in the file is the user's and is not touched. `afplay …` stays
-// exactly where they put it, and this module has no idea what it does.
+// exactly where they put it, and this module has no idea what it does — even
+// when it sits in the same group as ours (see withoutOurs).
 //
 // EXACTLY ONCE, without a stamp. Retirement is triggered by the state it
 // removes: our entry in settings.json, a parked file, or one of our scripts on
@@ -137,11 +138,51 @@ export function namesOurScript(cmd, platform = process.platform) {
   return SCRIPT_TAILS.some(tail => hay.includes(tail));
 }
 
-/** An entry this deck put there: by its mark, or by the script it runs. */
-function isOurs(entry) {
-  if (entry?.[MARK] === true) return true;
-  return commandsOf(entry).some(cmd => namesOurScript(cmd));
+/**
+ * Whether one command is our sound script. In a group we marked, under either
+ * separator and in any case: a settings.json synced from another platform
+ * spells the path that platform's way, and the mark already says whose it is.
+ */
+function isOurCommand(h, marked) {
+  const cmd = typeof h?.command === "string" ? h.command : "";
+  return namesOurScript(cmd) || (marked && namesOurScript(cmd, "win32"));
 }
+
+/** What withoutOurs answers for an entry with nothing left in it. */
+const DROP = Symbol("drop");
+
+/**
+ * One entry with our sound command taken out of it: `entry` itself when nothing
+ * in it was ours, DROP when nothing is left, and otherwise a copy holding the
+ * rest with its matcher and without our mark.
+ *
+ * PER COMMAND, NOT PER ENTRY — installer.mjs's rule for its own forwarder
+ * (#1734), for the same reason. The toggle's group had no matcher, and Claude
+ * Code's hook editor files a new matcher-less Stop hook into the first Stop
+ * group whose matcher is missing or empty, which while the toggle was on was
+ * often ours. Deciding for the whole group took the user's hook out with it, on
+ * the boot that retired the toggle and on `--uninstall`, and said nothing.
+ *
+ * A marked entry whose `hooks` is not a list is dropped, as it always was; an
+ * unmarked one is left exactly where it is.
+ */
+function withoutOurs(entry) {
+  if (!entry || typeof entry !== "object") return entry;
+  const marked = entry[MARK] === true;
+  if (!Array.isArray(entry.hooks)) return marked ? DROP : entry;
+  const kept = entry.hooks.filter(h => !isOurCommand(h, marked));
+  if (!marked && kept.length === entry.hooks.length) return entry;
+  if (kept.length === 0) return DROP;
+  const rest = {};
+  for (const [k, v] of Object.entries(entry)) {
+    if (k === MARK) continue;
+    rest[k] = k === "hooks" ? kept : v;
+  }
+  return rest;
+}
+
+/** An entry holding something this deck put there: its mark, or its script. */
+const isOurs = (entry) => withoutOurs(entry) !== entry;
 
 /** Anywhere in the file — not just `Stop` — that still runs one of our scripts.
  *  The sweep below asks this before deleting them: a stale sound is survivable
@@ -237,9 +278,12 @@ export async function retireSoundHookIn(settings) {
     parkError = { reason: "parked_unreadable", parkedPath: PARKED_PATH, message: err.message };
   }
 
+  // `removed` counts the entries ours was taken out of, whether or not the
+  // user's own hooks were left behind in them.
   const group = Array.isArray(settings?.hooks?.[EVENT]) ? settings.hooks[EVENT] : [];
-  const theirs = group.filter(g => !isOurs(g));
-  const removed = group.length - theirs.length;
+  const trimmed = group.map(withoutOurs);
+  const theirs = trimmed.filter(g => g !== DROP);
+  const removed = trimmed.filter((g, i) => g !== group[i]).length;
 
   // Identical entries are not restored twice — see the note on two decks at the
   // top. `theirs` is what will be in the file, so a hook already back from an
@@ -253,10 +297,13 @@ export async function retireSoundHookIn(settings) {
   // exactly the shape a hand-written-hook filter would have swept up. Restoring
   // one would put back the hook this whole module exists to remove, pointing at
   // a script this release deletes, on the boot that was supposed to repair it.
+  // Per command here too: the toggle parked whole groups, so a hook of theirs
+  // that sat beside our script went into the park with it and comes back alone.
   const seen = new Set(theirs.map(g => JSON.stringify(g)));
   const putBack = [];
-  for (const entry of parked) {
-    if (isOurs(entry)) continue;
+  for (const parkedEntry of parked) {
+    const entry = withoutOurs(parkedEntry);
+    if (entry === DROP) continue;
     const key = JSON.stringify(entry);
     if (seen.has(key)) continue;
     seen.add(key);

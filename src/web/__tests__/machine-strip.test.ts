@@ -378,7 +378,9 @@ describe("the process section is one way in, and draws nothing", () => {
     // are — one button, one name, one hover, one press.
     const block = processes();
     expect(block).toContain('className="sd-open sd-door"');
-    expect(block).toContain('aria-label="Show every process the deck is watching"');
+    // Named with the words on its plate first (#1771), so a voice-control user
+    // who says "Busiest processes" reaches it.
+    expect(block).toContain('aria-label="Busiest processes: show every process the deck is watching"');
   });
 
   it("says what is behind it, because it has no reading to say it with", () => {

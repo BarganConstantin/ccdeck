@@ -9,8 +9,16 @@
 //
 // The registry already holds a port per live deck, for the election. So the
 // answer was a fact the machine had, not a range somebody has to keep current.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { deckOwnOrigins } from "../../server/browser-watch.mjs";
+import { guardThisMachine } from "./browser-watch-guard";
+
+// Nothing here takes a snapshot, but every file that imports browser-watch.mjs
+// installs the guard, so a case added later cannot forget it (#1847): see
+// browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 describe("which loopback addresses are the deck's own", () => {
   it("still covers the documented range with no registry at all", () => {

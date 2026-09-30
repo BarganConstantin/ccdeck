@@ -15,7 +15,7 @@
 // and its EventSource both send, on every browser new enough to run this
 // bundle, and no non-browser client sends it by accident.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -32,10 +32,35 @@ process.env.USERPROFILE = DIR;
 process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 process.env.XDG_CONFIG_HOME = join(DIR, "config");
+// The store the roster reads, which XDG_DATA_HOME or CLAUDE_SWAP_BACKUP in the
+// developer's own environment would otherwise point at their real accounts.
+process.env.XDG_DATA_HOME = join(DIR, "data");
+process.env.CLAUDE_SWAP_BACKUP = join(DIR, "claude-swap");
 if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new Error("sandbox escaped");
+
+// THE CLAUDE-SWAP THIS DECK STARTS IS A STUB (#1849). Reading the roster with
+// an empty store asks `cswap --version`, and the deck used to go and find one:
+// the real claude-swap on a developer's PATH, or on a Windows runner a PATHEXT
+// walk through cmd.exe and a Python probe for the install hint — slow enough
+// there to cross the request timeout below, which reads as a refusal.
+// AGENTS_DECK_CSWAP wins over every other lookup (cswapBin), so nothing else in
+// this file can be started. A `.cmd` on Windows, which exec.mjs routes through
+// cmd.exe, and a shell script elsewhere; each start appends its arguments to
+// STUB_LOG and answers a version only the stub prints.
+const STUB_VERSION = "0.26.0+stub";
+const STUB_LOG = join(DIR, "cswap-starts.log");
+const STUB = join(DIR, process.platform === "win32" ? "cswap.cmd" : "cswap");
+if (process.platform === "win32") {
+  writeFileSync(STUB, ["@echo off", `>>"${STUB_LOG}" echo %*`, `echo claude-swap ${STUB_VERSION}`].join("\r\n") + "\r\n");
+} else {
+  writeFileSync(STUB, ["#!/bin/sh", `echo "$*" >> "${STUB_LOG}"`, `echo "claude-swap ${STUB_VERSION}"`].join("\n") + "\n", { mode: 0o755 });
+}
+process.env.AGENTS_DECK_CSWAP = STUB;
 
 // @ts-expect-error — plain .mjs server module, no types
 const mod = await import("../../server/index.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 
 let server: Server;
 let port = 0;
@@ -64,10 +89,11 @@ const get = (path: string, headers: Record<string, string> = {}) =>
     // FIFTEEN SECONDS, AND IT IS NOT A HAPPY-PATH WAIT: the status line comes
     // back as soon as the route answers, so this number is only what a hung
     // request costs. Four was one of them on a Windows runner — reading
-    // /api/claude-accounts spawns claude-swap, and a cold spawn there is
+    // /api/claude-accounts spawned claude-swap, and a cold spawn there is
     // slower than a whole answer here — and a timeout that fires resolves 0,
     // which reads as "the deck refused the page" rather than as "this test
-    // gave up". It failed that way twice on green branches.
+    // gave up". It failed that way twice on green branches, and fifteen was
+    // crossed as well, which is why what it spawns is the stub above (#1849).
     req.setTimeout(15_000, () => { req.destroy(); resolve_(0); });
     req.end();
   });
@@ -92,6 +118,22 @@ const getJson = (path: string, headers: Record<string, string> = {}) =>
     req.end();
   });
 
+// First in the file on purpose: the roster is cached for five seconds, and this
+// has to be the read that runs rather than one a later case left in the cache.
+describe("the claude-swap the booted deck starts (#1849)", () => {
+  it("is the stub, and the roster it answers comes back well inside the timeout", async () => {
+    const asked = Date.now();
+    const r = await getJson("/api/claude-accounts", uiHeaders());
+    const took = Date.now() - asked;
+    expect(existsSync(STUB_LOG), "the stub was never started").toBe(true);
+    expect(readFileSync(STUB_LOG, "utf8")).toContain("--version");
+    // The empty store's answer, carrying the version only the stub prints.
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: false, reason: "no_accounts", version: STUB_VERSION });
+    expect(took).toBeLessThan(2_000);
+  });
+});
+
 describe("what a plain loopback client can read", () => {
   for (const path of ["/api/events", "/api/claude-accounts", "/api/claude-accounts/login", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`refuses ${path} with no browser headers and no token`, async () => {
@@ -112,8 +154,9 @@ describe("what the deck's own page can read", () => {
   for (const path of ["/api/events", "/api/claude-accounts", "/api/claude-accounts/login", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`allows ${path} for a same-origin request addressed to loopback`, async () => {
       expect(await get(path, uiHeaders())).toBe(200);
-      // Above the suite's 20s default, because the accounts routes spawn
-      // claude-swap and a first spawn on a loaded Windows runner is slow.
+      // Above the suite's 20s default, because the accounts route still
+      // spawns — the stub, through cmd.exe on Windows — and a first spawn on a
+      // loaded Windows runner is slow.
     }, 30_000);
   }
 
@@ -197,10 +240,13 @@ describe("a browser that sends no fetch metadata", () => {
   }
 
   it("refuses a client that names another host and presents nothing", async () => {
-    // Not a page, so the rebinding gate lets it by — hook.js reaches the deck
-    // under whatever name it used — but naming the deck by another name earns
-    // no more than naming it by its own: the token is still the way in.
-    expect(await get("/api/events", { host: `deck.local:${port}` })).toBe(401);
+    // Not a page, but the rebinding gate reads the Host of every request now:
+    // hook.js and the deck's other clients dial 127.0.0.1, and a request that
+    // names the deck by another name is turned away there, a step before this
+    // gate — 403, as the rebound shapes above are. The token is still the way
+    // in, and past both gates.
+    expect(await get("/api/events", { host: `deck.local:${port}` })).toBe(403);
+    expect(await get("/api/events", { host: `deck.local:${port}`, "x-ccdeck-token": mod.hookToken() })).toBe(200);
   });
 
   it("is refused when the Referer names somebody else", async () => {
@@ -252,6 +298,32 @@ describe("the LAN routes carry the same class of secret as the roster", () => {
     // half that had to be right. It keeps `lan.shared` and every trusted
     // peer's name, which is the same inventory by another door.
     expect(await get("/api/prefs")).toBe(401);
+  });
+});
+
+// The usage panel's reads. /api/codex-quota answers with the signed-in Codex
+// account's email, plan and credit balance, the same class of answer the
+// roster route above is guarded for; the other four are the user's own usage,
+// spend and account-switch state. Every caller is the deck's own page.
+describe("the usage panel's reads are the user's own, not the machine's", () => {
+  const USAGE = ["/api/codex-quota", "/api/quota", "/api/codex-usage", "/api/ccusage", "/api/cswap-auto"];
+
+  it("lists each of them with the other guarded reads", () => {
+    for (const path of USAGE) expect(GUARDED_READS.has(path), path).toBe(true);
+  });
+
+  it("refuses each to a loopback client that presents nothing", async () => {
+    // Every answer at once, so a failure names each route that answered.
+    const got: Record<string, number> = {};
+    for (const path of USAGE) got[path] = await get(path, { host: `127.0.0.1:${port}` });
+    expect(got).toEqual(Object.fromEntries(USAGE.map(p => [p, 401])));
+  });
+
+  it("answers the Codex quota to the token, and to the deck's own page", async () => {
+    // The one of the five this asks all the way through: with no Codex sign-in
+    // in the sandbox it answers from the auth file alone and never reaches out.
+    expect(await get("/api/codex-quota", { "x-ccdeck-token": mod.hookToken() })).not.toBe(401);
+    expect(await get("/api/codex-quota", uiHeaders())).not.toBe(401);
   });
 });
 
@@ -331,6 +403,13 @@ describe("what stays open, and why", () => {
     // caller too, so the other order would read the modal's answer twice.
     const plain = await getJson("/api/system/processes");
     expect(plain.status).toBe(200);
+    // A read that came back empty says so (#1770) rather than answering ok
+    // with no rows. That is only expected on Windows, where the one
+    // Get-Process call sits on its own six-second deadline; `ps` answers well
+    // inside its four.
+    const failed = (body: { ok?: boolean; reason?: string }) =>
+      process.platform === "win32" && body.ok === false && body.reason === "read_failed";
+    if (failed(plain.body)) return;
     expect(plain.body.ok).toBe(true);
     expect(typeof plain.body.total).toBe("number");
     expect(Array.isArray(plain.body.procs)).toBe(true);
@@ -341,6 +420,7 @@ describe("what stays open, and why", () => {
 
     const detailed = await getJson("/api/system/processes?detail=1");
     expect(detailed.status).toBe(200);
+    if (failed(detailed.body)) return;
     expect(detailed.body.ok).toBe(true);
     // On POSIX the plain rows carry no thread count and the detailed ones do,
     // which is the flag reaching readProcesses. Windows reads Threads on its one

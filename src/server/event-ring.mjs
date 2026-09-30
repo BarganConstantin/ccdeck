@@ -8,7 +8,7 @@
 // envelope and evicts behind it, clearEventBuffer empties all three, and the
 // readers get a copy or an answer rather than the array. The bodies are
 // unchanged.
-import { ENVELOPE_CHARS, LAST_VALUE_WINS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
+import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, isEnrichment, payloadChars } from "./ring-bounds.mjs";
 
 // ─── The event ring buffer ─────────────────────────────────────────────────
 // Its two bounds, MAX_BUFFER and MAX_BUFFER_CHARS, and the charge an event is
@@ -148,7 +148,7 @@ export function admitEvent(raw, source, receivedAt) {
     // Decided once, here, beside the charge and for the same reason: eviction
     // must never have to look at a payload again to know what it is giving
     // back. See LAST_VALUE_WINS.
-    [ENRICHMENT]: raw != null && typeof raw === "object" && LAST_VALUE_WINS.has(raw.hook_event_name),
+    [ENRICHMENT]: isEnrichment(raw),
   };
   events.push(evt);
   bufferedChars += evt[CHARS];

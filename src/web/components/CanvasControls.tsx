@@ -41,14 +41,27 @@ export default function CanvasControls({
           the pair wears the same 14px stroke glyphs as the five below
           them (React Flow's are filled shapes a weight heavier and 2px
           smaller) and names itself in words. The same calls React Flow's
-          own buttons make, with the same limits: each goes disabled at
-          its end of the zoom range. */}
-      <ControlButton onClick={() => rf.zoomIn()} title="Zoom in" aria-label="Zoom in" disabled={zoomMaxed}>
+          own buttons make, with the same limits: each refuses at its end
+          of the zoom range. It refuses with aria-disabled rather than
+          `disabled`, because a press from the keyboard is what reaches the
+          limit, and a button disabled under focus drops that focus to the
+          page (#1768, the rule #518/#620 set in panel-press.ts). */}
+      <ControlButton
+        onClick={() => { if (!zoomMaxed) rf.zoomIn(); }}
+        title="Zoom in"
+        aria-label="Zoom in"
+        aria-disabled={zoomMaxed || undefined}
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
           <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>
       </ControlButton>
-      <ControlButton onClick={() => rf.zoomOut()} title="Zoom out" aria-label="Zoom out" disabled={zoomMinned}>
+      <ControlButton
+        onClick={() => { if (!zoomMinned) rf.zoomOut(); }}
+        title="Zoom out"
+        aria-label="Zoom out"
+        aria-disabled={zoomMinned || undefined}
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
           <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>

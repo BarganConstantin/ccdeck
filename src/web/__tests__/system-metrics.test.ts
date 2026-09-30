@@ -288,7 +288,9 @@ describe("the ps invocation, which is not the same on both Unixes", () => {
   });
 
   it("asks procps for the sort it does understand", () => {
-    // --sort=-pcpu is procps' own way to say what -r says on BSD.
+    // --sort=-pcpu is the sort procps understands. It is not what -r means on
+    // BSD — procps' %cpu is a lifetime average — so the Linux column is a rate
+    // derived from /proc between readings (#1769) and this only orders the text.
     expect(psArgs("linux")).toContain("--sort=-pcpu");
   });
 

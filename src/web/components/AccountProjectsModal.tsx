@@ -220,6 +220,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const maxDay = chart.reduce((m, d) => Math.max(m, d.total), 0);
 
     return {
+      // Projects, not rows: `rows` folds everything past MAX_ROWS into Other,
+      // so its length is at most seven whatever the count (#1776).
+      projectCount: rec.projects.length,
       rows, totalCost, totalTokens, basis, denom, un: rec.unattributed, chart, maxDay, colorOrder,
       unpricedTokens: rec.unpricedTokens, unpricedNote: unpricedNote(rec.unpricedModels),
       calibrated: rec.calibrated, reconciled: rec.reconciled,
@@ -279,7 +282,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
             <>
               {view.rows.length === 0 ? (
                 <div className="ap-proj-state">
-                  {emptyWindowSentence(shownDays)}
+                  {/* No mark here to dim while the next window loads, so the
+                      sentence about the last one gives way (#1787). */}
+                  {refreshing ? "Updating…" : emptyWindowSentence(shownDays)}
                   {wider != null && (
                     <div className="ap-proj-widen-wrap">
                       <button type="button" className="ap-proj-copy" onClick={() => setDays(wider)}>
@@ -295,9 +300,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       window — or of its tokens, when some of the spend has no
                       price and a share of it would be a share of a floor. */}
                   <div className="ap-proj-bar" role="img"
-                    aria-label={view.basis === "cost"
-                      ? `Share of ${fmtCost(view.totalCost)} across ${view.rows.length} projects`
-                      : `Share of ${fmtTokens(view.totalTokens)} tokens across ${view.rows.length} projects`}>
+                    aria-label={`Share of ${view.basis === "cost" ? fmtCost(view.totalCost) : `${fmtTokens(view.totalTokens)} tokens`} across ${view.projectCount} project${view.projectCount > 1 ? "s" : ""}`}>
                     {view.rows.map(r => {
                       const val = view.basis === "cost" ? r.cost : r.tokens;
                       const pct = view.denom > 0 ? (val / view.denom) * 100 : 0;
@@ -315,7 +318,11 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         that was spent (#1330). */}
                     <span className="ap-proj-total-cost" title={unpricedTitle(view.unpricedTokens)}>{projectCostLabel(view.totalCost, view.unpricedTokens)}</span>
                     <span className="ap-proj-total-tok">{fmtTokens(view.totalTokens)} tokens</span>
-                    <span className="ap-proj-total-win">· {windowWord}</span>
+                    {/* While the next window loads, the figures beside this
+                        are the last window's and about to change: said here,
+                        in words, where the dim on the marks says it in shape
+                        (#1787). */}
+                    <span className="ap-proj-total-win">· {refreshing ? "updating…" : windowWord}</span>
                     {/* pricing.ts's dollars until ccusage answers, reconciled in
                         place when it does — said beside the figure that moves. */}
                     {costPending && <span className="ap-proj-total-pending">Reconciling cost…</span>}
@@ -325,7 +332,13 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                   {showsDayChart(shownDays, view.chart.length) && (
                     <div className="ap-proj-days">
                       <div className="ap-proj-days-cap">By day{view.chart.length > 1 ? " · click a bar" : ""}</div>
-                      <div className="ap-proj-days-plot" role="img"
+                      {/* role="group", not role="img" (#1774), for #381's
+                          reason in UsageHistoryModal: an image's children are
+                          presentational, so each day button left the
+                          accessibility tree and stayed in the tab order —
+                          a stop that said nothing. The share bar above is an
+                          image rightly: nothing in it takes focus. */}
+                      <div className="ap-proj-days-plot" role="group"
                         aria-label={`Spend across ${view.chart.length} day${view.chart.length > 1 ? "s" : ""}`}>
                         {view.chart.map(d => {
                           const h = view.maxDay > 0 ? (d.total / view.maxDay) * 100 : 0;

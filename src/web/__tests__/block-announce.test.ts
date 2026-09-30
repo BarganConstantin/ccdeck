@@ -84,8 +84,10 @@ const groupCode = (() => {
   return readoutsCode.slice(opens, next === -1 ? undefined : next);
 })();
 
-/** A blocked session as far as the wording is concerned. */
-const at = (label: string) => ({ label });
+/** A blocked session as far as the wording is concerned: a permission prompt,
+ *  unless the test says otherwise. What an `asked` block is announced as is
+ *  block-announce-asked-1811.test.ts's. */
+const at = (label: string, kind: "permission" | "asked" = "permission") => ({ label, waiting: { kind } });
 
 // ── 1. what it says ─────────────────────────────────────────────────────────
 
@@ -113,19 +115,21 @@ describe("the sentence", () => {
   });
 
   it("does not read out every label, however many are blocked", () => {
-    const many = ["api", "web", "infra", "docs", "cli"].map(at);
+    const many = ["api", "web", "infra", "docs", "cli"].map(label => at(label));
     const said = blockedAnnouncement(many);
     expect(said).toContain("api");
     for (const label of ["web", "infra", "docs", "cli"]) expect(said).not.toContain(label);
   });
 
-  it("says `permission`, because permission is the only kind counted", () => {
-    // `blockedSessions()` filters on `isAlarming`, which is permission-only per
-    // #348 — an idle block is a finished turn, not a stopped session. "waiting
-    // for you" would claim the quieter kind is in the number when it is
-    // deliberately not.
+  it("says `permission` for a permission prompt, because that is what it waits for", () => {
+    // `blockedSessions()` filters on `isAlarming`, which counts permission
+    // prompts and questions and leaves idle out (#348) — an idle block is a
+    // finished turn, not a stopped session. A permission prompt is announced as
+    // the thing it is waiting for, and "waiting for you" is kept for sessions
+    // blocked on different kinds (#1811).
     expect(blockedAnnouncement([at("api")])).toContain("your permission");
     expect(blockedAnnouncement([at("api")])).not.toMatch(/waiting for you\b(?! r)/);
+    expect(blockedAnnouncement([at("api"), at("web")])).not.toMatch(/waiting for you\b(?! r)/);
   });
 });
 

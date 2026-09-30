@@ -51,6 +51,7 @@ import {
   pickInstallPids, quitBrowser, react, windowedProcessesPs,
 } from "../../server/browser-react.mjs";
 import { installMarker, processName, sharesProcessName } from "../../server/browser-presence.mjs";
+import { linuxMachine } from "./linux-browser-fixture";
 
 type Call = { cmd: string; args: string[] };
 
@@ -120,12 +121,15 @@ describe("the reaction never forces, on any path through it", () => {
     expect(mac.calls[0].cmd).toBe("osascript");
     expect(mac.calls[0].args.at(-1)).toBe("Google Chrome Canary");
 
-    const linux = fakeRun(null);
-    expect(await quitBrowser("chrome-canary", "linux", { run: linux.run }))
+    // SIGTERM, still, and since #1752 to the one process holding the profile's
+    // lock rather than to every process named `chrome`. The machine is held in
+    // memory (linux-browser-fixture.ts), so no real lock or pid is read.
+    const linux = linuxMachine();
+    linux.started(100, ["/opt/google/chrome/chrome"]);
+    linux.lock(".config/google-chrome", 100);
+    expect(await quitBrowser("chrome", "linux", linux.deps))
       .toEqual({ ok: true, reason: "quit" });
-    // SIGTERM, which is pkill's default and the reason the Linux leg never had
-    // this bug even though its table has the same collision.
-    expect(linux.calls[0]).toEqual({ cmd: "pkill", args: ["-x", "chrome"] });
+    expect(linux.calls[0]).toEqual({ cmd: "kill", args: ["-TERM", "100"] });
   });
 });
 
@@ -276,9 +280,9 @@ describe("the tables the reaction asks before it acts", () => {
     expect(sharesProcessName("chrome-canary", "win32").sort())
       .toEqual(["chrome", "chrome-beta", "chromium"]);
     expect(sharesProcessName("chrome-canary", "darwin")).toEqual([]);
-    // Linux collides too — three keys on `chrome` — and does not lose data for
-    // it, because `pkill -x` is a SIGTERM. Named here so a future edit that
-    // borrows the Windows targeting for Linux knows the collision is real.
+    // Linux collides too — three keys on `chrome` — which is why its leg asks
+    // the profile's lock which process to signal rather than using the name
+    // (#1752). Named here so the collision stays a known fact.
     expect(sharesProcessName("chrome-canary", "linux").sort()).toEqual(["chrome", "chrome-beta"]);
   });
 

@@ -137,9 +137,18 @@ export function createDials() {
     rowAnswering: fp => [...manual.values()].find(p => learned.get(`${p.addr}:${p.port}`)?.fp === fp),
 
     /** A row put on for a paired deck that called in from it, on trial until a
-     *  round proves the address answers — see calledBack. */
+     *  round proves the address answers — see calledBack.
+     *
+     *  NEVER A ROW SOMEBODY TYPED (#1741). learnCaller asks for a trial
+     *  whenever `add` says yes, and `add` says yes for an address already on
+     *  the list and keeps a typed row typed — so a deck calling in from the
+     *  exact address somebody typed, before a round here had reached it, put
+     *  that row on trial and the next failed round took it away. It is not
+     *  the deck's to take away (#1674); who called from there is still worth
+     *  knowing, so the row reads as that deck. */
     trial(at, met) {
       learned.set(at, met);
+      if (manual.get(at)?.typed) return;
       calledBack.add(at);
     },
     /** A round reached `host:port` and `met` is who answered there. A

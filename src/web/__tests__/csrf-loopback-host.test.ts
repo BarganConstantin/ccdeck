@@ -11,8 +11,9 @@
 // switch, /api/upgrade's global npm install, /api/restart and /api/clear.
 //
 // The Host must now name a loopback identity as well. These pin the attack
-// itself, the loopback spellings that still have to work, and the one client
-// that is allowed a Host of any shape because it is not a browser at all.
+// itself, the loopback spellings that still have to work, and the clients that
+// are not browsers at all: they dial 127.0.0.1, and one that names another host
+// is let through only with the deck's token.
 //
 // The gate was then applied to mutations only, on the reasoning that a
 // cross-site page cannot read a loopback reply. A REBOUND page can: the browser
@@ -26,7 +27,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { connect, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -42,7 +43,7 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 }
 
 // @ts-expect-error — plain .mjs module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, hookToken } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { isTrustedMutation, isTrustedRead } = await import("../../server/request-gates.mjs");
 
@@ -95,12 +96,14 @@ describe("isTrustedMutation under DNS rebinding", () => {
     expect(isTrustedMutation({ origin: "http://127.255.255.254:4317", host: "127.255.255.254:4317" })).toBe(true);
   });
 
-  it("lets the hook through whatever Host it names", () => {
+  it("lets the hook through, and leaves the name it dialled to the read gate", () => {
     // hook/hook.js is a bare Node http.request: no Origin, no fetch metadata,
-    // and no ambient authority for a page to borrow. Rebinding is a browser
-    // attack, so a client that is not a browser is not measured against it —
-    // including when it addresses the deck through a name of its own.
+    // and no ambient authority for a page to borrow, so this gate — did a page
+    // choose this? — has nothing to ask it. Which name it addressed the deck by
+    // is isTrustedRead's question, and the router asks that one first, of every
+    // method: the hook dials 127.0.0.1, and another name is refused there.
     expect(isTrustedMutation({ host: "deck.local:4317" })).toBe(true);
+    expect(isTrustedRead({ host: "deck.local:4317" })).toBe(false);
     expect(isTrustedMutation({ host: HOST })).toBe(true);
     expect(isTrustedMutation()).toBe(true);
   });
@@ -162,12 +165,35 @@ describe("isTrustedRead under DNS rebinding", () => {
     expect(isTrustedRead({ host: "127.0.0.2:4317", secFetchSite: "same-origin" })).toBe(true);
   });
 
-  it("lets a client that is not a browser read whatever Host it names", () => {
-    // hook/hook.js again: no Origin, no fetch metadata, nothing to rebind.
-    expect(isTrustedRead({ host: "deck.local:4317" })).toBe(true);
+  it("refuses a request addressed to another name, whatever headers it leaves out", () => {
+    // A page's own GET need carry none of the marks above, and a client that
+    // is not a browser dials 127.0.0.1. A Host naming anything else is not
+    // the deck's own client, whatever the rest of the request leaves out.
+    expect(isTrustedRead({ host: "attacker.example:4317" })).toBe(false);
+    expect(isTrustedRead({ host: "deck.local:4317" })).toBe(false);
+    expect(isTrustedRead({ host: "192.168.1.5:4317" })).toBe(false);
+    expect(isTrustedRead({ origin: "", secFetchSite: "", referer: "", host: "attacker.example:4317" })).toBe(false);
+  });
+
+  it("still lets a client that is not a browser read under a loopback name, or under none", () => {
+    // hook/hook.js, the desktop app and bin/ all dial 127.0.0.1, so the Host
+    // Node fills in for them is a loopback one. A request with no Host at all is
+    // HTTP/1.0 tooling: a browser always sends one.
     expect(isTrustedRead({ host: HOST })).toBe(true);
+    expect(isTrustedRead({ host: "localhost:4317" })).toBe(true);
     expect(isTrustedRead({ origin: "", secFetchSite: "" })).toBe(true);
+    expect(isTrustedRead({ host: "" })).toBe(true);
     expect(isTrustedRead()).toBe(true);
+  });
+
+  it("lets the deck's token through under another name, and only a client that is not a page", () => {
+    // Whoever holds the token read it out of the 0600 discovery file, so the
+    // name it dialled says nothing about it.
+    expect(isTrustedRead({ host: "deck.local:4317", token: hookToken() })).toBe(true);
+    expect(isTrustedRead({ host: "deck.local:4317", token: "0".repeat(64) })).toBe(false);
+    // A request a page chose is refused whoever else may be behind it, which is
+    // the rule the mutation gate already keeps.
+    expect(isTrustedRead({ host: "attacker.example:4317", secFetchSite: "same-origin", token: hookToken() })).toBe(false);
   });
 
   it("does not borrow the mutation gate's Sec-Fetch-Site test", () => {
@@ -281,10 +307,43 @@ describe("the rebinding gate in front of the routing table", () => {
     expect(await call("/api/events?since=0", referer)).toBe(200);
   });
 
+  // The same page again, this time carrying none of the three marks. What is
+  // left is the Host.
+  const reboundBare = { Host: "attacker.example:4317" };
+
+  it("refuses every read from a rebound page that sends no browser headers at all", async () => {
+    // Every answer at once rather than the first that differs, so a failure
+    // names each route that let the page read it.
+    const paths = [...READS, "/api/system/processes?detail=1", "/api/clear"];
+    const got: Record<string, number> = {};
+    for (const path of paths) got[path] = await call(path, reboundBare);
+    expect(got).toEqual(Object.fromEntries(paths.map(p => [p, 403])));
+  });
+
   it("still answers a client that sends no browser headers at all", async () => {
     // hook/hook.js, and the deck's own tooling. This is the shape that must not
-    // be measured against a rebinding attack it cannot be part of.
+    // be measured against a rebinding attack it cannot be part of — and it dials
+    // 127.0.0.1, so the Host it sends is a loopback one.
     expect(await call("/api/health", {})).toBe(200);
-    expect(await call("/api/health", { Host: "deck.local:4317" })).toBe(200);
+    expect(await call("/api/health", { Host: `127.0.0.1:${port}` })).toBe(200);
+    expect(await call("/api/health", { Host: `localhost:${port}` })).toBe(200);
+  });
+
+  it("answers the token under another name, which only the deck's own user can hold", async () => {
+    expect(await call("/api/health", { ...reboundBare, "x-ccdeck-token": hookToken() })).toBe(200);
+    expect(await call("/api/health", { ...reboundBare, "x-ccdeck-token": "0".repeat(64) })).toBe(403);
+  });
+
+  it("answers a request with no Host at all, which is HTTP/1.0 tooling and not a page", async () => {
+    // node:http always sends a Host, so this goes out over a bare socket.
+    const status = await new Promise<number>((resolve, reject) => {
+      const sock = connect({ host: "127.0.0.1", port }, () => sock.write("GET /api/health HTTP/1.0\r\n\r\n"));
+      let head = "";
+      sock.setEncoding("utf8");
+      sock.on("data", c => { head += c; });
+      sock.on("end", () => resolve(Number(/^HTTP\/1\.\d (\d{3})/.exec(head)?.[1] ?? 0)));
+      sock.on("error", reject);
+    });
+    expect(status).toBe(200);
   });
 });

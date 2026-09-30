@@ -14,8 +14,9 @@ import { G } from "./screen.js";
 import { removedRecord } from "./login-item.js";
 
 /**
- * Remove this deck's hooks, its login item and, with `flags.purge`, the files
- * holding its LAN private key — and say what happened to each.
+ * Remove this deck's hooks and its login item, stop every deck still running
+ * and, with `flags.purge`, remove the files holding its LAN private key — and
+ * say what happened to each.
  *
  * Resolves to the exit code rather than exiting, so the caller owns the
  * process: 1 when any half of it refused, 0 otherwise.
@@ -109,6 +110,19 @@ export async function uninstall(flags) {
   if (hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");
   }
+  // ── THE DECKS STILL RUNNING ────────────────────────────────────────────────
+  //
+  // Since 3.20 the deck runs in the background, and an uninstall that left it
+  // running was undone by it (#1736). On an npx install the idle auto-update
+  // relaunches through `npx -y ccdeck@latest`, which is a new supervisor and a
+  // full first boot, and a first boot installs every hook again — the argument
+  // the login item above is removed on, made by the deck itself. With --purge it
+  // also went on pairing and answering peers under a key the user had just been
+  // told was deleted.
+  //
+  // HERE, and the position is the point: after every hook is out, and before
+  // --purge takes the key files, so no deck is left running to write them back.
+  if (!(await stopLiveDecks())) refused = true;
   // ── THE PRIVATE KEY ────────────────────────────────────────────────────────
   //
   // The one thing left on the disk that is a CREDENTIAL rather than data. Every
@@ -166,4 +180,35 @@ export async function uninstall(flags) {
   // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
   // CI step that runs this stops on the failure instead of continuing past it.
   return refused ? 1 : 0;
+}
+
+/**
+ * Stop every live deck on this machine, one line per deck, and answer whether
+ * all of them went.
+ *
+ * `--stop`'s own list and its own ladder — liveDecks, which challenges every
+ * record, and stopDeck, which asks, then signals, then kills — so the two
+ * commands cannot disagree about which decks exist or how one is ended. Silent
+ * when none is running. A stop that throws is one that failed, never a reason
+ * for the rest of the uninstall not to happen.
+ */
+export async function stopLiveDecks({
+  list = async () => (await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href)).liveDecks(),
+  stop = async (d) => (await import(pathToFileURL(join(PKG_ROOT, "src/server/stop-deck.mjs")).href)).stopDeck(d),
+  out = (line) => console.log(line),
+  err = (line) => console.error(line),
+} = {}) {
+  const decks = await list().catch(() => []);
+  let all = true;
+  for (const d of decks) {
+    const res = await stop(d).catch((e) => ({ ok: false, reason: e?.message ?? String(e) }));
+    if (res?.ok) {
+      out(`${PRODUCT}: stopped the deck on port ${d.port} (pid ${d.pid})`);
+      continue;
+    }
+    all = false;
+    // `G.dash`, like every other line here (#797).
+    err(`${PRODUCT}: could NOT stop the deck on port ${d.port} (pid ${d.pid}) ${G.dash} ${res?.reason ?? "unknown"}; while it runs it can put the hooks back.`);
+  }
+  return all;
 }

@@ -49,11 +49,13 @@ if (!String(CODEX_DIR).startsWith(FAKE_CODEX)) {
 
 const HOOKS = join(FAKE_CODEX, "hooks.json");
 
-/** A hooks.json as an older deck would have left it. */
+/** A hooks.json as an older deck would have left it. The forwarder names the
+ *  hook.js it runs, as every one an older deck wrote did: that, not the mark
+ *  alone, is what makes the command ours (#1734). */
 const legacy = () => JSON.stringify({
   hooks: {
     SessionStart: [
-      { "__agent-dag": true, hooks: [{ type: "command", command: "node hook.js --provider codex" }] },
+      { "__agent-dag": true, hooks: [{ type: "command", command: "node /home/u/.codex/agent-dag/hook.js --provider codex" }] },
       { hooks: [{ type: "command", command: "echo mine" }] },
     ],
   },

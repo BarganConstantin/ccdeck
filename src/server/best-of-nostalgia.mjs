@@ -26,7 +26,8 @@ function currentLiveVideo(html) {
 
 export async function fetchBestOfNostalgia({ fetchImpl } = {}) {
   const now = Date.now();
-  if (cache && now - cacheAt < cacheTtl) return cache;
+  // The stamp, not the value: a miss is remembered too, as null.
+  if (cacheAt && now - cacheAt < cacheTtl) return cache;
   if (inflight) return inflight;
   const get = fetchImpl ?? fetch;
   inflight = (async () => {

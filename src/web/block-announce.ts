@@ -28,13 +28,24 @@
 // gets copied and then drifts. The decision lives here, App.tsx does the DOM
 // write, and block-announce.test.ts calls exactly what ships.
 
+import type { WaitingBlock } from "./types";
+
 /** Enough of a blocked session to word the sentence. The real input is
- *  `BlockedSession[]` from ambient-counts.ts; only the label is read, so the
- *  parameter is typed structurally and the test does not have to build whole
- *  `WaitingBlock`s to exercise the wording. */
+ *  `BlockedSession[]` from ambient-counts.ts; only the label and the block's
+ *  kind are read, so the parameter is typed structurally and the test does not
+ *  have to build whole `WaitingBlock`s to exercise the wording. */
 export interface Blocked {
   label: string;
+  waiting: Pick<WaitingBlock, "kind">;
 }
+
+/** What a session blocked on each alarming kind is waiting for, in the words
+ *  waiting-block.ts gives the kinds: a permission prompt stops for your
+ *  permission, and an agent that asked a question stops for the answer. */
+const WAITING_FOR: Partial<Record<WaitingBlock["kind"], string>> = {
+  permission: "your permission",
+  asked: "your answer",
+};
 
 /**
  * The sentence spoken once every blocked session has been dealt with.
@@ -85,18 +96,24 @@ export const ALL_CLEAR = "No sessions are waiting for you.";
  * through to reach the number they were after. One name and a tally is the
  * shape that stays short as the fan-out grows.
  *
- * "your permission" rather than "waiting for you", because `blockedSessions()`
- * counts permission blocks only — `isAlarming` in ambient-counts.ts, per #348 —
- * and an idle block is a finished turn, not a stopped session. Saying "waiting
- * for you" here would claim the quieter kind is included when it is deliberately
- * not.
+ * SAYS WHAT THE SESSION IS WAITING FOR (#1811). `blockedSessions()` counts the
+ * two alarming kinds — `isAlarming` in ambient-counts.ts — and they ask for
+ * different things: a permission prompt for your permission, a question for
+ * your answer. This used to say permission for both, from when permission was
+ * the only kind counted, so on a bypassPermissions machine, where a question is
+ * the only kind that fires, every announcement sent the reader looking for a
+ * prompt that was not there. Sessions blocked on different kinds are "waiting
+ * for you", the one wording true of both; an idle block is still not counted,
+ * and so is never in this sentence at all.
  */
 export function blockedAnnouncement(blocked: readonly Blocked[]): string {
   if (blocked.length === 0) return "";
   const [first, ...rest] = blocked;
-  if (rest.length === 0) return `${first.label} is waiting for your permission.`;
+  const kind = first.waiting.kind;
+  const what = rest.every(b => b.waiting.kind === kind) ? WAITING_FOR[kind] ?? "you" : "you";
+  if (rest.length === 0) return `${first.label} is waiting for ${what}.`;
   const others = `${rest.length} more session${rest.length === 1 ? "" : "s"}`;
-  return `${first.label} and ${others} are waiting for your permission.`;
+  return `${first.label} and ${others} are waiting for ${what}.`;
 }
 
 /**

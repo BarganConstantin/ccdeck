@@ -18,7 +18,7 @@ import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
 import { recapShown } from "../session-recap";
 import { fmtTokens } from "../token-format";
-import type { AgentNodeData, ToolCall } from "../types";
+import type { AgentNodeData, PromptEntry, ToolCall } from "../types";
 import { agentCost, otherModelIds } from "../usage-models";
 
 export default function Detail({
@@ -48,13 +48,15 @@ export default function Detail({
   const hasCost = cost.total > 0;
   const totalTokens = agent.usage.inputTokens + agent.usage.outputTokens;
 
-  // Bucket tools by category for the activity strip
+  // Bucket tools by category for the activity strip — over every call, as the
+  // calls counter beside it and the recap do (#1842). Read off `tools`, the
+  // chips and the errors left out whatever had slid out of that window.
   const catCounts = new Map<DetailCategory, number>();
-  for (const t of agent.tools) {
-    const c = detailCategoryFor(t.name);
-    catCounts.set(c, (catCounts.get(c) ?? 0) + 1);
+  for (const [name, n] of agent.toolCountByName ?? []) {
+    const c = detailCategoryFor(name);
+    catCounts.set(c, (catCounts.get(c) ?? 0) + n);
   }
-  const errCount = agent.tools.filter(t => t.ok === false).length;
+  const errCount = agent.toolErrorCount ?? 0;
   const inflight = agent.tools.filter(t => !t.endedAt).length;
   const catEntries = Array.from(catCounts.entries())
     .sort((a, b) => b[1] - a[1]);
@@ -62,8 +64,9 @@ export default function Detail({
   // — ToolBursts' own answer for those calls, so the chip is named and tinted
   // by the function that named and tinted the bubbles rather than by a second
   // rule that agrees with it today. null when the calls span two servers, or
-  // when there are none, and the chip stays the generic category chip.
-  const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.tools.map(t => t.name)) : null;
+  // when there are none, and the chip stays the generic category chip. Asked
+  // of every tool the chip counts, not only the window's.
+  const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.toolCountByName?.keys() ?? []) : null;
 
   return (
     <>
@@ -237,12 +240,12 @@ export default function Detail({
               is listed as the event it is, collapsed, in its place in time. */}
           <h3>Prompts <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
           <div className="prompts">
-            {agent.prompts.slice().reverse().map((pr, i) => {
+            {promptKeys(agent.prompts).reverse().map(({ pr, key }) => {
               const t = promptTime(pr.at, now);
               const injected = injectedPrompt(pr.text);
               if (injected) {
                 return (
-                  <details className="prompt-entry prompt-injected" key={i}>
+                  <details className="prompt-entry prompt-injected" key={key}>
                     <summary>
                       <span className="prompt-time" title={t.title}>{t.label}</span>
                       <span className="prompt-injected-label">{injected.label}</span>
@@ -252,7 +255,7 @@ export default function Detail({
                 );
               }
               return (
-                <div className="prompt-entry" key={i}>
+                <div className="prompt-entry" key={key}>
                   <div className="prompt-time" title={t.title}>{t.label}</div>
                   <div className="prompt-text">{pr.text}</div>
                 </div>
@@ -273,6 +276,25 @@ export default function Detail({
       </section>
     </>
   );
+}
+
+/** Each prompt with the key it is rendered under: the moment it was submitted,
+ *  and a count after it for a second entry filed at the same millisecond.
+ *
+ *  Not its place in the list (#1808). The list is drawn newest first, so a new
+ *  prompt took place 0 and moved every other entry down one, and React handed
+ *  each entry's DOM node to a different prompt — a background task's notice is
+ *  an uncontrolled <details>, so the one the user had opened shut, and the one
+ *  that slid into its place opened. Not the index in `prompts` either: the list
+ *  is kept in time order, so a late copy of an earlier prompt is filed among
+ *  the others and moves every index after it. */
+function promptKeys(prompts: readonly PromptEntry[]): { pr: PromptEntry; key: string }[] {
+  const atSameMoment = new Map<number, number>();
+  return prompts.map(pr => {
+    const n = atSameMoment.get(pr.at) ?? 0;
+    atSameMoment.set(pr.at, n + 1);
+    return { pr, key: n === 0 ? String(pr.at) : `${pr.at}:${n}` };
+  });
 }
 
 /** What a tool call's outcome is called, in the words this app already prints

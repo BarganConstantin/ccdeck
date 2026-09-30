@@ -31,8 +31,12 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
   });
 
   it("holds a long block behind show all", () => {
-    expect(code).toMatch(/const \{ shown, cut \} = clip\(linesOf\(block\), open\);/);
-    expect(code).toMatch(/\{cut && <button type="button" className="btn tm-more" onClick=\{\(\) => setOpen\(true\)\}>show all<\/button>\}/);
+    // A disclosure since #1762: the same button reads "show less" once the
+    // block is open, rather than leaving with the press that opened it.
+    // tool-block-show-less-1762.test.ts draws both states.
+    expect(code).toMatch(/const \{ shown \} = clip\(lines, open\);/);
+    expect(code).toMatch(/const more = moreControl\(lines, open\);/);
+    expect(code).toMatch(/\{more && \(\s*<button type="button" className="btn tm-more" aria-expanded=\{more\.expanded\} onClick=\{\(\) => setOpen\(o => !o\)\}>\s*\{more\.label\}\s*<\/button>\s*\)\}/);
   });
 
   it("puts a copy button on the input and, once there is one, on the response", () => {

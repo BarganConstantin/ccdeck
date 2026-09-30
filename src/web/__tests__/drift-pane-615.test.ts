@@ -92,12 +92,14 @@ const observer = (() => {
  *
  * Selectors with a descendant part (`.app:not(:has(.detail)) .usage-panel`)
  * style something else and are skipped — only rules that lay out `.app` count.
+ * So are the rules of a `max-width` block narrower than this suite's window:
+ * the rows a phone gets (#1790) are never the ones a 1600px window lays out.
  */
 function appColumnRules(): string[] {
   const out: string[] = [];
   // Comments first: this sheet argues with itself in prose, and the arguments
   // quote selectors and declarations.
-  const sheet = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const sheet = atWindowWidth(css.replace(/\/\*[\s\S]*?\*\//g, ""));
   const rule = /([^{}]+)\{([^{}]*)\}/g;
   let m: RegExpExecArray | null;
   while ((m = rule.exec(sheet))) {
@@ -110,6 +112,24 @@ function appColumnRules(): string[] {
     if (cols) out.push(cols[1].trim());
   }
   return out;
+}
+
+/** The sheet less every `@media (max-width: Npx)` block that WINDOW_W is past. */
+function atWindowWidth(sheet: string): string {
+  const narrow = /@media \(max-width: (\d+)px\)\s*\{/g;
+  let out = "", from = 0;
+  let m: RegExpExecArray | null;
+  while ((m = narrow.exec(sheet))) {
+    if (Number(m[1]) >= WINDOW_W) continue;
+    let depth = 1, end = narrow.lastIndex;
+    for (; depth > 0 && end < sheet.length; end++) {
+      if (sheet[end] === "{") depth++;
+      else if (sheet[end] === "}") depth--;
+    }
+    out += sheet.slice(from, m.index);
+    from = narrow.lastIndex = end;
+  }
+  return out + sheet.slice(from);
 }
 
 /** The pixels a column track list gives away to panels — everything that is

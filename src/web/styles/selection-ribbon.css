@@ -152,3 +152,12 @@
 }
 .selected-ribbon .selected-close:hover { background: var(--line); color: var(--text); }
 .selected-ribbon .selected-close:active { transform: scale(0.94); }
+/* NOT WHILE THE DETAIL SHEET IS UP, at a phone's width (#1790). Below 640px the
+   panel stands over the canvas under this bar, with the session's name in its
+   hero and its own ×, so the ribbon only says it again — and it is what a
+   selection adds to a bar that holds its controls down to 320px only without
+   it: at 320 it shrank to its × and pushed the last control 12px off the
+   right edge. Closing the sheet brings it back. */
+@media (max-width: 480px) {
+  .app:has(.detail) .selected-ribbon { display: none; }
+}

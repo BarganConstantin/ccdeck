@@ -133,9 +133,19 @@ export function turnBody(raw) {
     ? raw.last_assistant_message.replace(/\s+/g, " ").trim()
     : "";
   if (!said) return "Finished its turn";
-  const chars = [...said];
-  return chars.length > TURN_BODY_MAX ? `${chars.slice(0, TURN_BODY_MAX - 1).join("").trimEnd()}…` : said;
+  return cut(said, TURN_BODY_MAX);
 }
+
+/** `text` in at most `max` characters, on a whole one, with an ellipsis when
+ *  something was cut. */
+function cut(text, max) {
+  const chars = [...text];
+  return chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : text;
+}
+
+/** Longest session name in a title. A directory's last segment is a word or
+ *  two; this is only ever reached by a `cwd` nobody would type. */
+export const WHO_MAX = 60;
 
 /**
  * What to put on the desktop.
@@ -156,16 +166,55 @@ export function turnBody(raw) {
 /** Which session a notification is about, in the words the user has for it:
  *  the working directory's last segment, else a short session id. */
 export function whoOf(raw) {
-  const cwd = typeof raw?.cwd === "string" && raw.cwd ? basename(raw.cwd) : "";
+  const cwd = typeof raw?.cwd === "string" && raw.cwd ? cut(basename(raw.cwd), WHO_MAX) : "";
   return cwd || (typeof raw?.session_id === "string" ? raw.session_id.slice(0, 8) : "a session");
 }
 
+// Both strings are cut before they leave, and the body of a Notification with
+// them: `cwd` and `message` arrive in the body of `POST /api/event`, whose
+// caller need present nothing, and each ends up in an OS helper's argv.
 export function blockNotice(raw, product) {
   const who = whoOf(raw);
   if (raw.hook_event_name === "Stop") return { title: `${who} — ${product}`, body: turnBody(raw) };
   const fallback = raw.notification_type === "idle_prompt" ? "Waiting for your input" : "Needs your permission";
   const said = typeof raw.message === "string" && raw.message ? raw.message : fallback;
-  return { title: `${who} — ${product}`, body: said };
+  return { title: `${who} — ${product}`, body: cut(said, TURN_BODY_MAX) };
+}
+
+/**
+ * How many notifications may go out in any BURST_MS, across every session.
+ *
+ * The memo below is per session, which is what lets two agents blocking at
+ * once both be heard — and it is why it bounded nothing across sessions. The
+ * route that feeds this, `POST /api/event`, is in OPEN_MUTATIONS, so a local
+ * caller holding no credential that sent a fresh `session_id` with every post
+ * never met a cooldown at all: with notifications on and no tab open, 1,000
+ * posts were 1,000 notifications under the deck's name, and with no desktop app
+ * connected each was its own osascript, powershell.exe or notify-send. A few a
+ * minute is already more than anybody reads off a tray.
+ *
+ * Nothing past the cap is dropped silently, which is the failure `keeps
+ * sessions apart` pins for the memo: what is held back is counted, and said
+ * once, as that count, when the window reopens — see `heldNotice`.
+ */
+export const BURST_MAX = 3;
+export const BURST_MS = 60 * 1000;
+
+/** The session name the held-back notice goes under, for the desktop app's
+ *  title as `whoOf` is for everything else. */
+export const HELD_WHO = "More sessions";
+
+/** The one notification that stands for `count` held back by the cap. */
+export function heldNotice(count, product) {
+  const whom = count === 1 ? "session needs" : "sessions need";
+  return { title: `${HELD_WHO} — ${product}`, body: `${count} more ${whom} you` };
+}
+
+/** A timer that never holds the process open: nothing here is worth waiting
+ *  for on the way out. */
+function laterUnref(fn, ms) {
+  const t = setTimeout(fn, ms);
+  t.unref?.();
 }
 
 /**
@@ -207,13 +256,64 @@ export function shouldNotify(raw, { clients, replay, lastAt, now }) {
  * and a mute that only takes effect after a restart is not a mute. So it may be
  * a function, asked per event; two events in the same second disagreeing is the
  * correct behaviour when somebody pressed the switch between them.
+ *
+ * `pages` and `later` are for the held-back notice, which is said from a timer
+ * rather than from an event: `pages` answers what `clients` answers for
+ * `consider`, at the moment the window reopens, and `later` is that timer —
+ * injected, like the clock, so the suite can reopen the window by hand.
  */
-export function createBlockNotifier({ notify, product, now = Date.now, enabled = true, onError }) {
+export function createBlockNotifier({ notify, product, now = Date.now, enabled = true, onError, pages = () => 0, later = laterUnref }) {
   const isEnabled = typeof enabled === "function" ? enabled : () => enabled;
   /** memo key (see `memoKeys`) → when it was last announced. Bounded by pruning on read: a
    *  long-lived server sees many sessions and this must not become a second
    *  ring nobody empties. */
   const seen = new Map();
+  /** When each notification still inside the window went out, oldest first:
+   *  never more than BURST_MAX of them. */
+  const sent = [];
+  /** How many the cap has held back since the window filled — a count, so a
+   *  burst costs a number and not a list — and whether a timer will say so. */
+  let held = 0;
+  let waiting = false;
+
+  const hasRoom = at => {
+    while (sent.length > 0 && at - sent[0] >= BURST_MS) sent.shift();
+    return sent.length < BURST_MAX;
+  };
+
+  const raise = (at, title, body, meta) => {
+    sent.push(at);
+    // Fire-and-forget, and the catch is not decoration. `notify` shells out —
+    // osascript, PowerShell, notify-send — and on a Linux box with no
+    // notification daemon the last of those simply is not there. A rejected
+    // promise from a notification must never take down the ingest path that
+    // every hook event in the process goes through.
+    Promise.resolve(notify(title, body, meta)).catch(err => onError?.(err));
+  };
+
+  // The window reopens when the oldest notification in it leaves.
+  const waitForRoom = at => {
+    if (waiting) return;
+    waiting = true;
+    later(sayHeld, Math.max(0, sent[0] + BURST_MS - at));
+  };
+
+  // Once, for everything the cap held back. Not at all if the switch has been
+  // turned off since, or a page has opened since: the page draws every one of
+  // them, which is the rule `shouldNotify` keeps for a single event.
+  function sayHeld() {
+    waiting = false;
+    const count = held;
+    held = 0;
+    if (count === 0 || !isEnabled() || pages() > 0) return;
+    const at = now();
+    if (!hasRoom(at)) {
+      held = count;
+      return waitForRoom(at);
+    }
+    const { title, body } = heldNotice(count, product);
+    raise(at, title, body, { chime: "needs-input", who: HELD_WHO });
+  }
 
   return {
     /** Returns what it did, for the tests and for nothing else. */
@@ -224,18 +324,21 @@ export function createBlockNotifier({ notify, product, now = Date.now, enabled =
       const said = [own, ...also].map(k => seen.get(k)).filter(t => t != null);
       const lastAt = said.length ? Math.max(...said) : undefined;
       if (!shouldNotify(raw, { clients, replay, lastAt, now: at })) return "skipped";
+      // Remembered as said even when the cap holds it back: the held-back
+      // notice speaks for it, and a repeat inside the cooldown is not a second
+      // session to count.
       seen.set(own, at);
       for (const [key, when] of seen) if (at - when > QUIET_MS) seen.delete(key);
+      if (!hasRoom(at)) {
+        held += 1;
+        waitForRoom(at);
+        return "held";
+      }
       const { title, body } = blockNotice(raw, product);
-      // Fire-and-forget, and the catch is not decoration. `notify` shells out —
-      // osascript, PowerShell, notify-send — and on a Linux box with no
-      // notification daemon the last of those simply is not there. A rejected
-      // promise from a notification must never take down the ingest path that
-      // every hook event in the process goes through.
       // `who` alone as well: the desktop app shows its own name above every
       // notification, so the "— ccdeck" the title carries for osascript's sake
       // would be said twice there.
-      Promise.resolve(notify(title, body, { chime: chimeOf(raw), who: whoOf(raw) })).catch(err => onError?.(err));
+      raise(at, title, body, { chime: chimeOf(raw), who: whoOf(raw) });
       return "notified";
     },
   };

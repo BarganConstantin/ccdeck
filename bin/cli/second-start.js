@@ -44,6 +44,7 @@ export async function settleSecondStart({ flags, workspace, persist, wantCodex, 
     ours: PKG_VERSION,
     fresh: flags.new === true,
     respawn: RESPAWN,
+    atLogin: flags.atLogin === true,
   });
   if (plan.act === "yield") {
     console.error(`${PRODUCT}: a deck started on ${plan.deck.port} while this one was coming back ${G.dash} leaving it to that one.`);

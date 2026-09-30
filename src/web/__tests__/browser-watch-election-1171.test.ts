@@ -18,17 +18,22 @@
 // Driven the way `single-log-writer.test.ts` drives the other election: a real
 // `agent-dag` directory under a temporary CLAUDE_CONFIG_DIR, with real records
 // in it. Nothing here can reach the developer's own ~/.claude — the override is
-// set before the module is imported, and asserted below.
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
+// the guard's, which leaves the rest of the machine out of reach too (#1847),
+// and it is asserted below.
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { flooredReader } from "./floored-reader";
+import { guardThisMachine } from "./browser-watch-guard";
+import { linuxMachine } from "./linux-browser-fixture";
+
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
 
 const CONFIG = mkdtempSync(join(tmpdir(), "ccdeck-election-"));
 const DAG = join(CONFIG, "agent-dag");
-const prev = process.env.CLAUDE_CONFIG_DIR;
-process.env.CLAUDE_CONFIG_DIR = CONFIG;
+guardThisMachine({ configDir: CONFIG });
 
 import {
   browserWatchSnapshot,
@@ -46,11 +51,7 @@ import { claudeConfigDir } from "../../server/claude-dir.mjs";
 beforeAll(() => {
   expect(String(claudeConfigDir()), "the config override did not take").toBe(CONFIG);
 });
-afterAll(() => {
-  if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
-  else process.env.CLAUDE_CONFIG_DIR = prev;
-  rmSync(CONFIG, { recursive: true, force: true });
-});
+afterAll(() => rmSync(CONFIG, { recursive: true, force: true }));
 
 /** A pid nothing can hold: above every platform's ceiling, so `process.kill`
  *  answers ESRCH rather than reaching somebody else's process. The alternative
@@ -85,7 +86,8 @@ const FROM_API = 0x08000000;
 
 /** The armed fixture from browser-watch.test.ts with the one dep that matters
  *  here left OUT, so the election runs for real. Every store call is stubbed:
- *  nothing below may read or write a real deck's state.
+ *  nothing below may read or write a real deck's state. And the browser survey
+ *  the snapshot ends in reads linux-browser-fixture.ts's machine, not this one.
  *
  *  Each call gets its own profile key, for the reason floored-reader.ts gives —
  *  what a profile has contributed is process-scoped and survives a cache
@@ -97,10 +99,13 @@ function armed() {
   const reacted: unknown[] = [];
   const nth = ++identities;
   const profile = { ...PROFILE, profile: `Default${nth}`, historyPath: `/p/History-${nth}` };
+  // Twenty minutes old, so its quiet window has closed and the elected deck has
+  // something decided to write down (#1751); a page seconds old is still open.
   const reader = flooredReader(() => [
-    { url: "https://gitlab.example.com/-/jobs", timeMs: Date.now() - 5_000, transition: FROM_API },
+    { url: "https://gitlab.example.com/-/jobs", timeMs: Date.now() - 20 * 60_000, transition: FROM_API },
   ]);
   const deps = {
+    ...linuxMachine().deps,
     readStore: async () => ({
       settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
       episodes: [],

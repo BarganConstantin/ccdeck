@@ -866,7 +866,9 @@ describe("the pairing that replaced the passphrase", () => {
 
 describe("who is here, which is what the panel is for now", () => {
   const NOW2 = 1_700_000_000_000;
-  const peer = (over: Record<string, unknown> = {}) => ({ fp: "a", name: "Deck", addr: "", port: 0, ...over });
+  // Named after its key, so each is a machine of its own: decks under one name
+  // are one row on the list, and the line counts what the list does (#1802).
+  const peer = (over: Record<string, unknown> = {}) => ({ fp: "a", name: `Deck-${String(over.fp ?? "a")}`, addr: "", port: 0, ...over });
 
   it("counts a deck that beacons recently as here", () => {
     expect(isOnline(peer({ lastSeen: NOW2 - 10_000 }) as never, NOW2)).toBe(true);
@@ -1156,7 +1158,7 @@ describe("who is here, which is what the panel is for now", () => {
     expect(checkedLabel(NOW2 - 5_000, NOW2, false)).toBe("checked just now");
     // And it comes from the engine's own clock rather than from a render, so a
     // panel opened an hour later reads the round rather than the visit.
-    expect(SERVER_ROUND_RECORD).toMatch(/finished\(\) \{ roundAt = now\(\); \}/);
+    expect(SERVER_ROUND_RECORD).toMatch(/finished\(\) \{\s*roundAt = now\(\);/);
     expect(SERVER_ROUND_RECORD).toMatch(/checkedAt: \(\) => roundAt/);
     expect(SERVER_ENGINE).toMatch(/lastRound\.finished\(\);/);
     expect(SERVER_ENGINE).toMatch(/checkedAt: lastRound\.checkedAt\(\)/);

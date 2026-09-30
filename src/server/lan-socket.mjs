@@ -27,7 +27,7 @@ import { inviteProof, inviteProofBack } from "./lan-invite.mjs";
 // The line both halves speak — the reader, the writer, the cap on a frame and
 // the deadline on a handshake — is lan-lines.mjs's. Re-exported, so what
 // imports it from here still does.
-import { frameReader, sendFrame, HANDSHAKE_MS } from "./lan-lines.mjs";
+import { frameReader, sendFrame, HANDSHAKE_MS, MAX_FRAME_BYTES } from "./lan-lines.mjs";
 export { frameReader, sendFrame, HANDSHAKE_MS, MAX_FRAME_BYTES } from "./lan-lines.mjs";
 // The calling half — dialling, proving, and reading a refusal — is
 // lan-call.mjs's. Re-exported, so what dials through this file still does.
@@ -83,6 +83,32 @@ export const MAX_SOCKETS_PER_HOST = 4;
  * its own `finally`.
  */
 export const IDLE_MS = 30_000;
+
+/**
+ * How many questions from one caller may wait behind the one being answered
+ * (#1739).
+ *
+ * A round asks one question and reads its answer before it asks the next —
+ * askOver in lan-engine.mjs — so a deck of any version never has a frame
+ * waiting here at all. The listener used to start its handler for every frame
+ * in a chunk at once, and a paired caller pipelining thousands of `manifest`
+ * questions had every answer built and queued in this process. Four is slack,
+ * not a queue: past it the caller is not asking the way any deck asks, and the
+ * connection is refused.
+ */
+export const MAX_WAITING_FRAMES = 4;
+
+/**
+ * The most answers a caller may leave unread before its connection is let go
+ * (#1739).
+ *
+ * An answer is one frame, at most MAX_FRAME_BYTES, and a round reads each one
+ * before it asks again — so even on a slow link one frame is the most an
+ * honest caller has sitting in this process's buffer. Four of them unread is a
+ * caller that has stopped reading, and every answer after that would be held
+ * here, in memory, for as long as it cared to keep asking.
+ */
+export const MAX_UNREAD_BYTES = 4 * MAX_FRAME_BYTES;
 
 /**
  * The answering half.
@@ -170,6 +196,10 @@ export function createSyncServer({
   let server = null;
   let cancelStart = null;
   const live = new Set();
+  /** The challenge each live connection was sent. A caller holding this deck's
+   *  own key is answered (see auth), and this is how the deck tells its own
+   *  listener answering it from another machine that holds the same key. */
+  const challenges = new Set();
 
   /** Which host a socket came from, in one spelling. Node reports an IPv4 peer
    *  on a dual-stack listener as `::ffff:127.0.0.1`, and two spellings of one
@@ -242,6 +272,12 @@ export function createSyncServer({
      *  this end did. */
     const sealedChannel = () =>
       (sealsFrames(myChallenge) && sealsFrames(theirChallenge) ? frameChannel(key, "listener") : null);
+    /** Frames from the authenticated caller waiting behind the one being
+     *  answered, and whether one is — see MAX_WAITING_FRAMES. Only a handler
+     *  that returns a promise holds the line; one that answers there and then
+     *  is done before the next frame is read, as it always was. */
+    const waiting = [];
+    let answering = false;
 
     // Armed before the first byte is read, and cleared only by a completed
     // handshake. A socket that connects and says nothing is the cheapest
@@ -249,7 +285,8 @@ export function createSyncServer({
     const deadline = setTimeout(() => { if (!authed) sock.destroy(); }, handshakeMs);
     deadline.unref?.();
 
-    const done = () => { clearTimeout(deadline); live.delete(sock); };
+    challenges.add(myChallenge);
+    const done = () => { clearTimeout(deadline); live.delete(sock); challenges.delete(myChallenge); };
     sock.on("close", done);
     sock.on("error", err => { done(); onError?.("peer", err); });
 
@@ -391,6 +428,16 @@ export function createSyncServer({
       // was made when this socket opened and has never been sent before.
       if (!proofOk(want, msg.proof)) return refuse("bad proof");
 
+      // A CALLER HOLDING THIS DECK'S OWN KEY, which the proof above just
+      // showed. A deck that hears its own fingerprint from another process
+      // dials the address the beacon named to find out whether another machine
+      // really holds its key (see idClash in lan-engine.mjs), and this is the
+      // answer: our proof back, which only a holder of the key can make, and
+      // nothing more. Never a request to accept — that would pin this deck's
+      // own key — and nothing is served, because every handler asks the
+      // trusted list and this deck's own fingerprint is never on it.
+      if (peerFp === fp) { welcome({}); return; }
+
       // WHO IS THIS, and it is the only question left. The handshake proves
       // they hold the key they claimed; the trusted list says whether anybody
       // here ever agreed to talk to it.
@@ -495,6 +542,48 @@ export function createSyncServer({
       welcome({});
     };
 
+    /** Hand one authenticated frame to the handler, and the next waiting one
+     *  once it is done. A throw ends the connection, as it did when the frame
+     *  reader called the handler itself; so does a promise that rejects, which
+     *  nothing used to catch. */
+    const answer = frame => {
+      let out;
+      try { out = handlers?.(frame, answerCtx()); }
+      catch (err) { if (!refused) refuse("bad frame", err); return; }
+      if (!out || typeof out.then !== "function") return answerNext();
+      answering = true;
+      out.then(null, err => { if (!refused) refuse("bad frame", err); })
+        .finally(() => { answering = false; answerNext(); });
+    };
+    const answerNext = () => {
+      if (refused || sock.destroyed || !waiting.length) { waiting.length = 0; return; }
+      answer(waiting.shift());
+    };
+    /** What the handler is handed with each frame. */
+    const answerCtx = () => ({
+      sock, peerFp, key, sealed: !!chan,
+      // Where this deck dials the caller BACK. A deck that only ever calls in
+      // is one this deck holds no address for, so it could receive nothing —
+      // accounts move only toward the deck that dials (see roundWith). The
+      // address the caller connected from, and the port it said it listens
+      // on, are a dialable pair the engine can add so the next round reaches
+      // it. `peerAddr` is the source of this very connection; `peerPort` came
+      // from the hello, not the ephemeral source port.
+      peerAddr: from(sock),
+      peerPort,
+      send: obj => {
+        sendFrame(sock, chan ? chan.wrap(obj) : obj);
+        // AND NOT INTO MEMORY FOR A CALLER THAT DOES NOT READ (#1739). The
+        // write never looked at what was already queued; past
+        // MAX_UNREAD_BYTES the caller has stopped reading, and it is let go
+        // rather than answered into this process's heap.
+        if (!sock.destroyed && sock.writableLength > MAX_UNREAD_BYTES) {
+          onError?.("frame", new Error("answers left unread"));
+          sock.destroy();
+        }
+      },
+    });
+
     sock.on("data", frameReader(msg => {
       // NOTHING AFTER A REFUSAL. The reader hands over every frame in a chunk,
       // and `refuse` destroys the socket without stopping it. So a `hello`
@@ -533,19 +622,16 @@ export function createSyncServer({
       // as it stands instead; that fallback would be the downgrade.
       const frame = chan ? chan.unwrap(msg) : msg;
       if (!frame) return refuse("a sealed frame did not open");
-      handlers?.(frame, {
-        sock, peerFp, key, sealed: !!chan,
-        // Where this deck dials the caller BACK. A deck that only ever calls in
-        // is one this deck holds no address for, so it could receive nothing —
-        // accounts move only toward the deck that dials (see roundWith). The
-        // address the caller connected from, and the port it said it listens
-        // on, are a dialable pair the engine can add so the next round reaches
-        // it. `peerAddr` is the source of this very connection; `peerPort` came
-        // from the hello, not the ephemeral source port.
-        peerAddr: from(sock),
-        peerPort,
-        send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
-      });
+      // ONE QUESTION AT A TIME (#1739). Opened as it arrives — the seal counts
+      // frames in the order they came — and answered in that order, each after
+      // the last. A caller with more than a few waiting is not asking the way a
+      // round does; see MAX_WAITING_FRAMES.
+      if (answering) {
+        if (waiting.length >= MAX_WAITING_FRAMES) return refuse("too many questions at once");
+        waiting.push(frame);
+        return;
+      }
+      answer(frame);
     }, refuse));
   };
 
@@ -612,10 +698,14 @@ export function createSyncServer({
       catch (err) { finish(reject, err); }
     }),
     port: () => server?.address()?.port ?? null,
+    /** Whether this listener made `challenge` for a connection still open —
+     *  true when the deck at the other end of a dial is this one. */
+    issued: challenge => typeof challenge === "string" && challenges.has(challenge),
     stop() {
       cancelStart?.();
       for (const s of live) s.destroy();
       live.clear();
+      challenges.clear();
       try { server?.close(); } catch { /* not listening */ }
       server = null;
     },

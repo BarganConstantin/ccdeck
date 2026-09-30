@@ -57,11 +57,12 @@
 // handshake and the liveness probe therefore live in deck-probe.mjs, a leaf
 // that imports two node builtins; index.mjs takes them from the same place and
 // re-exports them, so there is still exactly one spelling in the package.
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { challengeDeck, isProcessAlive } from "./deck-probe.mjs";
 import { sameCodexTree } from "./log-election.mjs";
+import { CRASH_WINDOW_MS } from "./supervisor.mjs";
 
 /**
  * Where every deck on this machine registers itself.
@@ -156,12 +157,19 @@ export function serves(record, { want = {}, port = null, ours = "" } = {}) {
  * deck returning, so anything already running got there in the gap, was asked
  * for more recently, and keeps its place.
  *
+ * `atLogin` is the login item's job (`--at-login`). The newest start wins
+ * because it is the one somebody just asked for, and nobody asked for this
+ * one: registering the item starts it, beside whatever deck the user launched
+ * a second ago (#1778). So it attaches to what is running — the deck that
+ * serves if there is one, else the first — and stops nothing.
+ *
  * The deck kept on an attach is the first that serves, in the registry's port
  * order, so the answer is the same every time it is asked.
  */
-export function secondStart({ live = [], want = {}, port = null, ours = "", fresh = false, respawn = false } = {}) {
+export function secondStart({ live = [], want = {}, port = null, ours = "", fresh = false, respawn = false, atLogin = false } = {}) {
   if (!live.length) return { act: "start", stop: [] };
   if (respawn) return { act: "yield", deck: live[0], stop: [] };
+  if (atLogin) return { act: "attach", deck: live.find(d => serves(d, { want, port, ours })) ?? live[0], stop: [] };
   const keep = fresh ? null : live.find(d => serves(d, { want, port, ours })) ?? null;
   if (keep) return { act: "attach", deck: keep, stop: live.filter(d => d !== keep) };
   return { act: "replace", stop: [...live] };
@@ -235,6 +243,68 @@ export async function liveDecks({
   const all = await registeredDecks({ dir, fs, self, alive });
   const proved = await Promise.all(all.map(d => prove(d.port, d.token).then(ok => (ok ? d : null))));
   return proved.filter(Boolean);
+}
+
+/**
+ * The decks that are down only for now: the worker gone, and the supervisor
+ * that is about to bring it back still there (#1779).
+ *
+ * A crashed worker leaves its record behind — shutdown() is what unlinks it,
+ * and a crash never runs it — with `parent` naming the supervisor, which waits
+ * out a backoff and starts the deck again. registeredDecks drops the record,
+ * because its pid is dead, so `ccdeck --stop` inside that wait said no deck was
+ * running and the timer brought it back a few seconds later. This is the list
+ * that lets `--stop` end the supervisor instead, and `--status` say so.
+ *
+ * NOTHING HERE IS PROVED, and nothing can be: there is no port to challenge.
+ * So a record qualifies only while it is fresh — a running deck stamps its
+ * record every five seconds (ensureDiscovery), so the mtime is when its worker
+ * was last alive, and a supervisor still inside its crash window was alive
+ * then. An older record whose parent pid answers is far likelier to name a
+ * recycled pid than a supervisor, and a signal sent there ends a stranger.
+ * The window is the supervisor's own, CRASH_WINDOW_MS.
+ *
+ * One entry per supervisor, and none for a supervisor that already has a live
+ * worker registered: that deck is on the ordinary list, and stopping it ends
+ * the supervisor too. Never this process or its own supervisor. Marked
+ * `restarting`, which is how stopDeck knows there is no worker to ask.
+ */
+export async function restartingDecks({
+  dir = deckRegistryDir(),
+  fs = { readdir, readFile, stat },
+  self = process.pid,
+  selfParent = process.ppid,
+  alive = isProcessAlive,
+  now = Date.now(),
+  windowMs = CRASH_WINDOW_MS,
+} = {}) {
+  let names;
+  try { names = await fs.readdir(dir); } catch { return []; }
+  const records = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const file = join(dir, name);
+    let d;
+    let mtime;
+    try {
+      d = JSON.parse(await fs.readFile(file, "utf8"));
+      mtime = (await fs.stat(file)).mtimeMs;
+    } catch { continue; }
+    if (!usable(d) || d.pid === self) continue;
+    records.push({ d, mtime, up: alive(d.pid) });
+  }
+  const serving = new Set(records.filter(r => r.up).map(r => r.d.parent));
+  const out = [];
+  for (const { d, mtime, up } of records) {
+    const parent = d.parent;
+    if (up || !Number.isInteger(parent) || parent <= 0) continue;
+    if (parent === self || parent === selfParent || serving.has(parent)) continue;
+    if (!(Number.isFinite(mtime) && now - mtime >= 0 && now - mtime < windowMs)) continue;
+    if (!alive(parent)) continue;
+    serving.add(parent);
+    out.push({ ...d, restarting: true });
+  }
+  return out.sort((a, b) => a.port - b.port || a.pid - b.pid);
 }
 
 /**

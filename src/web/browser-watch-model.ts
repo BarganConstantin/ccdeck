@@ -17,6 +17,9 @@ export interface WatchEpisode {
   endMs: number;
   count: number;
   urls: { url: string; timeMs: number }[];
+  /** A page in it is still inside its quiet window, so a person's visit in the
+   *  next few minutes can withdraw it. Not yet written down or reacted to. */
+  provisional?: boolean;
 }
 
 export interface WatchProfile {

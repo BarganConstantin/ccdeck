@@ -13,6 +13,7 @@ import { fmtTokens } from "../token-format";
 import type { AgentState } from "../types";
 import { sessionListNote, type SessionCostRow, type SessionListScale } from "../usage-from-ccusage";
 import { stateLabel } from "../agent-copy";
+import { idTail } from "../session-id-tail";
 
 export default function UsageSessionBreakdown({
   fromRange, rangeSessionRows, boardSessionRows, boardStates, sessionsOpen, setSessionsOpen,
@@ -119,13 +120,15 @@ export default function UsageSessionBreakdown({
                 : <span className="sl-dot up-dot-past" aria-hidden />}
               {/* ccusage names a session by its uuid, which is not a
                   name. The board's label is used when the board has one
-                  — that join is the point of this table — and the first
-                  segment of the uuid otherwise, under a title carrying
-                  the whole of it. */}
+                  — that join is the point of this table — and the last
+                  eight characters of the uuid otherwise, under a title
+                  carrying the whole of it. The last, not the first: a
+                  Codex id opens with a timestamp, so two sessions
+                  launched together shared their first eight (#1732). */}
               <span
                 className={`up-session-label${s.label ? "" : " up-session-id"}`}
                 title={s.label ? `${s.label}\n${s.sessionId}` : s.sessionId}
-              >{s.label ?? s.sessionId.slice(0, 8)}</span>
+              >{s.label ?? idTail(s.sessionId, 8)}</span>
               <span className="up-session-tokens">{fmtTokens(s.tokens)}</span>
               {s.cost > 0
                 ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>

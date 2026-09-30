@@ -9,7 +9,7 @@ import { copyText } from "../copy-text";
 // What a call IS rather than its JSON (#816): an Edit as a change, a Bash call
 // as its command and output, a Read or Write as a file and its text, anything
 // else as its values with real newlines. See tool-view.ts.
-import { clip, copyOf, linesOf, toolView, type Block } from "../tool-view";
+import { clip, copyOf, linesOf, moreControl, toolView, type Block } from "../tool-view";
 
 export default function ToolModal({
   tool,
@@ -100,8 +100,9 @@ const TONE_CLASS = { del: "tm-del", add: "tm-add", ctx: "tm-ctx" } as const;
  * One block of a call. A labelled value that fits on a line is drawn as one;
  * anything longer sits in a well, a change coloured by side, and is held to
  * the clip budget until "show all" — a response can run to 95,000 characters.
+ * Exported for the test that draws it open.
  */
-function ToolBlock({ block }: { block: Block }) {
+export function ToolBlock({ block }: { block: Block }) {
   const [open, setOpen] = useState(false);
   if (block.inline) {
     return (
@@ -111,7 +112,9 @@ function ToolBlock({ block }: { block: Block }) {
       </p>
     );
   }
-  const { shown, cut } = clip(linesOf(block), open);
+  const lines = linesOf(block);
+  const { shown } = clip(lines, open);
+  const more = moreControl(lines, open);
   return (
     <div className="tm-block">
       {block.label && <span className="tm-label">{block.label}</span>}
@@ -124,7 +127,11 @@ function ToolBlock({ block }: { block: Block }) {
             ))
           : shown.map(l => l.text).join("\n")}
       </pre>
-      {cut && <button type="button" className="btn tm-more" onClick={() => setOpen(true)}>show all</button>}
+      {more && (
+        <button type="button" className="btn tm-more" aria-expanded={more.expanded} onClick={() => setOpen(o => !o)}>
+          {more.label}
+        </button>
+      )}
     </div>
   );
 }

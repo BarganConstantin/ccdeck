@@ -141,6 +141,31 @@ export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" |
  *  slowly than the readings beside it. */
 const PROC_POLL_MS = 4_000;
 
+/** One reading of the list: the candidates, and how many the machine runs. */
+export type ProcRead = { procs: Proc[]; total: number };
+
+/**
+ * What the dialog holds after one reply, given what it held before it.
+ *
+ * A FAILED READ KEEPS THE TABLE (#1770). The server answers `ok: false` when a
+ * read came back with nothing — `ps` past its deadline on a busy machine,
+ * Get-Process past its six seconds on Windows — and it used to answer that as
+ * an ok reply with no rows, which this stored over a list that had been right
+ * a poll earlier. Both shapes are a failure here, since no machine has nothing
+ * running on it, and a failure leaves whatever was on screen where it is.
+ *
+ * Only when nothing has ever come back does it keep the empty reading, so the
+ * dialog can say it could not read the list instead of "Reading…" forever.
+ */
+export function nextProcRead(
+  prev: ProcRead | null,
+  reply: { ok?: boolean; procs?: Proc[]; total?: number } | null,
+): ProcRead | null {
+  const procs = reply?.ok && Array.isArray(reply.procs) ? reply.procs : [];
+  if (procs.length) return { procs, total: reply!.total ?? 0 };
+  return prev ?? { procs: [], total: 0 };
+}
+
 /**
  * The process list, fetched for as long as this dialog is on screen and not one
  * tick longer.
@@ -152,8 +177,8 @@ const PROC_POLL_MS = 4_000;
  * the cheap half has no reader at all and the flag has one caller that always
  * wants the columns. A deck sitting with the panel open now runs `ps` never.
  */
-function useProcesses(): { procs: Proc[]; total: number } | null {
-  const [procs, setProcs] = useState<{ procs: Proc[]; total: number } | null>(null);
+function useProcesses(): ProcRead | null {
+  const [procs, setProcs] = useState<ProcRead | null>(null);
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -162,7 +187,7 @@ function useProcesses(): { procs: Proc[]; total: number } | null {
         const res = await fetch("/api/system/processes?detail=1");
         if (!res.ok) return;
         const data = await res.json();
-        if (alive && data?.ok) setProcs({ procs: data.procs ?? [], total: data.total ?? 0 });
+        if (alive) setProcs(prev => nextProcRead(prev, data));
       } catch { /* leave the previous list up rather than blanking it */ }
     };
     load();
@@ -201,11 +226,6 @@ export default function ProcessListModal({ sys, onClose }: {
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
   const read = useProcesses();
 
-  // Every candidate the server sent, in the order asked for. Null until the
-  // first read lands, which is a different thing from an empty list and says
-  // so below.
-  const rows = read ? sortProcs(read.procs, sort) : null;
-
   return createPortal(
     // Portalled for the reason SectionHistoryModal is: this opens from inside
     // `.sysdetail`, which is `position: fixed` and animates a transform, and a
@@ -219,138 +239,169 @@ export default function ProcessListModal({ sys, onClose }: {
         aria-modal="true"
         aria-labelledby="pl-modal-title"
       >
-        <div className="modal-head">
-          <span className="modal-title" id="pl-modal-title">Busiest processes</span>
-          {/* Silent until there is something to count. "0 of 0 running" for
-              the first half-second is a claim about a machine nobody has asked
-              yet, and the heading already says what this is. */}
-          {read && (
-            <span className="pl-count">
-              {rows!.length} of {read.total} running
-            </span>
-          )}
-          <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
-        </div>
-
-        {/* THE TABLE AND THE MACHINE, in one box so a media query can decide
-            whether they stack or sit side by side. See .pl-split: below 1200px
-            of viewport nothing changes at all — the band stays under the list,
-            at the width it was measured on. */}
-        <div className="pl-split">
-        <div className="pl-body">
-          {rows == null ? (
-            // Not the sentence below it. A read that has not come back yet and
-            // a platform that cannot answer look identical in the data and are
-            // opposite things to tell somebody, and this dialog now opens
-            // before its first read rather than inheriting the panel's.
-            <p className="pl-empty">Reading the process list…</p>
-          ) : rows.length === 0 ? (
-            <p className="pl-empty">Could not read the process list on this platform.</p>
-          ) : (
-            <table className="sd-procs pl-table">
-              <thead>
-                <tr>
-                  <SortHead col="cpu" label="cpu" sort={sort} onSort={setSort} />
-                  {/* `rss`, not `mem`: the cell prints bytes and the sort has
-                      to be the same quantity the cell is showing. They order
-                      identically on the Unixes, where both come from RSS, and
-                      differently on Windows, where the percentage is private
-                      bytes and this figure is the working set Task Manager
-                      draws. A column that sorted by one and displayed the
-                      other would be right on two platforms out of three. */}
-                  <SortHead
-                    col="rss"
-                    label="memory"
-                    note="Resident set size, which is what ps and Task Manager report; macOS Activity Monitor shows a different figure."
-                    sort={sort}
-                    onSort={setSort}
-                  />
-                  <SortHead col="threads" label="threads" sort={sort} onSort={setSort} />
-                  <SortHead col="uptime" label="up" sort={sort} onSort={setSort} />
-                  <SortHead col="user" label="user" sort={sort} onSort={setSort} />
-                  {/* Not sortable. A pid is an identifier the machine handed
-                      out, so ordering by it orders by nothing a reader cares
-                      about — it is here to be COPIED, which is why it is a
-                      column at all and not a tooltip like it is in the panel. */}
-                  <th scope="col" className="pl-pid-h">pid</th>
-                  <SortHead
-                    col="name"
-                    label="process"
-                    note="Command lines have anything secret-shaped removed, which is a filter and not a guarantee."
-                    sort={sort}
-                    onSort={setSort}
-                  />
-                </tr>
-              </thead>
-              <tbody>
-                {rows!.map(p => (
-                  <tr key={p.pid}>
-                    {/* Per core on every platform, so a process can exceed
-                        100%: that is it using more than one core. Null is the
-                        Windows first reading — a dash, never a zero, which
-                        would rank it as idle. */}
-                    <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
-                    {/* Bytes, and the percentage in the title. The panel's
-                        column is a percentage of installed memory and stays
-                        one — it has 40px. Here there is room for the figure
-                        itself, and "6.5 GB" answers "can I close this and get
-                        something back" in a way "20.3" never did. */}
-                    <td className="sd-num sd-dim" title={`${p.mem.toFixed(1)}% of installed memory`}>
-                      {fmtBytes(p.rssBytes)}
-                    </td>
-                    <td className="sd-num sd-dim">{p.threads ?? "—"}</td>
-                    <td className="sd-num sd-dim">{fmtUptime(p.uptimeSec)}</td>
-                    <td className="sd-dim pl-user">{p.user ?? "—"}</td>
-                    <td className="sd-num sd-dim pl-pid">{p.pid}</td>
-                    {/* The name, and after it whatever of the command line
-                        identifies WHICH one this is — `--type=renderer` beside
-                        the fourth Google Chrome Helper, `serve admin-portal`
-                        beside a node. The executable is off the front because
-                        the name already says it, and anything secret-shaped is
-                        off before it left the server. */}
-                    <td className="pl-name">
-                      {p.name}
-                      {p.cmd && <span className="pl-cmd" title={p.cmd}> {p.cmd}</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* THE PANEL THIS DIALOG IS COVERING, in the room a footer has. See
-            MachineStrip: opening the list hides the readings that are the
-            reason for opening it. */}
-        <MachineStrip sys={sys} />
-        </div>
-
-        {/* WHAT THE MEMORY COLUMN IS, said here rather than left to be
-            discovered. It is resident set size, which is what `ps` and Task
-            Manager report and is NOT the figure macOS Activity Monitor prints:
-            that one is `phys_footprint`, and on this machine the two disagree
-            by up to fourteen times on the same process. No unprivileged
-            one-shot command reports the footprint — `top` has it and takes four
-            seconds — so the choice was a number that is the same measurement on
-            all three platforms, or a different one per platform. This is the
-            first. */}
-        {/* NO FOOTNOTE BAND. It said three things and only two of them were
-            worth a permanent 72px under a list nobody scrolls to the end of:
-            what the memory column measures, and that the redaction is a filter
-            rather than a promise. Both are now on the header of the column they
-            are about, which is where somebody wondering about a column actually
-            looks — findable from the thing, instead of from a paragraph at the
-            other end of the dialog.
-
-            The third said the list is the busiest by processor and memory and
-            refreshed every four seconds. The heading says "Busiest processes",
-            the count beside it says how many of how many, and the numbers move
-            while you watch: it was a caption describing what the reader could
-            already see. */}
-
+        <ProcessListView read={read} sort={sort} onSort={setSort} sys={sys} onClose={onClose} />
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * What the dialog draws inside its frame: the heading with its count, the list,
+ * and the machine's readings beside it.
+ *
+ * Split from the frame so it can be drawn without a portal, which is the only
+ * part of this dialog react-dom/server cannot render — the suite draws this
+ * with the reading it chooses and reads what a person would see.
+ */
+export function ProcessListView({ read, sort, onSort, sys, onClose }: {
+  read: ProcRead | null;
+  sort: Sort;
+  onSort: (next: Sort) => void;
+  sys: LiveSource;
+  onClose: () => void;
+}) {
+  // Every candidate the server sent, in the order asked for. Null until the
+  // first read lands, which is a different thing from an empty list and says
+  // so below.
+  const rows = read ? sortProcs(read.procs, sort) : null;
+
+  return (
+    <>
+      <div className="modal-head">
+        <span className="modal-title" id="pl-modal-title">Busiest processes</span>
+        {/* Silent until there is something to count. "0 of 0 running" for
+            the first half-second is a claim about a machine nobody has asked
+            yet, and the heading already says what this is — and after a first
+            read that failed it was a count of a machine nobody could read. */}
+        {rows != null && rows.length > 0 && (
+          <span className="pl-count">
+            {rows.length} of {read!.total} running
+          </span>
+        )}
+        <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+      </div>
+
+      {/* THE TABLE AND THE MACHINE, in one box so a media query can decide
+          whether they stack or sit side by side. See .pl-split: below 1200px
+          of viewport nothing changes at all — the band stays under the list,
+          at the width it was measured on. */}
+      <div className="pl-split">
+      <div className="pl-body">
+        {rows == null ? (
+          // Not the sentence below it. A read that has not come back yet and
+          // a read that came back with nothing look identical in the data and
+          // are opposite things to tell somebody, and this dialog now opens
+          // before its first read rather than inheriting the panel's.
+          <p className="pl-empty">Reading the process list…</p>
+        ) : rows.length === 0 ? (
+          // Only when no read has ever returned rows — a failure after a good
+          // one keeps that table (nextProcRead). And not "on this platform":
+          // every platform this runs on can answer, and the usual cause is one
+          // read that missed its deadline, which the next poll retries.
+          <p className="pl-empty">Could not read the process list — retrying.</p>
+        ) : (
+          <table className="sd-procs pl-table">
+            <thead>
+              <tr>
+                <SortHead col="cpu" label="cpu" sort={sort} onSort={onSort} />
+                {/* `rss`, not `mem`: the cell prints bytes and the sort has
+                    to be the same quantity the cell is showing. They order
+                    identically on the Unixes, where both come from RSS, and
+                    differently on Windows, where the percentage is private
+                    bytes and this figure is the working set Task Manager
+                    draws. A column that sorted by one and displayed the
+                    other would be right on two platforms out of three. */}
+                <SortHead
+                  col="rss"
+                  label="memory"
+                  note="Resident set size, which is what ps and Task Manager report; macOS Activity Monitor shows a different figure."
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortHead col="threads" label="threads" sort={sort} onSort={onSort} />
+                <SortHead col="uptime" label="up" sort={sort} onSort={onSort} />
+                <SortHead col="user" label="user" sort={sort} onSort={onSort} />
+                {/* Not sortable. A pid is an identifier the machine handed
+                    out, so ordering by it orders by nothing a reader cares
+                    about — it is here to be COPIED, which is why it is a
+                    column at all and not a tooltip like it is in the panel. */}
+                <th scope="col" className="pl-pid-h">pid</th>
+                <SortHead
+                  col="name"
+                  label="process"
+                  note="Command lines have anything secret-shaped removed, which is a filter and not a guarantee."
+                  sort={sort}
+                  onSort={onSort}
+                />
+              </tr>
+            </thead>
+            <tbody>
+              {rows!.map(p => (
+                <tr key={p.pid}>
+                  {/* Per core on every platform, so a process can exceed
+                      100%: that is it using more than one core. Null is the
+                      Windows first reading — a dash, never a zero, which
+                      would rank it as idle. */}
+                  <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
+                  {/* Bytes, and the percentage in the title. The panel's
+                      column is a percentage of installed memory and stays
+                      one — it has 40px. Here there is room for the figure
+                      itself, and "6.5 GB" answers "can I close this and get
+                      something back" in a way "20.3" never did. */}
+                  <td className="sd-num sd-dim" title={`${p.mem.toFixed(1)}% of installed memory`}>
+                    {fmtBytes(p.rssBytes)}
+                  </td>
+                  <td className="sd-num sd-dim">{p.threads ?? "—"}</td>
+                  <td className="sd-num sd-dim">{fmtUptime(p.uptimeSec)}</td>
+                  <td className="sd-dim pl-user">{p.user ?? "—"}</td>
+                  <td className="sd-num sd-dim pl-pid">{p.pid}</td>
+                  {/* The name, and after it whatever of the command line
+                      identifies WHICH one this is — `--type=renderer` beside
+                      the fourth Google Chrome Helper, `serve admin-portal`
+                      beside a node. The executable is off the front because
+                      the name already says it, and anything secret-shaped is
+                      off before it left the server. */}
+                  <td className="pl-name">
+                    {p.name}
+                    {p.cmd && <span className="pl-cmd" title={p.cmd}> {p.cmd}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* THE PANEL THIS DIALOG IS COVERING, in the room a footer has. See
+          MachineStrip: opening the list hides the readings that are the
+          reason for opening it. */}
+      <MachineStrip sys={sys} />
+      </div>
+
+      {/* WHAT THE MEMORY COLUMN IS, said here rather than left to be
+          discovered. It is resident set size, which is what `ps` and Task
+          Manager report and is NOT the figure macOS Activity Monitor prints:
+          that one is `phys_footprint`, and on this machine the two disagree
+          by up to fourteen times on the same process. No unprivileged
+          one-shot command reports the footprint — `top` has it and takes four
+          seconds — so the choice was a number that is the same measurement on
+          all three platforms, or a different one per platform. This is the
+          first. */}
+      {/* NO FOOTNOTE BAND. It said three things and only two of them were
+          worth a permanent 72px under a list nobody scrolls to the end of:
+          what the memory column measures, and that the redaction is a filter
+          rather than a promise. Both are now on the header of the column they
+          are about, which is where somebody wondering about a column actually
+          looks — findable from the thing, instead of from a paragraph at the
+          other end of the dialog.
+
+          The third said the list is the busiest by processor and memory and
+          refreshed every four seconds. The heading says "Busiest processes",
+          the count beside it says how many of how many, and the numbers move
+          while you watch: it was a caption describing what the reader could
+          already see. */}
+    </>
   );
 }
 

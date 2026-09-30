@@ -23,10 +23,17 @@
 // Synthetic rows through floored-reader.ts, as in #1117's suite, and every
 // dependency that could reach the machine is stubbed: no browser profile, hosts
 // file or process list is read.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { flooredReader, type Visit } from "./floored-reader";
 import * as watch from "../../server/browser-watch.mjs";
 import { classify } from "../../server/agent-activity.mjs";
+import { guardThisMachine } from "./browser-watch-guard";
+
+// The survey is stubbed below; the guard is what fails the file if a case ever
+// reaches past the stubs to this machine (#1847): see browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const { browserWatchSnapshot, fetchBrowserWatch, invalidateBrowserWatchCache } = watch;
 

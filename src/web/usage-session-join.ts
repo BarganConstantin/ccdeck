@@ -8,6 +8,7 @@
 // it; both file a session under the same id, and the join is on that id and
 // nothing else. No React and no graph: an agent here is the five fields read.
 import type { AgentState } from "./types";
+import { distinctIdTail } from "./session-id-tail";
 
 /** What the join reads off a board agent. */
 export interface JoinableAgent {
@@ -51,23 +52,34 @@ export function boardSessionStates(agents: Iterable<JoinableAgent>): Map<string,
 }
 
 /**
- * The rows, with a repeated name told apart by the head of its session id.
+ * The rows, with a repeated name told apart by the tail of its session id.
  *
  * Two sessions in the same folder is the normal case here — parallel agents,
  * or one deck restarted — and both then arrive under the same project name.
  * Identical rows carrying different figures read as a bug in the panel, so a
- * repeated name takes the head of its session id. Only a repeated one: the
+ * repeated name takes the last four characters of its session id — more when
+ * another row under that name ends the same way. Only a repeated one: the
  * common case is a list of distinct projects, and a uuid fragment on every row
  * would be noise on a 280px column.
+ *
+ * The TAIL, because a Codex id is a UUIDv7 and opens with its timestamp: every
+ * Codex session of the same seven weeks shares its first four characters, so
+ * the head told two of them apart not at all (#1732). See session-id-tail.ts.
  *
  * Counted over the rows it is given, so the panel hands it the list after its
  * cut: a name repeated only among rows that are not drawn is not repeated on
  * screen. A row that is not renamed comes back as the same object.
  */
 export function distinctSessionLabels<T extends { label: string | null; sessionId: string }>(rows: readonly T[]): T[] {
-  const seen = new Map<string, number>();
-  for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);
-  return rows.map(r => (r.label && (seen.get(r.label) ?? 0) > 1
-    ? { ...r, label: `${r.label} ${r.sessionId.slice(0, 4)}` }
-    : r));
+  const idsByLabel = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.label) continue;
+    const ids = idsByLabel.get(r.label);
+    if (ids) ids.push(r.sessionId);
+    else idsByLabel.set(r.label, [r.sessionId]);
+  }
+  return rows.map(r => {
+    const ids = r.label ? idsByLabel.get(r.label) ?? [] : [];
+    return ids.length > 1 ? { ...r, label: `${r.label} ${distinctIdTail(r.sessionId, ids)}` } : r;
+  });
 }

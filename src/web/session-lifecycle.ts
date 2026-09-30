@@ -9,7 +9,7 @@
 import { adoptCwd, adoptRootLabel, ensureRoot } from "./agent-attribution";
 import { rootAgentId, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
-import { HOOK_REDELIVERY_WINDOW_MS, promptAlreadyRecorded, sessionEvidenceAt } from "./redelivery";
+import { HOOK_REDELIVERY_WINDOW_MS, recordPrompt, sessionEvidenceAt } from "./redelivery";
 import { settleUnanswered, shortPreview } from "./tool-calls";
 import type { HookPayload } from "./types";
 
@@ -166,8 +166,7 @@ export function applyUserPromptSubmit(state: GraphState, p: HookPayload, session
   // SUBAGENT's list, find nothing, and record the turn a second time — one
   // submission counted twice across the session, which is the very thing
   // the paragraph above exists to prevent.
-  if (text && !promptAlreadyRecorded(root, now, text)) {
-    root.prompts.push({ at: now, text });
+  if (text && recordPrompt(root.prompts, now, text)) {
     // A background task's notice is not the session's opening words (#834).
     if (!root.firstPrompt && !injectedPrompt(text)) root.firstPrompt = shortPreview(text, 120);
   }

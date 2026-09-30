@@ -215,7 +215,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                   {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={r.modelId}>{shortModel(r.modelId)}</span>}
                 </div>
                 <div className="sl-row-meta">
-                  <span title="tool calls"><b>{r.toolCount}</b> tools</span>
+                  {/* One tool, as the peek card and the card's label say it
+                      (#1810): the row is a button, so this is heard as well. */}
+                  <span title="tool calls"><b>{r.toolCount}</b> {r.toolCount === 1 ? "tool" : "tools"}</span>
                   {/* "session spend", not "total spend" (#687). The row sums
                       the root and every subagent of this session that is still
                       on the board, and `pruneOldAgents` takes finished

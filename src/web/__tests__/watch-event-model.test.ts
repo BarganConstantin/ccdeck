@@ -10,11 +10,20 @@
 // urgent: the buffer is bounded at 200, so on a machine somebody actually
 // browses, bookkeeping does not merely clutter the feed — it evicts the
 // findings the panel exists to show.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { browserWatchSnapshot, invalidateBrowserWatchCache } from "../../server/browser-watch.mjs";
 import { flooredReader, type Visit } from "./floored-reader";
+import { guardThisMachine } from "./browser-watch-guard";
+import { linuxMachine } from "./linux-browser-fixture";
+
+// The snapshot ends in the browser survey, which reads the machine
+// linux-browser-fixture.ts holds in memory and never this one (#1847): see
+// browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const PROFILE = {
   browser: "brave", name: "Brave", profile: "Default",
@@ -38,6 +47,7 @@ function session(script: { mtime: number; rows: unknown[] }[]) {
   let i = 0;
   const profile = { ...PROFILE, profile: `Case${seq++}`, historyPath: `/p/History-${seq}` };
   const deps = {
+    ...linuxMachine().deps,
     discoverProfiles: () => [profile],
     statSync: () => ({ mtimeMs: script[Math.min(i, script.length - 1)].mtime }),
     readVisitsSince: flooredReader(() => script[Math.min(i, script.length - 1)].rows as Visit[]).read,
@@ -104,6 +114,7 @@ describe("what earns a row in the activity feed", () => {
   it("keeps a read that failed, because that is not nothing happening", async () => {
     const s = {
       deps: {
+        ...linuxMachine().deps,
         discoverProfiles: () => [PROFILE],
         statSync: () => ({ mtimeMs: 1 }),
         readVisitsSince: async () => ({ rows: [], watermark: "0", degraded: true, reason: "database is locked" }),

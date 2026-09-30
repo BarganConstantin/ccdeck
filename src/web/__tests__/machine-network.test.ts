@@ -16,6 +16,7 @@ import {
 import {
   historySnapshot, probeNetwork, startSystemMetrics, stopSystemMetrics, systemSnapshot,
 } from "../../server/system-metrics.mjs";
+import { tailscaleCandidates } from "../../server/tailscale.mjs";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
 import { machinePanelSurface } from "./machine-panel-surface";
 import { sheetText } from "./sheet-source";
@@ -156,7 +157,10 @@ describe("reaching out only when asked", () => {
     startSystemMetrics();
     const { calls, deps } = fakes();
     await probeNetwork(deps);
-    expect(calls).toEqual(["lookup", "connect", "ip", "tailscale"]);
+    // The CLI is looked for where tailscale.mjs says it lives, in its order
+    // (#1772); this fake answers only to the bare name, so every one is asked.
+    expect(calls).toEqual(["lookup", "connect", "ip", ...tailscaleCandidates("linux")]);
+    expect(calls.at(-1)).toBe("tailscale");
     const net = systemSnapshot().network;
     expect(net?.api).toEqual({ host: "api.anthropic.com", ms: 92 });
     expect(net?.route).toMatchObject({ kind: "tailscale-exit", node: "Constantin’s iMac", relay: "nue", to: "claude" });

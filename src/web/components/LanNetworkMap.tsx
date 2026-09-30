@@ -174,6 +174,14 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   const on = status?.enabled === true;
   const headline = !status ? "checking…" : !on ? "Local network is off" : mapHeadline(summary);
   const toNetwork = () => { setShownKey(null); setFocusKey(null); };
+  // The deck panel's way back takes itself away with the panel, so focus goes
+  // to the ring button of the deck it was showing — the ring's own tab stop —
+  // rather than falling to the page (#1748). First, because focusing a deck on
+  // the ring shows it in the panel, and the hand-back has to come after it.
+  const backToNetwork = () => {
+    if (shownKey) nodeRefs.current.get(shownKey)?.focus();
+    toNetwork();
+  };
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -236,7 +244,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
           <aside className="nm-side" aria-label="Details">
             {shownRow && status
               ? <DeckDetails key={machineKey(shownRow)} row={shownRow} status={status} accounts={accounts} now={now}
-                  onOpen={() => onOpenDeck(shownRow.fp)} onBack={toNetwork} />
+                  onOpen={() => onOpenDeck(shownRow.fp)} onBack={backToNetwork} />
               : <NetworkDetails status={status} summary={summary} />}
           </aside>
         </div>

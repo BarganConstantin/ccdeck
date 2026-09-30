@@ -460,7 +460,7 @@ export const LAN_STEPS: GuideStep[] = [
   {
     art: <LanPairArt />,
     line: "Both decks are on. They find each other and ask to pair.",
-    tip: "Not showing up? The + in the section reaches a machine by address or invite.",
+    tip: "Not showing up? Add a deck, the link at the top, takes an address or invite.",
   },
   { art: <LanShareArt />, line: "Tick which logins this machine may hand out. Nothing is shared until you do." },
   { art: <LanRepairArt />, line: "An expired login is copied from a paired machine within a minute." },

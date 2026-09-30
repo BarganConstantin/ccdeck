@@ -447,6 +447,10 @@ type AccountsModule = {
   invalidateClaudeAccountsCache: () => void;
 };
 
+/** The roster cache's own interval — and, since #1798, a forced read's floor
+ *  too: the shorter of FLOOR_MS and this. */
+const CACHE_MS = 5_000;
+
 /** One roster read is exactly these two files. */
 const rosterReads = () =>
   probe.reads.filter(p => p.endsWith("sequence.json") || p.endsWith("usage.json"));
@@ -513,11 +517,15 @@ async function atTheGate(): Promise<void> {
 describe("mayReadAccounts, the rule on its own", () => {
   beforeEach(() => { probe.reset(); seedStore(); advance(FLOOR_MS + 1_000); });
 
-  it("is quota.mjs's maySelfPoll: one minute forced, the cache's own interval otherwise", async () => {
+  it("floors a forced read at the shorter of the minute and the cache's own interval", async () => {
     const { mayReadAccounts } = await freshAccountsModule();
     const now = 10_000_000;
     expect(mayReadAccounts({ now, force: true, lastReadAt: now - FLOOR_MS })).toBe(true);
-    expect(mayReadAccounts({ now, force: true, lastReadAt: now - (FLOOR_MS - 1) })).toBe(false);
+    // #1798: the minute alone was longer than the panel's poll, so ↻ was never
+    // admitted while the panel was open. The forced arm is the cache's five
+    // seconds now, which still bounds a held-down button.
+    expect(mayReadAccounts({ now, force: true, lastReadAt: now - CACHE_MS })).toBe(true);
+    expect(mayReadAccounts({ now, force: true, lastReadAt: now - (CACHE_MS - 1) })).toBe(false);
     // The unforced arm is the 5s cache restated from the start of a read rather
     // than from its end, so an ordinary poll is admitted exactly where the cache
     // above it would have let one through.
@@ -527,22 +535,28 @@ describe("mayReadAccounts, the rule on its own", () => {
     expect(mayReadAccounts({ now, force: true, lastReadAt: 0 })).toBe(true);
   });
 
-  it("refuses every forced read the panel can make, which is why a mutation must invalidate", async () => {
+  it("admits a forced read wherever the panel's own poll would be admitted", async () => {
     const { mayReadAccounts } = await freshAccountsModule();
-    // The arithmetic that turned a press into a no-op. AccountsPanel polls
-    // every 15s and each poll that passes stamps `_lastReadAt`, so while the
-    // panel is open that stamp is never older than POLL_MS. A forced read
-    // needs FLOOR_MS (60s). 15_000 >= 60_000 is false for every value the
-    // panel can produce, so `?refresh=1` is refused EVERY time and
-    // `heldReading` hands back the pre-press roster.
+    // The arithmetic that turned a press into a no-op (#1798). AccountsPanel
+    // polls every 15s and each poll that passes stamps `_lastReadAt`, so while
+    // the panel is open that stamp is never older than POLL_MS. A forced read
+    // used to need FLOOR_MS (60s), which is false for every age the panel can
+    // produce: `?refresh=1` was refused EVERY time, and `heldReading` handed
+    // back the pre-press roster even when an ordinary poll at that instant
+    // would have gone to disk. A switch made outside the deck had nothing that
+    // could get a press past that.
     const POLL_MS = 15_000;      // AccountsPanel.tsx:94
     const now = 10_000_000;
     for (let age = 0; age <= POLL_MS; age += 1_000) {
-      expect(mayReadAccounts({ now, force: true, lastReadAt: now - age }), `age ${age}ms`).toBe(false);
+      expect(mayReadAccounts({ now, force: true, lastReadAt: now - age }), `age ${age}ms`)
+        .toBe(mayReadAccounts({ now, force: false, lastReadAt: now - age }));
     }
-    // invalidateClaudeAccountsCache sets _lastReadAt = 0, which is the ONLY
-    // thing that gets a press past the floor. Every mutation of the store owes
-    // this call; setAccountEnabled was the one that did not make it.
+    expect(mayReadAccounts({ now, force: true, lastReadAt: now - POLL_MS }), "a press a poll after the last one").toBe(true);
+    // A press inside the cache's five seconds is still refused, which is why a
+    // mutation must still invalidate: invalidateClaudeAccountsCache sets
+    // _lastReadAt = 0, and the reload after a press lands milliseconds after
+    // the read before it. setAccountEnabled was the mutation that did not.
+    expect(mayReadAccounts({ now, force: true, lastReadAt: now - 1_000 })).toBe(false);
     expect(mayReadAccounts({ now, force: true, lastReadAt: 0 })).toBe(true);
   });
 });
@@ -604,7 +618,7 @@ describe("a burst of forced roster reads, the shape any open page can produce", 
     await fetchClaudeAccounts({ force: true });
     expect(rosterReads()).toHaveLength(2);
 
-    advance(FLOOR_MS - 1);
+    advance(CACHE_MS - 1);
     await fetchClaudeAccounts({ force: true });
     expect(rosterReads(), "one millisecond short of the floor").toHaveLength(2);
 
@@ -645,7 +659,7 @@ describe("what a refused forced roster read is handed", () => {
     const { fetchClaudeAccounts } = await freshAccountsModule();
     const first = await fetchClaudeAccounts({ force: true });
 
-    advance(30_000);
+    advance(4_000);
     const again = await fetchClaudeAccounts({ force: true });
 
     expect(again.stale).toBe(true);

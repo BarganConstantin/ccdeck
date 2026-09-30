@@ -29,7 +29,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { peerView, sinceLabel } from "../lan-peer";
-import { pressState } from "../panel-press";
+import { focusDropped, pressState } from "../panel-press";
 import { usePeerUnpair } from "../use-peer-unpair";
 import { useModalDismiss } from "./use-modal-dismiss";
 import LanPeerFoot from "./LanPeerFoot";
@@ -97,12 +97,24 @@ export default function LanPeerModal({
    *  picture that answered the press is visibly a new one. */
   const [drawn, setDrawn] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const renameRef = useRef<HTMLButtonElement>(null);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   const editing = draft != null;
   // Selected rather than merely focused: renaming is almost always replacing,
   // and the name that is there is the one being replaced.
   useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  // Saving or cancelling takes the form away with focus inside it, and the
+  // pencil drawn in its place is where the keyboard was (#1746). Only when
+  // focus fell with the form: whoever clicked elsewhere in the dialog while a
+  // save was out is left where they went.
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (wasEditing.current && !editing && focusDropped(document.activeElement?.tagName ?? null)) {
+      renameRef.current?.focus();
+    }
+    wasEditing.current = editing;
+  }, [editing]);
 
   const press = (tag: string) => {
     const s = pressState(busy, tag);
@@ -201,7 +213,7 @@ export default function LanPeerModal({
               <span className="lan-peer-title">
                 <span id="lan-peer-title" className="lan-peer-name">{row.name}</span>
                 {canRename && (
-                  <button type="button" className="glyph-btn lan-peer-rename"
+                  <button type="button" className="glyph-btn lan-peer-rename" ref={renameRef}
                     onClick={() => { setFailure(null); setDraft(row.name); }}
                     aria-label={`Rename ${row.name} on this deck`}
                     title="Give it a name of your own. Only this deck sees it.">

@@ -250,7 +250,11 @@ export function activeCount(agents: Iterable<{ state?: string }>): number {
  * word: `Restart anyway` is a sentence the user can refuse by not pressing it,
  * and it costs no second click when the machine is quiet.
  */
-export function restartSafety(active: number): { label: string; clause: string } {
+export function restartSafety(active: number, paused = false): { label: string; clause: string } {
+  // A paused canvas holds every event for the resume, so its count is the one
+  // from the moment of the pause and a turn started since is not in it (#1764).
+  // Zero is then not an answer, and the button does not give it as one.
+  if (active <= 0 && paused) return { label: "Restart anyway", clause: "the canvas is paused — running agents cannot be seen" };
   if (active <= 0) return { label: "Restart now", clause: "nothing is running" };
   const agents = active === 1 ? "1 agent is running" : `${active} agents are running`;
   return { label: "Restart anyway", clause: `${agents} — their events during the restart are lost` };

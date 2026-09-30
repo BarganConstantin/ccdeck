@@ -19,11 +19,13 @@ describe("the setup dialog's way out", () => {
 
   it("saves a name somebody typed and did not save, and stays open when that fails", () => {
     const body = /const done = useCallback\(async \(\) => \{([\s\S]*?)\}, \[/.exec(MODAL)?.[1] ?? "";
-    expect(body).toMatch(/nameDraft != null && nameDraft !== \(status\.name \?\? ""\)/);
-    expect(body).toMatch(/await write\(\{ name: nameDraft \}, "save the name", "name"\)/);
-    expect(body).toMatch(/if \(!ok\) return;/);
+    // The save is the one Enter and `save` make too (#1801): it waits for the
+    // deck's answer and says whether the name was kept.
+    expect(MODAL).toMatch(/const nameDirty = nameDraft != null && nameDraft !== \(status\.name \?\? ""\);/);
+    expect(MODAL).toMatch(/const saveName = useCallback\(async \(draft: string\) => \{\s*const ok = await write\(\{ name: draft \}, "save the name", "name"\);/);
+    expect(body).toMatch(/if \(nameDirty && !\(await saveName\(nameDraft\)\)\) return;/);
     // Closing comes after the save, never instead of it.
-    expect(body.indexOf("onClose()")).toBeGreaterThan(body.indexOf("if (!ok) return;"));
+    expect(body.indexOf("onClose()")).toBeGreaterThan(body.indexOf("return;"));
   });
 
   it("says why there is no Save button", () => {

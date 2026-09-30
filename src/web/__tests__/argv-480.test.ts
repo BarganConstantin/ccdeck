@@ -103,6 +103,9 @@ const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][]
   // deletes them. In this table rather than in KEPT for the reason given above
   // it — KEPT means "already worked before the sweep existed".
   ["--purge", ["--purge"], { purge: true }],
+  // #1778. What the login item's job starts the deck with, so a start nobody
+  // typed never replaces a deck somebody did.
+  ["--at-login", ["--at-login"], { atLogin: true }],
 ];
 
 describe("the flag list is swept whole, not sampled", () => {

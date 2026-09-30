@@ -35,10 +35,11 @@ describe("where a card beside the anchor opens (placeBeside)", () => {
   });
 
   it("stays on the roomier side when neither side can hold it whole", () => {
-    // 380px window, a 288px panel: 80px to the right, none to the left. Eighty
-    // pixels of a name is worth more than none of it.
+    // 380px window, a 288px panel: 80px to the right, none to the left. It
+    // opens on the side with the room, and is pulled back over the panel to end
+    // at the window's margin rather than run 120px past it (#1791).
     expect(placeBeside(rowAt(400), SIZE, { width: 380, height: 800 }).side).toBe("right");
-    expect(placeBeside(rowAt(400), SIZE, { width: 380, height: 800 }).left).toBe(288 + POPOVER_GAP);
+    expect(placeBeside(rowAt(400), SIZE, { width: 380, height: 800 }).left).toBe(380 - POPOVER_MARGIN - SIZE.width);
   });
 
   it("never runs past the foot of the window, and never above its top margin", () => {

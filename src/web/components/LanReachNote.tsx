@@ -20,8 +20,9 @@
 // about the machine and reads identically on both; the sentence under it points
 // at a control, and the control is not the same one. In the dialog the paste
 // field is directly below, so the sentence says below. In the panel there is no
-// field — the same two ways in live behind the `+` in the header — so the
-// sentence says `+`. This is the whole reason `where` exists, and it is a
+// field — the same two ways in live behind Add a deck, the link in the
+// header — so the sentence names that control as it is drawn, not the `+` it
+// was before #838 (#1800). This is the whole reason `where` exists, and it is a
 // parameter rather than two components because everything else, including the
 // part that has to stay exactly right, is shared.
 //
@@ -48,7 +49,7 @@ import type { LanReach } from "../lan-types";
  */
 export const REACH_WAY_OUT: Record<"panel" | "dialog", string> = {
   panel: "Nothing here is stuck: whoever pastes an invite is the one dialling out. "
-    + "Ask them for one and paste it behind the + above, where an address can be typed too.",
+    + "Ask them for one and paste it behind Add a deck, the link above, where an address can be typed too.",
   dialog: "Nothing here is stuck: whoever pastes an invite is the one dialling out. "
     + "Ask them for one and paste it below, or type their address.",
 };

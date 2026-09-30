@@ -212,6 +212,10 @@ function normaliseLan(raw) {
         // When somebody here said yes. Absent on every pin made before this was
         // kept, and absent is drawn as "before" rather than guessed.
         ...(Number.isFinite(t.at) && t.at > 0 ? { at: t.at } : {}),
+        // Said yes to by the accept switch rather than by a person — see
+        // addTrusted in lan-sync.mjs. Kept, or a restart would turn every
+        // pairing the switch made into one somebody chose. Only a real `true`.
+        ...(t.auto === true ? { auto: true } : {}),
       })),
     // Fingerprints somebody explicitly unpaired. Kept separately from trusted
     // because manual dial rows survive the action and must not silently rebuild

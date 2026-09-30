@@ -698,9 +698,17 @@ describe("the selected range is a state you can see (#583)", () => {
     // rule under it, unmixed and unfaded, at 10.85:1 off this panel. So the
     // rule here is not "do not scope it" — it is "whatever you scope it to, the
     // accent has to arrive solid".
-    const scoped = [...css.matchAll(/([^{}]*\[aria-pressed="true"\][^{}]*)\{([^}]*)\}/g)]
+    //
+    // A Contrast theme's redraw of the strip (#1786) is not a surface: it
+    // repaints the state in the theme's own system colours, which
+    // forced-colour-pressed-1786.test.ts holds. It is left out of the count
+    // below, and still swept for a wash with the rest.
+    const forcedAt = css.indexOf("@media (forced-colors: active) {");
+    const [, forcedEnd] = block(css, css.indexOf("{", forcedAt));
+    const all = [...css.matchAll(/([^{}]*\[aria-pressed="true"\][^{}]*)\{([^}]*)\}/g)]
       .filter(m => /\buh-range-btn\b/.test(m[1]) && !/^\s*\.uh-range-btn\[aria-pressed="true"\]/.test(m[1]))
-      .map(m => ({ sel: m[1].trim(), body: m[2] }));
+      .map(m => ({ sel: m[1].trim(), body: m[2], forced: m.index! > forcedAt && m.index! < forcedEnd }));
+    const scoped = all.filter(r => !r.forced);
     // Three, and all of them the period strip's: the segment, which resets the
     // shared fill and takes a neutral label; the hover that holds that label
     // against the shared rule's --bg, written for chips that sit on an accent
@@ -718,7 +726,7 @@ describe("the selected range is a state you can see (#583)", () => {
     // focus. The doctrine is unchanged, a small mark at full strength.
     const carries = scoped.filter(r => /background:\s*var\(--text\)\s*;/.test(r.body));
     expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]::after']);
-    for (const r of scoped) {
+    for (const r of all) {
       // And nowhere is it diluted, in any spelling.
       expect(r.body, `${r.sel} paints the state as a wash`)
         .not.toMatch(/--accent-dim|color-mix[^;]*--accent|rgba?\([^;]*--accent/);

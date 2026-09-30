@@ -59,6 +59,40 @@
     "3.29.7",
     "3.29.9"
   ],
+  "3.33.0": [
+    {
+      "title": "🪝 Hooks you add in Claude Code are no longer removed",
+      "body": "Claude Code's hook editor often files a new hook into the same group as the deck's own. Starting the deck, or uninstalling it, then removed the whole group, and your hook went with it without a word. The deck now takes out only its own command and leaves yours where it was, and the same goes for the old finish-sound hook. `ccdeck --uninstall` also stops the decks that are running, so an update in the background cannot put the hooks back."
+    },
+    {
+      "title": "🧵 Resumed Codex sessions show up again",
+      "body": "A Codex session picked up with `codex resume`, or one that ran for days, could go dark on the canvas and drop out of the 5-hour and 7-day usage, because the deck only looked in the two newest day folders. It now follows those sessions and counts their tokens. Two Codex sessions in the same folder get different id suffixes, and a `bash -lc` call shows the command it runs."
+    },
+    {
+      "title": "🤝 A deck paired by the accept switch brings in less",
+      "body": "A deck that paired through the automatic accept switch, and not through an invite, now brings in only the logins you have ticked on this deck, and nothing from it is ticked for sharing onward. Its dialog says \"paired automatically — pair by invite to take it\". Pairing by invite works as before. A typed address is no longer dropped after one failed round, and the sync port stays the same after a rename."
+    },
+    {
+      "title": "⬆️ Desktop updates install when you expect them",
+      "body": "On Windows and Linux a downloaded update now installs when you quit. On a Mac, Quit installs it and the app stays closed. The Linux .deb needs an administrator password to install, so it no longer does that by itself: it waits for \"Restart to update\" and says a password is coming. \"Start at login\" now works on Linux, and \"Restart ccdeck\" stops a deck that has hung."
+    },
+    {
+      "title": "🕵️ Browser Watch waits before it acts, and quits only its own browser",
+      "body": "A program's visit is now logged and reacted to once its quiet window has closed, about 16 minutes after it, and not on the first poll, so a visit that is withdrawn no longer quits the browser. On Linux the quit reaction ends only the browser that holds the watched profile; other Chrome channels and headless browsers keep running. When it cannot tell which process that is, it does nothing and says so, which includes a Flatpak Brave."
+    },
+    {
+      "title": "🧮 Figures that were off are right",
+      "body": "Spend by labelled and workflow subagents counts toward a session's tokens and cost. The Projects report prices 1-hour cache writes the way ccusage does, so its dollars match the Usage panel. After a restart the deck rebuilds its whole event history, where it used to rebuild about a third. On Linux the process list shows what each process is using now, not its lifetime average. A count near a boundary reads \"1.00M\", and a full quota window says \"used up\"."
+    },
+    {
+      "title": "🔑 The Usage panel's reads answer the deck's own page only",
+      "body": "The routes behind the Usage panel (/api/quota, /api/ccusage, /api/codex-usage, /api/codex-quota and /api/cswap-auto) now answer the deck's own page, or a client that sends the deck's token. A script that read them with a plain request gets 401 from this version on. The hook, the desktop app and the `ccdeck` command are not affected."
+    },
+    {
+      "title": "🛠️ Smaller fixes you may notice",
+      "body": "With the canvas paused, an update no longer restarts the server while an agent is working: it waits until no turn is open. `ccdeck --stop -p4317` stops that one deck. A deck started at login can update itself on Homebrew and nvm setups. Dialogs keep keyboard focus after a button goes away, screen readers hear pairing requests by deck name and the machine panel's readings, dim text is readable in both themes, Windows High Contrast shows what is selected, and below 640px the detail panel opens over the canvas."
+    }
+  ],
   "3.32.2": [
     {
       "title": "🔒 Self-updates wait until your screen is unlocked",

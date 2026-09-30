@@ -94,6 +94,12 @@
 .react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
 .react-flow__controls-button:hover { background: var(--ctl-fill); color: var(--text); }
 .react-flow__controls-button:disabled { opacity: var(--dim-off); }
+/* Zoom in and out at their limits refuse with aria-disabled and keep their
+   focus (#1768), so they are dimmed from the attribute. The pointer gets the
+   look `disabled` gave them: no hand and no hover fill, since the press does
+   nothing. */
+.react-flow__controls-button[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
 /* The groups, by what each control acts on: the view (zoom in, zoom out,
    recenter), the canvas's own state (pause, re-arrange), the one that empties
    it (clear), and help. A group starts 6px further down, on a short hairline

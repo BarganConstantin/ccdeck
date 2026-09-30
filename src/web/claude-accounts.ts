@@ -49,6 +49,9 @@ export interface AccountsData {
   activeNum?: number | null;
   reason?: string;
   hint?: string;
+  /** `cswap_refused` only: the version that answered, and what was asked for. */
+  version?: string;
+  want?: string | null;
   fetchedAt?: number;
 }
 

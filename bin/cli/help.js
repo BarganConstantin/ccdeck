@@ -32,6 +32,8 @@ Options:
       --install-service    Start the deck when you log in. Set up on first run;
                            this is only for putting it back
       --uninstall-service  Stop starting at login. \`--uninstall\` does this too
+      --at-login           What the login item starts the deck with. Beside a
+                           deck that is already running, it leaves that one be
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
       --all                Capture every session (default). Accepted and

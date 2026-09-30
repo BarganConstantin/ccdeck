@@ -76,7 +76,7 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 
 // cswapBin() probes the real filesystem for an installed claude-swap; the name
 // it resolves to is irrelevant here and the probe is not.
-vi.mock("../../server/cswap-install.mjs", () => ({ cswapBin: async () => "cswap" }));
+vi.mock("../../server/cswap-install.mjs", () => ({ cswapBin: async () => "cswap", cswapRefused: () => null, cswapRefusal: async () => null }));
 
 // @ts-expect-error — .mjs server module, no types
 const { externalAutoRunning, looksLikeAutoLoop, commandTokens, invalidateCswapAutoCache } = await import("../../server/cswap-auto.mjs") as {

@@ -20,12 +20,20 @@ interface PaceInfo {
   runsOutIn?: string;   // set when deficit and ETA < window remaining
 }
 
-export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number): PaceInfo | null {
+export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number, limitReached = false): PaceInfo | null {
   const remainSec  = Math.max(0, resetAtSec - nowSec);
   const elapsedSec = Math.max(0, windowSec - remainSec);
   if (elapsedSec < 120) return null; // too early to judge
   const expectedPct = Math.min(100, (elapsedSec / windowSec) * 100);
   const delta = pct - expectedPct;
+
+  // A window at its limit has nothing left to run out of (#1805). What is left
+  // was measured as `100 - pct`, so a full one "ran out" in zero seconds and
+  // the note under a full red bar read "runs out in 0m" — or "on pace", near
+  // the end of the window. Said before either, in the over-pace colours.
+  if (limitReached || pct >= 100) {
+    return { label: "used up", color: "var(--warn)", expectedPct, isDeficit: true };
+  }
 
   if (Math.abs(delta) < 3) {
     return { label: "on pace", color: "var(--ok)", expectedPct, isDeficit: false };
@@ -73,12 +81,17 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const isErr    = limitReached || capped >= 90;
   const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
-  const pctLabel = !known ? "no reading" : capped === 0 ? "< 1%" : `${capped}%`;
-  // minimum 2% visual fill so a 0% bar is still visible as a thin sliver
-  const fillW    = capped === 0 ? 2 : capped;
+  // A whole percentage, the way Claude's readings already arrive (clampPct).
+  // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
+  // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
+  // 0.25% of the track is a fill nobody can see.
+  const underOne = capped < 1;
+  const pctLabel = !known ? "no reading" : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
+  const fillW    = underOne ? 2 : capped;
 
   const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
-  const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
+  const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
   // The note opens the number it is measured against (#856).
   const [why, setWhy] = useState(false);
   const whyId = useId();
@@ -93,7 +106,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
         <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
       </div>
       <div className="qb-track">
-        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />}
+        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}

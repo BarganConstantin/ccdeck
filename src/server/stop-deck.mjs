@@ -148,10 +148,19 @@ export async function stopDeck(rec, {
   askMs = STOP_ASK_MS,
   goneMs = STOP_GONE_MS,
 } = {}) {
-  const wait = () => gone(rec.pid, { alive, deadlineMs: goneMs, sleep, now });
   const parent = Number.isInteger(rec.parent) ? rec.parent : null;
+  // A DECK BETWEEN WORKERS — restartingDecks in running-deck.mjs, #1779. The
+  // worker crashed and its supervisor is waiting to start the next one, so the
+  // supervisor is the whole of what is left to end. Nothing is asked: nothing
+  // is listening on that port that has proved it is ours, and the token is not
+  // sent to whatever is. And the dead worker's pid is never signalled, since it
+  // may belong to anything by now.
+  const restarting = rec.restarting === true && parent !== null;
+  const wait = () => gone(restarting ? parent : rec.pid, { alive, deadlineMs: goneMs, sleep, now });
 
-  const answer = await ask(rec, { timeoutMs: askMs });
+  const answer = restarting
+    ? { ok: false, status: 0, old: false, reason: "restarting" }
+    : await ask(rec, { timeoutMs: askMs });
   if (answer.ok && await wait()) return { ok: true, how: "asked" };
 
   if (platform !== "win32") {
@@ -159,12 +168,12 @@ export async function stopDeck(rec, {
     // killed worker is a supervisor doing its job, which here means undoing
     // ours.
     if (parent !== null) kill(parent, "SIGTERM", { platform });
-    kill(rec.pid, "SIGTERM", { platform });
+    if (!restarting) kill(rec.pid, "SIGTERM", { platform });
     if (await wait()) return { ok: true, how: "signalled", old: answer.old === true };
   }
 
   if (parent !== null) kill(parent, "SIGKILL", { platform });
-  kill(rec.pid, "SIGKILL", { platform });
+  if (!restarting) kill(rec.pid, "SIGKILL", { platform });
   if (await wait()) return { ok: true, how: "killed", old: answer.old === true };
 
   return { ok: false, how: "stuck", reason: answer.reason ?? `http ${answer.status}` };

@@ -19,6 +19,7 @@
 // Every write carries the request that asked for it, and only the newest
 // request may write, so a range's late answer — its report or its ccusage run
 // — can never land on the range the user has moved on to.
+import { presetSince } from "./usage-range";
 
 /** ccusage's part of a report on screen. `running` and `failed` both draw
  *  pricing.ts's estimate; only `running` says it is about to move. */
@@ -104,10 +105,14 @@ function ymd(d: Date): string {
 export function projectsUrls(num: number, days: number, now: number = Date.now()): { report: string; ccusage: string } {
   // The window the tally used: today back N-1 days (60 for "all", matching
   // the rollup's retention). ccusage is asked for the same span so the two
-  // agree day-for-day.
+  // agree day-for-day. Counted in calendar days, as the Usage panel's presets
+  // are (#1775): `now − (N−1) × 24h` read the wrong date for an hour of each day
+  // in a span holding a 23- or 25-hour day, and the server's windowCutoff
+  // follows the same rule so the report and its calibration still match.
   const span = days === 0 ? 60 : days;
-  const since = ymd(new Date(now - (span - 1) * 86_400_000));
-  const until = ymd(new Date(now));
+  const today = new Date(now);
+  const since = presetSince(span, today);
+  const until = ymd(today);
   return {
     report: `/api/account-projects?num=${num}&days=${days}`,
     ccusage: `/api/ccusage?since=${since}&until=${until}`,

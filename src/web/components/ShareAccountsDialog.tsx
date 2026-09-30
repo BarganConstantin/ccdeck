@@ -18,6 +18,7 @@ import { createPortal } from "react-dom";
 import { explainFailure } from "../admin-failure";
 import { PRODUCT } from "../brand";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { useFocusRescue } from "./use-focus-rescue";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { type NamedAccount, pickedAccounts, pickerRows, shareCountLine, shareExpiry, shareRequest, toggleUnpicked } from "../share-bundle";
 
@@ -72,6 +73,14 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   const busyRef = useRef(false);
 
   const dialogRef = useModalDismiss(onClose, { focusRef: primaryRef });
+  // Every step here is drawn in place of the last, so each of the three presses
+  // that change it took its own button away and dropped focus to <body> — and
+  // the trap then sent the next Tab to the ×, not to the copy (#1794). The rule
+  // is panel-press.ts's (#518): hand focus to what replaced it, which is the new
+  // step's primary control, the one primaryRef names on every step. Share's
+  // answer lands as the bundle; Pick again, and "make a new share", take it away.
+  const rescueShare = useFocusRescue(bundle != null, primaryRef);
+  const rescuePick = useFocusRescue(bundle == null, primaryRef);
 
   // A second a tick, and only while a bundle is on screen. The countdown is the
   // focal point of that view — it is the difference between a paste that works
@@ -126,6 +135,15 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   // failed. Every count on this view reads off this number, so a bundle that
   // came up short can never present itself as the full set.
   const carried = bundle?.shared.length ?? 0;
+  // The view's heading and its warning, named once: the view draws them, and
+  // the region above the steps says them as the bundle lands (#1794). Focus goes
+  // to the copy then, and a reader who hears only "copy all 3" has not heard
+  // that it is three passwords.
+  const heading = dead
+    ? "This share has expired"
+    : carried === 1 ? "1 account, ready to paste" : `${carried} accounts, ready to paste`;
+  const warning = carried === 1 ? "this is the password" : `this is ${carried} passwords`;
+  const said = !bundle ? "" : dead ? heading : `${heading} — ${warning}`;
 
   // Portalled for the reason AddAccountDialog is: this also mounts as a direct
   // child of the accounts panel, whose `.accounts-panel > *` gave the fixed
@@ -143,15 +161,17 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
         </header>
 
         <section className="modal-body sa-body">
+          {/* On the page from the start and outside the steps, because a region
+              drawn with its text already in it is one a screen reader may never
+              read out. */}
+          <div className="vis-hidden" role="status" aria-atomic="true">{said}</div>
           {bundle ? (
             <div className="sa-step">
               {/* Once the countdown is out, "ready to paste" is the one thing
                   this text is not: the other deck refuses it. The heading is
                   the first thing read, so it is the first thing to stop
                   saying so. */}
-              <h4>{dead
-                ? "This share has expired"
-                : carried === 1 ? "1 account, ready to paste" : `${carried} accounts, ready to paste`}</h4>
+              <h4>{heading}</h4>
               {/* The text keeps its ink past the expiry (#1289). It used to fade
                   to --dim-stale to read as spent — 1.93:1 on the dark panel,
                   for the text somebody reads to check which share this was.
@@ -171,7 +191,9 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                     // the user already made. Dropping them back on the picker
                     // would be a button that names an outcome and delivers a
                     // step towards it.
-                    if (dead) { setBundle(null); void make(); return; }
+                    // Focus goes to Share while the new one is made, and on to
+                    // the copy once it lands.
+                    if (dead) { rescuePick(); rescueShare(); setBundle(null); void make(); return; }
                     if (await copyText(bundle.blob)) {
                       setCopied(true);
                       window.setTimeout(() => setCopied(false), COPIED_MS);
@@ -183,9 +205,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                   title={"This text is the sign-in for every account in it. It is base64 of plain JSON — the expiry inside it is not signed, so anyone holding a copy can change it, "
                        + "and the logins themselves are in there in the clear either way. The countdown only says how long another deck's import dialog will still accept it. "
                        + "If a copy escapes, sign those accounts out and back in."}>
-                  <span className="ap-share-warn">
-                    {carried === 1 ? "this is the password" : `this is ${carried} passwords`}
-                  </span>
+                  <span className="ap-share-warn">{warning}</span>
                   {" · "}
                   <span className={`ap-share-expiry ${exp?.tone}`}>{exp?.text}</span>
                 </span>
@@ -236,7 +256,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                 )}
               </p>
               <div className="sa-actions">
-                <button type="button" className="btn" onClick={() => { setBundle(null); setCopied(false); }}>
+                <button type="button" className="btn" onClick={() => { rescuePick(); setBundle(null); setCopied(false); }}>
                   Pick again
                 </button>
                 <button type="button" className="btn primary" onClick={onClose}>Done</button>
@@ -276,7 +296,9 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                   </li>
                 ))}
               </ul>
-              {error && <p className="aa-err">{error}</p>}
+              {/* An alert, because the press that failed leaves focus on Share,
+                  where nothing else would tell a screen reader why (#1794). */}
+              {error && <p className="aa-err" role="alert">{error}</p>}
               <div className="sa-actions">
                 <button type="button" className="btn"
                   onClick={() => setUnpicked(allPicked ? accounts.map(a => a.num) : [])}>
@@ -291,7 +313,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                     sentence no one means, and the line above already says
                     nothing is picked. */}
                 <button type="button" className="btn primary" ref={primaryRef}
-                  {...selfPressProps(busy, !picked.length)} onClick={make}>
+                  {...selfPressProps(busy, !picked.length)} onClick={() => { rescueShare(); void make(); }}>
                   {busy ? "making the share…"
                     : picked.length === 0 ? "Share"
                     : picked.length === 1 ? "Share 1 account"

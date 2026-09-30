@@ -25,7 +25,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
-import { exitRequest, isLoginOver, loginEndNotice, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
+import { exitRequest, loginEndNotice, loginTabView, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
 import { arrivalCheck, explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
@@ -94,8 +94,19 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const [login, setLogin] = useState<LoginState | null>(null);
   const [code, setCode] = useState("");
   const [blob, setBlob] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // One error and one request in flight per journey (#1795). The two tabs
+  // shared one of each, so a sign-in that failed to start printed its reason
+  // under the paste field, and an import that cleared it left the Sign in tab
+  // on "Asking the claude CLI…" with nothing polling to move it on. Each tab
+  // shows only its own now; one request at a time is still the rule, and
+  // busyRef below is its lock.
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [pasteBusy, setPasteBusy] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  // The lock's drawn half: a request is out, so a press on either submit is
+  // refused and says aria-busy (#620), whichever tab it is on.
+  const busy = loginBusy || pasteBusy;
   // What the import did, account by account. A share of one is a bundle of one,
   // so there is one shape here and not a singular case beside a plural one.
   const [imported, setImported] = useState<ImportResult[] | null>(null);
@@ -111,8 +122,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   // The same fact as `busy`, readable without waiting for a render. Continue
   // and Import stay enabled while their own request is out (#620), so a second
   // Enter reaches the handler and the handler is what refuses it. One ref for
-  // both, because there is one `busy` and the two submits are on tabs that
-  // cannot be pressed at the same time.
+  // both journeys, because one request is out at a time.
   const busyRef = useRef(false);
   const codeRef = useRef<HTMLInputElement | null>(null);
   const blobRef = useRef<HTMLInputElement | null>(null);
@@ -152,13 +162,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const start = useCallback(async () => {
     if (!selfPressAccepted(busyRef.current)) return;
     busyRef.current = true;
-    setBusy(true);
-    setError(null);
+    setLoginBusy(true);
+    setLoginError(null);
     startedRef.current = true;
     const out = await admin({ action: "login" }).catch(() => null);
     busyRef.current = false;
-    setBusy(false);
-    if (!out?.ok) { setError(explainFailure(out, "could not start the sign-in")); return; }
+    setLoginBusy(false);
+    if (!out?.ok) { setLoginError(explainFailure(out, "could not start the sign-in")); return; }
     setLogin(out as LoginState);
   }, []);
 
@@ -223,13 +233,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const submitCode = useCallback(async () => {
     if (!selfPressAccepted(busyRef.current)) return;
     busyRef.current = true;
-    setBusy(true);
-    setError(null);
+    setLoginBusy(true);
+    setLoginError(null);
     const out = await admin({ action: "login-code", code }).catch(() => null);
     busyRef.current = false;
-    setBusy(false);
+    setLoginBusy(false);
     if (!out?.ok) {
-      setError(explainFailure(out, "the code was not accepted"));
+      setLoginError(explainFailure(out, "the code was not accepted"));
       // A rejected code does not end the sign-in — the CLI is still asking, so
       // the field stays open with the bad value selected for retyping.
       if (out?.state) setLogin(out as LoginState);
@@ -243,12 +253,12 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const submitBlob = useCallback(async () => {
     if (!selfPressAccepted(busyRef.current)) return;
     busyRef.current = true;
-    setBusy(true);
-    setError(null);
+    setPasteBusy(true);
+    setPasteError(null);
     const out = await admin({ action: "import", blob }).catch(() => null);
     busyRef.current = false;
-    setBusy(false);
-    if (!out?.ok) { setError(explainFailure(out, "the import failed")); return; }
+    setPasteBusy(false);
+    if (!out?.ok) { setPasteError(explainFailure(out, "the import failed")); return; }
     // The field is cleared so the text is not left sitting on screen, but the
     // bundle is kept out of sight until this result list is dismissed — see
     // bundleRef, and the "update anyway" that needs it.
@@ -279,11 +289,11 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
     // nothing to narrow without it.
     if (!bundleRef.current) return;
     busyRef.current = true;
-    // `busy` as well as the ref, so the rest of the dialog knows a request is
-    // out. Without it, pressing "Import another" mid-update put the paste form
-    // back with an Import button that looked idle, was not disabled, and
+    // `pasteBusy` as well as the ref, so the rest of the dialog knows a request
+    // is out. Without it, pressing "Import another" mid-update put the paste
+    // form back with an Import button that looked idle, was not disabled, and
     // refused every press in silence because the ref said otherwise.
-    setBusy(true);
+    setPasteBusy(true);
     setForcing(key);
     setRowError(null);
     const out = await admin({
@@ -293,7 +303,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
       only: { email: row.email, org: row.org ?? "" },
     }).catch(() => null);
     busyRef.current = false;
-    setBusy(false);
+    setPasteBusy(false);
     setForcing(null);
     if (!out?.ok) {
       setRowError({ key, text: explainFailure(out, "that account could not be updated") });
@@ -309,12 +319,14 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   // The success screen's qualification: the account was added, and the machine
   // did not go back to the one it was on. Null on every ordinary sign-in.
   const restoreNote = restoreWarning({ restored: login?.restored, activeAccount: login?.activeAccount });
-  // A sign-in that is over without having succeeded: the server's own "failed",
-  // or the "idle" it reports once it no longer holds the flow at all. Both end
-  // the same way — no spinner, no poll, and a sentence that says which of the
-  // two happened.
-  const ended = isLoginOver(login?.state) || Boolean(error && startedRef.current && !busy);
-  const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: error });
+  // Which branch the Sign in tab draws, from the sign-in's own state and never
+  // the paste tab's — see loginTabView (#1795). "ended" is a sign-in over
+  // without having succeeded: the server's own "failed", the "idle" it reports
+  // once it no longer holds the flow at all, or a request of ours it refused.
+  // All end the same way — no spinner, no poll, and a sentence that says which
+  // happened.
+  const view = loginTabView({ login, started: startedRef.current, loginError, loginBusy });
+  const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: loginError });
 
   // Through a portal, like SectionHistoryModal, but for a different rule of the
   // panel it opens from. The accounts panel wipes open by animating its width,
@@ -377,7 +389,9 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
             trade than that second. */}
         <section className="modal-body aa-body" id={PANEL_ID} role="tabpanel" aria-labelledby={tabDomId(tab)}>
           {tab === "login" ? (
-            done ? (
+            // `&& done` and `&& login` only narrow the types: the view says
+            // "done" and "code" exactly when they hold.
+            view === "done" && done ? (
               <div className="aa-done">
                 <SuccessMark ref={markRef} />
                 <Confetti anchor={markRef} />
@@ -394,7 +408,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                 {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
                 <button type="button" className="btn primary" onClick={close}>Done</button>
               </div>
-            ) : login?.state === "awaiting_code" || login?.state === "registering" ? (
+            ) : view === "code" && login ? (
               <>
                 <div className="aa-step">
                   <h4>1 · Approve in the browser</h4>
@@ -448,21 +462,21 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                       right, the CLI is still asking — but that branch is above
                       the failure branch, so without this the message had
                       nowhere to render and the user retyped blind. */}
-                  {(error || login.error) && <p className="aa-err">{error ?? login.error}</p>}
+                  {(loginError || login.error) && <p className="aa-err">{loginError ?? login.error}</p>}
                   <p className="aa-note">
                     The code goes straight to the claude CLI on this machine. It is never stored or sent anywhere else.
                   </p>
                 </div>
               </>
-            ) : ended ? (
+            ) : view === "ended" ? (
               <div className="aa-step">
                 <h4>{notice.title}</h4>
                 <p className="aa-err">{notice.message}</p>
-                <button type="button" className="btn" onClick={() => { startedRef.current = false; setLogin(null); setError(null); start(); }}>
+                <button type="button" className="btn" onClick={() => { startedRef.current = false; setLogin(null); setLoginError(null); start(); }}>
                   Try again
                 </button>
               </div>
-            ) : busy || startedRef.current ? (
+            ) : view === "asking" ? (
               <div className="aa-step"><p className="aa-note">Asking the claude CLI for a sign-in link…</p></div>
             ) : (
               // The primer. Says what the button will do before it does it —
@@ -476,15 +490,14 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                   claude-swap records the account when it completes, and the account you are using now stays active.
                 </p>
                 <div className="aa-actions">
-                  {/* No `disabled={busy}`: this branch renders only while
-                      `!busy && !startedRef.current`, so that attribute could
-                      never be true and was the tenth `disabled=` a busy flag
-                      reached — dead, but indistinguishable from the nine to
-                      anyone reading the file or to the sweep that guards them.
-                      The press takes this control away rather than disabling
-                      it, which is the half #518 answers with rescueSelectors
-                      and not with a busy flag. */}
-                  <button type="button" ref={primerRef} className="btn primary" onClick={start}>
+                  {/* No `disabled={busy}`: the press takes this control away
+                      rather than disabling it, which is the half #518 answers
+                      with rescueSelectors and not with a busy flag. No sign-in
+                      request is out while this branch renders, but an import
+                      from the other tab can be (#1795), and the lock refuses a
+                      press until it is back — so it says aria-busy then, as
+                      Continue and Import do (#620). */}
+                  <button type="button" ref={primerRef} className="btn primary" {...selfPressProps(busy)} onClick={start}>
                     Open the sign-in page
                   </button>
                 </div>
@@ -575,10 +588,10 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                     an unavailability and not a press in flight — and the label
                     goes on saying which state it is in. */}
                 <button type="button" className="btn primary" {...selfPressProps(busy, !blob.trim())} onClick={submitBlob}>
-                  {busy ? "importing…" : "Import"}
+                  {pasteBusy ? "importing…" : "Import"}
                 </button>
               </div>
-              {error && <p className="aa-err">{error}</p>}
+              {pasteError && <p className="aa-err">{pasteError}</p>}
               <p className="aa-note">
                 Use <strong>share</strong> on one account in the other deck, or <strong>↗</strong> above
                 its list to send several at once. A share carries a live login for every account in it and

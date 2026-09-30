@@ -185,6 +185,14 @@ export function bubblePush(
   // ── relax ────────────────────────────────────────────────────────────────
   const startX = new Map(boxes.map(b => [b.sid, b.x]));
   const startY = new Map(boxes.map(b => [b.sid, b.y]));
+  // How far up and left each box may go: the canvas's edge, or where the box
+  // already was if it started past it. A first-column session's recap note sits
+  // left of x=0 (canvas-flow puts it beside the card, and the card is at 0), so
+  // its box starts at -460; floored at 0 it was dragged 460px right on the
+  // first pass that ran, pushed or not (#1767). The floor stops a push from
+  // sending a box off the top-left, not a box from staying where it is.
+  const floorX = new Map(boxes.map(b => [b.sid, Math.min(0, b.x)]));
+  const floorY = new Map(boxes.map(b => [b.sid, Math.min(0, b.y)]));
 
   for (let iter = 0; iter < ITERATIONS; iter++) {
     const dx = new Map<string, number>();
@@ -204,8 +212,8 @@ export function bubblePush(
 
         // Everything above and left of the origin is off the canvas, so a box
         // already against it cannot absorb a push that heads further out.
-        const freeX = (box: Box, dir: number) => !box.anchored && !(dir < 0 && box.x <= 0);
-        const freeY = (box: Box, dir: number) => !box.anchored && !(dir < 0 && box.y <= 0);
+        const freeX = (box: Box, dir: number) => !box.anchored && !(dir < 0 && box.x <= floorX.get(box.sid)!);
+        const freeY = (box: Box, dir: number) => !box.anchored && !(dir < 0 && box.y <= floorY.get(box.sid)!);
 
         /**
          * Which way to separate on one axis.
@@ -261,8 +269,8 @@ export function bubblePush(
       // A session pushed off the top-left corner is not "out of the way", it
       // is gone. freeX/freeY above keep the solver from relying on a push the
       // clamp would have swallowed.
-      b.x = Math.max(0, b.x + (dx.get(b.sid) ?? 0));
-      b.y = Math.max(0, b.y + (dy.get(b.sid) ?? 0));
+      b.x = Math.max(floorX.get(b.sid)!, b.x + (dx.get(b.sid) ?? 0));
+      b.y = Math.max(floorY.get(b.sid)!, b.y + (dy.get(b.sid) ?? 0));
     }
     if (total < SETTLED) break;
   }

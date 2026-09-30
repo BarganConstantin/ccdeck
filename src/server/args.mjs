@@ -183,9 +183,16 @@ export function parseArgs(args) {
     // on the machine. The `=` form is the commonest CLI convention there is,
     // and this module's own header names this class of mistake as its reason
     // for existing: "`ccdeck --prot 4500` booted on 4317 and said nothing."
+    //
+    // AND `-p4317`, `-p=4317`, the short option with its value attached, which
+    // is the same fail-open by another spelling (#1780): it went to `unknown`
+    // too, and `ccdeck --stop -p4317` ended every deck. Read as `-p` with that
+    // value — `-p=` included, which is a missing value exactly as `--port=` is.
+    const short = /^-p=?/.exec(argv[i]);
+    const attached = short !== null && argv[i] !== "-p";
     const eq = argv[i].startsWith("--") ? argv[i].indexOf("=") : -1;
-    const a = eq > 2 ? argv[i].slice(0, eq) : argv[i];
-    const joined = eq > 2 ? argv[i].slice(eq + 1) : undefined;
+    const a = attached ? "-p" : eq > 2 ? argv[i].slice(0, eq) : argv[i];
+    const joined = attached ? argv[i].slice(short[0].length) : eq > 2 ? argv[i].slice(eq + 1) : undefined;
     // The value of the flag just matched, or `undefined` when there is nothing
     // usable there. Closes over `i` so it can decline to advance it: not
     // consuming is what hands the token back to the loop.
@@ -224,6 +231,9 @@ export function parseArgs(args) {
     else if (a === "--install") out.install = true;
     else if (a === "--install-service") out.installService = true;
     else if (a === "--uninstall-service") out.uninstallService = true;
+    // What the login item's job starts the deck with, and nothing a person is
+    // expected to type: a start at login leaves a running deck alone (#1778).
+    else if (a === "--at-login") out.atLogin = true;
     else if (a === "--uninstall") out.uninstall = true;
     else if (a === "--purge") out.purge = true;
     else if (a === "--workspace") set("workspace", "a path");

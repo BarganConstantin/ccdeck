@@ -129,23 +129,27 @@ export async function readModelFromTranscript(path) {
  *  total without their model would price a Haiku subagent's spend at the root's
  *  Opus rate. It stays constant-cost the way the flat total does: the key count
  *  is the number of MODELS a session touched, two or three, not the number of
- *  files it delegated to. */
+ *  files it delegated to.
+ *
+ *  EVERY `agent-*.jsonl`, AT EVERY DEPTH (#1749). This took hex ids at the top
+ *  of the directory only, and CC writes two more kinds: a labelled agent, whose
+ *  id is `a<label>-<16 hex>` (the memory extractor is `aextract_memories-…`),
+ *  and every agent a workflow starts, which lands in
+ *  `subagents/workflows/<run>/agent-<id>.jsonl`. CC's own lister accepts
+ *  `agent-(.+).jsonl` at any depth below `subagents/`, so this does too, and the
+ *  id is what the name carries — the same `agent_id` its hooks report. */
 async function readSubagentsFromDir(transcriptPath) {
   // Subagent dir sits next to the main jsonl: <dir>/<sessionId>/subagents/
   // Derive from transcript_path by stripping the .jsonl suffix.
   if (!transcriptPath || typeof transcriptPath !== "string") return null;
   const sessionDir = transcriptPath.replace(/\.jsonl$/i, "");
-  const subDir = join(sessionDir, "subagents");
-  let entries;
-  try { entries = await readdir(subDir); } catch { return null; }
+  const files = await listSubagentTranscripts(join(sessionDir, "subagents"));
+  if (!files) return null;
   const models = {};
   const usage = newUsageTotals();
   const usageByModel = {};
   let spent = false;
-  for (const f of entries) {
-    if (!/^agent-([0-9a-f]+)\.jsonl$/i.test(f)) continue;
-    const agentId = f.replace(/^agent-/, "").replace(/\.jsonl$/i, "");
-    const full = join(subDir, f);
+  for (const { agentId, full } of files) {
     try {
       // Same incremental cursor as the main transcript. Last-seen claude-*
       // model wins — subagents may switch model mid-turn (Sonnet → Haiku for
@@ -171,6 +175,34 @@ async function readSubagentsFromDir(transcriptPath) {
     usage: spent ? usage : null,
     usageByModel: spent ? usageByModel : null,
   };
+}
+
+// A subagent's transcript as CC names it, capturing the agent id.
+const SUBAGENT_FILE_RE = /^agent-(.+)\.jsonl$/i;
+
+/** Every subagent transcript below `subDir`, at any depth, as `{ agentId, full }`,
+ *  or null when there is no such directory. Iterative rather than recursive, and
+ *  a symlinked folder is not followed, so a tree that loops back on itself is
+ *  listed once. A folder that goes away mid-walk is skipped, like an unreadable
+ *  file is below. */
+async function listSubagentTranscripts(subDir) {
+  let top;
+  try { top = await readdir(subDir, { withFileTypes: true }); } catch { return null; }
+  const found = [];
+  const pending = [[subDir, top]];
+  while (pending.length > 0) {
+    const [dir, entries] = pending.pop();
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) {
+        try { pending.push([full, await readdir(full, { withFileTypes: true })]); } catch { /* gone since */ }
+        continue;
+      }
+      const m = SUBAGENT_FILE_RE.exec(e.name);
+      if (m) found.push({ agentId: m[1], full });
+    }
+  }
+  return found;
 }
 
 // One walk of `<sessionDir>/subagents/` serves both the model pass and the

@@ -17,6 +17,7 @@
 // The download itself stays in App.tsx, where the DOM is. This module answers
 // what goes in the file and what the file is called.
 import { PRODUCT } from "./brand";
+import { idTail } from "./session-id-tail";
 import type { AgentNodeData, ToolCall } from "./types";
 
 /** The version of this file format. Bump it when a reader of an older export
@@ -146,11 +147,13 @@ export function sessionExport(
  * An empty label falls back to `session`, because a file called
  * `ccdeck--abcdef12.json` says less than one that admits it has no name.
  *
- * The id is cut to eight characters: enough to tell two exports of the same
- * afternoon apart, short enough that the name stays readable in a download
- * list.
+ * The id is cut to its last eight characters: enough to tell two exports of
+ * the same afternoon apart, short enough that the name stays readable in a
+ * download list. The last, because a Codex id is a UUIDv7 and its first eight
+ * are a timestamp that changes once every 65.5 seconds — two Codex sessions
+ * launched together were saved under one name (#1732). See session-id-tail.ts.
  */
 export function exportFileName(label: string | undefined | null, sessionId: string): string {
   const safeLabel = (label || "session").replace(/[^a-z0-9._-]/gi, "_");
-  return `${PRODUCT}-${safeLabel}-${sessionId.slice(0, 8)}.json`;
+  return `${PRODUCT}-${safeLabel}-${idTail(sessionId, 8)}.json`;
 }
