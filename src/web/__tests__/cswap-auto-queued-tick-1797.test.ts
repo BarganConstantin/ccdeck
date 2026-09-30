@@ -14,7 +14,7 @@
 // XDG_DATA_HOME and CLAUDE_SWAP_BACKUP all point into that temp home before the
 // modules are imported, and the swap log is mocked so a switch that did happen
 // would write nothing either.
-import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
@@ -64,7 +64,15 @@ const { lastTick } = await import("../../server/cswap-auto-loop.mjs");
 const { withStoreLock } = await import("../../server/store-lock.mjs");
 
 const autoRuns = () => calls.filter(c => c.includes("auto"));
+/** externalAutoRunning's process-table read: `ps` here, PowerShell on Windows. */
+const tableRead = () => calls.some(c => c[0] === "ps" || c[0] === "powershell.exe");
 const rest = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// The lock a case is holding, let go of afterwards whatever the case did — the
+// chain is first-in first-out, so one left held would wedge every case after it.
+let release: () => void = () => {};
+
+afterEach(() => { release(); });
 
 beforeEach(async () => {
   mod.invalidateCswapAutoCache();
@@ -84,13 +92,12 @@ afterAll(async () => {
 describe("a tick waiting on the store lock when auto-switch is turned off", () => {
   it("runs nothing once the lock frees and records the tick as skipped", async () => {
     // Another store mutation holds the lock — an Add, a Switch, a recapture.
-    let release!: () => void;
     const holding = withStoreLock(() => new Promise<void>(r => { release = r; }));
 
     await mod.setAutoEnabled(true);
     // The eager first tick gets past its own checks and queues on the lock.
     await rest(40);
-    expect(calls.some(c => c[0] === "ps"), "the tick never reached its external-engine check").toBe(true);
+    expect(tableRead(), "the tick never reached its external-engine check").toBe(true);
     expect(autoRuns(), "the tick ran while the lock was held").toEqual([]);
 
     await mod.setAutoEnabled(false);
@@ -105,7 +112,6 @@ describe("a tick waiting on the store lock when auto-switch is turned off", () =
   });
 
   it("still runs a queued tick when the switch stays on", async () => {
-    let release!: () => void;
     const holding = withStoreLock(() => new Promise<void>(r => { release = r; }));
 
     await mod.setAutoEnabled(true);
