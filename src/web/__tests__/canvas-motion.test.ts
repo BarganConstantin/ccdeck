@@ -530,6 +530,21 @@ describe("press feedback is one convention, applied everywhere", () => {
     expect(loud.map(([sel]) => sel)).toEqual([]);
   });
 
+  it("keeps every :has() selector out of a shared reduced-motion list", () => {
+    // One selector a browser cannot parse invalidates the whole list it sits
+    // in, so a :has() in a list of plain presses would take reduced motion
+    // away from every one of them in an engine without :has(). The sheet said
+    // so above the selected ribbon's answer, and the list before it still ran
+    // into it: `.bw-settings select:active:not(:disabled),` ended on a comma,
+    // so the comment between them joined the ribbon to the thirty-three
+    // presses it was written to stay out of. A :has() answer stands alone.
+    const shared = all
+      .filter(r => r.reduced)
+      .map(r => selectors(r))
+      .filter(list => list.length > 1 && list.some(s => s.includes(":has(")));
+    expect(shared.map(list => list.filter(s => s.includes(":has(")).join(" | "))).toEqual([]);
+  });
+
   it("holds the list to every control the sheet itself calls pressable", () => {
     const pressable = new Set<string>();
     for (const rule of all) {
