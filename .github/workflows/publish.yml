@@ -763,6 +763,19 @@ jobs:
           else
             echo "ccdeck $VERSION" > notes.md
           fi
+          # Then the same few lines under every release, for somebody who lands
+          # on a release page without knowing what ccdeck is. Appended once, to
+          # the file either branch above has just written; the quoted heredoc
+          # expands nothing, and a re-run that finds the release already there
+          # only uploads, so the notes never get a second copy.
+          cat >> notes.md <<'FOOTER'
+
+          ---
+
+          **ccdeck** is a local dashboard for Claude Code and Codex CLI: which Claude Code session needs input, every tool call and Claude Code subagent, cost and quota.
+
+          Install: `npx ccdeck` · desktop downloads below · guides: https://ccdeck.dev/guides/
+          FOOTER
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
