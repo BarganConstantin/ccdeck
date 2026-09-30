@@ -18,6 +18,8 @@ import { basename, join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — plain .mjs, no types
 import { createUpdater } from "../../../desktop/updater.mjs";
+// @ts-expect-error — plain .mjs, no types
+import { releaseMessage } from "../../../desktop/updater-mac.mjs";
 
 const h = await vi.hoisted(async () => {
   const { generateKeyPairSync } = await import("node:crypto");
@@ -97,7 +99,10 @@ async function downloaded(signed: boolean) {
   fake.finishDownload({
     version: "3.27.0",
     downloadedFile: file,
-    files: [{ url: basename(file), sha512: "x", ...(signed ? { ed25519: sign(null, bytes, h.priv).toString("base64") } : {}) }],
+    files: [{ url: basename(file), sha512: "x", ...(signed ? {
+      ed25519: sign(null, bytes, h.priv).toString("base64"),
+      ed25519Release: sign(null, releaseMessage("3.27.0", basename(file), bytes), h.priv).toString("base64"),
+    } : {}) }],
   });
   const settled = signed ? "ready" : "error";
   for (let i = 0; i < 200 && u.state.status !== settled; i++) await new Promise(r => setTimeout(r, 5));
