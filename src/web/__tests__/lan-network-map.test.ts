@@ -345,9 +345,10 @@ describe("what the panel says to do next", () => {
     expect(deckNextStep(row({}))).toBeNull();
     expect(deckNextStep(row({ here: false, state: "last online 2h ago" }))).toBeNull();
     expect(deckNextStep(row({ here: false, state: "one-way · has not called yet" }))).toMatch(/Add its address through Add a deck/);
-    expect(deckNextStep(row({ kind: "nearby" }))).toBe("Nothing is shared with it yet. Its own dialog can ask to pair.");
+    expect(deckNextStep(row({ kind: "nearby" }))).toBe("Not paired yet. Its dialog can ask to pair.");
     expect(deckNextStep(row({ kind: "nearby" }), "invite")).toBe("This deck pairs by invite only. Send one from Add a deck.");
-    expect(deckNextStep(row({ kind: "dialling", here: false }))).toMatch(/Its own dialog can stop dialling it/);
+    expect(deckNextStep(row({ kind: "dialling", here: false }))).toBe("Nothing has answered here yet. Its dialog can stop dialling it.");
+    expect(deckNextStep(row({ kind: "asks" }))).toBe("Waiting for your answer, in the Local network list behind this map.");
   });
 });
 

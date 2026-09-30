@@ -556,7 +556,8 @@
   box-sizing: border-box;
   border: 1.5px solid var(--muted);
 }
-.nm-key-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
+/* Online is drawn as the deck is: a lit edge, not a dot. */
+.nm-key-mark[data-tier="online"] { background: var(--panel); border-color: var(--ok); box-shadow: 0 0 6px var(--nm-live-glow); }
 .nm-key-mark[data-tier="loose"] { border-style: dashed; }
 .nm-key-mark[data-kind="asks"] { background: var(--accent); border-color: var(--accent); border-style: solid; }
 .nm-key-wire { width: 14px; height: 1.5px; background: var(--nm-wire); }
@@ -617,13 +618,18 @@
    pair keeps its ping — the idiom's own use. */
 .nm-panel-name .ap-pulse:not([data-kind="asks"])::after { animation: none; opacity: 0.35; transform: scale(2.2); }
 .nm-panel-name .ap-dot { color: var(--muted); }
+/* The name and the one way further, on one row: the button stays where it
+   is from deck to deck, and the panel under it is only what to read. */
+.nm-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.nm-panel-head .nm-panel-name { flex: 1 1 auto; }
+.nm-panel-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nm-panel-self { margin: -6px 0 0; font-size: 11px; color: var(--muted); }
 .nm-panel-state { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .nm-panel-state[data-kind="asks"] { color: var(--accent); }
 .nm-panel-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .nm-back { align-self: flex-start; margin: -4px 0 0 -2px; font-size: 11px; }
 
-.nm-facts { row-gap: 8px; column-gap: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.nm-facts { row-gap: 6px; column-gap: 14px; }
 .nm-facts dd { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .nm-addrs { display: flex; flex-direction: column; gap: 2px; }
 
@@ -676,7 +682,7 @@
 .nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); white-space: nowrap; }
 .nm-lane-said + .nm-lane-used { margin-left: 0; }
 .nm-lanes-more { margin: 0; font-size: 10px; color: var(--muted); }
-.nm-open { align-self: flex-start; }
+.btn.nm-open { flex: none; min-height: 24px; padding: 0 10px; font-size: 11px; }
 
 /* NARROW: the panel goes under the picture rather than beside it, and the
    picture keeps the height a ring of names needs — the panel scrolls

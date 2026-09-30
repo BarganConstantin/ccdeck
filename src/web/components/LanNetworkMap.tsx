@@ -59,6 +59,10 @@ const STILL_MS = 200;
 const ROUND_TRIP_S = 8;
 /** How far inside the tailnet slice's outer edge its name runs. */
 const ZONE_LABEL_INSET = 6;
+/** The slice's corners, rounded: wider on the outside, where the slice is
+ *  wide, than on the inside by the centre. */
+const ZONE_CORNER_OUTER = 14;
+const ZONE_CORNER_INNER = 10;
 
 /** How the side panel arrives — see `entrance` in the map. */
 type Entrance = "full" | "swap" | "none";
@@ -388,15 +392,44 @@ function onEllipse(e: { rx: number; ry: number }, cx: number, cy: number, deg: n
 }
 
 /** The slice itself: out along its near edge, round the outside, in along
- *  its far edge and back round the inside. */
+ *  its far edge and back round the inside — with its four corners rounded, so
+ *  it reads as a region the decks stand in rather than a wedge cut out of the
+ *  map. Each corner is a curve through the corner point, starting and ending
+ *  a corner's radius along the two edges that meet there. */
 function zonePath(z: MapZone, cx: number, cy: number): string {
   const large = z.to - z.from > 180 ? 1 : 0;
+  const at = (e: { rx: number; ry: number }, deg: number): [number, number] => {
+    const rad = (deg * Math.PI) / 180;
+    return [cx + Math.cos(rad) * e.rx, cy + Math.sin(rad) * e.ry];
+  };
+  /** A corner's radius along an arc, as a turn in degrees. */
+  const turnFor = (e: { rx: number; ry: number }, r: number) => (r / ((e.rx + e.ry) / 2)) * (180 / Math.PI);
+  /** A point on the straight edge from `a` toward `b`, `r` along it. */
+  const along = (a: [number, number], b: [number, number], r: number): [number, number] => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const t = Math.min(0.5, r / len);
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  };
+  const pt = ([x, y]: [number, number]) => `${x.toFixed(1)},${y.toFixed(1)}`;
+  const ri = ZONE_CORNER_INNER;
+  const ro = ZONE_CORNER_OUTER;
+  const di = turnFor(z.inner, ri);
+  const dOut = turnFor(z.outer, ro);
+  const innerFrom = at(z.inner, z.from);
+  const outerFrom = at(z.outer, z.from);
+  const outerTo = at(z.outer, z.to);
+  const innerTo = at(z.inner, z.to);
+  const ellipse = (e: { rx: number; ry: number }) => `${e.rx.toFixed(1)},${e.ry.toFixed(1)}`;
   return [
-    `M${onEllipse(z.inner, cx, cy, z.from)}`,
-    `L${onEllipse(z.outer, cx, cy, z.from)}`,
-    `A${z.outer.rx.toFixed(1)},${z.outer.ry.toFixed(1)} 0 ${large} 1 ${onEllipse(z.outer, cx, cy, z.to)}`,
-    `L${onEllipse(z.inner, cx, cy, z.to)}`,
-    `A${z.inner.rx.toFixed(1)},${z.inner.ry.toFixed(1)} 0 ${large} 0 ${onEllipse(z.inner, cx, cy, z.from)}`,
+    `M${pt(at(z.inner, z.from + di))}`,
+    `Q${pt(innerFrom)} ${pt(along(innerFrom, outerFrom, ri))}`,
+    `L${pt(along(outerFrom, innerFrom, ro))}`,
+    `Q${pt(outerFrom)} ${pt(at(z.outer, z.from + dOut))}`,
+    `A${ellipse(z.outer)} 0 ${large} 1 ${pt(at(z.outer, z.to - dOut))}`,
+    `Q${pt(outerTo)} ${pt(along(outerTo, innerTo, ro))}`,
+    `L${pt(along(innerTo, outerTo, ri))}`,
+    `Q${pt(innerTo)} ${pt(at(z.inner, z.to - di))}`,
+    `A${ellipse(z.inner)} 0 ${large} 0 ${pt(at(z.inner, z.from + di))}`,
     "Z",
   ].join(" ");
 }
@@ -497,7 +530,10 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
       {/* An address nothing has answered at is not a machine yet, so it is
           not drawn as one. */}
       {row.kind === "dialling" ? <i className="nm-addr-dot" aria-hidden /> : <Machine />}
-      <i className="nm-mark" data-tier={node.tier} data-kind={row.kind} aria-hidden />
+      {/* A connected deck's green edge and light already say so; its mark
+          would be the third time. Away and not paired keep theirs: there the
+          mark's shape — hollow, dashed — is what tells them apart. */}
+      {node.tier !== "online" && <i className="nm-mark" data-tier={node.tier} data-kind={row.kind} aria-hidden />}
       <span className="nm-label" aria-hidden>
         <span className="nm-name">{nodeName(row)}</span>
         <span className="nm-cap">{caption}</span>
@@ -606,11 +642,15 @@ function NetworkDetails({ status, summary, entrance }: {
   );
 }
 
-/** The panel while a deck is pointed at, or was last: what its own dialog says
- *  about it, in the order somebody reads a machine — is it there and what to
- *  do about it, how it is reached and what it runs, and what the two decks
- *  share, trouble first. The button stays where it is from deck to deck, so
- *  the pointer that travels to it finds it. */
+/** The panel while a deck is pointed at, or was last: who it is, whether it
+ *  is there, and what to do about it if anything — then the two facts worth a
+ *  glance and the logins that need a look. Everything else is in the deck's
+ *  own dialog, one press away on the name's own row.
+ *
+ *  SAID ONCE. It carried how the deck is reached three times — in its
+ *  presence line, in what to do next, and as a fact — every login including
+ *  the nine that were fine, and facts it did not know. The glance is the
+ *  presence, the next step and what is wrong; the rest is the dialog's. */
 function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   row: DeckRow;
   entrance: Entrance;
@@ -621,30 +661,36 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   onBack: () => void;
 }) {
   const view = peerView({ row, source: rowSource(status, row), status, accounts, now });
+  // Only what is known: an unknown fact is a sentence about what the deck has
+  // not said, and the dialog says that better.
   const facts: Array<{ label: string; value: ReactNode; quiet?: boolean }> = [];
-  const reached = view.how ?? (view.peer?.waiting ? "it calls this deck; this deck has no address for it" : null);
-  if (reached) facts.push({ label: "Reached", value: reached });
   if (view.where) facts.push({ label: "Address", value: <code className="ap-lan-code">{view.where}</code> });
-  facts.push({
-    label: "Runs",
-    value: view.thereRuns
-      ? `${view.thereRuns}${view.order ? ` · ${view.order < 0 ? "older than this deck" : "newer than this deck"}` : ""}`
-      : view.unsaid,
-    quiet: !view.thereRuns,
-  });
-  if (view.paired && view.peer?.pairedAt) facts.push({ label: "Paired", value: sinceLabel(view.peer.pairedAt, now) });
+  if (view.thereRuns) {
+    facts.push({
+      label: "Runs",
+      value: `${view.thereRuns}${view.order ? ` · ${view.order < 0 ? "older than this deck" : "newer than this deck"}` : ""}`,
+    });
+  }
   if (view.hiddenThere) facts.push({ label: "Signed in to", value: "not said — its owner hides it", quiet: true });
   if (view.otherThere) facts.push({ label: "Signed in to", value: "an account it does not share", quiet: true });
 
   const emits = (row.kind === "paired" && row.here) || row.kind === "asks";
   const next = deckNextStep(row, status.pairingMode);
-  const LANES_SHOWN = 6;
-  const lanes = troubleFirst(view.lanes).slice(0, LANES_SHOWN);
-  const more = view.lanes.length - lanes.length;
-  const fine = view.lanes.filter(l => l.tone === "ok").length;
+  // THE ONES THAT NEED A LOOK. A login that works both ways is the steady
+  // state; the title counts it and the list does not repeat it.
+  const TROUBLE_SHOWN = 4;
+  const trouble = troubleFirst(view.lanes).filter(l => l.tone !== "ok");
+  const shown = trouble.slice(0, TROUBLE_SHOWN);
+  const more = trouble.length - shown.length;
+  const fine = view.lanes.length - trouble.length;
   const total = view.lanes.length;
-  const title = total === 0 ? "No logins between the two"
-    : `${total} login${total === 1 ? "" : "s"} between the two${fine === total ? (total === 1 ? ", fine" : ", all fine") : ` · ${fine} fine`}`;
+  const title = total === 0 ? "No shared logins"
+    : fine === total ? `${total} shared login${total === 1 ? ", fine" : "s, all fine"}`
+    : `${total} shared login${total === 1 ? "" : "s"} · ${fine} fine`;
+  // What that deck offers, when it has not said: one line, not a paragraph.
+  const unknown = view.unknown && view.peer?.waiting && !view.peer.offers
+    ? "Its side is not known until it next calls."
+    : view.unknown;
 
   return (
     <div className="nm-panel" data-view="deck" data-entrance={entrance}
@@ -652,29 +698,30 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
       <button type="button" className="ap-lan-word nm-back" onClick={onBack}>
         <span aria-hidden>‹ </span>the whole network
       </button>
-      <h3 className="nm-panel-name">
-        {/* The map's own mark, said again: the green emission only for a
-            paired deck that is on, the accent for one asking. A nearby deck
-            is heard, and `here`, but it is not online in the legend's sense. */}
-        <i className={emits ? "ap-pulse" : "ap-dot"} data-kind={row.kind} aria-hidden />
-        {row.name}
-      </h3>
+      <div className="nm-panel-head">
+        <h3 className="nm-panel-name">
+          {/* The map's own mark, said again: the green emission only for a
+              paired deck that is on, the accent for one asking. A nearby deck
+              is heard, and `here`, but it is not online in the legend's sense. */}
+          <i className={emits ? "ap-pulse" : "ap-dot"} data-kind={row.kind} aria-hidden />
+          <span className="nm-panel-title">{row.name}</span>
+        </h3>
+        <button type="button" className="btn nm-open" onClick={onOpen} aria-label={`Open ${row.name}`}>Open</button>
+      </div>
       {row.self && <p className="nm-panel-self">calls itself {row.self}</p>}
       <p className="nm-panel-state" data-kind={row.kind}>{presenceLine(row)}</p>
       {next && <p className="nm-next">{next}</p>}
-      <button type="button" className="btn nm-open" onClick={onOpen}>Open {row.name}</button>
-      <Facts facts={facts} />
+      {facts.length > 0 && <Facts facts={facts} />}
       {view.paired && (
         <section className="nm-logins" aria-label="Logins the two decks share">
           <p className="nm-logins-title">{title}</p>
-          {lanes.length > 0 && (
+          {shown.length > 0 && (
             <ul className="nm-lanes">
-              {lanes.map((l, k) => (
+              {shown.map((l, k) => (
                 <li key={l.key} className="nm-lane" data-tone={l.tone} style={{ "--k": k } as CSSProperties}>
                   <i className="nm-lane-dot" aria-hidden />
                   <span className="nm-lane-email" aria-hidden>{l.email}</span>
-                  {/* A mark and a word, on the email's own line: the steady
-                      state says nothing, and every other says which end is
+                  {/* A mark and a word, on the email's own line: which end is
                       wrong or what comes next, in the lane's own caption. */}
                   {laneWords(l) && <span className="nm-lane-said" aria-hidden>{laneWords(l)}</span>}
                   {l.usedThere && <span className="nm-lane-used" aria-hidden>in use there</span>}
@@ -684,7 +731,7 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
             </ul>
           )}
           {more > 0 && <p className="nm-lanes-more">and {more} more in its own dialog</p>}
-          {view.unknown && <p className="nm-panel-hint">{view.unknown}</p>}
+          {unknown && <p className="nm-panel-hint">{unknown}</p>}
         </section>
       )}
     </div>

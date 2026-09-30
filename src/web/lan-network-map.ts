@@ -717,15 +717,15 @@ export function networkNextStep(s: MapSummary): string | null {
  *  for a deck that is on or simply away. */
 export function deckNextStep(row: DeckRow, pairingMode?: "automatic" | "invite"): string | null {
   switch (row.kind) {
-    case "asks": return "It is waiting for an answer. Answer it in the Local network list, behind this map.";
-    case "dialling": return "Nothing has answered at this address yet. Its own dialog can stop dialling it.";
+    case "asks": return "Waiting for your answer, in the Local network list behind this map.";
+    case "dialling": return "Nothing has answered here yet. Its dialog can stop dialling it.";
     case "nearby":
       return pairingMode === "invite"
         ? "This deck pairs by invite only. Send one from Add a deck."
-        : "Nothing is shared with it yet. Its own dialog can ask to pair.";
+        : "Not paired yet. Its dialog can ask to pair.";
     case "paired":
       return !row.here && row.state.startsWith("one-way")
-        ? "It calls this deck, and this deck has no address to call it back on. Add its address through Add a deck to reach it both ways."
+        ? "It can reach this deck, not the other way. Add its address through Add a deck."
         : null;
     default: return null;
   }
