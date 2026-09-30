@@ -77,6 +77,21 @@ function knownModelId(sid) {
   return cachedModelId(modelBySession.get(sid));
 }
 
+/** How many subagents the deck has seen across the sessions it still tracks —
+ *  the coarse "subagents" count the anonymous "active" report carries
+ *  (reports.mjs). Reused, not new state: `subsSig` is already the per-session
+ *  signature of the subagent models resolved for it, so its keys are the
+ *  subagents. A signature that will not parse is skipped rather than guessed at.
+ *  Only ever a number leaves — never an id, a model, a name or a path. */
+export function trackedSubagentCount() {
+  let n = 0;
+  for (const cached of modelBySession.values()) {
+    if (!cached?.subsSig) continue;
+    try { n += Object.keys(JSON.parse(cached.subsSig)).length; } catch { /* unparseable signature: not counted */ }
+  }
+  return n;
+}
+
 /** Read the main session JSONL. Returns the root model and any
  *  legacy-schema subagent models (older CC versions kept subagent blocks
  *  inline with `isSidechain:true` + `parentToolUseID`). Current CC versions

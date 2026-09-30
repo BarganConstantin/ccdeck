@@ -6,15 +6,22 @@
 //   - an "install" event the first time,
 //   - an "update" event, with the version it came from, when the version moves,
 //   - an "active" event at most once a UTC day, which is how many people use
-//     ccdeck gets counted without counting anything else about them,
+//     ccdeck gets counted without counting anything else about them, and which
+//     alone also carries coarse counts of how much: how many sessions,
+//     subagents and projects — numbers, never their names,
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with home folders, email addresses and key-shaped strings
 //     scrubbed out before they leave.
 //
 // Each carries the install id, the version, the OS and CPU architecture, the
-// channel (the desktop app, npm, or a source checkout) and the runtime. Nothing about a session, a
-// project, a prompt, a path or a person: the install id is random, made at the
-// first check-in, and tied to nothing on the machine.
+// channel (the desktop app, npm, or a source checkout) and the runtime, plus a
+// coarse sketch of the environment: the logical CPU count, the RAM in MB, the
+// locale, the shell and terminal names, and the Claude Code and Codex CLI
+// versions. Every one of those is a small fixed token or a number, safe by
+// construction — no path, no hostname, no user name, no project name, no prompt,
+// no free text ever reaches any field, so there is nothing in them to scrub. A
+// field that cannot be told is left out rather than guessed. The install id is
+// random, made at the first check-in, and tied to nothing on the machine.
 //
 // NOBODY IS ASKED, AND NOTHING IS HIDDEN. The owner chose on-by-default
 // (2026-09-30): the README says what is sent, Appearance holds the switch, and
@@ -30,7 +37,7 @@
 // deck depends on it.
 
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
+import { cpus as osCpus, homedir, totalmem } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inApp } from "./app-host.mjs";
@@ -58,7 +65,97 @@ export function reportsOn(prefs, env = process.env) {
   return !reportsVetoed(env) && prefs?.reports !== false;
 }
 
-/** What every report says about the install, and nothing else. */
+// ── the coarse environment facts ─────────────────────────────────────────────
+//
+// Everything added to an install's facts here is a count or a small fixed token,
+// safe by construction: no path, no hostname, no user name, no free text ever
+// reaches any of them, so there is nothing to scrub. Each is optional — a field
+// that cannot be told is left undefined and so never sent, and none of these can
+// throw, because a report is a nicety and no part of the deck may hang on it.
+
+// The keys the API caps, so a value that would be rejected for length is not
+// sent: it is trimmed to the cap here instead. Only ever tokens the shape of a
+// terminal name, a shell name, a locale or a version — never anything free.
+const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32 };
+
+/** A value reduced to the API's token shape `^[0-9A-Za-z.+_-]+$`: spaces become
+ *  "_" (so "Apple Terminal" rides as "Apple_Terminal"), every other disallowed
+ *  character is dropped, and the result is trimmed to `max`. Empty or nothing
+ *  in → nothing out, so the caller omits the field. */
+function token(value, max) {
+  if (value == null) return undefined;
+  const t = String(value).trim().replace(/\s+/g, "_").replace(/[^0-9A-Za-z.+_-]/g, "");
+  if (!t) return undefined;
+  return t.length > max ? t.slice(0, max) : t;
+}
+
+/** A whole count of zero or more, or nothing. */
+function count(n) {
+  return Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
+/** Logical CPUs, or nothing when the platform will not say. */
+function cpuCount() {
+  try { return count(osCpus().length); } catch { return undefined; }
+}
+
+/** Total RAM in whole MB, or nothing. */
+function totalMemMb() {
+  try { return count(Math.round(totalmem() / 1024 / 1024)); } catch { return undefined; }
+}
+
+/**
+ * The UI locale as a token — "en-US", "de-DE". The runtime's own resolved
+ * locale first, then `LANG`/`LC_ALL` with any `.UTF-8` encoding stripped. The
+ * resolved locale is a parameter so a test can drive both halves without
+ * standing up a second Intl.
+ */
+export function localeToken(env = process.env, resolved = intlLocale()) {
+  const raw = resolved || String(env?.LANG ?? env?.LC_ALL ?? env?.LC_MESSAGES ?? "").split(".")[0];
+  return token(raw, TOKEN_CAPS.locale);
+}
+
+function intlLocale() {
+  try { return Intl.DateTimeFormat().resolvedOptions().locale || ""; } catch { return ""; }
+}
+
+/** The shell as a bare name — "zsh", "bash", "fish". `SHELL` names it on POSIX;
+ *  on Windows there is no `SHELL` (unless a Git-Bash-style one set it), so the
+ *  hints are PowerShell's `PSModulePath` and cmd's `ComSpec`. */
+export function shellToken(env = process.env, platform = process.platform) {
+  const sh = env?.SHELL;
+  if (sh) return token(baseName(sh), TOKEN_CAPS.shell);
+  if (platform === "win32") {
+    if (env?.PSModulePath) return "pwsh";
+    const comSpec = env?.ComSpec ?? env?.COMSPEC;
+    return comSpec ? token(baseName(comSpec), TOKEN_CAPS.shell) : "cmd";
+  }
+  return undefined;
+}
+
+/** The terminal program as a token — "iTerm.app", "Apple_Terminal", "vscode",
+ *  "WezTerm", "Windows_Terminal", else whatever `TERM` says ("xterm-256color"). */
+export function termToken(env = process.env) {
+  const prog = env?.TERM_PROGRAM;
+  if (prog) return token(prog, TOKEN_CAPS.term);
+  if (env?.WT_SESSION) return "Windows_Terminal";
+  return token(env?.TERM, TOKEN_CAPS.term);
+}
+
+function baseName(p) {
+  return String(p).split(/[\\/]/).pop().replace(/\.exe$/i, "");
+}
+
+function addIf(target, key, value) {
+  if (value !== undefined) target[key] = value;
+}
+
+/** What every report says about the install, and nothing else — the version, the
+ *  system, the channel and the runtime, plus the coarse environment tokens and
+ *  counts the API records as optional. `claudeVersion`/`codexVersion` are
+ *  supplied by the reporter once its background probe has them (cli-versions.mjs)
+ *  and omitted until then; everything else is read here from the OS and the
+ *  environment. */
 export function installFacts({
   version = RUNNING_VERSION,
   platform = process.platform,
@@ -66,8 +163,15 @@ export function installFacts({
   versions = process.versions,
   env = process.env,
   checkout = isGitCheckout(PKG_ROOT),
+  cpus = cpuCount(),
+  memMb = totalMemMb(),
+  locale = localeToken(env),
+  shell = shellToken(env, platform),
+  term = termToken(env),
+  claudeVersion,
+  codexVersion,
 } = {}) {
-  return {
+  const facts = {
     version: String(version),
     os: platform,
     arch,
@@ -76,6 +180,14 @@ export function installFacts({
     channel: inApp(env) ? "desktop" : checkout ? "checkout" : "npm",
     runtime: versions.electron ? `electron-${versions.electron}` : `node-${versions.node}`,
   };
+  addIf(facts, "cpus", count(cpus));
+  addIf(facts, "memMb", count(memMb));
+  addIf(facts, "locale", token(locale, TOKEN_CAPS.locale));
+  addIf(facts, "shell", token(shell, TOKEN_CAPS.shell));
+  addIf(facts, "term", token(term, TOKEN_CAPS.term));
+  addIf(facts, "claudeVersion", token(claudeVersion, TOKEN_CAPS.claudeVersion));
+  addIf(facts, "codexVersion", token(codexVersion, TOKEN_CAPS.codexVersion));
+  return facts;
 }
 
 /**
@@ -113,6 +225,12 @@ export function scrub(text, home = homedir()) {
  * @param {ReturnType<typeof installFacts>} [deps.facts]
  * @param {string} [deps.home]
  * @param {Promise<unknown>} [deps.ready] what start() waits for: the prefs read at import
+ * @param {() => { claudeVersion?: string, codexVersion?: string }} [deps.versions] the CLI
+ *   versions to fold into the facts, read fresh on every send so a background
+ *   probe's answer rides along the moment it arrives. Default: none.
+ * @param {() => ({ sessions?: number, subagents?: number, projects?: number } | Promise<...>)} [deps.usage]
+ *   the coarse counts the "active" report carries, read only when an "active" is
+ *   about to be sent. Default: none.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -122,10 +240,49 @@ export function createReporter({
   facts = installFacts({ env }),
   home = homedir(),
   ready = prefsRead,
+  versions = () => ({}),
+  usage = () => ({}),
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
   let timer = null;
+
+  /** The CLI versions to add to the facts right now, tokenised and omitted when
+   *  not yet known — read on every send so the background probe's result appears
+   *  on the first report after it lands, not only on the next restart. */
+  function versionFacts() {
+    try {
+      const v = versions() ?? {};
+      const out = {};
+      addIf(out, "claudeVersion", token(v.claudeVersion, TOKEN_CAPS.claudeVersion));
+      addIf(out, "codexVersion", token(v.codexVersion, TOKEN_CAPS.codexVersion));
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  /** The full facts an event carries: the fixed install facts, plus whatever CLI
+   *  versions are known this moment. */
+  function factsNow() {
+    return { ...facts, ...versionFacts() };
+  }
+
+  /** The coarse usage the "active" report carries: only whole counts of zero or
+   *  more survive, and a provider that throws or is slow costs the report
+   *  nothing. */
+  async function coarseUsage() {
+    try {
+      const raw = (await usage()) ?? {};
+      const out = {};
+      addIf(out, "sessions", count(raw.sessions));
+      addIf(out, "subagents", count(raw.subagents));
+      addIf(out, "projects", count(raw.projects));
+      return out;
+    } catch {
+      return {};
+    }
+  }
 
   async function call(method, path, body) {
     try {
@@ -180,18 +337,24 @@ export function createReporter({
     const { installId, lastVersion, lastActiveDay } = prefs.current().report;
     if (!installId) return;
     if (!lastVersion) {
-      if (await call("POST", "/v1/app/events", { installId, kind: "install", ...facts })) {
+      if (await call("POST", "/v1/app/events", { installId, kind: "install", ...factsNow() })) {
         await remember(installId, { lastVersion: facts.version });
       }
     } else if (lastVersion !== facts.version) {
-      if (await call("POST", "/v1/app/events", { installId, kind: "update", fromVersion: lastVersion, ...facts })) {
+      if (await call("POST", "/v1/app/events", { installId, kind: "update", fromVersion: lastVersion, ...factsNow() })) {
         await remember(installId, { lastVersion: facts.version });
       }
     }
 
     const today = now().toISOString().slice(0, 10);
-    if (lastActiveDay !== today && (await call("POST", "/v1/app/events", { installId, kind: "active", ...facts }))) {
-      await remember(installId, { lastActiveDay: today });
+    if (lastActiveDay !== today) {
+      // Usage rides on the "active" event alone, and is read only here — the one
+      // report it belongs to — so a checkIn that sends nothing new never asks the
+      // deck for its counts.
+      const used = await coarseUsage();
+      if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...used })) {
+        await remember(installId, { lastActiveDay: today });
+      }
     }
   }
 
@@ -226,7 +389,7 @@ export function createReporter({
     errorsSent.push(at);
     lastSentAt.set(key, at);
     const stack = typeof error?.stack === "string" ? scrub(error.stack, home).slice(0, STACK_MAX) : undefined;
-    const { runtime: _runtime, ...fields } = facts;
+    const { runtime: _runtime, ...fields } = factsNow();
     return call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack });
   }
 
@@ -248,5 +411,48 @@ export function createReporter({
   return { checkIn, setReports, reportError, start, stop };
 }
 
+// ── the deck's own providers ─────────────────────────────────────────────────
+//
+// Kept here rather than in the modules they read, so reports.mjs stays the one
+// place that decides what leaves — and reached by lazy import, so the reporter's
+// own module graph does not pull the session tracker, the enrichment cache or
+// the CLI probe into a fast path like `--version` that imports it for nothing.
+
+/** The coarse counts the "active" report carries, read from the state the deck
+ *  already keeps — the LRU of tracked sessions and the per-session subagent
+ *  signatures. Never new tracking, and never anything but a number: no session
+ *  id, name or path. `projects` is left out for now — its only source is the
+ *  disk-backed, per-account rollup (account-projects.mjs), which has no cheap
+ *  synchronous count — so the field is simply not sent. */
+async function deckUsage() {
+  const out = {};
+  try {
+    const { trackedSessionCount } = await import("./session-tracking.mjs");
+    out.sessions = trackedSessionCount();
+  } catch { /* count unavailable: omitted */ }
+  try {
+    const { trackedSubagentCount } = await import("./session-enrichment.mjs");
+    out.subagents = trackedSubagentCount();
+  } catch { /* count unavailable: omitted */ }
+  return out;
+}
+
+// The CLI versions, detected once in the background, off the boot path. The
+// first send starts the probe (past boot, and not while the machine has vetoed
+// reports) and reads back an empty answer; the version rides along on the
+// reports that follow, once the probe has filled this cache.
+let cliVersionCache = {};
+let cliProbeStarted = false;
+function deckCliVersions() {
+  if (!cliProbeStarted && !reportsVetoed(process.env)) {
+    cliProbeStarted = true;
+    import("./cli-versions.mjs")
+      .then(m => m.detectCliVersions())
+      .then(v => { cliVersionCache = { ...cliVersionCache, ...v }; })
+      .catch(() => { /* a probe that could not run leaves the versions unsent */ });
+  }
+  return cliVersionCache;
+}
+
 /** The deck's own reporter. */
-export const reporter = createReporter();
+export const reporter = createReporter({ versions: deckCliVersions, usage: deckUsage });

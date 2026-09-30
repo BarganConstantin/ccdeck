@@ -15,7 +15,7 @@ import { Readable } from "node:stream";
 import { describe, it, expect } from "vitest";
 import { DEFAULTS, normalise, publicPrefs, reportsVetoed } from "../../server/deck-prefs.mjs";
 import {
-  createReporter, installFacts, reportsOn, scrub,
+  createReporter, installFacts, localeToken, reportsOn, scrub, shellToken, termToken,
   // @ts-expect-error — plain JS module, no types
 } from "../../server/reports.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -47,9 +47,14 @@ function harness({
     return { ok: status >= 200 && status < 300, status };
   };
   const facts = { version, os: "linux", arch: "x64", channel: "npm", runtime: "node-22.18.0" };
-  const reporterWith = (over: { env?: Record<string, string>; version?: string } = {}) => createReporter({
+  const reporterWith = (over: {
+    env?: Record<string, string>; version?: string;
+    usage?: () => unknown; versions?: () => unknown;
+  } = {}) => createReporter({
     fetchImpl, now: () => clock, prefs: store, env: over.env ?? env,
     facts: { ...facts, version: over.version ?? version }, home: "/home/alice",
+    ...(over.usage ? { usage: over.usage } : {}),
+    ...(over.versions ? { versions: over.versions } : {}),
   });
   return {
     reporter: reporterWith(), reporterWith, calls, store,
@@ -177,6 +182,79 @@ describe("while reports are on", () => {
     expect(h.calls.at(-1)?.body?.installId).toBe(installId);
     expect(h.prefs().report.lastVersion).toBe("3.32.2");
     expect(h.prefs().report.lastActiveDay).toBe("2026-09-30");
+  });
+});
+
+describe("the coarse usage counts", () => {
+  const bodyOf = (h: ReturnType<typeof harness>, kind: string) =>
+    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).find(b => b?.kind === kind);
+
+  it("ride on the 'active' report alone, never on install or update", async () => {
+    const h = harness();
+    await h.reporterWith({ usage: () => ({ sessions: 3, subagents: 2, projects: 5 }) }).checkIn();
+
+    expect(bodyOf(h, "active")).toMatchObject({ sessions: 3, subagents: 2, projects: 5 });
+    // The install went out beside it and carried none of the counts.
+    const install = bodyOf(h, "install")!;
+    for (const k of ["sessions", "subagents", "projects"]) expect(install).not.toHaveProperty(k);
+
+    // An update, the next version over the same install, carries no counts either.
+    const updated = h.reporterWith({ version: "3.33.0", usage: () => ({ sessions: 9, subagents: 9, projects: 9 }) });
+    await updated.checkIn();
+    const update = bodyOf(h, "update")!;
+    for (const k of ["sessions", "subagents", "projects"]) expect(update).not.toHaveProperty(k);
+  });
+
+  it("keep only whole counts of zero or more", async () => {
+    const h = harness();
+    await h.reporterWith({ usage: () => ({ sessions: 2.5, subagents: -1, projects: 4 }) }).checkIn();
+    const active = bodyOf(h, "active")!;
+    expect(active).toMatchObject({ projects: 4 });
+    expect(active).not.toHaveProperty("sessions");   // not a whole number
+    expect(active).not.toHaveProperty("subagents");  // below zero
+  });
+
+  it("never let the count provider break the report", async () => {
+    const h = harness();
+    await h.reporterWith({ usage: () => { throw new Error("provider blew up"); } }).checkIn();
+    // The active still went out — just without any counts.
+    expect(h.kinds()).toEqual(["install", "active"]);
+    const active = bodyOf(h, "active")!;
+    for (const k of ["sessions", "subagents", "projects"]) expect(active).not.toHaveProperty(k);
+  });
+
+  it("are read only when an 'active' is actually due", async () => {
+    const h = harness();
+    let asked = 0;
+    const rep = h.reporterWith({ usage: () => { asked++; return {}; } });
+    await rep.checkIn();
+    expect(asked).toBe(1);
+    // Same day, nothing new to say: the provider is not asked again.
+    await rep.checkIn();
+    expect(asked).toBe(1);
+    h.nextDay();
+    await rep.checkIn();
+    expect(asked).toBe(2);
+  });
+});
+
+describe("the CLI versions", () => {
+  const bodyOf = (h: ReturnType<typeof harness>, kind: string) =>
+    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).find(b => b?.kind === kind);
+
+  it("fold into every facts-carrying report once the probe knows them", async () => {
+    const h = harness();
+    await h.reporterWith({ versions: () => ({ claudeVersion: "1.2.3", codexVersion: "0.5.0-beta.1" }) }).checkIn();
+    expect(bodyOf(h, "install")).toMatchObject({ claudeVersion: "1.2.3", codexVersion: "0.5.0-beta.1" });
+    expect(bodyOf(h, "active")).toMatchObject({ claudeVersion: "1.2.3", codexVersion: "0.5.0-beta.1" });
+  });
+
+  it("are omitted while the probe has nothing, and a provider that throws is survived", async () => {
+    const h = harness();
+    await h.reporterWith({ versions: () => { throw new Error("not ready"); } }).checkIn();
+    const install = bodyOf(h, "install")!;
+    expect(install).not.toHaveProperty("claudeVersion");
+    expect(install).not.toHaveProperty("codexVersion");
   });
 });
 
@@ -379,13 +457,70 @@ describe("scrubbing", () => {
 });
 
 describe("what an install says about itself", () => {
-  it("is the version, the system, the channel and the runtime, nothing else", () => {
-    const facts = installFacts({ version: "3.32.2", platform: "darwin", arch: "arm64", versions: { node: "22.18.0" }, env: { CCDECK_APP: "1" } });
-    expect(facts).toEqual({ version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0" });
+  // Everything host- or env-derived is injected, so the whole of what leaves is
+  // pinned rather than the machine the test happens to run on: a field added to
+  // this shape is still a change to what the README promises.
+  const controlled = {
+    version: "3.32.2", platform: "darwin", arch: "arm64", versions: { node: "22.18.0" },
+    env: { CCDECK_APP: "1" }, cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app",
+  };
+
+  it("is the version, the system, the channel, the runtime and the coarse environment", () => {
+    expect(installFacts(controlled)).toEqual({
+      version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0",
+      cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app",
+    });
     expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {}, checkout: false })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
     // A deck run out of a git checkout is development, and says so.
     expect(installFacts({ env: {}, checkout: true }).channel).toBe("checkout");
     expect(installFacts({ env: { CCDECK_APP: "1" }, checkout: true }).channel).toBe("desktop");
+  });
+
+  it("counts the CPUs and the RAM, and never as anything but a whole number", () => {
+    const facts = installFacts({ env: {} });
+    expect(Number.isInteger(facts.cpus)).toBe(true);
+    expect(facts.cpus).toBeGreaterThan(0);
+    expect(Number.isInteger(facts.memMb)).toBe(true);
+    expect(facts.memMb).toBeGreaterThan(0);
+  });
+
+  it("sends every string field as a token — no spaces, no paths, no free text", () => {
+    // "Apple Terminal" is the one the API would reject as-is; it rides as a token.
+    const facts = installFacts({
+      ...controlled, env: {}, locale: undefined, shell: undefined, term: undefined,
+      cpus: 4, memMb: 8000,
+    });
+    // Whatever the running machine resolved, each token matches the API's shape.
+    const shape = /^[0-9A-Za-z.+_-]+$/;
+    for (const key of ["locale", "shell", "term"] as const) {
+      if (facts[key] !== undefined) {
+        expect(String(facts[key]), key).toMatch(shape);
+        expect(String(facts[key]), key).not.toContain(" ");
+      }
+    }
+  });
+
+  it("derives the locale, the shell and the terminal from the OS and the environment", () => {
+    // Locale: the runtime's resolved value first, then LANG with the encoding off.
+    expect(localeToken({ LANG: "de_DE.UTF-8" }, "")).toBe("de_DE");
+    expect(localeToken({}, "en-GB")).toBe("en-GB");
+    // Shell: the basename of $SHELL on POSIX; a Windows hint otherwise.
+    expect(shellToken({ SHELL: "/usr/bin/zsh" }, "linux")).toBe("zsh");
+    expect(shellToken({ PSModulePath: "C:\\x" }, "win32")).toBe("pwsh");
+    expect(shellToken({ ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32")).toBe("cmd");
+    // Terminal: TERM_PROGRAM, tokenised; then Windows Terminal; then TERM.
+    expect(termToken({ TERM_PROGRAM: "Apple Terminal" })).toBe("Apple_Terminal");
+    expect(termToken({ WT_SESSION: "abc" })).toBe("Windows_Terminal");
+    expect(termToken({ TERM: "xterm-256color" })).toBe("xterm-256color");
+  });
+
+  it("carries the CLI versions when known, tokenised, and omits them when not", () => {
+    const withVersions = installFacts({ env: {}, claudeVersion: "1.2.3", codexVersion: "0.5.0-beta" });
+    expect(withVersions).toMatchObject({ claudeVersion: "1.2.3", codexVersion: "0.5.0-beta" });
+    // Not supplied → not sent. A field the deck cannot determine is simply absent.
+    const bare = installFacts({ env: {} });
+    expect(bare).not.toHaveProperty("claudeVersion");
+    expect(bare).not.toHaveProperty("codexVersion");
   });
 });
 
