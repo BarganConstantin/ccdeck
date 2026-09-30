@@ -14,7 +14,7 @@
 // and cannot lose a login. Switching shells out to `cswap` rather than
 // reimplementing the lock protocol its correctness depends on.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cswapBin, cswapInstalling, cswapVersion, installHint } from "./cswap-install.mjs";
+import { cswapBin, cswapInstalling, cswapRefusal, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
 import { failureDetail } from "./exec-output.mjs";
 import { storedCopyAlive } from "./account-health.mjs";
@@ -140,19 +140,29 @@ let _generation = 0;
 /**
  * Whether we may go to disk for the roster again.
  *
- * The same shape and the same minute as quota.mjs's `maySelfPoll`, and exported
- * for the same reason it is: this is the rule, it is pure, and it belongs
- * somewhere a test can point at it.
+ * The same shape as quota.mjs's `maySelfPoll`, and exported for the same reason
+ * it is: this is the rule, it is pure, and it belongs somewhere a test can
+ * point at it.
  *
- * Two intervals, like `maySelfPoll`'s. A forced read may beat the cache, but not
- * turn into a poll loop when the button is held down, so it takes the minute the
- * other four forcible routes use. An unforced read takes the cache's own
- * interval — it is the panel's ordinary poll, the cache above has already
- * answered it, and measuring from the START of the last read rather than from
- * its end is the only difference between the two rules.
+ * An unforced read takes the cache's own interval — it is the panel's ordinary
+ * poll, the cache above has already answered it, and measuring from the START
+ * of the last read rather than from its end is the only difference between the
+ * two rules.
+ *
+ * A forced read takes the SHORTER of the minute the other forcible routes use
+ * and that same interval, which is the cache's (#1798). It had the minute on its
+ * own, and the panel's fifteen-second poll stamps `_lastReadAt` every time, so
+ * while the panel was open ↻ was always inside its floor and was handed the held
+ * reading — even at a moment when an ordinary poll would have gone to disk. The
+ * deck's own mutations got past that by invalidating; a `cswap switch` typed in
+ * a terminal, or the user's own engine moving the account, has nothing to
+ * invalidate with, and the press did nothing exactly when it was wanted. What
+ * #604 was protecting still holds: a button held down or a page looping on
+ * `?refresh=1` costs one pair of small JSON reads per five seconds, which is
+ * what the unforced poll was already allowed.
  */
 export function mayReadAccounts({ now, force, lastReadAt }) {
-  return now - lastReadAt >= (force ? FORCE_POLL_MS : CACHE_MS);
+  return now - lastReadAt >= (force ? Math.min(FORCE_POLL_MS, CACHE_MS) : CACHE_MS);
 }
 
 /**
@@ -281,12 +291,13 @@ function lane(id, label, win) {
 /**
  * Every managed account with whatever usage claude-swap last saw for it.
  *
- * When there is nothing to show, says which of the three reasons it is:
+ * When there is nothing to show, says which of the four reasons it is:
  * "cswap_installing" (the deck is installing the tool and there is nothing to
  * do), "no_cswap" (the tool is not installed, and here is the command for this
- * machine) or "no_accounts" (it is installed but nothing has been added yet).
- * They need different things from the user, and reporting them as one empty
- * panel leaves whichever one they are in with nowhere to go.
+ * machine), "no_accounts" (it is installed but nothing has been added yet) or
+ * "cswap_refused" (the copy that answers is one the deck installed and refused
+ * to drive). They need different things from the user, and reporting them as
+ * one empty panel leaves whichever one they are in with nowhere to go.
  */
 export async function fetchClaudeAccounts({ force = false } = {}) {
   const now = Date.now();
@@ -365,6 +376,14 @@ async function readRoster(now, gen) {
     _cacheAt = Date.now();
     return r;
   };
+
+  // A COPY THE DECK REFUSED (#1799), before the store is even read. Its roster
+  // would be a panel whose every button — Add, Switch, Remove — runs that copy,
+  // and its empty store read as `no_accounts`, which is "installed, add one".
+  const refused = await cswapRefusal();
+  if (refused) {
+    return finish({ ok: false, reason: "cswap_refused", version: refused.version, want: refused.want ?? null, fetchedAt: now });
+  }
 
   const root = backupRoot();
   const seq  = await readSequence(root);
@@ -759,6 +778,9 @@ const SEED_MARKER = join(homedir(), ".agents-deck", ".cswap-seeded");
 export async function seedFirstAccount() {
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") return { state: "skipped" };
   if (existsSync(SEED_MARKER)) return { state: "already-tried" };
+  // Before the marker, so a refused copy does not also spend the one attempt
+  // (#1799). The boot does not seed one either; this is the seed saying so.
+  if (await cswapRefusal()) return { state: "refused" };
 
   // THE TEST AND THE WRITE ARE ONE CRITICAL SECTION (#1039). The whole guard
   // below is a read of sequence.json — "only when the store holds no accounts

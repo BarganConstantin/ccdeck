@@ -76,10 +76,23 @@ function summarise(stdout) {
  * says as much about its own guard: the next interval is at most fifteen
  * seconds away and the work is idempotent by design. Here it is not even
  * skipped, only queued.
+ *
+ * AND QUEUED IS A WAIT (#1797). The chain is first-in first-out with no
+ * timeout, so a tick can stand behind a sixty-second `cswap add` — and the
+ * switch runTick checked before joining the queue may have been turned off by
+ * the time the lock is its. Both of runTick's questions are asked again as the
+ * first thing the lock runs, before `cswapBin()` and before anything is
+ * spawned, and a tick that finds either answer changed comes back as the same
+ * skip runTick would have recorded. The external-engine reading is the shared
+ * ten-second one, so a tick that did not wait pays nothing for it here.
  */
 async function runAutoTick() {
-  const r = await withStoreLock(async () =>
-    run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS }));
+  const r = await withStoreLock(async () => {
+    if (!_enabled) return { skipped: "disabled" };
+    if (await externalAutoRunning()) return { skipped: "external-engine" };
+    return run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+  });
+  if (r.skipped) return { event: "skipped", reason: r.skipped };
   // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
   // 8 KB tail of whatever the child managed to print, so `!r.ok && !r.stdout`
   // is false for a tick that emitted its `{"event":"poll"}` line and then

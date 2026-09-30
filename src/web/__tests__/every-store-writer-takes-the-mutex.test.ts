@@ -316,9 +316,9 @@ describe("holding an account out of rotation", () => {
   });
 
   it("drops the roster it has just made wrong, so the press is not a no-op for a minute", async () => {
-    // The documented bug, driven: the panel polls every 15 s and each poll
-    // stamps the read, so `now - _lastReadAt >= FORCE_POLL_MS` (60 s) is a
-    // quantity the reload after the press can never reach. Without the
+    // The documented bug, driven: the reload after the press lands
+    // milliseconds after the read before it, so `now - _lastReadAt` is inside
+    // the forced floor (the cache's 5 s since #1798, a minute before). Without the
     // invalidation the forced read is refused and hands back the roster from
     // before the press — the chip does not move and nothing has failed.
     store(false);
