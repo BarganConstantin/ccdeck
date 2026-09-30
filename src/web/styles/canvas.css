@@ -81,6 +81,9 @@
 .drag-trash-text { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .drag-trash-name { display: inline-block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .drag-trash-hint { color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+/* The zone's own words turn --err over a card, and its bed turns 18% toward
+   --err with them, where --muted is 3.42:1 in dark (#1788). */
+.drag-trash-zone.over .drag-trash-hint { color: var(--text-secondary); }
 .canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
 .react-flow__node.dragging .agent-node {
   transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1),

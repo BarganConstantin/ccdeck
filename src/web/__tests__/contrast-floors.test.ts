@@ -136,7 +136,9 @@ const TOK: Record<Theme, Record<string, string>> = { dark: tokens("dark"), light
  *
  *  And a mix of two colours since #1787: the Sessions list's guessed tool is
  *  --warn mixed 75% with --panel, which a reader that only knew the
- *  transparent form handed to parseColor() and threw on. */
+ *  transparent form handed to parseColor() and threw on. Nested too, since
+ *  #1788: the trash zone's hot bed is --chrome-bg, itself a mix, mixed 82/18
+ *  with --err. */
 function resolve(value: string, theme: Theme): Rgba {
   const mix = /color-mix\(in srgb,\s*var\((--[\w-]+)\)\s*([\d.]+)%,\s*transparent\)/.exec(value);
   if (mix) {
@@ -1585,6 +1587,71 @@ describe("words quietened with an opacity, measured as what they composite to (#
     for (const sel of fading) {
       expect(declFor(sel, "opacity"), sel).toBe("var(--dim-stale)");
       expect(dimsOnlyMarks(sel), `${sel} dims something that can hold a word`).toBe(true);
+    }
+  });
+});
+
+// ── #1788: small secondary text, on the bed it is really drawn on ──────────
+//
+// Every tier in this file clears 4.5:1 on the three panel surfaces, and none of
+// these lines sits on just one of them. The sound menu's tone headings and its
+// footer mixed their tier 12% further toward --panel (3.93:1 in dark, 4.42:1 in
+// light for the footer); the custom-sound captions and the Projects report's
+// quiet buttons are --muted on the --sm-fill that raises them off the panel
+// (4.25:1 in dark); and the trash zone's hint stayed --muted when a card over
+// the zone tints it 18% toward --err (3.42:1 in dark). So each is resolved
+// from the sheet — its own colour, its own bed and what that bed sits on.
+
+describe("small secondary text on the beds it is drawn on (#1788)", () => {
+  const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+  /** The popover the sound menu's lines sit in. */
+  const menu = (theme: Theme) => bedOf(".sound-menu", theme, panel(theme));
+  /** The canvas the trash zone floats over. */
+  const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
+  const LINES: Array<[string, string[], (theme: Theme) => Rgba]> = [
+    ["the tone headings", [".sm-tone-name", ".sound-menu"], menu],
+    ["the menu's footer", [".sm-foot", ".sound-menu"], menu],
+    ["a custom-sound card's caption", [".sm-custom-card-copy > span", ".sm-custom-card"],
+      theme => bedOf(".sm-custom-card", theme, menu(theme))],
+    ["the Projects report's Copy and Show buttons", [".ap-proj-copy"],
+      theme => bedOf(".ap-proj-copy", theme, bedOf(".modal", theme, panel(theme)))],
+    ["the trash zone's hint", [".drag-trash-hint", ".drag-trash-zone"],
+      theme => bedOf(".drag-trash-zone", theme, canvas(theme))],
+    ["the trash zone's hint as a card nears it", [".drag-trash-zone.near .drag-trash-hint", ".drag-trash-hint"],
+      theme => bedOf(".drag-trash-zone", theme, canvas(theme))],
+    ["the trash zone's hint with a card over it", [".drag-trash-zone.over .drag-trash-hint", ".drag-trash-hint"],
+      theme => bedOf(".drag-trash-zone.over", theme, canvas(theme))],
+  ];
+
+  it("reproduces the ratios #1788 measured, from the values that shipped", () => {
+    const at = (ink: string, theme: Theme, bed: Rgba) => contrastRatio(resolve(ink, theme), bed);
+    const smFill = (theme: Theme) => over(resolve("var(--sm-fill)", theme), panel(theme));
+    const hot = (theme: Theme) =>
+      resolve("color-mix(in srgb, var(--chrome-bg) 82%, var(--err) 18%)", theme);
+    expect(at("color-mix(in srgb, var(--muted) 88%, var(--panel))", "dark", panel("dark"))).toBeCloseTo(3.93, 2);
+    expect(at("color-mix(in srgb, var(--text-dim) 88%, var(--panel))", "light", panel("light"))).toBeCloseTo(4.42, 2);
+    expect(at("var(--muted)", "dark", smFill("dark"))).toBeCloseTo(4.25, 2);
+    expect(at("var(--muted)", "dark", hot("dark"))).toBeCloseTo(3.42, 2);
+    expect(at("var(--muted)", "dark", resolve("var(--chrome-bg)", "dark"))).toBeCloseTo(4.87, 2);
+  });
+
+  it("reads every one of those lines at 4.5:1, in both themes", () => {
+    for (const theme of themes) {
+      for (const [what, chain, bed] of LINES) {
+        const b = bed(theme);
+        expect(b[3], `${theme} ${what}: the bed should be opaque by now`).toBe(1);
+        const r = through(inkOf(theme, ...chain), opacityOf(chain[0]), b);
+        expect(r, `${theme} ${what} (${chain[0]}) — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+
+  it("still lifts a Projects button under the pointer", () => {
+    for (const theme of themes) {
+      const bed = bedOf(".ap-proj-copy", theme, panel(theme));
+      const rest = contrastRatio(inkOf(theme, ".ap-proj-copy"), bed);
+      const hover = contrastRatio(inkOf(theme, ".ap-proj-copy:hover", ".ap-proj-copy"), bed);
+      expect(hover, theme).toBeGreaterThan(rest);
     }
   });
 });

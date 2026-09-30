@@ -651,8 +651,11 @@ button.btn.sm-channel-action {
   text-transform: uppercase;
   /* A step off --muted, not a new tier. Wider tracking does part of the
      softening on its own — letters further apart read quieter at the same
-     colour — so the colour only has to move the rest of the way. */
-  color: color-mix(in srgb, var(--muted) 88%, var(--panel));
+     colour — so the colour only has to move the rest of the way: to
+     --text-dim, the tier under --muted. It was --muted mixed 12% toward the
+     panel, 3.93:1 in dark (#1788); the dark ramp has no readable tier under
+     --muted, so there the tracking does it alone. */
+  color: var(--text-dim);
   font-weight: 500;
 }
 /* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
@@ -889,7 +892,10 @@ button.btn.sm-hear {
 }
 .sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sm-custom-card-copy strong { font-size: 11px; font-weight: 600; color: var(--text); }
-.sm-custom-card-copy > span { font-size: 10px; line-height: 1.35; color: var(--muted); }
+/* --text-secondary, not --muted: the card's --sm-fill lifts it off the panel,
+   and --muted on that is 4.25:1 in dark (#1788). The 10px under the 11px name
+   keeps the caption the quieter line. */
+.sm-custom-card-copy > span { font-size: 10px; line-height: 1.35; color: var(--text-secondary); }
 /* The import card is a <label>, so the whole card is the file picker's target
    and it answers a press as the other labelled controls do. Only this card
    takes a hover: the record card's target is its button, and a card that lit up
@@ -998,8 +1004,11 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   border-top: 1px solid var(--line);
   font-size: 11px;
   /* The quietest line in the card, and the only one that is neither a setting
-     nor an answer about one — it is a note about a key. */
-  color: color-mix(in srgb, var(--text-dim) 88%, var(--panel));
+     nor an answer about one — it is a note about a key. --text-dim is as quiet
+     as a line can be and still be read: mixed 12% further toward the panel it
+     was 3.93:1 in dark and 4.42:1 in light (#1788), so the rule above it and
+     its place at the foot are what set it apart. */
+  color: var(--text-dim);
 }
 /* The shortcuts sheet's cap, without the 38px column width that sheet's grid
    needs — inline in a sentence, a letter box that wide reads as a button. */

@@ -156,6 +156,11 @@ describe("what was migrated to the secondary tier", () => {
       // it on. Prose, in a card whose other line is a verb in the accent.
       ".ap-issue-hint",
       ".ap-lan-intro-text",
+      // The Projects report's Copy and Show buttons: a control's words, kept
+      // here by their bed rather than their role, as the door's line below
+      // is. The --sm-fill that raises them takes --muted to 4.25:1 in dark
+      // (#1788), and the dark ramp has no metadata tier above that floor.
+      ".ap-proj-copy",
       // Account capacity (#1713): the sentence that says these are the last
       // readings, and the folded-away explanation of how the report is worked
       // out. Both are sentences read once; every figure and label around them
@@ -185,6 +190,11 @@ describe("what was migrated to the secondary tier", () => {
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
       ".cat-filter",
       ".detail-recap",
+      // The trash zone's hint while a card is over it, "The session list (L)
+      // brings it back": the one sentence that says the removal can be
+      // undone, on the zone's red tint, where --muted is 3.42:1 in dark
+      // (#1788).
+      ".drag-trash-zone.over .drag-trash-hint",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
       ".sa-why",
@@ -194,6 +204,9 @@ describe("what was migrated to the secondary tier", () => {
       ".sd-door-sub",
       // And three lines of it in the session list.
       ".session-list .sl-recap",
+      // The custom-sound cards' captions, by bed again: --muted on the card's
+      // --sm-fill is 4.25:1 in dark (#1788).
+      ".sm-custom-card-copy > span",
     ]);
   });
 
