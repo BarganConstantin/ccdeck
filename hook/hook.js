@@ -373,7 +373,8 @@ const POST_TIMEOUT_MS = 1000;
 // The third phase that can stall, and the one that had no deadline at all:
 // reading the registry and canonicalising the paths in it. See discoverTargets
 // for what it is bounding and why one unanswering path must not cost the event
-// for every other deck on the machine.
+// for every other deck on the machine — and for why a window that found nothing
+// gets a second one.
 const DISCOVERY_TIMEOUT_MS = 400;
 
 // How long the canonical spelling of the session's cwd is worth waiting for
@@ -386,10 +387,11 @@ const CWD_TIMEOUT_MS = 200;
  * from when main() ran — see the deadline main() sets.
  *
  * 1900ms is not the sum of the phase deadlines, and it is not meant to be. Four
- * phases now carry one — discovery 400, the challenge's two attempts 400 + 400,
- * the POST 1000 — and they only stack to 2200 if all three surfaces stall on
- * the same run: an unanswering filesystem, a port that accepts and says
- * nothing, and a deck that takes the body and never replies. Each deadline
+ * phases now carry one — discovery 400 (and 400 more when the first window found
+ * nothing), the challenge's two attempts 400 + 400, the POST 1000 — and they
+ * only stack to 2600 if all three surfaces stall on the same run: an
+ * unanswering filesystem, a port that accepts and says nothing, and a deck that
+ * takes the body and never replies. Each deadline
  * bounds its own pathology; this one is the backstop over all of them, and it
  * is what a reader should believe rather than the addition.
  *
@@ -874,6 +876,17 @@ function readRecord(file, resolvedCwd, found, done) {
  * is a symlink, a junction or an 8.3 short name. Giving up on the whole phase
  * instead would hand every deck on the machine nothing.
  *
+ * A DEADLINE WITH NOTHING FOUND IS NOT AN ANSWER EITHER (#1872). The deadline
+ * is there so a stalled record cannot take the event from a deck that answered;
+ * when nothing has answered yet there is no such deck to protect, only reads
+ * still out — and on a loaded machine those are usually slow, not stalled: a
+ * busy disk, an antivirus scanning a record a deck rewrote a moment ago, a
+ * threadpool queued behind someone else's build. Handing back the empty set
+ * there dropped the event for every deck on the machine, with nothing on screen
+ * to say so. So an empty first window gets one more, the way prove()'s deadline
+ * does, and the second ends like the first: at its deadline with whatever
+ * answered, or as soon as every read has.
+ *
  * `cb` runs exactly once, with a snapshot — a read that lands after the
  * deadline may still push, and must not change the set already being acted on.
  */
@@ -891,7 +904,11 @@ function discoverTargets(cwd, cb) {
     clearTimeout(timer);
     cb(found.slice(), usedCwd);
   };
-  const timer = setTimeout(finish, DISCOVERY_TIMEOUT_MS);
+  const expire = retried => {
+    if (found.length || retried) return finish();
+    timer = setTimeout(() => expire(true), DISCOVERY_TIMEOUT_MS);
+  };
+  let timer = setTimeout(() => expire(false), DISCOVERY_TIMEOUT_MS);
 
   let scanned = false;
   // Assigned below, and read from a callback normPathAsync may run
