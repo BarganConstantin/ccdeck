@@ -11,17 +11,28 @@
 //     subagents and projects — numbers, never their names,
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with home folders, email addresses and key-shaped strings
-//     scrubbed out before they leave.
+//     scrubbed out before they leave,
+//   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
+//     moves the install's "last seen" so the admin can show who is online now.
+//     It writes no event and carries the install id alone — no facts, no
+//     fingerprint.
 //
-// Each carries the install id, the version, the OS and CPU architecture, the
-// channel (the desktop app, npm, or a source checkout) and the runtime, plus a
-// coarse sketch of the environment: the logical CPU count, the RAM in MB, the
+// Each event carries the install id, the version, the OS and CPU architecture,
+// the channel (the desktop app, npm, or a source checkout) and the runtime, plus
+// a coarse sketch of the environment: the logical CPU count, the RAM in MB, the
 // locale, the shell and terminal names, and the Claude Code and Codex CLI
 // versions. Every one of those is a small fixed token or a number, safe by
 // construction — no path, no hostname, no user name, no project name, no prompt,
 // no free text ever reaches any field, so there is nothing in them to scrub. A
 // field that cannot be told is left out rather than guessed. The install id is
 // random, made at the first check-in, and tied to nothing on the machine.
+//
+// The one field that IS derived from the machine is `deviceId`, a stable
+// per-machine fingerprint on install/update/active (never on ping or errors). It
+// is personal data, so it leaves only as a one-way hash of stable machine traits,
+// never those traits in the clear (see deviceIdToken), and the API keeps it only
+// while a server-side consent flag is on — off today — so sending it is harmless
+// now and becomes meaningful once consent is live.
 //
 // NOBODY IS ASKED, AND NOTHING IS HIDDEN. The owner chose on-by-default
 // (2026-09-30): the README says what is sent, Appearance holds the switch, and
@@ -36,8 +47,8 @@
 // dropped: it is a nicety for the people who make ccdeck, and no part of the
 // deck depends on it.
 
-import { randomUUID } from "node:crypto";
-import { cpus as osCpus, homedir, totalmem } from "node:os";
+import { createHash, randomUUID } from "node:crypto";
+import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inApp } from "./app-host.mjs";
@@ -51,6 +62,12 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TIMEOUT_MS = 6000;
 /** How often a long-running deck checks whether a new day wants its "active". */
 const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
+/** The heartbeat's beat: a lighter timer than the check-in that only moves the
+ *  install's "last seen", so the admin can count who is online now. Ten minutes,
+ *  plus up to `PING_JITTER_MS` of random spread, so a fleet started together does
+ *  not all beat on the same tick. */
+const PING_EVERY_MS = 10 * 60 * 1000;
+const PING_JITTER_MS = 2 * 60 * 1000;
 /** Errors per hour this deck may send, and how long one error is not repeated. */
 const ERRORS_PER_HOUR = 20;
 const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
@@ -69,14 +86,18 @@ export function reportsOn(prefs, env = process.env) {
 //
 // Everything added to an install's facts here is a count or a small fixed token,
 // safe by construction: no path, no hostname, no user name, no free text ever
-// reaches any of them, so there is nothing to scrub. Each is optional — a field
-// that cannot be told is left undefined and so never sent, and none of these can
-// throw, because a report is a nicety and no part of the deck may hang on it.
+// reaches any of them, so there is nothing to scrub. The ONE exception is
+// `deviceId` below — it is derived from identifying machine traits (the hostname
+// among them), so it is personal data, which is exactly why it leaves only as a
+// one-way hash and never as the traits themselves (see deviceIdToken). Each is
+// optional — a field that cannot be told is left undefined and so never sent, and
+// none of these can throw, because a report is a nicety and no part of the deck
+// may hang on it.
 
 // The keys the API caps, so a value that would be rejected for length is not
 // sent: it is trimmed to the cap here instead. Only ever tokens the shape of a
 // terminal name, a shell name, a locale or a version — never anything free.
-const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32 };
+const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64 };
 
 /** A value reduced to the API's token shape `^[0-9A-Za-z.+_-]+$`: spaces become
  *  "_" (so "Apple Terminal" rides as "Apple_Terminal"), every other disallowed
@@ -102,6 +123,54 @@ function cpuCount() {
 /** Total RAM in whole MB, or nothing. */
 function totalMemMb() {
   try { return count(Math.round(totalmem() / 1024 / 1024)); } catch { return undefined; }
+}
+
+/**
+ * A stable, non-reversible fingerprint of the machine, as an opaque token.
+ *
+ * PRIVACY — READ THIS. Unlike every other facts field, this is PERSONAL DATA: a
+ * stable id that follows one machine across runs, and one of its ingredients
+ * (`os.hostname()`) can name a person. That is exactly why it leaves only as a
+ * one-way hash, never as the traits in the clear — the traits are concatenated,
+ * run through SHA-256, and only the first 16 hex characters ship, so the machine
+ * details cannot be read back out of what leaves. It is precisely because it is
+ * identifying that the API stores it only while a server-side consent flag is on
+ * (off today) and drops it otherwise — so the reporter may always send it, and it
+ * stays harmless until consent is live. The token is hex, so it matches the API's
+ * `^[0-9A-Za-z.+_-]+$` shape and its 16 characters sit well under the 64 cap.
+ * Built from traits that do not change between restarts — platform, arch, CPU
+ * model and count, total RAM, and the hostname folded into the hash ONLY — and it
+ * never throws: a trait that cannot be read just yields a different, still stable,
+ * token. The traits are a parameter so a test can hash a fixed machine.
+ */
+export function deviceIdToken(traits = machineTraits()) {
+  try {
+    const seed = [traits.platform, traits.arch, traits.cpuModel, traits.cpuCount, traits.memBytes, traits.hostname]
+      .map(part => String(part ?? ""))
+      .join("\u0000");
+    return createHash("sha256").update(seed).digest("hex").slice(0, 16);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The stable machine traits the fingerprint hashes — never sent themselves,
+ *  only the hash of them. `hostname()` is identifying and is read here solely to
+ *  be folded into that hash, never returned to a path that sends facts. */
+function machineTraits() {
+  try {
+    const list = osCpus();
+    return {
+      platform: osPlatform(),
+      arch: osArch(),
+      cpuModel: list?.[0]?.model,
+      cpuCount: list?.length,
+      memBytes: totalmem(),
+      hostname: hostname(),
+    };
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -168,6 +237,7 @@ export function installFacts({
   locale = localeToken(env),
   shell = shellToken(env, platform),
   term = termToken(env),
+  deviceId = deviceIdToken(),
   claudeVersion,
   codexVersion,
 } = {}) {
@@ -185,6 +255,9 @@ export function installFacts({
   addIf(facts, "locale", token(locale, TOKEN_CAPS.locale));
   addIf(facts, "shell", token(shell, TOKEN_CAPS.shell));
   addIf(facts, "term", token(term, TOKEN_CAPS.term));
+  // The one derived, hashed, personal field. Present on the events that carry
+  // facts; stripped from errors, and never on the heartbeat (see below).
+  addIf(facts, "deviceId", token(deviceId, TOKEN_CAPS.deviceId));
   addIf(facts, "claudeVersion", token(claudeVersion, TOKEN_CAPS.claudeVersion));
   addIf(facts, "codexVersion", token(codexVersion, TOKEN_CAPS.codexVersion));
   return facts;
@@ -246,6 +319,7 @@ export function createReporter({
   const errorsSent = [];
   const lastSentAt = new Map();
   let timer = null;
+  let pingTimer = null;
 
   /** The CLI versions to add to the facts right now, tokenised and omitted when
    *  not yet known — read on every send so the background probe's result appears
@@ -358,6 +432,23 @@ export function createReporter({
     }
   }
 
+  /** The heartbeat. While reports are on and an id exists, tell the API this deck
+   *  is still here — it moves the install's "last seen" and writes no event, so it
+   *  carries the id and nothing else: no facts, no deviceId. Like every send it is
+   *  dropped if it cannot get through, and it never throws. No id yet means the
+   *  first check-in has not run, so there is nothing to be online under and
+   *  nothing is sent; the check-in that makes the id is what puts this deck
+   *  online, and the ping only keeps that fresh. */
+  async function ping() {
+    try {
+      const p = prefs.current();
+      if (!reportsOn(p, env) || !p.report.installId) return;
+      await call("POST", "/v1/app/ping", { installId: p.report.installId });
+    } catch {
+      // The lightest of the niceties: a heartbeat that could not be sent is gone.
+    }
+  }
+
   /** The switch. On checks in, which makes an id if there is none; off drops the id and asks for a deletion. */
   async function setReports(on) {
     if (on) {
@@ -389,26 +480,44 @@ export function createReporter({
     errorsSent.push(at);
     lastSentAt.set(key, at);
     const stack = typeof error?.stack === "string" ? scrub(error.stack, home).slice(0, STACK_MAX) : undefined;
-    const { runtime: _runtime, ...fields } = factsNow();
+    // Less the runtime, and less the deviceId — an error is not one of the events
+    // the fingerprint rides on, so the personal field never leaves on one.
+    const { runtime: _runtime, deviceId: _deviceId, ...fields } = factsNow();
     return call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack });
   }
 
-  /** Check in once the prefs are read, and every few hours after, on a timer
-   *  that never holds the process open. */
+  /** The heartbeat timer, rescheduled from itself so each beat carries fresh
+   *  jitter — a fixed interval would let a fleet that started as one beat as one.
+   *  Unref'd, so it never holds the process open. */
+  function scheduleNextPing() {
+    pingTimer = setTimeout(() => {
+      void ping();
+      scheduleNextPing();
+    }, PING_EVERY_MS + Math.floor(Math.random() * PING_JITTER_MS));
+    pingTimer.unref?.();
+  }
+
+  /** Check in once the prefs are read, and every few hours after; and beat a
+   *  heartbeat on its own, lighter timer. Both timers never hold the process
+   *  open. The first check-in already puts a freshly launched deck online, so the
+   *  first ping is a full interval out — nothing pings at boot. */
   function start() {
     Promise.resolve(ready).catch(() => {}).then(checkIn);
     if (!timer) {
       timer = setInterval(() => void checkIn(), CHECK_IN_EVERY_MS);
       timer.unref?.();
     }
+    if (!pingTimer) scheduleNextPing();
   }
 
   function stop() {
     if (timer) clearInterval(timer);
     timer = null;
+    if (pingTimer) clearTimeout(pingTimer);
+    pingTimer = null;
   }
 
-  return { checkIn, setReports, reportError, start, stop };
+  return { checkIn, ping, setReports, reportError, start, stop };
 }
 
 // ── the deck's own providers ─────────────────────────────────────────────────

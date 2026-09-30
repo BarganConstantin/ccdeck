@@ -482,8 +482,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // asked the registry never binds a port it is about to walk away from.
       prefsRead.then(() => applyLanPrefs()).catch(() => {});
       // Anonymous reports (#1853): what is due once the prefs are read, then a
-      // check every few hours on an unref'd timer. Switched off in Appearance,
-      // or with AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL, nothing is sent.
+      // check every few hours plus a lighter ~10-minute heartbeat, both on
+      // unref'd timers. Switched off in Appearance, or with
+      // AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL, nothing is sent.
       reporter.start();
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise. Its
