@@ -577,6 +577,10 @@ jobs:
   # Without them a pull-request build is ad-hoc signed and its updates
   # unsigned — fine to look at, refused by any installed app, and refused
   # outright on a tag (the check below).
+  #
+  # The updates are signed on a tag and nowhere else, even when the key is
+  # there: every file signed with it is one every installed app accepts as
+  # ccdeck's, and only a release should be.
   desktop:
     strategy:
       fail-fast: false
@@ -689,7 +693,7 @@ jobs:
           exit 1
 
       - name: Sign the updates
-        if: env.HAS_SIGNING == 'true'
+        if: env.HAS_SIGNING == 'true' && startsWith(github.ref, 'refs/tags/v')
         working-directory: desktop
         shell: bash
         env:
@@ -704,6 +708,19 @@ jobs:
           else
             node scripts/sign-yml.mjs dist/app
           fi
+
+      # The signed manifests, checked with the public key the app carries and
+      # the same functions the app runs. A release that would be refused by
+      # the apps already installed, or by the ones this release installs,
+      # stops here, before anything reaches the release — and so does a
+      # signing key that no longer matches the app's.
+      - name: Check the updates as an installed app would
+        if: env.HAS_SIGNING == 'true' && startsWith(github.ref, 'refs/tags/v')
+        working-directory: desktop
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('../package.json').version")
+          node scripts/verify-updates.mjs dist/app "$VERSION"
 
       - name: Upload the installers
         uses: actions/upload-artifact@v7
