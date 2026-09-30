@@ -12,10 +12,10 @@
 // cases about a saved `false` matter more than they look: an upgrade must never
 // turn back on what somebody turned off.
 import { Readable } from "node:stream";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { DEFAULTS, normalise, publicPrefs, reportsVetoed } from "../../server/deck-prefs.mjs";
 import {
-  createReporter, installFacts, localeToken, reportsOn, scrub, shellToken, termToken,
+  createReporter, deviceIdToken, installFacts, localeToken, reportsOn, scrub, shellToken, termToken,
   // @ts-expect-error — plain JS module, no types
 } from "../../server/reports.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -50,9 +50,11 @@ function harness({
   const reporterWith = (over: {
     env?: Record<string, string>; version?: string;
     usage?: () => unknown; versions?: () => unknown;
+    facts?: Record<string, unknown>; ready?: Promise<unknown>;
   } = {}) => createReporter({
     fetchImpl, now: () => clock, prefs: store, env: over.env ?? env,
-    facts: { ...facts, version: over.version ?? version }, home: "/home/alice",
+    facts: { ...facts, version: over.version ?? version, ...(over.facts ?? {}) }, home: "/home/alice",
+    ...(over.ready ? { ready: over.ready } : {}),
     ...(over.usage ? { usage: over.usage } : {}),
     ...(over.versions ? { versions: over.versions } : {}),
   });
@@ -255,6 +257,120 @@ describe("the CLI versions", () => {
     const install = bodyOf(h, "install")!;
     expect(install).not.toHaveProperty("claudeVersion");
     expect(install).not.toHaveProperty("codexVersion");
+  });
+});
+
+describe("the heartbeat ping", () => {
+  it("says it is still here, with the id and nothing else", async () => {
+    const h = harness();
+    await h.reporter.checkIn();            // makes an id, sends install + active
+    const { installId } = h.prefs().report;
+    const before = h.calls.length;
+
+    await h.reporter.ping();
+
+    const sent = h.calls.at(-1)!;
+    expect(h.calls.length).toBe(before + 1);
+    expect(sent.method).toBe("POST");
+    expect(sent.url).toBe("https://api.ccdeck.dev/v1/app/ping");
+    // The whole of what a heartbeat carries: the id, and not one field more.
+    expect(sent.body).toEqual({ installId });
+    for (const k of ["version", "os", "arch", "channel", "runtime", "deviceId", "kind"]) {
+      expect(sent.body).not.toHaveProperty(k);
+    }
+  });
+
+  it("does not ping before an install id exists — the first check-in has not run", async () => {
+    const h = harness();
+    expect(h.prefs().report.installId).toBe("");
+
+    await h.reporter.ping();
+
+    expect(h.calls).toEqual([]);
+    expect(h.prefs().report.installId).toBe(""); // and it never makes one
+  });
+
+  it("does not ping when reports are switched off", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    await h.reporter.setReports(false);
+    const before = h.calls.length;
+
+    await h.reporter.ping();
+
+    expect(h.calls.length).toBe(before);
+  });
+
+  it("does not ping under the machine's veto, even with an id already saved", async () => {
+    const env = { AGENTS_DECK_NO_REPORTS: "1" };
+    const h = harness({
+      env,
+      saved: { reports: true, report: { installId: "id-1", lastVersion: "3.32.2", lastActiveDay: "2026-09-30" } },
+    });
+
+    await h.reporter.ping();
+
+    expect(h.calls).toEqual([]);
+  });
+
+  it("a failed ping is dropped and never throws", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    h.goOffline();
+
+    await expect(h.reporter.ping()).resolves.toBeUndefined();
+  });
+
+  it("beats on its own timer, apart from the six-hour check-in", async () => {
+    vi.useFakeTimers();
+    try {
+      // An id already saved, on today's version and day, so the boot check-in is
+      // a no-op and the only thing the timer produces is the ping.
+      const h = harness({
+        saved: { reports: true, report: { installId: "id-1", lastVersion: "3.32.2", lastActiveDay: "2026-09-30" } },
+      });
+      const rep = h.reporterWith({ ready: Promise.resolve() });
+
+      rep.start();
+      // PING_EVERY_MS (10m) + PING_JITTER_MS (2m) from reports.mjs: covers one
+      // beat whatever the jitter, and never a second (its delay is ≥ 10m).
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 2 * 60 * 1000);
+
+      const pings = h.calls.filter(c => c.url.endsWith("/v1/app/ping"));
+      expect(pings.length).toBe(1);
+      expect(pings[0].body).toEqual({ installId: "id-1" });
+      rep.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the device fingerprint on the wire", () => {
+  const bodyOf = (h: ReturnType<typeof harness>, kind: string) =>
+    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).find(b => b?.kind === kind);
+
+  it("rides on install, update and active — but never on a ping or an error", async () => {
+    const id = "d1e2f3a4b5c6d7e8";
+    const h = harness();
+    const rep = h.reporterWith({ facts: { deviceId: id } });
+    await rep.checkIn();
+
+    expect(bodyOf(h, "install")).toMatchObject({ deviceId: id });
+    expect(bodyOf(h, "active")).toMatchObject({ deviceId: id });
+
+    // An update over the same install carries it too.
+    const updated = h.reporterWith({ version: "3.33.0", facts: { deviceId: id } });
+    await updated.checkIn();
+    expect(bodyOf(h, "update")).toMatchObject({ deviceId: id });
+
+    // The heartbeat carries the id alone.
+    await rep.ping();
+    expect(h.calls.filter(c => c.url.endsWith("/v1/app/ping")).at(-1)!.body).not.toHaveProperty("deviceId");
+
+    // An error is not one of the events the fingerprint rides on.
+    expect(await rep.reportError("server", new Error("boom"))).toBe(true);
+    expect(h.calls.filter(c => c.url.endsWith("/v1/app/errors")).at(-1)!.body).not.toHaveProperty("deviceId");
   });
 });
 
@@ -463,12 +579,14 @@ describe("what an install says about itself", () => {
   const controlled = {
     version: "3.32.2", platform: "darwin", arch: "arm64", versions: { node: "22.18.0" },
     env: { CCDECK_APP: "1" }, cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app",
+    // Injected so the whole shape stays pinned; its own derivation is tested below.
+    deviceId: "0123456789abcdef",
   };
 
   it("is the version, the system, the channel, the runtime and the coarse environment", () => {
     expect(installFacts(controlled)).toEqual({
       version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0",
-      cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app",
+      cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app", deviceId: "0123456789abcdef",
     });
     expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {}, checkout: false })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
     // A deck run out of a git checkout is development, and says so.
@@ -521,6 +639,41 @@ describe("what an install says about itself", () => {
     const bare = installFacts({ env: {} });
     expect(bare).not.toHaveProperty("claudeVersion");
     expect(bare).not.toHaveProperty("codexVersion");
+  });
+
+  it("sends no device fingerprint unless AGENTS_DECK_FINGERPRINT is set", () => {
+    // Off by default: the fingerprint is not even computed, so nothing personal
+    // is transmitted until consent turns the flag on.
+    expect(installFacts({ env: {} })).not.toHaveProperty("deviceId");
+  });
+
+  it("carries a device fingerprint that is a hash-shaped token, stable, and never the machine in the clear, once the flag is on", () => {
+    const flag = { AGENTS_DECK_FINGERPRINT: "1" };
+    const a = installFacts({ env: flag });
+    const b = installFacts({ env: flag });
+    expect(a.deviceId).toMatch(/^[0-9a-f]{16}$/);        // an opaque hex token
+    expect(a.deviceId).toMatch(/^[0-9A-Za-z.+_-]+$/);    // the API's token shape
+    expect(String(a.deviceId).length).toBeLessThanOrEqual(64);
+    expect(a.deviceId).not.toContain(" ");
+    expect(b.deviceId).toBe(a.deviceId);                 // stable across calls
+  });
+
+  it("derives the fingerprint by a one-way hash of stable traits, hiding every one of them", () => {
+    const traits = {
+      platform: "linux", arch: "x64", cpuModel: "Test CPU @ 3.00GHz",
+      cpuCount: 8, memBytes: 16 * 1024 ** 3, hostname: "alices-macbook",
+    };
+    const id = deviceIdToken(traits);
+    expect(id).toMatch(/^[0-9a-f]{16}$/);
+    expect(deviceIdToken(traits)).toBe(id);              // same machine → same id
+    // Non-reversible: nothing identifying survives in readable form.
+    expect(id).not.toContain("alices-macbook");
+    expect(id).not.toContain("Test CPU");
+    // A different machine hashes to a different token — the hostname and any
+    // single trait each change the whole of it.
+    expect(deviceIdToken({ ...traits, hostname: "bobs-pc" })).not.toBe(id);
+    expect(deviceIdToken({ ...traits, cpuCount: 4 })).not.toBe(id);
+    expect(deviceIdToken({ ...traits, memBytes: 8 * 1024 ** 3 })).not.toBe(id);
   });
 });
 
