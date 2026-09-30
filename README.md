@@ -22,7 +22,7 @@ npx ccdeck
 
 Or the desktop app, with the waiting count in your menu bar: **[macOS](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-mac-arm64.dmg)** · **[Windows](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-win-x64.exe)** · **[Linux](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-linux-x86_64.AppImage)** — [every download](#desktop-app)
 
-[![ccdeck showing Claude Code and Codex sessions, subagents and tool calls on one canvas](assets/canvas.png)](assets/canvas.png)
+[![ccdeck showing Claude Code and Codex sessions, Claude Code subagents and tool calls on one canvas](assets/canvas.png)](assets/canvas.png)
 
 *A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
 
@@ -90,7 +90,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 |---|---|
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
 | **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
-| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. |
+| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Subagent cards are Claude Code only: a Codex session is one node with its tool calls. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
 | **Double-click to inspect** | Any node opens its prompt, tool calls, token usage and timing in the side panel. A single click selects it and frames its session. |
 | **Survives restarts** | Events are appended to this platform's log directory (see `--history` below) and replayed on open. |
@@ -524,12 +524,13 @@ so existing clones, links and bookmarks keep working.
 
 **Does it work with Codex, or only Claude Code?**
 Both, on one canvas. Claude Code arrives through a hook, Codex through its
-rollout log, and the model chip tells them apart. The *blocked on you* queue is
-Claude Code only, because a rollout log is a record of what happened and the
+rollout log, and the model chip tells them apart. Subagent cards are Claude
+Code only: a Codex session is one node with its tool calls. So is the *blocked
+on you* queue, because a rollout log is a record of what happened and the
 queue needs to know what is happening now. Codex does report it — its
 `app-server` pushes a thread status carrying `waitingOnApproval` — and reading
 that is open work, not a wall. Step by step:
-[See Codex CLI sessions, tool calls and quota live](https://ccdeck.dev/guides/codex/)
+[Set up ccdeck for Codex CLI](https://ccdeck.dev/guides/codex/)
 
 **Does anything leave my machine?**
 Your sessions, never. The deck binds `127.0.0.1`. It does send anonymous usage
