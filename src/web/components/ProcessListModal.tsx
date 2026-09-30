@@ -25,6 +25,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { SortHead as ColumnSortHead, type SortOf } from "./SortHead";
 import MachineStrip from "./MachineStrip";
 import { fmtBytes } from "../byte-format";
 import type { LiveSource } from "../machine-live";
@@ -52,10 +53,7 @@ export interface Proc {
 
 export type SortKey = "cpu" | "mem" | "name" | "rss" | "threads" | "uptime" | "user";
 
-export interface Sort {
-  key: SortKey;
-  dir: "asc" | "desc";
-}
+export type Sort = SortOf<SortKey>;
 
 /** CPU descending, which is what "busiest" means until somebody says
  *  otherwise. */
@@ -130,12 +128,7 @@ export function sortProcs(procs: Proc[], sort: Sort): Proc[] {
     || a.pid - b.pid);
 }
 
-/** aria-sort's own vocabulary, which also decides the arrow and the active
- *  colour — the state is said once, in the place assistive technology reads. */
-export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" | "none" {
-  if (sort.key !== key) return "none";
-  return sort.dir === "asc" ? "ascending" : "descending";
-}
+export { ariaSort } from "./SortHead";
 
 /** The process list costs a subprocess on every platform, so it refreshes more
  *  slowly than the readings beside it. */
@@ -405,37 +398,8 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
   );
 }
 
-/** One column header: the word, the direction it is pointing, and the press
- *  that changes it. */
-export function SortHead({ col, label, note, sort, onSort }: {
-  col: SortKey;
-  label: string;
-  /** What this column means, where the meaning is not the label. It rides on
-   *  the header's own tooltip, under the sort action, because a caveat about a
-   *  column belongs to the column: it is findable from the thing it is about
-   *  rather than from a footnote at the other end of the dialog. */
-  note?: string;
-  sort: Sort;
-  onSort: (next: Sort) => void;
-}) {
-  const state = ariaSort(sort, col);
-  return (
-    <th scope="col" aria-sort={state}>
-      <button
-        type="button"
-        className="sd-sort"
-        title={note ? `Sort by ${label}\n\n${note}` : `Sort by ${label}`}
-        onClick={() => onSort(nextSort(sort, col))}
-      >
-        {label}
-        {/* aria-sort has already said this to a screen reader, so the glyph is
-            for the eye alone. Its slot is held open on every column, sorted or
-            not, so that re-sorting moves the rows and never the headers. */}
-        <span className="sd-sort-dir" aria-hidden>
-          {state === "none" ? "" : state === "ascending" ? "\u2191" : "\u2193"}
-        </span>
-      </button>
-    </th>
-  );
+/** One column header, sorting by this table's rule — see SortHead.tsx. */
+export function SortHead(props: { col: SortKey; label: string; note?: string; sort: Sort; onSort: (next: Sort) => void }) {
+  return <ColumnSortHead {...props} next={(current, col) => nextSort(current ?? SORT_DEFAULT, col)} />;
 }
 

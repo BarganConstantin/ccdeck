@@ -259,6 +259,66 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
   return { rows, windows: REPORT_WINDOWS.map(w => windowTotal(rows, w.id)), roomInBoth };
 }
 
+/** The columns a reader can order the rows by: each window's own column,
+ *  and the name, the state and the age on either side of them. */
+export type ReportSortKey = "account" | WindowId | "status" | "updated";
+
+export interface ReportSort {
+  key: ReportSortKey;
+  dir: "asc" | "desc";
+}
+
+/**
+ * What a press on a column header does: a column you are not on arrives
+ * ascending, and the one you are on flips. Ascending is the order a reader
+ * looks for room in — A to Z, the least used first, Ready first, the newest
+ * reading first — so the first press answers "which account next", and the
+ * second turns it round.
+ */
+export function nextReportSort(current: ReportSort | null, key: ReportSortKey): ReportSort {
+  if (current?.key === key) return { key, dir: current.dir === "asc" ? "desc" : "asc" };
+  return { key, dir: "asc" };
+}
+
+const STATUS_RANK: Record<Status, number> = { ready: 0, limited: 1, exhausted: 2, stale: 3 };
+
+/** The number a row shows in a window's column — its reading, or the last
+ *  one it had, dimmed — so the order follows what the eye reads. */
+function shownPct(c: Cell): number | null {
+  return c.counted ? c.pct : c.last;
+}
+
+/** The quantity a row sorts by in a column, smallest first; null where it has
+ *  none, which goes last whichever way the column points. */
+function sortValue(row: ReportRow, key: Exclude<ReportSortKey, "account">): number | null {
+  if (key === "status") return STATUS_RANK[row.status];
+  if (key === "updated") return row.updatedAt == null ? null : -row.updatedAt;
+  return shownPct(row.cells[key]);
+}
+
+/**
+ * The rows in the order a column asks for, or as they came — the panel's own
+ * order — when none has been pressed.
+ *
+ * Rows the column cannot place (never read in that window, or never read at
+ * all) go last in BOTH directions, because a missing number is neither the
+ * most room nor the least. Ties keep the panel's order and do NOT flip with the
+ * direction: ten accounts all "now" or all Ready would otherwise swap places
+ * on every press and on every poll while nothing about them had changed.
+ */
+export function sortReportRows(rows: readonly ReportRow[], sort: ReportSort | null): ReportRow[] {
+  if (!sort) return [...rows];
+  const sign = sort.dir === "asc" ? 1 : -1;
+  const at = new Map(rows.map((r, i) => [r.num, i]));
+  const primary = (a: ReportRow, b: ReportRow): number => {
+    if (sort.key === "account") return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    const av = sortValue(a, sort.key), bv = sortValue(b, sort.key);
+    if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
+    return sign * (av - bv);
+  };
+  return [...rows].sort((a, b) => primary(a, b) || at.get(a.num)! - at.get(b.num)!);
+}
+
 /**
  * A used percent as a whole number to print, which says 100 only at the limit
  * (#1713). The states are decided on the unrounded reading, so 99.6% is room:

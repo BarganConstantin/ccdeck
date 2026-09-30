@@ -318,9 +318,10 @@
   top: -20px;
   z-index: 1;
   /* Room above the names once they are stuck under the dialog's title, which
-     has no rule of its own to stand them off. */
-  padding-top: 8px;
-  padding-bottom: 8px;
+     has no rule of its own to stand them off — four and four, with the sort
+     button's 24px between, the height the row had before it was a control. */
+  padding-top: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--panel);
   font-size: 10px;
@@ -329,6 +330,34 @@
   text-transform: uppercase;
   color: var(--report-meta);
 }
+/* Each column name is the control that orders the rows by it (SortHead.tsx).
+   The word stays where it stood: the button's inset is handed back as a
+   negative margin, so the label keeps the column's left edge and the target
+   is wider than the ink. The arrow's slot is held open on every column. */
+.ap-report-table .sd-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-tag);
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+.ap-report-table .sd-sort:hover { background: var(--line-soft); color: var(--text); }
+.ap-report-table .sd-sort:active { transform: scale(0.97); }
+/* The column the rows are ordered by reads at full strength. Keyed on
+   aria-sort, so the state cannot be true for the eye and absent for a screen
+   reader. */
+.ap-report-table th:not([aria-sort="none"]) .sd-sort { color: var(--text); }
 .ap-report-acct { overflow: hidden; font-weight: 400; color: var(--text); }
 /* The rows come in one after another as the dialog opens: a few pixels up and
    into view, 30ms apart and never more than ten steps, so twenty-five accounts
@@ -367,9 +396,14 @@
    hollow mark in the muted one, the only grey here that means anything. The
    marks are drawn as borders, which a Contrast theme repaints in CanvasText on
    its own — a filled mark stays filled and a hollow one hollow. */
-.ap-report-state-word { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--report-meta); }
+/* On the row's baseline with the names and the numbers: the word gives the
+   line its baseline, and the mark, which has no text to give one, is centred
+   on it. Centring both put the empty mark's bottom edge on the baseline and
+   the word 1.3px below its row. */
+.ap-report-state-word { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; color: var(--report-meta); }
 .ap-report-state-word i {
   flex: none;
+  align-self: center;
   box-sizing: border-box;
   width: 6px;
   height: 6px;
@@ -427,6 +461,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ap-report-meter i { transition: none; }
+  .ap-report-table .sd-sort:active { transform: none; }
   .ap-report-table tbody tr { animation: ap-report-row-fade 160ms ease both; animation-delay: 0ms; }
 }
 /* One total a row at a phone's width, so each keeps its number whole. */
@@ -447,11 +482,21 @@
   .ap-report-upd-h { display: none; }
   .ap-report-in { display: block; margin-left: 0; }
   .ap-report-acct-in { flex-wrap: wrap; row-gap: 2px; }
+  /* A 64px column has room for "5h used" and nothing beside it: the button
+     gives up its inset, and the arrow hangs in the gutter before the next
+     column rather than breaking the name onto two lines. */
+  .ap-report-table .sd-sort { position: relative; margin-left: 0; padding: 0; white-space: nowrap; }
+  .ap-report-table .sd-sort-dir { position: absolute; left: 100%; }
+  /* Every header cell is stuck with a background of its own, so the next one
+     paints over whatever hangs past this one's edge — the sorted one stands
+     above its neighbours. */
+  .ap-report-table thead th:not([aria-sort="none"]) { z-index: 2; }
 }
 /* A phone's narrowest: the percent columns take only what "100%" needs and the
    rows drop their own reset, which the cards above still give, so the names
    keep a column wide enough to read. */
 @media (max-width: 360px) {
+  .ap-report-table .sd-sort { white-space: normal; }
   .ap-report-col-win { width: 48px; }
   .ap-report-col-state { width: 88px; }
   .ap-report-in { display: none; }
