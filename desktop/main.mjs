@@ -12,13 +12,14 @@
 // The tray icon is the favicon of a closed tab: the same four marks, the same
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from "electron";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream, restartAsked } from "./deck-link.mjs";
 import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
 import { navigationFor } from "./nav.mjs";
+import { overFullScreen, windowsOnScreen } from "./fullscreen-space.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
@@ -26,6 +27,7 @@ import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
 import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
+import { createMenuSwap } from "./tray-menu-swap.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
@@ -70,6 +72,7 @@ let providerStatus = null;    // the deck's last /api/provider-status answer (#1
 let incidentsOf = null;       // the page's reading of it, from dist/lib/provider-status.mjs
 let safeStatusPage = null;    // and the page's rule for which links are status pages
 let redraw = null;
+let menuSwap = null;          // tray-menu-swap.mjs, once the tray exists
 const ownDeck = createOwnDeck(); // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
@@ -77,6 +80,7 @@ let updater = null;           // updater.mjs, created once the app is ready
 let quietSince = null;        // since when nothing is running, waiting or open (#1187)
 let updateNoticeVersion = null; // last version whose ready notice was shown (#1182)
 let updateNoticePrompting = false;
+let asking = 0;                // questions from ask() on screen now
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -84,11 +88,12 @@ function trayImage(icon) {
   return nativeImage.createFromPath(join(icons, name));
 }
 
-/** The menu for the state the app is in now — see tray-menu.mjs, which owns
- *  its rows. What each row does is below, and reads this file's variables
- *  when it is clicked rather than when the menu was drawn. */
+/** The menu's template for the state the app is in now — see tray-menu.mjs,
+ *  which owns its rows, and tray-menu-swap.mjs, which decides when the tray
+ *  is handed a new one. What each row does is below, and reads this file's
+ *  variables when it is clicked rather than when the menu was drawn. */
 function buildMenu() {
-  return Menu.buildFromTemplate(trayMenuItems({
+  return trayMenuItems({
     now: Date.now(),
     snapshot,
     deck,
@@ -102,7 +107,7 @@ function buildMenu() {
     // Read against now, so an answer held past its expiry leaves the menu on
     // the next redraw rather than at the next ask.
     incidents: incidentsOf?.(providerStatus, Date.now()) ?? [],
-  }, TRAY_ACTIONS));
+  }, TRAY_ACTIONS);
 }
 
 const TRAY_ACTIONS = {
@@ -143,7 +148,9 @@ function scheduleRedraw() {
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
     tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
-    tray.setContextMenu(buildMenu());
+    // Only when what it says has changed, and not while it is open: a new
+    // menu closes the one somebody is reading (tray-menu-swap.mjs).
+    menuSwap?.refresh();
   }, 150);
 }
 
@@ -542,6 +549,29 @@ function openWindow(steal = true) {
   win.loadURL(`${origin}/`);
 }
 
+/** How long after macOS says the app let go before looking: the app's own
+ *  switch from accessory to regular can take the keyboard away for a moment
+ *  and hand it straight back, and a look taken then would be wrong. */
+const RESIGN_SETTLE_MS = 250;
+
+/** macOS: the window closes when another app takes the keyboard while the
+ *  window stands over that app's full-screen Space, where it cannot step back
+ *  and would only stay in front (#1214, fullscreen-space.mjs). The menu bar
+ *  opens it again over wherever the person is then. On a desktop it steps
+ *  back like any window, and nothing here happens. Never with a question on
+ *  screen: a sheet closed with its window is a question nobody answered. */
+async function stepAsideFromFullScreen() {
+  if (process.platform !== "darwin" || !win || win.isDestroyed() || !win.isVisible()) return;
+  await new Promise(resolve => setTimeout(resolve, RESIGN_SETTLE_MS));
+  const here = win;
+  if (!here || here.isDestroyed() || here.isFocused() || updateNoticePrompting || asking > 0) return;
+  const display = screen.getDisplayMatching(here.getBounds()).bounds;
+  if (!overFullScreen(await windowsOnScreen(), process.pid, display)) return;
+  if (here !== win || here.isDestroyed() || here.isFocused()) return;
+  trace("close: another app took the keyboard over its full-screen Space");
+  here.close();
+}
+
 // ── first run ───────────────────────────────────────────────────────────────
 // What this app remembers between launches — see desktop-state.mjs.
 const desktopState = createDesktopState(() => join(app.getPath("userData"), "desktop-state.json"));
@@ -613,7 +643,12 @@ function windowOnScreen(within) {
  *  macOS floats above every other app until it is answered. */
 async function ask(options) {
   const parent = await windowOnScreen(ON_SCREEN_WAIT_MS);
-  return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+  asking += 1;
+  try {
+    return await (parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options));
+  } finally {
+    asking -= 1;
+  }
 }
 
 /**
@@ -768,7 +803,16 @@ app.whenReady().then(async () => {
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
-  tray.setContextMenu(buildMenu());
+  menuSwap = createMenuSwap({
+    build: buildMenu,
+    install: (template, { opened, closed }) => {
+      const menu = Menu.buildFromTemplate(template);
+      menu.on("menu-will-show", opened);
+      menu.on("menu-will-close", closed);
+      tray.setContextMenu(menu);
+    },
+  });
+  menuSwap.refresh();
   // Windows and Linux: a left click opens the window, the menu is on the right.
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
   watchTray();
@@ -874,6 +918,7 @@ function restartForTrayWhenQuiet(where) {
 }
 
 app.on("activate", () => { if (primary) openWindow(); });
+app.on("did-resign-active", () => { stepAsideFromFullScreen(); });
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
