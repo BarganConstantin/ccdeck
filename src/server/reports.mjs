@@ -27,7 +27,9 @@
 // field that cannot be told is left out rather than guessed. The install id is
 // random, made at the first check-in, and tied to nothing on the machine.
 //
-// The one field that IS derived from the machine is `deviceId`, a stable
+// The one field that IS derived from the machine is `deviceId`, sent ONLY when
+// AGENTS_DECK_FINGERPRINT=1 (off by default, so nothing is even transmitted until
+// consent turns it on). It is a stable
 // per-machine fingerprint on install/update/active (never on ping or errors). It
 // is personal data, so it leaves only as a one-way hash of stable machine traits,
 // never those traits in the clear (see deviceIdToken), and the API keeps it only
@@ -237,7 +239,7 @@ export function installFacts({
   locale = localeToken(env),
   shell = shellToken(env, platform),
   term = termToken(env),
-  deviceId = deviceIdToken(),
+  deviceId = env.AGENTS_DECK_FINGERPRINT === "1" ? deviceIdToken() : undefined,
   claudeVersion,
   codexVersion,
 } = {}) {

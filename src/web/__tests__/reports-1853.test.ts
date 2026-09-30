@@ -641,11 +641,16 @@ describe("what an install says about itself", () => {
     expect(bare).not.toHaveProperty("codexVersion");
   });
 
-  it("carries a device fingerprint that is a hash-shaped token, stable, and never the machine in the clear", () => {
-    // installFacts computes it from the real machine: opaque, hex, and the same
-    // on two calls, so it is stable across a restart.
-    const a = installFacts({ env: {} });
-    const b = installFacts({ env: {} });
+  it("sends no device fingerprint unless AGENTS_DECK_FINGERPRINT is set", () => {
+    // Off by default: the fingerprint is not even computed, so nothing personal
+    // is transmitted until consent turns the flag on.
+    expect(installFacts({ env: {} })).not.toHaveProperty("deviceId");
+  });
+
+  it("carries a device fingerprint that is a hash-shaped token, stable, and never the machine in the clear, once the flag is on", () => {
+    const flag = { AGENTS_DECK_FINGERPRINT: "1" };
+    const a = installFacts({ env: flag });
+    const b = installFacts({ env: flag });
     expect(a.deviceId).toMatch(/^[0-9a-f]{16}$/);        // an opaque hex token
     expect(a.deviceId).toMatch(/^[0-9A-Za-z.+_-]+$/);    // the API's token shape
     expect(String(a.deviceId).length).toBeLessThanOrEqual(64);
