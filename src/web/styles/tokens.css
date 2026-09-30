@@ -98,6 +98,12 @@
   --conn-wash: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
   --burst-live-wash: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));
   --hero-core: radial-gradient(circle at 30% 30%, #c4b5fd, #7dd3fc 55%, #14161b);
+  /* A live thing's light (#network map): a connected link and its deck. Half
+     as strong on white, where the same green reads as a stain. */
+  --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
+  /* The light that runs along a live link: the text's own ink on dark, and
+     the accent on white, where a near-black dot reads as dirt, not light. */
+  --glint: var(--text);
   --grid-line: #1a1d24;
   --minimap-mask: rgba(11,12,16,0.85);
   /* Per-session and per-MCP-server hues are hashed in JS (reducer.sessionHue,
@@ -254,6 +260,8 @@
   --conn-wash: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
   --burst-live-wash: linear-gradient(180deg, rgba(126,34,206,0.06), transparent);
   --hero-core: radial-gradient(circle at 30% 30%, #a78bfa, #0ea5e9 55%, #1e293b);
+  --live-bloom: color-mix(in srgb, var(--ok) 12%, transparent);
+  --glint: var(--accent);
   --grid-line: #d0d5dd;
   --minimap-mask: rgba(238,241,246,0.85);
   /* The same six jobs, re-tuned for a white canvas — the whole point of #330.

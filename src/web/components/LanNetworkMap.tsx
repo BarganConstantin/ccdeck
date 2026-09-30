@@ -24,8 +24,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
 import { createPortal } from "react-dom";
 
 import {
-  continuousAngle, machineKey, mapHeadline, mapLayout, mapSummary, nodeCaption, ownAddresses, presenceLine,
-  type MapLayout, type MapNode, type MapZone,
+  continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, networkNextStep, nodeCaption,
+  nodeName, ownAddresses, presenceLine, troubleFirst, type MapLayout, type MapNode, type MapZone,
 } from "../lan-network-map";
 import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from "../lan-peer";
 import { rowSource, type DeckRow } from "../lan-roster";
@@ -43,10 +43,20 @@ const CORE_R = 34;
 /** How long a pointer may be between two decks before the map stops holding
  *  the one it left — long enough that sweeping across the ring never flashes
  *  the whole network back to full brightness in between. */
-const LEAVE_GRACE_MS = 90;
-/** One round, out and back. The lights are spread over it by the golden
- *  ratio, so no two wires ever pulse together however many there are. */
-const ROUND_TRIP_S = 5.2;
+const LEAVE_GRACE_MS = 160;
+/** How long the pointer has to rest on a deck before the panel turns to it:
+ *  long enough that crossing the ring on the way to somewhere else does not
+ *  flick the panel through every deck under the pointer, short enough that a
+ *  deck pointed at is described before the eye has left it. The disc and the
+ *  dim answer at once; only the panel waits. */
+const SHOW_DWELL_MS = 80;
+/** A resize settles for this long before the map's own movement comes back:
+ *  geometry the window moved snaps, and only a change in the data travels. */
+const STILL_MS = 200;
+/** One round, out and back, and the long rest after it — see `nm-round`. The
+ *  lights are spread over it by the golden ratio, so no two wires ever pulse
+ *  together however many there are. */
+const ROUND_TRIP_S = 8;
 /** How far inside the tailnet slice's outer edge its name runs. */
 const ZONE_LABEL_INSET = 6;
 
@@ -71,6 +81,8 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const stageRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [still, setStill] = useState(false);
+  const stillTimer = useRef<number | null>(null);
 
   // THE STAGE IS MEASURED, NOT ASSUMED. The rings are laid out in the pixels
   // the dialog actually has, so a name is drawn at the size it is set in
@@ -81,18 +93,29 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
     const measure = () => setSize(prev => {
       const w = Math.round(el.clientWidth);
       const h = Math.round(el.clientHeight);
-      return prev && prev.w === w && prev.h === h ? prev : { w, h };
+      if (prev && prev.w === w && prev.h === h) return prev;
+      // A resize moves every deck at once, and none of them because anything
+      // about the network changed — so for a moment the map does not travel.
+      if (prev) {
+        setStill(true);
+        if (stillTimer.current != null) window.clearTimeout(stillTimer.current);
+        stillTimer.current = window.setTimeout(() => setStill(false), STILL_MS);
+      }
+      return { w, h };
     });
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (stillTimer.current != null) window.clearTimeout(stillTimer.current);
+    };
   }, []);
 
   const layout = useMemo<MapLayout | null>(
-    () => (size ? mapLayout(rows, size.w, size.h) : null),
-    [rows, size],
+    () => (size ? mapLayout(rows, size.w, size.h, status?.name ?? "") : null),
+    [rows, size, status?.name],
   );
   const summary = useMemo(() => mapSummary(rows), [rows]);
   const nodes = layout?.nodes ?? [];
@@ -127,7 +150,9 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   // sweeping the ring sees this tens of times and a cascade each time would
   // be the map making it wait. And a deck reached by the keyboard arrives at
   // once: a key held down on the ring must never queue animations behind it.
-  const [entrance, setEntrance] = useState<Entrance>("full");
+  // Still on open: the network's summary arrives with the dialog itself, and
+  // the map is the only thing drawing.
+  const [entrance, setEntrance] = useState<Entrance>("none");
   const shownRef = useRef<string | null>(null);
   const showKey = useCallback((key: string | null, how: Entrance) => {
     if (shownRef.current === key) return;
@@ -136,17 +161,28 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
     setShownKey(key);
   }, []);
   const leaveTimer = useRef<number | null>(null);
+  const showTimer = useRef<number | null>(null);
+  const stopShowing = useCallback(() => {
+    if (showTimer.current != null) window.clearTimeout(showTimer.current);
+    showTimer.current = null;
+  }, []);
   const hold = useCallback((key: string, via: "pointer" | "keyboard") => {
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
     leaveTimer.current = null;
+    stopShowing();
     setFocusKey(key);
-    showKey(key, via === "keyboard" ? "none" : shownRef.current ? "swap" : "full");
-  }, [showKey]);
+    if (via === "keyboard") { showKey(key, "none"); return; }
+    showTimer.current = window.setTimeout(() => showKey(key, shownRef.current ? "swap" : "full"), SHOW_DWELL_MS);
+  }, [showKey, stopShowing]);
   const release = useCallback(() => {
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
+    stopShowing();
     leaveTimer.current = window.setTimeout(() => setFocusKey(null), LEAVE_GRACE_MS);
-  }, []);
-  useEffect(() => () => { if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current); }, []);
+  }, [stopShowing]);
+  useEffect(() => () => {
+    if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
+    stopShowing();
+  }, [stopShowing]);
 
   // A machine that left the ring while it was looked at fires no pointerleave
   // and no blur, so what is lit is asked of the ring as it is now — otherwise
@@ -196,7 +232,10 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
 
   const on = status?.enabled === true;
   const headline = !status ? "checking…" : !on ? "Local network is off" : mapHeadline(summary);
-  const toNetwork = () => { showKey(null, "swap"); setFocusKey(null); };
+  // The dwell's timer goes too: Back hands focus to the deck's ring button
+  // first (#1748), and that focus must not bring the deck back 80ms later.
+  const toNetwork = () => { stopShowing(); showKey(null, "swap"); setFocusKey(null); };
+  const litNode = litKey ? nodes.find(n => machineKey(n.row) === litKey) ?? null : null;
   // The deck panel's way back takes itself away with the panel, so focus goes
   // to the ring button of the deck it was showing — the ring's own tab stop —
   // rather than falling to the page (#1748). First, because focusing a deck on
@@ -226,19 +265,23 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
           <div className="nm-view">
           <div ref={stageRef} className="nm-stage"
             data-focus={litKey ? "" : undefined}
+            data-focus-via={litNode?.row.via}
             data-dense={layout?.dense || undefined}
+            data-still={still || undefined}
             // A press on the ground between the decks gives the panel back to
             // the network as a whole.
             onClick={e => { if (e.target === e.currentTarget) toNetwork(); }}>
             {size && layout && (
               <>
-                <Orbits layout={layout} w={size.w} h={size.h} tailnetAddr={status?.tailscale?.addr ?? null} />
+                <Orbits layout={layout} w={size.w} h={size.h} />
                 {nodes.map(n => {
                   const key = machineKey(n.row);
                   return <Wire key={key} node={n} angle={angles.get(key) ?? n.angle} lit={litKey === key} />;
                 })}
                 <Core status={status} />
-                <div className="nm-ring" role="group" aria-label="Decks around this deck" onKeyDown={onRingKey}>
+                <span id="nm-ring-hint" className="vis-hidden">Arrow keys move between decks. Enter opens the deck's own dialog.</span>
+                <div className="nm-ring" role="group" aria-label={`Decks around this deck, ${nodes.length}`}
+                  aria-describedby="nm-ring-hint" onKeyDown={onRingKey}>
                   {nodes.map((n, i) => {
                     const key = machineKey(n.row);
                     return (
@@ -295,13 +338,7 @@ export function MapGlyph() {
 
 /** The rings, where each has a deck on it, and the tailnet's slice. Drawn
  *  once, in the stage's own pixels, and never animated past their entrance. */
-function Orbits({ layout, w, h, tailnetAddr }: {
-  layout: MapLayout;
-  w: number;
-  h: number;
-  /** This deck's own address on the tailnet, named along the slice's edge. */
-  tailnetAddr: string | null;
-}) {
+function Orbits({ layout, w, h }: { layout: MapLayout; w: number; h: number }) {
   const { zone } = layout;
   return (
     <svg className="nm-orbits" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
@@ -309,19 +346,22 @@ function Orbits({ layout, w, h, tailnetAddr }: {
         <>
           <defs>
             <path id="nm-zone-arc" d={zoneArc(zone, w / 2, h / 2)} />
-            {/* Darkest at its outer edge and clear toward the centre, so the
-                slice reads as a region the decks stand in rather than a
-                wedge cut out of the map. */}
+            {/* Clear at the centre, rising over the inner stretch and lying
+                flat under the decks, so the slice reads as a region they
+                stand in rather than a wedge cut out of the map. */}
             <radialGradient id="nm-zone-fill" gradientUnits="userSpaceOnUse"
               cx={w / 2} cy={h / 2} r={Math.max(zone.outer.rx, zone.outer.ry)}>
               <stop className="nm-zone-stop" offset="0.2" data-at="in" />
+              <stop className="nm-zone-stop" offset="0.5" data-at="mid" />
               <stop className="nm-zone-stop" offset="1" data-at="out" />
             </radialGradient>
           </defs>
           <path className="nm-zone" d={zonePath(zone, w / 2, h / 2)} fill="url(#nm-zone-fill)" />
           <text className="nm-zone-label">
             <textPath href="#nm-zone-arc" startOffset="50%" textAnchor="middle">
-              {tailnetAddr ? `Tailscale · ${tailnetAddr}` : "Tailscale"}
+              {/* What stands in it, not this deck's own address — the panel
+                  has that. */}
+              {`Tailscale · ${zone.count} deck${zone.count === 1 ? "" : "s"}`}
             </textPath>
           </text>
         </>
@@ -368,8 +408,8 @@ function zoneArc(z: MapZone, cx: number, cy: number): string {
  *  actually having. */
 function Wire({ node, angle, lit }: { node: MapNode; angle: number; lit: boolean }) {
   const live = node.row.kind === "paired" && node.row.here;
-  // Negative, so the light is already somewhere along its trip rather than
-  // every wire starting from the centre at once.
+  // Each wire's light starts a little later than the last, by the golden
+  // ratio of the round, so no two ever leave together.
   const phase = ((node.order * GOLDEN) % 1) * ROUND_TRIP_S;
   return (
     <span className="nm-wire" aria-hidden
@@ -415,6 +455,7 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
   onOpen: () => void;
 }) {
   const { row } = node;
+  const key = machineKey(row);
   const rad = (node.angle * Math.PI) / 180;
   const caption = nodeCaption(row, os);
 
@@ -423,7 +464,8 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
       tabIndex={tabbable ? 0 : -1}
       data-tier={node.tier} data-kind={row.kind} data-side={node.side}
       data-via={row.via} data-on={lit || undefined} data-shown={shown || undefined}
-      aria-label={`${row.name}: ${presenceLine(row)}. Opens its own dialog.`}
+      aria-label={`${row.name}: ${presenceLine(row)}`}
+      aria-describedby={`nm-d-${key}`}
       style={{
         "--nm-a": `${angle.toFixed(2)}deg`,
         "--nm-d": `${node.dist.toFixed(1)}px`,
@@ -441,12 +483,17 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
       onBlur={onRelease}
       onClick={onOpen}>
       <i className="nm-halo" data-tier={node.tier} aria-hidden />
-      <Machine />
+      {/* An address nothing has answered at is not a machine yet, so it is
+          not drawn as one. */}
+      {row.kind === "dialling" ? <i className="nm-addr-dot" aria-hidden /> : <Machine />}
       <i className="nm-mark" data-tier={node.tier} data-kind={row.kind} aria-hidden />
       <span className="nm-label" aria-hidden>
-        <span className="nm-name">{row.name}</span>
+        <span className="nm-name">{nodeName(row)}</span>
         <span className="nm-cap">{caption}</span>
       </span>
+      {/* The caption, for a screen reader: what the deck runs, or how long
+          it has been away. The drawn one is aria-hidden with its name. */}
+      <span id={`nm-d-${key}`} className="vis-hidden">{caption}</span>
     </button>
   );
 }
@@ -457,22 +504,22 @@ function EmptyNote({ status }: { status: LanStatus | null }) {
     <p className="nm-empty">
       {!status ? "Asking this deck about the network…"
         : !on ? "Local network is off, so this deck is not looking for any other."
-        : "No other deck yet. Decks on one network usually find each other within a minute."}
+        : "No other deck yet. Decks on one network usually find each other within a minute; one on another "
+          + "network needs its address, through Add a deck in Local network."}
     </p>
   );
 }
 
-/** The key, drawn with the map's own marks rather than described. */
+/** The key: the three rings inside out, each drawn as the wire and the mark
+ *  its decks wear, and the tailnet's slice. Four entries, one word each —
+ *  the same four words the decks and the panel use. */
 function Legend() {
   return (
     <ul className="nm-legend">
-      <li><i className="nm-key-mark" data-tier="online" aria-hidden />online</li>
-      <li><i className="nm-key-mark" data-tier="offline" aria-hidden />offline</li>
-      <li><i className="nm-key-mark" data-tier="loose" aria-hidden />not paired</li>
-      <li><i className="nm-key-wire" data-tier="online" aria-hidden />connected</li>
-      <li><i className="nm-key-wire" data-tier="online" data-via="tailscale" aria-hidden />over Tailscale</li>
-      <li><i className="nm-key-wire" data-tier="offline" aria-hidden />paired, away</li>
-      <li><i className="nm-key-glint" aria-hidden />a round, out and back</li>
+      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="online" /><i className="nm-key-mark" data-tier="online" /></span>online</li>
+      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="offline" /><i className="nm-key-mark" data-tier="offline" /></span>away</li>
+      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="loose" /><i className="nm-key-mark" data-tier="loose" /></span>not paired</li>
+      <li><i className="nm-key-zone" aria-hidden />over Tailscale</li>
     </ul>
   );
 }
@@ -491,7 +538,9 @@ function Facts({ facts }: { facts: Array<{ label: string; value: ReactNode; quie
   );
 }
 
-/** The panel with nothing pointed at: this deck, and the network in numbers. */
+/** The panel with nothing pointed at: this deck, the network in numbers —
+ *  in ring order, each beside the mark its decks wear — and the one thing
+ *  worth doing about it, if there is one. */
 function NetworkDetails({ status, summary, entrance }: {
   status: LanStatus | null;
   summary: ReturnType<typeof mapSummary>;
@@ -511,36 +560,46 @@ function NetworkDetails({ status, summary, entrance }: {
   if (status?.pairingMode) {
     facts.push({ label: "Pairing", value: status.pairingMode === "invite" ? "by invite only" : "asks and answers" });
   }
-  const counts: Array<[string, number, string]> = [
-    ["online", summary.online, "paired, and answering"],
-    ["offline", summary.offline, "paired, and quiet"],
-    ["asks", summary.asks, "asking to pair"],
-    ["nearby", summary.nearby, "nearby, not paired"],
-    ["dialling", summary.dialling, "addresses still dialling"],
-    ["tailnet", summary.tailnet, "reached over Tailscale"],
-    ["declined", summary.declined, "declined, not drawn"],
+  // The same words the decks and the key use, inside out.
+  const counts: Array<{ key: string; n: number; words: string; mark: ReactNode }> = [
+    { key: "online", n: summary.online, words: "online", mark: <i className="nm-key-mark" data-tier="online" aria-hidden /> },
+    { key: "away", n: summary.offline, words: "away", mark: <i className="nm-key-mark" data-tier="offline" aria-hidden /> },
+    { key: "asks", n: summary.asks, words: "asking to pair", mark: <i className="nm-key-mark" data-tier="loose" data-kind="asks" aria-hidden /> },
+    { key: "nearby", n: summary.nearby, words: "nearby, not paired", mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
+    { key: "dialling", n: summary.dialling, words: "still dialling", mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
+    { key: "declined", n: summary.declined, words: "declined, not drawn", mark: <i aria-hidden /> },
   ];
+  const next = networkNextStep(summary);
   return (
     <div className="nm-panel" data-view="network" data-entrance={entrance}>
       <h3 className="nm-panel-name">{status?.name ?? "…"}</h3>
       <p className="nm-panel-self">this deck, at the centre of the map</p>
-      <Facts facts={facts} />
       <ul className="nm-counts">
-        {counts.filter(([, n]) => n > 0).map(([key, n, words]) => (
-          <li key={key} data-count={key}>
-            <span className="nm-count-n">{n}</span>
-            <span className="nm-count-words">{words}</span>
+        {counts.filter(c => c.n > 0).map(c => (
+          <li key={c.key} data-count={c.key}>
+            {c.mark}
+            <span className="nm-count-n">{c.n}</span>
+            <span className="nm-count-words">{c.words}</span>
           </li>
         ))}
       </ul>
+      {summary.tailnet > 0 && (
+        <p className="nm-counts-note">
+          {summary.tailnet} reached over Tailscale — the shaded slice, lower right
+        </p>
+      )}
+      {next && <p className="nm-next">{next}</p>}
+      <Facts facts={facts} />
       <p className="nm-panel-hint">Point at a deck, or reach one with the arrow keys, to see it here. Press it to open its own dialog.</p>
     </div>
   );
 }
 
 /** The panel while a deck is pointed at, or was last: what its own dialog says
- *  about it, in the order somebody reads a machine — is it there, how is it
- *  reached, what does it run, and what the two decks share. */
+ *  about it, in the order somebody reads a machine — is it there and what to
+ *  do about it, how it is reached and what it runs, and what the two decks
+ *  share, trouble first. The button stays where it is from deck to deck, so
+ *  the pointer that travels to it finds it. */
 function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   row: DeckRow;
   entrance: Entrance;
@@ -563,13 +622,18 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
     quiet: !view.thereRuns,
   });
   if (view.paired && view.peer?.pairedAt) facts.push({ label: "Paired", value: sinceLabel(view.peer.pairedAt, now) });
-  if (view.hiddenThere) facts.push({ label: "Working on", value: "not said — its owner hides it", quiet: true });
-  if (view.otherThere) facts.push({ label: "Working on", value: "an account it does not share", quiet: true });
+  if (view.hiddenThere) facts.push({ label: "Signed in to", value: "not said — its owner hides it", quiet: true });
+  if (view.otherThere) facts.push({ label: "Signed in to", value: "an account it does not share", quiet: true });
 
   const emits = (row.kind === "paired" && row.here) || row.kind === "asks";
+  const next = deckNextStep(row, status.pairingMode);
   const LANES_SHOWN = 6;
-  const lanes = view.lanes.slice(0, LANES_SHOWN);
+  const lanes = troubleFirst(view.lanes).slice(0, LANES_SHOWN);
   const more = view.lanes.length - lanes.length;
+  const fine = view.lanes.filter(l => l.tone === "ok").length;
+  const total = view.lanes.length;
+  const title = total === 0 ? "No logins between the two"
+    : `${total} login${total === 1 ? "" : "s"} between the two${fine === total ? (total === 1 ? ", fine" : ", all fine") : ` · ${fine} fine`}`;
 
   return (
     <div className="nm-panel" data-view="deck" data-entrance={entrance}
@@ -586,12 +650,12 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
       </h3>
       {row.self && <p className="nm-panel-self">calls itself {row.self}</p>}
       <p className="nm-panel-state" data-kind={row.kind}>{presenceLine(row)}</p>
+      {next && <p className="nm-next">{next}</p>}
+      <button type="button" className="btn nm-open" onClick={onOpen}>Open {row.name}</button>
       <Facts facts={facts} />
       {view.paired && (
         <section className="nm-logins" aria-label="Logins the two decks share">
-          <p className="nm-logins-title">
-            {view.lanes.length === 0 ? "No logins between the two" : `${view.lanes.length} login${view.lanes.length === 1 ? "" : "s"} between the two`}
-          </p>
+          <p className="nm-logins-title">{title}</p>
           {lanes.length > 0 && (
             <ul className="nm-lanes">
               {lanes.map((l, k) => (
@@ -612,7 +676,6 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
           {view.unknown && <p className="nm-panel-hint">{view.unknown}</p>}
         </section>
       )}
-      <button type="button" className="btn nm-open" onClick={onOpen}>Open {row.name}</button>
     </div>
   );
 }

@@ -50,14 +50,15 @@
   [data-state="maintenance"] > .pi-dot { background: GrayText; }
 
   /* The network map's marks keep their shapes — filled for on, hollow for
-     quiet, dashed for not paired — in the theme's own inks, and its wires keep
-     their dashes in them. The round's light keeps running in the highlight,
-     one colour both ways, so the key under the map still describes it. */
+     away, dashed for not paired — in the theme's own inks, and its wires keep
+     their strokes in them. The round's light runs in the highlight, one
+     colour both ways, and the tailnet's slice keeps its edge. */
   .nm-mark,
   .nm-key-mark { forced-color-adjust: none; background: Canvas; border-color: CanvasText; box-shadow: 0 0 0 2px Canvas; }
   .nm-mark[data-tier="online"],
   .nm-mark[data-kind="asks"],
-  .nm-key-mark[data-tier="online"] { background: Highlight; border-color: Highlight; }
+  .nm-key-mark[data-tier="online"],
+  .nm-key-mark[data-kind="asks"] { background: Highlight; border-color: Highlight; }
   .nm-mark[data-kind="asks"]::after { border-color: Highlight; }
   .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; --nm-live-from: Highlight; --nm-live-to: Highlight; --nm-live-glow: transparent; --nm-away: CanvasText; --nm-away-ink: GrayText; }
   .nm-halo[data-tier="online"] { forced-color-adjust: none; box-shadow: 0 0 0 2px Highlight; }
@@ -69,8 +70,9 @@
   .nm-key-wire { forced-color-adjust: none; }
   .nm-core-orb { forced-color-adjust: none; background: Highlight; box-shadow: none; }
   .nm-lane-dot { forced-color-adjust: none; background: CanvasText; }
-  .nm-glint,
-  .nm-key-glint { forced-color-adjust: none; background: Highlight; box-shadow: none; }
+  .nm-glint { forced-color-adjust: none; background: Highlight; box-shadow: none; }
+  .nm-key-zone { forced-color-adjust: none; background: Canvas; border-color: GrayText; }
+  .nm-addr-dot { forced-color-adjust: none; background: GrayText; }
   .nm-glint::after { display: none; }
 
   .sl-dot::before,

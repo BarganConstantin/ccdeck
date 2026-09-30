@@ -5,7 +5,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  continuousAngle, machineKey, mapHeadline, mapLayout, mapSummary, mapTier, nodeCaption, ownAddresses, presenceLine,
+  continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, mapTier, networkNextStep,
+  nodeBoxes, nodeCaption, nodeName, ownAddresses, presenceLine, troubleFirst,
 } from "../lan-network-map";
 import type { DeckRow } from "../lan-roster";
 
@@ -203,16 +204,28 @@ describe("the line under a deck's name", () => {
     expect(nodeCaption(troubled, null)).toBe("online");
   });
 
-  it("says how long a quiet deck has been quiet", () => {
+  it("says how long a deck has been away, in the list's own word for it", () => {
     expect(nodeCaption(row({ here: false, state: "not listening · last online 2h ago", tone: "bad" }), "macOS 26.5"))
-      .toBe("offline · 2h ago");
-    expect(nodeCaption(row({ here: false, state: "last online now" }), null)).toBe("offline · just now");
-    expect(nodeCaption(row({ here: false, state: "one-way · has not called yet" }), null)).toBe("one-way · quiet");
-    expect(nodeCaption(row({ here: false, state: "never reached" }), null)).toBe("offline");
+      .toBe("away · 2h ago");
+    expect(nodeCaption(row({ here: false, state: "last online now" }), null)).toBe("away · just now");
+    expect(nodeCaption(row({ here: false, state: "one-way · has not called yet" }), null)).toBe("has not called yet");
+    expect(nodeCaption(row({ here: false, state: "never reached" }), null)).toBe("away");
   });
 
   it("cuts a long system name to its first two words", () => {
     expect(nodeCaption(row({}), "Ubuntu 24.04.1 LTS")).toBe("Ubuntu 24.04.1");
+  });
+
+  it("names an address still being dialled by its host, with its port under it", () => {
+    const dial = row({ kind: "dialling", here: false, name: "192.168.1.153:55731", addr: "192.168.1.153", state: "not listening" });
+    expect(nodeName(dial)).toBe("192.168.1.153");
+    expect(nodeCaption(dial, null)).toBe(":55731 · dialling");
+    // A name that is not the address and a port keeps itself.
+    const typed = row({ kind: "dialling", here: false, name: "lab-pi", addr: "192.168.1.9" });
+    expect(nodeName(typed)).toBe("lab-pi");
+    expect(nodeCaption(typed, null)).toBe("dialling");
+    // Only an address is named this way; a paired deck keeps its name.
+    expect(nodeName(row({ name: "192.168.1.10:1", addr: "192.168.1.10" }))).toBe("192.168.1.10:1");
   });
 
   it("names what an unpaired machine is", () => {
@@ -226,12 +239,13 @@ describe("the side panel's presence line", () => {
   it("drops the round the list appends to a deck's presence", () => {
     expect(presenceLine(row({ state: "online · 0 of 1 logins arrived" }))).toBe("online");
     expect(presenceLine(row({ state: "online · all logins fine", via: "tailscale" }))).toBe("online, over Tailscale");
-    expect(presenceLine(row({ here: false, state: "no answer · last online 3m ago" }))).toBe("offline · last online 3m ago");
+    expect(presenceLine(row({ here: false, state: "no answer · last online 3m ago" }))).toBe("away · last online 3m ago");
+    expect(presenceLine(row({ here: false, state: "never reached" }))).toBe("away");
   });
 
   it("says a deck is over the tailnet whether or not it is on", () => {
     expect(presenceLine(row({ here: false, state: "last online 2h ago", via: "tailscale" })))
-      .toBe("offline · last online 2h ago, over Tailscale");
+      .toBe("away · last online 2h ago, over Tailscale");
     expect(presenceLine(row({ kind: "nearby", state: "not paired yet", via: "tailscale" })))
       .toBe("not paired yet, over Tailscale");
   });
@@ -277,6 +291,16 @@ describe("the map's headline", () => {
     expect(mapHeadline(mapSummary(rows))).toBe("10 of 15 paired decks online · 2 still dialling");
   });
 
+  it("leads with a deck asking to pair, in the words the way in uses", () => {
+    expect(mapHeadline(mapSummary([row({ kind: "asks" }), row({})]))).toBe("1 deck wants to pair · 1 paired deck, online");
+    expect(mapHeadline(mapSummary([row({ kind: "asks" }), row({ kind: "asks" })]))).toBe("2 decks want to pair · no paired decks yet");
+  });
+
+  it("says one paired deck as one, on or away", () => {
+    expect(mapHeadline(mapSummary([row({})]))).toBe("1 paired deck, online");
+    expect(mapHeadline(mapSummary([row({ here: false })]))).toBe("1 paired deck, away");
+  });
+
   it("says so when every paired deck is on, and when there are none", () => {
     expect(mapHeadline(mapSummary([row({}), row({})]))).toBe("2 paired decks, all online");
     expect(mapHeadline(mapSummary([row({ kind: "nearby" })]))).toBe("no paired decks yet · 1 nearby, not paired");
@@ -295,5 +319,85 @@ describe("this deck's addresses", () => {
     expect(ownAddresses({ addrs: ["100.67.32.58"], port: 1, tailscale: { addr: "100.67.32.58" } as never }))
       .toEqual(["100.67.32.58:1"]);
     expect(ownAddresses(null)).toEqual([]);
+  });
+});
+
+describe("what the panel says to do next", () => {
+  it("puts a deck waiting on this keyboard first", () => {
+    const s = mapSummary([row({ kind: "asks" }), row({ kind: "dialling", here: false }), row({ kind: "nearby" })]);
+    expect(networkNextStep(s)).toBe("1 deck wants to pair. Answer it in the Local network list, behind this map.");
+  });
+
+  it("then the decks this one cannot call back, then the silent addresses, then the unpaired", () => {
+    const oneWay = row({ here: false, state: "one-way · has not called yet" });
+    expect(networkNextStep(mapSummary([oneWay, row({ kind: "dialling", here: false })])))
+      .toMatch(/^1 away deck only calls in, .* Add its address through Add a deck/);
+    expect(networkNextStep(mapSummary([row({ kind: "dialling", here: false }), row({ kind: "dialling", here: false })])))
+      .toBe("2 addresses have never answered. Open one to stop dialling it.");
+    expect(networkNextStep(mapSummary([row({ kind: "nearby" })]))).toBe("1 deck nearby is not paired. Open it to ask to pair.");
+  });
+
+  it("says nothing about a network with nothing to do", () => {
+    expect(networkNextStep(mapSummary([row({}), row({ here: false })]))).toBeNull();
+  });
+
+  it("says what to do about one deck only where there is something to do", () => {
+    expect(deckNextStep(row({}))).toBeNull();
+    expect(deckNextStep(row({ here: false, state: "last online 2h ago" }))).toBeNull();
+    expect(deckNextStep(row({ here: false, state: "one-way · has not called yet" }))).toMatch(/Add its address through Add a deck/);
+    expect(deckNextStep(row({ kind: "nearby" }))).toBe("Nothing is shared with it yet. Its own dialog can ask to pair.");
+    expect(deckNextStep(row({ kind: "nearby" }), "invite")).toBe("This deck pairs by invite only. Send one from Add a deck.");
+    expect(deckNextStep(row({ kind: "dialling", here: false }))).toMatch(/Its own dialog can stop dialling it/);
+  });
+});
+
+describe("the logins the panel has room for", () => {
+  it("shows every one that needs a look before the ones that are fine, each group in its own order", () => {
+    const lanes = [
+      { key: "a", tone: "ok" as const }, { key: "b", tone: "bad" as const }, { key: "c", tone: "ok" as const },
+      { key: "d", tone: "wait" as const }, { key: "e", tone: "bad" as const }, { key: "f", tone: "idle" as const },
+    ];
+    expect(troubleFirst(lanes).map(l => l.key)).toEqual(["b", "e", "d", "f", "a", "c"]);
+    expect(lanes.map(l => l.key)).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
+});
+
+describe("a real office on the map", () => {
+  const office = () => [
+    ...["Fiodor Linux", "Vitalie", "dtriboi@sapec.md", "Deniss-MacBook-Pro"].map(name => row({ name, fp: `fp-${name}` })),
+    ...["Constantin Windows", "Home Ubuntu"].map(name => row({ name, fp: `fp-${name}`, via: "tailscale" })),
+    ...["Office Laptop", "Petrus-MacBook-Pro", "Songurovs-MacBook-Pro", "YMNIQUEPC", "Kobe-Macbook",
+      "Evghenis-MacBook-Pro", "denis linux", "Alex-PC"].map(name => row({ name, fp: `fp-${name}`, here: false, state: "last online 2h ago" })),
+    ...["55731", "59313", "52519"].map(port => row({
+      kind: "dialling", here: false, name: `192.168.1.153:${port}`, addr: "192.168.1.153", fp: `fp-${port}`,
+    })),
+  ];
+  const meet = (a: { x0: number; y0: number; x1: number; y1: number }, b: typeof a) =>
+    a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+  it("lands no name on another deck, and none on this deck's own name, in a 900px window's stage", () => {
+    const layout = mapLayout(office(), 828, 470, "Constantin iMac");
+    const { core, decks } = nodeBoxes(layout, "Constantin iMac");
+    const clashes: string[] = [];
+    decks.forEach((a, i) => {
+      if (meet(a.disc, core) || meet(a.label, core)) clashes.push(`${a.key} x core`);
+      decks.slice(i + 1).forEach(b => {
+        if (meet(a.label, b.disc) || meet(b.label, a.disc) || meet(a.label, b.label) || meet(a.disc, b.disc)) {
+          clashes.push(`${a.key} x ${b.key}`);
+        }
+      });
+    });
+    expect(clashes).toEqual([]);
+  });
+
+  it("folds the away and unpaired rings into one where three cannot hold their names, and keeps three where they can", () => {
+    const short = mapLayout(office(), 828, 470, "Constantin iMac");
+    expect(short.rings).toHaveLength(2);
+    expect(new Set(short.nodes.filter(n => n.tier !== "online").map(n => n.ring))).toEqual(new Set([1]));
+    expect(mapLayout(office(), 864, 640, "Constantin iMac").rings).toHaveLength(3);
+  });
+
+  it("goes dense where the full names cannot be cleared", () => {
+    expect(mapLayout(office(), 530, 640, "Constantin iMac").dense).toBe(true);
   });
 });

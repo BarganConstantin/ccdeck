@@ -143,7 +143,7 @@ const SCATTER_REACH = 0.05;
 const DISC_R = 20;
 const LOOSE_DISC_R = 17;
 const LABEL_GAP = 7;
-const LABEL_H = 30;
+const LABEL_TALL = 30;
 const LABEL_MAX_W = 116;
 const NAME_CH_W = 6.6;
 /** How far a deck may slide round its ring to clear a name, per step, and
@@ -240,10 +240,25 @@ interface Box { x0: number; y0: number; x1: number; y1: number }
 
 const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
+/** A crowded ring's names: a step smaller, and without the line under them —
+ *  see `.nm-stage[data-dense]`. A deck asking to pair keeps its line, so its
+ *  box keeps the height. */
+const DENSE_LABEL = { h: 16, ch: 6.1, maxW: 100 };
+
+/** This deck's own name at the centre, on its plate: the one box every deck
+ *  has to stay clear of wherever it stands. See `.nm-core-label`. */
+function coreBox(coreName: string): Box {
+  const w = coreName ? Math.max(80, coreName.length * 7.2 + 16) : 128;
+  return { x0: -w / 2, y0: 32, x1: w / 2, y1: 66 };
+}
+
 /** The disc and the name box of a deck standing at (x, y). */
-function footprint(row: DeckRow, tier: MapTier, x: number, y: number): [Box, Box] {
+function footprint(row: DeckRow, tier: MapTier, x: number, y: number, dense = false): [Box, Box] {
   const r = tier === "loose" ? LOOSE_DISC_R : DISC_R;
-  const w = Math.min(LABEL_MAX_W, Math.max(2 * r, row.name.length * NAME_CH_W));
+  const tall = !dense || row.kind === "asks";
+  const LABEL_H = tall ? LABEL_TALL : DENSE_LABEL.h;
+  const ch = dense ? DENSE_LABEL.ch : NAME_CH_W;
+  const w = Math.min(dense ? DENSE_LABEL.maxW : LABEL_MAX_W, Math.max(2 * r, nodeName(row).length * ch));
   const disc = { x0: x - r, y0: y - r, x1: x + r, y1: y + r };
   const label = sideOf(x, y) === "top"
     ? { x0: x - w / 2, y0: y - r - LABEL_GAP - LABEL_H, x1: x + w / 2, y1: y - r - LABEL_GAP }
@@ -284,48 +299,86 @@ const turnBetween = (a: number, b: number) => ((((a - b) % 360) + 540) % 360) - 
  * order the ring keeps; and never a ring of one or two, whose places are
  * exact. Deterministic, like everything else here.
  */
-function easeApart(placed: Placed[]): void {
+function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
   const ringOf = new Map<MapRing, Placed[]>();
   for (const p of placed) {
     if (!ringOf.has(p.ring)) ringOf.set(p.ring, []);
     ringOf.get(p.ring)!.push(p);
   }
+  const boxesNow = () => placed.map(p => { const [x, y] = pointOf(p); return footprint(p.row, p.tier, x, y, dense); });
+  /** Slide `mover` a step away from `from`, if its ring and its arc allow. */
+  const slide = (mover: Placed, dir: number): boolean => {
+    if (mover.count <= 2) return false;
+    const next = mover.theta + dir * EASE_STEP;
+    // Not past a neighbour: the ring keeps the list's order.
+    const mates = ringOf.get(mover.ring)!;
+    const keep = (360 / mover.count) * NEIGHBOUR_KEEP;
+    const ahead = mates[(mover.index + 1) % mover.count];
+    const behind = mates[(mover.index - 1 + mover.count) % mover.count];
+    const clear = dir > 0 ? turnBetween(ahead.theta, next) >= keep : turnBetween(next, behind.theta) >= keep;
+    if (!clear || next < mover.lo || next > mover.hi) return false;
+    mover.theta = next;
+    return true;
+  };
+  const meets = ([discA, labelA]: [Box, Box], [discB, labelB]: [Box, Box]) =>
+    overlaps(labelA, discB) || overlaps(labelB, discA) || overlaps(labelA, labelB) || overlaps(discA, discB);
+  const onCore = ([disc, label]: [Box, Box]) => overlaps(disc, core) || overlaps(label, core);
+
   for (let round = 0; round < EASE_ROUNDS; round++) {
-    const boxes = placed.map(p => { const [x, y] = pointOf(p); return footprint(p.row, p.tier, x, y); });
+    const boxes = boxesNow();
     let moved = false;
     for (let i = 0; i < placed.length; i++) {
+      // THE CENTRE'S NAME IS AN OBSTACLE TOO. It hangs under the orb, so a
+      // deck at six o'clock whose name lands on it turns away from six.
+      if (onCore(boxes[i])) {
+        moved = slide(placed[i], turnBetween(placed[i].theta, 90) >= 0 ? 1 : -1) || moved;
+      }
       for (let j = i + 1; j < placed.length; j++) {
-        const [discA, labelA] = boxes[i];
-        const [discB, labelB] = boxes[j];
-        if (!(overlaps(labelA, discB) || overlaps(labelB, discA) || overlaps(labelA, labelB) || overlaps(discA, discB))) continue;
+        if (!meets(boxes[i], boxes[j])) continue;
         const a = placed[i];
         const b = placed[j];
         const mover = b.ring.ring > a.ring.ring || (b.ring === a.ring && j > i) ? b : a;
         const other = mover === b ? a : b;
-        if (mover.count <= 2) continue;
-        const dir = turnBetween(mover.theta, other.theta) >= 0 ? 1 : -1;
-        const next = mover.theta + dir * EASE_STEP;
-        // Not past a neighbour: the ring keeps the list's order.
-        const mates = ringOf.get(mover.ring)!;
-        const keep = (360 / mover.count) * NEIGHBOUR_KEEP;
-        const ahead = mates[(mover.index + 1) % mover.count];
-        const behind = mates[(mover.index - 1 + mover.count) % mover.count];
-        const clear = dir > 0 ? turnBetween(ahead.theta, next) >= keep : turnBetween(next, behind.theta) >= keep;
-        if (!clear || next < mover.lo || next > mover.hi) continue;
-        mover.theta = next;
-        moved = true;
+        moved = slide(mover, turnBetween(mover.theta, other.theta) >= 0 ? 1 : -1) || moved;
       }
     }
-    if (!moved) return;
+    if (!moved) break;
   }
+  // Whether it worked: nothing still meets anything, and nothing meets the
+  // centre's name.
+  const boxes = boxesNow();
+  for (let i = 0; i < boxes.length; i++) {
+    if (onCore(boxes[i])) return false;
+    for (let j = i + 1; j < boxes.length; j++) if (meets(boxes[i], boxes[j])) return false;
+  }
+  return true;
 }
 
-export function mapLayout(rows: DeckRow[], width: number, height: number): MapLayout {
+/** The rings when three cannot hold their names — see mapLayout: the decks
+ *  that are away and the ones not paired share the outer ring, and their
+ *  marks, wires and captions still tell them apart. */
+const RING_OF_FOLDED: Record<MapTier, number> = { online: 0, offline: 1, loose: 1 };
+
+export function mapLayout(rows: DeckRow[], width: number, height: number, coreName = ""): MapLayout {
+  // THREE RINGS WHERE THEY FIT, TWO WHERE THEY DO NOT. In a short stage — a
+  // narrow window stacks the panel under the picture — three rings sit fifty
+  // pixels apart top to bottom, and a name is forty. When the three cannot be
+  // cleared even with the dense names, the outer two fold into one, which
+  // buys the height back; the tiers keep their own marks and strokes on it.
+  const three = placeRings(rows, width, height, coreName, RING_OF);
+  if (three.clear || three.layout.rings.length < 3) return three.layout;
+  const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED);
+  return two.clear ? two.layout : three.layout;
+}
+
+function placeRings(
+  rows: DeckRow[], width: number, height: number, coreName: string, ringOf: Record<MapTier, number>,
+): { layout: MapLayout; clear: boolean } {
   const byRing = new Map<number, Array<{ row: DeckRow; tier: MapTier }>>();
   for (const row of rows) {
     const tier = mapTier(row);
     if (!tier) continue;
-    const r = RING_OF[tier];
+    const r = ringOf[tier];
     if (!byRing.has(r)) byRing.set(r, []);
     byRing.get(r)!.push({ row, tier });
   }
@@ -402,7 +455,17 @@ export function mapLayout(rows: DeckRow[], width: number, height: number): MapLa
       });
     }
   });
-  easeApart(placed);
+  // A RING THAT CANNOT CLEAR ITS NAMES GOES DENSE. A ring can have the room
+  // round it and still land names on a neighbour's disc; rather than guess a
+  // size at which that starts, the layout eases with the full names, and if
+  // something still meets, it eases again with the dense ones — the step
+  // smaller, captionless names the stylesheet draws under `data-dense`.
+  const core = coreBox(coreName);
+  let clear = easeApart(placed, dense, core);
+  if (!clear && !dense) {
+    dense = true;
+    clear = easeApart(placed, true, core);
+  }
 
   const nodes: MapNode[] = placed.map((p, order) => {
     const [x, y] = pointOf(p);
@@ -430,7 +493,20 @@ export function mapLayout(rows: DeckRow[], width: number, height: number): MapLa
       count: overTailnet,
     }
     : null;
-  return { nodes, rings, zone, dense };
+  return { layout: { nodes, rings, zone, dense }, clear };
+}
+
+/** The boxes a laid-out map draws — every deck's disc and name, and this
+ *  deck's own name at the centre — by the same rule the layout eased them
+ *  with. Offset to the stage's centre at 0, 0. */
+export function nodeBoxes(layout: MapLayout, coreName = ""): { core: Box; decks: Array<{ key: string; disc: Box; label: Box }> } {
+  return {
+    core: coreBox(coreName),
+    decks: layout.nodes.map(n => {
+      const [disc, label] = footprint(n.row, n.tier, n.x, n.y, layout.dense);
+      return { key: machineKey(n.row), disc, label };
+    }),
+  };
 }
 
 function normalised(angle: number): number {
@@ -446,6 +522,9 @@ export interface MapSummary {
   dialling: number;
   declined: number;
   tailnet: number;
+  /** Paired decks that are away and only ever call in: this deck has no
+   *  address to reach them on. */
+  oneWay: number;
 }
 
 /** The counts the map's header and its resting inspector say, from the same
@@ -461,19 +540,23 @@ export function mapSummary(rows: DeckRow[]): MapSummary {
     dialling: count(r => r.kind === "dialling"),
     declined: count(r => r.kind === "declined"),
     tailnet: count(r => r.kind !== "declined" && r.via === "tailscale"),
+    oneWay: count(r => r.kind === "paired" && !r.here && r.state.startsWith("one-way")),
   };
 }
 
-/** The line under the map's title. Paired decks first, because that is the
- *  number the row that opens the map already said — `9 of 15 online` — and a
- *  dialog that led with a different count would make a reader check whether
- *  the two were counting different things. */
+/** The line under the map's title. A deck asking to pair leads, in the
+ *  words the row that opens the map uses for it, because it is somebody
+ *  waiting on this keyboard. Then the paired decks, because that is the number
+ *  the row already said — `9 of 15 online` — and a dialog that led with a
+ *  different count would make a reader check whether the two were counting
+ *  different things. */
 export function mapHeadline(s: MapSummary): string {
   const parts: string[] = [];
+  if (s.asks) parts.push(s.asks === 1 ? "1 deck wants to pair" : `${s.asks} decks want to pair`);
   if (s.paired === 0) parts.push("no paired decks yet");
-  else if (s.online === s.paired) parts.push(`${s.paired} paired deck${s.paired === 1 ? "" : "s"}, all online`);
-  else parts.push(`${s.online} of ${s.paired} paired deck${s.paired === 1 ? "" : "s"} online`);
-  if (s.asks) parts.push(`${s.asks} asking to pair`);
+  else if (s.paired === 1) parts.push(s.online ? "1 paired deck, online" : "1 paired deck, away");
+  else if (s.online === s.paired) parts.push(`${s.paired} paired decks, all online`);
+  else parts.push(`${s.online} of ${s.paired} paired decks online`);
   if (s.nearby) parts.push(`${s.nearby} nearby, not paired`);
   if (s.dialling) parts.push(`${s.dialling} still dialling`);
   return parts.join(" · ");
@@ -493,15 +576,28 @@ export function nodeCaption(row: DeckRow, os: string | null | undefined): string
   switch (row.kind) {
     case "asks": return "wants to pair";
     case "nearby": return row.state;
-    case "dialling": return "dialling";
+    // An address is named by its host, so its port goes under it.
+    case "dialling": return namedByHost(row) ? `${row.name.slice(row.addr.length)} · dialling` : "dialling";
     case "declined": return "declined";
     case "paired": {
       if (row.here) return os ? shortOs(os) : "online";
       const since = lastOnline(row);
-      if (since) return since === "now" ? "offline · just now" : `offline · ${since}`;
-      return row.state.startsWith("one-way") ? "one-way · quiet" : "offline";
+      if (since) return since === "now" ? "away · just now" : `away · ${since}`;
+      // The list's own words for a deck that calls in and has not yet.
+      return row.state.startsWith("one-way") ? "has not called yet" : "away";
     }
   }
+}
+
+/** A deck's name as the map draws it. An address still being dialled is
+ *  `192.168.1.153:55731` — a port nobody reads at a glance — so the map names
+ *  it by its host and puts the port on the line under it. */
+export function nodeName(row: DeckRow): string {
+  return namedByHost(row) ? row.addr : row.name;
+}
+
+function namedByHost(row: DeckRow): boolean {
+  return row.kind === "dialling" && !!row.addr && row.name.startsWith(`${row.addr}:`);
 }
 
 /** Whether a deck is there, in a sentence: the list's presence word without
@@ -510,9 +606,11 @@ export function presenceLine(row: DeckRow): string {
   if (row.kind !== "paired") return row.via === "tailscale" ? `${row.state}, over Tailscale` : row.state;
   if (row.here) return row.via === "tailscale" ? "online, over Tailscale" : "online";
   const since = lastOnline(row);
+  // AWAY, NOT OFFLINE: the list's own word for these ("6 ready · 8 away"),
+  // and the honest one — a deck that only calls in may well be switched on.
   const quiet = since
-    ? (since === "now" ? "offline · last online just now" : `offline · last online ${since}`)
-    : row.state.startsWith("one-way") ? row.state : "offline";
+    ? (since === "now" ? "away · last online just now" : `away · last online ${since}`)
+    : row.state.startsWith("one-way") ? row.state : "away";
   return row.via === "tailscale" ? `${quiet}, over Tailscale` : quiet;
 }
 
@@ -556,4 +654,61 @@ export function continuousAngle(prev: number | undefined, next: number): number 
   if (prev == null) return next;
   const delta = ((((next - prev) % 360) + 540) % 360) - 180;
   return prev + delta;
+}
+
+/**
+ * The one thing worth doing about the network, for the panel with nothing
+ * pointed at — the first that applies, in the order a person would want to
+ * hear them: somebody waiting on this keyboard, then decks this one cannot
+ * reach back, then addresses answering nothing, then machines not yet paired.
+ * Every verb names a control that exists where it says.
+ */
+export function networkNextStep(s: MapSummary): string | null {
+  if (s.asks) {
+    return s.asks === 1
+      ? "1 deck wants to pair. Answer it in the Local network list, behind this map."
+      : `${s.asks} decks want to pair. Answer them in the Local network list, behind this map.`;
+  }
+  if (s.oneWay) {
+    return `${s.oneWay} away deck${s.oneWay === 1 ? " only calls" : "s only call"} in, and this deck has no address to call `
+      + `${s.oneWay === 1 ? "it" : "them"} on. Add ${s.oneWay === 1 ? "its address" : "their addresses"} through Add a deck `
+      + `to reach ${s.oneWay === 1 ? "it" : "them"} both ways.`;
+  }
+  if (s.dialling) {
+    return s.dialling === 1
+      ? "1 address has never answered. Open it to stop dialling it."
+      : `${s.dialling} addresses have never answered. Open one to stop dialling it.`;
+  }
+  if (s.nearby) {
+    return s.nearby === 1
+      ? "1 deck nearby is not paired. Open it to ask to pair."
+      : `${s.nearby} decks nearby are not paired. Open one to ask to pair.`;
+  }
+  return null;
+}
+
+/** What to do about one deck that is not online, in its panel — or nothing,
+ *  for a deck that is on or simply away. */
+export function deckNextStep(row: DeckRow, pairingMode?: "automatic" | "invite"): string | null {
+  switch (row.kind) {
+    case "asks": return "It is waiting for an answer. Answer it in the Local network list, behind this map.";
+    case "dialling": return "Nothing has answered at this address yet. Its own dialog can stop dialling it.";
+    case "nearby":
+      return pairingMode === "invite"
+        ? "This deck pairs by invite only. Send one from Add a deck."
+        : "Nothing is shared with it yet. Its own dialog can ask to pair.";
+    case "paired":
+      return !row.here && row.state.startsWith("one-way")
+        ? "It calls this deck, and this deck has no address to call it back on. Add its address through Add a deck to reach it both ways."
+        : null;
+    default: return null;
+  }
+}
+
+/** Logins with something wrong first, then the rest, each group in the order
+ *  it came — so the six the panel has room for include every one that needs a
+ *  look. A copy: the deck's own dialog draws the exchange's own order. */
+export function troubleFirst<T extends { tone: "ok" | "wait" | "bad" | "idle" }>(lanes: readonly T[]): T[] {
+  const rank = { bad: 0, wait: 1, idle: 2, ok: 3 } as const;
+  return lanes.map((l, i) => ({ l, i })).sort((a, b) => rank[a.l.tone] - rank[b.l.tone] || a.i - b.i).map(({ l }) => l);
 }
