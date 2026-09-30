@@ -5,9 +5,16 @@
 // Lifted out of BrowserWatchModal.tsx unchanged, with the three formatters only
 // a card reads and the expanded card, which is this list's own state. Dismiss
 // is the dialog's: the server owns what has been reviewed (see useBrowserWatch).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import type { WatchEpisode, WatchSnapshot } from "../browser-watch-model";
+// A removed row's successor: the next, else the previous, else none. The rule a
+// deleted custom sound's row already follows.
+import { deleteFocusTarget } from "../notification-audio";
+import { focusDropped } from "../panel-press";
+
+/** A card's key, and what the list keeps each disclosure under. */
+const idOf = (e: WatchEpisode) => `${e.host}-${e.startMs}`;
 
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
 function span(e: WatchEpisode): string {
@@ -34,12 +41,41 @@ function lasted(e: WatchEpisode): string {
 export default function BrowserWatchFindings({
   snap,
   dismiss,
+  refreshRef,
 }: {
   snap: WatchSnapshot;
   /** Mark an episode reviewed, on the server, and read the snapshot again. */
   dismiss: (e: WatchEpisode) => Promise<void>;
+  /** The dialog's ↻, where focus goes once the last finding is dismissed. */
+  refreshRef: RefObject<HTMLElement | null>;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+
+  /* A DISMISSED CARD TAKES ITS × WITH IT (#1813). The server leaves the episode
+     out of the next read, the card unmounts with focus on its ×, and focus fell
+     to <body> behind the modal — the next Tab went back to the ↻ at the top.
+     So the press says which card it was and where focus goes once that card
+     has left, chosen from the list as it stood: the next card's disclosure, the
+     previous one's, or — none left — the dialog's ↻, its reload control, as a
+     removed row's is in the accounts panel: a real control rather than a focus
+     stop invented on the heading (canvas-keyboard.test.ts). It happens when
+     a read without the card is drawn rather than when the dismissal answers,
+     because a refused write leaves the card where it was and its × keeps the
+     focus; and only when focus fell with the card — whoever tabbed on while
+     the request was out is left where they went. */
+  const heads = useRef(new Map<string, HTMLButtonElement>());
+  const dismissed = useRef<{ id: string; next: string | null } | null>(null);
+  useEffect(() => {
+    const d = dismissed.current;
+    if (!d || snap.episodes.some(e => idOf(e) === d.id)) return;
+    dismissed.current = null;
+    if (!focusDropped(document.activeElement?.tagName ?? null)) return;
+    ((d.next ? heads.current.get(d.next) : undefined) ?? refreshRef.current)?.focus();
+  }, [snap]);
+  const pressDismiss = (e: WatchEpisode) => {
+    dismissed.current = { id: idOf(e), next: deleteFocusTarget(snap.episodes.map(idOf), idOf(e)) };
+    void dismiss(e);
+  };
 
   const grouped = useMemo(() => {
     const out: { label: string; episodes: WatchEpisode[] }[] = [];
@@ -86,7 +122,7 @@ export default function BrowserWatchFindings({
           <div className="bw-day" key={g.label}>
             <h4 className="bw-sec-head">{g.label}</h4>
             {g.episodes.map(e => {
-              const id = `${e.host}-${e.startMs}`;
+              const id = idOf(e);
               const isOpen = open === id;
               return (
                 <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
@@ -99,6 +135,7 @@ export default function BrowserWatchFindings({
                   <div className="bw-ep-row">
                     <button
                       className="bw-ep-head"
+                      ref={el => { if (el) heads.current.set(id, el); else heads.current.delete(id); }}
                       onClick={() => setOpen(isOpen ? null : id)}
                       aria-expanded={isOpen}
                     >
@@ -129,7 +166,7 @@ export default function BrowserWatchFindings({
                         panel promises the second one. */}
                     <button
                       className="glyph-btn bw-ep-x"
-                      onClick={() => void dismiss(e)}
+                      onClick={() => pressDismiss(e)}
                       aria-label={`Dismiss ${e.host}`}
                       title="Dismiss — it leaves this list for good, and stays in the log file"
                     >×</button>
