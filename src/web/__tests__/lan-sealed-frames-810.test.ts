@@ -34,6 +34,7 @@ import * as engineMod from "../../server/lan-engine.mjs";
 import * as sync from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import * as socket from "../../server/lan-socket.mjs";
+import { readableOnWire } from "./lan-wire-readable";
 
 const K = (email: string, org: string): string => sync.accountKey(email, org);
 
@@ -197,8 +198,10 @@ describe("a round between two decks of this version, as the network sees it", ()
     // A question and two repair requests, and an answer to each.
     expect(up.length).toBe(3);
     expect(down.length).toBe(3);
-    const seen = [...up, ...down].join("\n");
-    for (const s of SECRETS) expect(seen, `"${s}" is readable after the handshake`).not.toContain(s);
+    // Read the way lan-wire-readable.ts reads a line: the ciphertext opened as
+    // far as base64 goes, everything around it searched as it stands — never
+    // the raw line, whose base64 spells a short word now and then (#1846).
+    expect(readableOnWire([...up, ...down], SECRETS), "readable after the handshake").toEqual([]);
     // Not merely scrambled somewhere: every line is one sealed frame and says
     // nothing else — not even which verb it carries.
     for (const line of [...up, ...down]) expect(Object.keys(JSON.parse(line)).sort()).toEqual(["sealed", "tag"]);
