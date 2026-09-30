@@ -399,6 +399,9 @@ const PRESSES: Press[] = [
   // And the starters over its message: a few words in a pill, a labelled
   // control, so 0.97.
   [".fb-starter:active", "0.97", "transform"],
+  // And the way to add a screenshot to it, a glyph and its words: a labelled
+  // control, so 0.97. Each image's remove is a .glyph-btn and presses as one.
+  [".fb-attach:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

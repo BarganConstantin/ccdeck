@@ -2,10 +2,11 @@
 // posted to this deck's server, which passes it to api.ccdeck.dev with the
 // ccdeck version and platform. The API stores it and the people who make
 // ccdeck read it there. Nothing becomes public by being sent: they may open a
-// public GitHub issue from it, and the contact, if one is given, is never put
-// on one. The dialog says both before Send is pressed, because words that may
-// end up in public are chosen differently from words to a maker alone — and it
-// promises no link afterwards, since there may never be an issue to link to.
+// public GitHub issue from it, and the contact and the images, if any are
+// given, are never put on one. The dialog says so before Send is pressed,
+// because words that may end up in public are chosen differently from words to
+// a maker alone — and it promises no link afterwards, since there may never be
+// an issue to link to.
 //
 // Not gated on the reports switch: pressing Send is its own decision, for this
 // one message. Nothing typed is lost to a failure — the form stays filled.
@@ -38,11 +39,23 @@
 // person who does not know how to begin; each is added on a line of its own
 // after what is typed, never over it, and through the field's own editing so
 // ⌘Z takes it back out.
-import { useRef, useState, type FormEvent } from "react";
+//
+// A SCREENSHOT CAN COME WITH IT, up to three, and the form is no taller for a
+// person who never adds one: "Add a screenshot" sits in the message's label
+// row, and the thumbnails appear under the message only once there is one. An
+// image arrives the way a screenshot does — pasted, the most common way, or
+// dropped anywhere on the dialog, which says so while a file is over it — or
+// through the picker. What is checked and redrawn before it goes is
+// feedback-images.ts's; FeedbackShots.tsx draws it. With no image, Send posts
+// the same JSON it always did.
+import { useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import SuccessMark from "./SuccessMark";
+import FeedbackShots, { AddScreenshot, ImageGlyph } from "./FeedbackShots";
+import { carriesFiles, feedbackRequest, shouldAttachPaste } from "../feedback-images";
+import { useFeedbackImages } from "../use-feedback-images";
 
 export type Kind = "bug" | "idea" | "other";
 /** How a caller seeds the dialog — the error boundary opens it as a filled-in
@@ -253,10 +266,16 @@ type Outcome =
   | { state: "sent" }
   | { state: "failed"; message: string };
 
-/** What the server's answer means for the person who pressed Send. */
-export function feedbackFailure(status: number, reason: unknown): string {
+/** What the server's answer means for the person who pressed Send. `errors` is
+ *  a 400's, keyed by field; an image's is quoted, since it names which one. */
+export function feedbackFailure(status: number, reason: unknown, errors?: unknown): string {
   if (reason === "vetoed") return "This deck was started with AGENTS_DECK_NO_INSTALL=1, which keeps it off the network, so nothing was sent.";
   if (status === 429 || reason === "too_many") return "Too much feedback from this network in the last hour. Try again later; your text is still here.";
+  if (status === 413 || reason === "too_large") return "The images are too large to send together. Remove one and send again; your text is still here.";
+  const imageError = (errors as { images?: unknown } | null | undefined)?.images;
+  if (status === 400 && Array.isArray(imageError) && typeof imageError[0] === "string") {
+    return `The server did not accept an image. ${imageError[0]} Remove it and send again; your text is still here.`;
+  }
   if (status === 400) return "The server did not accept the title or the text. Both are still here; check them and send again.";
   return "ccdeck's server could not be reached. Nothing was sent; your text is still here, so try again in a moment.";
 }
@@ -311,7 +330,9 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
   const sendingRef = useRef(false);
+  const dragDepth = useRef(0);
   const dialogRef = useModalDismiss(onClose, { focusRef: bodyRef });
   const [kind, setKind] = useState<Kind>(initialKind ?? "bug");
   const [title, setTitle] = useState("");
@@ -319,6 +340,8 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const [contact, setContact] = useState("");
   const [outcome, setOutcome] = useState<Outcome>({ state: "idle" });
   const [triedToSend, setTriedToSend] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const images = useFeedbackImages();
   const armRescue = useFocusRescue(outcome.state === "sent", closeRef);
   const copy = kindCopy(kind);
   const missing = missingFields(title, body);
@@ -355,15 +378,12 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
     sendingRef.current = true;
     setOutcome({ state: "sending" });
     try {
-      const response = await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind, title: sentTitle, body: body.trim(), contact: contact.trim() || undefined }),
-      });
+      const attached = await images.ready();
+      const response = await fetch("/api/feedback", feedbackRequest({ kind, title: sentTitle, body: body.trim(), contact: contact.trim() || undefined }, attached));
       const d = await response.json().catch(() => null);
       setOutcome(response.ok && d?.ok
         ? { state: "sent" }
-        : { state: "failed", message: feedbackFailure(response.status, d?.reason) });
+        : { state: "failed", message: feedbackFailure(response.status, d?.reason, d?.errors) });
     } catch {
       setOutcome({ state: "failed", message: feedbackFailure(0, null) });
     } finally {
@@ -371,12 +391,68 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
     }
   }
 
+  /** The whole dialog takes a dropped file while the form is up. The depth
+   *  counts enters against leaves, since the pointer crossing into a child is
+   *  a leave from its parent and would otherwise flicker the overlay off. */
+  const accepting = outcome.state !== "sent";
+  const fileDrag = (e: DragEvent) => carriesFiles(Array.from(e.dataTransfer.types));
+  function dragEnter(e: DragEvent) {
+    if (!fileDrag(e) || !accepting) return;
+    e.preventDefault();
+    dragDepth.current++;
+    setDragging(true);
+  }
+  function dragOver(e: DragEvent) {
+    if (!fileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = accepting ? "copy" : "none";
+  }
+  function dragLeave(e: DragEvent) {
+    if (!fileDrag(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  }
+  function drop(e: DragEvent) {
+    if (!fileDrag(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    if (accepting) images.add(Array.from(e.dataTransfer.files));
+  }
+  /** A file let go beside the dialog would otherwise open in place of the
+   *  deck, and everything typed would go with it. */
+  function refuseBesideDialog(e: DragEvent) {
+    if (e.target !== e.currentTarget || !fileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "none";
+  }
+  function dropBesideDialog(e: DragEvent) {
+    if (fileDrag(e)) e.preventDefault();
+  }
+  /** A pasted screenshot, from anywhere in the dialog — see shouldAttachPaste
+   *  for when a paste is words instead. */
+  function paste(e: ClipboardEvent) {
+    if (!accepting) return;
+    const files = Array.from(e.clipboardData.files);
+    const field = e.target;
+    const intoTextField = field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement;
+    const hasText = Array.from(e.clipboardData.types).includes("text/plain");
+    if (!shouldAttachPaste({ files: files.length, hasText, intoTextField })) return;
+    e.preventDefault();
+    images.add(files);
+  }
+
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" onClick={onClose} role="presentation" onDragOver={refuseBesideDialog} onDrop={dropBesideDialog}>
       <div
         ref={dialogRef}
         className="modal feedback-dialog"
         onClick={e => e.stopPropagation()}
+        onDragEnter={dragEnter}
+        onDragOver={dragOver}
+        onDragLeave={dragLeave}
+        onDrop={drop}
+        onPaste={paste}
         role="dialog"
         aria-modal="true"
         aria-labelledby="feedback-title"
@@ -445,7 +521,10 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                   twice, once as the name and once as the description. */}
               <div className="fb-fields">
                 <div className="fb-field">
-                  <label className="fb-label" htmlFor="fb-body">{copy.bodyLabel}</label>
+                  <div className="fb-label-row">
+                    <label className="fb-label" htmlFor="fb-body">{copy.bodyLabel}</label>
+                    <AddScreenshot images={images} buttonRef={addRef} />
+                  </div>
                   {/* Before the field, so Tab from the message goes on to the
                       title and a starter is one Shift+Tab back. */}
                   <div className="fb-starters" role="group" aria-label="Start a sentence with">
@@ -469,6 +548,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                     required
                   />
                   {bodyMissing && <p id="fb-body-error" className="fb-error">{bodyError}</p>}
+                  <FeedbackShots images={images} addRef={addRef} />
                 </div>
                 <div className="fb-field">
                   <label className="fb-label" htmlFor="fb-title">
@@ -523,7 +603,8 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                 </svg>
                 <p>
                   This goes to the people who make ccdeck, with your ccdeck version and system. They may open a
-                  public GitHub issue from it; how to reach you is never put there.
+                  public GitHub issue from it; your images and how to reach you stay with them and are never put
+                  there.
                 </p>
               </div>
               {outcome.state === "failed" && <p className="fb-error" role="alert">{outcome.message}</p>}
@@ -539,6 +620,13 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
             </div>
           </form>
         )}
+        <div className="fb-drop" aria-hidden="true" data-active={dragging || undefined}>
+          <div className="fb-drop-frame">
+            <ImageGlyph className="fb-drop-glyph" />
+            <p className="fb-drop-title">Drop to attach</p>
+            <p className="fb-drop-note">PNG or JPEG, up to three</p>
+          </div>
+        </div>
       </div>
     </div>
   );

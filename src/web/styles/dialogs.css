@@ -199,7 +199,7 @@
    message grows the body and never pushes the button off the dialog.
    The fields are the accounts panel's own text field (.ap-manage-input),
    already swept for edge contrast, placeholder colour and the focus ring. */
-.modal.feedback-dialog { width: min(520px, 92vw); }
+.modal.feedback-dialog { position: relative; width: min(520px, 92vw); }
 /* The form is the column between the header and the foot's edge, so it has to
    pass the modal's height down: min-height 0 is what lets .modal-body scroll
    inside it instead of the form overflowing the 82vh the modal allows. */
@@ -353,6 +353,150 @@
 .fb-starter:hover { border-color: var(--text); background: var(--ctl-fill); color: var(--text); }
 .fb-starter:active { transform: scale(0.97); }
 
+/* IMAGES. The way to add one sits at the end of the message's label row, where
+   the other fields say "optional", so the form is no taller for a person who
+   never adds one: a glyph and its words, edgeless at rest like the other quiet
+   controls named by their own word, taking the control edge and fill under the
+   pointer. Its 24px target is pulled back into the label's 16px line by the
+   negative block margins .glyph-btn uses for the same reason. */
+.fb-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.fb-attach {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: -4px -6px -4px 0;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fb-attach:hover,
+.fb-attach:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+.fb-attach:active { transform: scale(0.97); }
+
+/* The strip under the message, once there is an image: the thumbnails and
+   their count on one line, what a screenshot can show under them. Each image
+   is a fixed 4:3 box, so a thumbnail still loading moves nothing and a tall
+   screenshot is cropped to the box rather than stretching the row. The 6px
+   above is where the remove buttons stand out past the corners. */
+.fb-shots { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+.fb-shots-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.fb-shots-list { display: flex; gap: 10px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.fb-shot {
+  position: relative;
+  flex: none;
+  transition: opacity 140ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* Arrives rather than appears: a paste gives no other sign it worked. */
+@starting-style {
+  .fb-shot { opacity: 0; transform: scale(0.96); }
+}
+.fb-shot-img {
+  display: block;
+  width: 72px;
+  height: 54px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--bg);
+  object-fit: cover;
+}
+/* Fitting. The words say it, on the image's own box, so nothing about the wait
+   is carried by a dimmed picture alone. */
+.fb-shot-busy {
+  position: absolute;
+  inset: auto 4px 4px;
+  padding: 0 4px;
+  border-radius: var(--r-tag);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+/* The remove, a disc at the image's corner that stands on the panel rather
+   than on the picture, so it reads the same on any screenshot. It keeps
+   .glyph-btn's 24px target, press and hover; the disc is the panel's with the
+   control edge round it. */
+.fb-shot > .fb-shot-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  background: var(--panel);
+}
+.fb-shots-count {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* DROPPING. While a file is dragged over the dialog, the whole of it says it
+   will take it: the panel nearly covers the form, and a dashed accent frame
+   inside it holds the words. It fades in fast and eases its frame up from
+   0.98, and goes faster than it came, since leaving is the system answering;
+   it is always drawn and only shown, so a drag that crosses in and out retargets
+   the transition rather than restarting it. Never a target itself — the dialog
+   under it is — and hidden from assistive technology, which is offered the
+   picker and the paste instead. */
+.fb-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  padding: 12px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 100ms ease-out, visibility 0s linear 100ms;
+}
+.fb-drop[data-active] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s;
+}
+.fb-drop-frame {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--r-ctl);
+  color: var(--accent);
+  transform: scale(0.98);
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fb-drop[data-active] .fb-drop-frame { transform: none; }
+.fb-drop-glyph { display: block; width: 20px; height: 20px; }
+.fb-drop-title { margin: 0; color: var(--text); font-size: 14px; font-weight: 600; }
+.fb-drop-note { margin: 0; color: var(--muted); font-size: 12px; }
+
 /* What happens to it, in a well of its own under the fields and over Send: the
    last thing read before pressing. An eye rather than a lock, because the
    sentence says it may become public — a lock would promise more than it does. */
@@ -474,6 +618,10 @@
   /* Comprehension stays, movement goes: the panel fades in without travelling;
      the mark's own answer is add-account.css's. */
   .fb-done { animation: fadeIn 160ms ease both; }
+  /* The drop overlay and a new thumbnail keep their fade, which is what says
+     something changed, and lose their scale. */
+  .fb-drop-frame { transform: none; transition: none; }
+  .fb-shot { transition: opacity 140ms ease-out; }
 }
 
 /* ---------------- keyboard shortcuts sheet ---------------- */

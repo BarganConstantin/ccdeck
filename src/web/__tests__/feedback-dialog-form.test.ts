@@ -228,7 +228,10 @@ describe("the title is optional, and an empty one is the message's own first lin
     // A whitespace-only title is no title.
     expect(titleToSend(" \t ", "The chime is loud.")).toBe("The chime is loud");
     expect(source).toMatch(/const sentTitle = titleToSend\(title, body\);/);
-    expect(flat).toMatch(/JSON\.stringify\(\{ kind, title: sentTitle, body: body\.trim\(\), contact: contact\.trim\(\) \|\| undefined \}\)/);
+    // The fields went straight into JSON.stringify here; they go through
+    // feedbackRequest now, which posts that same JSON when there are no images
+    // and a form when there are (feedback-images.test.ts pins the JSON).
+    expect(flat).toMatch(/feedbackRequest\(\{ kind, title: sentTitle, body: body\.trim\(\), contact: contact\.trim\(\) \|\| undefined \}, attached\)/);
   });
 
   it("shows the title that will be sent in the empty field, as the message is typed", () => {
@@ -400,11 +403,15 @@ describe("once it is sent", () => {
 
 describe("what it says about where this goes", () => {
   it("keeps the whole promise, word for word, before Send", () => {
+    // Widened when images came (the owner's call): they stay with the people
+    // who make ccdeck, as the contact does. Every promise the old sentence
+    // made is still in this one — who it goes to, what rides with it, that an
+    // issue may be opened, that the contact is never put there.
     expect(flat).toContain(
       "This goes to the people who make ccdeck, with your ccdeck version and system. They may open a " +
-      "public GitHub issue from it; how to reach you is never put there.",
+      "public GitHub issue from it; your images and how to reach you stay with them and are never put there.",
     );
-    expect(flat.indexOf("how to reach you is never put there")).toBeLessThan(flat.indexOf('type="submit"'));
+    expect(flat.indexOf("how to reach you stay with them and are never put there")).toBeLessThan(flat.indexOf('type="submit"'));
   });
 
   it("still marks how to reach you as optional", () => {
