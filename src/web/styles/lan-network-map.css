@@ -591,10 +591,13 @@
    replacing another; and the keyboard's never animates. Blur on a panel this
    size is cheap, and it is off the stage, where the lights run. */
 @keyframes nm-rise { from { opacity: 0; transform: translateY(4px); filter: blur(2px); } }
-/* Between two decks only the values change: the frame, the labels and the
-   button stay where they are, and what they say crossfades through a slight
-   blur. */
-@keyframes nm-swap { from { opacity: 0.35; filter: blur(1.5px); } }
+/* Between two decks the frame stays where it is and what it says arrives
+   again: a few pixels up out of a blur, top to bottom in a quick cascade.
+   Quick, because a pointer sweeping the ring sees it tens of times — all of
+   it lands inside a quarter of a second — and visible, because a swap that
+   started at a third of its opacity with a pixel and a half of blur was
+   measured running on every deck and seen on none. */
+@keyframes nm-swap { from { opacity: 0; transform: translateY(3px); filter: blur(3px); } }
 .nm-panel-name {
   display: flex;
   align-items: center;
@@ -723,7 +726,17 @@
   .nm-panel[data-entrance="full"] > :nth-child(5) { animation-delay: 96ms; }
   .nm-panel[data-entrance="full"] > :nth-child(n + 6) { animation-delay: 120ms; }
   .nm-panel[data-entrance="full"] .nm-lane { animation-delay: calc(120ms + min(var(--k, 0), 5) * 20ms); }
-  .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open) { animation: nm-swap 120ms var(--nm-ease) backwards; }
+  /* The cascade's step is a property each part carries rather than a delay
+     rule per part: `:is()` takes the specificity of its most specific
+     argument, so a delay rule for one part lost to the shared rule and every
+     part started at once. */
+  .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open) { animation: nm-swap 180ms var(--nm-ease) var(--nm-swap-at, 0ms) backwards; }
+  .nm-panel-self,
+  .nm-panel-state { --nm-swap-at: 15ms; }
+  .nm-next { --nm-swap-at: 30ms; }
+  .nm-open { --nm-swap-at: 45ms; }
+  .nm-facts { --nm-swap-at: 60ms; }
+  .nm-logins { --nm-swap-at: 75ms; }
   .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-swap 160ms var(--nm-ease) backwards; }
   /* ONE CALM LOOP: the round, on the connected wires only, and most of the
      time at rest. The centre's beacon plays once as the map opens — this
